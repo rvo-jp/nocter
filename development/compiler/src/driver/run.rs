@@ -2,6 +2,7 @@ use super::errors::{
     exit_for_diagnostics, temporary_executable_diagnostic, write_human_diagnostics,
 };
 use super::pipeline::build_file_to_path_with_target;
+use super::pipeline::build_package_executable_to_path_with_target;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -9,6 +10,20 @@ use std::process::{Command, ExitCode, ExitStatus};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(super) fn run_file(file: &Path, target: &str) -> ExitCode {
+    run_with_builder(|output| build_file_to_path_with_target(file, output, target))
+}
+
+pub(super) fn run_package_file(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    target: &str,
+) -> ExitCode {
+    run_with_builder(|output| {
+        build_package_executable_to_path_with_target(file, package_graph, output, target)
+    })
+}
+
+fn run_with_builder(build: impl FnOnce(&Path) -> super::pipeline::BuildOutput) -> ExitCode {
     let artifact = match RunArtifact::new() {
         Ok(artifact) => artifact,
         Err(error) => {
@@ -18,7 +33,7 @@ pub(super) fn run_file(file: &Path, target: &str) -> ExitCode {
         }
     };
 
-    let output = build_file_to_path_with_target(file, artifact.executable_path(), target);
+    let output = build(artifact.executable_path());
     if !output.is_ok() {
         let exit = exit_for_diagnostics(&output.diagnostics, ExitCode::FAILURE);
         return write_human_diagnostics(&output.diagnostics, Some(&output.sources), exit);

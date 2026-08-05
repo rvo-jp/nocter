@@ -189,11 +189,11 @@ enum AppError {missing_path,open_failed(path:&str)}
 #[test]
 fn formats_target_directive_on_primitive() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!\n",
         ),
     );
@@ -202,11 +202,11 @@ pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 #[test]
 fn formats_target_directive_on_function() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) func free_pages(address:usize,size:usize):void{return}
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) func free_pages(address: usize, size: usize): void {\n",
             "    return\n",
             "}\n",
@@ -217,31 +217,31 @@ pub(nocter) func free_pages(address:usize,size:usize):void{return}
 #[test]
 fn formats_target_directive_on_type_declarations() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) type RawWord=usize
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {pub value:usize,errno:i32}
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) enum PlatformError {interrupted}
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) interface PlatformContract {pub method &self.code():i32}
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) type RawWord = usize\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) copy struct SyscallResult {\n",
             "    pub value: usize,\n",
             "    errno: i32,\n",
             "}\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) enum PlatformError {\n",
             "    interrupted,\n",
             "}\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) interface PlatformContract {\n",
             "    pub method &self.code(): i32\n",
             "}\n",
@@ -317,6 +317,35 @@ func maybe_open(path:&str):File?{return none}
             "\n",
             "func maybe_open(path: &str): File? {\n",
             "    return none\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn canonical_type_notation_preserves_prefix_and_postfix_structure() {
+    assert_formats_stably(
+        concat!(
+            "func optional_borrow(): (&Item)? { return none }\n",
+            "func borrow_optional(value: Item?): &(Item?) { return &value }\n",
+            "func optional_callback(): (func(): Item)? { return none }\n",
+            "func borrow_callback(callback: func(): Item): &(func(): Item) { return &callback }\n",
+        ),
+        concat!(
+            "func optional_borrow(): &Item? {\n",
+            "    return none\n",
+            "}\n",
+            "\n",
+            "func borrow_optional(value: Item?): &(Item?) {\n",
+            "    return &value\n",
+            "}\n",
+            "\n",
+            "func optional_callback(): (func(): Item)? {\n",
+            "    return none\n",
+            "}\n",
+            "\n",
+            "func borrow_callback(callback: func(): Item): &(func(): Item) {\n",
+            "    return &callback\n",
             "}\n",
         ),
     );

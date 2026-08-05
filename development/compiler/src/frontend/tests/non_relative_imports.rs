@@ -160,13 +160,13 @@ func main(): i32 {
 }
 
 #[test]
-fn check_loads_non_relative_imports_from_source_root_before_nocter_home() {
-    let root = make_temp_project("source-root-import");
+fn check_loads_relative_imports_without_an_implicit_project_search_root() {
+    let root = make_temp_project("relative-import");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
         root.join("app.nct"),
-        r#"use lib/math.answer
+        r#"use ./lib/math.answer
 
 func main(): i32 {
     return answer()
@@ -201,8 +201,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_source_root_std_shadows_nocter_home_std() {
-    let root = make_temp_project("source-root-std-shadow");
+fn check_standard_library_is_not_shadowed_by_project_directories() {
+    let root = make_temp_project("std-no-shadow");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("std")).unwrap();
     fs::write(
@@ -217,16 +217,16 @@ func main(): i32 {
     .unwrap();
     fs::write(
         root.join("std/io.nct"),
-        r#"pub func answer(): i32 {
-    return 1
+        r#"pub func answer(): &str {
+    return "project"
 }
 "#,
     )
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"pub func answer(): &str {
-    return "home"
+        r#"pub func answer(): i32 {
+    return 1
 }
 "#,
     )
@@ -241,7 +241,7 @@ func main(): i32 {
 }
 
 #[test]
-fn check_nocter_home_imports_ignore_source_root_shadow() {
+fn check_nocter_home_imports_ignore_package_root_shadow() {
     let root = make_temp_project("nocter-home-import-shadow");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("std")).unwrap();
@@ -258,7 +258,7 @@ func main(): i32 {
     fs::write(
         root.join("std/internal.nct"),
         r#"pub func internal_answer(): &str {
-    return "wrong source root"
+    return "wrong project directory"
 }
 "#,
     )
@@ -297,7 +297,7 @@ fn check_loads_directory_index_module() {
     fs::create_dir_all(root.join("lib/math")).unwrap();
     fs::write(
         root.join("app.nct"),
-        r#"use lib/math.answer
+        r#"use ./lib/math.answer
 
 func main(): i32 {
     return answer()
@@ -329,7 +329,7 @@ fn check_reports_ambiguous_file_and_directory_index_module() {
     fs::create_dir_all(root.join("lib/math")).unwrap();
     fs::write(
         root.join("app.nct"),
-        r#"use lib/math.answer
+        r#"use ./lib/math.answer
 
 func main(): i32 {
     return answer()
@@ -364,7 +364,7 @@ func main(): i32 {
     assert!(
         diagnostics[0]
             .message
-            .contains("ambiguous import `lib/math`"),
+            .contains("ambiguous import `./lib/math`"),
         "{diagnostics:?}"
     );
 }
@@ -376,7 +376,7 @@ fn check_prefers_file_module_when_directory_has_no_index() {
     fs::create_dir_all(root.join("lib/math")).unwrap();
     fs::write(
         root.join("app.nct"),
-        r#"use lib/math.answer
+        r#"use ./lib/math.answer
 
 func main(): i32 {
     return answer()
@@ -402,7 +402,7 @@ func main(): i32 {
 }
 
 #[test]
-fn check_loads_absolute_imports() {
+fn check_rejects_filesystem_absolute_imports_outside_package_mode() {
     let root = make_temp_project("absolute-import-project");
     let home = make_nocter_home(&root);
     let absolute_root = absolute_import_root();
@@ -436,7 +436,13 @@ func main(): i32 {{
     fs::remove_dir_all(&root).unwrap();
     fs::remove_dir_all(&absolute_root).unwrap();
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("package-absolute imports require a package"),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -793,23 +799,23 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"#target("x64-linux")
+        r#"#target: "x64-linux"
 pub(nocter) primitive unknown_for_linux(): void
 
-#target("x64-linux")
+#target: "x64-linux"
 pub func answer(): &str {
     return "inactive"
 }
 
-#target("x64-linux")
+#target: "x64-linux"
 pub type RawAnswer = &str
 
-#target("x64-linux")
+#target: "x64-linux"
 pub copy struct Handle {
     pub raw: &str
 }
 
-#target("x64-linux")
+#target: "x64-linux"
 pub enum Status {
     inactive
 }

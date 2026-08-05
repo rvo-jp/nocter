@@ -1,6 +1,6 @@
 //! Validated ordinary standard-library declarations used by interpolation lowering.
 
-use crate::ast::{AstFile, FunctionDecl, Item, StructDecl, type_expr_display_lossy};
+use crate::ast::{AstFile, FunctionDecl, Item, StructDecl, canonical_type_expr};
 use crate::semantics::{
     InterpolationInputKind, InterpolationRuntime, RuntimeCallable, TrustedDeclarationFacts,
 };
@@ -101,7 +101,7 @@ fn function_shape_matches(
             .iter()
             .zip(parameters)
             .all(|(actual, (name, ty))| {
-                actual.name == *name && type_expr_display_lossy(&actual.ty) == *ty
+                actual.name == *name && canonical_type_expr(&actual.ty) == *ty
             })
         && function_return_type_matches(function, owner, return_type)
 }
@@ -111,7 +111,7 @@ fn function_return_type_matches(
     owner: Option<&str>,
     return_type: &str,
 ) -> bool {
-    let actual = type_expr_display_lossy(&function.return_type);
+    let actual = canonical_type_expr(&function.return_type);
     actual == return_type || actual == "Self" && owner == Some(return_type)
 }
 

@@ -65,6 +65,32 @@ func main(): i32 {
 }
 
 #[test]
+fn check_loads_publicly_reexported_namespace() {
+    let root = make_temp_project("public-relative-namespace-reexport");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("api")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use ./api
+
+func main(): i32 {
+    return api.json.answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("api/index.nct"), "pub use ./json\n").unwrap();
+    fs::write(root.join("api/json.nct"), "pub func answer(): i32 { 7 }\n").unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_directory_index_namespace_uses_directory_name() {
     let root = make_temp_project("relative-directory-namespace-use");
     let home = make_nocter_home(&root);

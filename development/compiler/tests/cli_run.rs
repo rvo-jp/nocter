@@ -56,7 +56,7 @@ fn text(bytes: &[u8]) -> String {
 fn write_process_exit_home(project: &TempProject) {
     project.write_nocter_home_file(
         "std/process.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {

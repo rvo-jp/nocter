@@ -29,8 +29,7 @@ fn type_contains_readwrite_borrow_inner(
                     ))
         }),
         Type::View { is_readwrite, .. } => *is_readwrite,
-        Type::Named(name) if name.starts_with("&+") => true,
-        Type::Named(name) if name.starts_with('&') => false,
+        Type::Borrow { is_readwrite, .. } => *is_readwrite,
         Type::Named(name) => {
             type_symbol_contains_readwrite_borrow(name, resolved, &HashMap::new(), resolving_names)
         }
@@ -213,8 +212,7 @@ pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
                     resolving_names,
                 )
         }),
-        Type::Str | Type::View { .. } => true,
-        Type::Named(name) if name.starts_with('&') => true,
+        Type::Str | Type::View { .. } | Type::Borrow { .. } => true,
         Type::Named(name) => {
             type_symbol_contains_borrow_like(name, resolved, &HashMap::new(), resolving_names)
         }

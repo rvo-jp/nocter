@@ -42,7 +42,25 @@ Rules:
 - `fmt --check` exits successfully only when the file already matches formatter output.
 - `fmt` does not need a target option.
 
-Project-wide formatting is deferred until package roots or manifests exist.
+Project-wide formatting remains deferred after v0.4.0 Phase 0; package identity alone does not
+define comment-preserving traversal, atomic multi-file writes, or partial-failure behavior.
+
+## Package Directives
+
+Package directive records use the same four-space indentation as declarations. Multi-line records
+place one field per line and retain a trailing comma.
+
+```nct
+#name: "json-tool"
+#version: "0.1.0"
+#executable: {
+    name: "json-tool",
+    entry: "./src/app",
+}
+```
+
+Directive values are formatted as declarative data. The formatter does not interpret them as
+ordinary expressions or perform module resolution.
 
 ## Indentation and Blocks
 
@@ -81,6 +99,8 @@ Rules:
 - Fallible optional success is formatted as `T?!`.
 - Optional type syntax is attached to the success type: `T?`.
 - Pointer and borrow syntax is attached to the type: `*T`, `&T`, `&+T`.
+- Optional borrows omit redundant grouping: `&T?` and `&+T?`.
+- A prefix applied to an outcome type retains grouping to preserve meaning: `&(T?)`, `*(T!)`.
 - Generic type arguments are attached to the type name: `Buffer<T>`.
 - Unsized array data type syntax is formatted as `[T]`; array slices are formatted as `&[T]` and `&+[T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
@@ -92,6 +112,7 @@ Examples:
 func open(path: &str): File!
 func env(name: &str): &str?!
 func first(items: &[&str]): &str?
+func borrow_optional(value: T?): &(T?)
 ```
 
 Formatter output uses `T?!` for fallible optional success values because the postfix operators can be read in order: optional success first, fallible wrapper second.
@@ -126,7 +147,7 @@ func read_all(
     ...
 }
 
-pub method &self.get(index: usize): (&T)? from self
+pub method &self.get(index: usize): &T? from self
 func choose<T>(left: &T, right: &T): &T from left | right
 construct String {
     pub default literal ""(text: &str): Self from current { ... }

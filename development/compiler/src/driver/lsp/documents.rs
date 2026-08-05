@@ -8,7 +8,7 @@ pub(super) struct WorkspaceRoot {
     pub(super) path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OpenDocument {
     pub(super) uri: String,
     pub(super) version: Option<i64>,
@@ -90,6 +90,44 @@ pub(super) fn document_uri_from_params(params: Option<&Value>) -> Option<String>
         .map(str::to_string)
 }
 
+pub(super) fn saved_document_from_params(
+    params: Option<&Value>,
+) -> Option<(String, Option<String>)> {
+    let params = params?;
+    let uri = params
+        .get("textDocument")?
+        .get("uri")?
+        .as_str()?
+        .to_string();
+    let text = params
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some((uri, text))
+}
+
+pub(super) fn supports_dynamic_file_watching(params: Option<&Value>) -> bool {
+    params
+        .and_then(|params| params.get("capabilities"))
+        .and_then(|capabilities| capabilities.get("workspace"))
+        .and_then(|workspace| workspace.get("didChangeWatchedFiles"))
+        .and_then(|watching| watching.get("dynamicRegistration"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+pub(super) fn changed_file_paths_from_params(params: Option<&Value>) -> Vec<PathBuf> {
+    params
+        .and_then(|params| params.get("changes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|change| change.get("uri").and_then(Value::as_str))
+        .filter_map(file_uri_to_path)
+        .map(|path| path.canonicalize().unwrap_or(path))
+        .collect()
+}
+
 pub(super) fn open_document(uri: String, version: Option<i64>, text: String) -> OpenDocument {
     let path = file_uri_to_path(&uri);
     let display_path = path
@@ -117,6 +155,6 @@ pub(super) fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
 fn workspace_root_from_uri(uri: &str) -> WorkspaceRoot {
     WorkspaceRoot {
         uri: uri.to_string(),
-        path: file_uri_to_path(uri),
+        path: file_uri_to_path(uri).map(|path| path.canonicalize().unwrap_or(path)),
     }
 }

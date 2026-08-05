@@ -630,7 +630,7 @@ fn build_file_output_runs_write_text_raw_catch_failure() {
         nocter_home.join("std/io.nct"),
         r#"use std/error.Error
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func fail_write(): void! {
@@ -687,7 +687,7 @@ pub func bytes(value: &str): &[u8] {
         r#"use std/error.Error
 use std/string.bytes
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 pub func fail_write(): void! {
@@ -743,7 +743,7 @@ pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
 pub func fail_read(): void! {
@@ -1047,7 +1047,7 @@ fn build_file_output_runs_fallible_str_call_success_propagation() {
     let nocter_home = make_nocter_home(&root);
     fs::write(
         nocter_home.join("std/io.nct"),
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write(text: &str): void! {
@@ -1150,7 +1150,7 @@ fn build_file_output_runs_std_print_hello_world_through_namespace_import() {
     let nocter_home = make_nocter_home(&root);
     fs::write(
         nocter_home.join("std/io.nct"),
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func print(text: &str): void! {
@@ -1226,7 +1226,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 fn frontend_options(nocter_home: PathBuf) -> FrontendOptions {
     FrontendOptions {
         nocter_home: Some(nocter_home),
-        source_root: None,
+        package_graph: None,
         target: DEFAULT_TARGET.to_string(),
     }
 }

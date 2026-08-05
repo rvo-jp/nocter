@@ -1,5 +1,6 @@
 //! Front-end source loading, parsing, and compile-unit construction.
 
+mod dependencies;
 mod diagnostics;
 mod imports;
 mod module_discovery;
@@ -20,6 +21,8 @@ use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
+use dependencies::SourceDependencyTrace;
+pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
     import_source_diagnostic, nocter_visibility_outside_nocter_home_diagnostic,
     primitive_outside_nocter_home_diagnostic, primitive_registry_diagnostic,
@@ -28,7 +31,7 @@ use imports::{
     active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
     resolve_import_path,
 };
-use parsing::parse_source_for_check;
+use parsing::{parse_package_source_for_check, parse_source_for_check};
 use prelude::{should_load_prelude, standard_prelude_path};
 
 pub(crate) use module_discovery::module_segment_candidates;
@@ -36,7 +39,7 @@ pub(crate) use module_discovery::module_segment_candidates;
 #[derive(Debug, Clone)]
 pub(crate) struct FrontendOptions {
     pub(crate) nocter_home: Option<PathBuf>,
-    pub(crate) source_root: Option<PathBuf>,
+    pub(crate) package_graph: Option<crate::package::PackageGraph>,
     pub(crate) target: String,
 }
 
@@ -44,7 +47,7 @@ impl Default for FrontendOptions {
     fn default() -> Self {
         Self {
             nocter_home: None,
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         }
     }
@@ -55,13 +58,27 @@ pub(crate) fn load_compile_unit(
     root: SourceId,
     options: &FrontendOptions,
 ) -> Result<CompileUnit, Vec<Diagnostic>> {
+    load_compile_unit_with_trace(sources, root, options).result
+}
+
+pub(crate) struct CompileUnitLoad {
+    pub(crate) result: Result<CompileUnit, Vec<Diagnostic>>,
+    pub(crate) loaded_sources: HashSet<SourceId>,
+    pub(crate) dependency_paths: HashSet<PathBuf>,
+}
+
+pub(crate) fn load_compile_unit_with_trace(
+    sources: &mut SourceMap,
+    root: SourceId,
+    options: &FrontendOptions,
+) -> CompileUnitLoad {
     let mut queue = VecDeque::from([root]);
-    let mut queued_sources = HashSet::from([root]);
+    let mut dependencies = SourceDependencyTrace::default();
+    dependencies.record_source(root);
     let mut loaded_sources_by_path = std::collections::HashMap::new();
     let mut import_sources = ImportSourceMap::new();
     let mut prelude_sources = PreludeSourceMap::new();
     let mut resolved_nocter_home = None;
-    let source_root = active_source_root(sources, root, options);
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
@@ -72,7 +89,12 @@ pub(crate) fn load_compile_unit(
     }
 
     while let Some(source) = queue.pop_front() {
-        let mut ast = match parse_source_for_check(sources, source) {
+        let parse_result = if source_is_package_file(sources, source, options) {
+            parse_package_source_for_check(sources, source)
+        } else {
+            parse_source_for_check(sources, source)
+        };
+        let mut ast = match parse_result {
             Ok(ast) => ast,
             Err(source_diagnostics) => {
                 diagnostics.extend(source_diagnostics);
@@ -111,8 +133,8 @@ pub(crate) fn load_compile_unit(
                 source,
                 &path,
                 options,
-                None,
                 &mut resolved_nocter_home,
+                &mut dependencies,
             ) {
                 Ok(canonical) => {
                     let imported = match loaded_sources_by_path.get(&canonical).copied() {
@@ -148,7 +170,7 @@ pub(crate) fn load_compile_unit(
                             },
                         );
 
-                        if queued_sources.insert(imported) {
+                        if dependencies.record_source(imported) {
                             queue.push_back(imported);
                         }
                     }
@@ -170,8 +192,8 @@ pub(crate) fn load_compile_unit(
                 source,
                 path,
                 options,
-                source_root.as_deref(),
                 &mut resolved_nocter_home,
+                &mut dependencies,
             ) {
                 Ok(path) => path,
                 Err(diagnostic) => {
@@ -212,21 +234,31 @@ pub(crate) fn load_compile_unit(
                 },
             );
 
-            if queued_sources.insert(imported) {
+            if dependencies.record_source(imported) {
                 queue.push_back(imported);
             }
         }
     }
 
     if !diagnostics.is_empty() {
-        return Err(diagnostics);
+        let (loaded_sources, dependency_paths) = dependencies.into_parts();
+        return CompileUnitLoad {
+            result: Err(diagnostics),
+            loaded_sources,
+            dependency_paths,
+        };
     }
 
     let Some(root_ast) = root_ast else {
-        return Err(vec![Diagnostic::error(
-            "E0200",
-            "root source did not produce an AST and did not report a diagnostic",
-        )]);
+        let (loaded_sources, dependency_paths) = dependencies.into_parts();
+        return CompileUnitLoad {
+            result: Err(vec![Diagnostic::error(
+                "E0200",
+                "root source did not produce an AST and did not report a diagnostic",
+            )]),
+            loaded_sources,
+            dependency_paths,
+        };
     };
 
     let nocter_home = resolved_nocter_home
@@ -249,14 +281,19 @@ pub(crate) fn load_compile_unit(
         &trusted_modules,
         &mut trusted_declarations,
     );
-    Ok(CompileUnit::new(
-        root_ast,
-        files,
-        import_sources,
-        prelude_sources,
-        nocter_home,
-    )
-    .with_trusted_declarations(trusted_declarations))
+    let (loaded_sources, dependency_paths) = dependencies.into_parts();
+    CompileUnitLoad {
+        result: Ok(CompileUnit::new(
+            root_ast,
+            files,
+            import_sources,
+            prelude_sources,
+            nocter_home,
+        )
+        .with_trusted_declarations(trusted_declarations)),
+        loaded_sources,
+        dependency_paths,
+    }
 }
 
 fn trusted_module_path(
@@ -273,18 +310,19 @@ fn trusted_module_path(
     primitive_module_path(&source_path, &home, &options.target)
 }
 
-fn active_source_root(
+fn source_is_package_file(
     sources: &SourceMap,
-    root: SourceId,
+    source: SourceId,
     options: &FrontendOptions,
-) -> Option<PathBuf> {
-    options.source_root.clone().or_else(|| {
-        sources
-            .get(root)
-            .and_then(|file| file.absolute_path())
-            .and_then(|path| path.parent())
-            .map(canonicalize_existing)
-    })
+) -> bool {
+    let Some(path) = sources.get(source).and_then(|file| file.absolute_path()) else {
+        return false;
+    };
+    path.file_name().is_some_and(|name| name == "nocter.nct")
+        || options
+            .package_graph
+            .as_ref()
+            .is_some_and(|graph| graph.is_package_file(path))
 }
 
 fn filter_target_items(ast: &mut AstFile, target: &str) {

@@ -156,13 +156,14 @@ pub(super) fn resolve_sequence_spread(
 }
 
 fn readonly_referent_type(item: &Type) -> Option<Type> {
-    let Type::Named(name) = item else {
-        return None;
-    };
-    let inner = name
-        .strip_prefix('&')
-        .filter(|name| !name.starts_with('+'))?;
-    Some(super::type_expr::simple_type_from_display_name(inner))
+    match item {
+        Type::Borrow {
+            is_readwrite: false,
+            inner,
+        } => Some(inner.as_ref().clone()),
+        Type::Str => Some(Type::StrData),
+        _ => None,
+    }
 }
 
 pub(super) fn resolve_collection_iteration(

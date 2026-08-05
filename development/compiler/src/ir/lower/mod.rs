@@ -36,8 +36,7 @@ use crate::analysis::{
 };
 use crate::ast::{
     DropDecl, FunctionDecl, GenericType, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl,
-    Parameter, Stmt, TypeExpr, TypeReference, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -1256,7 +1255,7 @@ fn method_target_name(type_name: &str, method_name: &str) -> String {
 }
 
 fn drop_target_name(self_ty: &TypeExpr) -> String {
-    format!("{}.drop", type_expr_display_lossy(self_ty))
+    format!("{}.drop", canonical_type_expr(self_ty))
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {

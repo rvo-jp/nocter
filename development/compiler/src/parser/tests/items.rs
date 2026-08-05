@@ -5,6 +5,28 @@ use super::support::{
 use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
+fn rejects_package_directives_in_an_ordinary_module() {
+    let output = parse_text("#name: \"json-tool\"\n");
+    assert!(output.ast.is_none());
+    assert!(!output.diagnostics.is_empty());
+}
+
+#[test]
+fn rejects_removed_parenthesized_target_directive() {
+    let output = parse_text(
+        r#"#target("arm64-darwin")
+func main(): i32 { 0 }
+"#,
+    );
+    assert!(output.ast.is_none());
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected `:` after `#target`")
+    );
+}
+
+#[test]
 fn parses_hello_entry_function() {
     let output = parse_text(
         r#"use std/io.print
@@ -1233,7 +1255,7 @@ fn diagnoses_embedding_declarations_as_deferred() {
 #[test]
 fn parses_target_directive_on_primitive_declaration() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -1259,7 +1281,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 #[test]
 fn parses_target_directive_on_function_declaration() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 func main(): i32 {
     return 0
 }
@@ -1283,21 +1305,21 @@ func main(): i32 {
 #[test]
 fn parses_target_directive_on_type_declarations() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) type RawWord = usize
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) enum PlatformError {
     interrupted
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) interface PlatformContract {
     pub method &self.code(): i32
 }

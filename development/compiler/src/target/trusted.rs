@@ -1,6 +1,6 @@
 //! Registry for semantic roles owned by trusted standard-library declarations.
 
-use crate::ast::{AstFile, Item, type_expr_display_lossy};
+use crate::ast::{AstFile, Item, canonical_type_expr};
 use crate::semantics::{
     AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationFacts,
     TrustedDeclarationRole,
@@ -139,7 +139,7 @@ fn allocator_shape_matches(struct_: &crate::ast::StructDecl) -> bool {
 }
 
 fn field_matches(field: &crate::ast::StructField, name: &str, ty: &str) -> bool {
-    field.name == name && type_expr_display_lossy(&field.ty) == ty
+    field.name == name && canonical_type_expr(&field.ty) == ty
 }
 
 fn function_shape_matches(
@@ -156,7 +156,7 @@ fn function_shape_matches(
             .iter()
             .zip(parameters)
             .all(|(actual, (name, ty))| {
-                actual.name == *name && type_expr_display_lossy(&actual.ty) == *ty
+                actual.name == *name && canonical_type_expr(&actual.ty) == *ty
             })
-        && type_expr_display_lossy(&function.return_type) == return_type
+        && canonical_type_expr(&function.return_type) == return_type
 }

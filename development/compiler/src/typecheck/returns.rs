@@ -154,9 +154,9 @@ pub(super) fn check_return_types(
                     let mut environment = environment_for_literal(literal, resolved);
                     let mut borrow_provenance = ProvenanceEnvironment::default();
                     let context = ReturnContext::new(
-                        CallableKind::Literal(
-                            crate::typecheck::type_expr::type_expr_display_lossy(&literal.target),
-                        ),
+                        CallableKind::Literal(crate::typecheck::type_expr::canonical_type_expr(
+                            &literal.target,
+                        )),
                         type_expr_to_type_in_environment(
                             &literal.return_type,
                             resolved,

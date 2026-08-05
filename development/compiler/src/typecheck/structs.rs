@@ -9,10 +9,7 @@ use super::diagnostics::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::{
-    simple_type_from_display_name, type_expr_to_type_in_environment,
-    type_expr_to_type_with_substitutions,
-};
+use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::visibility::member_visibility_is_accessible;
 use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
 use crate::diagnostics::Diagnostic;
@@ -284,13 +281,7 @@ fn struct_type_symbol_for_type<'a>(
 
 fn struct_owner_type(ty: &Type) -> Type {
     match ty {
-        Type::Named(name) => {
-            let unborrowed = name
-                .strip_prefix("&+")
-                .or_else(|| name.strip_prefix('&'))
-                .unwrap_or(name);
-            simple_type_from_display_name(unborrowed)
-        }
+        Type::Borrow { inner, .. } => inner.as_ref().clone(),
         _ => ty.clone(),
     }
 }
@@ -333,12 +324,12 @@ fn generic_substitutions_for_owner(
         .zip(
             arguments
                 .into_iter()
-                .map(|argument| normalize_unresolved_display_type_parameters(argument, resolved)),
+                .map(|argument| normalize_unresolved_type_parameters(argument, resolved)),
         )
         .collect()
 }
 
-fn normalize_unresolved_display_type_parameters(ty: Type, resolved: &ResolveOutput) -> Type {
+fn normalize_unresolved_type_parameters(ty: Type, resolved: &ResolveOutput) -> Type {
     match ty {
         Type::Named(name)
             if is_plain_display_type_parameter_name(&name)
@@ -351,41 +342,38 @@ fn normalize_unresolved_display_type_parameters(ty: Type, resolved: &ResolveOutp
             name,
             arguments: arguments
                 .into_iter()
-                .map(|argument| normalize_unresolved_display_type_parameters(argument, resolved))
+                .map(|argument| normalize_unresolved_type_parameters(argument, resolved))
                 .collect(),
         },
-        Type::Pointer(inner) => Type::Pointer(Box::new(
-            normalize_unresolved_display_type_parameters(*inner, resolved),
-        )),
-        Type::Optional(inner) => Type::Optional(Box::new(
-            normalize_unresolved_display_type_parameters(*inner, resolved),
-        )),
+        Type::Pointer(inner) => Type::Pointer(Box::new(normalize_unresolved_type_parameters(
+            *inner, resolved,
+        ))),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Type::Borrow {
+            is_readwrite,
+            inner: Box::new(normalize_unresolved_type_parameters(*inner, resolved)),
+        },
+        Type::Optional(inner) => Type::Optional(Box::new(normalize_unresolved_type_parameters(
+            *inner, resolved,
+        ))),
         Type::Fallible { success, error } => Type::Fallible {
-            success: Box::new(normalize_unresolved_display_type_parameters(
-                *success, resolved,
-            )),
-            error: Box::new(normalize_unresolved_display_type_parameters(
-                *error, resolved,
-            )),
+            success: Box::new(normalize_unresolved_type_parameters(*success, resolved)),
+            error: Box::new(normalize_unresolved_type_parameters(*error, resolved)),
         },
         Type::View {
             is_readwrite,
             element,
         } => Type::View {
             is_readwrite,
-            element: Box::new(normalize_unresolved_display_type_parameters(
-                *element, resolved,
-            )),
+            element: Box::new(normalize_unresolved_type_parameters(*element, resolved)),
         },
         Type::ArrayData { element } => Type::ArrayData {
-            element: Box::new(normalize_unresolved_display_type_parameters(
-                *element, resolved,
-            )),
+            element: Box::new(normalize_unresolved_type_parameters(*element, resolved)),
         },
         Type::Array { element, length } => Type::Array {
-            element: Box::new(normalize_unresolved_display_type_parameters(
-                *element, resolved,
-            )),
+            element: Box::new(normalize_unresolved_type_parameters(*element, resolved)),
             length,
         },
         _ => ty,

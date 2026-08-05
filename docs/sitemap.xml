@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://nocter.dev/development/docs/allocator-ownership/</loc>
-    <lastmod>2026-08-02</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -26,7 +26,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/interface-implementations/</loc>
-    <lastmod>2026-08-04</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -55,6 +55,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/docs/lsp-snapshots/</loc>
+    <lastmod>2026-08-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/docs/lsp/</loc>
     <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
@@ -74,6 +80,12 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/outcomes-process-context/</loc>
+    <lastmod>2026-08-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/docs/packages/</loc>
     <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -110,12 +122,18 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/v0.2.0/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/v0.3.0/</loc>
+    <lastmod>2026-08-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/docs/v0.4.0/</loc>
     <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -139,6 +157,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/packaging/v0.4.0-release-notes/</loc>
+    <lastmod>2026-08-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/</loc>
     <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
@@ -152,19 +176,19 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/00-design-principles/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/00-overview/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/00-v0.2.0-contract/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -176,13 +200,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/02-values-types/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/03-control-flow/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -194,7 +218,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/05-ownership-borrowing-drop/</loc>
-    <lastmod>2026-08-04</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -218,13 +242,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/09-abi-layout/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/10-targets-distribution/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -236,7 +260,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/12-diagnostics/</loc>
-    <lastmod>2026-08-02</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -248,13 +272,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/14-tooling-editor-integration/</loc>
-    <lastmod>2026-08-04</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/15-command-line-interface/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -272,7 +296,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/18-callables-default-methods/</loc>
-    <lastmod>2026-08-04</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -284,13 +308,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/examples/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/guides/ai/</loc>
-    <lastmod>2026-08-04</lastmod>
+    <lastmod>2026-08-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

@@ -50,6 +50,40 @@ fn parses_compact_optional_fallible_return_type() {
 }
 
 #[test]
+fn distinguishes_optional_borrow_from_borrow_of_optional() {
+    let output = parse_text(
+        r#"func optional_borrow(): &Item? {
+    return none
+}
+
+func borrow_optional(value: Item?): &(Item?) {
+    return &value
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(optional_borrow) = &ast.items[0] else {
+        panic!("expected function declaration");
+    };
+    assert!(matches!(
+        &optional_borrow.return_type,
+        TypeExpr::Optional(optional)
+            if matches!(optional.inner.as_ref(), TypeExpr::Borrow(_))
+    ));
+
+    let Item::Function(borrow_optional) = &ast.items[1] else {
+        panic!("expected function declaration");
+    };
+    assert!(matches!(
+        &borrow_optional.return_type,
+        TypeExpr::Borrow(borrow)
+            if matches!(borrow.inner.as_ref(), TypeExpr::Optional(_))
+    ));
+}
+
+#[test]
 fn parses_builtin_view_and_array_types() {
     let output = parse_text(
         r#"pub func checksum(bytes: &[u8], output: &+[u8], header: [u8; 4]): &str {

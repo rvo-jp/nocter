@@ -2,8 +2,16 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_uses_main_nct_when_source_is_omitted() {
+fn run_command_uses_package_declared_executable_when_source_is_omitted() {
     let project = TempProject::new("cli-run-default-source");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: {
+    name: "app",
+    entry: "./main",
+}
+"#,
+    );
     project.write_source(
         "main.nct",
         r#"func main(): i32 {

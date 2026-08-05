@@ -337,6 +337,10 @@ fn type_is_copy_maybe_inner(
             resolving_names,
         ),
         Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => Some(true),
+        Type::Borrow {
+            is_readwrite: false,
+            ..
+        } => Some(true),
         Type::View {
             is_readwrite: false,
             ..
@@ -365,6 +369,9 @@ fn type_is_copy_maybe_inner(
         | Type::None
         | Type::ArrayData { .. }
         | Type::View {
+            is_readwrite: true, ..
+        }
+        | Type::Borrow {
             is_readwrite: true, ..
         } => Some(false),
         Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => None,

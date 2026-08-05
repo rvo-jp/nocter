@@ -65,7 +65,7 @@ fn lower_text_with_development_home(text: &str) -> IrModule {
         source,
         &FrontendOptions {
             nocter_home: Some(nocter_home),
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         },
     )
@@ -98,16 +98,13 @@ fn lower_named_function_with_signatures(
     let fixture = analyze_text_fixture(text);
     let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(analysis, root.ast.span.source);
     let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
         matches!(item, crate::ast::Item::Function(function) if function.name == function_name)
     }) else {
         panic!("missing function `{function_name}`");
     };
-    let resolved_sources = analysis
-        .files
-        .iter()
-        .map(|file| (file.ast.span.source, &file.resolved))
-        .collect();
+    let function_signatures = index.signatures().with_test_overrides(function_signatures);
 
     functions::lower_function(
         function,
@@ -116,12 +113,12 @@ fn lower_named_function_with_signatures(
         &fixture.sources,
         CallTarget::same_file(function_name),
         function_signatures,
-        context::FunctionNames::default(),
+        index.names(),
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
-        resolved_sources,
-        context::ErrorPayloads::default(),
+        index.resolved_sources(),
+        index.error_payloads(root.ast.span.source),
     )
 }
 
@@ -473,7 +470,7 @@ fn analyze_text_fixture_with_nocter_home_files(
         source,
         &FrontendOptions {
             nocter_home: Some(nocter_home),
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         },
     )
@@ -502,16 +499,16 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 fn std_io_file() -> (&'static str, &'static str) {
     (
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive close_fd_raw(fd: i32): void
 
 pub func print(text: &str): void! {
@@ -539,7 +536,7 @@ fn std_process_file() -> (&'static str, &'static str) {
         "std/process.nct",
         r#"use std/os.trap
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {
@@ -556,10 +553,10 @@ pub func abort(): never {
 fn std_os_file() -> (&'static str, &'static str) {
     (
         "std/os.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive unreachable(): never
 "#,
     )

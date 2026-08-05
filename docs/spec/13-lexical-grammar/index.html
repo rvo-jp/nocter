@@ -149,6 +149,7 @@
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+                <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
                 <li><a href="../00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
             </ul>
@@ -241,9 +242,9 @@ eof
 /=
 %=
 #
-</code></pre><p>Rules:</p><ul><li><code>&amp;+</code> is one token. It is used for readwrite borrow syntax.</li><li><code>..&lt;</code> is one token. It is used only in the initial <code>for name in start..&lt;end</code> range syntax.</li><li><code>#</code> is punctuation. In v0.2.0 it is used only by the <code>#target("target-name")</code>
-  directive form. The lexer does not treat <code>target</code> as a reserved keyword.</li><li><code>@</code> is reserved for possible future attribute-like syntax and is invalid in v0.2.0 outside string literals, byte literals, and comments.</li><li>Unary <code>+expr</code> is not part of the language even though <code>+</code> is a valid additive operator token.</li></ul><p><code>#target("target-name")</code> is tokenized as ordinary punctuation, identifier, and string tokens:</p><pre><code class="language-text"># target ( "target-name" )
-</code></pre><p>The parser recognizes that exact token pattern only before eligible top-level declarations. A <code>#</code> token in any other source position is a syntax error in v0.2.0.</p><h2 id="integer-literals">Integer Literals</h2><p>Adopted: integer literals support decimal, hexadecimal, binary, and <code>_</code> digit separators.</p><p>Forms:</p><pre><code class="language-text">10
+</code></pre><p>Rules:</p><ul><li><code>&amp;+</code> is one token. It is used for readwrite borrow syntax.</li><li><code>..&lt;</code> is one token. It is used only in the initial <code>for name in start..&lt;end</code> range syntax.</li><li><code>#</code> is punctuation. It begins a declarative directive. Directive names remain identifiers rather
+  than reserved keywords.</li><li><code>@</code> is reserved for possible future attribute-like syntax and is invalid in v0.2.0 outside string literals, byte literals, and comments.</li><li>Unary <code>+expr</code> is not part of the language even though <code>+</code> is a valid additive operator token.</li></ul><p><code>#target: "target-name"</code> is tokenized as ordinary punctuation, identifier, punctuation, and string tokens:</p><pre><code class="language-text"># target : "target-name"
+</code></pre><p>At the start of package-root <code>nocter.nct</code>, package directives accept declarative strings, integers, booleans, lists, and records. These values are data: they do not perform lookup, calls, interpolation, allocation, or target execution. <code>#target</code> remains a declaration directive and is recognized only before an eligible top-level declaration. A <code>#</code> token in any other source position is a syntax error.</p><h2 id="integer-literals">Integer Literals</h2><p>Adopted: integer literals support decimal, hexadecimal, binary, and <code>_</code> digit separators.</p><p>Forms:</p><pre><code class="language-text">10
 1_000
 0xFF
 0xFF_FF

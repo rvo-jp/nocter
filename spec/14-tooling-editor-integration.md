@@ -53,6 +53,7 @@ Before LSP, editor diagnostics should come from the compiler.
 Initial command direction:
 
 ```sh
+nocter check --format json
 nocter check app.nct --format json
 ```
 
@@ -154,6 +155,47 @@ Semantic token rules:
 - Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
+- Package directive names and record-field names use their exact identifier spans. Executable
+  entry string contents use an exact namespace span that excludes quotation marks.
+
+Nocter v0.4.0 Phase 1 editor rules:
+
+- An opened package-root `nocter.nct` uses the same composite package-file AST as command-line
+  compilation.
+- Go to definition on an executable `entry` string selects the resolved `.nct` file or directory
+  module and uses only the string content as the origin range.
+- Package directives outside `nocter.nct` are diagnostics.
+- Dependency aliases use namespace spans. LSP graph loading is locked and offline and never
+  rewrites `nocter.nct`.
+- `pub use path` exposes one namespace identity; hover, completion, definition, references, and
+  semantic tokens must not reconstruct a flattened substitute.
+
+Nocter v0.4.0 Phase 2 editor rules:
+
+- Diagnostics, hover, completion, signature help, definition, references, and semantic tokens for
+  one accepted document version observe one immutable editor generation.
+- An open document overrides its disk contents throughout that generation, including an open
+  `nocter.nct` used to construct a locked, offline package graph.
+- An unsaved package-file overlay never fetches dependencies, generates locks, or rewrites source.
+- Accepted source changes invalidate dependent analyses; unrelated open modules and nested packages
+  retain independent analysis state.
+- Published diagnostics include the accepted document version. Semantic-token results include a
+  generation identifier suitable for rejecting stale cached results.
+- Watched disk changes invalidate open analyses that imported the changed source.
+
+Nocter v0.4.0 stabilization editor rules:
+
+- Failed frontend loading retains reached sources and unresolved file/directory-module candidates.
+  Creating a missing import, repairing malformed source, and deleting a symlinked import invalidate
+  the affected reverse importers.
+- A failed package graph is not replaced by a stale successful graph. Every visited transitive
+  `nocter.nct` remains watched so repairing it can rebuild the graph.
+- The server advertises saved-text synchronization. Included `didSave` text is analyzed before new
+  diagnostics are published.
+- Clients supporting dynamic watched-file registration receive a `**/*.nct` watcher after
+  initialization.
+- Requests are accepted only in the initialized running state. Requests before initialization,
+  repeated initialization, and requests after shutdown return JSON-RPC/LSP protocol errors.
 
 Nocter v0.3.0 Phase 4 editor rules:
 

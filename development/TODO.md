@@ -1,111 +1,61 @@
-# Nocter v0.3.0 Handoff
+# Nocter v0.4.0 Handoff
 
-The completion criteria and implementation boundaries are owned by the
-[v0.3.0 Release Record](docs/v0.3.0.md) and
-[First-Class Outcome Values](docs/outcome-values.md). Git owns
-chronological implementation history.
-
-## Current Baseline
+## Baseline
 
 - branch: `develop`
-- qualified release candidate: `v0.3.0`
-- completed milestone gates: `v0.3.0 Phase 0`, `v0.3.0 Phase 1 Typed Literal Core`,
-  `v0.3.0 Phase 2 Explicit Iteration and Collection Access`, and
-  `v0.3.0 Phase 3 Owned String Interpolation and Formatting`,
-  `v0.3.0 Phase 4 Public Provenance Contracts and Generic Interface Bounds`, and
-  `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`, and
-  `v0.3.0 Phase 6 First-Class Outcome Values`, and
-  `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
-  `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
-  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
-  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
-- active milestone gate: none
+- release candidate: v0.4.0
+- completed milestone: v0.4.0 release-readiness implementation and documentation
+- qualification: complete for the exact v0.4.0 distribution candidate
+- next milestone: publication after explicit user authorization
 - target: `arm64-darwin`
-- required Phase 0 items: none
-- required Phase 1 items: none
-- required Phase 2 items: none
-- required Phase 3 items: none
-- required Phase 4 items: none
-- required Phase 5 items: none
-- required Phase 6 items: none
-- required Phase 7 items: none
-- required Phase 8 items: none
-- required Phase 9 items: none
-- required Phase 10 items: none
 
-Phase 9 added capability sets, conditional conformances, statically specialized generic iteration,
-allocation-transparent standard adapters, unknown/exact-size vector builders, stored optional
-ownership support, and capability-set LSP presentation and recovery.
+The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
+[packages.md](docs/packages.md). Public behavior belongs in `spec/`.
 
-Phase 10 added method-level generics, interface default methods, explicit-capture closure values,
-static callable specialization, lazy callback-driven iterator defaults, recursive nested cleanup,
-consuming-receiver ownership transfer, provenance and allocation propagation, and compiler-backed
-editor integration.
+## Implemented Scope
 
-## Current Objective
+- composite `nocter.nct` package file with separate manifest and root-module AST responsibilities
+- removal of package responsibility from `index.nct`
+- typed package-root and path module identities; omitted executable `entry` selects `nocter.nct`,
+  while explicit `entry: "."` selects `index.nct`
+- removal of source-root and entry-file-parent import discovery
+- module-relative, package-absolute, dependency, and standard-library import namespaces
+- `#dependencies` for path, Git revision, and archive sources
+- generated format-1 `#lock` with exact Git commits and SHA-256 archive identities
+- digest-backed `PackageId`, scoped dependency aliases, graph cycles, and transitive loading
+- package-local and exact-identity Nocter-home stores
+- isolated Git/archive fetcher with archive and canonical-path safety validation
+- `nocter fetch`, `--locked`, and `--offline`
+- CLI dependency compilation and locked-offline LSP graph loading
+- nearest-package LSP ownership, nested package navigation, manifest semantic ranges, and dependency
+  import completion
+- package-aware formatter and JSON AST
+- immutable generation-numbered LSP snapshots shared by diagnostics and semantic requests
+- locked-offline package graphs reused per package, including read-only unsaved `nocter.nct`
+  overlays
+- source-dependency invalidation, reverse-import rebuilding, unrelated-analysis reuse, watched-file
+  updates, and nested-package isolation
+- versioned diagnostics and semantic-token generation identifiers
+- failure-stable frontend dependency traces for missing, malformed, deleted, and symlinked imports
+- failure-stable transitive package-manifest traces and deterministic graph recovery
+- dynamic `.nct` file-watcher registration, saved-text synchronization, and an explicit LSP
+  lifecycle state machine
 
-Preserve the qualified v0.3.0 release candidate without expanding its feature set. The next
-operation is explicit merge, tag, and remote publication, not additional language or standard-
-library work. Optional and fallible outcome identity is preserved through IR, including stored
-borrow payloads and contextual generic specialization. User-facing compiler diagnostics no longer
-describe implementation limits as a bare `v0` contract, and call-lowering failures distinguish
-unavailable targets from borrow and scalar materialization failures.
+## Qualification State
 
-The ownership, allocation, and region cleanup audit now enforces allocator restoration before
-outer-owner destruction, reverse region release after destruction, and non-unwinding `never`
-termination independently of tail-call eligibility. Native and packaged-home probes cover normal,
-`return`, `break`, `continue`, propagation, recovery, and immediate termination edges.
+Phase 1 passes path, Git, archive, generated-lock transaction, offline reuse, cache-miss,
+source/lock mismatch, cycle, package compilation, LSP, formatter, full repository, optimized
+distribution, installed-home, native packaged-home, and archive acceptance gates. Phase 2 passes
+focused snapshot, LSP, package, compiler-library, formatter, warnings-denied Clippy, full repository,
+optimized distribution, installed-home `doctor`, and packaged LSP acceptance gates. The subsequent
+stabilization audit adds malformed root/transitive manifest recovery, missing-import creation,
+symlink deletion, dynamic watcher registration, `didSave`, lifecycle, and a deterministic
+49-document invalidation partition. The complete verification script, public documentation build,
+optimized package build, installed-home `doctor`, archive inspection, and packaged LSP acceptance
+all pass after the audit.
 
-The editor identity audit now gives destructor and generic-parameter declarations explicit name
-spans instead of reconstructing editor ranges from larger syntax spans. Resolver diagnostics,
-typecheck facts, specialization lookup, hover, semantic tokens, document symbols, and IR indexing
-share those declaration identities. Sequence-spread hover likewise carries the parsed operator span
-through typecheck facts instead of deriving three bytes from an expression span. Paired analysis and
-JSON-RPC tests cover destructor keyword/receiver separation and protocol selection ranges.
+## Next Work
 
-Malformed-input recovery now preserves outline symbols, semantic tokens, go-to-definition, and
-references while trailing function or member blocks are unclosed. The fallback appends only
-syntactically missing braces, so original document offsets remain stable; collection-for recovery
-also composes with trailing block recovery before its insertion map is applied. Supported
-text-document requests now reject absent or ill-typed document/position parameters with JSON-RPC
-`-32602` and continue serving later requests.
-
-Structural resilience now separates completion context traversal and member-candidate resolution
-from the completion coordinator. The coordinator is below 700 lines and each new responsibility is
-below 450 lines. Completion, visible-local collection, and typed-literal specialization no longer
-panic when partial editor facts violate an internal shape assumption. The parser now validates its
-EOF token-stream contract at entry and derives provenance bounds without an impossible-state
-`expect`.
-
-The final diagnostic audit replaces every remaining user-facing bare `v0` boundary in compiler
-source with a stable syntax, ownership, ABI, formatter, or native-backend capability statement.
-Exact records such as `v0.2.0` and `v0.3.0 Phase 8` remain versioned intentionally.
-
-Clean-worktree release qualification is complete. The full compiler verification suite, Clippy
-with warnings denied, public documentation generation, local release packaging, installed-home
-`doctor`, and archive inspection pass from `develop`. The distributed runtime suite passes all 199
-Phase 0 through Phase 10 integration cases.
-
-The stabilization gate is complete. Body-bearing interface implementations are implemented across
-parser, formatter, JSON AST, resolver, typecheck, specialization, buildability, lowering, analysis,
-LSP, the distributed standard library, and packaged execution. Brace-less conformance and
-inherent-method satisfaction have no compatibility path. The full clean-worktree compiler matrix,
-warnings-denied Clippy, documentation build, optimized local distribution, installed-home `doctor`,
-packaged-home runtime suite, and archive inspection pass. Release preparation updated the compiler,
-distribution, documentation, and release notes to v0.3.0 and reran the complete gate against that
-exact artifact.
-
-Type-owned construction-surface stabilization is also complete. `construct` is the sole AST owner
-for public literal definitions and for associated functions that directly produce a nominal struct
-or enum. Resolver-owned `ConstructionSurface` identities drive raw structural accessibility,
-default selection, imports, hover, completion ordering, signature help, definition, references,
-semantic tokens, and document symbols. `Vec<T>`, `String`, `Layout`, iterator constructors, and
-`File` use this model in distributed std. Detached legacy declarations receive migration
-diagnostics; the compiler does not synthesize a compatibility surface.
-
-## Release Qualification Boundary
-
-No feature work is admitted before the v0.3.0 release. Version coherence, generated documentation,
-full compiler verification, warnings-denied Clippy, optimized local packaging, installed-home
-`doctor`, packaged-home execution, and archive inspection all pass. The next operation is the
-explicit merge, tag, and remote publication workflow.
+Publish the already-qualified v0.4.0 candidate only after explicit user authorization. Preserve
+the frozen feature scope and exact release identity; do not add a Phase 3 feature or rebuild the
+archive as part of publication unless an external release check finds a blocker.

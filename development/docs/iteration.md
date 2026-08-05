@@ -33,7 +33,7 @@ pub struct ViewIter<T> {
 }
 
 impl<T> ViewIter<T> {
-    pub method &+self.next(): (&T)? { ... }
+    pub method &+self.next(): &T? { ... }
 }
 ```
 
@@ -91,7 +91,7 @@ spellings.
 ## LSP Boundary
 
 Existing compiler-backed method queries must specialize `T` from the receiver. Hover and signature
-help show `(&T)?` or `T?` exactly. Completion respects `&self` versus `&+self`, so repeated `next()`
+help show `&T?` or `T?` exactly. Completion respects `&self` versus `&+self`, so repeated `next()`
 requires a writable iterator binding. Provenance detail comes from callable semantic facts.
 
 Incomplete `.next(` edits reuse ordinary member and call recovery. Phase 2 does not add an

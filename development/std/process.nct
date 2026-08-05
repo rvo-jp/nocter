@@ -31,25 +31,25 @@ use std/string.String
 use std/string.bytes as string_bytes
 use std/vec.Vec
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive arg_count_raw(): usize
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive arg_raw(index: usize): &str
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive env_name_raw(index: usize): &str
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive env_value_raw(index: usize): &str
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func open_current_directory(): usize! {
     let allocation_size: usize = 2
     let address: usize = alloc_pages(allocation_size)?
@@ -64,7 +64,7 @@ pub(nocter) func open_current_directory(): usize! {
     return result.value
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func open_current_directory_aborting(): usize! {
     let allocation_size: usize = 2
     var allocator = page_allocator()
@@ -80,13 +80,13 @@ pub(nocter) func open_current_directory_aborting(): usize! {
     return result.value
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func close_fd_word(fd: usize): void {
     let result = syscall1(darwin_sys_close(), fd)
     return
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
     let raw_bytes = raw_bytes_mut(buffer)
     var index: usize = 0
@@ -99,7 +99,7 @@ pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
     return cwd_failed()
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     let result = syscall3(
         darwin_sys_fcntl(),

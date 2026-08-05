@@ -1,7 +1,7 @@
 //! Concrete destructor dependencies reachable through aggregate storage.
 
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
+use crate::ast::{TypeExpr, canonical_type_expr, substitute_type_expr_parameters};
 use crate::typecheck::{DropTypeSpecialization, drop_type_specialization_from_self_ty};
 use std::collections::{HashMap, HashSet};
 
@@ -28,7 +28,7 @@ fn collect_drop_dependencies(
     visiting: &mut HashSet<String>,
     dependencies: &mut Vec<DropTypeSpecialization>,
 ) {
-    let key = format!("{:?}:{}", ty.span().source, type_expr_display_lossy(ty));
+    let key = format!("{:?}:{}", ty.span().source, canonical_type_expr(ty));
     if !visiting.insert(key.clone()) {
         return;
     }

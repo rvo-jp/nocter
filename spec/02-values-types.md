@@ -302,7 +302,9 @@ tag branch is initialized. Absence never initializes a success payload, and fail
 Phase 6 supports one optional layer, one fallible layer, or one of each in either order. Repeated
 equal layers and deeper recursive outcome types remain later work.
 
-Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value.
+Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
+optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
+type syntax group a type without creating a new type.
 
 ### Self Type Syntax
 

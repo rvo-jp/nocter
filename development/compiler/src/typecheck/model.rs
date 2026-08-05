@@ -2,6 +2,7 @@ use crate::ast::{
     BindingKind, CallableCapability, ClosureTypeExpr, ResultProvenanceClause, TypeExpr,
 };
 use crate::source::ByteSpan;
+use crate::type_notation::{PostfixOperator, PrefixOperator, TypeNotation, TypeNotationParameter};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +29,10 @@ pub(super) enum Type {
         length: String,
     },
     Pointer(Box<Type>),
+    Borrow {
+        is_readwrite: bool,
+        inner: Box<Type>,
+    },
     Optional(Box<Type>),
     Fallible {
         success: Box<Type>,
@@ -98,6 +103,13 @@ impl Type {
             Type::Pointer(inner) => {
                 Type::Pointer(Box::new(inner.substitute_parameters(substitutions)))
             }
+            Type::Borrow {
+                is_readwrite,
+                inner,
+            } => Type::Borrow {
+                is_readwrite: *is_readwrite,
+                inner: Box::new(inner.substitute_parameters(substitutions)),
+            },
             Type::Optional(inner) => {
                 Type::Optional(Box::new(inner.substitute_parameters(substitutions)))
             }
@@ -128,42 +140,92 @@ impl Type {
     }
 
     pub(super) fn display(&self) -> String {
+        self.notation_with_name(&str::to_string).render()
+    }
+
+    pub(super) fn notation_with_name(
+        &self,
+        display_name: &impl Fn(&str) -> String,
+    ) -> TypeNotation {
         match self {
-            Type::Callable(callable) => callable.display(),
-            Type::Closure(closure) => closure.identity_name(),
-            Type::I32 => "i32".to_string(),
-            Type::Primitive(name) => name.clone(),
-            Type::StrData => "str".to_string(),
-            Type::Str => "&str".to_string(),
-            Type::Error => "error".to_string(),
-            Type::Void => "void".to_string(),
-            Type::Never => "never".to_string(),
-            Type::None => "none".to_string(),
-            Type::ArrayData { element } => format!("[{}]", element.display()),
-            Type::View {
-                is_readwrite: true,
-                element,
-            } => format!("&+[{}]", element.display()),
-            Type::View {
-                is_readwrite: false,
-                element,
-            } => format!("&[{}]", element.display()),
-            Type::Array { element, length } => format!("[{}; {}]", element.display(), length),
-            Type::Pointer(inner) => format!("*{}", inner.display()),
-            Type::Optional(inner) => format!("{}?", inner.display()),
-            Type::Fallible { success, .. } => format!("{}!", success.display()),
-            Type::Named(name) => name.clone(),
-            Type::Generic { name, arguments } => {
-                let arguments = arguments
+            Type::Callable(callable) => TypeNotation::Callable {
+                capability_prefix: callable.capability.source_prefix(),
+                parameters: callable
+                    .parameters
                     .iter()
-                    .map(Type::display)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{name}<{arguments}>")
+                    .map(|parameter| TypeNotationParameter {
+                        name: parameter.name.clone(),
+                        ty: parameter.ty.notation_with_name(display_name),
+                    })
+                    .collect(),
+                return_type: Box::new(callable.return_type.notation_with_name(display_name)),
+                provenance: callable
+                    .result_provenance
+                    .iter()
+                    .flat_map(|clause| clause.origins.iter())
+                    .map(|origin| origin.kind.source_label().to_string())
+                    .collect(),
+            },
+            Type::Closure(closure) => atom(&closure.identity_name()),
+            Type::I32 => atom("i32"),
+            Type::Primitive(name) => atom(name),
+            Type::StrData => atom("str"),
+            Type::Str => prefix(PrefixOperator::ReadonlyBorrow, atom("str")),
+            Type::Error => atom("error"),
+            Type::Void => atom("void"),
+            Type::Never => atom("never"),
+            Type::None => atom("none"),
+            Type::ArrayData { element } => {
+                TypeNotation::View(Box::new(element.notation_with_name(display_name)))
             }
-            Type::Parameter(name) => name.clone(),
-            Type::Unresolved(name) => name.clone(),
-            Type::Unknown => "<unknown>".to_string(),
+            Type::View {
+                is_readwrite,
+                element,
+            } => prefix(
+                if *is_readwrite {
+                    PrefixOperator::ReadwriteBorrow
+                } else {
+                    PrefixOperator::ReadonlyBorrow
+                },
+                TypeNotation::View(Box::new(element.notation_with_name(display_name))),
+            ),
+            Type::Array { element, length } => TypeNotation::Array {
+                element: Box::new(element.notation_with_name(display_name)),
+                length: length.clone(),
+            },
+            Type::Pointer(inner) => prefix(
+                PrefixOperator::Pointer,
+                inner.notation_with_name(display_name),
+            ),
+            Type::Borrow {
+                is_readwrite,
+                inner,
+            } => prefix(
+                if *is_readwrite {
+                    PrefixOperator::ReadwriteBorrow
+                } else {
+                    PrefixOperator::ReadonlyBorrow
+                },
+                inner.notation_with_name(display_name),
+            ),
+            Type::Optional(inner) => postfix(
+                PostfixOperator::Optional,
+                inner.notation_with_name(display_name),
+            ),
+            Type::Fallible { success, .. } => postfix(
+                PostfixOperator::Fallible,
+                success.notation_with_name(display_name),
+            ),
+            Type::Named(name) => atom(&display_name(name)),
+            Type::Generic { name, arguments } => TypeNotation::Generic {
+                name: display_name(name),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| argument.notation_with_name(display_name))
+                    .collect(),
+            },
+            Type::Parameter(name) | Type::Unresolved(name) => atom(name),
+            Type::Unknown => atom("<unknown>"),
         }
     }
 
@@ -186,7 +248,7 @@ impl Type {
             Type::ArrayData { element } => element.is_unknown_or_unresolved(),
             Type::View { element, .. } => element.is_unknown_or_unresolved(),
             Type::Array { element, .. } => element.is_unknown_or_unresolved(),
-            Type::Pointer(inner) => inner.is_unknown_or_unresolved(),
+            Type::Pointer(inner) | Type::Borrow { inner, .. } => inner.is_unknown_or_unresolved(),
             Type::Optional(inner) => inner.is_unknown_or_unresolved(),
             Type::Generic { arguments, .. } => arguments.iter().any(Type::is_unknown_or_unresolved),
             Type::Fallible { success, error } => {
@@ -212,7 +274,7 @@ impl Type {
             Type::View { element, .. } | Type::Array { element, .. } => {
                 element.first_unsized_part()
             }
-            Type::Pointer(_) => None,
+            Type::Pointer(_) | Type::Borrow { .. } => None,
             Type::Optional(inner) => inner.first_unsized_part(),
             Type::Generic { arguments, .. } => arguments.iter().find_map(Type::first_unsized_part),
             Type::Fallible { success, error } => success
@@ -257,39 +319,21 @@ impl Type {
     }
 }
 
-impl CallableType {
-    fn display(&self) -> String {
-        let parameters = self
-            .parameters
-            .iter()
-            .map(|parameter| {
-                let ty = parameter.ty.display();
-                parameter
-                    .name
-                    .as_ref()
-                    .map_or(ty.clone(), |name| format!("{name}: {ty}"))
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        let provenance = self
-            .result_provenance
-            .as_ref()
-            .map_or_else(String::new, |clause| {
-                format!(
-                    " from {}",
-                    clause
-                        .origins
-                        .iter()
-                        .map(|origin| origin.kind.source_label())
-                        .collect::<Vec<_>>()
-                        .join(" | ")
-                )
-            });
-        format!(
-            "{}func({parameters}): {}{provenance}",
-            self.capability.source_prefix(),
-            self.return_type.display()
-        )
+fn atom(name: &str) -> TypeNotation {
+    TypeNotation::Atom(name.to_string())
+}
+
+fn prefix(operator: PrefixOperator, inner: TypeNotation) -> TypeNotation {
+    TypeNotation::Prefix {
+        operator,
+        inner: Box::new(inner),
+    }
+}
+
+fn postfix(operator: PostfixOperator, inner: TypeNotation) -> TypeNotation {
+    TypeNotation::Postfix {
+        inner: Box::new(inner),
+        operator,
     }
 }
 

@@ -52,7 +52,7 @@ fn lowers_optional_borrow_return_call_and_local_without_erasing_borrow_type() {
     value: i32
 }
 
-func maybe(value: &Item, present: bool): (&Item)? {
+func maybe(value: &Item, present: bool): &Item? {
     if present {
         return value
     }
@@ -68,8 +68,8 @@ func use_value(value: &Item): i32 {
     return read(found)
 }
 
-func forward(value: &Item): (&Item)? {
-    let previous: (&Item)? = maybe(value, true)
+func forward(value: &Item): &Item? {
+    let previous: &Item? = maybe(value, true)
     let found = previous?
     return found
 }

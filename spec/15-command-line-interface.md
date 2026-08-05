@@ -5,24 +5,25 @@ The specification entry point is [README.md](README.md).
 
 ## Direction
 
-Adopted: the `nocter` command should have a small, stable CLI contract from the beginning.
-
-The CLI must support normal executable generation, lightweight trial execution, editor-oriented checking, source formatting, and an LSP entry point without depending on external assemblers, linkers, SDK tools, or runtime libraries.
-
-Initial commands:
+Adopted for v0.4.0 Phase 1: package commands operate on a source-owned `nocter.nct`. Omitting a
+source selects a package; it never guesses that `main.nct` is an executable. Explicit single-file
+operation remains available for scripts and isolated experiments.
 
 ```sh
 nocter --version
 nocter doctor
+nocter fetch
+nocter fetch --locked --offline
 nocter build
+nocter build --root path/to/package
+nocter build --executable tool
 nocter build app.nct
 nocter run
+nocter run --executable tool
 nocter run app.nct
-nocter app.nct
 nocter check
-nocter check app.nct
 nocter check --format json
-nocter check app.nct --format json
+nocter check app.nct
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -30,480 +31,281 @@ nocter ast app.nct --format json
 nocter lsp
 ```
 
-## Version
+A bare source such as `nocter app.nct` is not a command. Use `nocter run app.nct` when single-file
+execution is intended.
 
-`--version` prints release identity and exits.
+## Package and File Inputs
 
-```sh
-nocter --version
-```
+`build`, `run`, and `check` have two explicit input modes.
 
-Rules:
-
-- `--version` is a global option, not a subcommand.
-- `--version` does not take a root file.
-- `--version` does not build, run, check, or format source.
-- Release compiler binaries embed the release version, host, and default target.
-- The printed release version must match the `VERSION` and `MANIFEST.json` shipped in the same release archive.
-- Initial human output should include at least the compiler release, host, and default target.
-- `--version` does not emit JSON in v0.2.0.
-
-Example output:
-
-```text
-Nocter 0.1.0
-host: arm64-darwin
-default target: arm64-darwin
-```
-
-## Doctor
-
-`doctor` validates the active Nocter home and reports installation problems.
+Package mode is the default:
 
 ```sh
-nocter doctor
+nocter check
+nocter check --root ./tools/json
 ```
 
-Rules:
+- The default root is the current directory.
+- `--root path` selects another package directory.
+- The selected directory must contain `nocter.nct`.
+- The package manifest declares zero or more executable targets.
+- The compiler never searches for `main.nct`, walks upward for another package, or invents an
+  executable target.
 
-- `doctor` does not take a root file.
-- `doctor` does not build, run, check, format, or execute user code.
-- `doctor` resolves Nocter home using the rules in [Targets and Distribution](10-targets-distribution.md#nocter-home-resolution).
-- `doctor` checks that `VERSION`, `MANIFEST.json`, and `std/` exist.
-- `doctor` checks that `VERSION` matches `MANIFEST.json`'s `release`.
-- `doctor` checks that `MANIFEST.json.host` matches the running compiler's host.
-- `doctor` checks that `MANIFEST.json.default_target` is listed in `MANIFEST.json.implemented_targets`.
-- `doctor` checks that the common `std/` directory is present.
-- v1 does not check a compiler binary checksum because `MANIFEST.json` v1 does not include checksum metadata.
-- Human-readable output goes to stdout on success and stderr on failure.
-- `doctor` exits with status `0` when the installation is valid.
-- `doctor` exits with status `2` for Nocter home, filesystem, manifest, or installation errors.
-
-## Root File
-
-`build`, `run`, and `check` take zero or one entry `.nct` file.
-
-Rules:
-
-- If a file is named on the command line, that file is the entry file.
-- If no file is named, `main.nct` in the current working directory is the entry file.
-- The root file must have the `.nct` extension.
-- The source root is the canonical parent directory of the entry file.
-- The compiler follows imports from the root file to form the compile unit.
-- The compile unit rules are specified in [Modules and Use Declarations](01-modules-use.md#compile-unit).
-- Package manifests, project-root discovery, workspaces, lockfiles, package registries, separate compilation, and incremental artifacts are not part of v0.2.0.
-
-`fmt` takes one `.nct` source file but does not treat it as a compile-unit root. It formats only the file named on the command line.
-
-## Entry Selection
-
-`build`, `run`, shorthand run, and `check` select the executable entry function.
-
-Default:
+Single-file mode is explicit:
 
 ```sh
-nocter run
-nocter run app.nct
+nocter check app.nct
+nocter check --file app.nct
 ```
 
-This selects root-file `func main()`.
+- The positional source and `--file` are equivalent.
+- The file must have the `.nct` extension.
+- `--root` and file mode cannot be combined.
+- `--executable` cannot be used in file mode.
+- Package directives are rejected in file mode because they belong to a selected package-root
+  `nocter.nct`.
+
+The compiler follows imports from each selected root module to form a compile unit. Import and
+source identity rules are specified in [Modules and Use Declarations](01-modules-use.md).
+
+## Package File
+
+The leading package manifest uses declarative directives:
+
+```nct
+//! JSON command-line tool.
+
+#name: "json-tool"
+#version: "0.1.0"
+#executable: {
+    name: "json-tool",
+    entry: "./src/app",
+}
+
+pub use ./src/json
+```
+
+`#name` is presentation metadata. If absent, the package root directory basename is used as the
+display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
+unique package-local name and may select an explicit logical entry path without a `.nct` suffix.
+When `entry` is absent, the package-root module in `nocter.nct` is the entry.
+
+Ordinary imports and declarations after the leading directives form the package root module.
+`index.nct` remains a directory module and has no package metadata responsibility.
+
+Dependencies and their generated exact locks share `nocter.nct`:
+
+```nct
+#dependencies: {
+    json: {
+        git: "https://github.com/example/json.git",
+        revision: "main",
+    },
+    http: {
+        archive: "https://nocter.dev/lib/http-v1.0.0.tar.gz",
+    },
+    local_math: {
+        path: "./packages/math",
+    },
+}
+
+#lock: {
+    format: 1,
+    dependencies: {
+        http: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        json: "git:7db21c1000000000000000000000000000000000",
+    },
+}
+```
+
+Git builds use only the locked commit and archives use only the locked SHA-256 content. Path
+dependencies are mutable development inputs and have no lock entry. No separate lockfile exists.
+The generated block is sorted by dependency alias.
+
+## Executable Selection
+
+An executable declaration selects a module. The selected module must contain a top-level `func
+main` with no type or value parameters and a supported process result type.
+
+```nct
+#executable: {
+    name: "server",
+    entry: "./src/server",
+}
+```
 
 Rules:
 
-- The v0.2.0 entry function name is fixed to `main`.
-- `--entry` is not part of v0.2.0.
-- Entry lookup considers only top-level functions in the root file.
-- Imported functions with the same name are ordinary functions and are not selected as the executable entry.
-- The selected function must have no type parameters, no value parameters, and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
-- `main` is an ordinary function name except that root-file `main` is the v0.2.0 executable entry.
-- `fmt`, `tokens`, and `ast` do not perform executable entry validation.
+- Omitting `entry` selects `nocter.nct`.
+- `entry: "."` selects `index.nct` in the package root.
+- `entry: "./src/server"` selects `src/server.nct` or `src/server/index.nct`.
+- If both module forms exist, selection is an error.
+- A module path cannot contain `.nct` or escape the package root.
+- `--executable name` selects one declared executable.
+- Package `build` builds every declared executable when no name is selected.
+- Package `run` selects the sole executable. Multiple declarations require `--executable`.
+- Package `check` checks the root module and every executable when no name is selected. With
+  `--executable`, it checks only that executable compile unit.
+- A library-only package is valid for `check`; `build` and `run` report that it declares no
+  executable.
 
 ## Build
 
-`build` generates a persistent executable.
+`build` emits persistent native executables.
 
 ```sh
 nocter build
-nocter build app.nct
+nocter build --executable server
+nocter build --executable server -o ./bin/server
+nocter build app.nct -o app
 ```
 
-Rules:
+Without `-o`, a package executable is written under the package root using its declared name. In
+file mode, the output uses the source stem. `-o` requires exactly one selected executable.
 
-- `build` runs lexing, parsing, name resolution, type checking, ownership checking, v0.2.0 buildability validation, target lowering, ARM64 code generation, and Mach-O executable generation.
-- `-o path` sets the executable output path.
-- If `-o` is omitted, the initial driver may derive an output path from the root file stem.
-- `build` must not invoke `clang`, `as`, `ld`, Xcode Command Line Tools, or an external linker.
-- On success, `build` leaves an executable at the output path.
-- On failure, `build` must not leave a partial or corrupt executable at the output path.
-- The implementation should write to a temporary file in the destination directory and atomically replace the output path only after executable generation succeeds.
+`build` uses the same parser, resolver, type checker, ownership checker, buildability validation,
+lowering, code generator, and executable writer as `run`. It does not invoke an external assembler,
+linker, SDK tool, or runtime. Failure must not leave a partial executable at the output path.
+
+## Fetching and Lock Control
+
+```sh
+nocter fetch
+nocter fetch --root ./tools/json
+nocter fetch --locked
+nocter fetch --offline
+```
+
+`fetch` resolves missing direct locks, writes the generated `#lock` block atomically, and installs
+exact packages under `.nocter/packages/<PackageId>`. Package commands may perform the same missing
+lock generation and fetch before analysis.
+
+The complete dependency graph is validated before generated lock data is committed. A failed graph
+does not partially rewrite `nocter.nct`.
+
+- `--locked` rejects any operation that would create or change lock selection.
+- `--offline` prohibits source resolution and downloads; every exact package must already exist in
+  the package-local or Nocter-home store.
+- Existing locks are never changed implicitly.
+- LSP behaves as locked and offline regardless of command defaults.
+- Nocter home is searched only for an exact `PackageId`, never for a matching package name.
 
 ## Run
 
-`run` is the lightweight trial execution command.
+`run` builds a temporary native executable, launches it, forwards standard streams, removes the
+temporary file, and returns the program's exit status.
 
 ```sh
 nocter run
+nocter run --executable server
 nocter run app.nct
 ```
 
-Adopted: `run` uses a temporary Mach-O executable, not RAM-only execution.
-
-Meaning:
-
-```text
-source.nct
-    -> nocter
-    -> temporary Mach-O executable
-    -> spawn / exec
-    -> remove temporary executable
-```
-
-Rules:
-
-- `run` uses the same front end, semantic checks, v0.2.0 buildability validation, target lowering, ARM64 code generation, and Mach-O writer as `build`.
-- `run` does not create a persistent project output file.
-- `run` creates a temporary executable in a private temporary location.
-- The temporary executable is a real Mach-O executable for the active target.
-- The temporary executable is removed after the executed program exits.
-- If compilation fails, no program is executed.
-- If temporary executable creation fails, the command reports a command-line or filesystem error.
-- RAM-only execution, JIT execution, and calling the selected entry function inside the compiler process are not part of v0.2.0.
-- `run` must not require external tools.
-- `run` forwards the executed program's standard input, standard output, and standard error by default.
-
-Rationale:
-
-- macOS process execution is path-based for normal executable launch.
-- A temporary executable keeps `run` behavior close to `build`.
-- The compiler validates the same Mach-O path used for persistent executables.
-- Process exit, signals, standard streams, working directory, and environment are handled by normal OS process execution instead of an in-process JIT model.
-
-## Shorthand Run
-
-The command:
-
-```sh
-nocter app.nct
-```
-
-is equivalent to:
-
-```sh
-nocter run app.nct
-```
-
-Rules:
-
-- The shorthand is recognized only when no explicit subcommand is present and the first positional argument is a `.nct` root file.
-- The shorthand exists for quick local trials.
-- Documentation should teach `nocter run app.nct` as the explicit form.
-- Future program arguments for `run`, if added, use a `--` separator to avoid ambiguity with compiler options.
-- The reserved future shape is `nocter run app.nct -- arg1 arg2`.
-- The shorthand form may mirror that as `nocter app.nct -- arg1 arg2`.
+Compilation failures prevent launch. RAM-only execution, JIT execution, and calling `main` inside
+the compiler process are not part of this contract.
 
 ## Check
 
-`check` validates a program without emitting or executing an executable.
+`check` runs source-language and ownership analysis without emitting or executing a program.
 
 ```sh
 nocter check
-nocter check app.nct
+nocter check --executable server
 nocter check --format json
 nocter check app.nct --format json
 ```
 
-Rules:
+Human-readable diagnostics go to stderr. `--format json` writes exactly one JSON diagnostic
+envelope to stdout and no other stdout text. The envelope is specified in
+[Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 
-- `check` runs lexing, parsing, name resolution, type checking, ownership checking, target selection, and target-gated declaration validation.
-- `check` reports the same source-language diagnostics as `build` for lexing,
-  parsing, import resolution, name resolution, type checking, ownership, target
-  selection, and target-gated declarations.
-- `check` does not require every accepted construct to be supported by build/run
-  lowering. Constructs explicitly marked check-only in the v0.2.0 contract are valid
-  for `check` and are rejected by `build` and `run` during buildability
-  validation.
-- `check` does not emit an executable.
-- `check` does not execute user code.
-- `--format human` is the default format.
-- `--format json` emits machine-readable diagnostics suitable for editor integrations.
-- With `--format json`, stdout must contain exactly one JSON diagnostic envelope and no other text.
-- With `--format json`, human-readable progress messages must not be printed to stdout.
-- Human-readable diagnostics are written to stderr.
+`check` may accept semantically valid forms whose native lowering is not yet implemented. `build`
+and `run` must reject those forms during buildability validation with source-backed diagnostics.
 
-The JSON diagnostic envelope is specified in [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
+## Format, Tokens, and AST
 
-The root path and source span path rules are specified in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
-
-Implementation staging:
-
-- Development snapshots may temporarily ship partial `check --format json`
-  coverage while the compiler pipeline is being built.
-- A v0.2.0 release `check` implementation must satisfy the rules above for parsing,
-  import resolution, name resolution, type checking, ownership checking, target
-  selection, target-gated declaration validation, JSON shape, and check-only
-  construct handling.
-
-## Format
-
-`fmt` formats a source file using the official Nocter source style.
+These commands always take exactly one source file and do not discover a package:
 
 ```sh
 nocter fmt app.nct
 nocter fmt --check app.nct
-```
-
-Rules:
-
-- `fmt` takes exactly one `.nct` source file in v0.2.0.
-- `fmt` formats only the named source file.
-- `fmt` does not follow imports.
-- `fmt` does not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
-- `fmt` parses enough syntax to preserve comments and produce valid Nocter source.
-- If parsing fails, `fmt` reports diagnostics and must not rewrite the file.
-- `fmt` rewrites the source file in place only after formatting succeeds.
-- `fmt --check` reports whether the file already matches formatter output and does not rewrite the file.
-- `fmt` has no target option.
-
-The formatting rules are specified in [Source Style and Formatting](16-source-style-formatting.md).
-
-## Tokens
-
-`tokens` prints the compiler lexer output for one source file.
-
-```sh
 nocter tokens app.nct --format json
-```
-
-Rules:
-
-- `tokens` takes exactly one `.nct` source file in v0.2.0.
-- `tokens` is JSON-only in v0.2.0; `--format json` is required.
-- `tokens` does not follow imports.
-- `tokens` does not parse, resolve names, type-check, ownership-check, target-lower, codegen, emit an executable, or execute user code.
-- `tokens` uses the same lexer as `build`, `run`, and `check`.
-- The JSON output is intended for compiler debugging, editor integration, tests, and AI-assisted code repair.
-- The JSON output must include enough source span information to map tokens back to the input file.
-
-The token vocabulary follows [Lexical Grammar](13-lexical-grammar.md).
-
-Initial token JSON envelope:
-
-```json
-{
-  "schema": "nocter.tokens",
-  "version": 1,
-  "ok": true,
-  "command": "tokens",
-  "file": "app.nct",
-  "absolute_path": "/Users/me/project/app.nct",
-  "tokens": [
-    {
-      "kind": "keyword",
-      "lexeme": "func",
-      "span": {
-        "file": "app.nct",
-        "absolute_path": "/Users/me/project/app.nct",
-        "start_byte": 0,
-        "end_byte": 4,
-        "start_line": 1,
-        "start_column_byte": 1,
-        "end_line": 1,
-        "end_column_byte": 5
-      }
-    }
-  ],
-  "diagnostics": []
-}
-```
-
-Token JSON rules:
-
-- `schema` is `"nocter.tokens"`.
-- `version` is `1`.
-- `ok` is `true` only when lexing succeeded without diagnostics.
-- `file` is the input display path.
-- `absolute_path` is the canonical absolute path when known, or `null`.
-- `tokens` is an array of token objects.
-- `kind` is the compiler token kind name.
-- `lexeme` is the exact normalized source text covered by the token.
-- `span` uses the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
-- `diagnostics` uses the diagnostic object shape from [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
-
-## AST
-
-`ast` prints the compiler parser output for one source file.
-
-```sh
 nocter ast app.nct --format json
 ```
 
-Rules:
-
-- `ast` takes exactly one `.nct` source file in v0.2.0.
-- `ast` is JSON-only in v0.2.0; `--format json` is required.
-- `ast` parses one source file and does not follow imports.
-- `ast` does not resolve names, type-check, ownership-check, target-lower, codegen, emit an executable, or execute user code.
-- `ast` uses the same lexer and parser as `build`, `run`, and `check`.
-- The JSON output is intended for compiler debugging, editor integration, tests, and AI-assisted code repair.
-- The JSON output must include source spans for syntax nodes when practical.
-- The JSON output may include attached doc comment text for documentable nodes.
-- AST JSON is a compiler tooling format, not a stable serialization of the language specification.
-
-The AST command direction is part of [Tooling and Editor Integration](14-tooling-editor-integration.md#ai-assisted-tooling-stage).
-
-Initial AST JSON envelope:
-
-```json
-{
-  "schema": "nocter.ast",
-  "version": 1,
-  "ok": true,
-  "command": "ast",
-  "file": "app.nct",
-  "absolute_path": "/Users/me/project/app.nct",
-  "ast": {
-    "kind": "source_file",
-    "span": {
-      "file": "app.nct",
-      "absolute_path": "/Users/me/project/app.nct",
-      "start_byte": 0,
-      "end_byte": 34,
-      "start_line": 1,
-      "start_column_byte": 1,
-      "end_line": 3,
-      "end_column_byte": 2
-    },
-    "items": []
-  },
-  "diagnostics": []
-}
-```
-
-AST JSON rules:
-
-- `schema` is `"nocter.ast"`.
-- `version` is `1`.
-- `ok` is `true` only when parsing succeeded without diagnostics.
-- `file` is the input display path.
-- `absolute_path` is the canonical absolute path when known, or `null`.
-- `ast` is an object when parsing succeeds and `null` when parsing fails before a useful tree exists.
-- AST node objects include `kind` and should include `span` when practical.
-- Expression nodes with source-level operators or operator-like keywords may include `operator_span`, such as unary and binary operators, postfix `?`, postfix `!`, `otherwise`, `as`, and `catch`.
-- AST node objects may include `value` for compact leaf information such as identifiers, literals, import paths, and type names.
-- AST node objects may include `documentation` when adjacent doc comments attach to that node. `source_file` uses `documentation` for `//!` and `/*! ... */`.
-- AST node `span` and `operator_span` fields use the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
-- `diagnostics` uses the diagnostic object shape from [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
-- AST JSON is allowed to change while the AST is internal and unstable; AI tools should treat it as a tooling aid, not a source compatibility promise.
+- `fmt` rewrites only the named file after successful parsing. `--check` reports whether rewriting
+  would be necessary.
+- `tokens` exposes the compiler lexer output as a `nocter.tokens` JSON envelope.
+- `ast` exposes the compiler parser output as a `nocter.ast` JSON envelope. A source-file AST
+  includes package directives when present.
+- These commands do not resolve dependencies, type-check, lower, emit, or execute code.
 
 ## LSP
 
-`lsp` starts the language server.
+`nocter lsp` speaks the Language Server Protocol over stdin and stdout. Protocol messages are the
+only stdout data while the server is running.
 
-Hover contents use LSP Markdown markup. Item documentation comes from `///` and
-`/** ... */`; module-path hover documentation comes from the resolved file's
-`//!` or `/*! ... */` source-file documentation when that module is loaded.
+The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration
+identities, and exact source spans. In v0.4.0 Phase 0 it also:
 
-```sh
-nocter lsp
-```
+- diagnoses package manifests through the same parser and validation model as package commands
+- classifies directive and record-field names without coloring surrounding punctuation or space
+- classifies executable entry string contents as namespaces
+- resolves go-to-definition from an executable `entry` value to the selected module file
+- resolves public namespace re-exports through the same declaration identity used by compilation
 
-Rules:
-
-- `lsp` does not build, run, or check a single root file as a one-shot command.
-- `lsp` speaks the Language Server Protocol over standard input and standard output.
-- LSP protocol messages are the only data written to stdout while the server is running.
-- Human-readable server logs, if any, must go to stderr or a configured log file.
-- `lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
-- LSP v0.2.0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, `textDocument/publishDiagnostics`, `textDocument/documentSymbol`, `textDocument/definition`, `textDocument/references`, `textDocument/hover`, `textDocument/completion`, and `textDocument/semanticTokens/full`.
-- During `initialize`, LSP v0.2.0 records `workspaceFolders` when present and falls back to `rootUri` when no workspace folders are provided.
-- LSP v0.2.0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics, hover ranges, definition locations, document symbol ranges, and semantic tokens.
-- LSP v0.2.0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
-- LSP v0.2.0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics, hover, definition, references, completion, and semantic tokens can reflect unsaved imported files that are part of the opened compile unit.
-- LSP v0.2.0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
-- LSP v0.2.0 records workspace roots for later project-level behavior, but compile-unit analysis is still driven by the opened root document being diagnosed.
-- LSP v0.2.0 returns Markdown hover contents from compiler-owned semantic data and documentation comments.
-- LSP v0.2.0 returns go-to-definition locations for local references, top-level declarations, loaded imported declarations, loaded import module paths, fields, enum variants, associated functions, and method calls covered by compiler analysis.
-- LSP v0.2.0 returns references for local symbols, top-level declarations, loaded imported declarations, type references, fields, enum variants, associated functions, and method calls covered by compiler analysis.
-- LSP v0.2.0 returns document symbols for top-level declarations and nested struct fields or enum variants represented by the parser.
-- LSP v0.2.0 returns basic completion items for keywords and visible resolved symbols. Import-path segment completion and context-sensitive member completion are deferred.
-- LSP v0.2.0 returns full semantic tokens for compiler-classified functions, methods, variables, parameters, types, and properties.
-- After `shutdown`, LSP v0.2.0 ignores notifications other than `exit` and returns a JSON-RPC invalid-request error for ordinary requests. `exit` after `shutdown` exits successfully; `exit` before `shutdown` exits with status `1`.
-- LSP v0.2.0 does not provide rename, formatting requests, workspace-wide indexing, context-sensitive member completion, or incremental parsing.
-
-The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).
+Rename, package-wide incremental invalidation, code actions, inlay hints, and multi-package
+workspace indexing are later capabilities.
 
 ## Target Option
 
-`build`, `run`, and `check` accept an optional target:
+`build`, `run`, and `check` accept `--target` in either input mode:
 
 ```sh
-nocter build app.nct -o app --target arm64-darwin
-nocter run app.nct --target arm64-darwin
+nocter build --target arm64-darwin
+nocter run --executable server --target arm64-darwin
 nocter check app.nct --target arm64-darwin
 ```
 
-Rules:
+The default is the host target. `arm64-darwin` is the initial implemented target. Recognized but
+unimplemented targets produce target-selection diagnostics. Formatting and syntax-inspection
+commands do not accept `--target`.
 
-- If `--target` is omitted, the compiler uses the host target.
-- The initial implemented target is `arm64-darwin`.
-- Reserved future target names may be recognized before implementation.
-- Requesting a recognized but unimplemented target is a target-selection error.
-- `run` can execute only targets that are runnable on the current host.
-- In v0.2.0, practical `run` support is limited to `arm64-darwin` on an ARM64 macOS host.
-- `fmt` does not accept `--target` because source style is target-independent.
-- `tokens` and `ast` do not accept `--target` because lexing and parsing are target-independent.
+Declaration target gates use the source form:
 
-## Output Streams
+```nct
+#target: "arm64-darwin"
+primitive syscall0(number: u64): i64
+```
 
-Rules:
+## Version and Doctor
 
-- Human-readable diagnostics go to stderr.
-- Human-readable command-line and filesystem errors go to stderr.
-- `--version` writes version information to stdout.
-- `doctor` writes a success summary to stdout and failure details to stderr.
-- `build` should not print normal success output unless requested by a future verbosity option.
-- `run` forwards the child program's stdout and stderr by default.
-- `check --format json` writes exactly one JSON diagnostic envelope to stdout and no non-JSON text to stdout.
-- `fmt --check` may print human-readable formatting differences or a summary to stderr.
-- `tokens --format json` writes exactly one JSON token envelope to stdout and no non-JSON text to stdout.
-- `ast --format json` writes exactly one JSON AST envelope to stdout and no non-JSON text to stdout.
-- `lsp` reserves stdout for LSP protocol messages.
+`nocter --version` reports the compiler release, host, and default target. `nocter doctor` validates
+the active Nocter home, including `VERSION`, `MANIFEST.json`, the host/default-target relationship,
+and the standard-library directory. Neither command reads user source.
 
-## Exit Status
+## Output and Exit Status
 
-Compiler-owned exit statuses:
+Compiler-owned exit statuses are:
 
 ```text
 0  success
-1  source diagnostics or `fmt --check` formatting difference
-2  command-line, filesystem, Nocter home, target-selection, or temporary executable error
+1  source diagnostics or a formatting difference
+2  command-line, filesystem, Nocter-home, or target-selection error
 3  internal compiler error
 ```
 
-Rules:
+After a program starts, `run` returns that program's exit status. Human diagnostics and command
+errors go to stderr. `--version` and successful `doctor` output go to stdout.
 
-- `build` and `check` use compiler-owned exit statuses.
-- `--version` uses compiler-owned exit statuses.
-- `doctor` uses compiler-owned exit statuses.
-- `fmt` uses compiler-owned exit statuses.
-- `fmt --check` exits with status `1` when the file would be changed by formatter output.
-- `lsp` uses compiler-owned exit statuses when startup fails.
-- After `run` successfully starts the compiled program, the `nocter run` process exits with the executed program's exit status.
-- If `run` fails before starting the program, it uses compiler-owned exit statuses.
-- If the executed program terminates by signal, `run` follows the host platform's conventional process-status reporting.
+## v0.4.0 Phase 0 Non-goals
 
-## Not Adopted in v0.2.0
+- dependency resolution, registries, package stores, lock data, or source acquisition
+- multi-package workspaces
+- project-wide formatting or incremental build artifacts
+- test-target declarations or a package test runner
+- child-process argument forwarding before its separator and ownership contract are specified
 
-The following are not part of v0.2.0:
-
-- RAM-only execution
-- JIT execution
-- in-process execution of the selected Nocter entry function
-- external assembler or linker fallback
-- project-wide formatting
-- package manifest commands
-- package registry commands
-- project-wide command configuration
-- passing `run` child-process arguments before the `--` forwarding design is implemented
-- entry function type parameters such as `func main<T>(): i32!`
-- entry function value parameters such as `func main(args: Vec<&str>): i32!`
+The immutable v0.2.0 command boundary remains recorded in
+[Nocter v0.2.0 Completion Contract](00-v0.2.0-contract.md).

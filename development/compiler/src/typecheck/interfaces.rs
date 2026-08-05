@@ -176,7 +176,15 @@ fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> S
         Type::Array { element, length } => {
             format!("[{}; {length}]", conformance_key_type(element, parameters))
         }
-        Type::Pointer(inner) => format!("*{}", conformance_key_type(inner, parameters)),
+        Type::Pointer(inner) => format!("*({})", conformance_key_type(inner, parameters)),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => format!(
+            "&{}({})",
+            if *is_readwrite { "+" } else { "" },
+            conformance_key_type(inner, parameters)
+        ),
         Type::Optional(inner) => format!("{}?", conformance_key_type(inner, parameters)),
         Type::Fallible { success, error } => format!(
             "{}!{}",

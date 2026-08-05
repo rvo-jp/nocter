@@ -36,6 +36,7 @@ fn type_contains_pointer(
                 )
         }),
         Type::Pointer(_) => true,
+        Type::Borrow { inner, .. } => type_contains_pointer(inner, resolved, resolving_names),
         Type::Named(name) => {
             type_symbol_contains_pointer(name, resolved, &HashMap::new(), resolving_names)
         }

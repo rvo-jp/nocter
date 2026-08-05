@@ -1,6 +1,4 @@
-mod build;
 mod buildability;
-mod check;
 mod command;
 mod compile_options;
 mod doctor;
@@ -10,19 +8,18 @@ mod fmt_options;
 mod json;
 mod json_tool_options;
 mod lsp;
+mod package_commands;
+mod package_plan;
 mod pipeline;
 mod run;
 
 use crate::target::{DEFAULT_TARGET, HOST};
-use build::run_build;
-use check::run_check;
 use command::{Command, CommandErrorKind, parse_command};
 use doctor::run_doctor;
 use errors::{command_line_diagnostic, target_selection_diagnostic, write_human_diagnostics};
 use fmt::run_fmt;
-use json::{run_ast_json, run_check_json, run_tokens_json, write_diagnostics_json};
+use json::{run_ast_json, run_tokens_json, write_diagnostics_json};
 use lsp::run_lsp;
-use run::run_file;
 use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -58,14 +55,11 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
-        Ok(Command::Build(command)) => run_build(
-            &command.source.file,
-            &command.source.target,
-            command.output.as_deref(),
-        ),
-        Ok(Command::Run(command)) => run_file(&command.file, &command.target),
-        Ok(Command::Check(command)) => run_check(&command.file, &command.target),
-        Ok(Command::CheckJson(command)) => run_check_json(&command.file, &command.target),
+        Ok(Command::Fetch(command)) => package_commands::run_fetch_command(&command),
+        Ok(Command::Build(command)) => package_commands::run_build_command(&command),
+        Ok(Command::Run(command)) => package_commands::run_run_command(&command),
+        Ok(Command::Check(command)) => package_commands::run_check_command(&command),
+        Ok(Command::CheckJson(command)) => package_commands::run_check_json_command(&command),
         Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
@@ -98,13 +92,26 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "usage: nocter <command> [args]")?;
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
-    writeln!(writer, "  build [file.nct] [-o <path>] [--target <target>]")?;
-    writeln!(writer, "  run [file.nct] [--target <target>]")?;
-    writeln!(writer, "  <file.nct> [--target <target>]")?;
-    writeln!(writer, "  check [file.nct] [--target <target>]")?;
+    writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
     writeln!(
         writer,
-        "  check [file.nct] [--target <target>] --format json"
+        "  build [--root <dir>] [--executable <name>] [-o <path>] [--target <target>]"
+    )?;
+    writeln!(
+        writer,
+        "  run [--root <dir>] [--executable <name>] [--target <target>]"
+    )?;
+    writeln!(
+        writer,
+        "  check [--root <dir>] [--executable <name>] [--target <target>]"
+    )?;
+    writeln!(
+        writer,
+        "  check [--root <dir>] [--executable <name>] [--target <target>] --format json"
+    )?;
+    writeln!(
+        writer,
+        "  build|run|check <file.nct> [options]  (or --file <file.nct>)"
     )?;
     writeln!(writer, "  fmt [--check] <file.nct>")?;
     writeln!(writer, "  tokens <file.nct> --format json")?;

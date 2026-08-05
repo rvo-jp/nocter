@@ -1,7 +1,7 @@
 //! Editor presentation for typechecked collection-iteration plans.
 
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::type_expr_display_lossy;
+use crate::ast::canonical_type_expr;
 use crate::resolve::LocalSymbolKind;
 use crate::source::ByteSpan;
 use crate::typecheck::{TypecheckCollectionForPlan, TypecheckCollectionForSourceMode};
@@ -79,15 +79,12 @@ fn sequence_spread_markdown(
     };
     let mut lines = vec![
         format!("**Sequence spread:** {mode}."),
-        format!(
-            "**Source:** `{}`.",
-            type_expr_display_lossy(&plan.source_type)
-        ),
+        format!("**Source:** `{}`.", canonical_type_expr(&plan.source_type)),
         format!(
             "**Iterator:** `{}`; **iterator item:** `{}`; **pack item:** `{}`.",
-            type_expr_display_lossy(&plan.iterator_type),
-            type_expr_display_lossy(&plan.iterator_item_type),
-            type_expr_display_lossy(&plan.pack_item_type),
+            canonical_type_expr(&plan.iterator_type),
+            canonical_type_expr(&plan.iterator_item_type),
+            canonical_type_expr(&plan.pack_item_type),
         ),
     ];
     if let Some(conversion) = &plan.conversion {
@@ -134,8 +131,8 @@ fn iteration_markdown(analysis: &CompileUnitAnalysis, plan: &TypecheckCollection
         format!("**Iteration source:** {mode}."),
         format!(
             "**Iterator:** `{}`; **item:** `{}`.",
-            type_expr_display_lossy(&plan.iterator_type),
-            type_expr_display_lossy(&plan.item_type)
+            canonical_type_expr(&plan.iterator_type),
+            canonical_type_expr(&plan.item_type)
         ),
     ];
 

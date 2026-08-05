@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packages, Dependencies, and Locks - Nocter</title>
+    <meta name="description" content="This document records the compiler architecture adopted for v0.4.0 Phase 1. Public syntax and command behavior are specified in the language specification.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/packages/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Packages, Dependencies, and Locks - Nocter">
+    <meta property="og:description" content="This document records the compiler architecture adopted for v0.4.0 Phase 1. Public syntax and command behavior are specified in the language specification.">
+    <meta property="og:url" content="https://nocter.dev/development/docs/packages/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-05">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Packages, Dependencies, and Locks - Nocter">
+    <meta name="twitter:description" content="This document records the compiler architecture adopted for v0.4.0 Phase 1. Public syntax and command behavior are specified in the language specification.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Packages, Dependencies, and Locks - Nocter","description":"This document records the compiler architecture adopted for v0.4.0 Phase 1. Public syntax and command behavior are specified in the language specification.","url":"https://nocter.dev/development/docs/packages/","mainEntityOfPage":"https://nocter.dev/development/docs/packages/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Packages","item":"https://nocter.dev/development/docs/packages/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
+                <li><a href="./index.html#content" aria-current="page">Packages, Dependencies, and Locks</a></li>
+                <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
+                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
+                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
+                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
+                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/packages.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="packages-dependencies-and-locks">Packages, Dependencies, and Locks</h1><p>This document records the compiler architecture adopted for v0.4.0 Phase 1. Public syntax and command behavior are specified in the language specification.</p><h2 id="package-boundary">Package Boundary</h2><p>A package root is a directory that directly contains <code>nocter.nct</code>. There is no source-root concept and the compiler never derives a project import root from an entry file. <code>index.nct</code> remains only a directory module.</p><p><code>nocter.nct</code> combines two source-level roles without combining their compiler responsibilities:</p><ul><li>its leading directives form a <code>PackageManifest</code></li><li>its ordinary imports and declarations form the package root <code>AstFile</code></li></ul><p>The parser returns <code>PackageFile { manifest, root_module }</code>. Manifest validation, package graph loading, and generated lock rewriting do not enter ordinary semantic analysis. The module portion follows the same resolver, typechecker, formatter, JSON AST, and LSP paths as every other module.</p><h2 id="identity-model">Identity Model</h2><p><code>#name</code> is presentation metadata. Filesystem paths and dependency aliases are not semantic package identity.</p><ul><li>root and path packages derive a stable digest from their canonical package root</li><li>Git packages derive identity from the declared source URL plus exact commit</li><li>archive packages derive identity from the declared source URL plus SHA-256 content digest</li><li><code>ModuleId</code> and <code>ExecutableId</code> contain <code>PackageId</code></li><li>dependency aliases are scoped by the declaring <code>PackageId</code></li></ul><p><code>ModuleId</code> contains a typed <code>ModuleKey</code>. <code>ModuleKey::PackageRoot</code> identifies the code in <code>nocter.nct</code>; <code>ModuleKey::Path</code> identifies an ordinary file or directory module. Consequently an omitted executable <code>entry</code> selects <code>nocter.nct</code>, while the explicit path <code>entry: "."</code> selects <code>index.nct</code>. No sentinel path string represents the package-root module. Path keys are derived from the resolved canonical source path, not copied from manifest spelling, so equivalent spellings and in-package symbolic-link aliases cannot split one source into multiple module identities.</p><p>Two packages may therefore bind the same alias to different package revisions without flattening the graph or colliding in the package store.</p><h2 id="responsibility-boundaries">Responsibility Boundaries</h2><p><code>package/graph.rs</code> owns graph traversal, cycles, scoped aliases, and the CLI/LSP snapshot. <code>package/store.rs</code> locates an already identified package in the package-local store and then the shared Nocter-home store. <code>package/fetch.rs</code> alone executes Git, downloads archives, verifies content, and installs immutable package trees. <code>package/lockfile.rs</code> alone rewrites generated lock data in <code>nocter.nct</code>. <code>package/modules.rs</code> is the shared explicit-module resolver, while <code>package/targets.rs</code> parses and resolves executable declarations. Both CLI and LSP consume their typed results instead of interpreting manifest strings independently.</p><p>Graph construction computes effective locks in memory and validates the complete transitive graph before requesting any manifest rewrite. A failed graph may populate immutable cache entries, but it does not leave a partial generated <code>#lock</code> in any mutable root or path package.</p><p>The store never resolves an import by package name. It receives an exact <code>PackageId</code>. A package in Nocter home with a matching display name or alias is irrelevant.</p><h2 id="import-classification">Import Classification</h2><p>Import syntax selects one resolver namespace before filesystem module discovery:</p><ul><li><code>./x</code> and <code>../x</code> are relative to the importing module and may not leave its package</li><li><code>/x</code> is relative to the owning package root</li><li><code>dependency/x</code> starts at the dependency bound to <code>dependency</code> by the owning package</li><li><code>std/x</code> starts at the compiler-matched standard library</li><li>any other first segment is an undeclared-dependency error</li></ul><p>Filesystem-absolute source imports and project-directory shadowing of <code>std</code> are not supported. Single-file mode has no package root; it supports module-relative imports and <code>std</code> only.</p><h2 id="dependency-sources-and-generated-locks">Dependency Sources and Generated Locks</h2><p>Dependency declarations are user-authored. Locks are generated in the same <code>nocter.nct</code> so source selection and its exact result appear in one review diff.</p><pre><code class="language-nct">#dependencies<span class="token-operator">:</span> <span class="token-operator">{</span>
+    json<span class="token-operator">:</span> <span class="token-operator">{</span>
+        git<span class="token-operator">:</span> <span class="token-string">"https://github.com/example/json.git"</span><span class="token-operator">,</span>
+        revision<span class="token-operator">:</span> <span class="token-string">"main"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+    http<span class="token-operator">:</span> <span class="token-operator">{</span>
+        archive<span class="token-operator">:</span> <span class="token-string">"https://nocter.dev/lib/http-v1.0.0.tar.gz"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+    local_math<span class="token-operator">:</span> <span class="token-operator">{</span>
+        path<span class="token-operator">:</span> <span class="token-string">"./packages/math"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+#lock<span class="token-operator">:</span> <span class="token-operator">{</span>
+    format<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span>
+    dependencies<span class="token-operator">:</span> <span class="token-operator">{</span>
+        http<span class="token-operator">:</span> <span class="token-string">"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"</span><span class="token-operator">,</span>
+        json<span class="token-operator">:</span> <span class="token-string">"git:7db21c1000000000000000000000000000000000"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+</code></pre><p>Git revisions select an update candidate; compilation uses only the locked commit. Archives are identified by downloaded bytes. Path dependencies are deliberately mutable and have no lock entry. The alias <code>std</code> is reserved.</p><p>An ordinary package command may create a missing direct lock but never changes an existing one. <code>--locked</code> rejects required lock generation. <code>--offline</code> prohibits source resolution and fetching. LSP always uses locked offline graph loading and never writes <code>nocter.nct</code> or accesses the network.</p><p>Downloaded Git metadata is removed before installation. Archive paths, extracted canonical paths, manifest presence, symbolic-link escape, package module escape, package-file symlink escape, nested package crossing, and executable entry escape are validated before a package can enter analysis.</p><h2 id="physical-stores">Physical Stores</h2><p>The package-local store is checked first:</p><pre><code class="language-text">&lt;package-root&gt;/.nocter/packages/&lt;PackageId&gt;/
+</code></pre><p>The shared fallback is exact-identity storage:</p><pre><code class="language-text">&lt;Nocter-home&gt;/packages/&lt;PackageId&gt;/
+</code></pre><p>These paths are caches, not source declarations. Removing them does not change the graph selected by committed <code>nocter.nct</code>; an online fetch recreates the same identities.</p><p>Package commands build a target plan before semantic analysis. The plan deduplicates modules by <code>ModuleId</code>, so a package-root executable is not checked a second time as the ordinary root module; distinct executable names may still emit distinct artifacts from one entry module.</p><h2 id="editor-contract">Editor Contract</h2><p>The LSP locates the nearest containing <code>nocter.nct</code>, bounded by the opened workspace, and loads the same locked graph as the CLI in offline mode. Nested packages are independent package roots. Hover, completion, definition, references, diagnostics, and semantic module analysis use graph identity. Manifest directive names, dependency aliases, and executable entry values use exact source-backed semantic ranges; executable entry values navigate through the shared module resolver.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

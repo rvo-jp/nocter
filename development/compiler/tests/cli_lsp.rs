@@ -795,7 +795,7 @@ func main(): i32! {
     let hover = &response_with_id(&messages, 2)["result"];
     let hover_text = hover["contents"]["value"].as_str().unwrap();
     assert!(
-        hover_text.contains("func lookup(name: &str): (&str)?! from static")
+        hover_text.contains("func lookup(name: &str): &str?! from static")
             && hover_text.contains("Result provenance:** static storage"),
         "{hover_text}"
     );

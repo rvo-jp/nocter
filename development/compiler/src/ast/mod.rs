@@ -7,8 +7,10 @@ mod constructs;
 mod documentation;
 mod json;
 mod literals;
+mod packages;
 mod provenance;
 mod receivers;
+mod type_notation;
 mod types;
 mod visit;
 
@@ -18,9 +20,11 @@ pub use collection_for::*;
 pub use constructs::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
+pub use packages::*;
 pub use provenance::*;
 pub use receivers::*;
-pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
+pub(crate) use type_notation::canonical_type_expr;
+pub(crate) use types::substitute_type_expr_parameters;
 pub(crate) use visit::{
     closure_expression_by_span, visit_block_expressions_without_nested_closures, visit_expression,
     visit_file_expressions,
@@ -58,6 +62,7 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportItem {
     pub span: ByteSpan,
+    pub visibility: Visibility,
     pub path: ModulePath,
     pub alias: ImportAlias,
     pub alias_is_default: bool,

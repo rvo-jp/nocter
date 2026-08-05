@@ -62,7 +62,7 @@ and documentation for hover and signature help.
 
 Completion derives lexical scope and shadowing, generic member specialization, receiver capability,
 signature detail, documentation, and insertion text from compiler facts. Import paths share the
-frontend module layout and workspace/source roots; imported symbols come from resolved import
+frontend module layout and package graphs; imported symbols come from resolved import
 identity and visibility. Call-argument candidates use typechecker assignability for ranking.
 Incomplete calls, member expressions, imports, regions, and typed literals use temporary
 compile-unit recovery overlays separate from the authoritative document.
@@ -152,8 +152,9 @@ recognize `ViewIter`, `VecIntoIter`, `next`, `get`, or any standard-library modu
 
 - completion specializes readonly and consuming iterator methods from the concrete receiver
 - receiver filtering offers `&+self.next()` only for a writable iterator place
-- hover and signature help distinguish `(&T)?` from `T?` and include callable result provenance
-- optional borrow formatting retains parentheses, avoiding the ambiguous `&T?` presentation
+- hover and signature help distinguish `&T?` from `T?` and include callable result provenance
+- canonical type presentation follows parser precedence: `&T?` is an optional borrow, while
+  `&(T?)` is a borrow of an optional value
 - incomplete zero-argument member calls try both a closed empty call and an argument-placeholder
   overlay through the general call recovery pipeline
 - JSON-RPC tests verify that an incomplete `.next(` edit resolves the same compiler-owned method
@@ -207,7 +208,7 @@ The protocol layer consumes these identities and never repeats conformance selec
 Nested-outcome and process tooling uses normalized callable signatures and provenance facts from
 analysis. Protocol code does not recognize `env`, reinterpret `?!`, or synthesize a `from` clause.
 
-- hover on an imported or aliased process lookup shows the normalized `(&str)?!` return
+- hover on an imported or aliased process lookup shows the normalized `&str?!` return
 - callable hover includes the exact `from static` contract and static result provenance
 - the hover range covers the imported alias or callable name, not an enclosing module/type prefix
 - malformed and incomplete consumers continue through the ordinary recovery pipeline
@@ -334,6 +335,10 @@ diagnostics, and range-safe semantic recovery. Phase 9 tests cover complete capa
 signature help, unambiguous/ambiguous member completion, incomplete additional-bound recovery, and
 JSON-RPC agreement. Phase 10 tests cover normalized closure/capture presentation, default-method
 specialization, semantic identity, shared delimiter recovery, and direct plus JSON-RPC agreement.
+v0.4.0 snapshot and stabilization tests additionally cover immutable generations, exact reverse
+invalidation, missing and malformed dependency recovery, symlink deletion, root and transitive
+manifest failure recovery, dynamic file-watcher registration, saved text, lifecycle ordering, and
+deterministic reuse in a 49-document workspace.
 
 ## Deferred Features
 

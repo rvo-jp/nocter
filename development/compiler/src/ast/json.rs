@@ -9,6 +9,7 @@ mod expressions;
 mod file;
 mod items;
 mod node;
+mod packages;
 mod spans;
 mod statements;
 mod type_exprs;

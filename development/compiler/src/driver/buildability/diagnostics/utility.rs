@@ -61,7 +61,7 @@ pub(in crate::driver::buildability) fn method_target_name(
 }
 
 pub(in crate::driver::buildability) fn drop_target_name(self_ty: &TypeExpr) -> String {
-    format!("{}.drop", type_expr_display_lossy(self_ty))
+    format!("{}.drop", canonical_type_expr(self_ty))
 }
 
 pub(in crate::driver::buildability) fn unsupported_outcome_return_issue(

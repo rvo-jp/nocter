@@ -3,7 +3,7 @@ use super::model::{Type, TypeEnvironment, same_known_type};
 use super::numeric::{is_integer_literal_expr, is_integer_type};
 use super::operations::is_expression_assignable;
 use super::type_expr::{
-    type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
+    canonical_type_expr, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
     Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, ImplDecl,
@@ -202,11 +202,7 @@ pub(super) fn impl_self_type(impl_: &ImplDecl, resolved: &ResolveOutput) -> Type
 }
 
 pub(super) fn impl_member_name(impl_: &ImplDecl, member_name: &str) -> String {
-    format!(
-        "{}.{}",
-        type_expr_display_lossy(&impl_.target_ty),
-        member_name
-    )
+    format!("{}.{}", canonical_type_expr(&impl_.target_ty), member_name)
 }
 
 pub(super) fn generic_parameter_substitutions(

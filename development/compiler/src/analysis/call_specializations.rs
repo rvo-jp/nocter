@@ -1,8 +1,8 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, TypeExpr,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    DropDecl, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, TypeExpr, canonical_type_expr,
+    substitute_type_expr_parameters,
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{
@@ -729,11 +729,11 @@ fn substitutions_semantic_eq(
 }
 
 fn type_expr_semantic_eq(left: &TypeExpr, right: &TypeExpr) -> bool {
-    type_expr_display_lossy(left) == type_expr_display_lossy(right)
+    canonical_type_expr(left) == canonical_type_expr(right)
 }
 
 fn drop_target_name(self_ty: &TypeExpr) -> String {
-    format!("{}.drop", type_expr_display_lossy(self_ty))
+    format!("{}.drop", canonical_type_expr(self_ty))
 }
 
 fn type_names_match(left: &str, right: &str) -> bool {

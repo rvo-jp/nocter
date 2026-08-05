@@ -133,13 +133,13 @@ pub(super) fn specialized_target_name(
 ) -> Option<String> {
     let type_arguments = generic_parameters
         .iter()
-        .map(|parameter| substitutions.get(parameter).map(type_expr_display_lossy))
+        .map(|parameter| substitutions.get(parameter).map(canonical_type_expr))
         .collect::<Option<Vec<_>>>()?;
     Some(format!("{base_target_name}<{}>", type_arguments.join(", ")))
 }
 
 pub(super) fn method_target_name_from_self_ty(self_ty: &TypeExpr, method_name: &str) -> String {
-    format!("{}.{}", type_expr_display_lossy(self_ty), method_name)
+    format!("{}.{}", canonical_type_expr(self_ty), method_name)
 }
 
 pub(super) fn drop_target_name_from_base_and_self_ty(
@@ -155,7 +155,7 @@ pub(super) fn drop_target_name_from_base_and_self_ty(
     let arguments = generic
         .arguments
         .iter()
-        .map(type_expr_display_lossy)
+        .map(canonical_type_expr)
         .collect::<Vec<_>>()
         .join(", ");
     format!("{base_type_name}<{arguments}>.drop")

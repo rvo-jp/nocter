@@ -1090,7 +1090,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -2421,9 +2421,8 @@ func main(): i32 {
 #[test]
 fn run_command_returns_imported_alias_payloadless_wildcard_only_match_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-payloadless-wildcard-only-match");
-    fs::create_dir_all(project.root().join("std")).unwrap();
     project.write_source(
-        "std/choices.nct",
+        "choices.nct",
         r#"pub enum Choice {
     yes
     no
@@ -2438,7 +2437,7 @@ pub func choose(): PublicChoice {
     );
     let source = project.write_source(
         "payloadless_wildcard_imported_alias.nct",
-        r#"use std/choices.{PublicChoice, choose}
+        r#"use ./choices.{PublicChoice, choose}
 
 func main(): i32 {
     let first = describe(choose())
@@ -2903,7 +2902,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3023,7 +3022,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3095,7 +3094,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3197,7 +3196,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3303,7 +3302,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );

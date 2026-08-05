@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immutable LSP Snapshots - Nocter</title>
+    <meta name="description" content="This document defines the compiler boundary adopted for v0.4.0 Phase 2. Public editor behavior is specified in the tooling specification.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/lsp-snapshots/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Immutable LSP Snapshots - Nocter">
+    <meta property="og:description" content="This document defines the compiler boundary adopted for v0.4.0 Phase 2. Public editor behavior is specified in the tooling specification.">
+    <meta property="og:url" content="https://nocter.dev/development/docs/lsp-snapshots/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-05">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Immutable LSP Snapshots - Nocter">
+    <meta name="twitter:description" content="This document defines the compiler boundary adopted for v0.4.0 Phase 2. Public editor behavior is specified in the tooling specification.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Immutable LSP Snapshots - Nocter","description":"This document defines the compiler boundary adopted for v0.4.0 Phase 2. Public editor behavior is specified in the tooling specification.","url":"https://nocter.dev/development/docs/lsp-snapshots/","mainEntityOfPage":"https://nocter.dev/development/docs/lsp-snapshots/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Lsp Snapshots","item":"https://nocter.dev/development/docs/lsp-snapshots/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
+                <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
+                <li><a href="./index.html#content" aria-current="page">Immutable LSP Snapshots</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
+                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
+                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
+                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
+                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/lsp-snapshots.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="immutable-lsp-snapshots">Immutable LSP Snapshots</h1><p>This document defines the compiler boundary adopted for v0.4.0 Phase 2. Public editor behavior is specified in the tooling specification.</p><h2 id="state-ownership">State Ownership</h2><p><code>LspSnapshot</code> is the only analyzed state visible to normal LSP requests. One immutable generation owns:</p><ul><li>the exact open-document texts and versions</li><li>one locked, offline <code>PackageGraph</code> for each open package root</li><li>compiler analysis rooted at each open document</li><li>source dependencies retained by each document analysis</li><li>diagnostics derived from those same compiler results</li></ul><p>The mutable server document map is only an input to the next generation. Hover, completion, signature help, definition, references, semantic tokens, and diagnostics read an <code>Arc&lt;LspSnapshot&gt;</code> and cannot observe a partially rebuilt state.</p><p>A snapshot contains one document-root compile unit per open document rather than one artificial compile unit containing every package file. This preserves normal import visibility and permits an unreferenced file to be edited as its own module. Package identity, dependency namespaces, open overlays, and generation remain shared across those analyses.</p><h2 id="build-and-publication">Build and Publication</h2><p><code>SnapshotStore</code> owns the current generation. Document open, accepted document change, saved text, document close, workspace initialization, and watched-file changes build a successor before replacing the current <code>Arc</code>. Requests with unchanged inputs reuse the same generation.</p><p>The server is currently a serialized message loop. A build therefore cannot race a request or be published after a newer edit. Stale <code>didChange</code> versions are rejected before construction. Diagnostics carry the accepted document version, and semantic-token results carry the snapshot generation as <code>resultId</code>. Background construction and cancellation become necessary only if the server later introduces concurrent request execution.</p><h2 id="invalidation">Invalidation</h2><p>Successor construction reuses immutable analysis objects where their inputs remain valid.</p><table><thead><tr><th>Change</th><th>Invalidated state</th></tr></thead><tbody><tr><td>Open document text or version</td><td>That document and analyses whose retained source set contains it</td></tr><tr><td>Imported disk file notification</td><td>Analyses whose dependency trace contains a logical or canonical alias of the path</td></tr><tr><td>Open or closed overlay</td><td>The overlay document and its reverse importers</td></tr><tr><td><code>nocter.nct</code> change</td><td>Its package graph and every document analysis using that graph revision</td></tr><tr><td>Workspace-root change</td><td>Every package context and document analysis</td></tr><tr><td>Unrelated file</td><td>No retained analysis</td></tr></tbody></table><p>Source dependency sets come from the frontend loading trace, not from every open document preloaded into its <code>SourceMap</code>. The trace retains reached source identities and every attempted module candidate, including <code>module.nct</code> and <code>module/index.nct</code> when neither exists. Failed parsing and failed import resolution therefore preserve the exact dependency prefix reached before failure. Creating a missing import, repairing a malformed import, or deleting a symlinked import invalidates its reverse importers without rebuilding unrelated analyses.</p><p>Path identity retains three forms where available: lexical normalization, complete canonicalization, and canonicalization of the nearest existing ancestor with a missing suffix reattached. The third form is necessary for deletion notifications because the changed leaf can no longer be canonicalized after removal.</p><p>Nested packages have separate package contexts and graph revisions. A manifest change in one does not invalidate an unrelated package.</p><h2 id="package-file-overlays">Package-File Overlays</h2><p>Open <code>nocter.nct</code> text is passed to package loading through <code>PackageSourceOverlay</code>. The overlay is read-only and is accepted only by the locked, offline graph entry point. It never fetches a package, generates a lock, or rewrites a package file. Ordinary open <code>.nct</code> documents are already supplied to frontend loading through the shared <code>SourceMap</code> overlay.</p><p>Package parsing recognizes <code>nocter.nct</code> by its source role even when graph validation fails. This lets malformed or incomplete package directives produce package diagnostics instead of falling back to ordinary-module parsing.</p><p>Package graph loading also returns the set of manifests it attempted to visit. A failed transitive manifest therefore remains an invalidation dependency after the graph itself has been discarded. Repairing that manifest reloads the graph instead of reusing a permanently failed snapshot. No previous successful graph is exposed while current manifest text is invalid.</p><h2 id="protocol-boundary">Protocol Boundary</h2><p>The server advertises full-text synchronization and saved text. If a client includes text in <code>didSave</code>, that text becomes the next immutable input before diagnostics are published. Clients that support dynamic watched-file registration receive one <code>**/*.nct</code> registration after the <code>initialized</code> notification; the existing watched-file handler remains valid for clients that send the notification through static configuration.</p><p>The JSON-RPC loop has an explicit <code>Uninitialized</code>, <code>Running</code>, and <code>Shutdown</code> lifecycle. Requests before initialization, repeated initialization, and requests after shutdown receive protocol errors. Client responses to server-initiated registration requests are recognized as responses and are not misclassified as unsupported requests.</p><h2 id="recovery-analyses">Recovery Analyses</h2><p>Incomplete-call, literal, interpolation, region, and block recovery creates an ephemeral text overlay derived from the current snapshot. It reuses the snapshot's package graph and all other open document texts. Recovery never replaces the current generation and never reloads package metadata.</p><h2 id="deliberate-limits">Deliberate Limits</h2><ul><li>Phase 2 does not scan unreferenced unopened modules solely to build a global symbol index.</li><li>Analysis objects are retained in memory only; there is no persistent on-disk semantic cache.</li><li>Rename, code actions, inlay hints, and background parallel analysis remain separate features.</li><li>Filesystem module-segment completion may enumerate directories, but dependency ownership and
+  aliases come only from the snapshot graph.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

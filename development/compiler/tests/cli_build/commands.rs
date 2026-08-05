@@ -40,9 +40,17 @@ fn build_command_writes_default_macho_executable() {
 }
 
 #[test]
-fn build_command_uses_main_nct_when_source_is_omitted() {
+fn build_command_uses_package_declared_executable_when_source_is_omitted() {
     let project = TempProject::new("cli-build-default-source");
-    let source = project.write_source(
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: {
+    name: "app",
+    entry: "./main",
+}
+"#,
+    );
+    project.write_source(
         "main.nct",
         r#"func main(): i32 {
     return 0
@@ -51,7 +59,7 @@ fn build_command_uses_main_nct_when_source_is_omitted() {
     );
 
     let output = nocter(&project, ["build"]);
-    let executable = source.with_extension("");
+    let executable = project.root().join("app");
 
     assert_success(&output);
     assert_macho_executable(&executable);
@@ -238,7 +246,7 @@ fn check_json_reports_command_line_parse_error_as_diagnostic_envelope() {
     assert_eq!(json["diagnostics"][0]["code"], "E0700");
     assert_eq!(
         json["diagnostics"][0]["message"],
-        "unexpected argument `extra`"
+        "unexpected additional source `extra`"
     );
     assert_eq!(
         json["diagnostics"][0]["help"],

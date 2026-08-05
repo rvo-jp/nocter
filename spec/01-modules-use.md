@@ -173,9 +173,10 @@ Wildcard imports, bare public re-exports, dotted module paths, namespace alias r
 
 ## Re-exports
 
-Adopted: public re-export uses `pub use path.Name` or `pub use path.{...}`.
+Adopted: public re-export may expose a module namespace or selected public names.
 
 ```nct
+pub use ./src/json
 pub use std/string.String
 pub use std/io.File as StdFile
 ```
@@ -188,15 +189,17 @@ pub use std/io.File as StdFile
 
 Rules:
 
+- `pub use path` re-exports the resolved module namespace under the final path segment.
+- A namespace re-export does not flatten declarations from the target module.
 - `pub use path.Name` and `pub use path.{...}` are allowed only at top level.
 - `pub use path.Name` and `pub use path.{...}` can re-export only public names from the source module.
 - `pub(nocter)` names are not public names for `pub use path.Name` or `pub use path.{...}`.
 - Each item in a `pub use` list may independently use `as Alias`.
 - Re-exported names participate in the same name collision checks as other imports and top-level declarations.
 - `pub use path.*` is invalid.
-- `pub use path as alias` is invalid in v0.2.0.
+- `pub use path as alias` remains invalid; namespace re-exports use their final path segment.
 - `pub use path.Name` and `pub use path.{...}` do not make private names public.
-- `pub use path.Name` and `pub use path.{...}` do not create a namespace alias.
+- Selected-name re-exports do not create a namespace alias.
 - Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors in the initial design.
 
 ## Synthetic Standard Prelude
@@ -237,49 +240,64 @@ The prelude must remain small. `Int` is not part of v0.2.0; write `i32` or defin
 
 ## Package Layout
 
-Adopted: v0.2.0 has no package manifest and no project-root discovery.
-
-The source file passed to `build`, `run`, or `check` is the root file for that command.
+Adopted for v0.4.0 Phase 1: a package root is a directory that directly contains `nocter.nct`.
+There is no source-root concept. `index.nct` remains only a directory module.
 
 ```text
 project/
-    app.nct
+    nocter.nct
     src/
+        app.nct
         config.nct
-        parser.nct
 ```
 
-```sh
-nocter build app.nct -o app
-nocter build
-nocter run app.nct
-nocter run
-nocter check app.nct
-nocter check
+```nct
+//! Example application package.
+
+#name: "example"
+#version: "0.1.0"
+#executable: {
+    name: "example",
+    entry: "./src/app",
+}
+
+pub use ./src/config
 ```
 
-Rules:
+Package-file rules:
 
-- A package manifest such as `nocter.toml` is not part of v0.2.0.
-- The compiler does not search upward for a project root.
-- The compiler does not infer a package name from a directory name.
-- If a file is named on the command line, that file is the entry file.
-- If no file is named, `main.nct` is the entry file.
-- The source root is the canonical parent directory of the entry file.
-- Relative imports are resolved from the directory containing the importing file, not from the root file directory.
-- Absolute imports are resolved from the filesystem root.
-- Non-relative imports from user project files are resolved from the source
-  root first, then the active Nocter home, as specified in
-  [Import Path Resolution](#import-path-resolution). Files inside the active
-  Nocter home resolve non-relative imports from that home.
-- Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.2.0.
+- File documentation precedes package directives; ordinary imports and declarations follow them.
+- `#name` and `#version` accept one string and may occur at most once.
+- `#name` defaults to the root directory basename for display only. That display name is not
+  package identity.
+- An omitted `#version` remains absent.
+- `#executable` is repeatable, requires a `name` string, and accepts an optional `entry` string.
+- Omitting `entry` selects the package-root module in `nocter.nct`.
+- `entry: "."` selects the root directory module at `index.nct`.
+- `entry: "./src/app"` resolves `src/app.nct` or `src/app/index.nct`.
+- Logical module paths omit `.nct`, cannot escape the package root lexically or through symbolic
+  links, and are ambiguous when both file and directory-module forms exist.
+- Neither the package-root `nocter.nct` nor an explicit executable entry may escape its package or
+  cross into a nested package through a symbolic link or path.
+- Package directives are invalid outside `nocter.nct`. A nested `nocter.nct` defines another
+  package; a nested `index.nct` remains an ordinary directory module.
+- Omitting a source from `build`, `run`, or `check` selects `./nocter.nct`; it never probes for
+  `main.nct`.
+- Explicit positional source files and `--file` retain single-file operation without changing the
+  package command's default.
+- Relative imports are resolved from the directory containing the importing file and cannot leave
+  its package.
+- Leading `/` is package-absolute, not filesystem-absolute.
+- A non-relative first segment names a declared dependency or `std`.
+- `#dependencies` declares path, Git, and archive sources. Generated format-1 `#lock` data fixes
+  Git commits and archive SHA-256 content in the same `nocter.nct`.
 
 Example:
 
 ```nct
 // app.nct
 use std/io.print
-use ./src/config.Config
+use /src/config.Config
 
 func main(): i32! {
     let config = Config.default()
@@ -372,7 +390,8 @@ absolute:     /Users/me/.nocter/std/io.nct
 
 ## Import Path Resolution
 
-Import paths are source paths, not package names. The `.nct` extension is omitted.
+Import paths select module-relative, package, dependency, or standard-library namespaces. The
+`.nct` extension is omitted.
 
 Relative import paths start with `./` or `../`.
 
@@ -389,34 +408,24 @@ import path:  ./config
 resolved:     app/config.nct
 ```
 
-Non-relative import paths start with a directory or file name.
+Package-absolute paths start with `/`.
 
 ```nct
+use /src/config.Config
+```
+
+Non-relative paths start with a dependency alias or `std`.
+
+```nct
+use json/value.Value
 use std/io.print
-use std/fs.File
-use app/config.Config
 ```
 
-Absolute import paths start with `/` and are resolved from the filesystem root.
-
-```nct
-use /opt/nocter/shared.Config
-```
-
-Non-relative paths from user project files are resolved from the source root
-first and the active Nocter home second. This means a user project can
-intentionally shadow standard-library paths such as `std/io` for its own source
-imports.
-
-Non-relative paths from files inside the active Nocter home are resolved from
-the active Nocter home. They do not search the user source root. Distributed
-standard-library internals must not bind to user project shadow modules.
-
-For an entry file at `/work/app/main.nct` and active Nocter home `/opt/nocter`, import path `std/io` searches:
+For a package at `/work/app` with dependency alias `json`, the namespaces are:
 
 ```text
-/work/app/std/io.nct
-/work/app/std/io/index.nct
+/work/app/.nocter/packages/<json-PackageId>/nocter.nct
+/work/app/.nocter/packages/<json-PackageId>/value.nct
 /opt/nocter/std/io.nct
 /opt/nocter/std/io/index.nct
 ```
@@ -424,18 +433,18 @@ For an entry file at `/work/app/main.nct` and active Nocter home `/opt/nocter`, 
 Each module path first tries `path.nct`, then `path/index.nct`. If both exist in the same import root, the import is ambiguous and must be reported as an error.
 
 ```text
-use vendor/json.Parser
-/work/app/vendor/json.nct
-/work/app/vendor/json/index.nct
+use /src/json.Parser
+/work/app/src/json.nct
+/work/app/src/json/index.nct
 ```
 
 Rules:
 
-- Local project imports may use `./` or `../` from the importing file, or a non-relative path from the source root.
-- `use config.Config` does not search next to the current file; it searches the source root first and the active Nocter home second.
-- Inside the active Nocter home, `use config.Config` searches from the active
-  Nocter home and does not search the user source root.
-- `/absolute/path` imports are resolved from the filesystem root.
+- Package modules use `./`, `../`, or a leading `/`; relative paths cannot escape the package.
+- `use config.Config` requires a dependency named `config`; it never searches project directories.
+- `use std/io` resolves only through the compiler-matched Nocter home and cannot be shadowed by a
+  project directory.
+- `/src/path` is resolved from the owning package root. Filesystem-absolute imports are invalid.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
 - Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.2.0.
@@ -559,16 +568,15 @@ Initial rules:
 - `module` is not a keyword.
 - Directory modules use `index.nct`.
 - Standard library modules live under `std`.
-- `/work/app/std/io.nct` resolves from import path `std/io` before `/opt/nocter/std/io.nct` when the entry file is under `/work/app`.
-- Target-dependent standard-library declarations are selected by `#target("...")` inside stable module files such as `~/.nocter/std/os.nct`; target names are not required in import paths.
+- `/work/app/src/io.nct` is written `/src/io`; `std/io` always selects the standard library.
+- Target-dependent standard-library declarations are selected by `#target: "..."` inside stable module files such as `~/.nocter/std/os.nct`; target names are not required in import paths.
 
-Import roots:
+Import namespaces:
 
 1. The current file directory for `./` and `../` paths.
-2. The filesystem root for `/...` paths.
-3. The source root, then the active Nocter home, for non-relative paths from
-   user project files.
-4. The active Nocter home for non-relative paths from files inside that home.
+2. The owning package root for `/...` paths.
+3. The dependency bound by the first path segment in `#dependencies`.
+4. The active Nocter home only for `std/...`.
 
 The compiler locates Nocter home in this order:
 

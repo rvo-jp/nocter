@@ -771,7 +771,7 @@ fn drop_target_name_from_base_and_type_expr(base_target_name: &str, ty: &TypeExp
     let arguments = generic
         .arguments
         .iter()
-        .map(type_expr_display_lossy)
+        .map(canonical_type_expr)
         .collect::<Vec<_>>()
         .join(", ");
     format!("{base_type_name}<{arguments}>.drop")

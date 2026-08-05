@@ -3,11 +3,30 @@ use crate::ast::{
     AstFile, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant,
     FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
     ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
-    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
-    TypeAliasDecl, TypeExpr, Visibility,
+    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
+    StructField, TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
+    pub(super) fn format_package_file(&mut self, file: &PackageFile) {
+        for (index, directive) in file.manifest.directives.iter().enumerate() {
+            if index > 0 {
+                self.newline();
+            }
+            self.format_package_directive(directive);
+        }
+        if !file.manifest.directives.is_empty() && !file.root_module.items.is_empty() {
+            self.blank_line();
+        }
+        for (index, item) in file.root_module.items.iter().enumerate() {
+            if index > 0 {
+                self.blank_line();
+            }
+            self.format_item(item);
+        }
+        self.newline();
+    }
+
     pub(super) fn format_file(&mut self, file: &AstFile) {
         for (index, item) in file.items.iter().enumerate() {
             if index > 0 {
@@ -104,6 +123,7 @@ impl Formatter {
     }
 
     pub(super) fn format_import_item(&mut self, item: &ImportItem) {
+        self.format_visibility(item.visibility);
         self.write("use ");
         self.write(&item.path.value);
         if !item.alias_is_default {
@@ -425,14 +445,13 @@ fn self_receiver_prefix(receiver: &Parameter) -> Option<&'static str> {
 impl Formatter {
     fn format_target_directive(&mut self, target: Option<&crate::ast::TargetDirective>) {
         if let Some(target) = target {
-            self.write("#target(");
+            self.write("#target: ");
             self.write_quoted_string_literal(&target.target);
-            self.write(")");
             self.newline();
         }
     }
 
-    fn write_quoted_string_literal(&mut self, value: &str) {
+    pub(super) fn write_quoted_string_literal(&mut self, value: &str) {
         self.write("\"");
         for character in value.chars() {
             match character {

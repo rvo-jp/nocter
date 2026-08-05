@@ -15,10 +15,7 @@ use super::interface_bounds::{
 };
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::{
-    infer_type_expr_substitutions, simple_type_from_display_name,
-    type_expr_to_type_with_substitutions,
-};
+use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use super::visibility::member_visibility_is_accessible;
 use crate::ast::{CallExpr, Expr, MemberExpr, MethodReceiverMode, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -766,9 +763,15 @@ fn aggregate_member_root_name(expression: &Expr) -> Option<&str> {
 
 fn aggregate_member_root_is_writable_place(name: &str, environment: &TypeEnvironment) -> bool {
     environment.is_mutable_binding(name)
-        || environment
-            .get(name)
-            .is_some_and(|ty| matches!(ty, Type::Named(name) if name.starts_with("&+")))
+        || environment.get(name).is_some_and(|ty| {
+            matches!(
+                ty,
+                Type::Borrow {
+                    is_readwrite: true,
+                    ..
+                }
+            )
+        })
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {
@@ -814,11 +817,7 @@ fn field_is_accessible(
 
 pub(super) fn method_self_type_for_receiver(receiver_type: &Type) -> Type {
     match receiver_type {
-        Type::Named(name) => name
-            .strip_prefix("&+")
-            .or_else(|| name.strip_prefix('&'))
-            .map(simple_type_from_display_name)
-            .unwrap_or_else(|| receiver_type.clone()),
+        Type::Borrow { inner, .. } => inner.as_ref().clone(),
         _ => receiver_type.clone(),
     }
 }

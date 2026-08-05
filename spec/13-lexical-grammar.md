@@ -236,20 +236,23 @@ Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
 - `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
-- `#` is punctuation. In v0.2.0 it is used only by the `#target("target-name")`
-  directive form. The lexer does not treat `target` as a reserved keyword.
+- `#` is punctuation. It begins a declarative directive. Directive names remain identifiers rather
+  than reserved keywords.
 - `@` is reserved for possible future attribute-like syntax and is invalid in v0.2.0 outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.
 
-`#target("target-name")` is tokenized as ordinary punctuation, identifier, and
-string tokens:
+`#target: "target-name"` is tokenized as ordinary punctuation, identifier, punctuation, and string
+tokens:
 
 ```text
-# target ( "target-name" )
+# target : "target-name"
 ```
 
-The parser recognizes that exact token pattern only before eligible top-level
-declarations. A `#` token in any other source position is a syntax error in v0.2.0.
+At the start of package-root `nocter.nct`, package directives accept declarative strings, integers,
+booleans, lists, and records. These values are data: they do not perform lookup, calls,
+interpolation, allocation, or target execution. `#target` remains a declaration directive and is
+recognized only before an eligible top-level declaration. A `#` token in any other source position
+is a syntax error.
 
 ## Integer Literals
 

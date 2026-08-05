@@ -149,7 +149,7 @@ release of `Vec` literal storage.
 
 Distributed `std/iter` and `std/vec_into_iter` provide two deliberately separate cursor modes:
 
-- `ViewIter<T>` borrows a contiguous readonly view, allocates nothing, and returns `(&T)?`
+- `ViewIter<T>` borrows a contiguous readonly view, allocates nothing, and returns `&T?`
 - `VecIntoIter<T>` consumes `Vec<T>`, returns owned `T?`, drops its unconsumed suffix in reverse
   order, and releases the transferred raw storage once
 
@@ -185,10 +185,10 @@ generic code:
 ```nct
 pub interface Sequence<T> {
     pub method &self.len(): usize
-    pub method &self.get(index: usize): (&T)? from self
+    pub method &self.get(index: usize): &T? from self
 }
 
-pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
+pub func first<S: Sequence<T>, T>(values: &S): &T? from values
 ```
 
 `Vec<T>` explicitly conforms to `Sequence<T>` and its implementation member `get` declares

@@ -475,6 +475,9 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
+                Item::Import(item) if item.visibility == Visibility::Public => {
+                    self.collect_public_namespace_reexport(item, access);
+                }
                 Item::Function(_)
                 | Item::Import(_)
                 | Item::FromImport(_)
@@ -482,6 +485,27 @@ impl Resolver<'_> {
                 | Item::Construct(_) => {}
             }
         }
+    }
+
+    fn collect_public_namespace_reexport(&mut self, item: &ImportItem, access: ImportAccess) {
+        let Some((_, import_source)) = self
+            .module_index
+            .import_ast_for_span(item.path.span, self.import_sources)
+        else {
+            return;
+        };
+        if import_source.access != ImportAccess::Public || access != ImportAccess::Public {
+            self.output.diagnostics.push(restricted_import_diagnostic(
+                self.sources,
+                &item.alias.name,
+                &item.path.value,
+                Visibility::Private,
+                item.alias.span,
+                item.path.span,
+            ));
+            return;
+        }
+        self.collect_import_namespace_symbol(item);
     }
 
     fn collect_public_export(

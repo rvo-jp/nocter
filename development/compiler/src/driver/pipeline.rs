@@ -1,5 +1,5 @@
 use super::buildability::v0_buildability_diagnostics;
-use crate::analysis::analyze_executable_compile_unit;
+use crate::analysis::{analyze_executable_compile_unit, analyze_module_compile_unit};
 use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -41,7 +41,33 @@ impl BuildOutput {
 
 pub(super) fn check_file_with_target(file: &Path, target: &str) -> CheckOutput {
     let options = frontend_options_for_target(target);
-    let output = analyze_file(file, &options);
+    check_file_with_options(file, &options, true)
+}
+
+pub(super) fn check_package_module_with_target(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    target: &str,
+) -> CheckOutput {
+    let options = frontend_options_for_package(target, package_graph);
+    check_file_with_options(file, &options, false)
+}
+
+pub(super) fn check_package_executable_with_target(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    target: &str,
+) -> CheckOutput {
+    let options = frontend_options_for_package(target, package_graph);
+    check_file_with_options(file, &options, true)
+}
+
+fn check_file_with_options(
+    file: &Path,
+    options: &FrontendOptions,
+    executable: bool,
+) -> CheckOutput {
+    let output = analyze_file(file, options, executable);
 
     CheckOutput {
         root: output.root,
@@ -65,12 +91,22 @@ pub(super) fn build_file_to_path_with_target(
     build_file_to_path_with_options(file, output_path, &options)
 }
 
+pub(super) fn build_package_executable_to_path_with_target(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    output_path: &Path,
+    target: &str,
+) -> BuildOutput {
+    let options = frontend_options_for_package(target, package_graph);
+    build_file_to_path_with_options(file, output_path, &options)
+}
+
 fn build_file_to_path_with_options(
     file: &Path,
     output_path: &Path,
     options: &FrontendOptions,
 ) -> BuildOutput {
-    let output = analyze_file(file, options);
+    let output = analyze_file(file, options, true);
 
     if !output.diagnostics.is_empty() {
         return BuildOutput {
@@ -124,7 +160,18 @@ fn frontend_options_for_target(target: &str) -> FrontendOptions {
     }
 }
 
-fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
+fn frontend_options_for_package(
+    target: &str,
+    package_graph: &crate::package::PackageGraph,
+) -> FrontendOptions {
+    FrontendOptions {
+        package_graph: Some(package_graph.clone()),
+        target: target.to_string(),
+        ..FrontendOptions::default()
+    }
+}
+
+fn analyze_file(file: &Path, options: &FrontendOptions, executable: bool) -> FrontendOutput {
     let mut sources = SourceMap::new();
 
     match sources.load_file(file) {
@@ -136,7 +183,7 @@ fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
             let root_absolute_path = source_file
                 .absolute_path()
                 .map(|path| path.to_string_lossy().into_owned());
-            let (analysis, diagnostics) = analyze_source(&mut sources, source, options);
+            let (analysis, diagnostics) = analyze_source(&mut sources, source, options, executable);
 
             FrontendOutput {
                 root,
@@ -160,6 +207,7 @@ fn analyze_source(
     sources: &mut SourceMap,
     source: SourceId,
     options: &FrontendOptions,
+    executable: bool,
 ) -> (
     Option<crate::analysis::CompileUnitAnalysis>,
     Vec<Diagnostic>,
@@ -169,7 +217,11 @@ fn analyze_source(
         Err(diagnostics) => return (None, diagnostics),
     };
 
-    let analysis = analyze_executable_compile_unit(sources, &unit);
+    let analysis = if executable {
+        analyze_executable_compile_unit(sources, &unit)
+    } else {
+        analyze_module_compile_unit(sources, &unit)
+    };
     let diagnostics = analysis.diagnostics();
 
     (Some(analysis), diagnostics)

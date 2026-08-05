@@ -22,9 +22,8 @@ use super::structs::{
     struct_literal_field_type, struct_member_type,
 };
 use super::type_expr::{
-    infer_type_expr_substitutions, simple_type_from_display_name, type_expr_display_lossy,
-    type_expr_to_type_in_environment, type_expr_to_type_with_self_type,
-    type_expr_to_type_with_substitutions,
+    canonical_type_expr, infer_type_expr_substitutions, type_expr_to_type_in_environment,
+    type_expr_to_type_with_self_type, type_expr_to_type_with_substitutions,
 };
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{

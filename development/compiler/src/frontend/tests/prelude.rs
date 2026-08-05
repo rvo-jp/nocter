@@ -41,7 +41,7 @@ fn check_synthesizes_standard_prelude_for_user_modules() {
 }
 
 #[test]
-fn check_synthetic_prelude_ignores_source_root_shadow() {
+fn check_synthetic_prelude_ignores_package_root_shadow() {
     let root = make_temp_project("synthetic-prelude-home-only");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("std")).unwrap();

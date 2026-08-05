@@ -289,11 +289,10 @@ fn borrow_expression_type(
         return Type::Unknown;
     }
 
-    Type::Named(format!(
-        "{}{}",
-        if expression.is_readwrite { "&+" } else { "&" },
-        inner.display()
-    ))
+    Type::Borrow {
+        is_readwrite: expression.is_readwrite,
+        inner: Box::new(inner),
+    }
 }
 
 pub(super) fn collection_len_call_type(

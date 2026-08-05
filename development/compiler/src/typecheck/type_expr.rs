@@ -3,7 +3,7 @@ use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
 use std::collections::{HashMap, HashSet};
 
-pub(super) use crate::ast::type_expr_display_lossy;
+pub(super) use crate::ast::canonical_type_expr;
 
 pub(super) fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
     type_expr_to_type_with_self_type(ty, resolved, None)
@@ -319,13 +319,12 @@ fn type_expr_to_type_inner(
                     element,
                 },
                 (_, inner_type) if inner_type.is_unknown_or_unresolved() => {
-                    Type::Unresolved(type_expr_display_lossy(ty))
+                    Type::Unresolved(canonical_type_expr(ty))
                 }
-                (_, inner_type) => Type::Named(format!(
-                    "{}{}",
-                    if borrow.is_readwrite { "&+" } else { "&" },
-                    inner_type.display()
-                )),
+                (_, inner_type) => Type::Borrow {
+                    is_readwrite: borrow.is_readwrite,
+                    inner: Box::new(inner_type),
+                },
             }
         }
         TypeExpr::Generic(generic) => {
@@ -333,10 +332,10 @@ fn type_expr_to_type_inner(
                 return Type::Unresolved(generic.name.clone());
             }
             let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
-                return Type::Unresolved(type_expr_display_lossy(ty));
+                return Type::Unresolved(canonical_type_expr(ty));
             };
             if symbol.generic_arity != generic.arguments.len() {
-                return Type::Unresolved(type_expr_display_lossy(ty));
+                return Type::Unresolved(canonical_type_expr(ty));
             }
             let arguments = generic
                 .arguments
@@ -643,152 +642,58 @@ fn borrowed_actual_inner_type(
         } if *actual_readwrite == is_readwrite => Some(Type::ArrayData {
             element: element.clone(),
         }),
-        Type::Named(name) if is_readwrite => name
-            .strip_prefix("&+")
-            .map(simple_type_from_display_name)
-            .map(|ty| normalize_display_type_parameters(ty, parameters)),
-        Type::Named(name) if !is_readwrite => name
-            .strip_prefix('&')
-            .map(simple_type_from_display_name)
-            .map(|ty| normalize_display_type_parameters(ty, parameters)),
+        Type::Borrow {
+            is_readwrite: actual_readwrite,
+            inner,
+        } if *actual_readwrite == is_readwrite => Some(normalize_type_parameters(
+            inner.as_ref().clone(),
+            parameters,
+        )),
         _ => None,
     }
 }
 
-fn normalize_display_type_parameters(ty: Type, parameters: &HashSet<&str>) -> Type {
+fn normalize_type_parameters(ty: Type, parameters: &HashSet<&str>) -> Type {
     match ty {
         Type::Named(name) if parameters.contains(name.as_str()) => Type::Parameter(name),
         Type::Generic { name, arguments } => Type::Generic {
             name,
             arguments: arguments
                 .into_iter()
-                .map(|argument| normalize_display_type_parameters(argument, parameters))
+                .map(|argument| normalize_type_parameters(argument, parameters))
                 .collect(),
         },
-        Type::Pointer(inner) => Type::Pointer(Box::new(normalize_display_type_parameters(
-            *inner, parameters,
-        ))),
-        Type::Optional(inner) => Type::Optional(Box::new(normalize_display_type_parameters(
-            *inner, parameters,
-        ))),
+        Type::Pointer(inner) => {
+            Type::Pointer(Box::new(normalize_type_parameters(*inner, parameters)))
+        }
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Type::Borrow {
+            is_readwrite,
+            inner: Box::new(normalize_type_parameters(*inner, parameters)),
+        },
+        Type::Optional(inner) => {
+            Type::Optional(Box::new(normalize_type_parameters(*inner, parameters)))
+        }
         Type::Fallible { success, error } => Type::Fallible {
-            success: Box::new(normalize_display_type_parameters(*success, parameters)),
-            error: Box::new(normalize_display_type_parameters(*error, parameters)),
+            success: Box::new(normalize_type_parameters(*success, parameters)),
+            error: Box::new(normalize_type_parameters(*error, parameters)),
         },
         Type::View {
             is_readwrite,
             element,
         } => Type::View {
             is_readwrite,
-            element: Box::new(normalize_display_type_parameters(*element, parameters)),
+            element: Box::new(normalize_type_parameters(*element, parameters)),
         },
         Type::ArrayData { element } => Type::ArrayData {
-            element: Box::new(normalize_display_type_parameters(*element, parameters)),
+            element: Box::new(normalize_type_parameters(*element, parameters)),
         },
         Type::Array { element, length } => Type::Array {
-            element: Box::new(normalize_display_type_parameters(*element, parameters)),
+            element: Box::new(normalize_type_parameters(*element, parameters)),
             length,
         },
         _ => ty,
     }
-}
-
-pub(super) fn simple_type_from_display_name(name: &str) -> Type {
-    let name = name.trim();
-    match name {
-        "i32" => Type::I32,
-        "bool" | "i8" | "i16" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize" | "isize" => {
-            Type::Primitive(name.to_string())
-        }
-        "str" => Type::StrData,
-        "&str" => Type::Str,
-        "error" => Type::Error,
-        "void" => Type::Void,
-        "never" => Type::Never,
-        name if name.ends_with('?') => Type::Optional(Box::new(simple_type_from_display_name(
-            &name[..name.len() - 1],
-        ))),
-        name if name.ends_with('!') => Type::Fallible {
-            success: Box::new(simple_type_from_display_name(&name[..name.len() - 1])),
-            error: Box::new(Type::Error),
-        },
-        name if name.starts_with('*') => {
-            Type::Pointer(Box::new(simple_type_from_display_name(&name[1..])))
-        }
-        name if name.starts_with("&+[") && name.ends_with(']') => Type::View {
-            is_readwrite: true,
-            element: Box::new(simple_type_from_display_name(&name[3..name.len() - 1])),
-        },
-        name if name.starts_with("&[") && name.ends_with(']') => Type::View {
-            is_readwrite: false,
-            element: Box::new(simple_type_from_display_name(&name[2..name.len() - 1])),
-        },
-        name if name.starts_with('[') && name.ends_with(']') => {
-            let content = &name[1..name.len() - 1];
-            if let Some((element, length)) = split_top_level_array_parts(content) {
-                Type::Array {
-                    element: Box::new(simple_type_from_display_name(element)),
-                    length: length.to_string(),
-                }
-            } else {
-                Type::ArrayData {
-                    element: Box::new(simple_type_from_display_name(content)),
-                }
-            }
-        }
-        name => parse_generic_display_type(name).unwrap_or_else(|| Type::Named(name.to_string())),
-    }
-}
-
-fn parse_generic_display_type(name: &str) -> Option<Type> {
-    let open = name.find('<')?;
-    let close = name.rfind('>')?;
-    if close != name.len() - 1 || close <= open {
-        return None;
-    }
-    let arguments = split_top_level_type_arguments(&name[open + 1..close])
-        .into_iter()
-        .map(simple_type_from_display_name)
-        .collect();
-    Some(Type::Generic {
-        name: name[..open].trim().to_string(),
-        arguments,
-    })
-}
-
-fn split_top_level_array_parts(content: &str) -> Option<(&str, &str)> {
-    let mut angle_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    for (index, ch) in content.char_indices() {
-        match ch {
-            '<' => angle_depth += 1,
-            '>' => angle_depth = angle_depth.saturating_sub(1),
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.saturating_sub(1),
-            ';' if angle_depth == 0 && bracket_depth == 0 => {
-                return Some((content[..index].trim(), content[index + 1..].trim()));
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn split_top_level_type_arguments(arguments: &str) -> Vec<&str> {
-    let mut result = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0usize;
-    for (index, ch) in arguments.char_indices() {
-        match ch {
-            '<' | '[' | '(' => depth += 1,
-            '>' | ']' | ')' => depth = depth.saturating_sub(1),
-            ',' if depth == 0 => {
-                result.push(arguments[start..index].trim());
-                start = index + ch.len_utf8();
-            }
-            _ => {}
-        }
-    }
-    result.push(arguments[start..].trim());
-    result
 }

@@ -1,6 +1,6 @@
 use super::{
     ByteSpan, Diagnostic, DiagnosticNote, ResolveOutput, SourceMap, StructFieldSignature,
-    StructLiteralExpr, StructLiteralField, Type, TypeExpr, TypeSymbol, type_expr_display_lossy,
+    StructLiteralExpr, StructLiteralField, Type, TypeExpr, TypeSymbol, canonical_type_expr,
     type_symbol_kind_name,
 };
 use crate::ast::{DropDecl, StructDecl, StructField};
@@ -238,7 +238,7 @@ pub(in crate::typecheck) fn copy_struct_drop_member_diagnostic(
         diagnostic.notes.push(DiagnosticNote {
             message: format!(
                 "impl target `{}` resolves to copy struct `{struct_name}`",
-                type_expr_display_lossy(target_ty)
+                canonical_type_expr(target_ty)
             ),
             span: Some(span),
         });

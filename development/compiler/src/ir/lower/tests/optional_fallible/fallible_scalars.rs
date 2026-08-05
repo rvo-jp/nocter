@@ -734,7 +734,7 @@ func main(): void {
         &[
             (
                 "std/io.nct",
-                r#"#target("arm64-darwin")
+                r#"#target: "arm64-darwin"
 pub(nocter) primitive open_read_raw(path: *u8): i32!
 "#,
             ),

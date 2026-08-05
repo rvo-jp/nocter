@@ -20,7 +20,7 @@ impl<T> ViewIter<T> {
     }
 
     /// Returns the next element borrowed from the source view.
-    pub method &+self.next(): (&T)? {
+    pub method &+self.next(): &T? {
         if self.next_index >= self.view.len {
             return none
         }
@@ -80,7 +80,9 @@ fn iteration_server(name: &str, text: &str) -> (TempProject, NocterHomeEnv, Stri
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     (project, home_guard, uri, server)
 }
@@ -121,7 +123,7 @@ func inspect_readonly(iterator: &ViewIter<i32>): void {
         .unwrap_or_else(|| panic!("expected ViewIter.next completion: {items:#?}"));
     assert_eq!(
         next["detail"],
-        json!("method &+ViewIter<i32>.next(): (&i32)?")
+        json!("method &+ViewIter<i32>.next(): &i32?")
     );
     assert_eq!(next["insertText"], json!("next()"));
 
@@ -136,7 +138,7 @@ func inspect_readonly(iterator: &ViewIter<i32>): void {
         .as_str()
         .expect("expected iterator hover");
     assert!(
-        hover_text.contains("method &+ViewIter<i32>.next(): (&i32)?"),
+        hover_text.contains("method &+ViewIter<i32>.next(): &i32?"),
         "hover:\n{hover_text}"
     );
     assert!(
@@ -155,7 +157,7 @@ func inspect_readonly(iterator: &ViewIter<i32>): void {
     );
     assert_eq!(
         signature["result"]["signatures"][0]["label"],
-        json!("method &+ViewIter<i32>.next(): (&i32)?")
+        json!("method &+ViewIter<i32>.next(): &i32?")
     );
 
     let owned_offset = text.find("owned.next").unwrap() + "owned.".len();
@@ -210,7 +212,7 @@ func inspect(values: &Vec<i32>): void {
 
     assert_eq!(
         response["result"]["signatures"][0]["label"],
-        json!("method &+ViewIter<i32>.next(): (&i32)?")
+        json!("method &+ViewIter<i32>.next(): &i32?")
     );
     assert_eq!(response["result"]["activeParameter"], json!(0));
 }
@@ -257,6 +259,6 @@ func inspect(values: &Vec<i32>): void {
 
     assert_eq!(
         response["result"]["signatures"][0]["label"],
-        json!("method &+ViewIter<i32>.next(): (&i32)?")
+        json!("method &+ViewIter<i32>.next(): &i32?")
     );
 }

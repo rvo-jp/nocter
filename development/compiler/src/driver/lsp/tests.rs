@@ -57,6 +57,109 @@ fn handles_initialize_request() {
     assert!(text.contains("\"documentSymbolProvider\""));
     assert!(text.contains("\"completionProvider\""));
     assert!(text.contains("\"signatureHelpProvider\""));
+    assert!(text.contains("\"includeText\":true"));
+}
+
+#[test]
+fn registers_nct_file_watching_when_the_client_supports_it() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "capabilities": {
+                "workspace": {
+                    "didChangeWatchedFiles": {
+                        "dynamicRegistration": true
+                    }
+                }
+            }
+        }
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "initialized", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": "nocter/register-file-watching", "result": null
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    let registration = messages
+        .iter()
+        .find(|message| message["method"] == json!("client/registerCapability"))
+        .expect("expected a dynamic file-watching registration");
+
+    assert_eq!(
+        registration["params"]["registrations"][0]["method"],
+        json!("workspace/didChangeWatchedFiles")
+    );
+    assert_eq!(
+        registration["params"]["registrations"][0]["registerOptions"]["watchers"][0]["globPattern"],
+        json!("**/*.nct")
+    );
+    assert_eq!(response_with_id(&messages, 2)["result"], Value::Null);
+}
+
+#[test]
+fn did_save_text_rebuilds_the_open_document_snapshot() {
+    let uri = "file:///tmp/nocter-did-save.nct";
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": uri,
+                "version": 4,
+                "text": "pub func value(): i32 { 1 }\n"
+            }
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didSave",
+        "params": {
+            "textDocument": { "uri": uri },
+            "text": "pub func value(: i32 {\n"
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let diagnostics = framed_messages(&output)
+        .into_iter()
+        .filter(|message| {
+            message["method"] == json!("textDocument/publishDiagnostics")
+                && message["params"]["uri"] == json!(uri)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(diagnostics.len(), 2);
+    assert_eq!(diagnostics[1]["params"]["version"], json!(4));
+    assert!(
+        !diagnostics[1]["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -131,6 +234,69 @@ fn rejects_invalid_text_document_request_params_and_keeps_serving() {
 }
 
 #[test]
+fn rejects_requests_before_initialize_and_then_initializes_normally() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "textDocument/hover", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    assert_eq!(response_with_id(&messages, 1)["error"]["code"], -32002);
+    assert!(response_with_id(&messages, 2)["result"].is_object());
+}
+
+#[test]
+fn rejects_repeated_initialize_and_shutdown_requests() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 4, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    assert_eq!(response_with_id(&messages, 2)["error"]["code"], -32600);
+    assert_eq!(response_with_id(&messages, 3)["result"], Value::Null);
+    assert_eq!(response_with_id(&messages, 4)["error"]["code"], -32600);
+}
+
+#[test]
+fn exit_without_shutdown_reports_failure() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), Vec::new()).unwrap(),
+        ExitCode::FAILURE
+    );
+}
+
+#[test]
 fn returns_specialized_signature_help_for_imported_generic_call() {
     let project = TempProject::new("lsp-signature-help-generic-import");
     let home = project.write_nocter_home();
@@ -154,7 +320,9 @@ pub func identity<T>(value: T): T {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         app_text,
@@ -199,7 +367,9 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -248,7 +418,9 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
 
@@ -298,7 +470,9 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
 
@@ -348,7 +522,9 @@ construct Vec<T> {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -400,7 +576,9 @@ func main(candidate: i32, text: &str): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -444,7 +622,9 @@ construct Text {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
 
@@ -476,7 +656,9 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -506,7 +688,9 @@ fn drop_declaration_editor_features_share_the_keyword_range() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let hover = server.hover_response(
@@ -578,7 +762,9 @@ fn returns_semantic_tokens_for_open_document() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.semantic_tokens_response(
@@ -634,7 +820,9 @@ fn semantic_tokens_are_empty_when_document_cannot_be_analyzed() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.semantic_tokens_response(
@@ -921,7 +1109,9 @@ fn returns_null_hover_when_document_cannot_be_analyzed() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -952,7 +1142,9 @@ fn returns_null_hover_for_unresolved_identifier() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -983,7 +1175,9 @@ fn returns_hover_for_identifier() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1020,7 +1214,9 @@ fn returns_hover_for_local_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1057,7 +1253,9 @@ fn returns_documented_hover_for_function_declaration() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1094,7 +1292,9 @@ fn returns_documented_hover_for_type_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1146,7 +1346,9 @@ fn returns_markdown_hover_for_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1191,7 +1393,9 @@ fn returns_markdown_hover_for_block_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1229,7 +1433,9 @@ fn returns_documented_hover_for_local_binding_declaration() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1264,7 +1470,9 @@ fn returns_documented_hover_for_local_binding_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1299,7 +1507,9 @@ fn returns_inferred_hover_for_integer_binding() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1346,7 +1556,9 @@ func run(arena: Arena): i32 {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -1400,7 +1612,9 @@ func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("using\n").expect("expected using") + "using".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -1441,7 +1655,9 @@ func run(parent: Allocator): void {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("temp using").expect("expected region binding");
     let position = byte_offset_to_lsp_position(text, offset);
@@ -1480,7 +1696,9 @@ fn returns_short_visible_type_names_for_hover() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let field_declaration = server.hover_response(
@@ -1571,7 +1789,9 @@ pub struct Vec<T> { value: T }
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
         .expect("expected workspace analysis");
@@ -1700,7 +1920,9 @@ fn shortens_hidden_canonical_type_names_for_hover() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let box_binding = server.hover_response(
@@ -1742,7 +1964,9 @@ fn returns_documented_workspace_hover_for_local_binding_reference() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1777,7 +2001,9 @@ fn returns_documented_hover_for_resolved_function_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1839,7 +2065,9 @@ fn returns_documented_hover_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1888,7 +2116,9 @@ fn returns_documented_hover_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1951,7 +2181,9 @@ fn returns_documented_hover_for_imported_type_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1999,7 +2231,9 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -2059,7 +2293,9 @@ fn returns_definition_for_resolved_function_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2093,7 +2329,9 @@ fn returns_definition_for_local_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2127,7 +2365,9 @@ fn returns_references_for_local_binding() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2190,7 +2430,9 @@ fn returns_definition_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2237,7 +2479,9 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2294,7 +2538,9 @@ fn returns_references_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2351,7 +2597,9 @@ fn returns_references_for_block_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2411,7 +2659,9 @@ fn returns_references_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2470,7 +2720,9 @@ fn returns_definition_for_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2503,6 +2755,96 @@ fn returns_definition_for_import_module_path() {
 }
 
 #[test]
+fn returns_definition_for_package_executable_entry() {
+    let project = TempProject::new("lsp-definition-package-entry");
+    let manifest_text = r#"#executable: {
+    name: "app",
+    entry: "./src/app",
+}
+"#;
+    let manifest = project.write_source("nocter.nct", manifest_text);
+    let app = project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
+    let root = project.root.canonicalize().unwrap();
+    let server = LspServer {
+        documents: HashMap::from([(
+            manifest_uri.clone(),
+            open_document(manifest_uri.clone(), Some(1), manifest_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: vec![WorkspaceRoot {
+            uri: file_uri(&root),
+            path: Some(root),
+        }],
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+
+    let response = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": manifest_uri },
+            "position": { "line": 2, "character": 15 }
+        })),
+    );
+
+    let definition = definition_link(&response);
+    assert_eq!(
+        definition["targetUri"],
+        json!(file_uri(&app.canonicalize().unwrap()))
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(12)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(21)
+    );
+}
+
+#[test]
+fn nested_nocter_file_is_treated_as_its_own_package_root() {
+    let project = TempProject::new("lsp-definition-nested-manifest");
+    let manifest_text = "#executable: { name: \"app\", entry: \"./app\" }\n";
+    let manifest = project.write_source("src/nocter.nct", manifest_text);
+    project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
+    let root = project.root.canonicalize().unwrap();
+    let server = LspServer {
+        documents: HashMap::from([(
+            manifest_uri.clone(),
+            open_document(manifest_uri.clone(), Some(1), manifest_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: vec![WorkspaceRoot {
+            uri: file_uri(&root),
+            path: Some(root),
+        }],
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+
+    let response = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": manifest_uri },
+            "position": { "line": 0, "character": 40 }
+        })),
+    );
+
+    let definition = definition_link(&response);
+    assert_eq!(
+        definition["targetUri"],
+        json!(file_uri(
+            &project.root.join("src/app.nct").canonicalize().unwrap()
+        ))
+    );
+}
+
+#[test]
 fn returns_definition_for_block_import_module_path() {
     let project = TempProject::new("lsp-definition-block-import-module");
     let home = project.write_nocter_home();
@@ -2523,7 +2865,9 @@ fn returns_definition_for_block_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2589,7 +2933,9 @@ fn returns_definition_for_imported_type_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2627,7 +2973,9 @@ fn returns_definition_for_method_call() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2662,7 +3010,9 @@ fn returns_document_symbols_for_top_level_declarations() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.document_symbol_response(
@@ -2705,7 +3055,9 @@ fn document_features_recover_an_unclosed_member_body() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let symbols = server
@@ -2739,7 +3091,9 @@ fn navigation_recovers_an_unclosed_function_body() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
     let params = json!({
@@ -2770,7 +3124,9 @@ fn returns_completion_items_for_keywords_and_top_level_symbols() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -2838,7 +3194,9 @@ fn returns_completion_items_for_imported_symbols() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -2889,7 +3247,9 @@ return match choice {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -2950,7 +3310,9 @@ return file.fd
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let variant_offset = text.find("Choice.yes").expect("expected enum member") + "Choice.".len();
@@ -3041,7 +3403,9 @@ return file.fd
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
@@ -3106,7 +3470,9 @@ return file.
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3160,7 +3526,9 @@ return 0
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3210,7 +3578,9 @@ return 0
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3270,7 +3640,9 @@ fn returns_completion_items_for_namespace_import_without_member_leakage() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -3329,7 +3701,9 @@ return 0
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let inside_response = server.completion_response(
@@ -3445,7 +3819,13 @@ fn initialize_falls_back_to_root_uri() {
 #[test]
 fn publishes_diagnostics_for_open_document() {
     let mut output = Vec::new();
-    let input = frame(&json!({
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {}
+    }));
+    input.extend(frame(&json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didOpen",
         "params": {
@@ -3456,12 +3836,13 @@ fn publishes_diagnostics_for_open_document() {
                 "text": "func main(: i32 {\n"
             }
         }
-    }));
+    })));
 
     run_lsp_stream(Cursor::new(input), &mut output).unwrap();
 
     let text = String::from_utf8(output).unwrap();
     assert!(text.contains("textDocument/publishDiagnostics"));
+    assert!(text.contains("\"version\":1"));
     assert!(text.contains("E0200"));
 }
 
@@ -3469,6 +3850,12 @@ fn publishes_diagnostics_for_open_document() {
 fn ignores_stale_document_changes() {
     let mut output = Vec::new();
     let mut input = frame(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {}
+    }));
+    input.extend(frame(&json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didOpen",
         "params": {
@@ -3479,7 +3866,7 @@ fn ignores_stale_document_changes() {
                 "text": "func main(): i32 {\n    return 0\n}\n"
             }
         }
-    }));
+    })));
     input.extend(frame(&json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didChange",
@@ -3713,9 +4100,7 @@ fn clears_diagnostics_for_uris_missing_from_next_publish() {
     let uri = "file:///tmp/nocter-cleared.nct".to_string();
     server.published_diagnostic_uris.insert(uri.clone());
 
-    server
-        .publish_workspace_diagnostics("file:///tmp/missing-root.nct", &mut output)
-        .unwrap();
+    server.publish_snapshot_diagnostics(&mut output).unwrap();
 
     let text = String::from_utf8(output).unwrap();
     assert!(text.contains(&uri));
@@ -3747,7 +4132,9 @@ fn returns_only_lexically_visible_local_completion_items() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -3801,7 +4188,9 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("answer(1)").unwrap());
 
@@ -3869,7 +4258,9 @@ func edit(values: &+Vec<String>): void {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position =
         byte_offset_to_lsp_position(text, text.find("values.clear").unwrap() + "values.".len());
@@ -3915,7 +4306,9 @@ fn signature_help_recovers_incomplete_imported_call() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("20, ").unwrap() + "20, ".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -3957,7 +4350,9 @@ func main(good: bool, bad: i32): bool {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("bad)").expect("expected call argument");
     let position = byte_offset_to_lsp_position(text, offset);
@@ -3996,7 +4391,9 @@ fn import_symbol_completion_recovers_and_filters_visibility() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("math.").unwrap() + "math.".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4026,7 +4423,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         "pub func answer(): i32 {\n    return 42\n}\n",
     );
     project.write_source("lib/value.nct", "pub struct Value {\n    raw: i32\n}\n");
-    let text = "use lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let text = "use ./lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
     let app = project.write_source("app.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
@@ -4036,9 +4433,11 @@ fn import_path_completion_discovers_reachable_module_segments() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
-    let offset = text.find("lib/ma").unwrap() + "lib/ma".len();
+    let offset = text.find("./lib/ma").unwrap() + "./lib/ma".len();
     let position = byte_offset_to_lsp_position(text, offset);
 
     let response = server.completion_response(
@@ -4086,7 +4485,9 @@ impl<T> Box<T> {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
-        shutdown_requested: false,
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("value.").unwrap() + "value.".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4352,13 +4753,13 @@ fn field_name_offset_for_access(text: &str, access: &str) -> usize {
 
 static NOCTER_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
 
-struct NocterHomeEnv {
+pub(super) struct NocterHomeEnv {
     previous: Option<std::ffi::OsString>,
     _guard: MutexGuard<'static, ()>,
 }
 
 impl NocterHomeEnv {
-    fn set(home: &Path) -> Self {
+    pub(super) fn set(home: &Path) -> Self {
         let guard = NOCTER_HOME_ENV_LOCK.lock().unwrap();
         let previous = std::env::var_os("NOCTER_HOME");
         // Exercise the same process-level home resolution path as the CLI.

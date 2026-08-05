@@ -24,6 +24,7 @@ impl Parser<'_> {
             let alias = self.expect_name_identifier("expected import alias after `as`")?;
             return Ok(Item::Import(ImportItem {
                 span: self.span(start.span.start, alias.span.end),
+                visibility,
                 path,
                 alias: ImportAlias {
                     span: alias.span,
@@ -74,15 +75,12 @@ impl Parser<'_> {
             }));
         }
 
-        if visibility != Visibility::Private {
-            self.error_current("`pub use path` is invalid; re-export explicit names");
-            return Err(());
-        }
         let end = path.span.end;
         let alias = default_namespace_alias(&path);
 
         Ok(Item::Import(ImportItem {
             span: self.span(start.span.start, end),
+            visibility,
             path,
             alias,
             alias_is_default: true,
