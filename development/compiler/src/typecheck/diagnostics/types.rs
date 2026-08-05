@@ -1,4 +1,4 @@
-use super::{Diagnostic, DiagnosticNote, SourceMap, Type, TypeExpr, type_expr_display_lossy};
+use super::{Diagnostic, DiagnosticNote, SourceMap, Type, TypeExpr, canonical_type_expr};
 use crate::source::ByteSpan;
 
 pub(in crate::typecheck) fn unsized_value_type_diagnostic(
@@ -7,7 +7,7 @@ pub(in crate::typecheck) fn unsized_value_type_diagnostic(
     subject: &str,
     unsized_part: &Type,
 ) -> Diagnostic {
-    let display = type_expr_display_lossy(ty);
+    let display = canonical_type_expr(ty);
     let mut diagnostic = Diagnostic::error(
         "E0380",
         format!(

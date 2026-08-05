@@ -1,6 +1,6 @@
 //! Validation and lowering for compiler-owned primitive boundaries.
 
-use crate::ast::{PrimitiveDecl, Visibility, type_expr_display_lossy};
+use crate::ast::{PrimitiveDecl, Visibility, canonical_type_expr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PrimitiveValidationError {
@@ -145,10 +145,10 @@ impl PrimitiveSignature {
                 .iter()
                 .map(|parameter| PrimitiveParameter {
                     name: parameter.name.clone(),
-                    ty: type_expr_display_lossy(&parameter.ty),
+                    ty: canonical_type_expr(&parameter.ty),
                 })
                 .collect(),
-            return_type: type_expr_display_lossy(&primitive.return_type),
+            return_type: canonical_type_expr(&primitive.return_type),
         }
     }
 }

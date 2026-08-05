@@ -314,8 +314,8 @@ Collection operations are ordinary standard-library methods.
 Collection method direction:
 
 - `len(): usize`
-- `Vec<T>.get(index: usize): (&T)? from self`
-- `Vec<T>.get_mut(index: usize): (&+T)?`
+- `Vec<T>.get(index: usize): &T? from self`
+- `Vec<T>.get_mut(index: usize): &+T?`
 - `ptr(): *T` for contiguous views
 - `view(): &[T]` for owning collections that can expose readonly contiguous storage
 - `write_view(): &+[T]` for owning collections that can expose readwrite contiguous storage
@@ -339,13 +339,13 @@ pub struct ViewIter<T> {
 }
 
 impl<T> ViewIter<T> {
-    pub method &+self.next(): (&T)?
+    pub method &+self.next(): &T?
 }
 ```
 
 `ViewIter.from_view(values)` returns an iterator over readonly borrows into the viewed storage.
 `Vec<T>.iter()` and `String.bytes_iter()` are forwarding conveniences. `ViewIter<T>.next()` advances
-the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean
+the iterator and returns an optional readonly borrow. The result type is written as `&T?` to mean
 "optional borrow"; it is not a borrow of an optional value.
 
 ```nct

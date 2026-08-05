@@ -48,7 +48,7 @@ pub func remaining<T>(iterator: &ViewIter<T>): usize {
     return iterator.view.len() - iterator.next_index
 }
 
-pub func next<T>(iterator: &+ViewIter<T>): (&T)? {
+pub func next<T>(iterator: &+ViewIter<T>): &T? {
     if iterator.next_index >= iterator.view.len() {
         return none
     }
@@ -74,7 +74,7 @@ impl<T> ExactSizeIterator<&T> for ViewIter<T> {
 
 impl<T> Iterator<&T> for ViewIter<T> {
     /// Advances and returns a readonly borrow, or `none` at exhaustion.
-    method &+self.next(): (&T)? {
+    method &+self.next(): &T? {
         if self.next_index >= self.view.len() {
             return none
         }

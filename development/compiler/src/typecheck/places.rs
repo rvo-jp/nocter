@@ -64,11 +64,23 @@ fn index_expression_is_writable_place(
 }
 
 fn type_is_readwrite_borrow(ty: &Type) -> bool {
-    matches!(ty, Type::Named(name) if name.starts_with("&+"))
+    matches!(
+        ty,
+        Type::Borrow {
+            is_readwrite: true,
+            ..
+        }
+    )
 }
 
 fn type_is_readonly_borrow(ty: &Type) -> bool {
-    matches!(ty, Type::Named(name) if name.starts_with('&') && !name.starts_with("&+"))
+    matches!(
+        ty,
+        Type::Borrow {
+            is_readwrite: false,
+            ..
+        }
+    )
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {

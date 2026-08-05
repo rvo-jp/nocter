@@ -26,7 +26,7 @@ mod variants;
 use super::calls::CheckedCallSignature;
 use super::copyability::NonCopyOwnedValueKind;
 use super::model::{ReturnContext, Type};
-use super::type_expr::type_expr_display_lossy;
+use super::type_expr::canonical_type_expr;
 use crate::ast::{
     AssignmentStmt, BinaryExpr, BindingKind, BindingStmt, Block, BorrowExpr, CallExpr, Expr,
     ForRangeStmt, IfIsStmt, ImplDecl, IndexExpr, InterpolatedStringExpression, MemberExpr,

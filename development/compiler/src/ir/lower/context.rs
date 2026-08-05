@@ -3,8 +3,8 @@ use crate::abi::{
     array_element_stride, layout_of, layout_struct,
 };
 use crate::ast::{
-    CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, canonical_type_expr,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

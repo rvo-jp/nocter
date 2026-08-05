@@ -198,14 +198,14 @@ pub func iter<T>(values: &Vec<T>): ViewIter<T> {
     return ViewIter.from_view(view(values))
 }
 
-pub func get<T>(values: &Vec<T>, index: usize): (&T)? {
+pub func get<T>(values: &Vec<T>, index: usize): &T? {
     if index >= values.len {
         return none
     }
     return &view(values)[index]
 }
 
-pub func get_mut<T>(values: &+Vec<T>, index: usize): (&+T)? {
+pub func get_mut<T>(values: &+Vec<T>, index: usize): &+T? {
     if index >= values.len {
         return none
     }
@@ -380,7 +380,7 @@ impl<T> Vec<T> {
     }
 
     /// Returns a readwrite element borrow when `index` is in bounds.
-    pub method &+self.get_mut(index: usize): (&+T)? {
+    pub method &+self.get_mut(index: usize): &+T? {
         if index >= self.len {
             return none
         }
@@ -451,7 +451,7 @@ impl<T> Sequence<T> for Vec<T> {
     }
 
     /// Returns a readonly element borrow when `index` is in bounds.
-    method &self.get(index: usize): (&T)? from self {
+    method &self.get(index: usize): &T? from self {
         if index >= self.len {
             return none
         }

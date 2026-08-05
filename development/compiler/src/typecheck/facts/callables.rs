@@ -66,5 +66,5 @@ impl CallableCallSpecialization {
 }
 
 fn callable_target_name(callable_ty: &TypeExpr) -> String {
-    format!("{}.call", type_expr_display_lossy(callable_ty))
+    format!("{}.call", canonical_type_expr(callable_ty))
 }

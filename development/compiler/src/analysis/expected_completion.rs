@@ -3,7 +3,7 @@
 use super::signature_help::signature_help_for_file_analysis;
 use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::type_expr_display_lossy;
+use crate::ast::canonical_type_expr;
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::type_expr_is_assignable;
 use std::collections::HashSet;
@@ -44,7 +44,7 @@ pub(super) fn compatible_local_spans_at_offset(
 }
 
 fn completion_type_key(ty: &crate::ast::TypeExpr) -> String {
-    let label = type_expr_display_lossy(ty);
+    let label = canonical_type_expr(ty);
     let mut key = String::with_capacity(label.len());
     let mut token = String::new();
     let flush = |key: &mut String, token: &mut String| {

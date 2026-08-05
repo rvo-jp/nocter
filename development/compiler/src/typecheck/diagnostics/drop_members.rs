@@ -1,4 +1,4 @@
-use super::{Diagnostic, SourceMap, type_expr_display_lossy};
+use super::{Diagnostic, SourceMap, canonical_type_expr};
 use crate::ast::DropDecl;
 
 pub(in crate::typecheck) fn drop_binding_type_unsupported_diagnostic(
@@ -9,7 +9,7 @@ pub(in crate::typecheck) fn drop_binding_type_unsupported_diagnostic(
         "E0387",
         format!(
             "drop member binding must have type `&+Self`, got `{}`",
-            type_expr_display_lossy(&drop_.binding.ty)
+            canonical_type_expr(&drop_.binding.ty)
         ),
     );
     diagnostic.primary_span = sources

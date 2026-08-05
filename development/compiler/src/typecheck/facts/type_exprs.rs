@@ -1,9 +1,5 @@
 use super::*;
 
-pub(super) fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
-    type_to_type_expr_inner(ty, span, None)
-}
-
 pub(in crate::typecheck) fn type_to_type_expr_allowing_parameters(
     ty: &Type,
     span: ByteSpan,
@@ -53,12 +49,6 @@ pub(super) fn type_to_type_expr_inner(
         Type::Closure(closure) => Some(TypeExpr::Closure(closure.clone())),
         Type::I32 => Some(type_reference("i32", span)),
         Type::Primitive(name) => Some(type_reference(name, span)),
-        Type::Named(name) if name.starts_with("&+") => {
-            borrowed_display_type_to_type_expr(name.strip_prefix("&+")?, true, span)
-        }
-        Type::Named(name) if name.starts_with('&') => {
-            borrowed_display_type_to_type_expr(name.strip_prefix('&')?, false, span)
-        }
         Type::Named(name) => Some(type_reference(name, span)),
         Type::StrData => Some(type_reference("str", span)),
         Type::Str => Some(TypeExpr::Borrow(BorrowType {
@@ -114,6 +104,18 @@ pub(super) fn type_to_type_expr_inner(
                 free_type_parameters.as_deref_mut(),
             )?),
         })),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Some(TypeExpr::Borrow(BorrowType {
+            span,
+            is_readwrite: *is_readwrite,
+            inner: Box::new(type_to_type_expr_inner(
+                inner,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
+        })),
         Type::Optional(inner) => Some(TypeExpr::Optional(OptionalType {
             span,
             inner: Box::new(type_to_type_expr_inner(
@@ -160,21 +162,6 @@ pub(super) fn type_reference(name: impl Into<String>, span: ByteSpan) -> TypeExp
         span,
         name: name.into(),
     })
-}
-
-pub(super) fn borrowed_display_type_to_type_expr(
-    inner: &str,
-    is_readwrite: bool,
-    span: ByteSpan,
-) -> Option<TypeExpr> {
-    Some(TypeExpr::Borrow(BorrowType {
-        span,
-        is_readwrite,
-        inner: Box::new(type_to_type_expr(
-            &simple_type_from_display_name(inner),
-            span,
-        )?),
-    }))
 }
 
 pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {

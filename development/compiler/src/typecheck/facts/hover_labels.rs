@@ -12,88 +12,25 @@ pub(super) fn type_label(
 }
 
 pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
-    match ty {
-        Type::Callable(_) => ty.display(),
-        Type::Closure(closure) => {
-            let capability = match closure.capability {
-                crate::ast::CallableCapability::Readonly => "closure",
-                crate::ast::CallableCapability::Readwrite => "closure mut",
-                crate::ast::CallableCapability::Consuming => "closure once",
-            };
-            let parameters = closure
-                .parameters
-                .iter()
-                .map(crate::ast::type_expr_display_lossy)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "{capability} ({parameters}): {}",
-                crate::ast::type_expr_display_lossy(&closure.return_type)
-            )
-        }
-        Type::I32 => "i32".to_string(),
-        Type::Primitive(name) => name.clone(),
-        Type::StrData => "str".to_string(),
-        Type::Str => "&str".to_string(),
-        Type::Error => "error".to_string(),
-        Type::Void => "void".to_string(),
-        Type::Never => "never".to_string(),
-        Type::None => "none".to_string(),
-        Type::ArrayData { element } => format!("[{}]", type_hover_label(element, resolved)),
-        Type::View {
-            is_readwrite: true,
-            element,
-        } => format!("&+[{}]", type_hover_label(element, resolved)),
-        Type::View {
-            is_readwrite: false,
-            element,
-        } => format!("&[{}]", type_hover_label(element, resolved)),
-        Type::Array { element, length } => {
-            format!("[{}; {}]", type_hover_label(element, resolved), length)
-        }
-        Type::Pointer(inner) => format!("*{}", type_hover_label(inner, resolved)),
-        Type::Optional(inner) => format!("{}?", suffix_operand_hover_label(inner, resolved)),
-        Type::Fallible { success, .. } => {
-            format!("{}!", suffix_operand_hover_label(success, resolved))
-        }
-        Type::Named(name) => {
-            if let Some(inner) = name.strip_prefix("&+") {
-                format!(
-                    "&+{}",
-                    type_hover_label(&simple_type_from_display_name(inner), resolved)
-                )
-            } else if let Some(inner) = name.strip_prefix('&') {
-                format!(
-                    "&{}",
-                    type_hover_label(&simple_type_from_display_name(inner), resolved)
-                )
-            } else {
-                display_type_name(name, resolved).to_string()
-            }
-        }
-        Type::Generic { name, arguments } => {
-            let name = display_type_name(name, resolved);
-            let arguments = arguments
-                .iter()
-                .map(|argument| type_hover_label(argument, resolved))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{name}<{arguments}>")
-        }
-        Type::Parameter(name) => name.clone(),
-        Type::Unresolved(name) => name.clone(),
-        Type::Unknown => "<unknown>".to_string(),
-    }
-}
-
-fn suffix_operand_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
-    let label = type_hover_label(ty, resolved);
-    if matches!(ty, Type::Str | Type::View { .. })
-        || matches!(ty, Type::Named(name) if name.starts_with('&'))
-    {
-        format!("({label})")
+    if let Type::Closure(closure) = ty {
+        let capability = match closure.capability {
+            crate::ast::CallableCapability::Readonly => "closure",
+            crate::ast::CallableCapability::Readwrite => "closure mut",
+            crate::ast::CallableCapability::Consuming => "closure once",
+        };
+        let parameters = closure
+            .parameters
+            .iter()
+            .map(crate::ast::canonical_type_expr)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{capability} ({parameters}): {}",
+            crate::ast::canonical_type_expr(&closure.return_type)
+        )
     } else {
-        label
+        ty.notation_with_name(&|name| display_type_name(name, resolved).to_string())
+            .render()
     }
 }
 

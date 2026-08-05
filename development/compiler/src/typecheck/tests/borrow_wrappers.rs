@@ -7,7 +7,7 @@ fn optional_otherwise_binding_retains_the_success_borrow_source() {
     value: i32
 }
 
-func maybe(value: &Text): (&Text)? {
+func maybe(value: &Text): &Text? {
     return value
 }
 
@@ -66,7 +66,7 @@ fn value_fallback_binding_retains_every_possible_borrow_source() {
     value: i32
 }
 
-func maybe(value: &Text, present: bool): (&Text)? {
+func maybe(value: &Text, present: bool): &Text? {
     if present {
         return value
     }

@@ -257,7 +257,7 @@ Nocter v0.3.0 Phase 4 adds an identity-based `from` clause for public abstractio
 adding lifetime names:
 
 ```nct
-pub method &self.get(key: &K): (&V)? from self
+pub method &self.get(key: &K): &V? from self
 func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 ```
 

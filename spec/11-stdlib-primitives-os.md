@@ -397,8 +397,8 @@ v0.3.0 Phase 2 adds checked borrowed access and dense ownership-preserving mutat
 
 ```nct
 impl<T> Vec<T> {
-    pub method &self.get(index: usize): (&T)? from self
-    pub method &+self.get_mut(index: usize): (&+T)?
+    pub method &self.get(index: usize): &T? from self
+    pub method &+self.get_mut(index: usize): &+T?
     pub method &+self.insert(index: usize, value: T): void
     pub method &+self.try_insert(index: usize, value: T): void!
     pub method &+self.remove(index: usize): T?
@@ -410,7 +410,7 @@ impl<T> Vec<T> {
 `try_insert` validates bounds and completes capacity growth before shifting any element. Failure
 leaves pointer, length, capacity, content, and storage origin unchanged. After growth succeeds,
 insert and remove relocate move-only values through one transient hole with no fallible call or
-externally observable edge. `ViewIter<T>` returns `(&T)?` tied to source storage;
+externally observable edge. `ViewIter<T>` returns `&T?` tied to source storage;
 `VecIntoIter<T>` owns transferred storage and returns `T?` in source order.
 
 v0.3.0 Phase 4 adds a small shared readonly contract in `std/sequence`:
@@ -418,10 +418,10 @@ v0.3.0 Phase 4 adds a small shared readonly contract in `std/sequence`:
 ```nct
 pub interface Sequence<T> {
     pub method &self.len(): usize
-    pub method &self.get(index: usize): (&T)? from self
+    pub method &self.get(index: usize): &T? from self
 }
 
-pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
+pub func first<S: Sequence<T>, T>(values: &S): &T? from values
 ```
 
 `Vec<T>` explicitly implements `Sequence<T>`. `first` allocates nothing and returns an exact borrow

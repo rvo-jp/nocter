@@ -2,8 +2,8 @@
 
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    Expr, Item, LiteralDecl, LiteralShape, TypeExpr, substitute_type_expr_parameters,
-    type_expr_display_lossy, visit_file_expressions,
+    Expr, Item, LiteralDecl, LiteralShape, TypeExpr, canonical_type_expr,
+    substitute_type_expr_parameters, visit_file_expressions,
 };
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
@@ -92,7 +92,7 @@ pub(crate) fn literal_target_name(
     };
     format!(
         "{}.$literal.{shape}${:016x}",
-        type_expr_display_lossy(result_type),
+        canonical_type_expr(result_type),
         stable_key_hash(specialization_key)
     )
 }
@@ -114,7 +114,7 @@ pub(crate) fn literal_specialization_key(
                 .with_context_substitutions(substitutions)?;
             key.push_str("s:");
             key.push_str(&format!("{:?}:", plan.mode));
-            key.push_str(&type_expr_display_lossy(&plan.iterator_type));
+            key.push_str(&canonical_type_expr(&plan.iterator_type));
             key.push(';');
         } else {
             key.push_str("v;");
@@ -191,7 +191,7 @@ fn specialization_for_expression(
                     argument_types.push(plan.iterator_type.clone());
                     key.push_str("s:");
                     key.push_str(&format!("{:?}:", plan.mode));
-                    key.push_str(&type_expr_display_lossy(&plan.iterator_type));
+                    key.push_str(&canonical_type_expr(&plan.iterator_type));
                     key.push(';');
                     pack_segments.push(LiteralPackSegmentSpecialization::Spread {
                         iterator_parameter_index,
@@ -304,7 +304,7 @@ fn infer_substitutions(
         && parameters.contains(&reference.name)
     {
         return match substitutions.get(&reference.name) {
-            Some(previous) => type_expr_display_lossy(previous) == type_expr_display_lossy(actual),
+            Some(previous) => canonical_type_expr(previous) == canonical_type_expr(actual),
             None => {
                 substitutions.insert(reference.name.clone(), actual.clone());
                 true

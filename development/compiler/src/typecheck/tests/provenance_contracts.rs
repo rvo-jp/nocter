@@ -189,9 +189,9 @@ func main(): i32 {
 #[test]
 fn preserves_result_provenance_through_stored_outcome_bindings() {
     let diagnostics = check_text(
-        r#"func forward(value: (&i32)?): (&i32)? from value {
-    let saved = move value
-    return move saved
+        r#"func forward(value: &i32?): &i32? from value {
+    let saved = value
+    return saved
 }
 
 func main(): i32 {

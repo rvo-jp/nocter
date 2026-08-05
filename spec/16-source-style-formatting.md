@@ -81,6 +81,8 @@ Rules:
 - Fallible optional success is formatted as `T?!`.
 - Optional type syntax is attached to the success type: `T?`.
 - Pointer and borrow syntax is attached to the type: `*T`, `&T`, `&+T`.
+- Optional borrows omit redundant grouping: `&T?` and `&+T?`.
+- A prefix applied to an outcome type retains grouping to preserve meaning: `&(T?)`, `*(T!)`.
 - Generic type arguments are attached to the type name: `Buffer<T>`.
 - Unsized array data type syntax is formatted as `[T]`; array slices are formatted as `&[T]` and `&+[T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
@@ -92,6 +94,7 @@ Examples:
 func open(path: &str): File!
 func env(name: &str): &str?!
 func first(items: &[&str]): &str?
+func borrow_optional(value: T?): &(T?)
 ```
 
 Formatter output uses `T?!` for fallible optional success values because the postfix operators can be read in order: optional success first, fallible wrapper second.
@@ -126,7 +129,7 @@ func read_all(
     ...
 }
 
-pub method &self.get(index: usize): (&T)? from self
+pub method &self.get(index: usize): &T? from self
 func choose<T>(left: &T, right: &T): &T from left | right
 construct String {
     pub default literal ""(text: &str): Self from current { ... }

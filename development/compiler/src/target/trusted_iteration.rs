@@ -111,7 +111,7 @@ fn interface_shape_matches(
         && method.visibility == Visibility::Public
         && method.receiver.mode == receiver_mode
         && method.parameters.parameters.is_empty()
-        && crate::ast::type_expr_display_lossy(&method.return_type) == return_type
+        && crate::ast::canonical_type_expr(&method.return_type) == return_type
         && method.result_provenance.is_none()
         && method.body.is_none()
 }

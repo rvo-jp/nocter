@@ -1,6 +1,6 @@
 //! Provenance contracts for compiler-owned I/O primitive boundaries.
 
-use crate::ast::{AstFile, Item, type_expr_display_lossy};
+use crate::ast::{AstFile, Item, canonical_type_expr};
 use crate::semantics::{TrustedDeclarationFacts, TrustedDeclarationRole};
 
 pub(super) fn trusted_io_declarations(ast: &AstFile) -> TrustedDeclarationFacts {
@@ -39,9 +39,9 @@ fn primitive_shape_matches(
             .iter()
             .zip(parameters)
             .all(|(actual, (name, ty))| {
-                actual.name == *name && type_expr_display_lossy(&actual.ty) == *ty
+                actual.name == *name && canonical_type_expr(&actual.ty) == *ty
             })
-        && type_expr_display_lossy(&primitive.return_type) == return_type
+        && canonical_type_expr(&primitive.return_type) == return_type
 }
 
 #[cfg(test)]

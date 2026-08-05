@@ -247,7 +247,7 @@ func maybe_answer(): i32? {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0342");
-    assert!(diagnostics[0].message.contains("&i32?"));
+    assert!(diagnostics[0].message.contains("&(i32?)"));
 }
 
 #[test]

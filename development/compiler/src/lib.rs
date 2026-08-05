@@ -21,4 +21,5 @@ pub mod resolve;
 mod semantics;
 pub mod source;
 pub mod target;
+mod type_notation;
 pub mod typecheck;

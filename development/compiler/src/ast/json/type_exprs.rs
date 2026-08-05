@@ -5,7 +5,7 @@ impl TypeExpr {
         match self {
             TypeExpr::Callable(ty) => JsonAstNode::with_value(
                 "callable_type",
-                crate::ast::type_expr_display_lossy(self),
+                crate::ast::canonical_type_expr(self),
                 json_span(sources, ty.span),
                 ty.parameters
                     .iter()

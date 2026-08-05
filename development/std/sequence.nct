@@ -3,10 +3,10 @@
 /// A finite sequence that can expose readonly element borrows.
 pub interface Sequence<T> {
     pub method &self.len(): usize
-    pub method &self.get(index: usize): (&T)? from self
+    pub method &self.get(index: usize): &T? from self
 }
 
 /// Returns the first element borrow without allocating.
-pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values {
+pub func first<S: Sequence<T>, T>(values: &S): &T? from values {
         return values.get(0)?
 }

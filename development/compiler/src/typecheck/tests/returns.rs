@@ -251,7 +251,7 @@ fn accepts_return_borrow_of_slice_index_from_parameter() {
     return 0
 }
 
-func first(values: &[i32]): (&i32)? {
+func first(values: &[i32]): &i32? {
     if values.len() == 0 {
         return none
     }

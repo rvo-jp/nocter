@@ -505,7 +505,7 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 mod tests {
     use super::*;
     use crate::analysis::test_support::analyze_text;
-    use crate::ast::type_expr_display_lossy;
+    use crate::ast::canonical_type_expr;
 
     #[test]
     fn impl_bounds_and_targets_share_one_interface_identity() {
@@ -534,11 +534,11 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter
         assert_eq!(bound.kind, SemanticOccurrenceKind::Type);
         assert_eq!(target.kind, SemanticOccurrenceKind::Type);
         assert_eq!(
-            bound.contextual_type.as_ref().map(type_expr_display_lossy),
+            bound.contextual_type.as_ref().map(canonical_type_expr),
             Some("ExactSizeIterator<T>".to_string())
         );
         assert_eq!(
-            target.contextual_type.as_ref().map(type_expr_display_lossy),
+            target.contextual_type.as_ref().map(canonical_type_expr),
             Some("ExactSizeIterator<Indexed<T>>".to_string())
         );
     }

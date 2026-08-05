@@ -9,8 +9,8 @@ use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
     FunctionDecl, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item, MemberExpr,
     MethodDecl, OtherwiseExpr, Parameter, PayloadEnumPatternTargetShape, Stmt, StructLiteralField,
-    SwitchPayloadPattern, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    SwitchPayloadPattern, TypeExpr, UnaryOperator, canonical_type_expr,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;

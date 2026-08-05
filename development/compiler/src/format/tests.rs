@@ -323,6 +323,35 @@ func maybe_open(path:&str):File?{return none}
 }
 
 #[test]
+fn canonical_type_notation_preserves_prefix_and_postfix_structure() {
+    assert_formats_stably(
+        concat!(
+            "func optional_borrow(): (&Item)? { return none }\n",
+            "func borrow_optional(value: Item?): &(Item?) { return &value }\n",
+            "func optional_callback(): (func(): Item)? { return none }\n",
+            "func borrow_callback(callback: func(): Item): &(func(): Item) { return &callback }\n",
+        ),
+        concat!(
+            "func optional_borrow(): &Item? {\n",
+            "    return none\n",
+            "}\n",
+            "\n",
+            "func borrow_optional(value: Item?): &(Item?) {\n",
+            "    return &value\n",
+            "}\n",
+            "\n",
+            "func optional_callback(): (func(): Item)? {\n",
+            "    return none\n",
+            "}\n",
+            "\n",
+            "func borrow_callback(callback: func(): Item): &(func(): Item) {\n",
+            "    return &callback\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_builtin_callable_contracts_stably() {
     assert_formats_stably(
         "func apply<F:&+func(value:i32):i32>(callback:F):void {\nreturn\n}\n",

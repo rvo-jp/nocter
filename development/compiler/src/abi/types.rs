@@ -2,7 +2,7 @@ use super::layout::{align_to, layout_of};
 use super::{
     AbiEnum, AbiEnumVariant, AbiField, AbiReturn, AbiType, AbiTypeError, AbiValue, ValueLayout,
 };
-use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
+use crate::ast::{TypeExpr, canonical_type_expr, substitute_type_expr_parameters};
 use crate::literals::decode_integer_literal_value;
 use crate::outcomes::{OutcomeLayer, storage::outcome_storage_layout};
 use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
@@ -51,7 +51,7 @@ where
     )? {
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
-        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
+        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(canonical_type_expr(ty))),
     }
 }
 
@@ -87,7 +87,7 @@ where
     )? {
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
-        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
+        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(canonical_type_expr(ty))),
     }
 }
 
@@ -182,7 +182,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Callable(_) => Err(AbiTypeError::UnsupportedType(type_expr_display_lossy(ty))),
+        TypeExpr::Callable(_) => Err(AbiTypeError::UnsupportedType(canonical_type_expr(ty))),
         TypeExpr::Closure(closure) => {
             let fields = closure
                 .captures
@@ -255,7 +255,7 @@ where
                 return Err(AbiTypeError::UnresolvedType(generic.name.clone()));
             };
             if symbol.generic_arity != generic.arguments.len() {
-                return Err(AbiTypeError::UnsupportedType(type_expr_display_lossy(ty)));
+                return Err(AbiTypeError::UnsupportedType(canonical_type_expr(ty)));
             }
 
             let mut instantiated_substitutions = substitutions.clone();
@@ -305,7 +305,7 @@ where
                     return Err(AbiTypeError::UnsizedValue("str".to_string()));
                 }
                 AbiTypeKind::UnsizedArray => {
-                    return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                    return Err(AbiTypeError::UnsizedValue(canonical_type_expr(
                         &array.element,
                     )));
                 }
@@ -315,7 +315,7 @@ where
             else {
                 return Err(AbiTypeError::UnsupportedType(format!(
                     "[{}; {}]",
-                    type_expr_display_lossy(&array.element),
+                    canonical_type_expr(&array.element),
                     array.length.value
                 )));
             };
@@ -365,7 +365,7 @@ fn sized_abi_type_kind(kind: AbiTypeKind, source: &TypeExpr) -> Result<AbiType, 
     match kind {
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr | AbiTypeKind::UnsizedArray => {
-            Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(source)))
+            Err(AbiTypeError::UnsizedValue(canonical_type_expr(source)))
         }
     }
 }
@@ -413,9 +413,7 @@ where
                         return Err(AbiTypeError::UnsizedValue("str".to_string()));
                     }
                     AbiTypeKind::UnsizedArray => {
-                        return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
-                            &field.ty,
-                        )));
+                        return Err(AbiTypeError::UnsizedValue(canonical_type_expr(&field.ty)));
                     }
                 };
                 fields.push(AbiField::new(field.name.clone(), ty));
@@ -513,7 +511,7 @@ where
         )? {
             AbiTypeKind::Value(ty) => Ok(Some(ty)),
             AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
-            AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+            AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(canonical_type_expr(
                 &parameter.ty,
             ))),
         },
@@ -532,7 +530,7 @@ where
                         return Err(AbiTypeError::UnsizedValue("str".to_string()));
                     }
                     AbiTypeKind::UnsizedArray => {
-                        return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                        return Err(AbiTypeError::UnsizedValue(canonical_type_expr(
                             &parameter.ty,
                         )));
                     }
