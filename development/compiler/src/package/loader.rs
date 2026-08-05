@@ -3,7 +3,7 @@ use super::model::SourcePackage;
 use super::validation::validate_header;
 use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
-use crate::parser::parse;
+use crate::parser::parse_package_file;
 use crate::source::SourceMap;
 use std::path::{Path, PathBuf};
 
@@ -20,28 +20,32 @@ impl PackageLoad {
 }
 
 pub fn load_package(root: &Path) -> PackageLoad {
+    load_package_with_id(root, None)
+}
+
+pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) -> PackageLoad {
     let root = canonical_package_root(root);
-    let index_candidate = root.join("index.nct");
-    let index_path = std::fs::canonicalize(&index_candidate).unwrap_or(index_candidate);
+    let manifest_candidate = root.join("nocter.nct");
+    let manifest_path = std::fs::canonicalize(&manifest_candidate).unwrap_or(manifest_candidate);
     let mut sources = SourceMap::new();
-    if !index_path.starts_with(&root) {
+    if !manifest_path.starts_with(&root) {
         return PackageLoad {
             package: None,
             sources,
             diagnostics: vec![package_filesystem_diagnostic(format!(
-                "package root `{}` has an `index.nct` that escapes the root through a symbolic link",
+                "package root `{}` has a `nocter.nct` that escapes the root through a symbolic link",
                 root.display()
             ))],
         };
     }
-    let source = match sources.load_file(&index_path) {
+    let source = match sources.load_file(&manifest_path) {
         Ok(source) => source,
         Err(diagnostic) => {
             return PackageLoad {
                 package: None,
                 sources,
                 diagnostics: vec![package_filesystem_diagnostic(format!(
-                    "package root `{}` must contain `index.nct`: {}",
+                    "package root `{}` must contain `nocter.nct`: {}",
                     root.display(),
                     diagnostic.message
                 ))],
@@ -56,7 +60,7 @@ pub fn load_package(root: &Path) -> PackageLoad {
             diagnostics: lexed.diagnostics,
         };
     }
-    let parsed = parse(&sources, source, &lexed.tokens);
+    let parsed = parse_package_file(&sources, source, &lexed.tokens);
     if !parsed.diagnostics.is_empty() {
         return PackageLoad {
             package: None,
@@ -64,7 +68,7 @@ pub fn load_package(root: &Path) -> PackageLoad {
             diagnostics: parsed.diagnostics,
         };
     }
-    let Some(ast) = parsed.ast else {
+    let Some(package_file) = parsed.package_file else {
         return PackageLoad {
             package: None,
             sources,
@@ -73,7 +77,7 @@ pub fn load_package(root: &Path) -> PackageLoad {
             )],
         };
     };
-    let validated = match validate_header(&sources, &ast.package_header, &root, &index_path) {
+    let validated = match validate_header(&sources, &package_file.manifest, &root, &manifest_path) {
         Ok(validated) => validated,
         Err(diagnostics) => {
             return PackageLoad {
@@ -88,10 +92,13 @@ pub fn load_package(root: &Path) -> PackageLoad {
         .unwrap_or_else(|| default_display_name(&root));
     PackageLoad {
         package: Some(SourcePackage::new(
+            id.unwrap_or_else(|| super::model::PackageId::root(&root)),
             root,
-            index_path,
+            manifest_path,
             display_name,
             validated.version,
+            validated.dependencies,
+            validated.locks,
             validated.executables,
         )),
         sources,

@@ -3,21 +3,31 @@ use crate::ast::{
     AstFile, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant,
     FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
     ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
-    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
-    TypeAliasDecl, TypeExpr, Visibility,
+    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
+    StructField, TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
-    pub(super) fn format_file(&mut self, file: &AstFile) {
-        for (index, directive) in file.package_header.directives.iter().enumerate() {
+    pub(super) fn format_package_file(&mut self, file: &PackageFile) {
+        for (index, directive) in file.manifest.directives.iter().enumerate() {
             if index > 0 {
                 self.newline();
             }
             self.format_package_directive(directive);
         }
-        if !file.package_header.directives.is_empty() && !file.items.is_empty() {
+        if !file.manifest.directives.is_empty() && !file.module.items.is_empty() {
             self.blank_line();
         }
+        for (index, item) in file.module.items.iter().enumerate() {
+            if index > 0 {
+                self.blank_line();
+            }
+            self.format_item(item);
+        }
+        self.newline();
+    }
+
+    pub(super) fn format_file(&mut self, file: &AstFile) {
         for (index, item) in file.items.iter().enumerate() {
             if index > 0 {
                 self.blank_line();

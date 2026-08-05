@@ -65,7 +65,7 @@ fn lower_text_with_development_home(text: &str) -> IrModule {
         source,
         &FrontendOptions {
             nocter_home: Some(nocter_home),
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         },
     )
@@ -473,7 +473,7 @@ fn analyze_text_fixture_with_nocter_home_files(
         source,
         &FrontendOptions {
             nocter_home: Some(nocter_home),
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         },
     )

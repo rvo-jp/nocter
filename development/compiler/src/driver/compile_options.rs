@@ -13,6 +13,8 @@ pub(super) struct SourceCommand {
     pub(super) input: CompileInput,
     pub(super) executable: Option<String>,
     pub(super) target: String,
+    pub(super) locked: bool,
+    pub(super) offline: bool,
 }
 
 impl SourceCommand {
@@ -21,6 +23,8 @@ impl SourceCommand {
             input: CompileInput::Package { root },
             executable: None,
             target: DEFAULT_TARGET.to_string(),
+            locked: false,
+            offline: false,
         }
     }
 
@@ -30,6 +34,8 @@ impl SourceCommand {
             input: CompileInput::File { file },
             executable: None,
             target: DEFAULT_TARGET.to_string(),
+            locked: false,
+            offline: false,
         }
     }
 }
@@ -105,6 +111,14 @@ pub(super) fn parse_compile_command(
                 source.executable = Some(value.to_string_lossy().into_owned());
                 index += 2;
             }
+            "--locked" => {
+                source.locked = true;
+                index += 1;
+            }
+            "--offline" => {
+                source.offline = true;
+                index += 1;
+            }
             "--format" if kind == CompileCommandKind::Check => {
                 let value = required_value(args, index, "expected `--format json`")?;
                 if !is_arg(value, "json") {
@@ -150,12 +164,32 @@ pub(super) fn parse_compile_command(
     if file_was_set && source.executable.is_some() {
         return Err("`--executable` cannot be combined with `--file`".to_string());
     }
+    if file_was_set && (source.locked || source.offline) {
+        return Err("`--locked` and `--offline` require package mode".to_string());
+    }
 
     Ok(CompileCommandOptions {
         source,
         json,
         output,
     })
+}
+
+pub(super) fn parse_fetch_command(args: &[OsString]) -> Result<SourceCommand, String> {
+    let options = parse_compile_command(args, CompileCommandKind::Check)?;
+    if !matches!(options.source.input, CompileInput::Package { .. }) {
+        return Err("`fetch` accepts a package root, not a source file".to_string());
+    }
+    if options.source.executable.is_some() {
+        return Err("`fetch` does not select an executable".to_string());
+    }
+    if options.json {
+        return Err("`fetch` does not support `--format`".to_string());
+    }
+    if args.iter().any(|argument| is_arg(argument, "--target")) {
+        return Err("`fetch` does not select a compilation target".to_string());
+    }
+    Ok(options.source)
 }
 
 fn required_value<'a>(

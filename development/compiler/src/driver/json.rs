@@ -4,7 +4,7 @@ use crate::ast::AstEnvelope;
 use crate::diagnostics::Diagnostic;
 use crate::diagnostics::DiagnosticsEnvelope;
 use crate::lexer::{TokensEnvelope, lex};
-use crate::parser::parse;
+use crate::parser::{parse, parse_package_file};
 use crate::source::SourceMap;
 use std::path::Path;
 use std::process::ExitCode;
@@ -69,23 +69,44 @@ pub(super) fn run_ast_json(file: &Path) -> ExitCode {
                 );
                 (envelope, ExitCode::FAILURE)
             } else {
-                let parsed = parse(&sources, source, &lexed.tokens);
-                let status = if parsed.diagnostics.is_empty() {
-                    ExitCode::SUCCESS
+                if file.file_name().is_some_and(|name| name == "nocter.nct") {
+                    let parsed = parse_package_file(&sources, source, &lexed.tokens);
+                    let status = if parsed.diagnostics.is_empty() {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    };
+                    let source_file = sources
+                        .get(source)
+                        .expect("loaded source id must resolve in source map");
+                    let envelope = AstEnvelope::new(
+                        source_file.display_path().to_string(),
+                        source_file
+                            .absolute_path()
+                            .map(|path| path.to_string_lossy().into_owned()),
+                        parsed.package_file.map(|file| file.to_json(&sources)),
+                        parsed.diagnostics,
+                    );
+                    (envelope, status)
                 } else {
-                    ExitCode::FAILURE
-                };
-                let file = sources
-                    .get(source)
-                    .expect("loaded source id must resolve in source map");
-                let envelope = AstEnvelope::new(
-                    file.display_path().to_string(),
-                    file.absolute_path()
-                        .map(|path| path.to_string_lossy().into_owned()),
-                    parsed.ast.map(|ast| ast.to_json(&sources)),
-                    parsed.diagnostics,
-                );
-                (envelope, status)
+                    let parsed = parse(&sources, source, &lexed.tokens);
+                    let status = if parsed.diagnostics.is_empty() {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::FAILURE
+                    };
+                    let file = sources
+                        .get(source)
+                        .expect("loaded source id must resolve in source map");
+                    let envelope = AstEnvelope::new(
+                        file.display_path().to_string(),
+                        file.absolute_path()
+                            .map(|path| path.to_string_lossy().into_owned()),
+                        parsed.ast.map(|ast| ast.to_json(&sources)),
+                        parsed.diagnostics,
+                    );
+                    (envelope, status)
+                }
             }
         }
         Err(diagnostic) => {

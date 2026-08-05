@@ -19,10 +19,10 @@ fn bare_source_command_is_rejected() {
 }
 
 #[test]
-fn check_command_uses_index_nct_when_source_is_omitted() {
+fn check_command_uses_nocter_nct_when_source_is_omitted() {
     let project = TempProject::new("cli-check-default-source");
     project.write_source(
-        "index.nct",
+        "nocter.nct",
         r#"pub func answer(): i32 {
     return 42
 }

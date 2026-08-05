@@ -1,5 +1,6 @@
 use super::compile_options::{
     BuildCommand, CompileCommandKind, CompileCommandOptions, SourceCommand, parse_compile_command,
+    parse_fetch_command,
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
 use super::json_tool_options::parse_json_tool_command;
@@ -13,6 +14,7 @@ pub(super) enum Command {
     Help,
     Version,
     Doctor,
+    Fetch(SourceCommand),
     Build(BuildCommand),
     Run(SourceCommand),
     Check(SourceCommand),
@@ -104,6 +106,7 @@ pub(super) fn parse_command(args: &[OsString]) -> Result<Command, CommandError> 
         "-h" | "--help" | "help" => Ok(Command::Help),
         "--version" | "version" => expect_no_extra(args, Command::Version),
         "doctor" => expect_no_extra(args, Command::Doctor),
+        "fetch" => parse_fetch_command(args).map(Command::Fetch),
         "build" => parse_compile_command(args, CompileCommandKind::Build).map(|options| {
             Command::Build(BuildCommand {
                 source: options.source,
@@ -165,6 +168,7 @@ fn command_name(args: &[OsString]) -> Option<String> {
         "-h" | "--help" | "help" => "help",
         "--version" | "version" => "version",
         "doctor" => "doctor",
+        "fetch" => "fetch",
         "build" => "build",
         "run" => "run",
         "check" => "check",
@@ -181,11 +185,11 @@ fn command_name(args: &[OsString]) -> Option<String> {
 fn root_argument(args: &[OsString]) -> Option<String> {
     let first = args.first()?.to_string_lossy();
     match first.as_ref() {
-        "build" | "run" | "check" => root_option(args)
-            .map(|root| format!("{root}/index.nct"))
+        "build" | "run" | "check" | "fetch" => root_option(args)
+            .map(|root| format!("{root}/nocter.nct"))
             .or_else(|| file_option(args))
             .or_else(|| root_after_command(args, 1))
-            .or_else(|| Some("./index.nct".to_string())),
+            .or_else(|| Some("./nocter.nct".to_string())),
         "tokens" | "ast" => root_after_command(args, 1),
         "fmt" => {
             if args

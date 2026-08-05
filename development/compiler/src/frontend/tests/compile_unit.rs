@@ -32,7 +32,7 @@ func main(): i32 {
     let source = sources.load_file(root.join("app.nct")).unwrap();
     let options = FrontendOptions {
         nocter_home: Some(home.to_path_buf()),
-        source_root: None,
+        package_graph: None,
         target: DEFAULT_TARGET.to_string(),
     };
     let unit = load_compile_unit(&mut sources, source, &options).unwrap();
@@ -112,7 +112,7 @@ func main(): i32 {
     );
     let options = FrontendOptions {
         nocter_home: Some(home.to_path_buf()),
-        source_root: None,
+        package_graph: None,
         target: DEFAULT_TARGET.to_string(),
     };
     let unit = load_compile_unit(&mut sources, root_source, &options).unwrap();
@@ -161,7 +161,7 @@ pub copy struct PlatformWord {
         let source = sources.load_file(root.join("app.nct")).unwrap();
         let options = FrontendOptions {
             nocter_home: Some(home.to_path_buf()),
-            source_root: None,
+            package_graph: None,
             target: target.to_string(),
         };
         let unit = load_compile_unit(&mut sources, source, &options).unwrap();

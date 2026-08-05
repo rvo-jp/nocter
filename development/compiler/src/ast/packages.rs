@@ -1,8 +1,16 @@
 use crate::source::ByteSpan;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PackageHeader {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageManifest {
+    pub span: ByteSpan,
     pub directives: Vec<PackageDirective>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageFile {
+    pub span: ByteSpan,
+    pub manifest: PackageManifest,
+    pub module: super::AstFile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

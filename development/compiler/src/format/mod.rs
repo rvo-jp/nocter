@@ -9,11 +9,11 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-use crate::ast::AstFile;
+use crate::ast::{AstFile, PackageFile};
 use crate::comments::first_comment_span;
 use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
-use crate::parser::parse;
+use crate::parser::{parse, parse_package_file};
 use crate::source::{SourceId, SourceMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,33 +61,45 @@ pub fn format_source(sources: &SourceMap, source: SourceId) -> FormatOutput {
         };
     }
 
-    let parsed = parse(sources, source, &lexed.tokens);
-    if !parsed.diagnostics.is_empty() {
-        return FormatOutput {
-            formatted: None,
-            diagnostics: parsed.diagnostics,
+    if file
+        .absolute_path()
+        .and_then(|path| path.file_name())
+        .is_some_and(|name| name == "nocter.nct")
+    {
+        let parsed = parse_package_file(sources, source, &lexed.tokens);
+        return match parsed.package_file {
+            Some(package_file) if parsed.diagnostics.is_empty() => FormatOutput {
+                formatted: Some(format_package_file(&package_file)),
+                diagnostics: Vec::new(),
+            },
+            _ => FormatOutput {
+                formatted: None,
+                diagnostics: parsed.diagnostics,
+            },
         };
     }
-
-    let Some(ast) = parsed.ast else {
-        return FormatOutput {
+    let parsed = parse(sources, source, &lexed.tokens);
+    match parsed.ast {
+        Some(ast) if parsed.diagnostics.is_empty() => FormatOutput {
+            formatted: Some(format_ast(&ast)),
+            diagnostics: Vec::new(),
+        },
+        _ => FormatOutput {
             formatted: None,
-            diagnostics: vec![Diagnostic::error(
-                "E0600",
-                "parser did not produce an AST and did not report a diagnostic",
-            )],
-        };
-    };
-
-    FormatOutput {
-        formatted: Some(format_ast(&ast)),
-        diagnostics: Vec::new(),
+            diagnostics: parsed.diagnostics,
+        },
     }
 }
 
 pub fn format_ast(ast: &AstFile) -> String {
     let mut formatter = Formatter::new();
     formatter.format_file(ast);
+    formatter.finish()
+}
+
+pub fn format_package_file(package_file: &PackageFile) -> String {
+    let mut formatter = Formatter::new();
+    formatter.format_package_file(package_file);
     formatter.finish()
 }
 

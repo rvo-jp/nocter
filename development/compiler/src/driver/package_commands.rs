@@ -7,7 +7,9 @@ use super::pipeline::{
 };
 use super::run::{run_file, run_package_file};
 use crate::diagnostics::Diagnostic;
-use crate::package::{ExecutableTarget, SourcePackage, load_package};
+use crate::package::{
+    ExecutableTarget, PackageGraph, PackageGraphOptions, SourcePackage, load_package_graph,
+};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -22,13 +24,25 @@ pub(super) fn run_check_command(command: &SourceCommand) -> ExitCode {
     }
 }
 
+pub(super) fn run_fetch_command(command: &SourceCommand) -> ExitCode {
+    let CompileInput::Package { root } = &command.input else {
+        return write_package_command_error("fetch requires package mode");
+    };
+    let load = load_package_graph(root, graph_options(command));
+    if load.diagnostics.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        write_package_graph_errors(&load.diagnostics)
+    }
+}
+
 pub(super) fn run_check_json_command(command: &SourceCommand) -> ExitCode {
     match &command.input {
         CompileInput::File { file } => super::json::run_check_json(file, &command.target),
         CompileInput::Package { root } => {
-            let load = load_package(root);
-            let root_path = root.join("index.nct");
-            if !load.is_ok() {
+            let load = load_package_graph(root, graph_options(command));
+            let root_path = root.join("nocter.nct");
+            if !load.diagnostics.is_empty() {
                 let status = exit_for_diagnostics(&load.diagnostics, ExitCode::FAILURE);
                 return write_diagnostics_json(
                     "check",
@@ -39,8 +53,9 @@ pub(super) fn run_check_json_command(command: &SourceCommand) -> ExitCode {
                     status,
                 );
             }
-            let package = load.package.expect("successful package load");
-            let diagnostics = collect_package_check_diagnostics(command, &package);
+            let graph = load.graph.expect("successful package graph load");
+            let package = graph.root_package();
+            let diagnostics = collect_package_check_diagnostics(command, &graph);
             let status = if diagnostics.is_empty() {
                 ExitCode::SUCCESS
             } else {
@@ -49,8 +64,8 @@ pub(super) fn run_check_json_command(command: &SourceCommand) -> ExitCode {
             write_diagnostics_json(
                 "check",
                 Some(command.target.clone()),
-                Some(package.index_path().to_string_lossy().into_owned()),
-                canonical_string(package.index_path()),
+                Some(package.manifest_path().to_string_lossy().into_owned()),
+                canonical_string(package.manifest_path()),
                 diagnostics,
                 status,
             )
@@ -75,12 +90,13 @@ pub(super) fn run_run_command(command: &SourceCommand) -> ExitCode {
     match &command.input {
         CompileInput::File { file } => run_file(file, &command.target),
         CompileInput::Package { root } => {
-            let load = load_package(root);
-            if !load.is_ok() {
-                return write_package_load_errors(load);
+            let load = load_package_graph(root, graph_options(command));
+            if !load.diagnostics.is_empty() {
+                return write_package_graph_errors(&load.diagnostics);
             }
-            let package = load.package.expect("successful package load");
-            let selected = match selected_executables(&package, command.executable.as_deref()) {
+            let graph = load.graph.expect("successful package graph load");
+            let package = graph.root_package();
+            let selected = match selected_executables(package, command.executable.as_deref()) {
                 Ok(selected) if selected.len() == 1 => selected[0],
                 Ok(selected) if selected.is_empty() => {
                     return write_package_command_error(format!(
@@ -96,18 +112,18 @@ pub(super) fn run_run_command(command: &SourceCommand) -> ExitCode {
                 }
                 Err(diagnostic) => return write_package_command_diagnostic(diagnostic),
             };
-            run_package_file(selected.source_path(), package.root(), &command.target)
+            run_package_file(selected.source_path(), &graph, &command.target)
         }
     }
 }
 
 fn run_package_check(command: &SourceCommand, root: &Path) -> ExitCode {
-    let load = load_package(root);
-    if !load.is_ok() {
-        return write_package_load_errors(load);
+    let load = load_package_graph(root, graph_options(command));
+    if !load.diagnostics.is_empty() {
+        return write_package_graph_errors(&load.diagnostics);
     }
-    let package = load.package.expect("successful package load");
-    let diagnostics = collect_package_check_diagnostics(command, &package);
+    let graph = load.graph.expect("successful package graph load");
+    let diagnostics = collect_package_check_diagnostics(command, &graph);
     if diagnostics.is_empty() {
         ExitCode::SUCCESS
     } else {
@@ -117,8 +133,9 @@ fn run_package_check(command: &SourceCommand, root: &Path) -> ExitCode {
 
 fn collect_package_check_diagnostics(
     command: &SourceCommand,
-    package: &SourcePackage,
+    graph: &PackageGraph,
 ) -> Vec<Diagnostic> {
+    let package = graph.root_package();
     let selected = match selected_executables(package, command.executable.as_deref()) {
         Ok(selected) => selected,
         Err(diagnostic) => return vec![diagnostic],
@@ -126,30 +143,27 @@ fn collect_package_check_diagnostics(
     let mut diagnostics = Vec::new();
     if command.executable.is_none() {
         diagnostics.extend(
-            check_package_module_with_target(package.index_path(), package.root(), &command.target)
+            check_package_module_with_target(package.manifest_path(), graph, &command.target)
                 .diagnostics,
         );
     }
     for executable in selected {
         diagnostics.extend(
-            check_package_executable_with_target(
-                executable.source_path(),
-                package.root(),
-                &command.target,
-            )
-            .diagnostics,
+            check_package_executable_with_target(executable.source_path(), graph, &command.target)
+                .diagnostics,
         );
     }
     diagnostics
 }
 
 fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
-    let load = load_package(root);
-    if !load.is_ok() {
-        return write_package_load_errors(load);
+    let load = load_package_graph(root, graph_options(&command.source));
+    if !load.diagnostics.is_empty() {
+        return write_package_graph_errors(&load.diagnostics);
     }
-    let package = load.package.expect("successful package load");
-    let selected = match selected_executables(&package, command.source.executable.as_deref()) {
+    let graph = load.graph.expect("successful package graph load");
+    let package = graph.root_package();
+    let selected = match selected_executables(package, command.source.executable.as_deref()) {
         Ok(selected) => selected,
         Err(diagnostic) => return write_package_command_diagnostic(diagnostic),
     };
@@ -172,7 +186,7 @@ fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
             .unwrap_or_else(|| package.root().join(executable.name()));
         let output = build_package_executable_to_path_with_target(
             executable.source_path(),
-            package.root(),
+            &graph,
             &output_path,
             &command.source.target,
         );
@@ -207,6 +221,13 @@ fn selected_executables<'a>(
     }
 }
 
+fn graph_options(command: &SourceCommand) -> PackageGraphOptions {
+    PackageGraphOptions {
+        locked: command.locked,
+        offline: command.offline,
+    }
+}
+
 fn write_check_output(output: super::pipeline::CheckOutput) -> ExitCode {
     if output.is_ok() {
         ExitCode::SUCCESS
@@ -225,9 +246,9 @@ fn write_build_output(output: super::pipeline::BuildOutput) -> ExitCode {
     }
 }
 
-fn write_package_load_errors(load: crate::package::PackageLoad) -> ExitCode {
-    let exit = exit_for_diagnostics(&load.diagnostics, ExitCode::FAILURE);
-    write_human_diagnostics(&load.diagnostics, Some(&load.sources), exit)
+fn write_package_graph_errors(diagnostics: &[Diagnostic]) -> ExitCode {
+    let exit = exit_for_diagnostics(diagnostics, ExitCode::FAILURE);
+    write_human_diagnostics(diagnostics, None, exit)
 }
 
 fn package_command_diagnostic(message: impl Into<String>) -> Diagnostic {

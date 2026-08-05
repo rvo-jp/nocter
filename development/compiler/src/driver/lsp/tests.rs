@@ -2505,19 +2505,19 @@ fn returns_definition_for_import_module_path() {
 #[test]
 fn returns_definition_for_package_executable_module() {
     let project = TempProject::new("lsp-definition-package-module");
-    let index_text = r#"#executable: {
+    let manifest_text = r#"#executable: {
     name: "app",
     module: "./src/app",
 }
 "#;
-    let index = project.write_source("index.nct", index_text);
+    let manifest = project.write_source("nocter.nct", manifest_text);
     let app = project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
-    let index_uri = file_uri(&index.canonicalize().unwrap());
+    let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
     let root = project.root.canonicalize().unwrap();
     let server = LspServer {
         documents: HashMap::from([(
-            index_uri.clone(),
-            open_document(index_uri.clone(), Some(1), index_text.to_string()),
+            manifest_uri.clone(),
+            open_document(manifest_uri.clone(), Some(1), manifest_text.to_string()),
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: vec![WorkspaceRoot {
@@ -2530,7 +2530,7 @@ fn returns_definition_for_package_executable_module() {
     let response = server.definition_response(
         json!(9),
         Some(&json!({
-            "textDocument": { "uri": index_uri },
+            "textDocument": { "uri": manifest_uri },
             "position": { "line": 2, "character": 15 }
         })),
     );
@@ -2551,17 +2551,17 @@ fn returns_definition_for_package_executable_module() {
 }
 
 #[test]
-fn nested_index_is_not_treated_as_the_workspace_package_root() {
-    let project = TempProject::new("lsp-definition-nested-index");
-    let index_text = "#executable: { name: \"app\", module: \"./app\" }\n";
-    let index = project.write_source("src/index.nct", index_text);
+fn nested_nocter_file_is_treated_as_its_own_package_root() {
+    let project = TempProject::new("lsp-definition-nested-manifest");
+    let manifest_text = "#executable: { name: \"app\", module: \"./app\" }\n";
+    let manifest = project.write_source("src/nocter.nct", manifest_text);
     project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
-    let index_uri = file_uri(&index.canonicalize().unwrap());
+    let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
     let root = project.root.canonicalize().unwrap();
     let server = LspServer {
         documents: HashMap::from([(
-            index_uri.clone(),
-            open_document(index_uri.clone(), Some(1), index_text.to_string()),
+            manifest_uri.clone(),
+            open_document(manifest_uri.clone(), Some(1), manifest_text.to_string()),
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: vec![WorkspaceRoot {
@@ -2574,12 +2574,18 @@ fn nested_index_is_not_treated_as_the_workspace_package_root() {
     let response = server.definition_response(
         json!(9),
         Some(&json!({
-            "textDocument": { "uri": index_uri },
-            "position": { "line": 0, "character": 47 }
+            "textDocument": { "uri": manifest_uri },
+            "position": { "line": 0, "character": 40 }
         })),
     );
 
-    assert_eq!(response["result"], Value::Null);
+    let definition = definition_link(&response);
+    assert_eq!(
+        definition["targetUri"],
+        json!(file_uri(
+            &project.root.join("src/app.nct").canonicalize().unwrap()
+        ))
+    );
 }
 
 #[test]
@@ -4106,7 +4112,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         "pub func answer(): i32 {\n    return 42\n}\n",
     );
     project.write_source("lib/value.nct", "pub struct Value {\n    raw: i32\n}\n");
-    let text = "use lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let text = "use ./lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
     let app = project.write_source("app.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
@@ -4118,7 +4124,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         workspace_roots: Vec::new(),
         shutdown_requested: false,
     };
-    let offset = text.find("lib/ma").unwrap() + "lib/ma".len();
+    let offset = text.find("./lib/ma").unwrap() + "./lib/ma".len();
     let position = byte_offset_to_lsp_position(text, offset);
 
     let response = server.completion_response(

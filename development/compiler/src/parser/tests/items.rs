@@ -2,43 +2,13 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{DirectiveValue, ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
-fn parses_package_directives_before_root_items() {
-    let (sources, output) = parse_text_with_sources(
-        r#"#name: "json-tool"
-#version: "0.1.0"
-#executable: {
-    name: "json-tool",
-    module: "./src/app",
-}
-
-pub use ./src/json
-"#,
-    );
-
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    assert_eq!(ast.package_header.directives.len(), 3);
-    assert!(matches!(
-        &ast.package_header.directives[0].value,
-        DirectiveValue::String { value, .. } if value == "json-tool"
-    ));
-    let DirectiveValue::Record { fields, .. } = &ast.package_header.directives[2].value else {
-        panic!("expected executable record");
-    };
-    assert_eq!(fields[0].name, "name");
-    assert_eq!(fields[1].name, "module");
-    let Item::Import(reexport) = &ast.items[0] else {
-        panic!("expected namespace re-export");
-    };
-    assert_eq!(reexport.visibility, Visibility::Public);
-    assert_eq!(reexport.alias.name, "json");
-
-    let json = ast.to_json(&sources);
-    assert!(find_json_node(&json, "package_directive").is_some());
-    assert!(find_json_node(&json, "pub_use_namespace_item").is_some());
+fn rejects_package_directives_in_an_ordinary_module() {
+    let output = parse_text("#name: \"json-tool\"\n");
+    assert!(output.ast.is_none());
+    assert!(!output.diagnostics.is_empty());
 }
 
 #[test]

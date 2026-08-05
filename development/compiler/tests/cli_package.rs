@@ -6,10 +6,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
 #[test]
-fn package_check_accepts_a_library_only_index() {
+fn package_check_accepts_code_in_the_package_file() {
     let project = TempPackage::new("library");
     project.write(
-        "index.nct",
+        "nocter.nct",
         "#name: \"library\"\n\npub func value(): i32 { 7 }\n",
     );
     assert_success(&project.nocter(["check"]));
@@ -19,7 +19,7 @@ fn package_check_accepts_a_library_only_index() {
 fn package_build_uses_declared_module_and_artifact_name() {
     let project = TempPackage::new("build");
     project.write(
-        "index.nct",
+        "nocter.nct",
         r#"#name: "tool-package"
 #executable: {
     name: "tool",
@@ -35,7 +35,7 @@ fn package_build_uses_declared_module_and_artifact_name() {
 #[test]
 fn package_build_never_discovers_undeclared_main_file() {
     let project = TempPackage::new("no-main-fallback");
-    project.write("index.nct", "#name: \"library\"\n");
+    project.write("nocter.nct", "#name: \"library\"\n");
     project.write("main.nct", "func main(): i32 { 0 }\n");
     let output = project.nocter(["build"]);
     assert_eq!(output.status.code(), Some(1));
@@ -48,10 +48,230 @@ fn package_build_never_discovers_undeclared_main_file() {
 }
 
 #[test]
-fn package_directives_are_rejected_outside_root_index() {
+fn package_check_resolves_a_declared_path_dependency_namespace() {
+    let project = TempPackage::new("path-dependency");
+    project.write(
+        "nocter.nct",
+        r#"#dependencies: {
+    math: { path: "./packages/math" },
+}
+
+use math.answer
+
+pub func value(): i32 {
+    answer()
+}
+"#,
+    );
+    project.write(
+        "packages/math/nocter.nct",
+        "pub func answer(): i32 { 42 }\n",
+    );
+    assert_success(&project.nocter(["check"]));
+}
+
+#[test]
+fn fetch_generates_a_git_lock_and_offline_check_reuses_the_exact_package() {
+    let project = TempPackage::new("git-dependency");
+    let repository = project.root.join("dependency-repository");
+    fs::create_dir_all(&repository).unwrap();
+    fs::write(
+        repository.join("nocter.nct"),
+        "pub func answer(): i32 { 42 }\n",
+    )
+    .unwrap();
+    git(&repository, ["init", "--quiet"]);
+    git(&repository, ["config", "user.email", "test@nocter.dev"]);
+    git(&repository, ["config", "user.name", "Nocter Test"]);
+    git(&repository, ["add", "nocter.nct"]);
+    git(&repository, ["commit", "--quiet", "-m", "initial"]);
+
+    project.write(
+        "nocter.nct",
+        &format!(
+            r#"#dependencies: {{
+    math: {{
+        git: "{}",
+        revision: "HEAD",
+    }},
+}}
+
+use math.answer
+
+pub func value(): i32 {{
+    answer()
+}}
+"#,
+            repository.display()
+        ),
+    );
+
+    assert_success(&project.nocter(["fetch"]));
+    let manifest = fs::read_to_string(project.root.join("nocter.nct")).unwrap();
+    assert!(manifest.contains("#lock: {"), "{manifest}");
+    assert!(manifest.contains("math: \"git:"), "{manifest}");
+    assert_success(&project.nocter(["check", "--locked", "--offline"]));
+}
+
+#[test]
+fn fetch_generates_and_verifies_an_archive_content_lock() {
+    let project = TempPackage::new("archive-dependency");
+    let archive_source = project.root.join("archive-source");
+    fs::create_dir_all(&archive_source).unwrap();
+    fs::write(
+        archive_source.join("nocter.nct"),
+        "pub func answer(): i32 { 42 }\n",
+    )
+    .unwrap();
+    let archive = project.root.join("math.tar.gz");
+    let output = Command::new("tar")
+        .args(["-czf"])
+        .arg(&archive)
+        .arg("-C")
+        .arg(&archive_source)
+        .arg(".")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    project.write(
+        "nocter.nct",
+        &format!(
+            r#"#dependencies: {{
+    math: {{ archive: "file://{}" }},
+}}
+
+use math.answer
+
+pub func value(): i32 {{ answer() }}
+"#,
+            archive.canonicalize().unwrap().display()
+        ),
+    );
+
+    assert_success(&project.nocter(["fetch"]));
+    let manifest = fs::read_to_string(project.root.join("nocter.nct")).unwrap();
+    assert!(manifest.contains("math: \"sha256:"), "{manifest}");
+    assert_success(&project.nocter(["check", "--locked", "--offline"]));
+}
+
+#[test]
+fn failed_graph_does_not_write_a_partial_generated_lock() {
+    let project = TempPackage::new("failed-graph-lock-transaction");
+    let repository = project.root.join("dependency-repository");
+    fs::create_dir_all(&repository).unwrap();
+    fs::write(
+        repository.join("nocter.nct"),
+        "pub func value(): i32 { 1 }\n",
+    )
+    .unwrap();
+    git(&repository, ["init", "--quiet"]);
+    git(&repository, ["config", "user.email", "test@nocter.dev"]);
+    git(&repository, ["config", "user.name", "Nocter Test"]);
+    git(&repository, ["add", "nocter.nct"]);
+    git(&repository, ["commit", "--quiet", "-m", "initial"]);
+    project.write(
+        "nocter.nct",
+        &format!(
+            r#"#dependencies: {{
+    available: {{ git: "{}", revision: "HEAD" }},
+    missing: {{ path: "./missing" }},
+}}
+"#,
+            repository.display()
+        ),
+    );
+
+    let output = project.nocter(["fetch"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(text(&output.stderr).contains("cannot be resolved"));
+    let manifest = fs::read_to_string(project.root.join("nocter.nct")).unwrap();
+    assert!(!manifest.contains("#lock:"), "{manifest}");
+}
+
+#[test]
+fn offline_graph_requires_the_exact_locked_package_in_a_store() {
+    let project = TempPackage::new("offline-cache-miss");
+    project.write(
+        "nocter.nct",
+        &format!(
+            r#"#dependencies: {{
+    missing: {{ git: "https://example.invalid/missing.git" }},
+}}
+#lock: {{
+    format: 1,
+    dependencies: {{
+        missing: "git:{}",
+    }},
+}}
+"#,
+            "0".repeat(40)
+        ),
+    );
+
+    let output = project.nocter(["fetch", "--offline"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        text(&output.stderr).contains("is not cached for offline use"),
+        "{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn dependency_source_and_lock_kinds_must_match() {
+    let project = TempPackage::new("source-lock-mismatch");
+    project.write(
+        "nocter.nct",
+        &format!(
+            r#"#dependencies: {{
+    data: {{ archive: "https://example.invalid/data.tar.gz" }},
+}}
+#lock: {{
+    format: 1,
+    dependencies: {{
+        data: "git:{}",
+    }},
+}}
+"#,
+            "0".repeat(40)
+        ),
+    );
+
+    let output = project.nocter(["fetch"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        text(&output.stderr).contains("source and lock kinds do not match"),
+        "{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn path_dependency_cycles_are_rejected() {
+    let project = TempPackage::new("path-cycle");
+    project.write(
+        "nocter.nct",
+        "#dependencies: { child: { path: \"./packages/child\" } }\n",
+    );
+    project.write(
+        "packages/child/nocter.nct",
+        "#dependencies: { parent: { path: \"../..\" } }\n",
+    );
+
+    let output = project.nocter(["fetch"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        text(&output.stderr).contains("dependency cycle reaches package"),
+        "{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn package_directives_are_rejected_outside_nocter_file() {
     let project = TempPackage::new("directive-location");
     project.write(
-        "index.nct",
+        "nocter.nct",
         r#"#executable: { name: "app", module: "./app" }
 "#,
     );
@@ -60,7 +280,7 @@ fn package_directives_are_rejected_outside_root_index() {
     let output = project.nocter(["check", "--executable", "app"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(
-        text(&output.stderr).contains("package directives are only allowed"),
+        text(&output.stderr).contains("valid only in a package-root `nocter.nct`"),
         "{}",
         text(&output.stderr)
     );
@@ -70,7 +290,7 @@ fn package_directives_are_rejected_outside_root_index() {
 fn package_run_requires_selection_for_multiple_executables() {
     let project = TempPackage::new("selection");
     project.write(
-        "index.nct",
+        "nocter.nct",
         r#"#executable: {
     name: "first",
     module: "./first",
@@ -93,7 +313,7 @@ fn package_run_requires_selection_for_multiple_executables() {
 fn package_run_executes_selected_declared_module() {
     let project = TempPackage::new("run");
     project.write(
-        "index.nct",
+        "nocter.nct",
         r#"#executable: {
     name: "tool",
     module: "./app",
@@ -150,6 +370,19 @@ fn assert_success(output: &Output) {
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
+    );
+}
+
+fn git<const N: usize>(repository: &PathBuf, arguments: [&str; N]) {
+    let output = Command::new("git")
+        .args(arguments)
+        .current_dir(repository)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git failed: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 

@@ -200,24 +200,6 @@ pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 }
 
 #[test]
-fn formats_package_header_and_namespace_reexport() {
-    assert_formats_stably(
-        r#"#name:"json-tool"
-#executable:{name:"json-tool",module:"./src/app"}
-pub use ./src/json
-"#,
-        concat!(
-            "#name: \"json-tool\"\n",
-            "#executable: {\n",
-            "    name: \"json-tool\",\n",
-            "    module: \"./src/app\",\n",
-            "}\n\n",
-            "pub use ./src/json\n",
-        ),
-    );
-}
-
-#[test]
 fn formats_target_directive_on_function() {
     assert_formats_stably(
         r#"#target: "arm64-darwin"

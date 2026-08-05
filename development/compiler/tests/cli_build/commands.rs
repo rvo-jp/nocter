@@ -40,10 +40,10 @@ fn build_command_writes_default_macho_executable() {
 }
 
 #[test]
-fn build_command_uses_index_declared_executable_when_source_is_omitted() {
+fn build_command_uses_package_declared_executable_when_source_is_omitted() {
     let project = TempProject::new("cli-build-default-source");
     project.write_source(
-        "index.nct",
+        "nocter.nct",
         r#"#executable: {
     name: "app",
     module: "./main",

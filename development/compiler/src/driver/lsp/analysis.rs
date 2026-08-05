@@ -22,18 +22,18 @@ pub(super) fn workspace_analysis_for_uri(
     uri: &str,
     documents: &HashMap<String, OpenDocument>,
 ) -> Option<LspWorkspaceAnalysis> {
-    workspace_analysis_for_uri_with_source_root(uri, documents, None)
+    workspace_analysis_for_uri_with_package_root(uri, documents, None)
 }
 
-pub(super) fn workspace_analysis_for_uri_with_source_root(
+pub(super) fn workspace_analysis_for_uri_with_package_root(
     uri: &str,
     documents: &HashMap<String, OpenDocument>,
-    source_root: Option<&Path>,
+    package_root: Option<&Path>,
 ) -> Option<LspWorkspaceAnalysis> {
     let mut workspace = OpenWorkspaceSources::new(documents);
 
     let root = workspace.source_for_uri(uri)?;
-    let options = lsp_frontend_options(source_root);
+    let options = lsp_frontend_options(package_root);
     let unit = load_compile_unit(&mut workspace.sources, root, &options).ok()?;
     let analysis = analyze_module_compile_unit(&workspace.sources, &unit);
 
@@ -48,19 +48,19 @@ pub(super) fn diagnostics_for_workspace(
     root_uri: &str,
     documents: &HashMap<String, OpenDocument>,
 ) -> Vec<(String, Vec<LspDiagnostic>)> {
-    diagnostics_for_workspace_with_source_root(root_uri, documents, None)
+    diagnostics_for_workspace_with_package_root(root_uri, documents, None)
 }
 
-pub(super) fn diagnostics_for_workspace_with_source_root(
+pub(super) fn diagnostics_for_workspace_with_package_root(
     root_uri: &str,
     documents: &HashMap<String, OpenDocument>,
-    source_root: Option<&Path>,
+    package_root: Option<&Path>,
 ) -> Vec<(String, Vec<LspDiagnostic>)> {
     let mut workspace = OpenWorkspaceSources::new(documents);
 
     let diagnostics = match workspace.source_for_uri(root_uri) {
         Some(root) => {
-            let options = lsp_frontend_options(source_root);
+            let options = lsp_frontend_options(package_root);
             match load_compile_unit(&mut workspace.sources, root, &options) {
                 Ok(unit) => analyze_module_compile_unit(&workspace.sources, &unit).diagnostics(),
                 Err(diagnostics) => diagnostics,
@@ -120,9 +120,19 @@ impl<'a> OpenWorkspaceSources<'a> {
     }
 }
 
-fn lsp_frontend_options(source_root: Option<&Path>) -> FrontendOptions {
+fn lsp_frontend_options(package_root: Option<&Path>) -> FrontendOptions {
+    let package_graph = package_root.and_then(|root| {
+        crate::package::load_package_graph(
+            root,
+            crate::package::PackageGraphOptions {
+                locked: true,
+                offline: true,
+            },
+        )
+        .graph
+    });
     FrontendOptions {
-        source_root: source_root.map(Path::to_path_buf),
+        package_graph,
         ..FrontendOptions::default()
     }
 }

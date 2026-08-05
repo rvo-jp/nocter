@@ -39,12 +39,12 @@ pub(super) fn import_load_diagnostic(
             "relative imports are resolved from the importing file directory; module paths try `.nct` and then `index.nct`"
                 .to_string()
         }
-        ImportPathKind::Absolute => {
-            "absolute imports are resolved from the filesystem root; module paths try `.nct` and then `index.nct`"
+        ImportPathKind::PackageAbsolute => {
+            "package-absolute imports are resolved from the package root; module paths try `.nct` and then `index.nct`"
                 .to_string()
         }
         ImportPathKind::NonRelative => {
-            "non-relative imports are resolved from the source root first and the active Nocter home second; module paths try `.nct` and then `index.nct`"
+            "non-relative imports name a declared dependency or the standard library; module paths try `.nct` and then `index.nct`"
                 .to_string()
         }
     });
@@ -54,8 +54,50 @@ pub(super) fn import_load_diagnostic(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ImportPathKind {
     Relative,
-    Absolute,
+    PackageAbsolute,
     NonRelative,
+}
+
+pub(super) fn package_absolute_import_without_package_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        "package-absolute imports require a package selected through `nocter.nct`",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some("use a `./` or `../` import in explicit single-file mode".to_string());
+    diagnostic
+}
+
+pub(super) fn undeclared_dependency_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    path: &str,
+) -> Diagnostic {
+    let name = path.split('/').next().unwrap_or(path);
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!("import `{path}` names undeclared dependency `{name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(format!(
+        "declare `{name}` in `#dependencies` or use `./`, `../`, or `/` for a package module"
+    ));
+    diagnostic
+}
+
+pub(super) fn package_import_escape_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    path: &str,
+) -> Diagnostic {
+    let mut diagnostic =
+        Diagnostic::error("E0410", format!("import `{path}` escapes its package root"));
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some("declare another package through `#dependencies` instead".to_string());
+    diagnostic
 }
 
 pub(super) fn ambiguous_import_diagnostic(

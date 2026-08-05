@@ -28,7 +28,7 @@ use imports::{
     active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
     resolve_import_path,
 };
-use parsing::parse_source_for_check;
+use parsing::{parse_package_source_for_check, parse_source_for_check};
 use prelude::{should_load_prelude, standard_prelude_path};
 
 pub(crate) use module_discovery::module_segment_candidates;
@@ -36,7 +36,7 @@ pub(crate) use module_discovery::module_segment_candidates;
 #[derive(Debug, Clone)]
 pub(crate) struct FrontendOptions {
     pub(crate) nocter_home: Option<PathBuf>,
-    pub(crate) source_root: Option<PathBuf>,
+    pub(crate) package_graph: Option<crate::package::PackageGraph>,
     pub(crate) target: String,
 }
 
@@ -44,7 +44,7 @@ impl Default for FrontendOptions {
     fn default() -> Self {
         Self {
             nocter_home: None,
-            source_root: None,
+            package_graph: None,
             target: DEFAULT_TARGET.to_string(),
         }
     }
@@ -61,7 +61,6 @@ pub(crate) fn load_compile_unit(
     let mut import_sources = ImportSourceMap::new();
     let mut prelude_sources = PreludeSourceMap::new();
     let mut resolved_nocter_home = None;
-    let source_root = active_source_root(sources, root, options);
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
@@ -72,20 +71,18 @@ pub(crate) fn load_compile_unit(
     }
 
     while let Some(source) = queue.pop_front() {
-        let mut ast = match parse_source_for_check(sources, source) {
+        let parse_result = if source_is_package_file(sources, source, options) {
+            parse_package_source_for_check(sources, source)
+        } else {
+            parse_source_for_check(sources, source)
+        };
+        let mut ast = match parse_result {
             Ok(ast) => ast,
             Err(source_diagnostics) => {
                 diagnostics.extend(source_diagnostics);
                 continue;
             }
         };
-
-        diagnostics.extend(crate::package::validate_package_header_location(
-            sources,
-            source,
-            &ast.package_header,
-            source_root.as_deref(),
-        ));
 
         filter_target_items(&mut ast, &options.target);
 
@@ -113,14 +110,7 @@ pub(crate) fn load_compile_unit(
 
         if should_load_prelude(sources, source, options, &mut resolved_nocter_home) {
             let path = standard_prelude_path(source);
-            match resolve_import_path(
-                sources,
-                source,
-                &path,
-                options,
-                None,
-                &mut resolved_nocter_home,
-            ) {
+            match resolve_import_path(sources, source, &path, options, &mut resolved_nocter_home) {
                 Ok(canonical) => {
                     let imported = match loaded_sources_by_path.get(&canonical).copied() {
                         Some(source) => Some(source),
@@ -177,7 +167,6 @@ pub(crate) fn load_compile_unit(
                 source,
                 path,
                 options,
-                source_root.as_deref(),
                 &mut resolved_nocter_home,
             ) {
                 Ok(path) => path,
@@ -280,18 +269,18 @@ fn trusted_module_path(
     primitive_module_path(&source_path, &home, &options.target)
 }
 
-fn active_source_root(
+fn source_is_package_file(
     sources: &SourceMap,
-    root: SourceId,
+    source: SourceId,
     options: &FrontendOptions,
-) -> Option<PathBuf> {
-    options.source_root.clone().or_else(|| {
-        sources
-            .get(root)
-            .and_then(|file| file.absolute_path())
-            .and_then(|path| path.parent())
-            .map(canonicalize_existing)
-    })
+) -> bool {
+    let Some(graph) = options.package_graph.as_ref() else {
+        return false;
+    };
+    let Some(path) = sources.get(source).and_then(|file| file.absolute_path()) else {
+        return false;
+    };
+    graph.is_package_file(path)
 }
 
 fn filter_target_items(ast: &mut AstFile, target: &str) {

@@ -1,10 +1,23 @@
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PackageId(u32);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PackageId(String);
 
 impl PackageId {
-    pub(super) const ROOT: Self = Self(0);
+    pub(super) fn root(root: &Path) -> Self {
+        let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        Self::from_descriptor(&format!("root:{}", root.display()))
+    }
+
+    pub(super) fn from_descriptor(descriptor: &str) -> Self {
+        let digest = Sha256::digest(descriptor.as_bytes());
+        Self(format!("{digest:x}"))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -21,8 +34,8 @@ impl ModuleId {
         }
     }
 
-    pub fn package(&self) -> PackageId {
-        self.package
+    pub fn package(&self) -> &PackageId {
+        &self.package
     }
 
     pub fn logical_path(&self) -> &str {
@@ -41,8 +54,8 @@ impl ExecutableId {
         Self { package, name }
     }
 
-    pub fn package(&self) -> PackageId {
-        self.package
+    pub fn package(&self) -> &PackageId {
+        &self.package
     }
 
     pub fn name(&self) -> &str {
@@ -94,40 +107,47 @@ impl ExecutableTarget {
 pub struct SourcePackage {
     id: PackageId,
     root: PathBuf,
-    index_path: PathBuf,
+    manifest_path: PathBuf,
     display_name: String,
     version: Option<String>,
+    dependencies: Vec<super::DependencyDeclaration>,
+    locks: Vec<super::LockedDependency>,
     executables: Vec<ExecutableTarget>,
 }
 
 impl SourcePackage {
     pub(super) fn new(
+        id: PackageId,
         root: PathBuf,
-        index_path: PathBuf,
+        manifest_path: PathBuf,
         display_name: String,
         version: Option<String>,
+        dependencies: Vec<super::DependencyDeclaration>,
+        locks: Vec<super::LockedDependency>,
         executables: Vec<ExecutableTarget>,
     ) -> Self {
         Self {
-            id: PackageId::ROOT,
+            id,
             root,
-            index_path,
+            manifest_path,
             display_name,
             version,
+            dependencies,
+            locks,
             executables,
         }
     }
 
-    pub fn id(&self) -> PackageId {
-        self.id
+    pub fn id(&self) -> &PackageId {
+        &self.id
     }
 
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    pub fn index_path(&self) -> &Path {
-        &self.index_path
+    pub fn manifest_path(&self) -> &Path {
+        &self.manifest_path
     }
 
     pub fn display_name(&self) -> &str {
@@ -136,6 +156,25 @@ impl SourcePackage {
 
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+
+    pub fn dependencies(&self) -> &[super::DependencyDeclaration] {
+        &self.dependencies
+    }
+
+    pub fn locks(&self) -> &[super::LockedDependency] {
+        &self.locks
+    }
+
+    pub(super) fn replace_locks(&mut self, locks: Vec<super::LockedDependency>) {
+        self.locks = locks;
+    }
+
+    pub fn lock(&self, name: &str) -> Option<&super::DependencyLock> {
+        self.locks
+            .iter()
+            .find(|lock| lock.name() == name)
+            .map(super::LockedDependency::resolution)
     }
 
     pub fn executables(&self) -> &[ExecutableTarget] {

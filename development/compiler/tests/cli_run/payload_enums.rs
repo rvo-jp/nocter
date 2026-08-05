@@ -2421,9 +2421,8 @@ func main(): i32 {
 #[test]
 fn run_command_returns_imported_alias_payloadless_wildcard_only_match_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-payloadless-wildcard-only-match");
-    fs::create_dir_all(project.root().join("std")).unwrap();
     project.write_source(
-        "std/choices.nct",
+        "choices.nct",
         r#"pub enum Choice {
     yes
     no
@@ -2438,7 +2437,7 @@ pub func choose(): PublicChoice {
     );
     let source = project.write_source(
         "payloadless_wildcard_imported_alias.nct",
-        r#"use std/choices.{PublicChoice, choose}
+        r#"use ./choices.{PublicChoice, choose}
 
 func main(): i32 {
     let first = describe(choose())

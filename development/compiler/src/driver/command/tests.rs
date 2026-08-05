@@ -38,6 +38,24 @@ fn parses_explicit_package_root_and_executable() {
 }
 
 #[test]
+fn parses_fetch_and_reproducibility_flags() {
+    let mut expected = package_command("packages/tool");
+    expected.locked = true;
+    expected.offline = true;
+    assert_eq!(
+        parse_command(&[
+            OsString::from("fetch"),
+            OsString::from("--root"),
+            OsString::from("packages/tool"),
+            OsString::from("--locked"),
+            OsString::from("--offline"),
+        ])
+        .unwrap(),
+        Command::Fetch(expected)
+    );
+}
+
+#[test]
 fn parses_explicit_single_file_mode() {
     assert_eq!(
         parse_command(&[

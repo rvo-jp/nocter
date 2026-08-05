@@ -18,10 +18,20 @@ pub(super) fn module_completion_items(
     let source_dir = document.absolute_path.as_deref()?.parent()?;
     let (parent, prefix) = typed_path.rsplit_once('/').unwrap_or(("", typed_path));
     let directories = search_directories(source_dir, workspace_roots, parent, typed_path);
-    let candidates = directories
+    let mut candidates = directories
         .iter()
         .flat_map(|directory| module_segment_candidates(directory, prefix))
         .collect::<BTreeSet<_>>();
+    if parent.is_empty() && !typed_path.starts_with('.') && !typed_path.starts_with('/') {
+        candidates.extend(
+            dependency_aliases(document, workspace_roots)
+                .into_iter()
+                .filter(|name| name.starts_with(prefix)),
+        );
+        if "std".starts_with(prefix) {
+            candidates.insert("std".to_string());
+        }
+    }
     Some(completion_values(
         candidates
             .into_iter()
@@ -38,42 +48,102 @@ pub(super) fn module_completion_items(
     ))
 }
 
-pub(super) fn source_root_for_document<'a>(
-    document: &OpenDocument,
-    workspace_roots: &'a [WorkspaceRoot],
+pub(super) fn package_root_for_document<'a>(
+    document: &'a OpenDocument,
+    workspace_roots: &[WorkspaceRoot],
 ) -> Option<&'a Path> {
     let document_path = document.absolute_path.as_deref()?;
-    workspace_roots
+    let boundary = workspace_roots
         .iter()
         .filter_map(|root| root.path.as_deref())
         .filter(|root| document_path.starts_with(root))
         .max_by_key(|root| root.components().count())
+        .unwrap_or_else(|| Path::new("/"));
+    document_path
+        .parent()?
+        .ancestors()
+        .take_while(|ancestor| ancestor.starts_with(boundary))
+        .find(|ancestor| ancestor.join("nocter.nct").is_file())
 }
 
 fn search_directories(
     source_dir: &Path,
-    workspace_roots: &[WorkspaceRoot],
+    _workspace_roots: &[WorkspaceRoot],
     parent: &str,
     typed_path: &str,
 ) -> Vec<PathBuf> {
     if typed_path.starts_with('/') {
-        return vec![PathBuf::from("/").join(parent.trim_start_matches('/'))];
+        let package = source_dir
+            .ancestors()
+            .find(|ancestor| ancestor.join("nocter.nct").is_file());
+        return package
+            .map(|root| vec![root.join(parent.trim_start_matches('/'))])
+            .unwrap_or_default();
     }
     if typed_path.starts_with("./") || typed_path.starts_with("../") {
         return vec![source_dir.join(parent)];
     }
+    if parent == "std" || parent.starts_with("std/") {
+        return resolve_nocter_home()
+            .ok()
+            .map(|home| vec![home.join(parent)])
+            .unwrap_or_default();
+    }
+    let Some(package_root) = source_dir
+        .ancestors()
+        .find(|ancestor| ancestor.join("nocter.nct").is_file())
+    else {
+        return Vec::new();
+    };
+    let load = crate::package::load_package_graph(
+        package_root,
+        crate::package::PackageGraphOptions {
+            locked: true,
+            offline: true,
+        },
+    );
+    let Some(graph) = load.graph else {
+        return Vec::new();
+    };
+    let Some(owner) = graph.package_containing(source_dir) else {
+        return Vec::new();
+    };
+    let (name, remainder) = parent.split_once('/').unwrap_or((parent, ""));
+    graph
+        .dependency(owner.id(), name)
+        .map(|dependency| vec![dependency.root().join(remainder)])
+        .unwrap_or_default()
+}
 
-    let mut roots = workspace_roots
-        .iter()
-        .filter_map(|root| root.path.clone())
-        .collect::<Vec<_>>();
-    if roots.is_empty() {
-        roots.push(source_dir.to_path_buf());
-    }
-    if let Ok(home) = resolve_nocter_home() {
-        roots.push(home);
-    }
-    roots.into_iter().map(|root| root.join(parent)).collect()
+fn dependency_aliases(document: &OpenDocument, _workspace_roots: &[WorkspaceRoot]) -> Vec<String> {
+    let Some(path) = document.absolute_path.as_deref() else {
+        return Vec::new();
+    };
+    let Some(root) = path.parent().and_then(|directory| {
+        directory
+            .ancestors()
+            .find(|root| root.join("nocter.nct").is_file())
+    }) else {
+        return Vec::new();
+    };
+    let Some(graph) = crate::package::load_package_graph(
+        root,
+        crate::package::PackageGraphOptions {
+            locked: true,
+            offline: true,
+        },
+    )
+    .graph
+    else {
+        return Vec::new();
+    };
+    let Some(owner) = graph.package_containing(path) else {
+        return Vec::new();
+    };
+    graph
+        .dependency_names(owner.id())
+        .map(str::to_string)
+        .collect()
 }
 
 fn import_path_at_offset(text: &str, offset: usize) -> Option<&str> {

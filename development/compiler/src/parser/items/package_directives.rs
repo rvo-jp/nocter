@@ -1,10 +1,11 @@
 use super::*;
-use crate::ast::{DirectiveField, DirectiveValue, PackageDirective, PackageHeader};
+use crate::ast::{DirectiveField, DirectiveValue, PackageDirective, PackageFile, PackageManifest};
 use crate::lexer::{Keyword, TokenKind};
 use crate::literals::{decode_integer_literal_value, decode_string_literal_bytes};
 
 impl Parser<'_> {
-    pub(super) fn parse_package_header(&mut self) -> ParseResult<PackageHeader> {
+    pub(in crate::parser) fn parse_package_file(&mut self) -> ParseResult<PackageFile> {
+        let start = self.current().span.start;
         let mut directives = Vec::new();
         while self.at_package_directive_start() {
             directives.push(self.parse_package_directive()?);
@@ -14,7 +15,19 @@ impl Parser<'_> {
             }
             self.skip_newlines();
         }
-        Ok(PackageHeader { directives })
+        let manifest_end = directives
+            .last()
+            .map_or(start, |directive| directive.span.end);
+        let manifest = PackageManifest {
+            span: self.span(start, manifest_end),
+            directives,
+        };
+        let module = self.parse_module_body()?;
+        Ok(PackageFile {
+            span: self.span(start, module.span.end),
+            manifest,
+            module,
+        })
     }
 
     fn at_package_directive_start(&self) -> bool {

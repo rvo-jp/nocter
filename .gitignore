@@ -1,3 +1,4 @@
 /target/
 /development/compiler/target/
 /dist/
+/.nocter/

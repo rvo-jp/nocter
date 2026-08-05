@@ -4,7 +4,7 @@ use super::documents::{OpenDocument, WorkspaceRoot};
 use super::protocol::{file_uri_for_path, lsp_position_to_byte_offset, position_from_params};
 use crate::ast::DirectiveValue;
 use crate::lexer::lex;
-use crate::parser::parse;
+use crate::parser::parse_package_file;
 use crate::source::SourceMap;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ pub(super) fn package_module_definition(
 ) -> Option<Value> {
     let position = position_from_params(params)?;
     let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-    let root = package_root_for_index(document, workspace_roots)?;
+    let root = package_root_for_manifest(document, workspace_roots)?;
 
     let mut sources = SourceMap::new();
     let source = sources.add_source(
@@ -28,9 +28,9 @@ pub(super) fn package_module_definition(
     if !lexed.diagnostics.is_empty() {
         return None;
     }
-    let ast = parse(&sources, source, &lexed.tokens).ast?;
-    let (logical, origin) = ast
-        .package_header
+    let package_file = parse_package_file(&sources, source, &lexed.tokens).package_file?;
+    let (logical, origin) = package_file
+        .manifest
         .directives
         .iter()
         .filter(|directive| directive.name == "executable")
@@ -43,8 +43,9 @@ pub(super) fn package_module_definition(
         .filter_map(|field| field.value.string_value())
         .find(|(_, span)| span.start <= offset && offset <= span.end)?;
 
-    let index = root.join("index.nct");
-    let target = crate::package::resolve_package_module(&root, &index, logical).ok()?;
+    let target =
+        crate::package::resolve_package_module(&root, document.absolute_path.as_deref()?, logical)
+            .ok()?;
     Some(json!([{
         "originSelectionRange": super::protocol::range_for_byte_span(&document.text, origin),
         "targetUri": file_uri_for_path(&target),
@@ -59,22 +60,21 @@ pub(super) fn package_module_definition(
     }]))
 }
 
-fn package_root_for_index(
+fn package_root_for_manifest(
     document: &OpenDocument,
     workspace_roots: &[WorkspaceRoot],
 ) -> Option<PathBuf> {
-    let index_path = document.absolute_path.as_deref()?;
-    if index_path.file_name()? != "index.nct" {
+    let manifest_path = document.absolute_path.as_deref()?;
+    if manifest_path.file_name()? != "nocter.nct" {
         return None;
     }
-    let parent = canonical_or_owned(index_path.parent()?);
-    let selected_root = workspace_roots
+    let parent = canonical_or_owned(manifest_path.parent()?);
+    let inside_workspace = workspace_roots
         .iter()
         .filter_map(|root| root.path.as_deref())
         .map(canonical_or_owned)
-        .filter(|root| parent.starts_with(root))
-        .max_by_key(|root| root.components().count())?;
-    (parent == selected_root).then_some(parent)
+        .any(|root| parent.starts_with(root));
+    inside_workspace.then_some(parent)
 }
 
 fn canonical_or_owned(path: &Path) -> PathBuf {

@@ -13,9 +13,13 @@ pub(super) fn run_file(file: &Path, target: &str) -> ExitCode {
     run_with_builder(|output| build_file_to_path_with_target(file, output, target))
 }
 
-pub(super) fn run_package_file(file: &Path, package_root: &Path, target: &str) -> ExitCode {
+pub(super) fn run_package_file(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    target: &str,
+) -> ExitCode {
     run_with_builder(|output| {
-        build_package_executable_to_path_with_target(file, package_root, output, target)
+        build_package_executable_to_path_with_target(file, package_graph, output, target)
     })
 }
 

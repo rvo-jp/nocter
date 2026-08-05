@@ -35,7 +35,6 @@ use crate::source::ByteSpan;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
     pub span: ByteSpan,
-    pub package_header: PackageHeader,
     pub items: Vec<Item>,
 }
 

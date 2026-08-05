@@ -1226,7 +1226,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 fn frontend_options(nocter_home: PathBuf) -> FrontendOptions {
     FrontendOptions {
         nocter_home: Some(nocter_home),
-        source_root: None,
+        package_graph: None,
         target: DEFAULT_TARGET.to_string(),
     }
 }

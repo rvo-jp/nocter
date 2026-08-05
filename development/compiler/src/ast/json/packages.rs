@@ -1,5 +1,20 @@
 use super::*;
 
+impl PackageFile {
+    pub fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::new(
+            "package_file",
+            json_span(sources, self.span),
+            self.manifest
+                .directives
+                .iter()
+                .map(|directive| directive.to_json(sources))
+                .chain(std::iter::once(self.module.to_json(sources)))
+                .collect(),
+        )
+    }
+}
+
 impl PackageDirective {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::with_value(

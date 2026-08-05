@@ -46,12 +46,77 @@ pub(super) fn classified_identifiers_for_file_analysis(
     document: &OpenDocument,
     file: &FileAnalysis,
 ) -> Vec<ClassifiedIdentifier> {
-    analysis_semantic::classified_identifiers_for_file_analysis(&document.text, file)
+    let mut identifiers =
+        analysis_semantic::classified_identifiers_for_file_analysis(&document.text, file);
+    identifiers.extend(package_manifest_identifiers(document));
+    identifiers
+}
+
+fn package_manifest_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdentifier> {
+    if document
+        .absolute_path
+        .as_deref()
+        .and_then(|path| path.file_name())
+        .is_none_or(|name| name != "nocter.nct")
+    {
+        return Vec::new();
+    }
+    let mut sources = crate::source::SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lexed = crate::lexer::lex(&sources, source);
+    let Some(package_file) =
+        crate::parser::parse_package_file(&sources, source, &lexed.tokens).package_file
+    else {
+        return Vec::new();
+    };
+    let mut identifiers = Vec::new();
+    for directive in package_file.manifest.directives {
+        identifiers.push(classified(directive.name_span, SemanticTokenKind::Property));
+        let crate::ast::DirectiveValue::Record { fields, .. } = directive.value else {
+            continue;
+        };
+        for field in fields {
+            let kind = if directive.name == "dependencies" {
+                SemanticTokenKind::Namespace
+            } else {
+                SemanticTokenKind::Property
+            };
+            identifiers.push(classified(field.name_span, kind));
+            if directive.name == "executable"
+                && field.name == "module"
+                && let Some((_, span)) = field.value.string_value()
+            {
+                identifiers.push(ClassifiedIdentifier {
+                    start_byte: span.start,
+                    end_byte: span.end,
+                    kind: SemanticTokenKind::Namespace,
+                    modifiers: 0,
+                });
+            }
+        }
+    }
+    identifiers
+}
+
+fn classified(span: crate::source::ByteSpan, kind: SemanticTokenKind) -> ClassifiedIdentifier {
+    ClassifiedIdentifier {
+        start_byte: span.start,
+        end_byte: span.end,
+        kind,
+        modifiers: analysis_semantic::SEMANTIC_DECLARATION_MODIFIER,
+    }
 }
 
 pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdentifier> {
-    analysis_semantic::classified_identifiers_for_single_file_text(&document.text)
-        .unwrap_or_default()
+    let mut identifiers =
+        analysis_semantic::classified_identifiers_for_single_file_text(&document.text)
+            .unwrap_or_default();
+    identifiers.extend(package_manifest_identifiers(document));
+    identifiers
 }
 
 pub(super) const fn semantic_token_kind_index(kind: SemanticTokenKind) -> u32 {
@@ -124,4 +189,37 @@ fn utf16_len(text: &str, start: usize, end: usize) -> usize {
     text.get(start.min(text.len())..end.min(text.len()))
         .map(|text| text.encode_utf16().count())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn package_manifest_identifiers_use_exact_source_ranges() {
+        let text = "#name: \"tool\"\n#dependencies: { json: { path: \"./json\" } }\n#executable: { name: \"app\", module: \"./src/app\" }\n";
+        let document = OpenDocument {
+            uri: "file:///tmp/nocter.nct".to_string(),
+            version: Some(1),
+            display_path: "/tmp/nocter.nct".to_string(),
+            absolute_path: Some(PathBuf::from("/tmp/nocter.nct")),
+            text: text.to_string(),
+        };
+        let identifiers = package_manifest_identifiers(&document);
+        for (lexeme, kind) in [
+            ("name", SemanticTokenKind::Property),
+            ("dependencies", SemanticTokenKind::Property),
+            ("json", SemanticTokenKind::Namespace),
+            ("module", SemanticTokenKind::Property),
+            ("./src/app", SemanticTokenKind::Namespace),
+        ] {
+            let offset = text.find(lexeme).unwrap();
+            assert!(identifiers.iter().any(|identifier| {
+                identifier.start_byte == offset
+                    && identifier.end_byte == offset + lexeme.len()
+                    && identifier.kind == kind
+            }));
+        }
+    }
 }

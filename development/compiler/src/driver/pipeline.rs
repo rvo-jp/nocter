@@ -46,19 +46,19 @@ pub(super) fn check_file_with_target(file: &Path, target: &str) -> CheckOutput {
 
 pub(super) fn check_package_module_with_target(
     file: &Path,
-    package_root: &Path,
+    package_graph: &crate::package::PackageGraph,
     target: &str,
 ) -> CheckOutput {
-    let options = frontend_options_for_package(target, package_root);
+    let options = frontend_options_for_package(target, package_graph);
     check_file_with_options(file, &options, false)
 }
 
 pub(super) fn check_package_executable_with_target(
     file: &Path,
-    package_root: &Path,
+    package_graph: &crate::package::PackageGraph,
     target: &str,
 ) -> CheckOutput {
-    let options = frontend_options_for_package(target, package_root);
+    let options = frontend_options_for_package(target, package_graph);
     check_file_with_options(file, &options, true)
 }
 
@@ -93,11 +93,11 @@ pub(super) fn build_file_to_path_with_target(
 
 pub(super) fn build_package_executable_to_path_with_target(
     file: &Path,
-    package_root: &Path,
+    package_graph: &crate::package::PackageGraph,
     output_path: &Path,
     target: &str,
 ) -> BuildOutput {
-    let options = frontend_options_for_package(target, package_root);
+    let options = frontend_options_for_package(target, package_graph);
     build_file_to_path_with_options(file, output_path, &options)
 }
 
@@ -160,9 +160,12 @@ fn frontend_options_for_target(target: &str) -> FrontendOptions {
     }
 }
 
-fn frontend_options_for_package(target: &str, package_root: &Path) -> FrontendOptions {
+fn frontend_options_for_package(
+    target: &str,
+    package_graph: &crate::package::PackageGraph,
+) -> FrontendOptions {
     FrontendOptions {
-        source_root: Some(package_root.to_path_buf()),
+        package_graph: Some(package_graph.clone()),
         target: target.to_string(),
         ..FrontendOptions::default()
     }

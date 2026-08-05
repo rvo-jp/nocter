@@ -54,6 +54,7 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
+        Ok(Command::Fetch(command)) => package_commands::run_fetch_command(&command),
         Ok(Command::Build(command)) => package_commands::run_build_command(&command),
         Ok(Command::Run(command)) => package_commands::run_run_command(&command),
         Ok(Command::Check(command)) => package_commands::run_check_command(&command),
@@ -90,6 +91,7 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "usage: nocter <command> [args]")?;
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
+    writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
     writeln!(
         writer,
         "  build [--root <dir>] [--executable <name>] [-o <path>] [--target <target>]"
