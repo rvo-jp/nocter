@@ -8,6 +8,8 @@ use crate::ast::{ConstructDecl, ConstructMemberDecl, TypeExpr, Visibility};
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::ByteSpan;
 
+type ConstructionValidationError = (String, Option<(&'static str, ByteSpan)>);
+
 impl Resolver<'_> {
     pub(super) fn collect_construction_surfaces(&mut self, ast: &crate::ast::AstFile) {
         self.reject_detached_construction_functions(ast);
@@ -192,7 +194,7 @@ fn validate_target(
     construct: &ConstructDecl,
     symbol: &super::Symbol,
     target: &TypeSymbol,
-) -> Result<(), (String, Option<(&'static str, ByteSpan)>)> {
+) -> Result<(), ConstructionValidationError> {
     if symbol.declaration_span.source != ast.span.source {
         return Err((
             "construct declarations must be in the target type's module".to_string(),

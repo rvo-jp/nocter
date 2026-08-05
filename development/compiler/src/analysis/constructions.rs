@@ -25,9 +25,11 @@ pub(crate) fn construction_surface_markdown(
         .filter(|(_, entry)| entry.is_accessible)
         .filter_map(|(index, entry)| {
             construction_entry_label(owner, resolved, &entry.kind).map(|label| {
-                let default = (owner.construction.default_entry == Some(index))
-                    .then_some("default ")
-                    .unwrap_or_default();
+                let default = if owner.construction.default_entry == Some(index) {
+                    "default "
+                } else {
+                    ""
+                };
                 format!("- `{default}{label}`")
             })
         })

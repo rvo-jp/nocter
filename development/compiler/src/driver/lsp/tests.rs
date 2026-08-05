@@ -1569,7 +1569,7 @@ pub struct Vec<T> { value: T }
         json!(12),
         Some(&json!({
             "textDocument": { "uri": core_uri },
-            "position": byte_offset_to_lsp_position(&core_text, core_offset)
+            "position": byte_offset_to_lsp_position(core_text, core_offset)
         })),
     );
     assert_eq!(

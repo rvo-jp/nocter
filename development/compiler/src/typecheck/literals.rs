@@ -57,13 +57,10 @@ pub(super) fn check_literal_declarations(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for item in &ast.items {
-        match item {
-            Item::Construct(construct) => {
-                for (_, literal) in construct.literals() {
-                    check_literal_definition(sources, literal, resolved, diagnostics);
-                }
+        if let Item::Construct(construct) = item {
+            for (_, literal) in construct.literals() {
+                check_literal_definition(sources, literal, resolved, diagnostics);
             }
-            _ => {}
         }
     }
 }

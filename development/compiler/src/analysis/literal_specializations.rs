@@ -268,15 +268,12 @@ fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<ByteSpan, &Li
     let mut declarations = HashMap::new();
     for file in &analysis.files {
         for item in &file.ast.items {
-            match item {
-                Item::Construct(construct) => {
-                    declarations.extend(
-                        construct
-                            .literals()
-                            .map(|(_, literal)| (literal.span, literal)),
-                    );
-                }
-                _ => {}
+            if let Item::Construct(construct) = item {
+                declarations.extend(
+                    construct
+                        .literals()
+                        .map(|(_, literal)| (literal.span, literal)),
+                );
             }
         }
     }

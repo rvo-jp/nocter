@@ -204,9 +204,11 @@ pub(crate) fn associated_function_presentation(
 ) -> CallablePresentation {
     let owner_label = type_owner_presentation_label(owner, resolved);
     let owner_generic_count =
-        crate::analysis::constructions::construction_owns_function(owner, &function.name)
-            .then_some(owner.generic_parameters.len())
-            .unwrap_or_default();
+        if crate::analysis::constructions::construction_owns_function(owner, &function.name) {
+            owner.generic_parameters.len()
+        } else {
+            0
+        };
     let signature = signature_with_owner_type(&function.signature, owner, owner_generic_count);
     callable_signature_presentation(
         "func",
@@ -273,7 +275,7 @@ pub(crate) fn literal_presentation_with_substitutions(
     resolved: &ResolveOutput,
 ) -> LiteralPresentation {
     let parameters = if let Some(capture) = &literal.capture {
-        let ty = crate::ast::substitute_type_expr_parameters(&capture.element_type, &substitutions);
+        let ty = crate::ast::substitute_type_expr_parameters(&capture.element_type, substitutions);
         vec![format!(
             "...{}: {}",
             capture.name,
@@ -284,7 +286,7 @@ pub(crate) fn literal_presentation_with_substitutions(
             .parameters
             .iter()
             .map(|parameter| {
-                let ty = crate::ast::substitute_type_expr_parameters(&parameter.ty, &substitutions);
+                let ty = crate::ast::substitute_type_expr_parameters(&parameter.ty, substitutions);
                 format!(
                     "{}: {}",
                     parameter.name,
@@ -294,7 +296,7 @@ pub(crate) fn literal_presentation_with_substitutions(
             .collect()
     };
     let return_type =
-        crate::ast::substitute_type_expr_parameters(&literal.return_type, &substitutions);
+        crate::ast::substitute_type_expr_parameters(&literal.return_type, substitutions);
     LiteralPresentation::new(
         substitutions
             .get("Self")
