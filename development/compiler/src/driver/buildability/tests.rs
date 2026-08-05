@@ -31,6 +31,28 @@ func main(): i32 {
 }
 
 #[test]
+fn specializes_construct_self_results_before_abi_validation() {
+    let (sources, analysis) = analyze_text(
+        r#"struct Box<T> { value: T }
+
+construct Box<T> {
+    pub default func new(value: T): Self {
+        return Box<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    return Box.new(42).value
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn reports_reachable_unloaded_imported_call_before_ir_lowering() {
     let (sources, analysis) = analyze_text(
         r#"use std/io.print

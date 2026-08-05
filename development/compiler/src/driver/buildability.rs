@@ -283,10 +283,13 @@ impl<'a> CallableIndex<'a> {
                                     function.name.clone(),
                                 );
                                 names.insert(function.member_name_span, function.name.clone());
+                                let substitutions =
+                                    HashMap::from([("Self".to_string(), construct.target.clone())]);
                                 definitions.insert(
                                     target,
-                                    IndexedCallable::new_function(
+                                    IndexedCallable::new_function_specialization(
                                         function,
+                                        substitutions,
                                         file,
                                         &resolved_sources,
                                         root_source,
@@ -305,6 +308,12 @@ impl<'a> CallableIndex<'a> {
                                 .into_iter()
                                 .flatten()
                             {
+                                let mut substitutions = specialization.substitutions.clone();
+                                let self_ty = substitute_type_expr_parameters(
+                                    &construct.target,
+                                    &substitutions,
+                                );
+                                substitutions.insert("Self".to_string(), self_ty);
                                 let target = call_target_for_source(
                                     file.ast.span.source,
                                     root_source,
@@ -314,7 +323,7 @@ impl<'a> CallableIndex<'a> {
                                     target,
                                     IndexedCallable::new_function_specialization(
                                         function,
-                                        specialization.substitutions.clone(),
+                                        substitutions,
                                         file,
                                         &resolved_sources,
                                         root_source,
