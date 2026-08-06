@@ -27,4 +27,4 @@ pub use model::{
 };
 pub(crate) use modules::resolve_explicit_module_path;
 pub(crate) use overlay::PackageSourceOverlay;
-pub(crate) use targets::executable_entry_at_offset;
+pub(crate) use targets::target_entry_at_offset;

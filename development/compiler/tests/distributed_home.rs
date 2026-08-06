@@ -108,6 +108,34 @@ fn distributed_release_identity_matches_packaging_metadata() {
 }
 
 #[test]
+fn distributed_compiler_runs_package_tests_without_environment_configuration() {
+    let project = TempProject::new("distributed-home-package-test");
+    project.write_source(
+        "nocter.nct",
+        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+    );
+    project.write_source("unit.nct", "func main(): i32 { return 0 }\n");
+    let home = distributed_home();
+
+    let output = Command::new(home.join("nocter"))
+        .args(["test", "--locked", "--offline"])
+        .current_dir(project.root())
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(text(&output.stdout).contains("test unit ... ok"));
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+}
+
+#[test]
 fn installed_nocter_uses_executable_parent_as_home_without_env() {
     let install = TempProject::new("distributed-home-installed-layout");
     let home = install.root();

@@ -2805,6 +2805,56 @@ fn returns_definition_for_package_executable_entry() {
 }
 
 #[test]
+fn returns_definition_for_package_test_entry() {
+    let project = TempProject::new("lsp-definition-package-test-entry");
+    let manifest_text = r#"#test: {
+    name: "unit",
+    entry: "./tests/unit",
+}
+"#;
+    let manifest = project.write_source("nocter.nct", manifest_text);
+    let unit = project.write_source("tests/unit.nct", "func main(): i32 { 0 }\n");
+    let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
+    let root = project.root.canonicalize().unwrap();
+    let server = LspServer {
+        documents: HashMap::from([(
+            manifest_uri.clone(),
+            open_document(manifest_uri.clone(), Some(1), manifest_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: vec![WorkspaceRoot {
+            uri: file_uri(&root),
+            path: Some(root),
+        }],
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+
+    let response = server.definition_response(
+        json!(10),
+        Some(&json!({
+            "textDocument": { "uri": manifest_uri },
+            "position": { "line": 2, "character": 18 }
+        })),
+    );
+
+    let definition = definition_link(&response);
+    assert_eq!(
+        definition["targetUri"],
+        json!(file_uri(&unit.canonicalize().unwrap()))
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(12)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(24)
+    );
+}
+
+#[test]
 fn nested_nocter_file_is_treated_as_its_own_package_root() {
     let project = TempProject::new("lsp-definition-nested-manifest");
     let manifest_text = "#executable: { name: \"app\", entry: \"./app\" }\n";

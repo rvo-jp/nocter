@@ -42,20 +42,20 @@ fn resolve(root: &Path, logical: &str) -> Result<(NormalizedModulePath, PathBuf)
         let selected = match (file.is_file(), index.is_file()) {
             (true, true) => {
                 return Err(format!(
-                    "executable entry `{logical}` is ambiguous because both `{}` and `{}` exist",
+                    "target entry `{logical}` is ambiguous because both `{}` and `{}` exist",
                     file.display(),
                     index.display()
                 ));
             }
             (true, false) => file,
             (false, true) => index,
-            (false, false) => return Err(format!("executable entry `{logical}` does not exist")),
+            (false, false) => return Err(format!("target entry `{logical}` does not exist")),
         };
         canonical_module_path(&canonical_root, logical, selected)?
     } else {
         let index = canonical_root.join("index.nct");
         if !index.is_file() {
-            return Err("executable entry `.` does not exist at `index.nct`".to_string());
+            return Err("target entry `.` does not exist at `index.nct`".to_string());
         }
         canonical_module_path(&canonical_root, logical, index)?
     };
@@ -69,20 +69,18 @@ fn validate_logical_path(logical: &str) -> Result<Option<PathBuf>, String> {
     }
     let Some(relative) = logical.strip_prefix("./") else {
         return Err(
-            "executable entry must be `.` or a package-relative module path beginning with `./`"
+            "target entry must be `.` or a package-relative module path beginning with `./`"
                 .to_string(),
         );
     };
     if relative.is_empty() || logical.ends_with(".nct") {
-        return Err(
-            "executable entry must name a logical module without a `.nct` suffix".to_string(),
-        );
+        return Err("target entry must name a logical module without a `.nct` suffix".to_string());
     }
     if Path::new(relative)
         .components()
         .any(|component| !matches!(component, Component::Normal(_)))
     {
-        return Err("executable entry cannot escape the package root".to_string());
+        return Err("target entry cannot escape the package root".to_string());
     }
     Ok(Some(PathBuf::from(relative)))
 }
@@ -94,13 +92,13 @@ fn canonical_module_path(
 ) -> Result<PathBuf, String> {
     let canonical = selected.canonicalize().map_err(|error| {
         format!(
-            "executable entry `{logical}` could not be canonicalized at `{}`: {error}",
+            "target entry `{logical}` could not be canonicalized at `{}`: {error}",
             selected.display()
         )
     })?;
     if !canonical.starts_with(canonical_root) {
         return Err(format!(
-            "executable entry `{logical}` escapes the package root through `{}`",
+            "target entry `{logical}` escapes the package root through `{}`",
             selected.display()
         ));
     }
@@ -111,7 +109,7 @@ fn canonical_module_path(
     });
     if owner.is_some_and(|owner| owner != canonical_root) {
         return Err(format!(
-            "executable entry `{logical}` crosses into the nested package at `{}`",
+            "target entry `{logical}` crosses into the nested package at `{}`",
             owner.expect("checked package owner").display()
         ));
     }
@@ -141,7 +139,7 @@ fn normalized_module_path(
         .map(|component| {
             component.as_os_str().to_str().ok_or_else(|| {
                 format!(
-                    "executable entry resolves to the non-UTF-8 module path `{}`",
+                    "target entry resolves to the non-UTF-8 module path `{}`",
                     source_path.display()
                 )
             })

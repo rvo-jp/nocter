@@ -273,11 +273,15 @@ Package-file rules:
 - An omitted `#version` remains absent.
 - `#executable` is repeatable, requires a `name` string, and accepts an optional `entry` string.
 - Omitting `entry` selects the package-root module in `nocter.nct`.
+- `#test` is repeatable and requires both a `name` string and an `entry` string. Test names are
+  unique among tests; executable and test names occupy separate typed target namespaces.
+- Test entries use the same exact logical-module resolution and package-containment rules as
+  executable entries. The compiler never discovers tests by scanning a directory.
 - `entry: "."` selects the root directory module at `index.nct`.
 - `entry: "./src/app"` resolves `src/app.nct` or `src/app/index.nct`.
 - Logical module paths omit `.nct`, cannot escape the package root lexically or through symbolic
   links, and are ambiguous when both file and directory-module forms exist.
-- Neither the package-root `nocter.nct` nor an explicit executable entry may escape its package or
+- Neither the package-root `nocter.nct` nor an explicit target entry may escape its package or
   cross into a nested package through a symbolic link or path.
 - Package directives are invalid outside `nocter.nct`. A nested `nocter.nct` defines another
   package; a nested `index.nct` remains an ordinary directory module.

@@ -11,6 +11,7 @@ mod documents;
 mod hover;
 mod import_completion;
 mod locations;
+mod package_completion;
 mod package_navigation;
 mod protocol;
 mod recovery;
@@ -46,6 +47,7 @@ use documents::{
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 use import_completion::module_completion_items;
+use package_completion::package_manifest_completion_items;
 use package_navigation::package_entry_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
@@ -529,7 +531,10 @@ impl LspServer {
                 let document = snapshot.document(&uri)?;
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
-                module_completion_items(document, snapshot.package_graph(&uri), offset)
+                package_manifest_completion_items(document, offset)
+                    .or_else(|| {
+                        module_completion_items(document, snapshot.package_graph(&uri), offset)
+                    })
                     .or_else(|| {
                         self.workspace_literal_completion_for_recovered_uri(
                             &snapshot, &uri, &position,

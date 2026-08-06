@@ -43,7 +43,7 @@ fn fmt_command_formats_package_directives_and_root_module_code() {
     let project = TempProject::new("cli-fmt-package");
     let source = project.write_source(
         "nocter.nct",
-        "#name:\"tool\"\n#executable:{name:\"tool\"}\nfunc main(  ):i32{return 0}\n",
+        "#name:\"tool\"\n#executable:{name:\"tool\"}\n#test:{name:\"unit\",entry:\"./tests/unit\"}\nfunc main(  ):i32{return 0}\n",
     );
 
     let output = nocter(&project, ["fmt", source.to_str().unwrap()]);
@@ -54,6 +54,10 @@ fn fmt_command_formats_package_directives_and_root_module_code() {
             "#name: \"tool\"\n",
             "#executable: {\n",
             "    name: \"tool\",\n",
+            "}\n",
+            "#test: {\n",
+            "    name: \"unit\",\n",
+            "    entry: \"./tests/unit\",\n",
             "}\n\n",
             "func main(): i32 {\n",
             "    return 0\n",

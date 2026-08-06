@@ -248,6 +248,37 @@ fn doc_comment_example_emits_ast_documentation() {
 }
 
 #[test]
+fn ast_json_preserves_explicit_package_test_target_shape() {
+    let project = TempProject::new("example-corpus-ast-test-target");
+    let source = project.root().join("nocter.nct");
+    fs::write(
+        &source,
+        "#test: { name: \"unit\", entry: \"./tests/unit\" }\n",
+    )
+    .unwrap();
+
+    let output = ast_json(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "test target failed AST JSON\nstdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["ok"], Value::Bool(true));
+    assert!(contains_ast_node(&json, "package_directive", Some("test")));
+    assert!(contains_ast_node(&json, "directive_field", Some("name")));
+    assert!(contains_ast_node(&json, "directive_field", Some("entry")));
+    assert!(contains_ast_node(
+        &json,
+        "directive_string",
+        Some("./tests/unit")
+    ));
+}
+
+#[test]
 fn ast_json_emits_wildcard_and_discard_patterns() {
     let project = TempProject::new("example-corpus-ast-patterns");
     let source = project.root().join("patterns.nct");

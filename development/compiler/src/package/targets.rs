@@ -131,14 +131,14 @@ pub(super) fn resolve_executable_targets(
     }
 }
 
-pub(crate) fn executable_entry_at_offset(
+pub(crate) fn target_entry_at_offset(
     manifest: &PackageManifest,
     offset: usize,
 ) -> Option<(&str, ByteSpan)> {
     manifest
         .directives
         .iter()
-        .filter(|directive| directive.name == "executable")
+        .filter(|directive| matches!(directive.name.as_str(), "executable" | "test"))
         .filter_map(|directive| match &directive.value {
             DirectiveValue::Record { fields, .. } => Some(fields),
             _ => None,

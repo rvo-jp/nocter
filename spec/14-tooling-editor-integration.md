@@ -155,8 +155,17 @@ Semantic token rules:
 - Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
-- Package directive names and record-field names use their exact identifier spans. Executable
-  entry string contents use an exact namespace span that excludes quotation marks.
+- Package directive names and record-field names use their exact identifier spans. Executable and
+  test entry string contents use an exact namespace span that excludes quotation marks.
+
+Nocter v0.5.0 Phase 1 editor rules:
+
+- Test target metadata is parsed by the same package-file AST and validated by the same typed
+  package model used by `nocter test`.
+- Go to definition on a test `entry` string selects the resolved module and uses only the string
+  content as its origin range.
+- Completion of `#test` inserts the required `name` and `entry` fields. The LSP does not scan a
+  conventional tests directory or maintain a second test-target model.
 
 Nocter v0.4.0 Phase 1 editor rules:
 

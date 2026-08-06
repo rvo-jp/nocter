@@ -26,7 +26,7 @@ identity.
 - root and path packages derive a stable digest from their canonical package root
 - Git packages derive identity from the declared source URL plus exact commit
 - archive packages derive identity from the declared source URL plus SHA-256 content digest
-- `ModuleId` and `ExecutableId` contain `PackageId`
+- `ModuleId`, `ExecutableId`, and `TestTargetId` contain `PackageId`
 - dependency aliases are scoped by the declaring `PackageId`
 
 `ModuleId` contains a typed `ModuleKey`. `ModuleKey::PackageRoot` identifies the code in
@@ -45,9 +45,10 @@ the graph or colliding in the package store.
 `package/store.rs` locates an already identified package in the package-local store and then the
 shared Nocter-home store. `package/fetch.rs` alone executes Git, downloads archives, verifies
 content, and installs immutable package trees. `package/lockfile.rs` alone rewrites generated lock
-data in `nocter.nct`. `package/modules.rs` is the shared explicit-module resolver, while
-`package/targets.rs` parses and resolves executable declarations. Both CLI and LSP consume their
-typed results instead of interpreting manifest strings independently.
+data in `nocter.nct`. `package/modules.rs` is the shared explicit-module resolver.
+`package/targets.rs` owns common target fields and executable declarations;
+`package/test_targets.rs` owns test validation and typed test identity. Both CLI and LSP consume
+these results instead of interpreting manifest strings independently.
 
 Graph construction computes effective locks in memory and validates the complete transitive graph
 before requesting any manifest rewrite. A failed graph may populate immutable cache entries, but it
@@ -107,7 +108,7 @@ LSP always uses locked offline graph loading and never writes `nocter.nct` or ac
 
 Downloaded Git metadata is removed before installation. Archive paths, extracted canonical paths,
 manifest presence, symbolic-link escape, package module escape, package-file symlink escape, nested
-package crossing, and executable entry escape are validated before a package can enter analysis.
+package crossing, and target entry escape are validated before a package can enter analysis.
 
 ## Physical Stores
 
@@ -135,5 +136,7 @@ distinct executable names may still emit distinct artifacts from one entry modul
 The LSP locates the nearest containing `nocter.nct`, bounded by the opened workspace, and loads the
 same locked graph as the CLI in offline mode. Nested packages are independent package roots.
 Hover, completion, definition, references, diagnostics, and semantic module analysis use graph
-identity. Manifest directive names, dependency aliases, and executable entry values use exact
-source-backed semantic ranges; executable entry values navigate through the shared module resolver.
+identity. Manifest directive names, dependency aliases, and target entry values use exact
+source-backed semantic ranges. Executable and test entries navigate through the shared module
+resolver. Test execution is owned separately by `driver/test_command.rs`; it consumes resolved
+`TestTarget` values and never reparses manifest metadata.

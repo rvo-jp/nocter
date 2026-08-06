@@ -54,6 +54,7 @@ fn selects_one_named_test_target() {
     assert_success(&output);
     assert!(text(&output.stdout).contains("test selected ... ok"));
     assert!(!text(&output.stdout).contains("unselected"));
+    assert!(!project.root.join("selected").exists());
 }
 
 #[test]
@@ -138,6 +139,90 @@ fn json_report_is_one_stable_machine_readable_envelope() {
     assert_eq!(report["tests"][0]["signal"], Value::Null);
     assert_eq!(report["summary"]["passed"], 0);
     assert_eq!(report["summary"]["failed"], 1);
+}
+
+#[test]
+fn locked_offline_test_uses_the_package_graph_without_mutating_the_manifest() {
+    let project = TempPackage::new("locked-offline");
+    let manifest = "#test: { name: \"unit\", entry: \"./unit\" }\n";
+    project.write("nocter.nct", manifest);
+    project.write("unit.nct", "func main(): i32 { return 0 }\n");
+
+    let output = project.nocter(["test", "--locked", "--offline"]);
+
+    assert_success(&output);
+    assert_eq!(
+        fs::read_to_string(project.root.join("nocter.nct")).unwrap(),
+        manifest
+    );
+}
+
+#[test]
+fn fallible_entry_failure_is_a_failed_test_outcome() {
+    let project = TempPackage::new("fallible-failure");
+    project.write(
+        ".nocter/std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write(
+        "nocter.nct",
+        "#test: { name: \"fallible\", entry: \"./fallible\" }\n",
+    );
+    project.write(
+        "fallible.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new("test.failed", "expected failure")
+}
+"#,
+    );
+
+    let output = project.nocter(["test", "--format", "json"]);
+
+    assert_eq!(output.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["tests"][0]["outcome"], "failed");
+    assert_eq!(report["tests"][0]["exit_code"], 1);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn process_trap_is_isolated_and_later_tests_still_run() {
+    let project = TempPackage::new("trap");
+    project.write(
+        "nocter.nct",
+        r#"#test: { name: "traps", entry: "./traps" }
+#test: { name: "healthy", entry: "./healthy" }
+"#,
+    );
+    project.write(
+        "traps.nct",
+        r#"func main(): i32 {
+    let zero: i32 = 0
+    return 1 / zero
+}
+"#,
+    );
+    project.write("healthy.nct", "func main(): i32 { return 0 }\n");
+
+    let output = project.nocter(["test", "--format", "json"]);
+
+    assert_eq!(output.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["tests"][0]["name"], "traps");
+    assert_eq!(report["tests"][0]["outcome"], "failed");
+    assert!(report["tests"][0]["signal"].as_i64().is_some());
+    assert_eq!(report["tests"][1]["name"], "healthy");
+    assert_eq!(report["tests"][1]["outcome"], "passed");
 }
 
 struct TempPackage {

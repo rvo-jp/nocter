@@ -111,7 +111,10 @@ fn execute_target(
             sources: Some(output.sources),
         };
     }
-    match Command::new(artifact.path()).output() {
+    match Command::new(artifact.path())
+        .current_dir(graph.root_package().root())
+        .output()
+    {
         Ok(output) => TestExecution {
             report: TestTargetReport {
                 name: target.name().to_string(),

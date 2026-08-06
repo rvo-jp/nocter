@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.5.0 Phase 0 published-artifact audit
-- active milestone: v0.5.0 Phase 1 explicit package test targets
+- completed milestone: v0.5.0 Phase 1 explicit package test targets
+- active milestone: v0.5.0 Phase 2 native test declarations and assertions
 - target: `arm64-darwin`
 
 The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
@@ -39,6 +39,9 @@ The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries a
 - failure-stable transitive package-manifest traces and deterministic graph recovery
 - dynamic `.nct` file-watcher registration, saved-text synchronization, and an explicit LSP
   lifecycle state machine
+- typed `#test` package targets with exact entry modules and separate executable/test namespaces
+- isolated `nocter test` execution with declaration-order continuation and stable human/JSON reports
+- package test formatter, JSON AST, semantic ranges, manifest completion, and definition navigation
 
 ## Qualification State
 
@@ -62,6 +65,6 @@ artifact.
 
 ## Next Work
 
-Implement the Phase 1 typed `#test` target and `nocter test` boundaries in dependency order:
-manifest model/parser/formatter/JSON, shared module resolution and test identity, command selection,
-isolated execution and reports, then LSP integration. Keep test declaration syntax out of Phase 1.
+Design Phase 2's native test declaration and trusted runner-entry plan before adopting syntax.
+Decide declaration naming, result channels, per-test isolation, filtering, assertion failure data,
+and LSP presentation while preserving the Phase 1 target/report protocol.

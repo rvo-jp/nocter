@@ -14,8 +14,8 @@ are recorded in the [v0.4.0 Release Record](docs/v0.4.0.md), with compiler bound
 The previous language milestone remains available in the [v0.3.0 release record](docs/v0.3.0.md),
 and the v0.2.0 criteria remain in the [v0.2.0 release record](docs/v0.2.0.md).
 
-Active development is **v0.5.0 Phase 1: Explicit Package Test Targets**. The published-artifact
-audit is complete, and the adopted phase boundaries are recorded in the
+Active development is **v0.5.0 Phase 2: Native Test Declarations and Assertions**. The
+published-artifact audit and explicit package test targets are complete, and the adopted phase boundaries are recorded in the
 [v0.5.0 Development Plan](docs/v0.5.0.md).
 
 ## Quick Start

@@ -24,6 +24,10 @@ nocter run app.nct
 nocter check
 nocter check --format json
 nocter check app.nct
+nocter test
+nocter test --test unit
+nocter test --locked --offline
+nocter test --format json
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -48,7 +52,7 @@ nocter check --root ./tools/json
 - The default root is the current directory.
 - `--root path` selects another package directory.
 - The selected directory must contain `nocter.nct`.
-- The package manifest declares zero or more executable targets.
+- The package manifest declares zero or more executable and test targets.
 - The compiler never searches for `main.nct`, walks upward for another package, or invents an
   executable target.
 
@@ -82,6 +86,10 @@ The leading package manifest uses declarative directives:
     name: "json-tool",
     entry: "./src/app",
 }
+#test: {
+    name: "unit",
+    entry: "./tests/unit",
+}
 
 pub use ./src/json
 ```
@@ -90,6 +98,10 @@ pub use ./src/json
 display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
 unique package-local name and may select an explicit logical entry path without a `.nct` suffix.
 When `entry` is absent, the package-root module in `nocter.nct` is the entry.
+
+Each repeatable `#test` contains a unique test name and a required logical `entry`. Test and
+executable names occupy different target namespaces. Test modules are never discovered from
+directory names or filenames.
 
 Ordinary imports and declarations after the leading directives form the package root module.
 `index.nct` remains a directory module and has no package metadata responsibility.
@@ -205,6 +217,34 @@ nocter run app.nct
 Compilation failures prevent launch. RAM-only execution, JIT execution, and calling `main` inside
 the compiler process are not part of this contract.
 
+## Test
+
+`test` compiles and runs explicitly declared package test targets:
+
+```sh
+nocter test
+nocter test --test unit
+nocter test --locked --offline
+nocter test --format json
+```
+
+`test` is package-only. It accepts `--root`, `--test`, `--target`, `--locked`, `--offline`, and
+`--format json`; it does not accept a positional source, `--file`, `--executable`, or `-o`.
+
+Without `--test`, targets run in declaration order. Each target is compiled through the normal
+buildability and native-emission pipeline, written to a unique temporary location, and launched in
+its own process. The temporary executable is removed after every outcome. A nonzero exit, signal,
+compile failure, or launch failure marks that target failed and does not prevent later targets from
+running. Test modules currently provide a normal process `main` with the released executable entry
+signature; native source-level test declarations are a later language feature. Each process uses
+the selected package root as its working directory, including when `--root` was given elsewhere.
+
+Human output reports every target and aggregate passed/failed counts. `--format json` writes one
+`nocter.tests` version-1 envelope to stdout. It contains `ok`, package and target identity,
+top-level diagnostics, per-target outcome (`passed`, `failed`, `compile_failed`, or
+`runner_failed`), exit code or signal, captured stdout/stderr, per-target diagnostics, and summary
+counts. The command exits zero only when every selected target passes.
+
 ## Check
 
 `check` runs source-language and ownership analysis without emitting or executing a program.
@@ -251,8 +291,9 @@ identities, and exact source spans. In v0.4.0 Phase 0 it also:
 
 - diagnoses package manifests through the same parser and validation model as package commands
 - classifies directive and record-field names without coloring surrounding punctuation or space
-- classifies executable entry string contents as namespaces
-- resolves go-to-definition from an executable `entry` value to the selected module file
+- classifies executable and test entry string contents as namespaces
+- resolves go-to-definition from an executable or test `entry` value to the selected module file
+- completes `#test` with its required `name` and `entry` fields in a package manifest
 - resolves public namespace re-exports through the same declaration identity used by compilation
 
 Rename, package-wide incremental invalidation, code actions, inlay hints, and multi-package
@@ -260,12 +301,14 @@ workspace indexing are later capabilities.
 
 ## Target Option
 
-`build`, `run`, and `check` accept `--target` in either input mode:
+`build`, `run`, and `check` accept `--target` in either input mode. Package-only `test` also accepts
+`--target`:
 
 ```sh
 nocter build --target arm64-darwin
 nocter run --executable server --target arm64-darwin
 nocter check app.nct --target arm64-darwin
+nocter test --target arm64-darwin
 ```
 
 The default is the host target. `arm64-darwin` is the initial implemented target. Recognized but
@@ -296,15 +339,16 @@ Compiler-owned exit statuses are:
 3  internal compiler error
 ```
 
-After a program starts, `run` returns that program's exit status. Human diagnostics and command
-errors go to stderr. `--version` and successful `doctor` output go to stdout.
+After a program starts, `run` returns that program's exit status. `test` converts every failed test
+outcome into compiler status 1 so that one target cannot terminate the runner. Human diagnostics
+and command errors go to stderr. `--version` and successful `doctor` output go to stdout.
 
 ## v0.4.0 Phase 0 Non-goals
 
 - dependency resolution, registries, package stores, lock data, or source acquisition
 - multi-package workspaces
 - project-wide formatting or incremental build artifacts
-- test-target declarations or a package test runner
+- test-target declarations or a package test runner (added later by v0.5.0 Phase 1)
 - child-process argument forwarding before its separator and ownership contract are specified
 
 The immutable v0.2.0 command boundary remains recorded in
