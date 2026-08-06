@@ -20,6 +20,7 @@ mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
 pub(crate) mod occurrences;
+pub(crate) mod package_index;
 pub(crate) mod presentation;
 pub(crate) mod provenance;
 pub(crate) mod references;

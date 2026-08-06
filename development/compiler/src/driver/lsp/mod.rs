@@ -12,10 +12,12 @@ mod hover;
 mod import_completion;
 mod locations;
 mod package_completion;
+mod package_index;
 mod package_navigation;
 mod protocol;
 mod recovery;
 mod references;
+mod rename;
 mod request_validation;
 mod semantic;
 mod signature_help;
@@ -48,6 +50,7 @@ use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 use import_completion::module_completion_items;
 use package_completion::package_manifest_completion_items;
+use package_index::{PackageReferenceQuery, package_references};
 use package_navigation::package_entry_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
@@ -57,6 +60,7 @@ use protocol::{
 };
 use recovery::workspace_analysis_with_recovered_document;
 use references::{references_for_document, references_for_file_analysis};
+use rename::{RenameQuery, prepare_rename, rename_workspace_edit};
 #[cfg(test)]
 use semantic::ClassifiedIdentifier;
 #[cfg(test)]
@@ -261,6 +265,14 @@ impl LspServer {
             }
             "textDocument/references" => {
                 write_message(writer, self.references_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/prepareRename" => {
+                write_message(writer, self.prepare_rename_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/rename" => {
+                write_message(writer, self.rename_response(id, params))?;
                 Ok(None)
             }
             "textDocument/documentSymbol" => {
@@ -514,6 +526,56 @@ impl LspServer {
         response(id, Value::Array(references))
     }
 
+    fn prepare_rename_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
+        let prepared = document_uri_from_params(params).and_then(|uri| {
+            let position = position_from_params(params)?;
+            let editable_root = snapshot.package_root(&uri)?;
+            self.with_workspace_file_for_uri(&snapshot, &uri, |document, workspace, file| {
+                let offset =
+                    lsp_position_to_byte_offset(&document.text, position.line, position.character);
+                prepare_rename(&RenameQuery {
+                    document,
+                    sources: &workspace.sources,
+                    file,
+                    index: snapshot.package_index(&uri)?,
+                    graph: snapshot.package_graph(&uri),
+                    editable_root,
+                    open_documents: snapshot.documents(),
+                    offset,
+                })
+            })
+        });
+        response(id, prepared.unwrap_or(Value::Null))
+    }
+
+    fn rename_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
+        let edit = document_uri_from_params(params).and_then(|uri| {
+            let position = position_from_params(params)?;
+            let new_name = params?.get("newName")?.as_str()?;
+            let editable_root = snapshot.package_root(&uri)?;
+            self.with_workspace_file_for_uri(&snapshot, &uri, |document, workspace, file| {
+                let offset =
+                    lsp_position_to_byte_offset(&document.text, position.line, position.character);
+                rename_workspace_edit(
+                    &RenameQuery {
+                        document,
+                        sources: &workspace.sources,
+                        file,
+                        index: snapshot.package_index(&uri)?,
+                        graph: snapshot.package_graph(&uri),
+                        editable_root,
+                        open_documents: snapshot.documents(),
+                        offset,
+                    },
+                    new_name,
+                )
+            })
+        });
+        response(id, edit.unwrap_or(Value::Null))
+    }
+
     fn document_symbol_response(&self, id: Value, params: Option<&Value>) -> Value {
         let snapshot = self.snapshot();
         let symbols = document_uri_from_params(params)
@@ -672,6 +734,23 @@ impl LspServer {
         self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            if let Some(index) = snapshot.package_index(uri)
+                && let Some(references) = package_references(PackageReferenceQuery {
+                    sources: &workspace.sources,
+                    file,
+                    index,
+                    graph: snapshot.package_graph(uri),
+                    open_documents: snapshot.documents(),
+                    offset: root_offset,
+                    include_declaration: params
+                        .and_then(|params| params.get("context"))
+                        .and_then(|context| context.get("includeDeclaration"))
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                })
+            {
+                return Some(references);
+            }
             Some(references_for_file_analysis(
                 &workspace.sources,
                 workspace.semantic()?,
@@ -855,6 +934,9 @@ fn initialize_response(id: Value) -> Value {
                 "hoverProvider": true,
                 "definitionProvider": true,
                 "referencesProvider": true,
+                "renameProvider": {
+                    "prepareProvider": true
+                },
                 "documentSymbolProvider": true,
                 "completionProvider": {
                     "resolveProvider": false,

@@ -59,9 +59,26 @@ pub(super) fn workspace_analysis_for_uri_with_package_graph(
     documents: &HashMap<String, OpenDocument>,
     package_graph: Option<&PackageGraph>,
 ) -> Option<LspWorkspaceAnalysis> {
-    let mut workspace = OpenWorkspaceSources::new(documents);
-
+    let workspace = OpenWorkspaceSources::new(documents);
     let root = workspace.source_for_uri(uri)?;
+    Some(workspace_analysis_for_root(workspace, root, package_graph))
+}
+
+pub(super) fn workspace_analysis_for_path_with_package_graph(
+    path: &Path,
+    documents: &HashMap<String, OpenDocument>,
+    package_graph: Option<&PackageGraph>,
+) -> Option<LspWorkspaceAnalysis> {
+    let mut workspace = OpenWorkspaceSources::new(documents);
+    let root = workspace.source_for_path(path)?;
+    Some(workspace_analysis_for_root(workspace, root, package_graph))
+}
+
+fn workspace_analysis_for_root(
+    mut workspace: OpenWorkspaceSources,
+    root: SourceId,
+    package_graph: Option<&PackageGraph>,
+) -> LspWorkspaceAnalysis {
     let options = lsp_frontend_options(package_graph);
     let load = load_compile_unit_with_trace(&mut workspace.sources, root, &options);
     let active_sources = load.loaded_sources;
@@ -82,12 +99,12 @@ pub(super) fn workspace_analysis_for_uri_with_package_graph(
             .flat_map(|(path, _)| crate::frontend::dependency_path_aliases(path)),
     );
 
-    Some(LspWorkspaceAnalysis {
+    LspWorkspaceAnalysis {
         sources: workspace.sources,
         analysis,
         diagnostics,
         source_paths,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -160,6 +177,18 @@ impl OpenWorkspaceSources {
 
     fn source_for_uri(&self, uri: &str) -> Option<SourceId> {
         self.source_by_uri.get(uri).copied()
+    }
+
+    fn source_for_path(&mut self, path: &Path) -> Option<SourceId> {
+        let absolute = path.canonicalize().ok()?;
+        if let Some((_, source)) = self
+            .sources
+            .sources_with_absolute_paths()
+            .find(|(candidate, _)| *candidate == absolute)
+        {
+            return Some(source);
+        }
+        self.sources.load_file(&absolute).ok()
     }
 }
 

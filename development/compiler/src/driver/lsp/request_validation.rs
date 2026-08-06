@@ -13,6 +13,8 @@ pub(super) fn supported_text_document_params_are_valid(
         "textDocument/hover"
         | "textDocument/definition"
         | "textDocument/references"
+        | "textDocument/prepareRename"
+        | "textDocument/rename"
         | "textDocument/completion"
         | "textDocument/signatureHelp" => true,
         _ => return None,
