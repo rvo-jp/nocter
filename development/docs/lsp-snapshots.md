@@ -99,10 +99,29 @@ overlay derived from the current snapshot. It reuses the snapshot's package grap
 open document texts. Recovery never replaces the current generation and never reloads package
 metadata.
 
+## Package Semantic Index
+
+v0.5.0 Phase 3 attaches one immutable semantic index to each package snapshot generation. The
+index is built from root modules and explicit executable/test entries in the exact locked graph;
+normal compiler loading follows their imports. It never scans the directory for otherwise
+unreferenced `.nct` files.
+
+Each compile-unit analysis has an independent `SourceMap`, so a numeric `SourceId` is never used as
+a cross-unit key. The index normalizes occurrence identity to package identity, canonical source
+path, declaration span, semantic role, and exact focus span. It can therefore join an open importer
+with closed reached modules without weakening resolver identity.
+
+Package-wide references, rename, automatic imports, code actions, and inlay hints all read the same
+generation as diagnostics. Rename also checks the active `PackageId` as its write boundary;
+filesystem containment alone is insufficient because path dependencies and package stores may be
+nested below the package root. Source-edit planners live in compiler analysis and return byte edits;
+the LSP layer only adds document versions and converts positions.
+
 ## Deliberate Limits
 
-- Phase 2 does not scan unreferenced unopened modules solely to build a global symbol index.
+- The semantic index does not scan unreferenced unopened modules; exact graph reachability is its
+  completeness boundary.
 - Analysis objects are retained in memory only; there is no persistent on-disk semantic cache.
-- Rename, code actions, inlay hints, and background parallel analysis remain separate features.
+- Background parallel analysis and incremental parsing remain separate features.
 - Filesystem module-segment completion may enumerate directories, but dependency ownership and
   aliases come only from the snapshot graph.

@@ -28,6 +28,9 @@ pub(super) fn check_sized_value_types(
                 let self_type = function_self_type(function, resolved);
                 check_function(sources, function, resolved, self_type.as_ref(), diagnostics);
             }
+            Item::Test(test) => {
+                check_block(sources, &test.body, resolved, None, diagnostics);
+            }
             Item::Primitive(primitive) => {
                 check_primitive(sources, primitive, resolved, diagnostics);
             }

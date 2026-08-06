@@ -100,6 +100,18 @@ impl Parser<'_> {
             return self.parse_function_decl(visibility, target);
         }
 
+        if self.at_keyword(Keyword::Test) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to test declarations");
+                return Err(());
+            }
+            if is_copy || visibility != Visibility::Private {
+                self.error_current("test declarations do not use top-level modifiers");
+                return Err(());
+            }
+            return self.parse_test_decl();
+        }
+
         if self.at_keyword(Keyword::Primitive) {
             return self.parse_primitive_decl(visibility, target);
         }

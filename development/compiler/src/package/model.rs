@@ -123,6 +123,50 @@ impl ExecutableTarget {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TestTargetId {
+    package: PackageId,
+    name: String,
+}
+
+impl TestTargetId {
+    pub(super) fn new(package: PackageId, name: String) -> Self {
+        Self { package, name }
+    }
+
+    pub fn package(&self) -> &PackageId {
+        &self.package
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestTarget {
+    id: TestTargetId,
+    entry: ResolvedModule,
+}
+
+impl TestTarget {
+    pub(super) fn new(id: TestTargetId, entry: ResolvedModule) -> Self {
+        Self { id, entry }
+    }
+
+    pub fn id(&self) -> &TestTargetId {
+        &self.id
+    }
+
+    pub fn name(&self) -> &str {
+        self.id.name()
+    }
+
+    pub fn entry(&self) -> &ResolvedModule {
+        &self.entry
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourcePackage {
     id: PackageId,
@@ -133,6 +177,7 @@ pub struct SourcePackage {
     dependencies: Vec<super::DependencyDeclaration>,
     locks: Vec<super::LockedDependency>,
     executables: Vec<ExecutableTarget>,
+    tests: Vec<TestTarget>,
 }
 
 impl SourcePackage {
@@ -145,6 +190,7 @@ impl SourcePackage {
         dependencies: Vec<super::DependencyDeclaration>,
         locks: Vec<super::LockedDependency>,
         executables: Vec<ExecutableTarget>,
+        tests: Vec<TestTarget>,
     ) -> Self {
         Self {
             id,
@@ -155,6 +201,7 @@ impl SourcePackage {
             dependencies,
             locks,
             executables,
+            tests,
         }
     }
 
@@ -207,5 +254,13 @@ impl SourcePackage {
 
     pub fn executable(&self, name: &str) -> Option<&ExecutableTarget> {
         self.executables.iter().find(|target| target.name() == name)
+    }
+
+    pub fn tests(&self) -> &[TestTarget] {
+        &self.tests
+    }
+
+    pub fn test(&self, name: &str) -> Option<&TestTarget> {
+        self.tests.iter().find(|target| target.name() == name)
     }
 }

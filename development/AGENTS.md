@@ -11,7 +11,7 @@ Before compiler changes, read:
 - `README.md`
 - `TODO.md`
 - `docs/README.md`
-- `docs/v0.4.0.md`
+- `milestones/README.md`
 - `docs/architecture.md`
 - `docs/region-provenance.md`
 - the focused design document for the area being changed
@@ -20,13 +20,12 @@ Before compiler changes, read:
 Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
 rewrite them.
 
-## Recorded Milestone
+## Milestone State
 
-v0.4.0 is complete through Phase 2 and the snapshot/package-graph stabilization audit. Its feature
-scope is frozen for release. Do not use `v0` as shorthand for a release scope. Use
-[docs/v0.4.0.md](docs/v0.4.0.md) for the current release record,
-[docs/v0.3.0.md](docs/v0.3.0.md) for the previous release, and
-[docs/v0.2.0.md](docs/v0.2.0.md) only for the earlier historical baseline.
+Do not record mutable version status in this instruction file. Read [TODO.md](TODO.md) for the next
+task, [milestones/](milestones/README.md) for active candidate scope and qualification, and
+[releases/](releases/README.md) for frozen compiler release evidence. Use exact version numbers;
+never use `v0` as shorthand for a release scope.
 
 ## Engineering Priority
 
@@ -66,9 +65,9 @@ Keep structural changes and behavior changes in separate commits when practical.
 Update only the owner of the changed fact:
 
 - `TODO.md`: next concrete task, blockers, uncommitted handoff state
-- `docs/v0.4.0.md`: current release status, completion gate, scope, non-goal, or qualification
-- `docs/v0.3.0.md`: previous release record
-- `docs/v0.2.0.md`: released v0.2.0 completion record
+- `milestones/<version>.md`: active candidate status, completion gate, scope, non-goal, or
+  qualification
+- `releases/<version>.md`: frozen compiler qualification evidence for a published release
 - `docs/architecture.md`: phase/module responsibility or data flow
 - `docs/region-provenance.md`: region, storage-origin, allocation-effect, or callable-summary design
 - `docs/typed-literals.md`: literal shape, definition, element-pack, or per-literal context design

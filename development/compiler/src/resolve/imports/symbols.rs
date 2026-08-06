@@ -38,6 +38,7 @@ pub(super) fn type_decl_names(ast: &AstFile) -> Vec<String> {
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Function(_)
+            | Item::Test(_)
             | Item::Primitive(_)
             | Item::Impl(_) => None,
             Item::Construct(_) => None,

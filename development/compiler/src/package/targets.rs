@@ -8,21 +8,30 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub(super) struct ExecutableDeclaration {
-    name: String,
-    name_span: ByteSpan,
-    entry: Option<(String, ByteSpan)>,
+pub(super) struct TargetDeclaration {
+    pub(super) name: String,
+    pub(super) name_span: ByteSpan,
+    pub(super) entry: Option<(String, ByteSpan)>,
 }
 
 pub(super) fn parse_executable_declaration(
     sources: &SourceMap,
     value: &DirectiveValue,
-) -> Result<ExecutableDeclaration, Vec<Diagnostic>> {
+) -> Result<TargetDeclaration, Vec<Diagnostic>> {
+    parse_target_declaration(sources, value, "executable", false)
+}
+
+pub(super) fn parse_target_declaration(
+    sources: &SourceMap,
+    value: &DirectiveValue,
+    kind: &str,
+    entry_required: bool,
+) -> Result<TargetDeclaration, Vec<Diagnostic>> {
     let DirectiveValue::Record { fields, .. } = value else {
         return Err(vec![package_diagnostic(
             sources,
             value.span(),
-            "`#executable` requires a record value",
+            format!("`#{kind}` requires a record value"),
         )]);
     };
     let mut diagnostics = Vec::new();
@@ -32,14 +41,14 @@ pub(super) fn parse_executable_declaration(
             diagnostics.push(package_diagnostic(
                 sources,
                 field.name_span,
-                format!("duplicate executable field `{}`", field.name),
+                format!("duplicate {kind} field `{}`", field.name),
             ));
         }
         if !matches!(field.name.as_str(), "name" | "entry") {
             diagnostics.push(package_diagnostic(
                 sources,
                 field.name_span,
-                format!("unknown executable field `{}`", field.name),
+                format!("unknown {kind} field `{}`", field.name),
             ));
         }
     }
@@ -48,6 +57,7 @@ pub(super) fn parse_executable_declaration(
         &by_name,
         "name",
         true,
+        kind,
         value.span(),
         &mut diagnostics,
     );
@@ -55,15 +65,16 @@ pub(super) fn parse_executable_declaration(
         sources,
         &by_name,
         "entry",
-        false,
+        entry_required,
+        kind,
         value.span(),
         &mut diagnostics,
     );
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let (name, name_span) = name.expect("validated executable name");
-    Ok(ExecutableDeclaration {
+    let (name, name_span) = name.expect("validated target name");
+    Ok(TargetDeclaration {
         name,
         name_span,
         entry,
@@ -75,13 +86,13 @@ pub(super) fn resolve_executable_targets(
     root: &Path,
     package: &PackageId,
     root_module: &ResolvedModule,
-    declarations: Vec<ExecutableDeclaration>,
+    declarations: Vec<TargetDeclaration>,
 ) -> Result<Vec<ExecutableTarget>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut names = HashSet::new();
     let mut targets = Vec::new();
     for declaration in declarations {
-        if !is_executable_name(&declaration.name) {
+        if !is_target_name(&declaration.name) {
             diagnostics.push(package_diagnostic(
                 sources,
                 declaration.name_span,
@@ -120,14 +131,14 @@ pub(super) fn resolve_executable_targets(
     }
 }
 
-pub(crate) fn executable_entry_at_offset(
+pub(crate) fn target_entry_at_offset(
     manifest: &PackageManifest,
     offset: usize,
 ) -> Option<(&str, ByteSpan)> {
     manifest
         .directives
         .iter()
-        .filter(|directive| directive.name == "executable")
+        .filter(|directive| matches!(directive.name.as_str(), "executable" | "test"))
         .filter_map(|directive| match &directive.value {
             DirectiveValue::Record { fields, .. } => Some(fields),
             _ => None,
@@ -143,6 +154,7 @@ fn string_field(
     fields: &HashMap<&str, &DirectiveField>,
     name: &str,
     required: bool,
+    kind: &str,
     fallback: ByteSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(String, ByteSpan)> {
@@ -151,7 +163,7 @@ fn string_field(
             diagnostics.push(package_diagnostic(
                 sources,
                 fallback,
-                format!("missing required executable field `{name}`"),
+                format!("missing required {kind} field `{name}`"),
             ));
         }
         return None;
@@ -160,7 +172,7 @@ fn string_field(
         diagnostics.push(package_diagnostic(
             sources,
             field.value.span(),
-            format!("executable field `{name}` requires a string"),
+            format!("{kind} field `{name}` requires a string"),
         ));
         return None;
     };
@@ -168,14 +180,14 @@ fn string_field(
         diagnostics.push(package_diagnostic(
             sources,
             span,
-            format!("executable field `{name}` cannot be empty"),
+            format!("{kind} field `{name}` cannot be empty"),
         ));
         return None;
     }
     Some((value.to_string(), span))
 }
 
-fn is_executable_name(value: &str) -> bool {
+pub(super) fn is_target_name(value: &str) -> bool {
     let mut characters = value.chars();
     let Some(first) = characters.next() else {
         return false;

@@ -5,6 +5,18 @@ use crate::analysis::test_support::{
 };
 
 #[test]
+fn native_test_hover_uses_the_fixed_contract_and_exact_name_range() {
+    let text = "/// Keeps order.\ntest pushes { return }\n";
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.find("pushes").unwrap();
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset).expect("test hover");
+    assert_eq!(hover.label, "test pushes: void!");
+    assert_eq!(hover.documentation.as_deref(), Some("Keeps order."));
+    assert_eq!(&text[hover.span.start..hover.span.end], "pushes");
+}
+
+#[test]
 fn workspace_hover_normalizes_literal_declaration_signatures() {
     let text = r#"type TextInput = &str
 

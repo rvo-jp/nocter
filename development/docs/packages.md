@@ -26,7 +26,7 @@ identity.
 - root and path packages derive a stable digest from their canonical package root
 - Git packages derive identity from the declared source URL plus exact commit
 - archive packages derive identity from the declared source URL plus SHA-256 content digest
-- `ModuleId` and `ExecutableId` contain `PackageId`
+- `ModuleId`, `ExecutableId`, and `TestTargetId` contain `PackageId`
 - dependency aliases are scoped by the declaring `PackageId`
 
 `ModuleId` contains a typed `ModuleKey`. `ModuleKey::PackageRoot` identifies the code in
@@ -45,9 +45,10 @@ the graph or colliding in the package store.
 `package/store.rs` locates an already identified package in the package-local store and then the
 shared Nocter-home store. `package/fetch.rs` alone executes Git, downloads archives, verifies
 content, and installs immutable package trees. `package/lockfile.rs` alone rewrites generated lock
-data in `nocter.nct`. `package/modules.rs` is the shared explicit-module resolver, while
-`package/targets.rs` parses and resolves executable declarations. Both CLI and LSP consume their
-typed results instead of interpreting manifest strings independently.
+data in `nocter.nct`. `package/modules.rs` is the shared explicit-module resolver.
+`package/targets.rs` owns common target fields and executable declarations;
+`package/test_targets.rs` owns test validation and typed test identity. Both CLI and LSP consume
+these results instead of interpreting manifest strings independently.
 
 Graph construction computes effective locks in memory and validates the complete transitive graph
 before requesting any manifest rewrite. A failed graph may populate immutable cache entries, but it
@@ -58,56 +59,22 @@ Nocter home with a matching display name or alias is irrelevant.
 
 ## Import Classification
 
-Import syntax selects one resolver namespace before filesystem module discovery:
-
-- `./x` and `../x` are relative to the importing module and may not leave its package
-- `/x` is relative to the owning package root
-- `dependency/x` starts at the dependency bound to `dependency` by the owning package
-- `std/x` starts at the compiler-matched standard library
-- any other first segment is an undeclared-dependency error
-
-Filesystem-absolute source imports and project-directory shadowing of `std` are not supported.
-Single-file mode has no package root; it supports module-relative imports and `std` only.
+Public import namespaces are defined by [Modules and Use
+Declarations](../../spec/01-modules-use.md). The resolver classifies each parsed path into a typed
+namespace before filesystem discovery. Downstream loaders receive the namespace and owning
+`PackageId`; they never reinterpret path spelling or search unrelated roots.
 
 ## Dependency Sources and Generated Locks
 
-Dependency declarations are user-authored. Locks are generated in the same `nocter.nct` so source
-selection and its exact result appear in one review diff.
-
-```nct
-#dependencies: {
-    json: {
-        git: "https://github.com/example/json.git",
-        revision: "main",
-    },
-    http: {
-        archive: "https://nocter.dev/lib/http-v1.0.0.tar.gz",
-    },
-    local_math: {
-        path: "./packages/math",
-    },
-}
-
-#lock: {
-    format: 1,
-    dependencies: {
-        http: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        json: "git:7db21c1000000000000000000000000000000000",
-    },
-}
-```
-
-Git revisions select an update candidate; compilation uses only the locked commit. Archives are
-identified by downloaded bytes. Path dependencies are deliberately mutable and have no lock
-entry. The alias `std` is reserved.
-
-An ordinary package command may create a missing direct lock but never changes an existing one.
-`--locked` rejects required lock generation. `--offline` prohibits source resolution and fetching.
-LSP always uses locked offline graph loading and never writes `nocter.nct` or accesses the network.
+Public dependency and lock behavior is defined by [Command Line
+Interface](../../spec/15-command-line-interface.md). Internally, manifest validation produces typed
+source requests and typed exact locks before graph traversal. Graph construction computes effective
+locks in memory; only `package/lockfile.rs` may publish a validated generated lock. Inspection and
+LSP loaders use the same graph model with publication disabled.
 
 Downloaded Git metadata is removed before installation. Archive paths, extracted canonical paths,
 manifest presence, symbolic-link escape, package module escape, package-file symlink escape, nested
-package crossing, and executable entry escape are validated before a package can enter analysis.
+package crossing, and target entry escape are validated before a package can enter analysis.
 
 ## Physical Stores
 
@@ -135,5 +102,7 @@ distinct executable names may still emit distinct artifacts from one entry modul
 The LSP locates the nearest containing `nocter.nct`, bounded by the opened workspace, and loads the
 same locked graph as the CLI in offline mode. Nested packages are independent package roots.
 Hover, completion, definition, references, diagnostics, and semantic module analysis use graph
-identity. Manifest directive names, dependency aliases, and executable entry values use exact
-source-backed semantic ranges; executable entry values navigate through the shared module resolver.
+identity. Manifest directive names, dependency aliases, and target entry values use exact
+source-backed semantic ranges. Executable and test entries navigate through the shared module
+resolver. Test execution is owned separately by `driver/test_command.rs`; it consumes resolved
+`TestTarget` values and never reparses manifest metadata.

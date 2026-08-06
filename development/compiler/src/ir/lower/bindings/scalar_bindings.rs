@@ -314,7 +314,7 @@ pub(super) fn primitive_call_fallible_success_scalar_binding_kind(
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
     match context.primitive_name_for_call(call)? {
-        "open_read_raw" => Some(ScalarBindingKind::I32),
+        "open_read_raw" | "create_raw" | "append_raw" => Some(ScalarBindingKind::I32),
         "read_bytes_raw" => Some(ScalarBindingKind::Usize),
         _ => None,
     }

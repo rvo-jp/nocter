@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 ## Raw Pointers and Address API
 
-Adopted: Nocter has raw pointer values, but raw pointer dereference is not available to general user code in the initial design.
+Nocter has raw pointer values, but raw pointer dereference is not available to general user code.
 
 Raw pointer type syntax:
 
@@ -34,11 +34,11 @@ Rules:
 - `*T` is non-null.
 - If null is needed, use `*T?`.
 - `*void` is allowed as an opaque raw pointer type.
-- Raw pointer dereference has no user-facing escape hatch in v0.2.0. There is no `unsafe` block that enables it.
+- Raw pointer dereference has no user-facing escape hatch. There is no `unsafe` block that enables it.
 
-Raw pointer dereference is not part of the initial user-facing language.
+Raw pointer dereference is not part of the user-facing language.
 
-Not adopted in v0.2.0:
+Invalid operations:
 
 ```nct
 *pointer
@@ -47,13 +47,13 @@ pointer.load()
 pointer.store(value)
 ```
 
-These operations may be reconsidered only if Nocter later adopts an explicit unsafe or trusted-code model. They are not enabled by v0.2.0's Nocter-home trusted boundary.
+These operations may be reconsidered only if Nocter later adopts an explicit unsafe or trusted-code model. The Nocter-home trusted boundary does not enable them in user source.
 
 ### `std/ptr`
 
 Pointer and address conversion APIs live in `std/ptr`.
 
-Initial public APIs:
+Public APIs:
 
 ```nct
 pub primitive addr<T>(pointer: *T): usize
@@ -79,7 +79,7 @@ Rules:
 - `from_addr<T>(...)` is invalid when the address is statically known to be
   zero; use `none` for a `*T?` null-like absence.
 - A raw pointer created from a borrow may outlive the borrow as a value, but using it as if it were valid is not guaranteed by the compiler.
-- Because dereference is not available in v0.2.0, general user code can carry and pass raw pointers but cannot read or write through them.
+- Because dereference is unavailable, general user code can carry and pass raw pointers but cannot read or write through them.
 
 Example:
 
@@ -149,7 +149,7 @@ These core pointer primitives exist because address conversion and borrow-to-poi
 
 ## Arrays and Views
 
-Adopted: fixed-size arrays use `[T; N]`.
+Fixed-size arrays use `[T; N]`.
 
 ```nct
 let header: [u8; 4] = [0x7F, 0x45, 0x4C, 0x46]
@@ -176,17 +176,16 @@ Rules:
 - A fixed array is move-only when its element type is move-only.
 
 Owned growable memory is represented by standard-library types such as `Vec<T>`. `Vec<T>` is not a
-compiler builtin. v0.3.0 Phase 1 provides declaration-driven typed literals such as
-`Vec [1, 2, 3]`; [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
-defines the v0.3.0 Phase 8 sequence-spread behavior. Bare `[1, 2, 3]` remains a fixed-size array
-literal.
+compiler builtin. Declaration-driven typed literals provide forms such as `Vec [1, 2, 3]`, while
+bare `[1, 2, 3]` remains a fixed-size array literal. See
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
 
 ```nct
-var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
-bytes.push(10)?
+var bytes = Vec<u8>.with_capacity(4096)
+bytes.push(10)
 
 let read: &[u8] = bytes.view()
-let write: &+[u8] = bytes.write_view()
+let write: &+[u8] = bytes.view_mut()
 ```
 
 Nocter uses built-in `[T]` type syntax for unsized contiguous array data. Array data is normally used behind a borrow:
@@ -225,7 +224,7 @@ These are not the same thing.
 
 ### Borrow-Like Provenance
 
-Adopted: borrows and views carry hidden provenance tracked by the compiler.
+Borrows and views carry hidden provenance tracked by the compiler.
 
 Borrow-like values:
 
@@ -239,7 +238,7 @@ Borrow-like values:
 
 Provenance is compile-time information. It is not stored in the runtime value, does not affect ABI, and does not change the `ptr + len` layout of views.
 
-Initial provenance source kinds:
+Provenance source kinds:
 
 ```text
 static       string literals and other static data
@@ -260,7 +259,7 @@ Rules:
 - `owned_param` provenance must not escape the function because the owned parameter is dropped at function scope end unless moved.
 - `region` provenance must not escape the region.
 - `param_borrow` provenance may be returned from the function, but the caller may not use the returned borrow-like value longer than the original input borrow remains valid.
-- `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0.2.0 code.
+- `unknown` provenance cannot be returned from a function or stored into a longer-lived place.
 - `&+[T]` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
 - `&[T]` and `&str` carry readonly permission.
 - A readonly borrow-like value may be derived from readonly or readwrite provenance.
@@ -276,8 +275,8 @@ func ok(): &str {
 ```
 
 ```nct
-func bad(allocator: &+Allocator): &str! {
-    var text = String.copy(allocator, "hello")?
+func bad(): &str {
+    var text = String.copy("hello")
     return text.view() // error: local
 }
 ```
@@ -311,27 +310,21 @@ let count = read.len()
 
 Collection operations are ordinary standard-library methods.
 
-Collection method direction:
+Representative collection operations:
 
 - `len(): usize`
 - `Vec<T>.get(index: usize): &T? from self`
 - `Vec<T>.get_mut(index: usize): &+T?`
 - `ptr(): *T` for contiguous views
 - `view(): &[T]` for owning collections that can expose readonly contiguous storage
-- `write_view(): &+[T]` for owning collections that can expose readwrite contiguous storage
+- `view_mut(): &+[T]` for owning collections that can expose readwrite contiguous storage
 - readonly borrow iteration through ordinary `iter()` and `next()` methods
 
-The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and `&+[T]`. `Buffer<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
+The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and `&+[T]`. `Vec<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `view_mut`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
 
 ### Iteration
 
-The released v0.2.0 standard library does not provide iterator types. v0.3.0 Phase 2 provides explicit
-readonly and owned iteration through ordinary standard-library types. It does not add collection
-`for` syntax.
-
-The compiler does not lower `for item in collection` into calls to `iter` or `next`. The names `iter`, `next`, `ViewIter`, and `into_iter` are not special to the compiler.
-
-Phase 2 readonly iterator surface:
+Readonly and owned iteration use ordinary standard-library types and interfaces:
 
 ```nct
 pub struct ViewIter<T> {
@@ -361,7 +354,7 @@ Rules:
 - `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
 - The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `&+[T]` mutable element iteration is not part of Phase 2.
+- Mutable element iteration over `&+[T]` is not supported.
 - `VecIntoIter<T>` owns a consumed `Vec<T>` and returns `T?` in source order.
 - Dropping `VecIntoIter<T>` drops unconsumed elements in reverse order and releases its storage once.
 - `Vec<T>.insert` and `remove` preserve dense source order for move-only values. Their implementation
@@ -369,7 +362,9 @@ Rules:
   cross that state.
 - `Vec<T>.try_insert` performs bounds validation and capacity growth before shifting. Failed growth
   leaves pointer, length, capacity, content, and storage origin unchanged.
-- Range `for` remains the only `for` syntax through Phase 2.
+- Collection `for` loops dispatch through the iteration interfaces described in
+  [Callable Values and Interface Default Methods](18-callables-default-methods.md); iterator and method names are not
+  compiler-recognized substitutes for those contracts.
 
 ## Strings
 
@@ -410,13 +405,13 @@ An interpolated string source form such as `"hello ${name}"` is not a string lit
 
 - It owns valid UTF-8 bytes.
 - It is move-only.
-- It is implemented in the standard library, likely on top of `Buffer<u8>`.
+- It is implemented in the standard library on top of `RawBuffer`.
 - It releases its buffer when dropped.
 - It can produce a `&str`.
 
 ```nct
 let view: &str = "README.md"
-var owned = String.copy(allocator, view)?
+var owned = String.copy(view)
 
 open(view)
 open(owned.view())
@@ -426,28 +421,20 @@ func open(path: &str): File! {
 }
 ```
 
-The example above records the released v0.2.0 explicit fallible API. The
-v0.3.0 target uses the current aborting allocation context for ordinary copies:
+Representative current method surface:
 
 ```nct
-let view: &str = "README.md"
-var owned = String.copy(view)
-```
-
-Released v0.2.0 method surface:
-
-```nct
-pub func String.copy(allocator: &+Allocator, text: &str): String!
-
 impl String {
     pub method &self.view(): &str
     pub method &self.len(): usize
     pub method &self.capacity(): usize
     pub method &self.is_empty(): bool
     pub method &self.bytes(): &[u8]
-    pub method &+self.reserve(additional: usize): void!
+    pub method &+self.reserve(additional: usize): void
+    pub method &+self.try_reserve(additional: usize): void!
     pub method &+self.clear(): void
-    pub method &+self.push_str(value: &str): void!
+    pub method &+self.push_str(value: &str): void
+    pub method &+self.try_push_str(value: &str): void!
 }
 
 impl &str {
@@ -457,8 +444,8 @@ impl &str {
 }
 ```
 
-v0.3.0 pairs normal `copy`, `reserve`, and `push_str` with explicit
-`try_copy`, `try_reserve`, and `try_push_str` operations. Both surfaces use the
+Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
+`try_copy`, `try_reserve`, and `try_push_str` operations use a `TryAllocator`. Both surfaces use the
 same buffer implementation and preserve the same UTF-8 and publication
 invariants.
 
@@ -466,11 +453,11 @@ invariants.
 
 There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `&str`; creating an owned `String` from it requires an explicit copy.
 
-The `char` type is deferred. Initial string APIs should operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
+The `char` type is not supported. String APIs operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
 
 ## String and Byte Literals
 
-Adopted: string literals use either single-line double-quoted syntax or multi-line triple-double-quoted syntax.
+String literals use either single-line double-quoted syntax or multi-line triple-double-quoted syntax.
 
 Rules:
 
@@ -500,7 +487,7 @@ The value is equivalent to:
 
 ## String Interpolation
 
-Nocter v0.3.0 implements `${expr}` interpolation inside string source forms.
+`${expr}` interpolates values inside string source forms.
 
 ```nct
 let message = "hello ${name}"
@@ -514,7 +501,7 @@ An interpolated string expression is not a string literal, even when every liter
 
 Rules:
 
-- The v0.3.0 target result type of an interpolated string expression is `String`.
+- The result type of an interpolated string expression is `String`.
 - Ordinary interpolation uses the current aborting allocation context. Allocation
   failure terminates according to the standard allocator policy.
 - Literal text segments are decoded with the same escape rules as string literals.
@@ -532,7 +519,7 @@ Formatting rules:
 
 - `&str` values append their bytes.
 - `String` values append their current string view.
-- The Phase 3 executable scalar integers `i32`, `u8`, and `usize`, plus `bool`, format with their
+- The executable scalar integers `i32`, `u8`, and `usize`, plus `bool`, format with their
   canonical source spelling without extra whitespace. Other integer types become interpolatable
   when their normal runtime ABI is promoted; `check` must not pretend they are buildable earlier.
 - Optional, fallible, array, struct, enum, pointer, and user-defined nominal values are not interpolatable until an explicit formatting method protocol is adopted.
@@ -544,9 +531,7 @@ Allocator and lowering rules:
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
 - The lowering uses the compiler-propagated current allocation context. It must
   not read a mutable process-global allocator.
-- A Phase 3 implementation must support interpolation in `build` and `run` through complete
-  current-context lowering and packaged-home runtime behavior. Check-only acceptance does not
-  satisfy the Phase 3 gate.
+- Interpolation must be supported by `build` and `run`; check-only acceptance is insufficient.
 
 The intended lowering is equivalent to constructing a `String` through ordinary
 standard-library operations in the current context, appending decoded text
@@ -555,7 +540,7 @@ owned value.
 
 ## Byte Literals and Escapes
 
-Adopted: byte literals use `b'...'` and have type `u8`.
+Byte literals use `b'...'` and have type `u8`.
 
 ```nct
 let a: u8 = b'a'
@@ -569,7 +554,7 @@ Rules:
 - A byte literal has type `u8`.
 - A byte literal must decode to exactly one byte.
 - Byte literal lexical syntax is specified in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
-- Plain single-quoted literals such as `'a'` are not part of the initial design.
+- Plain single-quoted literals such as `'a'` are not supported.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.
 - String literals use `"..."` or `"""..."""` and have built-in type `&str`.
@@ -577,7 +562,7 @@ Rules:
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.
 
-Initial escapes:
+Escapes:
 
 ```text
 \n      newline, byte 0x0A

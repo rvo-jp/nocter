@@ -3,11 +3,9 @@ use super::errors::{
 };
 use super::pipeline::build_file_to_path_with_target;
 use super::pipeline::build_package_executable_to_path_with_target;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use super::temporary_executable::TemporaryExecutable;
+use std::path::Path;
 use std::process::{Command, ExitCode, ExitStatus};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(super) fn run_file(file: &Path, target: &str) -> ExitCode {
     run_with_builder(|output| build_file_to_path_with_target(file, output, target))
@@ -24,7 +22,7 @@ pub(super) fn run_package_file(
 }
 
 fn run_with_builder(build: impl FnOnce(&Path) -> super::pipeline::BuildOutput) -> ExitCode {
-    let artifact = match RunArtifact::new() {
+    let artifact = match TemporaryExecutable::new("run") {
         Ok(artifact) => artifact,
         Err(error) => {
             let diagnostic =
@@ -33,7 +31,7 @@ fn run_with_builder(build: impl FnOnce(&Path) -> super::pipeline::BuildOutput) -
         }
     };
 
-    let output = build(artifact.executable_path());
+    let output = build(artifact.path());
     if !output.is_ok() {
         let exit = exit_for_diagnostics(&output.diagnostics, ExitCode::FAILURE);
         return write_human_diagnostics(&output.diagnostics, Some(&output.sources), exit);
@@ -57,56 +55,5 @@ fn exit_code_from_status(status: ExitStatus) -> ExitCode {
     match status.code().and_then(|code| u8::try_from(code).ok()) {
         Some(code) => ExitCode::from(code),
         None => ExitCode::FAILURE,
-    }
-}
-
-#[derive(Debug)]
-struct RunArtifact {
-    root: PathBuf,
-    executable: PathBuf,
-}
-
-impl RunArtifact {
-    fn new() -> io::Result<Self> {
-        let root = std::env::temp_dir().join(unique_run_dir_name());
-        fs::create_dir_all(&root)?;
-        let executable = root.join("app");
-
-        Ok(Self { root, executable })
-    }
-
-    fn executable_path(&self) -> &Path {
-        &self.executable
-    }
-}
-
-impl Drop for RunArtifact {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.executable);
-        let _ = fs::remove_dir(&self.root);
-    }
-}
-
-fn unique_run_dir_name() -> String {
-    format!(
-        "nocter-run-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn run_artifact_uses_unique_temp_executable_path() {
-        let artifact = RunArtifact::new().unwrap();
-
-        assert!(artifact.executable_path().ends_with("app"));
-        assert!(artifact.root.is_dir());
     }
 }

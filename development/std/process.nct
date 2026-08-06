@@ -38,16 +38,21 @@ pub(nocter) primitive exit_raw(code: i32): never
 pub(nocter) primitive arg_count_raw(): usize
 
 #target: "arm64-darwin"
-pub(nocter) primitive arg_raw(index: usize): &str
+pub(nocter) primitive arg_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 
 #target: "arm64-darwin"
-pub(nocter) primitive env_name_raw(index: usize): &str
+pub(nocter) primitive env_name_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-pub(nocter) primitive env_value_raw(index: usize): &str
+pub(nocter) primitive env_value_raw(index: usize): &str from static
+
+pub copy struct EnvironmentEntry {
+    pub name: &str
+    pub value: &str
+}
 
 #target: "arm64-darwin"
 pub(nocter) func open_current_directory(): usize! {
@@ -126,6 +131,31 @@ pub func args(): Vec<&str>! from current | static {
         index = index + 1
     }
     return move values
+}
+
+pub func arg_count(): usize {
+    return arg_count_raw()
+}
+
+pub func arg(index: usize): &str?! from static {
+    let count: usize = arg_count_raw()
+    if index >= count { return none }
+    let value = arg_raw(index)
+    if !valid_utf8(value) { return invalid_encoding() }
+    return value
+}
+
+pub func environment_count(): usize {
+    return env_count_raw()
+}
+
+pub func environment(index: usize): EnvironmentEntry?! from static {
+    let count: usize = env_count_raw()
+    if index >= count { return none }
+    let name = env_name_raw(index)
+    let value = env_value_raw(index)
+    if !valid_utf8(name) || !valid_utf8(value) { return invalid_encoding() }
+    return EnvironmentEntry { name: name, value: value }
 }
 
 pub func env(name: &str): &str?! from static {

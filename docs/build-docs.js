@@ -9,8 +9,9 @@ const SOURCE_ORIGIN = "https://github.com/rvo-jp/nocter/blob/main";
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DOCS_DIR = __dirname;
 const OUTPUT_ROOT = DOCS_DIR;
-const SKIP_DIRS = new Set([".git", ".github", "target", "node_modules"]);
-const SKIP_MARKDOWN_PATHS = new Set(["development/TODO.md"]);
+const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
+const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
+const AUTO_INDEX_SOURCE_DIRS = new Set(["examples"]);
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
 
@@ -21,10 +22,18 @@ const PAGE_META = {
     },
     "spec/README.md": {
         title: "Nocter Language Specification",
-        description: "Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts."
+        description: "The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling."
+    },
+    "releases/README.md": {
+        title: "Nocter Releases",
+        description: "Published Nocter downloads, release notes, supported targets, and qualified candidate status."
+    },
+    "examples/README.md": {
+        title: "Nocter Examples",
+        description: "Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use."
     },
     "development/README.md": {
-        title: "Nocter Development Documentation",
+        title: "Contributor Documentation",
         description: "Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow."
     }
 };
@@ -65,47 +74,42 @@ pub func Session.start(user: User, clock: &Clock): Session {
         expires_at: clock.now().plus_minutes(30),
     }
 }`,
-    profile: `struct Profile {
-    ...UserSummary
-    ...ActivityStats
-    visits: u32
-}
-
-func profile(user: &User, stats: ActivityStats): Profile {
-    return Profile {
-        ...user.summary(),
-        ...move stats,
-        visits: 0,
+    ownership: `func consume(values: Vec<String>): void! {
+    for value in move values {
+        print(value.view())?
     }
 }`,
-    literal: `literal NonEmptyList<T> [first: T, ...rest: [T]]: Self {
-    let list = Self.with_first(move first)
+    construction: `construct NonEmptyList<T> {
+    pub default literal [](...items: T): Self from current {
+        let list = Self.new()
 
-    for item in rest {
-        list.push(move item)
+        for item in items {
+            list.push(move item)
+        }
+
+        return list
     }
-
-    return list
 }`
 };
 
-const markdownFiles = collectMarkdownFiles(PROJECT_ROOT);
-const markdownSet = new Set(markdownFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
+const sourceFiles = collectSourceFiles(PROJECT_ROOT);
+const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 
+validateOutputPaths(sourceFiles);
 cleanGeneratedHtml();
 
-for (const file of markdownFiles) {
+for (const file of sourceFiles) {
     const html = renderPage(file);
-    const output = outputPathForMarkdown(file);
+    const output = outputPathForSource(file);
 
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, html);
 }
 
 writeRobots();
-writeSitemap(markdownFiles);
+writeSitemap(sourceFiles);
 
-console.log(`Generated ${markdownFiles.length} HTML pages in ${path.relative(PROJECT_ROOT, OUTPUT_ROOT)}/`);
+console.log(`Generated ${sourceFiles.length} HTML pages in ${path.relative(PROJECT_ROOT, OUTPUT_ROOT)}/`);
 
 function cleanGeneratedHtml() {
     for (const entry of fs.readdirSync(OUTPUT_ROOT, { withFileTypes: true })) {
@@ -126,7 +130,23 @@ function cleanGeneratedHtml() {
     }
 }
 
-function collectMarkdownFiles(directory) {
+function validateOutputPaths(files) {
+    const ownersByOutput = new Map();
+
+    for (const file of files) {
+        const output = normalizePath(path.relative(OUTPUT_ROOT, outputPathForSource(file)));
+        const owner = normalizePath(path.relative(PROJECT_ROOT, file));
+        const existingOwner = ownersByOutput.get(output);
+
+        if (existingOwner) {
+            throw new Error(`Documentation sources ${existingOwner} and ${owner} both generate docs/${output}`);
+        }
+
+        ownersByOutput.set(output, owner);
+    }
+}
+
+function collectSourceFiles(directory) {
     const files = [];
 
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -139,7 +159,7 @@ function collectMarkdownFiles(directory) {
 
         if (entry.isDirectory()) {
             if (!SKIP_DIRS.has(entry.name) && relative !== "docs") {
-                files.push(...collectMarkdownFiles(fullPath));
+                files.push(...collectSourceFiles(fullPath));
             }
 
             continue;
@@ -147,10 +167,10 @@ function collectMarkdownFiles(directory) {
 
         if (
             entry.isFile()
-            && entry.name.endsWith(".md")
+            && (entry.name.endsWith(".md") || entry.name.endsWith(".nct"))
             && entry.name !== "AGENTS.md"
             && !relative.startsWith("docs/")
-            && !SKIP_MARKDOWN_PATHS.has(relative)
+            && !SKIP_SOURCE_PATHS.has(relative)
         ) {
             files.push(fullPath);
         }
@@ -159,26 +179,27 @@ function collectMarkdownFiles(directory) {
     return files.sort((a, b) => normalizePath(path.relative(PROJECT_ROOT, a)).localeCompare(normalizePath(path.relative(PROJECT_ROOT, b))));
 }
 
-function renderPage(markdownPath) {
-    const relativeMarkdownPath = normalizePath(path.relative(PROJECT_ROOT, markdownPath));
-    const markdown = fs.readFileSync(markdownPath, "utf8");
-    const body = markdownToHtml(markdown, markdownPath);
-    const title = firstHeading(markdown) || "Nocter";
-    const pageMeta = PAGE_META[relativeMarkdownPath] || {};
-    const description = pageMeta.description || pageDescription(markdown);
-    const outputPath = outputPathForMarkdown(markdownPath);
+function renderPage(sourcePath) {
+    const relativeSourcePath = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
+    const source = fs.readFileSync(sourcePath, "utf8");
+    const isNocterSource = sourcePath.endsWith(".nct");
+    const body = isNocterSource ? nocterSourceToHtml(source, sourcePath) : markdownToHtml(source, sourcePath);
+    const title = isNocterSource ? relativeSourcePath : firstHeading(source) || "Nocter";
+    const pageMeta = PAGE_META[relativeSourcePath] || {};
+    const description = pageMeta.description || (isNocterSource ? nocterSourceDescription(relativeSourcePath) : pageDescription(source));
+    const outputPath = outputPathForSource(sourcePath);
     const outputDir = path.dirname(outputPath);
     const styleHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "style.css"));
     const scriptHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "script.js"));
     const logoHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "assets/logo.svg"));
-    const specHref = relativeUrl(outputDir, outputPathForMarkdown(path.join(PROJECT_ROOT, "spec/README.md"))) + "#content";
+    const specHref = relativeUrl(outputDir, outputPathForSource(path.join(PROJECT_ROOT, "spec/README.md"))) + "#content";
     const canonical = `${SITE_ORIGIN}${publicPathForOutput(outputPath)}`;
-    const toc = renderDirectoryToc(markdownPath, outputDir);
+    const toc = renderDirectoryToc(sourcePath, outputDir);
     const bodyClass = toc ? ' class="has-directory-toc"' : "";
-    const isHomePage = relativeMarkdownPath === "README.md";
+    const isHomePage = relativeSourcePath === "README.md";
 
     const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
-    const lastModified = fileLastModifiedDate(markdownPath);
+    const lastModified = fileLastModifiedDate(sourcePath);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -207,7 +228,7 @@ function renderPage(markdownPath) {
     <meta name="twitter:description" content="${escapeAttribute(description)}">
     <meta name="twitter:image" content="${SITE_ORIGIN}/assets/og-image.png">
 
-    <script type="application/ld+json">${structuredData(pageTitle, description, canonical, outputPath, lastModified)}</script>
+    <script type="application/ld+json">${structuredData(pageTitle, description, canonical, outputPath, lastModified, isNocterSource)}</script>
 
     <link rel="stylesheet" href="${styleHref}">
 </head>
@@ -218,7 +239,7 @@ function renderPage(markdownPath) {
         ${toc || '<aside class="directory-toc" aria-label="Directory table of contents"></aside>'}
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/${escapeHtml(relativeMarkdownPath)}</span>
+                <span class="markdown-path-text">/${escapeHtml(relativeSourcePath)}</span>
             </div>
             <div class="markdown-body">
                 ${body}
@@ -231,6 +252,14 @@ function renderPage(markdownPath) {
 </body>
 </html>
 `;
+}
+
+function nocterSourceToHtml(source, sourcePath) {
+    return `<h1>${escapeHtml(path.basename(sourcePath))}</h1><pre><code class="language-nocter">${highlightCode(source, "nocter")}</code></pre>`;
+}
+
+function nocterSourceDescription(relativeSourcePath) {
+    return `Nocter source code for ${relativeSourcePath}.`;
 }
 
 function renderHero(logoHref, specHref) {
@@ -407,28 +436,47 @@ function inline(text, markdownPath) {
         .replace(/CODE_SPAN_(\d+)_PLACEHOLDER/g, (_, index) => `<code>${escapeHtml(codeSpans[Number(index)])}</code>`);
 }
 
-function renderDirectoryToc(markdownPath, outputDir) {
-    const tocSource = findDirectoryTocSource(markdownPath);
+function renderDirectoryToc(sourcePath, outputDir) {
+    const tocSource = findDirectoryTocSource(sourcePath);
 
     if (!tocSource) {
         return "";
     }
 
     const markdown = fs.readFileSync(tocSource, "utf8");
-    const links = [...markdown.matchAll(/\[([^\]]+)\]\(([^)]+\.md)\)/g)];
+    const links = [...markdown.matchAll(/\[([^\]]+)\]\(([^)]+\.(?:md|nct))\)/g)];
+    const linkedTargets = new Set();
     const items = [];
 
     for (const [, label, href] of links) {
-        const targetMarkdown = path.resolve(path.dirname(tocSource), href);
-        const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetMarkdown));
+        const targetSource = path.resolve(path.dirname(tocSource), href);
+        const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetSource));
 
-        if (!markdownSet.has(relativeTarget)) {
+        if (!sourceSet.has(relativeTarget)) {
             continue;
         }
 
-        const targetOutput = outputPathForMarkdown(targetMarkdown);
-        const current = normalizePath(path.relative(PROJECT_ROOT, targetMarkdown)) === normalizePath(path.relative(PROJECT_ROOT, markdownPath));
+        linkedTargets.add(relativeTarget);
+        const targetOutput = outputPathForSource(targetSource);
+        const current = normalizePath(path.relative(PROJECT_ROOT, targetSource)) === normalizePath(path.relative(PROJECT_ROOT, sourcePath));
         items.push(`<li><a href="${relativeUrl(outputDir, targetOutput)}#content"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`);
+    }
+
+    const tocDirectory = normalizePath(path.relative(PROJECT_ROOT, path.dirname(tocSource)));
+    if (AUTO_INDEX_SOURCE_DIRS.has(tocDirectory)) {
+        const unlinkedSources = sourceFiles.filter(file => {
+            const relative = normalizePath(path.relative(PROJECT_ROOT, file));
+            return file.endsWith(".nct")
+                && relative.startsWith(`${tocDirectory}/`)
+                && !linkedTargets.has(relative);
+        });
+
+        for (const targetSource of unlinkedSources) {
+            const relativeTarget = normalizePath(path.relative(path.dirname(tocSource), targetSource));
+            const targetOutput = outputPathForSource(targetSource);
+            const current = path.resolve(targetSource) === path.resolve(sourcePath);
+            items.push(`<li><a href="${relativeUrl(outputDir, targetOutput)}#content"${current ? ' aria-current="page"' : ""}>${escapeHtml(relativeTarget)}</a></li>`);
+        }
     }
 
     if (!items.length) {
@@ -443,8 +491,8 @@ function renderDirectoryToc(markdownPath, outputDir) {
         </aside>`;
 }
 
-function findDirectoryTocSource(markdownPath) {
-    let directory = path.dirname(markdownPath);
+function findDirectoryTocSource(sourcePath) {
+    let directory = path.dirname(sourcePath);
     const rootReadme = path.join(PROJECT_ROOT, "README.md");
 
     while (directory.startsWith(PROJECT_ROOT)) {
@@ -476,28 +524,28 @@ function resolveLinkUrl(markdownPath, href) {
     }
 
     const [rawPath, hash = ""] = href.split("#");
-    const targetMarkdown = path.resolve(path.dirname(markdownPath), rawPath);
-    const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetMarkdown));
+    const targetSource = path.resolve(path.dirname(markdownPath), rawPath);
+    const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetSource));
 
-    if (rawPath.endsWith(".md") && markdownSet.has(relativeTarget)) {
-        const targetOutput = outputPathForMarkdown(targetMarkdown);
-        const currentOutputDir = path.dirname(outputPathForMarkdown(markdownPath));
+    if (/\.(?:md|nct)$/.test(rawPath) && sourceSet.has(relativeTarget)) {
+        const targetOutput = outputPathForSource(targetSource);
+        const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
         return relativeUrl(currentOutputDir, targetOutput) + (hash ? `#${hash}` : "#content");
     }
 
-    const targetReadme = path.join(targetMarkdown, "README.md");
+    const targetReadme = path.join(targetSource, "README.md");
     const relativeTargetReadme = normalizePath(path.relative(PROJECT_ROOT, targetReadme));
-    if (fs.existsSync(targetReadme) && markdownSet.has(relativeTargetReadme)) {
-        const targetOutput = outputPathForMarkdown(targetReadme);
-        const currentOutputDir = path.dirname(outputPathForMarkdown(markdownPath));
+    if (fs.existsSync(targetReadme) && sourceSet.has(relativeTargetReadme)) {
+        const targetOutput = outputPathForSource(targetReadme);
+        const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
         return relativeUrl(currentOutputDir, targetOutput) + (hash ? `#${hash}` : "#content");
     }
 
-    if (rawPath.endsWith(".md") && fs.existsSync(targetMarkdown) && !relativeTarget.startsWith("docs/")) {
+    if (/\.(?:md|nct)$/.test(rawPath) && fs.existsSync(targetSource) && !relativeTarget.startsWith("docs/")) {
         return `${SOURCE_ORIGIN}/${relativeTarget}${hash ? `#${hash}` : ""}`;
     }
 
-    if (fs.existsSync(targetMarkdown) && !relativeTarget.startsWith("docs/")) {
+    if (fs.existsSync(targetSource) && !relativeTarget.startsWith("docs/")) {
         return `${SOURCE_ORIGIN}/${relativeTarget}${hash ? `#${hash}` : ""}`;
     }
 
@@ -510,18 +558,18 @@ function resolveAssetUrl(markdownPath, src) {
     }
 
     const target = path.resolve(path.dirname(markdownPath), src);
-    const currentOutputDir = path.dirname(outputPathForMarkdown(markdownPath));
+    const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
     return relativeUrl(currentOutputDir, target);
 }
 
-function outputPathForMarkdown(markdownPath) {
-    const relative = normalizePath(path.relative(PROJECT_ROOT, markdownPath));
+function outputPathForSource(sourcePath) {
+    const relative = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
 
     if (relative === "README.md") {
         return path.join(OUTPUT_ROOT, "index.html");
     }
 
-    if (path.basename(markdownPath) === "README.md") {
+    if (path.basename(sourcePath) === "README.md") {
         return path.join(OUTPUT_ROOT, path.dirname(relative), "index.html");
     }
 
@@ -574,17 +622,33 @@ function stripMarkdown(text) {
         .replace(/\s+/g, " ");
 }
 
-function structuredData(title, description, canonical, outputPath, lastModified) {
+function structuredData(title, description, canonical, outputPath, lastModified, isNocterSource) {
     const isHome = normalizePath(path.relative(OUTPUT_ROOT, outputPath)) === "index.html";
     const schemas = [breadcrumbStructuredData(outputPath)];
 
-    if (isHome) {
+    if (isNocterSource) {
+        schemas.unshift(nocterSourceCodeStructuredData(title, description, canonical));
+    } else if (isHome) {
         schemas.unshift(softwareSourceCodeStructuredData(title, description, canonical));
     } else {
         schemas.unshift(techArticleStructuredData(title, description, canonical, lastModified));
     }
 
     return JSON.stringify(schemas);
+}
+
+function nocterSourceCodeStructuredData(title, description, canonical) {
+    return {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        name: title,
+        description,
+        programmingLanguage: "Nocter",
+        codeRepository: "https://github.com/rvo-jp/nocter/",
+        license: "https://www.apache.org/licenses/LICENSE-2.0",
+        url: canonical,
+        author: siteOrganization()
+    };
 }
 
 function softwareSourceCodeStructuredData(title, description, canonical) {
@@ -670,7 +734,7 @@ function writeRobots() {
 }
 
 function writeSitemap(files) {
-    const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForMarkdown(file))}</loc>\n    <lastmod>${fileLastModifiedDate(file)}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
+    const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(file))}</loc>\n    <lastmod>${fileLastModifiedDate(file)}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
     fs.writeFileSync(path.join(OUTPUT_ROOT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
 }
 

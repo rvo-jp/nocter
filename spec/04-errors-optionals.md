@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 ## Fallible Types
 
-Adopted: failure is represented with fallible types, not exceptions.
+Failure is represented with fallible types, not exceptions.
 
 ```nct
 func open(path: &str): File! {
@@ -25,7 +25,7 @@ T! = fallible T with built-in error
 
 The failure type is not written at each call site. All fallible values use the same failure payload type, `error`.
 
-Initial payload fields:
+Payload fields:
 
 ```text
 code: &str
@@ -44,7 +44,7 @@ Rules:
 - Standard-library constructors such as `Error.new("std.io.not_found", "...")` translate the `ErrorCode` string into the built-in payload's primitive code representation.
 - The compiler must not special-case ordinary names such as `Error`, `ErrorCode`, `IOError`, or `Result`.
 - Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
-- `error.code` and `error.message` are the initial direct user-facing fields for reporting.
+- `error.code` and `error.message` are the direct user-facing fields for reporting.
 - `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
 - `error.message` is a human-readable diagnostic message string.
 - The built-in `error` payload is copyable, non-owning, and carries borrow-like
@@ -65,7 +65,7 @@ func write(file: &+File, text: &str): void! {
 }
 ```
 
-Adopted: postfix `?` unwraps fallible and optional values for propagation.
+Postfix `?` unwraps fallible and optional values for propagation.
 
 ```nct
 let file = File.open(path)?
@@ -95,7 +95,7 @@ Rules:
 - Error conversion is not needed for propagation because every fallible value fails with `error`.
 - `throw` is not part of the language.
 
-Adopted: postfix `!` forcefully unwraps fallible and optional values.
+Postfix `!` forcefully unwraps fallible and optional values.
 
 ```nct
 let file = File.open(path)!
@@ -115,7 +115,7 @@ Rules:
 
 ## Recoverable Failure and Non-Recoverable Termination
 
-Adopted: fallible `return`, `trap`, and `abort` are distinct mechanisms.
+Fallible `return`, `trap`, and `abort` are distinct mechanisms.
 
 ```text
 return error_value = recoverable failure through T!
@@ -135,11 +135,11 @@ Rules:
 - `trap` does not unwind the stack.
 - `abort` has type `never`.
 - `abort` terminates the process immediately and does not run Nocter cleanup.
-- `panic` is not a language feature in v0.2.0.
-- Stack unwinding is not part of v0.2.0.
+- `panic` is not a language feature.
+- Nocter does not perform stack unwinding.
 - Build modes must not disable these trap checks; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 
-Adopted: `catch` handles the failure side of a fallible expression.
+`catch` handles the failure side of a fallible expression.
 
 ```nct
 let file = File.open(path) catch error {
@@ -160,7 +160,7 @@ Rules:
 - The catch binding has type `error`.
 - The binding name after `catch` is an ordinary local name. `catch error` is conventional, but `catch err` is also valid.
 - The catch block is evaluated only on failure.
-- The catch block must not fall through in the initial design.
+- The catch block must not fall through.
 - The catch block must leave the current control path with `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
 - The catch block has no trailing expression result.
 - `catch` is not exception handling.
@@ -190,9 +190,9 @@ func read_all(
 }
 ```
 
-`map_error` is not part of the initial language design. It may be considered later as an ordinary standard-library API, but the compiler does not special-case that name.
+`map_error` is not a language operation. It may be provided as an ordinary standard-library API in the future, but the compiler does not special-case that name.
 
-Fallible values are not pattern matched in the initial design.
+Fallible values are not pattern matched.
 
 Rules:
 
@@ -204,7 +204,7 @@ Rules:
 
 ## Optional Types
 
-Adopted: optional values use the type syntax `T?`.
+Optional values use the type syntax `T?`.
 
 ```text
 T? = optional T
@@ -231,16 +231,13 @@ Rules:
 - A compatible function body result or `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - Postfix `?` on `T?` propagates `none` through the current optional return layer.
-- `match` does not apply to `T?` in the initial design.
-- `if expr is Pattern` does not apply to `T?` in the initial design.
-- `some(value)` is not part of the initial language.
+- `match` and `if expr is Pattern` do not apply to `T?`.
+- `some(value)` is not language syntax.
 - `some` is not a reserved keyword.
 
 ## Composing Optionals and Fallible Types
 
-Adopted: optional and fallible type constructors may be composed explicitly.
-
-Nocter v0.3.0 implements fallible-optional callable returns and immediate consumers.
+Optional and fallible type constructors may be composed explicitly.
 
 Preferred source spelling:
 
@@ -264,7 +261,7 @@ Rules:
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
 - `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
-- Other mixed forms must use parentheses in v0.2.0.
+- Other mixed forms must use parentheses.
 - `(T!)?` means an optional fallible value.
 
 Example:
@@ -304,7 +301,7 @@ let home = env("HOME") catch error {
 
 ### Optional Propagation
 
-Adopted: postfix `?` propagates optional absence.
+Postfix `?` propagates optional absence.
 
 When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`, the current function returns `none` through its optional return layer.
 
@@ -327,7 +324,7 @@ Rules:
 
 ### Optional Otherwise Expressions
 
-Adopted: optional fallback uses `otherwise`.
+Optional fallback uses `otherwise`.
 
 ```nct
 let home = lookup("HOME") otherwise { "/tmp" }
@@ -364,7 +361,7 @@ let port = env_int("PORT") otherwise {
 
 ### Optional and Fallible Pattern Branching
 
-Adopted: `is` is reserved for enum variants only.
+`is` is reserved for enum variants only.
 
 Rules:
 
@@ -380,4 +377,4 @@ Rules:
 
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
 - Optional values are not automatically iterable.
-- Collection iteration helpers may return `T?`, but v0.2.0 does not introduce a dedicated optional loop syntax.
+- Collection iteration helpers may return `T?`, but there is no dedicated optional-loop syntax.

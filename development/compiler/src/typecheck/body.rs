@@ -69,6 +69,17 @@ pub(super) fn check_body_expressions(
                     0,
                 );
             }
+            Item::Test(test) => {
+                let mut environment = TypeEnvironment::default();
+                check_block_expressions(
+                    sources,
+                    &test.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    0,
+                );
+            }
             Item::Impl(impl_) => {
                 check_impl_member_expressions(sources, impl_, resolved, diagnostics);
             }

@@ -31,8 +31,7 @@ pub(super) fn package_entry_definition(
         return None;
     }
     let package_file = parse_package_file(&sources, source, &lexed.tokens).package_file?;
-    let (entry, origin) =
-        crate::package::executable_entry_at_offset(&package_file.manifest, offset)?;
+    let (entry, origin) = crate::package::target_entry_at_offset(&package_file.manifest, offset)?;
 
     let target = crate::package::resolve_explicit_module_path(root, entry).ok()?;
     Some(json!([{

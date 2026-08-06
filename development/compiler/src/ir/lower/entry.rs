@@ -23,15 +23,42 @@ use super::functions::{
     reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
 use super::types::{return_type_expr_has_optional_layer, return_type_from_type_expr};
-use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
+use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TestDecl, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
 
+#[cfg(test)]
 pub(super) fn lower_entry_function(
     function: &FunctionDecl,
+    sources: &SourceMap,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    resolved_sources: ResolvedSources<'_>,
+    error_payloads: ErrorPayloads,
+) -> Result<Function, Vec<Diagnostic>> {
+    lower_entry_function_with_target(
+        function,
+        CallTarget::same_file(function.name.clone()),
+        sources,
+        function_signatures,
+        function_names,
+        root_source,
+        resolved,
+        typecheck_facts,
+        resolved_sources,
+        error_payloads,
+    )
+}
+
+pub(super) fn lower_entry_function_with_target(
+    function: &FunctionDecl,
+    target: CallTarget,
     sources: &SourceMap,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -53,12 +80,77 @@ pub(super) fn lower_entry_function(
         ));
     }
 
+    lower_entry_parts(
+        &function.name,
+        function.span,
+        &function.return_type,
+        &function.body,
+        target,
+        sources,
+        function_signatures,
+        function_names,
+        root_source,
+        resolved,
+        typecheck_facts,
+        resolved_sources,
+        error_payloads,
+    )
+}
+
+pub(super) fn lower_test_entry_function(
+    test: &TestDecl,
+    target: CallTarget,
+    sources: &SourceMap,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    resolved_sources: ResolvedSources<'_>,
+    error_payloads: ErrorPayloads,
+) -> Result<Function, Vec<Diagnostic>> {
+    let return_type = test.return_type();
+    lower_entry_parts(
+        &test.name,
+        test.span,
+        &return_type,
+        &test.body,
+        target,
+        sources,
+        function_signatures,
+        function_names,
+        root_source,
+        resolved,
+        typecheck_facts,
+        resolved_sources,
+        error_payloads,
+    )
+}
+
+fn lower_entry_parts(
+    name: &str,
+    declaration_span: ByteSpan,
+    return_type_expr: &TypeExpr,
+    body: &Block,
+    target: CallTarget,
+    sources: &SourceMap,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    resolved_sources: ResolvedSources<'_>,
+    error_payloads: ErrorPayloads,
+) -> Result<Function, Vec<Diagnostic>> {
     let return_type =
-        lower_entry_return_type(&function.return_type, resolved).map_err(|diagnostics| {
-            attach_primary_span_if_absent(diagnostics, sources, function.return_type.span())
+        lower_entry_return_type(return_type_expr, resolved).map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, return_type_expr.span())
         })?;
     let instructions = lower_entry_body(
-        function,
+        name,
+        declaration_span,
+        return_type_expr,
+        body,
         &return_type,
         sources,
         function_signatures,
@@ -71,8 +163,8 @@ pub(super) fn lower_entry_function(
     )?;
 
     Ok(Function {
-        name: function.name.clone(),
-        target: CallTarget::same_file(function.name.clone()),
+        name: name.to_string(),
+        target,
         return_type,
         instructions,
     })
@@ -108,7 +200,10 @@ fn unsupported_entry_return_type_diagnostic() -> Vec<Diagnostic> {
 }
 
 fn lower_entry_body(
-    function: &FunctionDecl,
+    name: &str,
+    declaration_span: ByteSpan,
+    return_type_expr: &TypeExpr,
+    body: &Block,
     return_type: &Type,
     sources: &SourceMap,
     function_signatures: FunctionSignatures,
@@ -120,39 +215,33 @@ fn lower_entry_body(
     error_payloads: ErrorPayloads,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
-    let original_statements = function.body.statements.as_slice();
+    let original_statements = body.statements.as_slice();
 
     if original_statements.iter().all(statement_is_import)
-        && function.body.result.is_none()
+        && body.result.is_none()
         && *success_type == Type::Void
     {
         return Ok(vec![success_return_instruction(return_type)]);
     }
 
-    let mut context = LoweringContext::empty(
-        function.name.clone(),
-        success_type.clone(),
-        function_signatures,
-    )
-    .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(return_type_expr_has_optional_layer(
-        &function.return_type,
-        resolved,
-    ))
-    .with_call_resolution(
-        root_source,
-        resolved,
-        typecheck_facts,
-        function_names,
-        resolved_sources,
-    )
-    .with_error_payloads(error_payloads);
+    let mut context =
+        LoweringContext::empty(name.to_string(), success_type.clone(), function_signatures)
+            .with_function_return_type(return_type.clone())
+            .with_function_returns_optional(return_type_expr_has_optional_layer(
+                return_type_expr,
+                resolved,
+            ))
+            .with_call_resolution(
+                root_source,
+                resolved,
+                typecheck_facts,
+                function_names,
+                resolved_sources,
+            )
+            .with_error_payloads(error_payloads);
 
-    let (statements, body_result) = reachable_body_prefix(
-        original_statements,
-        function.body.result.as_deref(),
-        &context,
-    );
+    let (statements, body_result) =
+        reachable_body_prefix(original_statements, body.result.as_deref(), &context);
 
     if let Some(result) = body_result {
         let mut instructions = lower_leading_bindings(statements, &mut context, sources)?;
@@ -184,7 +273,7 @@ fn lower_entry_body(
         return Err(attach_primary_span_if_absent(
             unsupported_entry_body_diagnostic(),
             sources,
-            function.body.span,
+            declaration_span,
         ));
     };
 

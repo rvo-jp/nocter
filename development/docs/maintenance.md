@@ -19,32 +19,13 @@ responsibility naturally explains it.
 
 ## Sources of Truth
 
-| Information | Owner |
-|---|---|
-| Language and public standard-library semantics | `spec/` |
-| Current release completion and qualification | `docs/v0.4.0.md` |
-| Previous v0.3.0 completion record | `docs/v0.3.0.md` |
-| Previous v0.2.0 completion record | `docs/v0.2.0.md` |
-| Compiler phase boundaries | `docs/architecture.md` |
-| Region, provenance, and allocation-context design | `docs/region-provenance.md` |
-| Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
-| Explicit iteration and collection access design | `docs/iteration.md` |
-| Owned interpolation and formatting design | `docs/interpolation.md` |
-| Capability sets, conditional conformance, adapters, and collection builders | `docs/iterator-composition.md` |
-| Callable values, interface default methods, and iterator chains | `docs/callable-default-methods.md` |
-| Construction declarations, defaults, and editor construction surfaces | `docs/construction-surfaces.md` |
-| Distributed standard-library implementation | `docs/standard-library.md` |
-| LSP capabilities and analysis design | `docs/lsp.md` |
-| Next task and handoff facts | `TODO.md` |
-| Historical sequence | Git history |
-
-Do not keep the same status table in multiple documents. Keep current release qualification only
-in `v0.4.0.md`; focused documents own design and concrete acceptance behavior. `v0.3.0.md` and
-`v0.2.0.md` are historical release records and do not receive new work items.
+The single ownership map lives in the [implementation documentation index](README.md#information-ownership).
+Do not reproduce that table or candidate status in maintenance policy.
 
 ## Update Triggers
 
-- Current release status, non-goal, or qualification changed: update `v0.4.0.md`.
+- Candidate scope, qualification, non-goal, or publication state changed: update the matching file
+  under `../milestones/`.
 - Region, provenance, allocation-effect, or callable-summary design changed: update
   `region-provenance.md`.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.
@@ -54,13 +35,18 @@ in `v0.4.0.md`; focused documents own design and concrete acceptance behavior. `
   update `iterator-composition.md`.
 - Method-generic, default-method, closure, callable specialization, or chain API design changed:
   update `callable-default-methods.md`.
-- Construction member grammar, default selection, or type-owned creation presentation changed:
-  update `construction-surfaces.md`.
+- Construction lowering, default-selection model, or editor projection changed: update
+  `construction-surfaces.md`.
 - Interpolation runtime binding, evaluation, formatting, or cleanup changed: update
   `interpolation.md`.
-- Runtime behavior in tracked `development/std` changed: update `standard-library.md`.
+- Runtime representation, primitive binding, or ownership invariant in tracked `development/std`
+  changed: update `standard-library.md`.
 - Editor-facing capability or analysis API changed: update `lsp.md`.
 - Next concrete task, blocker, or uncommitted state changed: update `TODO.md`.
+
+If source behavior or a public API changes, update the owning specification chapter. Development
+documents may explain how the compiler implements that rule but must not restate the rule as a
+second contract.
 
 Do not append command logs, commit lists, or a chronology of completed items. Replace only the facts
 needed for current decisions.

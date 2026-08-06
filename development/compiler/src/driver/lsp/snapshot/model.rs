@@ -1,6 +1,7 @@
 use super::super::analysis::LspWorkspaceAnalysis;
 use super::super::diagnostics::LspDiagnostic;
 use super::super::documents::{OpenDocument, WorkspaceRoot};
+use crate::analysis::package_index::PackageSemanticIndex;
 use crate::diagnostics::Diagnostic;
 use crate::package::PackageGraph;
 use std::collections::{HashMap, HashSet};
@@ -13,6 +14,7 @@ pub(in crate::driver::lsp) struct LspSnapshot {
     documents: HashMap<String, OpenDocument>,
     document_analyses: HashMap<String, DocumentSnapshot>,
     packages: HashMap<PathBuf, PackageSnapshot>,
+    package_indexes: HashMap<PathBuf, Arc<PackageSemanticIndex>>,
     diagnostics: HashMap<String, Vec<LspDiagnostic>>,
 }
 
@@ -52,6 +54,13 @@ impl LspSnapshot {
         self.packages.get(root)?.graph.as_deref()
     }
 
+    pub(in crate::driver::lsp) fn package_index(&self, uri: &str) -> Option<&PackageSemanticIndex> {
+        let root = self.package_root(uri)?;
+        let index = self.package_indexes.get(root).map(AsRef::as_ref)?;
+        debug_assert_eq!(index.generation(), self.generation);
+        Some(index)
+    }
+
     pub(in crate::driver::lsp) fn document_uris(&self) -> Vec<&str> {
         let mut uris = self
             .documents
@@ -80,6 +89,7 @@ impl LspSnapshot {
         documents: HashMap<String, OpenDocument>,
         document_analyses: HashMap<String, DocumentSnapshot>,
         packages: HashMap<PathBuf, PackageSnapshot>,
+        package_indexes: HashMap<PathBuf, Arc<PackageSemanticIndex>>,
         diagnostics: HashMap<String, Vec<LspDiagnostic>>,
     ) -> Self {
         Self {
@@ -88,6 +98,7 @@ impl LspSnapshot {
             documents,
             document_analyses,
             packages,
+            package_indexes,
             diagnostics,
         }
     }

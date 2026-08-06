@@ -32,14 +32,23 @@ impl Parser<'_> {
 
     fn at_package_directive_start(&self) -> bool {
         self.at_punctuation("#")
-            && self
+            && (self
                 .identifier_text_at_offset(1)
                 .is_some_and(|name| name != "target")
+                || self.token_at_offset_is_keyword(1, Keyword::Test))
     }
 
     fn parse_package_directive(&mut self) -> ParseResult<PackageDirective> {
         let start = self.expect_punctuation("#", "`#`")?;
-        let name = self.expect_identifier("expected package directive name after `#`")?;
+        let name = if self.at_keyword(Keyword::Test) {
+            let token = self.bump();
+            ParsedIdentifier {
+                span: token.span,
+                value: "test".to_string(),
+            }
+        } else {
+            self.expect_identifier("expected package directive name after `#`")?
+        };
         self.expect_punctuation(":", "`:` after package directive name")?;
         let value = self.parse_directive_value()?;
         Ok(PackageDirective {

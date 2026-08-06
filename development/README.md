@@ -1,18 +1,13 @@
-# Nocter Development
+# Contributor Documentation
 
-This directory contains the Rust bootstrap compiler, the distributed standard library, release
-packaging inputs, and implementation documentation. See the [repository README](../README.md) for
-the public overview and the [specification](../spec/README.md) for language rules.
+This directory is the entry point for compiler contributors. It contains the Rust bootstrap
+compiler, distributed standard-library source, release packaging inputs, implementation design,
+milestone records, and release qualification evidence. See the [repository README](../README.md)
+for the product overview and the [specification](../spec/README.md) for public language behavior.
 
-The current release is **Nocter v0.4.0**. It adds source-native package roots, deterministic exact
-dependency graphs, and immutable package-wide LSP snapshots to the v0.3.0 language foundation.
-The completed Phase 0 through Phase 2 contracts, stabilization audit, qualification, and non-goals
-are recorded in the [v0.4.0 Release Record](docs/v0.4.0.md), with compiler boundaries in
-[Packages, Dependencies, and Locks](docs/packages.md) and
-[Immutable LSP Snapshots](docs/lsp-snapshots.md).
-
-The previous language milestone remains available in the [v0.3.0 release record](docs/v0.3.0.md),
-and the v0.2.0 criteria remain in the [v0.2.0 release record](docs/v0.2.0.md).
+The [current handoff](TODO.md) owns the next concrete task. The [active milestone
+record](milestones/README.md) owns candidate scope and qualification. Do not copy either state into
+this entry point.
 
 ## Quick Start
 
@@ -28,11 +23,21 @@ To verify only the compiler:
 cargo test --manifest-path development/compiler/Cargo.toml
 ```
 
+The development and test profiles retain source line tables but disable incremental compilation
+and macOS split debug objects. This is intentional: the compiler's large test crate otherwise
+leaves hundreds of thousands of unpacked object files and can grow `development/compiler/target/`
+by tens of gigabytes. To discard local compiler artifacts manually, run:
+
+```sh
+cargo clean --manifest-path development/compiler/Cargo.toml -p nocter
+```
+
 To build and run a repository-local distribution:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter run example.nct
+./dist/.nocter/nocter check --root examples/hello
+./dist/.nocter/nocter run --root examples/hello
 ```
 
 The canonical standard-library source is tracked in `development/std/`, and release metadata lives
@@ -45,12 +50,11 @@ external runtime library, or the Xcode Command Line Tools.
 
 ## Documents
 
-- [Documentation Index](docs/README.md)
-- [v0.4.0 Release Record](docs/v0.4.0.md)
+- [Implementation Documentation](docs/README.md)
+- [Active Milestones](milestones/README.md)
+- [Release Qualification Records](releases/README.md)
 - [Packages, Dependencies, and Locks](docs/packages.md)
 - [Immutable LSP Snapshots](docs/lsp-snapshots.md)
-- [v0.3.0 Release Record](docs/v0.3.0.md)
-- [v0.2.0 Release Record](docs/v0.2.0.md)
 - [Compiler Architecture](docs/architecture.md)
 - [Region, Provenance, and Allocation Context](docs/region-provenance.md)
 - [Typed Literal Core](docs/typed-literals.md)
@@ -63,6 +67,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)
+- [Documentation Site Generation](docs/site-generation.md)
 - [Maintenance](docs/maintenance.md)
 - [Internal Handoff](TODO.md)
 
@@ -79,7 +84,9 @@ development/
 │   ├── src/
 │   └── tests/
 ├── docs/
+├── milestones/
 ├── packaging/
+├── releases/
 └── std/
 ```
 
@@ -87,4 +94,6 @@ development/
 - `compiler/tests`: CLI, runtime, distributed-home, LSP, and corpus integration tests
 - `std`: canonical source for the packaged standard library
 - `packaging`: release metadata copied into generated homes
-- `docs`: current design and acceptance documents; Git retains history
+- `docs`: compiler and standard-library implementation design
+- `milestones`: active candidate scope, completion criteria, and qualification
+- `releases`: frozen compiler-developer qualification records

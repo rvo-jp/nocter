@@ -27,6 +27,19 @@ pub(in crate::typecheck) fn check_ownership_states(
                     &mut ownership,
                 );
             }
+            Item::Test(test) => {
+                let mut environment = TypeEnvironment::default();
+                let mut ownership = OwnershipState::default();
+                check_block_ownership(
+                    sources,
+                    &test.body,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    &mut environment,
+                    &mut ownership,
+                );
+            }
             Item::Impl(impl_) => {
                 check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
             }

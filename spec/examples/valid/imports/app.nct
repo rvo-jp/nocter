@@ -1,5 +1,0 @@
-use ./config.answer
-
-func main(): i32 {
-    return answer()
-}

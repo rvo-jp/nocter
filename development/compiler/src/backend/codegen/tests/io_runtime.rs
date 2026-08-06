@@ -10,6 +10,8 @@ fn open_read_uses_open_syscall() {
             Instruction::OpenRead {
                 destination: I32Location::Return,
                 path: UsizeValue::Const(4096),
+                flags: UsizeValue::Const(0),
+                mode: UsizeValue::Const(0),
                 failure_mode: OutcomeFailureMode::Trap,
             },
             Instruction::ReturnOutcomeSuccess,

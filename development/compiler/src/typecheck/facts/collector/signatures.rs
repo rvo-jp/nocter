@@ -13,7 +13,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) => None,
+            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -26,7 +26,7 @@ impl TypecheckFactCollector<'_> {
 
     fn collect_item_signature_type_references_in_scope(&mut self, item: &Item) {
         match item {
-            Item::Import(_) | Item::FromImport(_) => {}
+            Item::Import(_) | Item::FromImport(_) | Item::Test(_) => {}
             Item::Function(function) => {
                 if let Some(owner) = &function.owner {
                     self.record_type_reference(

@@ -1,0 +1,64 @@
+//! Owned UTF-8 filesystem paths.
+//!
+//! Darwin permits non-UTF-8 path bytes. This type deliberately promises UTF-8
+//! instead of misrepresenting every platform path as text.
+
+use std/error.Error
+use std/string.{String, bytes}
+
+pub struct Utf8Path {
+    text: String
+}
+
+construct Utf8Path {
+    pub default func new(value: &str): Self! {
+        validate(value)?
+        return Utf8Path { text: String.copy(value) }
+    }
+}
+
+pub func from_str(value: &str): Utf8Path! {
+    return Utf8Path.new(value)?
+}
+
+pub func view(path: &Utf8Path): &str {
+    return path.text.view()
+}
+
+pub func is_absolute(path: &Utf8Path): bool {
+    let value: &str = path.text.view()
+    return value.len() != 0 && bytes(value)[0] == 47
+}
+
+pub func join(path: &Utf8Path, child: &str): Utf8Path! {
+    validate(child)?
+    if child.len() != 0 && bytes(child)[0] == 47 {
+        return Utf8Path.new(child)?
+    }
+    var result = String.copy(path.text.view())
+    if result.len() != 0 && !result.ends_with("/") {
+        result.push_str("/")
+    }
+    result.push_str(child)
+    return Utf8Path { text: move result }
+}
+
+pub func validate(value: &str): void! {
+    let raw = bytes(value)
+    var offset: usize = 0
+    while offset < raw.len() {
+        if raw[offset] == 0 { return invalid_path() }
+        offset = offset + 1
+    }
+    return
+}
+
+pub func invalid_path(): error {
+    return Error.new("std.path.invalid_path", "UTF-8 path contains a NUL byte")
+}
+
+impl Utf8Path {
+    pub method &self.view(): &str { return view(self) }
+    pub method &self.is_absolute(): bool { return is_absolute(self) }
+    pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
+}

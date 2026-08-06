@@ -1,0 +1,4 @@
+// The entry function is fixed to `main` in the selected executable module.
+func main(): i32 {
+    return 0
+}

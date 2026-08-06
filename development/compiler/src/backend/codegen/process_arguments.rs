@@ -30,9 +30,15 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
                 || failure_mode_uses_process_arguments(failure_mode)
         }
         Instruction::OpenRead {
-            path, failure_mode, ..
+            path,
+            flags,
+            mode,
+            failure_mode,
+            ..
         } => {
             usize_value_uses_process_arguments(path)
+                || usize_value_uses_process_arguments(flags)
+                || usize_value_uses_process_arguments(mode)
                 || failure_mode_uses_process_arguments(failure_mode)
         }
         Instruction::CloseFd { fd } | Instruction::ProcessExit { code: fd } => {

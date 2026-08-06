@@ -6,7 +6,7 @@ mod output;
 
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
-use crate::ir::lower_executable;
+use crate::ir::{lower_executable, lower_test};
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use crate::target::macho::{ExecutableImage, write_arm64_macos_executable_with_data};
@@ -22,6 +22,20 @@ pub(crate) struct BuildRequest<'a> {
 }
 
 pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diagnostic>> {
+    build_process(request, None)
+}
+
+pub(crate) fn build_test(
+    request: BuildRequest<'_>,
+    test: &crate::test_entry::TestDeclarationId,
+) -> Result<(), Vec<Diagnostic>> {
+    build_process(request, Some(test))
+}
+
+fn build_process(
+    request: BuildRequest<'_>,
+    test: Option<&crate::test_entry::TestDeclarationId>,
+) -> Result<(), Vec<Diagnostic>> {
     let BuildRequest {
         analysis,
         sources,
@@ -36,7 +50,10 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         )]);
     }
 
-    let ir = lower_executable(analysis, sources)?;
+    let ir = match test {
+        Some(test) => lower_test(analysis, sources, test)?,
+        None => lower_executable(analysis, sources)?,
+    };
     let machine_code = generate_arm64_darwin_entry(&ir)?;
     let executable_image: ExecutableImage =
         write_arm64_macos_executable_with_data(&machine_code.text, &machine_code.read_only_data);

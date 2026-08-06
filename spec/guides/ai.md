@@ -28,7 +28,8 @@ Rules for generated code:
 - Use 4 spaces for indentation.
 - Do not write semicolons.
 - Prefer `func main(): i32!` for executable roots.
-- Treat `main` as an ordinary function name that v0.2.0 fixes as the executable entry point, not as a keyword or built-in.
+- Treat `main` as the ordinary function name selected by an executable target, not as a keyword or
+  built-in.
 - Write fallible types as `T!`.
 - Write fallible optional success values as `T?!`.
 - Use `let` for immutable bindings and `var` for mutable bindings.
@@ -52,7 +53,7 @@ use ./config.Config
 Rules:
 
 - User project modules receive a compiler-managed synthetic standard prelude.
-- Do not write `use std/prelude` in generated user code; source-level prelude imports are invalid in v0.2.0.
+- Do not write `use std/prelude` in generated user code; source-level prelude imports are invalid.
 - Files inside the active Nocter home `std/` tree do not receive the synthetic prelude.
 - `use path` imports a module namespace using the path's default name.
 - `use path.Name` imports selected public names.
@@ -88,7 +89,7 @@ Rules:
 - `expr?` on `T!` extracts `T` on success and propagates the same `error` on failure.
 - `expr catch error { ... }` extracts `T` on success and runs the `catch` block on failure.
 - The `catch` binding name is ordinary. `error` is conventional, but `err` is valid.
-- A `catch` block must not fall through in v0.2.0.
+- A `catch` block must not fall through.
 - In a function returning `T!`, `return expr` is a failure return when `expr` has type `error`.
 - `try`, `throw`, `Result<T, E>`, `ok`, and failure patterns are not part of fallible handling.
 
@@ -227,7 +228,7 @@ func main(): i32! {
 
 AI tools should interact with the compiler instead of reimplementing Nocter semantics.
 
-Reserved and planned commands:
+Compiler commands:
 
 ```sh
 nocter check app.nct --format json
@@ -257,14 +258,8 @@ Rules:
 - `ast --format json` is the source of parser structure and attached documentation text.
 - AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root `main` entry rule.
 
-## Example Corpus
+## Examples
 
-Use examples as training and repair references:
-
-```text
-spec/examples/valid/
-spec/examples/invalid/
-```
-
-Valid examples should be formatter-ready Nocter code.
-Invalid examples should contain one intended error pattern and a short comment explaining it.
+Use the complete packages under the repository-root [examples directory](../../examples/README.md)
+as generation references. They demonstrate canonical source that can be checked and run. Invalid
+compiler fixtures are development inputs, not user examples or an alternate language contract.

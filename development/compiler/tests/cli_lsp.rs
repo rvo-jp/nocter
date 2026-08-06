@@ -725,6 +725,747 @@ fn lsp_command_serves_v0_editor_features() {
 }
 
 #[test]
+fn lsp_references_include_closed_declared_target_modules() {
+    let project = TempProject::new("cli-lsp-package-references");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: { name: "app", entry: "./app" }
+#executable: { name: "other", entry: "./other" }
+"#,
+    );
+    let app_text = "use ./lib.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
+    let app = project.write_source("app.nct", app_text);
+    let other = project.write_source(
+        "other.nct",
+        "use ./lib.answer\n\nfunc main(): i32 { return answer() }\n",
+    );
+    project.write_source("lib.nct", "pub func answer(): i32 { return 42 }\n");
+    let app_uri = file_uri(&app);
+    let other_uri = file_uri(&other.canonicalize().unwrap());
+    let root_uri = file_uri(project.root());
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": root_uri }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": app_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/references",
+                "params": {
+                    "textDocument": { "uri": app_uri },
+                    "position": { "line": 3, "character": 12 },
+                    "context": { "includeDeclaration": true }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let references = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected reference locations");
+    assert!(
+        references
+            .iter()
+            .any(|reference| reference["uri"] == other_uri),
+        "closed target reference missing: {references:#?}"
+    );
+}
+
+#[test]
+fn lsp_rename_plans_versioned_package_wide_edits() {
+    let project = TempProject::new("cli-lsp-package-rename");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: { name: "app", entry: "./app" }
+#executable: { name: "other", entry: "./other" }
+"#,
+    );
+    let app_text = "use ./lib.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
+    let app = project.write_source("app.nct", app_text);
+    let other = project.write_source(
+        "other.nct",
+        "use ./lib.answer\n\nfunc main(): i32 { return answer() }\n",
+    );
+    project.write_source(
+        "lib.nct",
+        "pub func answer(): i32 { return 42 }\npub func replacement(): i32 { return 0 }\n",
+    );
+    let app_uri = file_uri(&app);
+    let other_uri = file_uri(&other.canonicalize().unwrap());
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": file_uri(project.root()) }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 9,
+                        "text": app_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/prepareRename",
+                "params": {
+                    "textDocument": { "uri": app_uri.clone() },
+                    "position": { "line": 3, "character": 12 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/rename",
+                "params": {
+                    "textDocument": { "uri": app_uri.clone() },
+                    "position": { "line": 3, "character": 12 },
+                    "newName": "renamed"
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/rename",
+                "params": {
+                    "textDocument": { "uri": app_uri.clone() },
+                    "position": { "line": 3, "character": 12 },
+                    "newName": "replacement"
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/rename",
+                "params": {
+                    "textDocument": { "uri": app_uri },
+                    "position": { "line": 3, "character": 12 },
+                    "newName": "func"
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let prepared = &response_with_id(&messages, 2)["result"];
+    assert_eq!(prepared["placeholder"], "answer");
+    assert_eq!(prepared["range"]["start"]["line"], 3);
+    assert_eq!(prepared["range"]["start"]["character"], 11);
+
+    let changes = response_with_id(&messages, 3)["result"]["documentChanges"]
+        .as_array()
+        .expect("expected package-wide document changes");
+    assert_eq!(changes.len(), 3, "changes: {changes:#?}");
+    let open_change = changes
+        .iter()
+        .find(|change| change["textDocument"]["uri"] == file_uri(&app))
+        .expect("expected open app edits");
+    assert_eq!(open_change["textDocument"]["version"], 9);
+    assert_eq!(open_change["edits"].as_array().unwrap().len(), 2);
+    let closed_change = changes
+        .iter()
+        .find(|change| change["textDocument"]["uri"] == other_uri)
+        .expect("expected closed target edits");
+    assert_eq!(closed_change["textDocument"]["version"], Value::Null);
+    assert_eq!(closed_change["edits"].as_array().unwrap().len(), 2);
+    assert!(changes.iter().all(|change| {
+        change["edits"]
+            .as_array()
+            .is_some_and(|edits| edits.iter().all(|edit| edit["newText"] == "renamed"))
+    }));
+
+    assert_eq!(response_with_id(&messages, 4)["result"], Value::Null);
+    assert_eq!(response_with_id(&messages, 5)["result"], Value::Null);
+}
+
+#[test]
+fn lsp_rename_never_edits_dependency_owned_declarations() {
+    let project = TempProject::new("cli-lsp-dependency-rename");
+    project.write_source(
+        "nocter.nct",
+        r#"#dependencies: { math: { path: "./packages/math" } }
+#executable: { name: "app", entry: "./app" }
+"#,
+    );
+    fs::create_dir_all(project.root().join("packages/math")).unwrap();
+    project.write_source(
+        "packages/math/nocter.nct",
+        "pub func answer(): i32 { return 42 }\n",
+    );
+    let app_text = "use math.answer\n\nfunc main(): i32 { return answer() }\n";
+    let app = project.write_source("app.nct", app_text);
+    let app_uri = file_uri(&app);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": file_uri(project.root()) }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": app_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/prepareRename",
+                "params": {
+                    "textDocument": { "uri": app_uri.clone() },
+                    "position": { "line": 2, "character": 27 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/rename",
+                "params": {
+                    "textDocument": { "uri": app_uri },
+                    "position": { "line": 2, "character": 27 },
+                    "newName": "renamed"
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    assert_eq!(response_with_id(&messages, 2)["result"], Value::Null);
+    assert_eq!(response_with_id(&messages, 3)["result"], Value::Null);
+}
+
+#[test]
+fn lsp_completion_adds_imports_from_reachable_public_exports() {
+    let project = TempProject::new("cli-lsp-auto-import");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: { name: "app", entry: "./app" }
+#executable: { name: "catalog", entry: "./catalog" }
+"#,
+    );
+    let app_text = "/// Runs.\nfunc main(): i32 {\n    return ans\n}\n";
+    let app = project.write_source("app.nct", app_text);
+    project.write_source(
+        "catalog.nct",
+        "use ./lib.answer\nfunc catalog(): i32 { return answer() }\n",
+    );
+    project.write_source(
+        "lib.nct",
+        "pub func answer(): i32 { return 42 }\nfunc hidden(): i32 { return 0 }\n",
+    );
+    project.write_source(
+        "unused.nct",
+        "pub func answer_from_unreachable_file(): i32 { return 0 }\n",
+    );
+    let app_uri = file_uri(&app);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": file_uri(project.root()) }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": app_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": app_uri },
+                    "position": { "line": 2, "character": 14 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let items = response_with_id(&messages, 2)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let answer = completion_item_with_label(items, "answer").expect("expected auto import");
+    assert_eq!(answer["detail"], "auto import from /lib");
+    assert_eq!(
+        answer["additionalTextEdits"][0]["newText"],
+        "use /lib.answer\n\n"
+    );
+    assert_eq!(
+        answer["additionalTextEdits"][0]["range"]["start"]["line"],
+        0
+    );
+    assert!(completion_item_with_label(items, "hidden").is_none());
+    assert!(completion_item_with_label(items, "answer_from_unreachable_file").is_none());
+}
+
+#[test]
+fn lsp_code_actions_share_import_interface_and_outcome_edit_planners() {
+    let project = TempProject::new("cli-lsp-code-actions");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: { name: "app", entry: "./app" }
+#executable: { name: "catalog", entry: "./catalog" }
+"#,
+    );
+    let app_text = r#"interface Printable {
+    pub method &self.print(): i32
+}
+
+struct User { id: i32 }
+
+impl Printable for User {}
+
+func run(): i32 {
+    return fallible()?
+}
+
+func fallible(): i32! {
+    return 1
+}
+
+func main(): i32 {
+    return external()
+}
+"#;
+    let app = project.write_source("app.nct", app_text);
+    project.write_source(
+        "catalog.nct",
+        "use ./lib.external\nfunc catalog(): i32 { return external() }\n",
+    );
+    project.write_source("lib.nct", "pub func external(): i32 { return 42 }\n");
+    let app_uri = file_uri(&app);
+    let external = app_text.rfind("external").unwrap();
+    let impl_target = app_text.find("for User").unwrap() + 4;
+    let propagation = app_text.find("fallible()?").unwrap() + "fallible()".len();
+    let external_position = lsp_position_for_ascii_byte_offset(app_text, external);
+    let impl_position = lsp_position_for_ascii_byte_offset(app_text, impl_target);
+    let propagation_position = lsp_position_for_ascii_byte_offset(app_text, propagation);
+
+    let action_request = |id, position: (usize, usize)| {
+        json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": app_uri.clone() },
+                "range": {
+                    "start": { "line": position.0, "character": position.1 },
+                    "end": { "line": position.0, "character": position.1 + 1 }
+                },
+                "context": { "diagnostics": [] }
+            }
+        })
+    };
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": file_uri(project.root()) }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 3,
+                        "text": app_text
+                    }
+                }
+            }),
+            action_request(2, external_position),
+            action_request(3, impl_position),
+            action_request(4, propagation_position),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let import_actions = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected import actions");
+    assert_eq!(import_actions.len(), 1, "{import_actions:#?}");
+    assert_eq!(
+        import_actions[0]["edit"]["documentChanges"][0]["edits"][0]["newText"],
+        "use /lib.external\n\n"
+    );
+
+    let interface_actions = response_with_id(&messages, 3)["result"]
+        .as_array()
+        .expect("expected interface actions");
+    let member_text = interface_actions[0]["edit"]["documentChanges"][0]["edits"][0]["newText"]
+        .as_str()
+        .unwrap();
+    assert!(member_text.contains("method &self.print(): i32"));
+    assert!(member_text.contains("loop {}"));
+
+    let outcome_actions = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected outcome actions");
+    assert_eq!(
+        outcome_actions[0]["edit"]["documentChanges"][0]["edits"][0]["newText"],
+        "!"
+    );
+}
+
+#[test]
+fn lsp_inlay_hints_publish_inferred_types_from_snapshot_facts() {
+    let project = TempProject::new("cli-lsp-inlay-hints");
+    let source_text = "func main(): i32 {\n    let value = 42\n    return value\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/inlayHint",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": 4, "character": 0 }
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hints = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected inlay hints");
+    let type_hint = hints
+        .iter()
+        .find(|hint| hint["label"] == ": i32")
+        .expect("expected inferred binding type");
+    assert_eq!(type_hint["kind"], 1);
+    assert_eq!(type_hint["position"]["line"], 1);
+    assert_eq!(type_hint["position"]["character"], 13);
+}
+
+#[test]
+fn lsp_command_presents_native_tests_without_making_them_callable() {
+    let project = TempProject::new("cli-lsp-native-tests");
+    let source_text = "/// Verifies push behavior.\ntest pushes {\n    return\n}\n\n";
+    let source = project.write_source("tests.nct", source_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/documentSymbol",
+                "params": { "textDocument": { "uri": uri.clone() } }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 1, "character": 7 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 1, "character": 7 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/semanticTokens/full",
+                "params": { "textDocument": { "uri": uri.clone() } }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 4, "character": 0 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let symbols = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected document symbols");
+    let symbol = symbols
+        .iter()
+        .find(|symbol| symbol["name"] == "pushes")
+        .expect("expected native test symbol");
+    assert_eq!(symbol["kind"], 12);
+    assert_eq!(symbol["selectionRange"]["start"]["line"], 1);
+    assert_eq!(symbol["selectionRange"]["start"]["character"], 5);
+    assert_eq!(symbol["selectionRange"]["end"]["character"], 11);
+
+    let hover_response = &response_with_id(&messages, 3)["result"];
+    let hover = hover_response["contents"]["value"]
+        .as_str()
+        .expect("expected native test hover");
+    assert!(hover.contains("test pushes: void!"), "hover:\n{hover}");
+    assert!(hover.contains("Verifies push behavior."), "hover:\n{hover}");
+    assert_eq!(hover_response["range"]["start"]["character"], 5);
+    assert_eq!(hover_response["range"]["end"]["character"], 11);
+
+    let definitions = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["targetUri"], uri);
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["character"],
+        5
+    );
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["end"]["character"],
+        11
+    );
+
+    let semantic_data = response_with_id(&messages, 5)["result"]["data"]
+        .as_array()
+        .expect("expected semantic token data");
+    let tokens = decode_semantic_tokens(semantic_data);
+    let test_name = tokens
+        .iter()
+        .find(|token| token.lexeme(source_text) == Some("pushes"))
+        .expect("expected test-name semantic token");
+    assert_eq!(test_name.kind, 0);
+    assert!(
+        tokens
+            .iter()
+            .all(|token| token.lexeme(source_text) != Some("test"))
+    );
+
+    let completion_items = response_with_id(&messages, 6)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    assert!(completion_item_with_label(completion_items, "test").is_some());
+    assert!(completion_item_with_label(completion_items, "pushes").is_none());
+}
+
+#[test]
 fn lsp_hover_preserves_nested_process_result_and_static_provenance() {
     let project = TempProject::new("cli-lsp-process-env-hover");
     project.write_nocter_home_file(

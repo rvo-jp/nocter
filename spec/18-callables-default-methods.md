@@ -1,16 +1,14 @@
 # Callable Values and Interface Default Methods
 
-This chapter defines the callable and reusable-method surface implemented by the completed v0.3.0
-Phase 10 milestone. It does not alter the released v0.2.0 language boundary.
+This chapter defines callable values, closure expressions, and reusable interface-default methods.
 
 ## Composition Roles
 
-Nocter keeps capability, reusable behavior, and stored composition separate.
+Nocter keeps capability and reusable stateless behavior separate from stored composition.
 
 - an `interface` declares a capability; a method without a body is required and a method with a
   body is a reusable default
-- embedding owns a stored component and therefore participates in layout, ownership, provenance,
-  and cleanup
+- stored composition syntax is not part of the current language
 
 A default method adds no fields, layout, or implicit conformance. It is available only after the
 receiver has an explicit conformance to that interface.
@@ -135,7 +133,7 @@ no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are st
 to their generated target.
 
 Callable contracts currently appear as generic bounds. They do not define a sized stored type or
-an erased parameter ABI. Phase 10 therefore still does not define an erased callable object,
+an erased parameter ABI. The language does not define an erased callable object,
 heap-boxed closure, code-pointer ABI, vtable, or runtime interface dispatch.
 
 A closure that consumes captured state may be called only through a consuming capability. Iterator
@@ -155,7 +153,7 @@ let output = values
     .to_vec()
 ```
 
-The Phase 10 chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
+The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
 `fold`, `find`, `any`, `all`, and `to_vec`. Adapters are lazy and allocation-free. `to_vec` is an
 explicit consuming allocation in the current allocation context.
 
@@ -163,8 +161,8 @@ explicit consuming allocation in the current allocation context.
 predicate determines how many elements remain. Callback evaluation occurs once per visited item
 in source order.
 
-## Deferred Features
+## Unsupported Features
 
-Phase 10 does not add interface inheritance, associated types, erased callable types, dynamic
+The current language does not include interface inheritance, associated types, erased callable types, dynamic
 dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
 sorting, extension declarations, or implicit conformance.

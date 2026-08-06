@@ -92,6 +92,27 @@ pub(super) fn check_return_types(
                     summaries,
                 );
             }
+            Item::Test(test) => {
+                let return_type = test.return_type();
+                let mut environment = TypeEnvironment::default();
+                let mut borrow_provenance = ProvenanceEnvironment::default();
+                let context = ReturnContext::new(
+                    CallableKind::Function(format!("test {}", test.name)),
+                    type_expr_to_type_in_environment(&return_type, resolved, &environment),
+                    test.name_span,
+                );
+                check_fallible_success_type(sources, &context, diagnostics);
+                check_block_returns(
+                    sources,
+                    &test.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    &mut borrow_provenance,
+                    summaries,
+                );
+            }
             Item::Impl(impl_) => {
                 check_impl_member_return_types(sources, impl_, resolved, diagnostics, summaries);
             }

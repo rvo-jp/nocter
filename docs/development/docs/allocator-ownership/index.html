@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -127,13 +121,10 @@
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
                 <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
                 <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
                 <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
@@ -148,7 +139,10 @@
                 <li><a href="./index.html#content" aria-current="page">Allocator and Ownership</a></li>
                 <li><a href="../standard-library/index.html#content">Standard Library</a></li>
                 <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
                 <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
+                <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
             </ul>
         </aside>
         <main id="content">

@@ -51,6 +51,13 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
             function.name_span,
             Vec::new(),
         )),
+        Item::Test(test) => Some(document_symbol(
+            test.name.clone(),
+            DocumentSymbolKind::Function,
+            test.span,
+            test.name_span,
+            Vec::new(),
+        )),
         Item::Primitive(primitive) => Some(document_symbol(
             primitive.name.clone(),
             DocumentSymbolKind::Function,
@@ -239,6 +246,18 @@ mod tests {
         assert_eq!(symbols[0].children[0].kind, DocumentSymbolKind::Field);
         assert_eq!(symbols[1].name, "main");
         assert_eq!(symbols[1].kind, DocumentSymbolKind::Function);
+    }
+
+    #[test]
+    fn native_tests_are_function_like_document_symbols_with_exact_name_selection() {
+        let text = "test pushes { return }\n";
+        let symbols = document_symbols_for_text(text).expect("document symbols");
+        assert_eq!(symbols[0].name, "pushes");
+        assert_eq!(symbols[0].kind, DocumentSymbolKind::Function);
+        assert_eq!(
+            &text[symbols[0].selection_span.start..symbols[0].selection_span.end],
+            "pushes"
+        );
     }
 
     #[test]

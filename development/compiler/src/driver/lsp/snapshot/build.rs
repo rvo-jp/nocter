@@ -1,9 +1,12 @@
-use super::super::analysis::workspace_analysis_for_uri_with_package_graph;
+use super::super::analysis::{
+    workspace_analysis_for_path_with_package_graph, workspace_analysis_for_uri_with_package_graph,
+};
 use super::super::diagnostics::diagnostics_for_lsp;
 use super::super::documents::{OpenDocument, WorkspaceRoot};
 use super::super::import_completion::package_root_for_document;
 use super::invalidation::{SnapshotChange, can_reuse_document, can_reuse_package};
 use super::model::{DocumentSnapshot, LspSnapshot, PackageSnapshot};
+use crate::analysis::package_index::PackageSemanticIndexBuilder;
 use crate::package::{PackageSourceOverlay, load_locked_offline_package_graph_with_overlay};
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -83,6 +86,7 @@ pub(in crate::driver::lsp) fn build_snapshot(
     }
 
     let open_documents = sorted_documents(&documents);
+    let package_indexes = build_package_indexes(generation, &documents, &analyses, &packages);
     let diagnostics = analyses
         .iter()
         .map(|(uri, document_snapshot)| {
@@ -123,8 +127,65 @@ pub(in crate::driver::lsp) fn build_snapshot(
         documents,
         analyses,
         packages,
+        package_indexes,
         diagnostics,
     )
+}
+
+fn build_package_indexes(
+    generation: u64,
+    documents: &HashMap<String, OpenDocument>,
+    analyses: &HashMap<String, DocumentSnapshot>,
+    packages: &HashMap<std::path::PathBuf, PackageSnapshot>,
+) -> HashMap<std::path::PathBuf, Arc<crate::analysis::package_index::PackageSemanticIndex>> {
+    packages
+        .iter()
+        .map(|(root, package)| {
+            let graph = package.graph.as_deref();
+            let mut builder = PackageSemanticIndexBuilder::new(generation, graph);
+
+            for snapshot in analyses
+                .values()
+                .filter(|snapshot| snapshot.package_root.as_deref() == Some(root.as_path()))
+            {
+                if let Some(analysis) = snapshot.analysis.semantic() {
+                    builder.add_analysis(&snapshot.analysis.sources, analysis);
+                }
+            }
+
+            let roots = graph
+                .into_iter()
+                .flat_map(|graph| graph.packages())
+                .flat_map(|package| {
+                    std::iter::once(package.root_module().source_path())
+                        .chain(
+                            package
+                                .executables()
+                                .iter()
+                                .map(|target| target.entry().source_path()),
+                        )
+                        .chain(
+                            package
+                                .tests()
+                                .iter()
+                                .map(|target| target.entry().source_path()),
+                        )
+                })
+                .collect::<BTreeSet<_>>();
+            for entry in roots {
+                let Some(analysis) =
+                    workspace_analysis_for_path_with_package_graph(entry, documents, graph)
+                else {
+                    continue;
+                };
+                if let Some(semantic) = analysis.semantic() {
+                    builder.add_analysis(&analysis.sources, semantic);
+                }
+            }
+
+            (root.clone(), Arc::new(builder.finish()))
+        })
+        .collect()
 }
 
 fn load_package_snapshot(

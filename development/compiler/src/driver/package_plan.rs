@@ -1,8 +1,26 @@
-use crate::package::{ExecutableTarget, ResolvedModule, SourcePackage};
+use crate::package::{ExecutableTarget, ResolvedModule, SourcePackage, TestTarget};
 
 pub(super) struct PackageCheckTarget<'a> {
     pub(super) module: &'a ResolvedModule,
     pub(super) executable: bool,
+}
+
+pub(super) fn selected_tests<'a>(
+    package: &'a SourcePackage,
+    selected: Option<&str>,
+) -> Result<Vec<&'a TestTarget>, String> {
+    match selected {
+        Some(name) => package
+            .test(name)
+            .map(|target| vec![target])
+            .ok_or_else(|| {
+                format!(
+                    "package `{}` has no test named `{name}`",
+                    package.display_name()
+                )
+            }),
+        None => Ok(package.tests().iter().collect()),
+    }
 }
 
 pub(super) fn selected_executables<'a>(

@@ -1,6 +1,0 @@
-use std/io.print
-
-func main(): i32! {
-    print("Hello from Nocter\n")?
-    return 0
-}

@@ -2,6 +2,7 @@ use super::diagnostics::package_filesystem_diagnostic;
 use super::model::SourcePackage;
 use super::modules::package_root_module;
 use super::targets::resolve_executable_targets;
+use super::test_targets::resolve_test_targets;
 use super::validation::validate_manifest;
 use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
@@ -129,6 +130,16 @@ pub(super) fn load_package_with_id_and_overlay(
     let display_name = definition
         .name
         .unwrap_or_else(|| default_display_name(&root));
+    let tests = match resolve_test_targets(&sources, &root, &id, definition.tests) {
+        Ok(tests) => tests,
+        Err(diagnostics) => {
+            return PackageLoad {
+                package: None,
+                sources,
+                diagnostics,
+            };
+        }
+    };
     PackageLoad {
         package: Some(SourcePackage::new(
             id,
@@ -139,6 +150,7 @@ pub(super) fn load_package_with_id_and_overlay(
             definition.dependencies,
             definition.locks,
             executables,
+            tests,
         )),
         sources,
         diagnostics: Vec::new(),

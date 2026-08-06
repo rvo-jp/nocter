@@ -1,347 +1,123 @@
-# Language Server
+# Language Server Implementation
 
-The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type
-system for editors.
+This document owns the compiler/LSP implementation boundary. Public capabilities and protocol
+behavior are defined only by [Tooling and Editor
+Integration](../../spec/14-tooling-editor-integration.md). Snapshot lifetime and invalidation are
+defined by [Immutable LSP Snapshots](lsp-snapshots.md).
 
 ## Architecture
 
+The language server is a protocol adapter over compiler analysis:
+
 ```text
-open documents + filesystem
-  -> compile-unit frontend
-  -> resolver/typecheck facts
-  -> SemanticOccurrenceIndex
-  -> structured semantic presentation / feature query
-  -> LSP protocol conversion
+JSON-RPC request
+  -> lifecycle and parameter validation
+  -> URI/UTF-16 conversion
+  -> immutable package snapshot
+  -> analysis query
+  -> presentation model
+  -> LSP response
 ```
 
-`driver/lsp` owns JSON-RPC, document state, URI/range conversion, and capability routing.
-`analysis` provides compiler-owned result types for hover, completion, definition, and references.
-Resolver and typechecker decide visibility, type normalization, generic specialization, and
-ownership capability.
-
-### Semantic occurrence boundary
-
-Every resolved editor-facing spelling is projected into one immutable occurrence index per source
-file. An occurrence records:
-
-- its exact focus span
-- stable declaration, member, local, or generic-parameter identity
-- declaration/reference role and semantic kind
-- readonly state where it affects editor classification
-- a contextual type application when the spelling alone is insufficient, such as the
-  `ExactSizeIterator` in `ExactSizeIterator<Indexed<T>>`
-
-Hover, definition, references, and semantic tokens query this index rather than maintaining
-feature-specific cursor walkers. Resolver and typecheck maps remain authoritative; the index joins
-their identities by source span and does not perform name resolution.
-
-### Presentation boundary
-
-`analysis/presentation` converts resolved declarations and specialized type expressions into
-structured callable, literal, type, member, generic-parameter, and local presentations. Hover,
-completion detail, and signature help render those shared values. They do not copy source headers
-or independently reconstruct generic bounds, `Self`, import aliases, member owners, or result
-provenance.
-
-Declaration identity and displayed context are deliberately separate. A call through an import
-alias keeps the alias as its displayed name while using the target declaration for parameters,
-return type, documentation, effects, and provenance. A member keeps one member identity while its
-presentation may substitute a concrete receiver type.
-
-Syntax traversal remains available for documentation attachment and degraded results when parsing
-or semantic analysis cannot establish an identity. It is not an authoritative signature source.
-Incomplete-edit overlays always re-enter the compile-unit frontend and produce the same occurrence
-and presentation model before a result is accepted.
-
-## Current Baseline
-
-The server supports document sync, diagnostic publication, semantic tokens, hover, definition,
-references, document symbols, global/member/enum-pattern/struct-field completion, and signature
-help. A shared call-site result combines resolved target, generic specialization, active parameter,
-and documentation for hover and signature help.
-
-Completion derives lexical scope and shadowing, generic member specialization, receiver capability,
-signature detail, documentation, and insertion text from compiler facts. Import paths share the
-frontend module layout and package graphs; imported symbols come from resolved import
-identity and visibility. Call-argument candidates use typechecker assignability for ranking.
-Incomplete calls, member expressions, imports, regions, and typed literals use temporary
-compile-unit recovery overlays separate from the authoritative document.
-
-Semantic presentation has one renderer per declaration family across declaration hover, reference
-hover, completion detail, and signature help. Types, fields, variants, methods, associated
-functions, drops, literals, generic parameters, and locals therefore use the same normalization
-rules. Fields, variants, methods, and associated functions always include their visible owner as
-`Type.member`; generic completion substitutes the concrete owner and member types when typecheck
-establishes them. Canonical declaration identity remains internal and is not exposed as a
-repository or module path.
-
-## Released v0.2.0 Capabilities
-
-### Hover
-
-Hover presentation is built from typechecked facts rather than reconstructed from AST text.
-
-| Target | Required contents |
-|---|---|
-| local / parameter | mutability, borrow capability, resolved type |
-| function / method | full signature, generic parameters or specialization, fallibility |
-| struct / enum / interface | declaration kind, type parameters, documentation |
-| field / variant | owner type, field or payload type, documentation |
-| imported symbol | resolved declaration, module path, visibility |
-| expression | normalized result type when no declaration target is sufficient |
-
-Responses include a source-backed range. During incomplete edits, the server never invents a type:
-it returns only established declaration information or `null`.
-
-### Completion
-
-A completion request classifies cursor context before collecting candidates:
-
-- expression / statement: visible locals, parameters, functions, types, and keywords
-- import: modules and public symbols reachable from the current module
-- member: fields and methods of the receiver type, excluding candidates that violate borrow
-  capability
-- enum pattern: variants and payload fields of the target enum
-- struct literal: fields not yet specified
-- call argument: visible values compatible with the expected type and active parameter
-- typed literal target: visible sequence or string shapes declared for the resolved nominal type
-- typed literal element: visible values ranked against the specialized element-pack type
-
-Candidates include at least `label`, `kind`, a type or signature `detail`, a documentation summary,
-and required `insertText`. Completion respects visibility and shadowing and deduplicates semantic
-symbols. Ranking prioritizes exact prefix, locality, and expected-type compatibility, with ordering
-fixed by tests.
-
-### Signature Help
-
-The resolved call target and argument index provide:
-
-- the full callable signature
-- parameters and parameter documentation
-- the active parameter
-- return type and fallibility
-- concrete generic types when specialization is known
-
-The server does not guess overload-like candidates with string matching. Only when resolver or
-typechecker cannot establish a target may recovery analysis return an explicitly incomplete result.
-
-## Completed v0.3.0 Phase 1 Integration
-
-Typed literal tooling uses `analysis/literals` as its semantic query boundary. The query joins the
-expression's resolver identity, typecheck result, declaration shape, generic substitutions, and
-documentation without depending on `Vec`, `String`, or hidden lowering target names.
-
-- hover on a literal target or delimiter reports the specialized literal signature and declaration
-  documentation
-- signature help inside `[]` or `""` reports the element pack or string parameter
-- go-to-definition on a delimiter targets the declaring shape
-- completion after a nominal target offers only its accessible `[]` and `""` definitions
-- element completion uses the specialized pack element type for expected-type ranking
-- recovery closes missing delimiters and unclosed literal bodies in a temporary overlay
-- generic source bodies retain editor facts such as `T` even when no concrete code-generation
-  specialization exists yet
-
-The recovery path is validated before it replaces ordinary or region recovery, so an identifier
-followed by whitespace cannot become a synthetic literal fact unless resolver and typechecker
-establish a literal definition.
-
-## Completed v0.3.0 Phase 2 Integration
-
-Iteration and collection tooling continues to use ordinary generic method facts. It does not
-recognize `ViewIter`, `VecIntoIter`, `next`, `get`, or any standard-library module name.
-
-- completion specializes readonly and consuming iterator methods from the concrete receiver
-- receiver filtering offers `&+self.next()` only for a writable iterator place
-- hover and signature help distinguish `&T?` from `T?` and include callable result provenance
-- canonical type presentation follows parser precedence: `&T?` is an optional borrow, while
-  `&(T?)` is a borrow of an optional value
-- incomplete zero-argument member calls try both a closed empty call and an argument-placeholder
-  overlay through the general call recovery pipeline
-- JSON-RPC tests verify that an incomplete `.next(` edit resolves the same compiler-owned method
-  signature as the complete call
-
-## Completed v0.3.0 Phase 3 Integration
-
-Interpolation tooling uses `analysis/interpolation`, which reads the typecheck semantic plan rather
-than recognizing string syntax or standard-library names in protocol code.
-
-- hover on a complete interpolation reports owned `String`, the current-allocation effect, and the
-  result origin
-- hover on an interpolation part reports its accepted concrete input type while nested expressions
-  retain ordinary declaration and expression hover
-- completion and signature help inside incomplete `${...` expressions use a cursor-preserving
-  syntax overlay and then run the ordinary compiler query
-- the recovery scanner respects escapes, comments, nested delimiters, and nested string forms
-- unresolved capabilities or expression types produce no invented interpolation fact
-- JSON-RPC tests cover complete hover plus incomplete completion and nested-call signature help
-
-## Completed v0.3.0 Phase 4 Integration
-
-Provenance and generic-bound tooling reads resolved callable signatures and typecheck facts. The
-protocol layer does not parse `from`, inspect interface names, or repeat conformance lookup.
-
-- hover and signature help append normalized `from` origins to callable signatures
-- completion after `from` offers only eligible receiver, parameter, `static`, and `current` origins
-- completion on a bounded generic receiver lists only methods declared by its canonical interface
-- definition and references group a bounded call with the interface method declaration
-- semantic tokens classify generic parameters as types and provenance inputs as readonly parameters
-- recovery for incomplete `T: ` and `from ... |` edits preserves the cursor while requiring the
-  recovered compiler run to establish every identity
-- JSON-RPC tests verify exact hover and definition ranges for a bound method call
-
-## Body-Bearing Interface Implementation Integration
-
-Concrete interface calls expose the selected conformance member rather than an unrelated inherent
-method or a method-name reconstruction. Hover and signature help present the specialized concrete
-receiver; completion and definition retain the implementation member span. Generic-bound calls
-continue to define to the interface contract while specialization facts carry the concrete dispatch
-member into buildability and lowering.
-
-The compiler candidate model keeps contract ownership separate from dispatch ownership. Contract
-ownership supplies visibility and interface generic arguments. Dispatch ownership supplies impl
-generic inference and the static method target. This distinction prevents same-spelled interface
-and impl generic parameters from corrupting editor types such as `ViewIter<T>` and `Iterator<&T>`.
-The protocol layer consumes these identities and never repeats conformance selection.
-
-## Completed v0.3.0 Phase 5 Integration
-
-Nested-outcome and process tooling uses normalized callable signatures and provenance facts from
-analysis. Protocol code does not recognize `env`, reinterpret `?!`, or synthesize a `from` clause.
-
-- hover on an imported or aliased process lookup shows the normalized `&str?!` return
-- callable hover includes the exact `from static` contract and static result provenance
-- the hover range covers the imported alias or callable name, not an enclosing module/type prefix
-- malformed and incomplete consumers continue through the ordinary recovery pipeline
-- JSON-RPC tests verify exact normalized hover content and alias source range
-
-## Completed v0.3.0 Phase 6 Integration
-
-Stored outcome tooling reads normalized local and expression types from typecheck facts. Protocol
-code does not inspect tags, reconstruct outcome layers, or special-case a consumer expression.
-
-- hover on a saved optional, fallible, or supported composed value preserves its normalized type
-- completion detail reports the same stored type as hover
-- later consumption does not replace the saved binding's declaration fact with its payload type
-- generic aliases and specializations retain their concrete outcome layers
-- JSON-RPC tests cover stored `T!?` hover and completion through the protocol boundary
-
-## Completed v0.3.0 Phase 7 Integration
-
-Collection-iteration tooling consumes the immutable typecheck plan and callable semantic summaries.
-It does not search for `iter`, `into_iter`, or `next` spellings.
-
-- hover on the loop binding or source reports readonly, owned, or direct mode plus the concrete
-  iterator and element types
-- hover reports the statically selected conversion and step targets, including an implicit
-  allocation effect when either target uses the current allocation context
-- completion inside the body reports the exact collection-element type
-- incomplete `for item in`, `for item in &`, and partial-source headers use a cursor-preserving
-  syntax overlay without creating a conformance fact
-- semantic-token recovery removes placeholder identifiers and remaps every later source range to
-  the original document
-- JSON-RPC tests require parser diagnostics for incomplete input and reject an invented
-  ownership-ambiguity diagnostic
-
-## Completed v0.3.0 Phase 9 Integration
-
-Capability-set tooling consumes the ordered bound list and resolved interface declaration
-identities retained by the compiler. It does not repeat conformance matching in the protocol layer.
-
-- declaration hover preserves normalized bound order such as `T: Readable + Measurable`
-- unresolved generic signature help preserves every bound; concrete calls continue to show their
-  specialized type arguments
-- member completion combines every interface in the capability set and deduplicates by declaration
-  identity
-- distinct interfaces that declare the same member name produce no arbitrarily selected completion
-  target; an actual ambiguous call receives the typechecker diagnostic
-- definition and references retain the selected interface method declaration
-- recovery after an incomplete `T: A +` inserts only a temporary syntax placeholder and accepts
-  results only after the preceding bound identities resolve again
-- JSON-RPC tests cover two-bound completion, hover ranges, definition identity, and normalized
-  provenance together
-
-## Completed v0.3.0 Phase 10 Integration
-
-Closure and default-method tooling consumes normalized typecheck and declaration-identity facts. The
-protocol layer does not infer captures, rediscover conformances, or recognize iterator method names.
-
-- hover presents closure bindings, parameters, and explicit capture modes from normalized anonymous
-  types, including `closure mut` and `closure once` capability distinctions
-- hover, completion detail, and signature help present specialized interface defaults with their
-  concrete receiver and method-level generic arguments
-- direct callable signature help presents the normalized `&func`, `&+func`, or `func` contract,
-  declared parameter names, result provenance, and the source binding being invoked
-- definition, references, and semantic tokens retain closure-local parameter/capture identity and
-  the selected default declaration
-- one delimiter-recovery scanner closes incomplete blocks while respecting strings and comments;
-  hover, completion, signature help, and region recovery reuse that scanner
-- incomplete closure bodies retain established capture, parameter, receiver, and field facts without
-  creating an erased callable or interface conformance identity
-- JSON-RPC tests cover closure hover, specialized default signature help, and field completion inside
-  an unclosed closure body
-
-## Reliability Requirements
-
-- Leave no stale diagnostics after didOpen, didChange, or didClose.
-- Centralize conversion between UTF-16 LSP positions and UTF-8 source byte spans.
-- Do not panic on malformed or incomplete source, unknown imports, or missing receivers.
-- Imports see open-document overlays and never mix disk text under a second identity.
-- Hover, completion, and signature help do not report contradictory types at one cursor.
-- Protocol response tests are backed by unit tests for compiler analysis results.
-
-## v0.3.0 Phase 0 Integration
-
-Region and allocation tooling consumes compiler analysis facts rather than inspecting keywords or
-standard-library names. The completed Phase 0 integration provides:
-
-- semantic identity and definition for a lexical region binding
-- hover detail for the region's parent and current allocation context
-- allocating-call effect in callable hover detail
-- source-backed escape diagnostics that identify the value and shorter origin
-- completion for the required `using` position from typechecked allocator/context candidates
-- recovery for incomplete region headers and bodies without stale diagnostics
-
-LSP does not build a second region graph or infer provenance from `String`, `Vec`, or allocator
-method names.
-
-## Acceptance Tests
-
-The released v0.2.0 integration tests cover:
-
-1. hover and specialized signature help for an imported generic function
-2. `Vec<String>` method completion and receiver borrow capability
-3. payload enum pattern completion and missing struct-literal fields
-4. hover/completion detail for documented standard-library symbols
-5. consecutive didChange operations containing incomplete calls, member access, and imports
-6. definition/reference/diagnostic consistency under a multi-file open-document overlay
-
-Phase 0 integration tests additionally cover region binding definition and semantic tokens,
-parent/current-context hover, allocating-call effects, allocator-aware completion, storage-origin
-presentation, source-backed escape diagnostics, and cursor-preserving recovery for incomplete
-region headers. Phase 1 tests cover sequence and string shape suggestions, imported definitions,
-specialized hover and signature help, expected element ranking, delimiter definition, duplicate
-expression facts, and incomplete expression/declaration recovery. Phase 2 tests cover concrete
-readonly/owned result types, receiver capability, returned-borrow provenance, and complete plus
-incomplete zero-argument iterator calls through direct and JSON-RPC queries. Phase 3 tests cover
-owned result/effect/origin hover, interpolation-part types, and cursor-preserving completion and
-signature recovery through direct and JSON-RPC queries. Phase 4 tests cover normalized provenance
-labels, eligible-origin and bound-method completion, specialized signature help, interface-targeted
-definition/references, semantic classification, recovery, and protocol source ranges. Phase 5
-tests cover nested outcome normalization, exact `from static` display, static result provenance,
-and aliased callable hover ranges. Phase 6 tests cover normalized stored composed values through
-direct analysis and JSON-RPC hover/completion queries. Phase 7 tests cover exact source modes,
-concrete iterator/item facts, body completion, implicit allocation effects, incomplete-header
-diagnostics, and range-safe semantic recovery. Phase 9 tests cover complete capability-set hover and
-signature help, unambiguous/ambiguous member completion, incomplete additional-bound recovery, and
-JSON-RPC agreement. Phase 10 tests cover normalized closure/capture presentation, default-method
-specialization, semantic identity, shared delimiter recovery, and direct plus JSON-RPC agreement.
-v0.4.0 snapshot and stabilization tests additionally cover immutable generations, exact reverse
-invalidation, missing and malformed dependency recovery, symlink deletion, root and transitive
-manifest failure recovery, dynamic file-watcher registration, saved text, lifecycle ordering, and
-deterministic reuse in a 49-document workspace.
-
-## Deferred Features
-
-Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints remain
-post-v0.3.0 work. Add them only through the semantic facts and recovery APIs already shared by
-hover, completion, and signature help.
+Protocol code must not parse Nocter declarations, walk syntax to rediscover semantic identity,
+format signatures from source fragments, or infer types from display text. When analysis cannot
+establish a semantic fact, the server returns no semantic result rather than inventing one.
+
+## Semantic Occurrences
+
+Resolver and typecheck facts are projected into exact `SemanticOccurrence` values. Each occurrence
+contains a stable declaration identity, use/declaration role, semantic kind, exact focus range,
+readonly state where relevant, and its owning source/package identity.
+
+Hover, definition, references, rename, and semantic tokens consume those occurrences. Feature code
+may filter by role or kind but may not perform an independent cursor walk. This keeps keywords,
+owners, delimiters, whitespace, and member names from accidentally sharing one hover or token range.
+
+Cross-compile-unit indexes translate transient numeric source IDs into package/path/span identities
+before joining occurrences. Dependency and standard-library ownership remains attached to those
+identities so refactoring cannot edit read-only sources merely because their filesystem path is
+near the root package.
+
+## Presentation
+
+`analysis/presentation` renders normalized declarations from resolved symbols and specialized type
+facts. It receives the visible owner spelling separately from canonical identity, allowing user
+output to stay concise without losing exact navigation targets.
+
+Presentation owns:
+
+- canonical type notation and precedence
+- specialized generic/member signatures
+- semantic owner qualification
+- construction surfaces and default ordering
+- callable allocation effects and result provenance
+- documentation extracted from declaration comments
+
+LSP transport converts presentation blocks to Markdown and protocol structures. It does not retain
+a second signature formatter or fall back to raw declaration source.
+
+## Completion and Signature Planning
+
+Completion candidates are analysis values with semantic identity, visibility, specialized type,
+documentation, insertion text, and optional source-edit plans. Lexical scope, shadowing, receiver
+capability, generic bounds, imports, and construction defaults are decided before protocol
+conversion.
+
+Automatic imports use compiler-owned edit planners. Planners preserve leading documentation and
+import grouping, and their edits are reparsed in compiler tests. Protocol code only translates
+source offsets and document versions.
+
+Signature help consumes resolved callable candidates and the parser's active argument context.
+Recovery overlays may supply missing delimiters or placeholder operands long enough to run the
+ordinary query, but cannot manufacture declarations, conformance, callable identities, or types.
+
+## Diagnostics and Code Actions
+
+Diagnostics originate from compiler phases as structured values with source spans, related
+information, stable codes, and optional fix plans. The server groups and publishes them by snapshot
+generation. It clears documents absent from the next complete publication set and never mixes facts
+from different generations.
+
+Code actions expose only compiler-produced edits. Unresolved imports, missing interface members,
+and outcome-contract fixes share planners with direct compiler tests. Version checks occur at the
+request boundary before edits are returned.
+
+## Inlay Hints
+
+Inlay hints are projections of retained binding types, allocation effects, and provenance facts.
+Explicit source annotations suppress redundant hints. The server does not rerun inference or
+reconstruct provenance from hover text.
+
+## Recovery
+
+Open, incomplete source is analyzed through a temporary recovery overlay that reuses the current
+snapshot's package graph and all other open document texts. Recovery is feature-local and never
+replaces the authoritative generation.
+
+Recovery helpers are narrowly scoped by syntax responsibility: delimiter closure, incomplete call
+arguments, imports, member access, iteration headers, interpolation bodies, and provenance clauses.
+They may make a parseable temporary source but must preserve original byte-to-source mappings and
+must not publish recovered text.
+
+## Protocol Boundary
+
+The driver owns initialization, shutdown, exit, document synchronization, workspace folders,
+watched-file registration, request framing, and JSON-RPC errors. Accepted document versions advance
+snapshot state; stale changes are ignored. Requests before initialization and after shutdown are
+rejected without invoking analysis.
+
+All source ranges are byte offsets internally. UTF-16 conversion occurs only at the protocol edge
+against the exact source text held by the request's snapshot generation.
+
+## Verification
+
+Every editor feature needs two layers of evidence:
+
+- focused analysis tests proving semantic identity, specialization, visibility, presentation, and
+  exact source ranges
+- framed JSON-RPC integration tests proving lifecycle, parameter validation, UTF-16 conversion,
+  advertised capabilities, and response shape
+
+Package-wide features additionally require open/closed document coverage, dependency read-only
+coverage, invalidation coverage, and installed-home LSP smoke tests without repository-local
+configuration. Raw-source fallback behavior is not an acceptable test oracle.

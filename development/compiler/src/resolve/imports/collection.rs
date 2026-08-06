@@ -479,6 +479,7 @@ impl Resolver<'_> {
                     self.collect_public_namespace_reexport(item, access);
                 }
                 Item::Function(_)
+                | Item::Test(_)
                 | Item::Import(_)
                 | Item::FromImport(_)
                 | Item::Impl(_)

@@ -1,0 +1,14 @@
+// Invalid: `match` requires an enum value.
+enum AppError {
+    missing_path
+}
+
+func main(): i32 {
+    match 1 {
+        AppError.missing_path {
+            return 1
+        }
+    }
+
+    return 0
+}

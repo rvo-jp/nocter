@@ -27,6 +27,7 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
     for item in &file.ast.items {
         match item {
             Item::Function(function) => collect_block(file, &function.body, None, &mut facts),
+            Item::Test(test) => collect_block(file, &test.body, None, &mut facts),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {

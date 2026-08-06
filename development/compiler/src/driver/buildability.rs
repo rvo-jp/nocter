@@ -27,6 +27,8 @@ use crate::typecheck::{
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
+use crate::test_entry::TestDeclarationId;
+
 pub(super) fn v0_buildability_diagnostics(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
@@ -61,6 +63,65 @@ pub(super) fn v0_buildability_diagnostics(
         );
     }
 
+    diagnostics
+}
+
+pub(super) fn v0_test_buildability_diagnostics(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    test: &TestDeclarationId,
+) -> Vec<Diagnostic> {
+    let Some(root) = analysis.root_file() else {
+        return Vec::new();
+    };
+    let Some(test_decl) = test.resolve(&root.ast) else {
+        return vec![
+            Diagnostic::error(
+                "E0700",
+                format!(
+                    "cannot validate missing test `{}` for native build",
+                    test.name()
+                ),
+            )
+            .with_primary_span_if_absent(sources, root.ast.span),
+        ];
+    };
+
+    let root_source = root.ast.span.source;
+    let nocter_home = analysis.nocter_home.as_deref();
+    let index = CallableIndex::new(analysis, root_source);
+    let callable = IndexedCallable::new_test(test_decl, root);
+    let mut queue = VecDeque::new();
+    let mut diagnostics = Vec::new();
+    collect_callable_diagnostics(
+        &callable,
+        sources,
+        root_source,
+        &index.names,
+        &index.resolved_sources,
+        nocter_home,
+        &mut queue,
+        &mut diagnostics,
+    );
+    let mut seen = HashSet::new();
+    while let Some(target) = queue.pop_front() {
+        if !seen.insert(target.clone()) {
+            continue;
+        }
+        let Some(callable) = index.definition(&target) else {
+            continue;
+        };
+        collect_callable_diagnostics(
+            callable,
+            sources,
+            root_source,
+            &index.names,
+            &index.resolved_sources,
+            nocter_home,
+            &mut queue,
+            &mut diagnostics,
+        );
+    }
     diagnostics
 }
 
@@ -399,6 +460,18 @@ struct BuildabilityIssue {
 }
 
 impl<'a> IndexedCallable<'a> {
+    fn new_test(test: &'a crate::ast::TestDecl, file: &'a FileAnalysis) -> Self {
+        Self {
+            span: test.span,
+            body: &test.body,
+            return_type: Some(test.return_type()),
+            substitutions: HashMap::new(),
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+            issues: Vec::new(),
+        }
+    }
+
     fn new_function(
         function: &'a FunctionDecl,
         file: &'a FileAnalysis,

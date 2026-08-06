@@ -86,7 +86,7 @@ fn package_manifest_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdenti
                 SemanticTokenKind::Property
             };
             identifiers.push(classified(field.name_span, kind));
-            if directive.name == "executable"
+            if matches!(directive.name.as_str(), "executable" | "test")
                 && field.name == "entry"
                 && let Some((_, span)) = field.value.string_value()
             {
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn package_manifest_identifiers_use_exact_source_ranges() {
-        let text = "#name: \"tool\"\n#dependencies: { json: { path: \"./json\" } }\n#executable: { name: \"app\", entry: \"./src/app\" }\n";
+        let text = "#name: \"tool\"\n#dependencies: { json: { path: \"./json\" } }\n#executable: { name: \"app\", entry: \"./src/app\" }\n#test: { name: \"unit\", entry: \"./tests/unit\" }\n";
         let document = OpenDocument {
             uri: "file:///tmp/nocter.nct".to_string(),
             version: Some(1),
@@ -213,6 +213,7 @@ mod tests {
             ("json", SemanticTokenKind::Namespace),
             ("entry", SemanticTokenKind::Property),
             ("./src/app", SemanticTokenKind::Namespace),
+            ("./tests/unit", SemanticTokenKind::Namespace),
         ] {
             let offset = text.find(lexeme).unwrap();
             assert!(identifiers.iter().any(|identifier| {

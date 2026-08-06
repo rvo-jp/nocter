@@ -5,6 +5,9 @@ mod doctor;
 mod errors;
 mod fmt;
 mod fmt_options;
+mod graph_command;
+mod init_command;
+mod init_templates;
 mod json;
 mod json_tool_options;
 mod lsp;
@@ -12,6 +15,10 @@ mod package_commands;
 mod package_plan;
 mod pipeline;
 mod run;
+mod temporary_executable;
+mod test_command;
+mod test_options;
+mod test_report;
 
 use crate::target::{DEFAULT_TARGET, HOST};
 use command::{Command, CommandErrorKind, parse_command};
@@ -55,11 +62,14 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
+        Ok(Command::Init(command)) => init_command::run_init_command(&command),
+        Ok(Command::Graph(command)) => graph_command::run_graph_command(&command),
         Ok(Command::Fetch(command)) => package_commands::run_fetch_command(&command),
         Ok(Command::Build(command)) => package_commands::run_build_command(&command),
         Ok(Command::Run(command)) => package_commands::run_run_command(&command),
         Ok(Command::Check(command)) => package_commands::run_check_command(&command),
         Ok(Command::CheckJson(command)) => package_commands::run_check_json_command(&command),
+        Ok(Command::Test(command)) => test_command::run_test_command(&command),
         Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
@@ -92,7 +102,16 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "usage: nocter <command> [args]")?;
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
+    writeln!(writer, "  init [<dir>] [--name <name>] [--library]")?;
+    writeln!(
+        writer,
+        "  graph [--root <dir>] [--locked] [--offline] [--format json]"
+    )?;
     writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
+    writeln!(
+        writer,
+        "  test [--root <dir>] [--test <name> [--case <name>]] [--locked] [--offline] [--target <target>] [--format json]"
+    )?;
     writeln!(
         writer,
         "  build [--root <dir>] [--executable <name>] [-o <path>] [--target <target>]"

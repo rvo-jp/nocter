@@ -8,12 +8,19 @@ use std/error.Error
 use std/mem.alloc_pages
 use std/mem.free_pages
 use std/os.{OSError, OSErrorKind}
+use std/path.Utf8Path
 use std/ptr.copy_str_to_ptr
 use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
 
 #target: "arm64-darwin"
 pub(nocter) primitive open_read_raw(path: *u8): i32!
+
+#target: "arm64-darwin"
+pub(nocter) primitive create_raw(path: *u8): i32!
+
+#target: "arm64-darwin"
+pub(nocter) primitive append_raw(path: *u8): i32!
 
 #target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
@@ -45,6 +52,36 @@ pub(nocter) func open_read_fd(path: &str): i32! {
     store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
 
     let fd = open_read_raw(from_addr(address)) catch error {
+        free_pages(address, allocation_size)
+        return error
+    }
+    free_pages(address, allocation_size)
+    return fd
+}
+
+#target: "arm64-darwin"
+pub(nocter) func create_fd(path: &str): i32! {
+    let allocation_size: usize = path.len() + 1
+    let address: usize = alloc_pages(allocation_size)?
+    copy_str_to_ptr(from_addr(address), 0, path)
+    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
+
+    let fd = create_raw(from_addr(address)) catch error {
+        free_pages(address, allocation_size)
+        return error
+    }
+    free_pages(address, allocation_size)
+    return fd
+}
+
+#target: "arm64-darwin"
+pub(nocter) func append_fd(path: &str): i32! {
+    let allocation_size: usize = path.len() + 1
+    let address: usize = alloc_pages(allocation_size)?
+    copy_str_to_ptr(from_addr(address), 0, path)
+    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
+
+    let fd = append_raw(from_addr(address)) catch error {
         free_pages(address, allocation_size)
         return error
     }
@@ -95,6 +132,15 @@ pub struct File {
     close_on_drop: bool
 }
 
+pub interface Reader {
+    pub method &+self.read(buffer: &+[u8]): usize! from static
+}
+
+pub interface Writer {
+    pub method &+self.write(bytes: &[u8]): void! from static
+    pub method &+self.flush(): void! { return }
+}
+
 pub(nocter) func from_os_error(error: OSError): error {
     if error.kind is OSErrorKind.interrupted {
         return Error.new("std.io.interrupted", "operation interrupted")
@@ -138,9 +184,29 @@ pub func open(path: &str): File! {
     return File.open(path)?
 }
 
+pub func create(path: &str): File! { return File.create(path)? }
+
+pub func append(path: &str): File! { return File.append(path)? }
+
+pub func open_path(path: &Utf8Path): File! { return File.open(path.view())? }
+
+pub func create_path(path: &Utf8Path): File! { return File.create(path.view())? }
+
+pub func append_path(path: &Utf8Path): File! { return File.append(path.view())? }
+
 construct File {
     pub default func open(path: &str): Self! {
         let fd = open_read_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
+
+    pub func create(path: &str): Self! {
+        let fd = create_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
+
+    pub func append(path: &str): Self! {
+        let fd = append_fd(path)?
         return File { fd: fd, close_on_drop: true }
     }
 }
@@ -168,15 +234,6 @@ pub func close(file: &+File): void {
 }
 
 impl File {
-    pub method &+self.read(buffer: &+[u8]): usize! {
-        return read(self, buffer)?
-    }
-
-    pub method &+self.write(bytes: &[u8]): void! {
-        write(self, bytes)?
-        return
-    }
-
     pub method &+self.write_text(text: &str): void! {
         write_text(self, text)?
         return
@@ -191,6 +248,15 @@ impl File {
         close(self)
         return
     }
+}
+
+impl Reader for File {
+    method &+self.read(buffer: &+[u8]): usize! from static { return read(self, buffer)? }
+}
+
+impl Writer for File {
+    method &+self.write(bytes: &[u8]): void! from static { write(self, bytes)? return }
+    method &+self.flush(): void! { return }
 }
 
 pub func print(text: &str): void! {

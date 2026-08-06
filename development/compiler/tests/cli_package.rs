@@ -16,6 +16,51 @@ fn package_check_accepts_code_in_the_package_file() {
 }
 
 #[test]
+fn init_creates_a_checkable_library_without_overwriting() {
+    let project = TempPackage::new("init-library");
+    let output = project.nocter(["init", "created", "--name", "sample", "--library"]);
+    assert_success(&output);
+    let package = project.root.join("created/nocter.nct");
+    let source = fs::read_to_string(&package).unwrap();
+    assert!(source.contains("#name: \"sample\"") && source.contains("#test:"));
+
+    let checked = Command::new(NOCTER)
+        .args(["check"])
+        .current_dir(package.parent().unwrap())
+        .env("NOCTER_HOME", &project.home)
+        .output()
+        .unwrap();
+    assert_success(&checked);
+
+    let repeated = project.nocter(["init", "created", "--library"]);
+    assert_eq!(repeated.status.code(), Some(2));
+    assert!(text(&repeated.stderr).contains("already exists"));
+}
+
+#[test]
+fn graph_json_is_deterministic_and_exposes_dependency_identity() {
+    let project = TempPackage::new("graph-json");
+    project.write("dep/nocter.nct", "#name: \"dep\"\n#version: \"1.0.0\"\n");
+    project.write(
+        "nocter.nct",
+        "#name: \"root\"\n#dependencies: { dep: { path: \"./dep\" } }\n",
+    );
+    let manifest_before = fs::read(project.root.join("nocter.nct")).unwrap();
+    let first = project.nocter(["graph", "--format", "json"]);
+    let second = project.nocter(["graph", "--format", "json"]);
+    assert_success(&first);
+    assert_eq!(first.stdout, second.stdout);
+    let value: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(value["format"], 1);
+    assert_eq!(value["packages"].as_array().unwrap().len(), 2);
+    assert!(text(&first.stdout).contains("\"source\":\"path\""));
+    assert_eq!(
+        fs::read(project.root.join("nocter.nct")).unwrap(),
+        manifest_before
+    );
+}
+
+#[test]
 fn package_build_uses_declared_entry_and_artifact_name() {
     let project = TempPackage::new("build");
     project.write(

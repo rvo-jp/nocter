@@ -10,6 +10,7 @@ mod literals;
 mod packages;
 mod provenance;
 mod receivers;
+mod tests;
 mod type_notation;
 mod types;
 mod visit;
@@ -23,6 +24,7 @@ pub use literals::*;
 pub use packages::*;
 pub use provenance::*;
 pub use receivers::*;
+pub use tests::*;
 pub(crate) use type_notation::canonical_type_expr;
 pub(crate) use types::substitute_type_expr_parameters;
 pub(crate) use visit::{
@@ -43,6 +45,7 @@ pub enum Item {
     Import(ImportItem),
     FromImport(FromImportItem),
     Function(FunctionDecl),
+    Test(TestDecl),
     Primitive(PrimitiveDecl),
     TypeAlias(TypeAliasDecl),
     Struct(StructDecl),
@@ -786,6 +789,7 @@ impl Item {
             Item::Import(item) => item.span,
             Item::FromImport(item) => item.span,
             Item::Function(item) => item.span,
+            Item::Test(item) => item.span,
             Item::Primitive(item) => item.span,
             Item::TypeAlias(item) => item.span,
             Item::Struct(item) => item.span,

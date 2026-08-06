@@ -5,12 +5,18 @@ use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IrModule {
+    pub(crate) entry: CallTarget,
     pub(crate) functions: Vec<Function>,
 }
 
 impl IrModule {
+    #[cfg(test)]
     pub(crate) fn new(functions: Vec<Function>) -> Self {
-        Self { functions }
+        Self::with_entry(CallTarget::same_file("main"), functions)
+    }
+
+    pub(crate) fn with_entry(entry: CallTarget, functions: Vec<Function>) -> Self {
+        Self { entry, functions }
     }
 }
 
@@ -60,6 +66,8 @@ pub(crate) enum Instruction {
     OpenRead {
         destination: I32Location,
         path: UsizeValue,
+        flags: UsizeValue,
+        mode: UsizeValue,
         failure_mode: OutcomeFailureMode,
     },
     CloseFd {

@@ -1,6 +1,6 @@
 [package]
 name = "nocter"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "Apache-2.0"
 publish = false
@@ -9,3 +9,17 @@ publish = false
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+
+# Nocter has a large compiler test crate. Cargo's macOS defaults retain unpacked
+# debug objects and incremental state for it, which can grow target/ by tens of
+# gigabytes. Keep source line tables for useful backtraces without retaining
+# those workspace-local caches.
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "off"
+incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+split-debuginfo = "off"
+incremental = false

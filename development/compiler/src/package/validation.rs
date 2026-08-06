@@ -1,5 +1,6 @@
 use super::diagnostics::package_diagnostic;
-use super::targets::{ExecutableDeclaration, parse_executable_declaration};
+use super::targets::{TargetDeclaration, parse_executable_declaration};
+use super::test_targets::parse_test_declaration;
 use super::{DependencyDeclaration, DependencyLock, DependencySource, LockedDependency};
 use crate::ast::{DirectiveField, DirectiveValue, PackageManifest};
 use crate::diagnostics::Diagnostic;
@@ -11,7 +12,8 @@ pub(super) struct PackageDefinition {
     pub(super) version: Option<String>,
     pub(super) dependencies: Vec<DependencyDeclaration>,
     pub(super) locks: Vec<LockedDependency>,
-    pub(super) executables: Vec<ExecutableDeclaration>,
+    pub(super) executables: Vec<TargetDeclaration>,
+    pub(super) tests: Vec<TargetDeclaration>,
 }
 
 pub(super) fn validate_manifest(
@@ -24,6 +26,7 @@ pub(super) fn validate_manifest(
     let mut dependencies = None;
     let mut locks = None;
     let mut executable_specs = Vec::new();
+    let mut test_specs = Vec::new();
 
     for directive in &manifest.directives {
         match directive.name.as_str() {
@@ -45,6 +48,10 @@ pub(super) fn validate_manifest(
             ),
             "executable" => match parse_executable_declaration(sources, &directive.value) {
                 Ok(spec) => executable_specs.push(spec),
+                Err(mut errors) => diagnostics.append(&mut errors),
+            },
+            "test" => match parse_test_declaration(sources, &directive.value) {
+                Ok(spec) => test_specs.push(spec),
                 Err(mut errors) => diagnostics.append(&mut errors),
             },
             "dependencies" => {
@@ -96,6 +103,7 @@ pub(super) fn validate_manifest(
             dependencies,
             locks,
             executables: executable_specs,
+            tests: test_specs,
         })
     } else {
         Err(diagnostics)

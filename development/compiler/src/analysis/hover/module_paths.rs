@@ -14,6 +14,7 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
         Item::Import(item) => path_if_at_offset(&item.path, offset),
         Item::FromImport(item) => path_if_at_offset(&item.path, offset),
         Item::Function(function) => module_path_in_block_at_offset(&function.body, offset),
+        Item::Test(test) => module_path_in_block_at_offset(&test.body, offset),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
                 .body

@@ -133,10 +133,10 @@ pub interface Iterator<T> {
     /// Returns the first item accepted by `predicate`, or `none`.
     pub method self.find<F: &+func(&T): bool>(predicate: F): T? {
         var source = move self
-        var test = move predicate
+        var predicate_fn = move predicate
         while true {
             let item = source.next()?
-            if test(&item) {
+            if predicate_fn(&item) {
                 return move item
             }
         }
@@ -146,10 +146,10 @@ pub interface Iterator<T> {
     /// Returns true when `predicate` accepts any yielded item.
     pub method self.any<F: &+func(&T): bool>(predicate: F): bool {
         var source = move self
-        var test = move predicate
+        var predicate_fn = move predicate
         while true {
             let item = source.next() otherwise { return false }
-            if test(&item) {
+            if predicate_fn(&item) {
                 return true
             }
         }
@@ -159,10 +159,10 @@ pub interface Iterator<T> {
     /// Returns true when `predicate` accepts every yielded item.
     pub method self.all<F: &+func(&T): bool>(predicate: F): bool {
         var source = move self
-        var test = move predicate
+        var predicate_fn = move predicate
         while true {
             let item = source.next() otherwise { return true }
-            if !test(&item) {
+            if !predicate_fn(&item) {
                 return false
             }
         }

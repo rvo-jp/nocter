@@ -55,6 +55,19 @@ if x>3{return x}else{return 0}
 }
 
 #[test]
+fn formats_native_test_declarations_stably() {
+    assert_formats_stably(
+        "test   pushes{let value:i32=1 return}\n",
+        concat!(
+            "test pushes {\n",
+            "    let value: i32 = 1\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_lexical_regions_stably() {
     assert_formats_stably(
         r#"func main(arena:usize):void{region temp using arena{let value=temp}return}

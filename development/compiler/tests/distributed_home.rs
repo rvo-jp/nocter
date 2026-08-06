@@ -8,6 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "distributed_home/authoring.rs"]
+mod authoring;
 #[path = "distributed_home/collection_access.rs"]
 mod collection_access;
 #[path = "distributed_home/interpolation.rs"]
@@ -20,6 +22,8 @@ mod iteration_cleanup;
 mod iterator_adapters;
 #[path = "distributed_home/outcome_values.rs"]
 mod outcome_values;
+#[path = "distributed_home/practical_std.rs"]
+mod practical_std;
 #[path = "distributed_home/provenance_bounds.rs"]
 mod provenance_bounds;
 #[path = "distributed_home/typed_literals.rs"]
@@ -104,6 +108,88 @@ fn distributed_release_identity_matches_packaging_metadata() {
             && stdout.contains("host: arm64-darwin")
             && stdout.contains("default target: arm64-darwin"),
         "unexpected version output:\n{stdout}"
+    );
+}
+
+#[test]
+fn distributed_compiler_runs_package_tests_without_environment_configuration() {
+    let project = TempProject::new("distributed-home-package-test");
+    project.write_source(
+        "nocter.nct",
+        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+    );
+    project.write_source(
+        "unit.nct",
+        r#"use std/testing.{assert, assert_eq_i32, assert_eq_str}
+
+test assertions_pass {
+    assert(true)?
+    assert_eq_i32(2 + 2, 4)?
+    assert_eq_str("nocter", "nocter")?
+}
+
+test assertion_fails {
+    assert_eq_i32(1, 2)?
+}
+"#,
+    );
+    let home = distributed_home();
+
+    let output = Command::new(home.join("nocter"))
+        .args([
+            "test",
+            "--test",
+            "unit",
+            "--case",
+            "assertions_pass",
+            "--locked",
+            "--offline",
+        ])
+        .current_dir(project.root())
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        text(&output.stdout).contains("test unit::assertions_pass ... ok"),
+        "{}",
+        text(&output.stdout)
+    );
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+
+    let failure = Command::new(home.join("nocter"))
+        .args([
+            "test",
+            "--test",
+            "unit",
+            "--case",
+            "assertion_fails",
+            "--format",
+            "json",
+            "--locked",
+            "--offline",
+        ])
+        .current_dir(project.root())
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(failure.stderr.is_empty(), "{}", text(&failure.stderr));
+    let report: Value = serde_json::from_slice(&failure.stdout).unwrap();
+    assert_eq!(report["runs"][0]["test"], "assertion_fails");
+    assert_eq!(report["runs"][0]["outcome"], "failed");
+    assert!(
+        report["runs"][0]["stderr"].as_str().is_some_and(
+            |stderr| stderr.contains("std.testing.not_equal: i32 values are not equal")
+        ),
+        "{report:#}"
     );
 }
 
@@ -220,7 +306,7 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
     let workspace = install.root().join("workspace");
     fs::create_dir_all(&workspace).unwrap();
     let source = workspace.join("app.nct");
-    let source_text = "func main(): i32 {\n    return 0\n}\n";
+    let source_text = "func main(): i32 {\n    let value = 0\n    return value\n}\n";
     fs::write(&source, source_text).unwrap();
     let uri = file_uri(&source);
 
@@ -249,6 +335,18 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
             json!({
                 "jsonrpc": "2.0",
                 "id": 2,
+                "method": "textDocument/inlayHint",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": 4, "character": 0 }
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
                 "method": "shutdown",
                 "params": null
             }),
@@ -273,7 +371,34 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
         text(&output.stderr)
     );
 
-    let diagnostics = read_frames(&output.stdout)
+    let messages = read_frames(&output.stdout);
+    let initialize = messages
+        .iter()
+        .find(|message| message["id"] == 1)
+        .expect("expected initialize response");
+    assert_eq!(
+        initialize["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    assert_eq!(
+        initialize["result"]["capabilities"]["codeActionProvider"]["codeActionKinds"][0],
+        "quickfix"
+    );
+    assert_eq!(
+        initialize["result"]["capabilities"]["inlayHintProvider"],
+        true
+    );
+    let hints = messages
+        .iter()
+        .find(|message| message["id"] == 2)
+        .and_then(|message| message["result"].as_array())
+        .expect("expected inlay-hint response");
+    assert!(
+        hints.iter().any(|hint| hint["label"] == ": i32"),
+        "installed LSP should expose compiler-inferred hints, got:\n{hints:#?}"
+    );
+
+    let diagnostics = messages
         .into_iter()
         .find(|message| message["method"] == "textDocument/publishDiagnostics")
         .and_then(|message| message["params"]["diagnostics"].as_array().cloned())

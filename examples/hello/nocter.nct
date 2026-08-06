@@ -1,0 +1,12 @@
+#name: "hello"
+#version: "0.1.0"
+#executable: {
+    name: "hello",
+}
+
+use std/io.print
+
+func main(): i32! {
+    print("Hello from Nocter\n")?
+    return 0
+}

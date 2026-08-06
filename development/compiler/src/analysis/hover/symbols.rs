@@ -69,6 +69,16 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
             collect_block_hover_symbols(text, &function.body, symbols);
         }
+        Item::Test(test) => {
+            push_hover_symbol(
+                text,
+                test.name_span,
+                test.span.start,
+                format!("test {}: void!", test.name),
+                symbols,
+            );
+            collect_block_hover_symbols(text, &test.body, symbols);
+        }
         Item::Primitive(primitive) => {
             push_primitive_hover_symbol(text, primitive, symbols);
             collect_parameter_hover_symbols(text, &primitive.parameters.parameters, symbols);

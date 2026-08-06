@@ -40,6 +40,7 @@ pub(in crate::lexer) fn keyword(text: &str) -> Option<Keyword> {
         "primitive" => Keyword::Primitive,
         "literal" => Keyword::Literal,
         "construct" => Keyword::Construct,
+        "test" => Keyword::Test,
         "void" => Keyword::Void,
         "never" => Keyword::Never,
         _ => return None,

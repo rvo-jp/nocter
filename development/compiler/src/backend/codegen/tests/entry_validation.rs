@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn generates_process_entry_for_an_explicit_non_main_target() {
+    let entry = CallTarget::same_file("native_test");
+    let module = IrModule::with_entry(
+        entry.clone(),
+        vec![Function {
+            name: "native_test".to_string(),
+            target: entry,
+            return_type: Type::Void,
+            instructions: vec![Instruction::Return],
+        }],
+    );
+
+    let code = generate_arm64_darwin_entry(&module).unwrap();
+
+    assert!(!code.text.is_empty());
+}
+
+#[test]
+fn rejects_a_missing_explicit_entry_identity_even_when_main_exists() {
+    let module = IrModule::with_entry(
+        CallTarget::same_file("native_test"),
+        vec![Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::Void,
+            instructions: vec![Instruction::Return],
+        }],
+    );
+
+    let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
+
+    assert_eq!(diagnostics[0].code, "E9002");
+    assert!(diagnostics[0].message.contains("native_test"));
+}
+
+#[test]
 fn generates_exit_zero_for_return_i32_zero() {
     let module = IrModule::new(vec![Function {
         name: "main".to_string(),

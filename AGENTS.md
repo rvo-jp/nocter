@@ -29,6 +29,10 @@ milestone planning, maintenance policy, and handoff state. Root documentation ma
 Public language and standard-library semantics belong under `spec/`; this is user-facing reference
 material rather than development documentation.
 
+Keep complete runnable user packages under `examples/`. Do not place compiler diagnostic fixtures
+or deliberately invalid source there. Compiler source-corpus inputs belong under
+`development/compiler/tests/fixtures/`.
+
 ## Version Terminology
 
 Use an exact release or milestone such as `v0.2.0` or `v0.3.0 Phase 0` in public documentation.

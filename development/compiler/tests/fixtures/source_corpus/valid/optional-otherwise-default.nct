@@ -1,0 +1,13 @@
+// Executable environment lookup with an absence fallback.
+use std/process.env
+
+func main(): i32! {
+    let user = env("USER")? otherwise { "unknown" }
+
+    use_name(user)
+    return 0
+}
+
+func use_name(name: &str): void {
+    return
+}

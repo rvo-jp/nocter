@@ -38,6 +38,7 @@ mod semantic_facts;
 mod sized;
 mod strings;
 mod structs;
+mod test_declarations;
 mod type_expr;
 mod variants;
 mod visibility;
@@ -150,6 +151,7 @@ pub(crate) fn check_module_with_summary_sources(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
+    test_declarations::check_test_declarations(sources, ast, &mut diagnostics);
     check_generic_type_arities(sources, ast, resolved, &mut diagnostics);
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);

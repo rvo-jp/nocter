@@ -1,7 +1,6 @@
 use crate::abi::ReturnPassing;
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
-use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::{
     BorrowSource, CallTarget, ComposedOutcomeDestination, DirectAggregateArgument, Function,
     I32Location, I32Value, Instruction, IrModule, OutcomeFailureMode, ScalarArgument, SliceValue,

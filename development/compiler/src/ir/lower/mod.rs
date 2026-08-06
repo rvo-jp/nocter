@@ -45,11 +45,12 @@ use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::test_entry::TestDeclarationId;
 use crate::typecheck::TypecheckFacts;
 use context::{
     ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures, ResolvedSources,
 };
-use imported_calls::imported_call_diagnostics;
+use imported_calls::{imported_call_diagnostics, imported_call_diagnostics_for_block};
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
 use types::{
@@ -61,6 +62,22 @@ pub(crate) fn lower_executable(
     analysis: &CompileUnitAnalysis,
     sources: &SourceMap,
 ) -> Result<IrModule, Vec<Diagnostic>> {
+    lower_process_entry(analysis, sources, None)
+}
+
+pub(crate) fn lower_test(
+    analysis: &CompileUnitAnalysis,
+    sources: &SourceMap,
+    test: &TestDeclarationId,
+) -> Result<IrModule, Vec<Diagnostic>> {
+    lower_process_entry(analysis, sources, Some(test))
+}
+
+fn lower_process_entry(
+    analysis: &CompileUnitAnalysis,
+    sources: &SourceMap,
+    test: Option<&TestDeclarationId>,
+) -> Result<IrModule, Vec<Diagnostic>> {
     let Some(root) = analysis.root_file() else {
         return Err(vec![Diagnostic::error(
             "E8000",
@@ -68,10 +85,32 @@ pub(crate) fn lower_executable(
         )]);
     };
 
-    let Some(entry) = root.ast.items.iter().find_map(|item| match item {
-        Item::Function(function) if function.name == DEFAULT_ENTRY_NAME => Some(function),
-        _ => None,
-    }) else {
+    let selected_test = if let Some(test_id) = test {
+        let Some(test_decl) = test_id.resolve(&root.ast) else {
+            return Err(vec![
+                Diagnostic::error(
+                    "E8000",
+                    format!(
+                        "IR lowering cannot resolve selected test `{}`",
+                        test_id.name()
+                    ),
+                )
+                .with_primary_span_if_absent(sources, root.ast.span),
+            ]);
+        };
+        Some(test_decl)
+    } else {
+        None
+    };
+    let entry_function = if selected_test.is_none() {
+        root.ast.items.iter().find_map(|item| match item {
+            Item::Function(function) if function.name == DEFAULT_ENTRY_NAME => Some(function),
+            _ => None,
+        })
+    } else {
+        None
+    };
+    if selected_test.is_none() && entry_function.is_none() {
         return Err(vec![
             Diagnostic::error(
                 "E8000",
@@ -79,11 +118,23 @@ pub(crate) fn lower_executable(
             )
             .with_primary_span_if_absent(sources, root.ast.span),
         ]);
-    };
+    }
 
     let function_index = FunctionIndex::new(analysis, root.ast.span.source);
-    let diagnostics =
-        imported_call_diagnostics(sources, entry, root.ast.span.source, &root.resolved);
+    let diagnostics = match selected_test {
+        Some(test) => imported_call_diagnostics_for_block(
+            sources,
+            &test.body,
+            root.ast.span.source,
+            &root.resolved,
+        ),
+        None => imported_call_diagnostics(
+            sources,
+            entry_function.expect("executable entry was validated"),
+            root.ast.span.source,
+            &root.resolved,
+        ),
+    };
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -92,9 +143,14 @@ pub(crate) fn lower_executable(
     let function_names = function_index.names();
     let error_payloads = function_index.error_payloads(root.ast.span.source);
     let resolved_sources = function_index.resolved_sources();
-    let mut functions = vec![
-        entry::lower_entry_function(
-            entry,
+    let selected_target = test.map_or_else(
+        || CallTarget::same_file(DEFAULT_ENTRY_NAME),
+        |test| CallTarget::same_file(format!("__nocter_test_entry_{}", test.item_index())),
+    );
+    let lowered_entry = match selected_test {
+        Some(test) => entry::lower_test_entry_function(
+            test,
+            selected_target,
             sources,
             function_signatures.clone(),
             function_names.clone(),
@@ -104,8 +160,28 @@ pub(crate) fn lower_executable(
             resolved_sources.clone(),
             error_payloads.clone(),
         )
-        .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
-    ];
+        .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, test.span))?,
+        None => {
+            let entry = entry_function.expect("executable entry was validated");
+            entry::lower_entry_function_with_target(
+                entry,
+                selected_target,
+                sources,
+                function_signatures.clone(),
+                function_names.clone(),
+                root.ast.span.source,
+                &root.resolved,
+                &root.typecheck_facts,
+                resolved_sources.clone(),
+                error_payloads.clone(),
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, entry.span)
+            })?
+        }
+    };
+    let entry_target = lowered_entry.target.clone();
+    let mut functions = vec![lowered_entry];
     lower_reachable_functions(
         &mut functions,
         &function_index,
@@ -114,10 +190,11 @@ pub(crate) fn lower_executable(
         &error_payloads,
         &resolved_sources,
         root.ast.span.source,
+        entry_target.clone(),
         sources,
     )?;
 
-    Ok(IrModule::new(functions))
+    Ok(IrModule::with_entry(entry_target, functions))
 }
 
 fn lower_signature_return_type(
@@ -148,9 +225,10 @@ fn lower_reachable_functions(
     error_payloads: &ErrorPayloads,
     resolved_sources: &ResolvedSources<'_>,
     root_source: SourceId,
+    entry_target: CallTarget,
     sources: &SourceMap,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut seen = HashSet::from([CallTarget::same_file(DEFAULT_ENTRY_NAME)]);
+    let mut seen = HashSet::from([entry_target]);
     let mut queue = reachable_call_targets(&lowered[0]);
 
     while let Some(target) = queue.pop_front() {

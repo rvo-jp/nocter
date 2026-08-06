@@ -1,4 +1,0 @@
-// The v0 entry function is fixed to root-file `main`.
-func main(): i32 {
-    return 0
-}

@@ -40,6 +40,68 @@ fn loads_named_package_and_separate_executable_entry() {
 }
 
 #[test]
+fn loads_explicit_test_targets_with_distinct_typed_identity() {
+    let root = temp_package("test-target");
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(
+        root.join("nocter.nct"),
+        r#"#executable: { name: "unit", entry: "./tests/unit" }
+#test: { name: "unit", entry: "./tests/unit" }
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("tests/unit.nct"), "func main(): i32 { 0 }\n").unwrap();
+
+    let load = load_package(&root);
+    assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
+    let package = load.package.unwrap();
+    assert_eq!(package.tests().len(), 1);
+    assert_eq!(package.tests()[0].name(), "unit");
+    assert_eq!(package.tests()[0].id().package(), package.id());
+    assert_eq!(package.tests()[0].id().name(), "unit");
+    assert_eq!(
+        package.tests()[0].entry().id(),
+        package.executables()[0].entry().id()
+    );
+    assert_eq!(package.test("unit"), Some(&package.tests()[0]));
+}
+
+#[test]
+fn rejects_invalid_test_target_declarations() {
+    let root = temp_package("invalid-test-targets");
+    fs::write(root.join("unit.nct"), "func main(): i32 { 0 }\n").unwrap();
+    fs::write(
+        root.join("nocter.nct"),
+        r#"#test: { name: "missing-entry" }
+#test: { name: "unit", entry: "./unit", module: "legacy" }
+"#,
+    )
+    .unwrap();
+    let load = load_package(&root);
+    let messages = load
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(messages.contains(&"missing required test field `entry`"));
+    assert!(messages.contains(&"unknown test field `module`"));
+
+    fs::write(
+        root.join("nocter.nct"),
+        r#"#test: { name: "unit", entry: "./unit" }
+#test: { name: "unit", entry: "./unit" }
+"#,
+    )
+    .unwrap();
+    let load = load_package(&root);
+    assert!(
+        load.diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "duplicate test name `unit`")
+    );
+}
+
+#[test]
 fn unnamed_package_uses_directory_only_as_display_name() {
     let root = temp_package("fallback-name");
     fs::write(root.join("nocter.nct"), "").unwrap();
