@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.5.0 Phase 4 practical standard library
-- active milestone: v0.5.0 Phase 5 package authoring and stabilization
+- completed milestone: v0.5.0 Phase 5 package authoring and stabilization
+- active milestone: none; v0.5.0 awaits explicit publication authorization
 - target: `arm64-darwin`
 
 The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
@@ -71,6 +71,11 @@ optimized distribution, `doctor`, packaged LSP smoke, and archive inspection all
 Phase 4 adds UTF-8 paths, read/create/append files, static Reader/Writer contracts, buffered I/O,
 text and vector operations, numeric conversion, process queries, and a packaged-home filesystem CLI
 acceptance test.
+Phase 5 adds non-overwriting package initialization, read-only exact-graph inspection, the stable
+CI test-result contract, and installed-home authoring acceptance. The final candidate passes the
+complete compiler verification, warnings-denied Clippy, generated documentation, optimized
+packaging, fresh-package check/test/run/graph in locked offline mode, filesystem package checking,
+and archive inspection.
 
 ## Publication State
 
@@ -81,6 +86,5 @@ artifact.
 
 ## Next Work
 
-Begin Phase 5 with package initialization and CI-oriented test output. Then audit dependency-graph
-inspection, locked/offline diagnostics, and CLI/LSP parity before release qualification. Preserve
-the Phase 4 filesystem application as the minimum installed-home acceptance program.
+Do not add feature work before v0.5.0 publication. Re-run release qualification if the candidate
+changes; publication, tagging, and merging require explicit authorization.

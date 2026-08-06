@@ -1,5 +1,14 @@
 # Native Testing
 
+## CI Result Contract
+
+`nocter test --format json` emits one `nocter.tests` version-1 envelope. It separates package-level
+diagnostics from ordered process runs and records each target, optional native declaration name,
+outcome, exit code or signal, stdout, stderr, and diagnostics. The summary contains passed and
+failed counts. Success exits with status 0; any compile, runner, assertion, error, or process
+failure exits with status 1; command-line misuse exits with status 2; serialization/internal
+failure exits with status 3. JSON output does not use terminal color or progress text.
+
 This chapter specifies the native source-test contract adopted in Nocter v0.5.0 Phase 2.
 
 ## Declarations

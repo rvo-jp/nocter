@@ -1,6 +1,7 @@
 use super::init_templates;
 use std::ffi::OsString;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -76,31 +77,47 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
     } else {
         init_templates::executable(&name)
     };
-    if let Some(parent) = test_file.parent() {
-        if let Err(error) = fs::create_dir_all(parent) {
-            eprintln!(
-                "error[E0700]: failed to create `{}`: {error}",
-                parent.display()
-            );
-            return ExitCode::from(2);
-        }
-    }
-    if let Err(error) = fs::write(&test_file, init_templates::test()) {
+    if let Some(parent) = test_file.parent()
+        && let Err(error) = fs::create_dir_all(parent)
+    {
         eprintln!(
-            "error[E0700]: failed to write `{}`: {error}",
-            test_file.display()
+            "error[E0700]: failed to create `{}`: {error}",
+            parent.display()
         );
         return ExitCode::from(2);
     }
-    if let Err(error) = fs::write(&package_file, source) {
+    if let Err(error) = write_new(&package_file, source.as_bytes()) {
         eprintln!(
             "error[E0700]: failed to write `{}`: {error}",
             package_file.display()
         );
         return ExitCode::from(2);
     }
+    if let Err(error) = write_new(&test_file, init_templates::test().as_bytes()) {
+        eprintln!(
+            "error[E0700]: failed to write `{}`: {error}",
+            test_file.display()
+        );
+        if let Err(rollback_error) = fs::remove_file(&package_file) {
+            eprintln!(
+                "error[E0700]: failed to roll back `{}`: {rollback_error}",
+                package_file.display()
+            );
+        }
+        return ExitCode::from(2);
+    }
     println!("created {}", package_file.display());
     ExitCode::SUCCESS
+}
+
+fn write_new(path: &Path, contents: &[u8]) -> io::Result<()> {
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    if let Err(error) = file.write_all(contents) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(error);
+    }
+    Ok(())
 }
 
 fn package_name(directory: &Path) -> Option<String> {

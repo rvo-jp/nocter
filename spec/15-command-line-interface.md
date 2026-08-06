@@ -1,5 +1,21 @@
 # Command Line Interface
 
+## Package Initialization and Graph Inspection
+
+Adopted for v0.5.0 Phase 5, `nocter init [DIR]` creates a source-owned package without overwriting
+an existing `nocter.nct` or generated `tests/unit.nct`. The directory name supplies `#name` unless
+`--name` is explicit. The default template is executable; `--library` selects a library template.
+Both templates declare a separate package test target and must pass `nocter check` and
+`nocter test` immediately after creation.
+
+`nocter graph` loads the same exact `PackageGraph` used by build, test, and LSP analysis. Its human
+form prints package identities and labeled edges. `--format json` emits deterministic format-1
+data containing package IDs, names, versions, roots, dependency source kinds, exact locks, and
+resolved package IDs. `--locked` and `--offline` retain their normal resolution meaning.
+
+Graph inspection never writes generated lock data. `nocter fetch` remains the only command that
+intentionally updates dependency locks.
+
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 

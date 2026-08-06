@@ -14,9 +14,9 @@ are recorded in the [v0.4.0 Release Record](docs/v0.4.0.md), with compiler bound
 The previous language milestone remains available in the [v0.3.0 release record](docs/v0.3.0.md),
 and the v0.2.0 criteria remain in the [v0.2.0 release record](docs/v0.2.0.md).
 
-Active development is **v0.5.0 Phase 5: Package Authoring and Stabilization**. The
-published-artifact audit, native testing, package-wide editor refactoring, and practical standard
-library are complete. The adopted phase boundaries are recorded in the
+The **v0.5.0 Phase 5 release candidate is complete**. Published-artifact auditing, native testing,
+package-wide editor refactoring, the practical standard library, package initialization, and graph
+inspection are qualified. The completed phase boundaries are recorded in the
 [v0.5.0 Development Plan](docs/v0.5.0.md).
 
 ## Quick Start

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Development Documentation</title>
-    <meta name="description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <title>Nocter v0.5.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.5.0 makes a package practical to create, test, refactor, and use for a small filesystem command-line application. It preserves the exact source-o">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/packaging/v0.5.0-release-notes/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Development Documentation">
-    <meta property="og:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
-    <meta property="og:url" content="https://nocter.dev/development/">
+    <meta property="og:title" content="Nocter v0.5.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.5.0 makes a package practical to create, test, refactor, and use for a small filesystem command-line application. It preserves the exact source-o">
+    <meta property="og:url" content="https://nocter.dev/development/packaging/v0.5.0-release-notes/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-06">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Development Documentation">
-    <meta name="twitter:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <meta name="twitter:title" content="Nocter v0.5.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.5.0 makes a package practical to create, test, refactor, and use for a small filesystem command-line application. It preserves the exact source-o">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.5.0 Release Notes - Nocter","description":"Nocter v0.5.0 makes a package practical to create, test, refactor, and use for a small filesystem command-line application. It preserves the exact source-o","url":"https://nocter.dev/development/packaging/v0.5.0-release-notes/","mainEntityOfPage":"https://nocter.dev/development/packaging/v0.5.0-release-notes/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"},{"@type":"ListItem","position":4,"name":"V0.5.0 Release Notes","item":"https://nocter.dev/development/packaging/v0.5.0-release-notes/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -123,62 +123,24 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../index.html#content">repository README</a></li>
-                <li><a href="../spec/index.html#content">specification</a></li>
-                <li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 release record</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a></li>
-                <li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="./docs/index.html#content">Documentation Index</a></li>
-                <li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
-                <li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li>
-                <li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="./docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="./docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li>
-                <li><a href="./docs/lsp/index.html#content">Language Server</a></li>
-                <li><a href="./docs/maintenance/index.html#content">Maintenance</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/README.md</span>
+                <span class="markdown-path-text">/development/packaging/v0.5.0-release-notes.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development">Nocter Development</h1><p>This directory contains the Rust bootstrap compiler, the distributed standard library, release packaging inputs, and implementation documentation. See the <a href="../index.html#content">repository README</a> for the public overview and the <a href="../spec/index.html#content">specification</a> for language rules.</p><p>The current release is <strong>Nocter v0.4.0</strong>. It adds source-native package roots, deterministic exact dependency graphs, and immutable package-wide LSP snapshots to the v0.3.0 language foundation. The completed Phase 0 through Phase 2 contracts, stabilization audit, qualification, and non-goals are recorded in the <a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a>, with compiler boundaries in <a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a> and <a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a>.</p><p>The previous language milestone remains available in the <a href="./docs/v0.3.0/index.html#content">v0.3.0 release record</a>, and the v0.2.0 criteria remain in the <a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a>.</p><p>The <strong>v0.5.0 Phase 5 release candidate is complete</strong>. Published-artifact auditing, native testing, package-wide editor refactoring, the practical standard library, package initialization, and graph inspection are qualified. The completed phase boundaries are recorded in the <a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a>.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
-</code></pre><p>To verify only the compiler:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml
-</code></pre><p>The development and test profiles retain source line tables but disable incremental compilation and macOS split debug objects. This is intentional: the compiler's large test crate otherwise leaves hundreds of thousands of unpacked object files and can grow <code>development/compiler/target/</code> by tens of gigabytes. To discard local compiler artifacts manually, run:</p><pre><code class="language-sh"><span class="token-function">cargo</span> clean <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">-p</span> nocter
-</code></pre><p>To build and run a repository-local distribution:</p><pre><code class="language-sh">./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter run example.nct
-</code></pre><p>The canonical standard-library source is tracked in <code>development/std/</code>, and release metadata lives in <code>development/packaging/</code>. The packaging script creates a local installation image at <code>dist/.nocter/</code> and an archive named <code>dist/nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code>.</p><p>Rust and Cargo are required only for development. The release archive runs from a single <code>.nocter/</code> home containing the compiler and <code>std/</code>; users do not need LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools.</p><h2 id="documents">Documents</h2><ul><li><a href="./docs/index.html#content">Documentation Index</a></li><li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li><li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li><li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li><li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li><li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li><li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li><li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li><li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li><li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li><li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li><li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li><li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li><li><a href="./docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li><li><a href="./docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li><li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li><li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li><li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li><li><a href="./docs/lsp/index.html#content">Language Server</a></li><li><a href="./docs/maintenance/index.html#content">Maintenance</a></li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">Internal Handoff</a></li></ul><h2 id="layout">Layout</h2><pre><code class="language-text">development/
-├── AGENTS.md
-├── README.md
-├── TODO.md
-├── compiler/
-│   ├── Cargo.toml
-│   ├── scripts/
-│   ├── src/
-│   └── tests/
-├── docs/
-├── packaging/
-└── std/
-</code></pre><ul><li><code>compiler/src</code>: compiler implementation</li><li><code>compiler/tests</code>: CLI, runtime, distributed-home, LSP, and corpus integration tests</li><li><code>std</code>: canonical source for the packaged standard library</li><li><code>packaging</code>: release metadata copied into generated homes</li><li><code>docs</code>: current design and acceptance documents; Git retains history</li></ul>
+                <h1 id="nocter-v0-5-0-release-notes">Nocter v0.5.0 Release Notes</h1><p>Nocter v0.5.0 makes a package practical to create, test, refactor, and use for a small filesystem command-line application. It preserves the exact source-owned package graph introduced in v0.4.0 and adds native testing, package-wide editor operations, a practical standard library, and package authoring commands on that one model.</p><h2 id="highlights">Highlights</h2><ul><li><code>nocter init</code> creates a non-overwriting executable or library package with a separate test target.</li><li><code>nocter test</code> runs package targets and native <code>test</code> declarations in isolated processes with
+  stable human and format-1 JSON reports.</li><li><code>nocter graph</code> inspects exact package identities and dependency edges without rewriting <code>#lock</code>.</li><li>The immutable package semantic index supports package-wide references and safe rename, automatic
+  imports, compiler-planned quick fixes, and inferred type/effect/provenance inlay hints.</li><li>Distributed <code>std</code> adds UTF-8 paths, file read/create/append, static <code>Reader</code> and <code>Writer</code>
+  contracts, buffered I/O, string search and owned split, vector retain/truncate, decimal
+  conversion, iterator terminal operations, and allocation-free process queries.</li><li>A packaged-home acceptance application creates, reads, rewrites, reopens, and appends files while
+  exercising text, collections, numeric parsing, process state, and explicit buffered flush.</li></ul><h2 id="authoring">Authoring</h2><pre><code class="language-sh"><span class="token-function">nocter</span> init json-tool
+<span class="token-function">cd</span> json-tool
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> <span class="token-function">test</span>
+<span class="token-function">nocter</span> run
+<span class="token-function">nocter</span> graph <span class="token-option">--locked</span> <span class="token-option">--offline</span> <span class="token-option">--format</span> json
+</code></pre><p>Initialization refuses to overwrite <code>nocter.nct</code> or its generated test module. <code>graph</code> is read-only; dependency updates remain the responsibility of <code>nocter fetch</code>, so lock changes stay visible in code review.</p><h2 id="qualification">Qualification</h2><p>The release candidate passes the complete compiler, CLI, LSP, distributed-home, formatter, and example-corpus suite with warnings denied. The optimized distribution passes <code>doctor</code> and a fresh package's check, test, run, and locked-offline graph workflow without repository configuration. A filesystem-oriented standard-library package also passes locked-offline checking from that home.</p><h2 id="explicit-limits">Explicit Limits</h2><p>The supported host and target remain <code>arm64-darwin</code>. Registries, semantic-version resolution, workspace membership, source-level lifetime parameters, runtime interface dispatch, async, concurrency, and a stable cross-version ABI are not part of v0.5.0.</p>
             </div>
         </main>
     </div>
@@ -194,6 +156,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

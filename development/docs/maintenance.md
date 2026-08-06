@@ -22,8 +22,8 @@ responsibility naturally explains it.
 | Information | Owner |
 |---|---|
 | Language and public standard-library semantics | `spec/` |
-| Active v0.5.0 milestone and qualification | `docs/v0.5.0.md` |
-| Current release completion and qualification | `docs/v0.4.0.md` |
+| Released v0.4.0 completion and qualification | `docs/v0.4.0.md` |
+| v0.5.0 release-candidate completion and qualification | `docs/v0.5.0.md` |
 | Previous v0.3.0 completion record | `docs/v0.3.0.md` |
 | Previous v0.2.0 completion record | `docs/v0.2.0.md` |
 | Compiler phase boundaries | `docs/architecture.md` |
@@ -40,13 +40,12 @@ responsibility naturally explains it.
 | Historical sequence | Git history |
 
 Do not keep the same status table in multiple documents. Keep current release qualification only
-in `v0.4.0.md`; focused documents own design and concrete acceptance behavior. `v0.3.0.md` and
+in the active release record; focused documents own design and concrete acceptance behavior. `v0.3.0.md` and
 `v0.2.0.md` are historical release records and do not receive new work items.
 
 ## Update Triggers
 
-- Current release status, non-goal, or qualification changed: update `v0.4.0.md`.
-- Active milestone scope, dependency order, or qualification changed: update `v0.5.0.md`.
+- Candidate scope, qualification, non-goal, or publication state changed: update `v0.5.0.md`.
 - Region, provenance, allocation-effect, or callable-summary design changed: update
   `region-provenance.md`.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.

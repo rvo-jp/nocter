@@ -45,6 +45,7 @@ fn graph_json_is_deterministic_and_exposes_dependency_identity() {
         "nocter.nct",
         "#name: \"root\"\n#dependencies: { dep: { path: \"./dep\" } }\n",
     );
+    let manifest_before = fs::read(project.root.join("nocter.nct")).unwrap();
     let first = project.nocter(["graph", "--format", "json"]);
     let second = project.nocter(["graph", "--format", "json"]);
     assert_success(&first);
@@ -53,6 +54,10 @@ fn graph_json_is_deterministic_and_exposes_dependency_identity() {
     assert_eq!(value["format"], 1);
     assert_eq!(value["packages"].as_array().unwrap().len(), 2);
     assert!(text(&first.stdout).contains("\"source\":\"path\""));
+    assert_eq!(
+        fs::read(project.root.join("nocter.nct")).unwrap(),
+        manifest_before
+    );
 }
 
 #[test]
