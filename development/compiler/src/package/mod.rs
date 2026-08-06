@@ -11,6 +11,7 @@ mod modules;
 mod overlay;
 mod store;
 mod targets;
+mod test_targets;
 mod validation;
 
 #[cfg(test)]
@@ -22,7 +23,7 @@ pub use graph::{PackageGraph, PackageGraphLoad, PackageGraphOptions, load_packag
 pub use loader::{PackageLoad, load_package};
 pub use model::{
     ExecutableId, ExecutableTarget, ModuleId, ModuleKey, NormalizedModulePath, PackageId,
-    ResolvedModule, SourcePackage,
+    ResolvedModule, SourcePackage, TestTarget, TestTargetId,
 };
 pub(crate) use modules::resolve_explicit_module_path;
 pub(crate) use overlay::PackageSourceOverlay;
