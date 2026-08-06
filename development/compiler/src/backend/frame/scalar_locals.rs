@@ -129,10 +129,14 @@ pub(super) fn record_instruction_scalar_locals(
         Instruction::OpenRead {
             destination,
             path,
+            flags,
+            mode,
             failure_mode,
         } => {
             record_i32_location(*destination, highest_local_index);
             record_usize_value(path, highest_local_index);
+            record_usize_value(flags, highest_local_index);
+            record_usize_value(mode, highest_local_index);
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
         Instruction::CloseFd { fd } => {

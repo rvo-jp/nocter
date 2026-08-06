@@ -96,7 +96,10 @@ pub(in crate::ir::lower::expressions) fn primitive_open_read_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("open_read_raw"))
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("open_read_raw" | "create_raw" | "append_raw")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_write_bytes_raw_call(
@@ -982,9 +985,16 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
 
     let (mut instructions, path) =
         lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let (flags, mode) = match context.primitive_name_for_call(call) {
+        Some("create_raw") => (1 + 512 + 1024, 438),
+        Some("append_raw") => (1 + 8 + 512, 438),
+        _ => (0, 0),
+    };
     instructions.push(Instruction::OpenRead {
         destination,
         path,
+        flags: UsizeValue::Const(flags),
+        mode: UsizeValue::Const(mode),
         failure_mode,
     });
     Ok(instructions)

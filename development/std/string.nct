@@ -16,6 +16,8 @@ use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_alloc
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
+use std/ptr.store_u8_to_ptr
+use std/vec.Vec
 
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
@@ -78,6 +80,30 @@ construct String {
     pub func try_copy(allocator: &+TryAllocator, value: &str): Self! {
         return String.try_from_str(allocator, value)?
     }
+
+    pub func from_utf8(candidate: &[u8]): Self! {
+        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        var result = String.with_capacity(candidate.len())
+        var offset: usize = 0
+        while offset < candidate.len() {
+            store_u8_to_ptr(result.storage.ptr, offset, candidate[offset])
+            offset = offset + 1
+        }
+        result.len = candidate.len()
+        return move result
+    }
+
+    pub func try_from_utf8(allocator: &+TryAllocator, candidate: &[u8]): Self! {
+        if !is_valid_utf8(candidate) { return invalid_utf8() }
+        var result = String.try_with_capacity(allocator, candidate.len())?
+        var offset: usize = 0
+        while offset < candidate.len() {
+            store_u8_to_ptr(result.storage.ptr, offset, candidate[offset])
+            offset = offset + 1
+        }
+        result.len = candidate.len()
+        return move result
+    }
 }
 
 pub func empty(): String {
@@ -101,6 +127,14 @@ pub func from_str(value: &str): String {
 
 pub func try_from_str(allocator: &+TryAllocator, value: &str): String! {
     return String.try_from_str(allocator, value)?
+}
+
+pub func from_utf8(candidate: &[u8]): String! {
+    return String.from_utf8(candidate)?
+}
+
+pub func try_from_utf8(allocator: &+TryAllocator, candidate: &[u8]): String! {
+    return String.try_from_utf8(allocator, candidate)?
 }
 
 pub func view(text: &String): &str {
@@ -151,6 +185,136 @@ pub func clear(text: &+String): void {
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
+}
+
+/// Returns whether `candidate` is a well-formed UTF-8 byte sequence.
+pub func is_valid_utf8(candidate: &[u8]): bool {
+    var offset: usize = 0
+    while offset < candidate.len() {
+        let leading: u8 = candidate[offset]
+        if leading < 128 {
+            offset = offset + 1
+        } else if leading >= 194 && leading <= 223 {
+            if offset + 1 >= candidate.len() || !is_continuation(candidate[offset + 1]) {
+                return false
+            }
+            offset = offset + 2
+        } else if leading >= 224 && leading <= 239 {
+            if offset + 2 >= candidate.len() {
+                return false
+            }
+            let second: u8 = candidate[offset + 1]
+            if !is_continuation(second) || !is_continuation(candidate[offset + 2]) {
+                return false
+            }
+            if leading == 224 && second < 160 { return false }
+            if leading == 237 && second >= 160 { return false }
+            offset = offset + 3
+        } else if leading >= 240 && leading <= 244 {
+            if offset + 3 >= candidate.len() {
+                return false
+            }
+            let second: u8 = candidate[offset + 1]
+            if !is_continuation(second) || !is_continuation(candidate[offset + 2]) || !is_continuation(candidate[offset + 3]) {
+                return false
+            }
+            if leading == 240 && second < 144 { return false }
+            if leading == 244 && second >= 144 { return false }
+            offset = offset + 4
+        } else {
+            return false
+        }
+    }
+    return true
+}
+
+func is_continuation(byte: u8): bool {
+    return byte >= 128 && byte <= 191
+}
+
+/// Returns the first byte offset of `needle` at or after `start`.
+pub func find_from(value: &str, needle: &str, start: usize): usize? {
+    let haystack: &[u8] = bytes_from_str(value)
+    let sought: &[u8] = bytes_from_str(needle)
+    if start > haystack.len() { return none }
+    if sought.len() == 0 { return start }
+    var candidate: usize = start
+    while candidate + sought.len() <= haystack.len() {
+        var matched: usize = 0
+        var equal: bool = true
+        while matched < sought.len() {
+            let actual: u8 = haystack[candidate + matched]
+            let expected: u8 = sought[matched]
+            if actual != expected {
+                equal = false
+            }
+            matched = matched + 1
+        }
+        if equal { return candidate }
+        candidate = candidate + 1
+    }
+    return none
+}
+
+pub func find(value: &str, needle: &str): usize? {
+    return find_from(value, needle, 0)?
+}
+
+pub func contains(value: &str, needle: &str): bool {
+    let offset: usize = find(value, needle) otherwise { return false }
+    return offset <= value.len()
+}
+
+pub func starts_with(value: &str, prefix: &str): bool {
+    let offset: usize = find_from(value, prefix, 0) otherwise { return false }
+    return offset == 0
+}
+
+pub func ends_with(value: &str, suffix: &str): bool {
+    if suffix.len() > value.len() { return false }
+    let offset: usize = find_from(value, suffix, value.len() - suffix.len()) otherwise { return false }
+    return offset == value.len() - suffix.len()
+}
+
+/// Splits UTF-8 text into independently owned strings.
+///
+/// An empty separator is rejected because character-boundary splitting belongs
+/// to a future scalar-value iterator rather than byte-oriented search.
+pub func split(value: &str, separator: &str): Vec<String>! {
+    if separator.len() == 0 {
+        return empty_separator()
+    }
+    var result: Vec<String> = Vec.empty()
+    var part_start: usize = 0
+    while part_start <= value.len() {
+        let separator_offset: usize = find_from(value, separator, part_start) otherwise {
+            result.push(copy_range(value, part_start, value.len()))
+            break
+        }
+        result.push(copy_range(value, part_start, separator_offset))
+        part_start = separator_offset + separator.len()
+    }
+    return move result
+}
+
+func copy_range(value: &str, start: usize, end: usize): String {
+    let source: &[u8] = bytes_from_str(value)
+    var result = String.with_capacity(end - start)
+    var offset: usize = start
+    while offset < end {
+        store_u8_to_ptr(result.storage.ptr, result.len, source[offset])
+        result.len = result.len + 1
+        offset = offset + 1
+    }
+    return move result
+}
+
+pub func invalid_utf8(): error {
+    return Error.new("std.string.invalid_utf8", "invalid UTF-8")
+}
+
+pub func empty_separator(): error {
+    return Error.new("std.string.empty_separator", "string separator must not be empty")
 }
 
 pub func bytes_iter(text: &String): ViewIter<u8> {
@@ -211,6 +375,26 @@ impl String {
 
     pub method &self.bytes(): &[u8] {
         return bytes_from_str(view(self))
+    }
+
+    pub method &self.find(needle: &str): usize? {
+        return find(view(self), needle)?
+    }
+
+    pub method &self.contains(needle: &str): bool {
+        return contains(view(self), needle)
+    }
+
+    pub method &self.starts_with(prefix: &str): bool {
+        return starts_with(view(self), prefix)
+    }
+
+    pub method &self.ends_with(suffix: &str): bool {
+        return ends_with(view(self), suffix)
+    }
+
+    pub method &self.split(separator: &str): Vec<String>! {
+        return split(view(self), separator)?
     }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.

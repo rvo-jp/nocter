@@ -25,9 +25,19 @@ impl EntryEmitter {
             Instruction::OpenRead {
                 destination,
                 path,
+                flags,
+                mode,
                 failure_mode,
             } => {
-                self.emit_open_read(*destination, path, failure_mode, frame, return_type)?;
+                self.emit_open_read(
+                    *destination,
+                    path,
+                    flags,
+                    mode,
+                    failure_mode,
+                    frame,
+                    return_type,
+                )?;
             }
             Instruction::CloseFd { fd } => {
                 self.emit_close_fd(fd, frame)?;

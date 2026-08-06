@@ -259,10 +259,16 @@ pub(super) fn record_instruction_parameter_spill_requests(
             );
         }
         Instruction::OpenRead {
-            path, failure_mode, ..
+            path,
+            flags,
+            mode,
+            failure_mode,
+            ..
         } => {
             if include_value_parameters {
                 record_usize_value_parameter_spill_requests(path, requests);
+                record_usize_value_parameter_spill_requests(flags, requests);
+                record_usize_value_parameter_spill_requests(mode, requests);
             }
             record_failure_mode_parameter_spill_requests(
                 failure_mode,

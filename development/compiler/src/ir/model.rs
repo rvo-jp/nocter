@@ -66,6 +66,8 @@ pub(crate) enum Instruction {
     OpenRead {
         destination: I32Location,
         path: UsizeValue,
+        flags: UsizeValue,
+        mode: UsizeValue,
         failure_mode: OutcomeFailureMode,
     },
     CloseFd {

@@ -191,6 +191,8 @@ impl EntryEmitter {
         &mut self,
         destination: I32Location,
         path: &UsizeValue,
+        flags: &UsizeValue,
+        mode: &UsizeValue,
         failure_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
@@ -204,8 +206,8 @@ impl EntryEmitter {
 
         self.emit_scalar_spills(frame)?;
         self.emit_usize_value_to_x(path, XReg::X0)?;
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X1, 0);
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X2, 0);
+        self.emit_usize_value_to_x(flags, XReg::X1)?;
+        self.emit_usize_value_to_x(mode, XReg::X2)?;
         emit_darwin_open_syscall(&mut self.encoder);
 
         let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);

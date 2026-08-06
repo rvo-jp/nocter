@@ -762,6 +762,8 @@ pub func open_raw(address: usize): i32! {
             Instruction::OpenRead {
                 destination: I32Location::Return,
                 path: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                flags: UsizeValue::Const(0),
+                mode: UsizeValue::Const(0),
                 failure_mode: OutcomeFailureMode::Propagate,
             },
             Instruction::ReturnOutcomeSuccess,

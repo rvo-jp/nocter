@@ -20,6 +20,8 @@ mod iteration_cleanup;
 mod iterator_adapters;
 #[path = "distributed_home/outcome_values.rs"]
 mod outcome_values;
+#[path = "distributed_home/practical_std.rs"]
+mod practical_std;
 #[path = "distributed_home/provenance_bounds.rs"]
 mod provenance_bounds;
 #[path = "distributed_home/typed_literals.rs"]
