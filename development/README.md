@@ -32,6 +32,15 @@ To verify only the compiler:
 cargo test --manifest-path development/compiler/Cargo.toml
 ```
 
+The development and test profiles retain source line tables but disable incremental compilation
+and macOS split debug objects. This is intentional: the compiler's large test crate otherwise
+leaves hundreds of thousands of unpacked object files and can grow `development/compiler/target/`
+by tens of gigabytes. To discard local compiler artifacts manually, run:
+
+```sh
+cargo clean --manifest-path development/compiler/Cargo.toml -p nocter
+```
+
 To build and run a repository-local distribution:
 
 ```sh
