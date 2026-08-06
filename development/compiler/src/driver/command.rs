@@ -3,6 +3,8 @@ use super::compile_options::{
     parse_fetch_command,
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
+use super::graph_command::{GraphCommand, parse_graph_command};
+use super::init_command::{InitCommand, parse_init_command};
 use super::json_tool_options::parse_json_tool_command;
 use super::test_options::{TestCommand, parse_test_command};
 use crate::target::DEFAULT_TARGET;
@@ -15,6 +17,8 @@ pub(super) enum Command {
     Help,
     Version,
     Doctor,
+    Init(InitCommand),
+    Graph(GraphCommand),
     Fetch(SourceCommand),
     Build(BuildCommand),
     Run(SourceCommand),
@@ -108,6 +112,8 @@ pub(super) fn parse_command(args: &[OsString]) -> Result<Command, CommandError> 
         "-h" | "--help" | "help" => Ok(Command::Help),
         "--version" | "version" => expect_no_extra(args, Command::Version),
         "doctor" => expect_no_extra(args, Command::Doctor),
+        "init" => parse_init_command(args).map(Command::Init),
+        "graph" => parse_graph_command(args).map(Command::Graph),
         "fetch" => parse_fetch_command(args).map(Command::Fetch),
         "build" => parse_compile_command(args, CompileCommandKind::Build).map(|options| {
             Command::Build(BuildCommand {
@@ -171,6 +177,8 @@ fn command_name(args: &[OsString]) -> Option<String> {
         "-h" | "--help" | "help" => "help",
         "--version" | "version" => "version",
         "doctor" => "doctor",
+        "init" => "init",
+        "graph" => "graph",
         "fetch" => "fetch",
         "build" => "build",
         "run" => "run",
@@ -189,7 +197,7 @@ fn command_name(args: &[OsString]) -> Option<String> {
 fn root_argument(args: &[OsString]) -> Option<String> {
     let first = args.first()?.to_string_lossy();
     match first.as_ref() {
-        "build" | "run" | "check" | "fetch" | "test" => root_option(args)
+        "build" | "run" | "check" | "fetch" | "test" | "graph" => root_option(args)
             .map(|root| format!("{root}/nocter.nct"))
             .or_else(|| file_option(args))
             .or_else(|| root_after_command(args, 1))

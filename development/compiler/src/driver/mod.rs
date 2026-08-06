@@ -5,6 +5,9 @@ mod doctor;
 mod errors;
 mod fmt;
 mod fmt_options;
+mod graph_command;
+mod init_command;
+mod init_templates;
 mod json;
 mod json_tool_options;
 mod lsp;
@@ -59,6 +62,8 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
+        Ok(Command::Init(command)) => init_command::run_init_command(&command),
+        Ok(Command::Graph(command)) => graph_command::run_graph_command(&command),
         Ok(Command::Fetch(command)) => package_commands::run_fetch_command(&command),
         Ok(Command::Build(command)) => package_commands::run_build_command(&command),
         Ok(Command::Run(command)) => package_commands::run_run_command(&command),
@@ -97,6 +102,11 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "usage: nocter <command> [args]")?;
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
+    writeln!(writer, "  init [<dir>] [--name <name>] [--library]")?;
+    writeln!(
+        writer,
+        "  graph [--root <dir>] [--locked] [--offline] [--format json]"
+    )?;
     writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
     writeln!(
         writer,
