@@ -34,6 +34,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
 - [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
+- [Practical Standard Library](21-practical-standard-library.md)
 - [Callable Values and Interface Default Methods](18-callables-default-methods.md)
 - [Construction Surfaces](19-construction-surfaces.md)
 - [Native Testing](20-native-testing.md)
@@ -54,8 +55,10 @@ immutable editor-snapshot, and release-qualification contracts are recorded in t
 The adopted v0.5.0 Phase 2 contract adds compiler-owned native test declarations,
 per-declaration process isolation, and `std/testing`. The completed v0.5.0 Phase 3 contract adds an
 immutable exact-graph editor index, package-wide references and rename, compiler-planned source
-edits, and semantic inlay hints. These contracts are specified here before the v0.5.0 release so
-packages and tooling share one source of truth.
+edits, and semantic inlay hints. The completed v0.5.0 Phase 4 contract adds UTF-8 paths,
+read/create/append files, buffered byte I/O, text and collection operations, numeric conversion,
+and allocation-free process queries. These contracts are specified here before the v0.5.0 release
+so packages and tooling share one source of truth.
 
 ## Editing Policy
 

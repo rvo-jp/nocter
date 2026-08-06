@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Development Documentation</title>
-    <meta name="description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <title>Practical Standard Library - Nocter</title>
+    <meta name="description" content="This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter source declarations distributed with the compiler. Only t">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/spec/21-practical-standard-library/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Development Documentation">
-    <meta property="og:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
-    <meta property="og:url" content="https://nocter.dev/development/">
+    <meta property="og:title" content="Practical Standard Library - Nocter">
+    <meta property="og:description" content="This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter source declarations distributed with the compiler. Only t">
+    <meta property="og:url" content="https://nocter.dev/spec/21-practical-standard-library/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-06">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Development Documentation">
-    <meta name="twitter:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <meta name="twitter:title" content="Practical Standard Library - Nocter">
+    <meta name="twitter:description" content="This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter source declarations distributed with the compiler. Only t">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Practical Standard Library - Nocter","description":"This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter source declarations distributed with the compiler. Only t","url":"https://nocter.dev/spec/21-practical-standard-library/","mainEntityOfPage":"https://nocter.dev/spec/21-practical-standard-library/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"21 Practical Standard Library","item":"https://nocter.dev/spec/21-practical-standard-library/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -124,61 +124,44 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">spec/</p>
             <ul class="directory-toc-list">
-                <li><a href="../index.html#content">repository README</a></li>
-                <li><a href="../spec/index.html#content">specification</a></li>
-                <li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 release record</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a></li>
-                <li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="./docs/index.html#content">Documentation Index</a></li>
-                <li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
-                <li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li>
-                <li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="./docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="./docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li>
-                <li><a href="./docs/lsp/index.html#content">Language Server</a></li>
-                <li><a href="./docs/maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../00-overview/index.html#content">Overview</a></li>
+                <li><a href="../00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li>
+                <li><a href="../01-modules-use/index.html#content">Modules and Use Declarations</a></li>
+                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
+                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
+                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
+                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
+                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
+                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
+                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
+                <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
+                <li><a href="./index.html#content" aria-current="page">Practical Standard Library</a></li>
+                <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+                <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
+                <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/README.md</span>
+                <span class="markdown-path-text">/spec/21-practical-standard-library.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development">Nocter Development</h1><p>This directory contains the Rust bootstrap compiler, the distributed standard library, release packaging inputs, and implementation documentation. See the <a href="../index.html#content">repository README</a> for the public overview and the <a href="../spec/index.html#content">specification</a> for language rules.</p><p>The current release is <strong>Nocter v0.4.0</strong>. It adds source-native package roots, deterministic exact dependency graphs, and immutable package-wide LSP snapshots to the v0.3.0 language foundation. The completed Phase 0 through Phase 2 contracts, stabilization audit, qualification, and non-goals are recorded in the <a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a>, with compiler boundaries in <a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a> and <a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a>.</p><p>The previous language milestone remains available in the <a href="./docs/v0.3.0/index.html#content">v0.3.0 release record</a>, and the v0.2.0 criteria remain in the <a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a>.</p><p>Active development is <strong>v0.5.0 Phase 5: Package Authoring and Stabilization</strong>. The published-artifact audit, native testing, package-wide editor refactoring, and practical standard library are complete. The adopted phase boundaries are recorded in the <a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a>.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
-</code></pre><p>To verify only the compiler:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml
-</code></pre><p>The development and test profiles retain source line tables but disable incremental compilation and macOS split debug objects. This is intentional: the compiler's large test crate otherwise leaves hundreds of thousands of unpacked object files and can grow <code>development/compiler/target/</code> by tens of gigabytes. To discard local compiler artifacts manually, run:</p><pre><code class="language-sh"><span class="token-function">cargo</span> clean <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">-p</span> nocter
-</code></pre><p>To build and run a repository-local distribution:</p><pre><code class="language-sh">./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter run example.nct
-</code></pre><p>The canonical standard-library source is tracked in <code>development/std/</code>, and release metadata lives in <code>development/packaging/</code>. The packaging script creates a local installation image at <code>dist/.nocter/</code> and an archive named <code>dist/nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code>.</p><p>Rust and Cargo are required only for development. The release archive runs from a single <code>.nocter/</code> home containing the compiler and <code>std/</code>; users do not need LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools.</p><h2 id="documents">Documents</h2><ul><li><a href="./docs/index.html#content">Documentation Index</a></li><li><a href="./docs/v0.5.0/index.html#content">v0.5.0 Development Plan</a></li><li><a href="./docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li><li><a href="./docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li><li><a href="./docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li><li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li><li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li><li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li><li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li><li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li><li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li><li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li><li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li><li><a href="./docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li><li><a href="./docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li><li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li><li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li><li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li><li><a href="./docs/lsp/index.html#content">Language Server</a></li><li><a href="./docs/maintenance/index.html#content">Maintenance</a></li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">Internal Handoff</a></li></ul><h2 id="layout">Layout</h2><pre><code class="language-text">development/
-├── AGENTS.md
-├── README.md
-├── TODO.md
-├── compiler/
-│   ├── Cargo.toml
-│   ├── scripts/
-│   ├── src/
-│   └── tests/
-├── docs/
-├── packaging/
-└── std/
-</code></pre><ul><li><code>compiler/src</code>: compiler implementation</li><li><code>compiler/tests</code>: CLI, runtime, distributed-home, LSP, and corpus integration tests</li><li><code>std</code>: canonical source for the packaged standard library</li><li><code>packaging</code>: release metadata copied into generated homes</li><li><code>docs</code>: current design and acceptance documents; Git retains history</li></ul>
+                <h1 id="practical-standard-library">Practical Standard Library</h1><p>This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter source declarations distributed with the compiler. Only target boundaries such as opening a file descriptor are compiler-owned primitives.</p><h2 id="text-and-collections">Text and Collections</h2><p><code>std/string</code> provides UTF-8 validation and byte-oriented search:</p><ul><li><code>find</code> and <code>find_from</code> return byte offsets;</li><li><code>contains</code>, <code>starts_with</code>, and <code>ends_with</code> do not allocate;</li><li><code>split</code> rejects an empty separator and returns independently owned <code>String</code> values;</li><li><code>String.from_utf8</code> validates a byte slice before copying it into owned storage.</li></ul><p>Search never splits or reinterprets Unicode scalar values. Returning owned split components keeps their lifetime independent of the input. A future borrowed substring API requires an explicit source-provenance-preserving view operation; raw-pointer reconstruction is not a substitute.</p><p><code>Vec&lt;T&gt;.retain</code> preserves relative order. Rejected elements are dropped exactly once, retained elements move at most once, and the initialized prefix is updated only after compaction. <code>Vec&lt;T&gt;.truncate</code> drops the removed suffix.</p><p>The iterator terminal operations <code>find</code>, <code>any</code>, <code>all</code>, <code>fold</code>, and <code>to_vec</code> remain default methods of <code>Iterator&lt;T&gt;</code>. They use static generic dispatch and do not require runtime interface objects.</p><h2 id="paths-and-files">Paths and Files</h2><p><code>std/path.Utf8Path</code> is an owned, NUL-free UTF-8 path. The name is intentional: operating systems may support filename bytes that are not UTF-8, and this type does not claim to represent them. <code>join</code> replaces the base when its child is absolute and otherwise inserts one path separator. It does not perform filesystem normalization or canonicalization.</p><p><code>std/io.File</code> can open an existing file for reading, create or truncate a file for writing, and open a file for append. The <code>open_path</code>, <code>create_path</code>, and <code>append_path</code> functions accept <code>Utf8Path</code>. File handles close once when explicitly closed or dropped.</p><p><code>Reader</code> and <code>Writer</code> define the shared byte-I/O contracts. <code>BufReader</code> and <code>BufWriter</code> in <code>std/io_buffer</code> own their buffering storage. A buffered writer reports I/O failure only through an explicit <code>flush</code> or <code>close</code>; dropping it discards unflushed bytes because destruction cannot return an error. Successful flush clears the buffer only after the underlying write succeeds.</p><h2 id="numeric-text-and-process-state">Numeric Text and Process State</h2><p><code>std/num</code> parses decimal <code>usize</code>, <code>i32</code>, and <code>u8</code> values without allocation. Invalid syntax and overflow return <code>none</code>. Formatting functions return owned decimal <code>String</code> values; paired <code>try_*</code> functions use an explicit recoverable allocator.</p><p><code>std/process.arg_count</code>, <code>arg</code>, <code>environment_count</code>, and <code>environment</code> query process-lifetime storage without allocating. Out-of-range indexed queries return <code>none</code>; invalid process encoding returns <code>error</code>. <code>args</code> remains the allocating convenience that collects all arguments.</p><h2 id="allocation-and-failure">Allocation and Failure</h2><p>Normal <code>String</code>, <code>Vec</code>, path, split, buffered-I/O, and formatting construction uses the current allocation context and aborts if allocation cannot continue. <code>String</code> conversion and numeric formatting also expose explicit <code>try_*</code> operations for a recoverable <code>TryAllocator</code>. Filesystem, I/O, invalid UTF-8, invalid paths, and empty split separators remain recoverable <code>T!</code> failures.</p>
             </div>
         </main>
     </div>
@@ -194,6 +177,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

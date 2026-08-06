@@ -14,7 +14,10 @@ authority for public API semantics; this document adds no specification rules.
 | `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | complete layout/grow/free contract |
 | `os` | target-gated syscall boundary | restricted to allocator internals |
 | `prelude` | implicit common declarations | unchanged for v0.2.0 |
-| `process` | exit/abort/cwd/args; env is check-only | v0.2.0 historical process surface |
+| `process` | exit/abort/cwd plus allocation-free argument and environment queries | v0.5.0 Phase 4 |
+| `path` | owned, NUL-free UTF-8 paths and lexical join | v0.5.0 Phase 4 |
+| `io`, `io_buffer` | file read/create/append, static Reader/Writer contracts, explicit buffered flush | v0.5.0 Phase 4 |
+| `num` | checked decimal parsing and owned text conversion | v0.5.0 Phase 4 |
 | `ptr` | restricted pointer primitives | retained within the `pub(nocter)` trust boundary |
 | `string` | owned UTF-8 bytes | common allocator and failure-atomic growth |
 | `vec` | owned generic sequence | non-copy initialized-prefix drop and pop |
@@ -285,3 +288,28 @@ inherits the current allocation context. `map` conditionally preserves `ExactSiz
 `filter` never claims exact cardinality. Packaged-home tests cover scalar and move-only chains,
 source order, exact-size behavior, early-exit cleanup, capture and argument result provenance,
 lexical-region escape rejection, and callback allocation in the active context.
+
+## v0.5.0 Phase 4 Practical Services
+
+Phase 4 adds four focused source modules instead of extending unrelated owners:
+
+- `std/path` owns `Utf8Path`, NUL validation, and lexical joining;
+- `std/io_buffer` owns buffered file state and explicit flush policy;
+- `std/num` owns checked decimal parsing and integer text construction;
+- `std/string`, `std/vec`, and `std/process` retain operations on their existing representations.
+
+The compiler-owned file-open IR now carries path, flags, and mode as separate values. Read,
+create/truncate, and append declarations lower through that one target boundary; filesystem policy
+and UTF-8 path construction stay in Nocter source. `Reader` and `Writer` use static interface
+dispatch. The inherent duplicates were removed because the current method resolver correctly
+rejects an inherent and interface member with the same concrete receiver as ambiguous.
+
+`BufReader` initializes its byte buffer before exposing a mutable slice to `read`, retains unread
+bytes across calls, and reports EOF as zero bytes. `BufWriter` clears buffered bytes only after the
+underlying write succeeds. `close` flushes before closing; drop intentionally does not flush because
+a destructor cannot report the failure.
+
+Packaged-home tests compile the complete public surface and run UTF-8 validation, byte search,
+owned split, ordered retain, decimal edge cases, process queries, short-buffer reads, buffered
+stdout, file creation, explicit flush/close, reopen, and append. The test invokes the installed
+compiler and distributed standard library without repository-local environment configuration.

@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.5.0 Phase 3 package-wide editor index and refactoring
-- active milestone: v0.5.0 Phase 4 practical standard library
+- completed milestone: v0.5.0 Phase 4 practical standard library
+- active milestone: v0.5.0 Phase 5 package authoring and stabilization
 - target: `arm64-darwin`
 
 The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
@@ -68,6 +68,9 @@ optimized package build, installed-home `doctor`, archive inspection, and packag
 all pass after the audit. Phase 3 adds exact-graph index, cross-module rename, editor-assist, source
 edit, request-boundary, and installed-home LSP coverage. Its complete verification, generated docs,
 optimized distribution, `doctor`, packaged LSP smoke, and archive inspection all pass.
+Phase 4 adds UTF-8 paths, read/create/append files, static Reader/Writer contracts, buffered I/O,
+text and vector operations, numeric conversion, process queries, and a packaged-home filesystem CLI
+acceptance test.
 
 ## Publication State
 
@@ -78,8 +81,6 @@ artifact.
 
 ## Next Work
 
-Begin Phase 4 by auditing the smallest filesystem-oriented application that cannot yet be written
-against distributed `std`. Add APIs in ownership order: owned path representation, file handles and
-buffered input/output, text/vector search and conversion, iterator consumers, then process-facing
-convenience. Each allocating or ownership-transferring operation needs native source tests for
-success, allocation failure, partial initialization, provenance, and cleanup before promotion.
+Begin Phase 5 with package initialization and CI-oriented test output. Then audit dependency-graph
+inspection, locked/offline diagnostics, and CLI/LSP parity before release qualification. Preserve
+the Phase 4 filesystem application as the minimum installed-home acceptance program.

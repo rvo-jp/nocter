@@ -61,8 +61,22 @@ fn distributed_std_text_and_collection_operations_run() {
     let project = TempProject::new("distributed-home-practical-std-run");
     let source = project.write_source(
         "practical_std_run.nct",
-        r#"use std/string.{bytes, find, is_valid_utf8, split}
+r#"use std/string.{bytes, find, is_valid_utf8, split}
 use std/vec.Vec
+
+func rejects_invalid_utf8(candidate: &[u8]): bool {
+    let accepted = String.from_utf8(candidate) catch error {
+        return true
+    }
+    return false
+}
+
+func rejects_empty_separator(): bool {
+    let accepted: Vec<String> = split("abc", "") catch error {
+        return true
+    }
+    return false
+}
 
 func main(): i32 {
     if bytes("hello").len() != 5 || bytes("e").len() != 1 { return 19 }
@@ -75,6 +89,7 @@ func main(): i32 {
     if !String "hello".starts_with("he") || !String "hello".ends_with("lo") { return 3 }
     let invalid: Vec<u8> = Vec [240, 40, 140, 40]
     if is_valid_utf8(invalid.view()) { return 4 }
+    if !rejects_invalid_utf8(invalid.view()) { return 4 }
     let encoded: Vec<u8> = Vec [104, 195, 169]
     let decoded = String.from_utf8(encoded.view()) catch error { return 5 }
     if decoded.view() != "hé" { return 6 }
@@ -85,6 +100,7 @@ func main(): i32 {
     let middle_part = parts.pop() otherwise { return 10 }
     let first_part = parts.pop() otherwise { return 11 }
     if first_part.view() != "a" || middle_part.view() != "b" || final_part.view() != "" { return 12 }
+    if !rejects_empty_separator() { return 12 }
 
     var values = Vec [1, 2, 3, 4, 5]
     values.retain((value) { value % 2 != 0 })
