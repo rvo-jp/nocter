@@ -1,20 +1,9 @@
-//! Structured semantic presentation shared by editor features.
-
 use crate::ast::TypeExpr;
 use crate::resolve::{
-    AssociatedFunctionSignature, DropSignature, FunctionSignature, LiteralSignature, LocalSymbol,
-    LocalSymbolKind, MethodSignature, ResolveOutput, Symbol, SymbolKind, TypeSymbol,
-    TypeSymbolKind,
+    AssociatedFunctionSignature, DropSignature, FunctionSignature, LiteralSignature,
+    MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind,
 };
 use crate::typecheck::type_expr_presentation_label;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DeclarationKind {
-    TypeAlias,
-    Struct,
-    Enum,
-    Interface,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CallablePresentation {
@@ -33,47 +22,6 @@ pub(crate) struct LiteralPresentation {
     parameters: Vec<String>,
     return_type: String,
     result_origins: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LocalPresentation {
-    prefix: String,
-    name: String,
-    ty: Option<String>,
-}
-
-impl LocalPresentation {
-    pub(crate) fn render(&self) -> String {
-        match &self.ty {
-            Some(ty) => format!("{}{}: {ty}", self.prefix, self.name),
-            None => format!("{}{}", self.prefix, self.name),
-        }
-    }
-}
-
-pub(crate) fn local_presentation(
-    symbol: &LocalSymbol,
-    ty: Option<&TypeExpr>,
-    resolved: &ResolveOutput,
-) -> LocalPresentation {
-    let prefix = match symbol.kind {
-        LocalSymbolKind::Parameter => "parameter ".to_string(),
-        LocalSymbolKind::Binding(crate::ast::BindingKind::Let)
-        | LocalSymbolKind::ForRange
-        | LocalSymbolKind::CollectionFor
-        | LocalSymbolKind::LiteralPackFor => "let ".to_string(),
-        LocalSymbolKind::Binding(crate::ast::BindingKind::Var) => "var ".to_string(),
-        LocalSymbolKind::Region => "region ".to_string(),
-        LocalSymbolKind::LiteralCapture => "literal pack ".to_string(),
-        LocalSymbolKind::ClosureCapture(mode) => format!("capture {}", mode.source_prefix()),
-        LocalSymbolKind::PatternPayload => "payload ".to_string(),
-        LocalSymbolKind::CatchError => "catch ".to_string(),
-    };
-    LocalPresentation {
-        prefix,
-        name: symbol.name.clone(),
-        ty: ty.map(|ty| type_expr_presentation_label(ty, resolved)),
-    }
 }
 
 impl LiteralPresentation {
@@ -202,7 +150,7 @@ pub(crate) fn associated_function_presentation(
     function: &AssociatedFunctionSignature,
     resolved: &ResolveOutput,
 ) -> CallablePresentation {
-    let owner_label = type_owner_presentation_label(owner, resolved);
+    let owner_label = super::type_owner_presentation_label(owner, resolved);
     let owner_generic_count =
         if crate::analysis::constructions::construction_owns_function(owner, &function.name) {
             owner.generic_parameters.len()
@@ -225,7 +173,7 @@ pub(crate) fn method_presentation(
 ) -> CallablePresentation {
     let concrete_owner = owner.kind != TypeSymbolKind::Interface;
     let owner_label = if concrete_owner {
-        type_owner_presentation_label(owner, resolved)
+        super::type_owner_presentation_label(owner, resolved)
     } else {
         "Self".to_string()
     };
@@ -301,7 +249,7 @@ pub(crate) fn literal_presentation_with_substitutions(
         substitutions
             .get("Self")
             .map(|ty| type_expr_presentation_label(ty, resolved))
-            .unwrap_or_else(|| type_owner_presentation_label(owner, resolved)),
+            .unwrap_or_else(|| super::type_owner_presentation_label(owner, resolved)),
         match literal.shape {
             crate::ast::LiteralShape::Sequence => "[]",
             crate::ast::LiteralShape::String => "\"\"",
@@ -388,168 +336,4 @@ fn signature_without_owner_generics(
     let bound_split = owner_generic_count.min(signature.generic_parameter_bounds.len());
     signature.generic_parameter_bounds.drain(..bound_split);
     signature
-}
-
-impl DeclarationKind {
-    fn keyword(self) -> &'static str {
-        match self {
-            Self::TypeAlias => "type",
-            Self::Struct => "struct",
-            Self::Enum => "enum",
-            Self::Interface => "interface",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TypeDeclarationPresentation {
-    kind: DeclarationKind,
-    displayed_type: String,
-    is_copy: bool,
-    alias_target: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GenericParameterPresentation {
-    name: String,
-    bounds: Vec<String>,
-}
-
-impl GenericParameterPresentation {
-    pub(crate) fn render(&self) -> String {
-        if self.bounds.is_empty() {
-            format!("type parameter {}", self.name)
-        } else {
-            format!("type parameter {}: {}", self.name, self.bounds.join(" + "))
-        }
-    }
-}
-
-pub(crate) fn generic_parameter_presentation(
-    parameter: &crate::typecheck::GenericParameterFact,
-    resolved: &ResolveOutput,
-) -> GenericParameterPresentation {
-    GenericParameterPresentation {
-        name: parameter.name.clone(),
-        bounds: parameter
-            .bounds
-            .iter()
-            .map(|bound| type_expr_presentation_label(bound, resolved))
-            .collect(),
-    }
-}
-
-impl TypeDeclarationPresentation {
-    pub(crate) fn render(&self) -> String {
-        let copy = if self.kind == DeclarationKind::Struct && self.is_copy {
-            "copy "
-        } else {
-            ""
-        };
-        let target = self
-            .alias_target
-            .as_ref()
-            .map(|target| format!(" = {target}"))
-            .unwrap_or_default();
-        format!(
-            "{copy}{} {}{target}",
-            self.kind.keyword(),
-            self.displayed_type
-        )
-    }
-}
-
-pub(crate) fn type_declaration_presentation(
-    symbol: &Symbol,
-    resolved: &ResolveOutput,
-) -> Option<TypeDeclarationPresentation> {
-    let SymbolKind::Type(type_symbol) = &symbol.kind else {
-        return None;
-    };
-    Some(TypeDeclarationPresentation {
-        kind: declaration_kind(type_symbol),
-        displayed_type: declared_type_label(symbol, type_symbol, resolved),
-        is_copy: type_symbol.is_copy,
-        alias_target: type_symbol
-            .alias_target
-            .as_ref()
-            .map(|target| type_expr_presentation_label(target, resolved)),
-    })
-}
-
-pub(crate) fn type_reference_presentation(
-    symbol: &Symbol,
-    contextual_type: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<TypeDeclarationPresentation> {
-    let SymbolKind::Type(type_symbol) = &symbol.kind else {
-        return None;
-    };
-    let kind = declaration_kind(type_symbol);
-
-    Some(TypeDeclarationPresentation {
-        kind,
-        displayed_type: type_expr_presentation_label(contextual_type, resolved),
-        is_copy: type_symbol.is_copy,
-        alias_target: None,
-    })
-}
-
-fn declaration_kind(symbol: &TypeSymbol) -> DeclarationKind {
-    match symbol.kind {
-        TypeSymbolKind::Alias => DeclarationKind::TypeAlias,
-        TypeSymbolKind::Struct => DeclarationKind::Struct,
-        TypeSymbolKind::Enum => DeclarationKind::Enum,
-        TypeSymbolKind::Interface => DeclarationKind::Interface,
-    }
-}
-
-fn declared_type_label(
-    symbol: &Symbol,
-    type_symbol: &TypeSymbol,
-    resolved: &ResolveOutput,
-) -> String {
-    let visible_name = if crate::lexer::is_valid_identifier_name(&symbol.name) {
-        symbol.name.clone()
-    } else {
-        crate::typecheck::type_symbol_presentation_label(type_symbol, resolved)
-    };
-    if type_symbol.generic_parameters.is_empty() {
-        return visible_name;
-    }
-    let parameters = type_symbol
-        .generic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let Some(bounds) = type_symbol.generic_parameter_bounds.get(index) else {
-                return parameter.clone();
-            };
-            if bounds.is_empty() {
-                return parameter.clone();
-            }
-            format!(
-                "{parameter}: {}",
-                bounds
-                    .iter()
-                    .map(|bound| type_expr_presentation_label(bound, resolved))
-                    .collect::<Vec<_>>()
-                    .join(" + ")
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("{visible_name}<{parameters}>")
-}
-
-pub(crate) fn type_owner_presentation_label(
-    symbol: &TypeSymbol,
-    resolved: &ResolveOutput,
-) -> String {
-    let name = crate::typecheck::type_symbol_presentation_label(symbol, resolved);
-    if symbol.generic_parameters.is_empty() {
-        name
-    } else {
-        format!("{name}<{}>", symbol.generic_parameters.join(", "))
-    }
 }

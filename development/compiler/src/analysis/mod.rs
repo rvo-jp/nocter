@@ -148,6 +148,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) resolved: ResolveOutput,
     pub(crate) typecheck_facts: TypecheckFacts,
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
+    pub(crate) callable_declarations: presentation::CallableDeclarationIndex,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -224,12 +225,14 @@ fn analyze_compile_unit_with_root_policy(
             let typecheck_facts = collect_typecheck_facts(file, resolved);
             let occurrences =
                 occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
+            let callable_declarations = presentation::CallableDeclarationIndex::new(file);
 
             FileAnalysis {
                 ast: file.clone(),
                 resolved: resolved.clone(),
                 typecheck_facts,
                 occurrences,
+                callable_declarations,
                 diagnostics,
                 is_root,
             }
