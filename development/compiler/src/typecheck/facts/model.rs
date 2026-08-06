@@ -37,6 +37,12 @@ impl TypecheckFacts {
         self.binding_type_labels.get(&name_span).map(String::as_str)
     }
 
+    pub(crate) fn binding_type_label_entries(&self) -> impl Iterator<Item = (ByteSpan, &str)> + '_ {
+        self.binding_type_labels
+            .iter()
+            .map(|(span, label)| (*span, label.as_str()))
+    }
+
     pub(crate) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<&TypeExpr> {
         self.binding_type_exprs.get(&name_span)
     }

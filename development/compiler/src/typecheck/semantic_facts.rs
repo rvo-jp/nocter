@@ -19,6 +19,10 @@ impl CallableSemanticFacts {
     pub(crate) fn get(&self, declaration: ByteSpan) -> Option<&CallableSemanticFact> {
         self.entries.get(&declaration)
     }
+
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (ByteSpan, &CallableSemanticFact)> + '_ {
+        self.entries.iter().map(|(span, fact)| (*span, fact))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

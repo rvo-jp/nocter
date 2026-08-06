@@ -29,9 +29,12 @@ pub(super) fn prepare_rename(query: &RenameQuery<'_>) -> Option<Value> {
         .document
         .text
         .get(occurrence.focus_span.start..occurrence.focus_span.end)?;
-    query
-        .index
-        .rename_plan(&identity, placeholder, query.editable_root)?;
+    query.index.rename_plan(
+        &identity,
+        placeholder,
+        editable_package_id(query),
+        query.editable_root,
+    )?;
     Some(json!({
         "range": range_for_byte_span(&query.document.text, occurrence.focus_span),
         "placeholder": placeholder
@@ -41,10 +44,19 @@ pub(super) fn prepare_rename(query: &RenameQuery<'_>) -> Option<Value> {
 pub(super) fn rename_workspace_edit(query: &RenameQuery<'_>, new_name: &str) -> Option<Value> {
     let identity =
         stable_semantic_identity_at(query.sources, query.file, query.offset, query.graph)?;
-    let plan = query
-        .index
-        .rename_plan(&identity, new_name, query.editable_root)?;
+    let plan = query.index.rename_plan(
+        &identity,
+        new_name,
+        editable_package_id(query),
+        query.editable_root,
+    )?;
     Some(workspace_edit_for_plan(&plan, query.open_documents))
+}
+
+fn editable_package_id<'a>(query: &'a RenameQuery<'_>) -> Option<&'a str> {
+    let graph = query.graph?;
+    let path = query.document.absolute_path.as_deref()?;
+    Some(graph.package_containing(path)?.id().as_str())
 }
 
 fn workspace_edit_for_plan(

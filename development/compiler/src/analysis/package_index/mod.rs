@@ -9,4 +9,4 @@ mod build;
 mod model;
 
 pub(crate) use build::{PackageSemanticIndexBuilder, stable_semantic_identity_at};
-pub(crate) use model::{PackageSemanticIndex, RenamePlan};
+pub(crate) use model::{IndexedExportKind, PackageSemanticIndex, RenamePlan};

@@ -31,6 +31,10 @@ impl StableSourceIdentity {
     pub(crate) fn display_path(&self) -> &str {
         &self.display_path
     }
+
+    pub(crate) fn package_id(&self) -> Option<&str> {
+        self.package.as_deref()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -67,6 +71,7 @@ pub(crate) struct PackageSemanticIndex {
     generation: u64,
     sources: HashMap<StableSourceIdentity, Arc<str>>,
     occurrences: Vec<IndexedOccurrence>,
+    exports: Vec<IndexedExport>,
 }
 
 impl PackageSemanticIndex {
@@ -74,11 +79,13 @@ impl PackageSemanticIndex {
         generation: u64,
         sources: HashMap<StableSourceIdentity, Arc<str>>,
         occurrences: Vec<IndexedOccurrence>,
+        exports: Vec<IndexedExport>,
     ) -> Self {
         Self {
             generation,
             sources,
             occurrences,
+            exports,
         }
     }
 
@@ -101,13 +108,21 @@ impl PackageSemanticIndex {
         })
     }
 
+    pub(crate) fn exports(&self) -> &[IndexedExport] {
+        &self.exports
+    }
+
     pub(crate) fn rename_plan(
         &self,
         identity: &StableSemanticIdentity,
         new_name: &str,
+        editable_package: Option<&str>,
         editable_root: &Path,
     ) -> Option<RenamePlan> {
         if !is_valid_identifier_name(new_name) {
+            return None;
+        }
+        if identity.declaration.source.package_id() != editable_package {
             return None;
         }
         if identity.kind == StableIdentityKind::Declaration
@@ -129,20 +144,19 @@ impl PackageSemanticIndex {
             .references(identity, true)
             .map(|occurrence| {
                 let source = &occurrence.span.source;
+                if source.package_id() != editable_package {
+                    return None;
+                }
                 let absolute_path = source.absolute_path()?.to_path_buf();
                 if !absolute_path.starts_with(editable_root) {
                     return None;
                 }
                 let text = self.source_text(source)?;
-                let old_name = text
-                    .get(occurrence.span.start..occurrence.span.end)?
-                    .to_string();
+                text.get(occurrence.span.start..occurrence.span.end)?;
                 Some(RenameEdit {
                     absolute_path,
-                    display_path: source.display_path().to_string(),
                     start: occurrence.span.start,
                     end: occurrence.span.end,
-                    old_name,
                     new_name: new_name.to_string(),
                     source_text: self.sources.get(source)?.clone(),
                 })
@@ -169,13 +183,24 @@ impl PackageSemanticIndex {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) enum IndexedExportKind {
+    Function,
+    Type,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IndexedExport {
+    pub(crate) name: String,
+    pub(crate) kind: IndexedExportKind,
+    pub(crate) absolute_path: PathBuf,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RenameEdit {
     pub(crate) absolute_path: PathBuf,
-    pub(crate) display_path: String,
     pub(crate) start: usize,
     pub(crate) end: usize,
-    pub(crate) old_name: String,
     pub(crate) new_name: String,
     pub(crate) source_text: Arc<str>,
 }

@@ -14,6 +14,7 @@ pub(crate) mod editor_targets;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
+pub(crate) mod inlay_hints;
 pub(crate) mod interpolation;
 pub(crate) mod iteration;
 mod literal_recovery;
@@ -30,6 +31,7 @@ mod scoped_imports;
 pub(crate) mod semantic;
 pub(crate) mod signature_help;
 mod single_file;
+pub(crate) mod source_edits;
 pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;

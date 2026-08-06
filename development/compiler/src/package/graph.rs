@@ -55,6 +55,19 @@ impl PackageGraph {
             .map(|(_, name)| name.as_str())
     }
 
+    pub(crate) fn dependency_name(
+        &self,
+        owner: &PackageId,
+        dependency: &PackageId,
+    ) -> Option<&str> {
+        self.namespaces
+            .iter()
+            .find(|((candidate_owner, _), candidate_dependency)| {
+                candidate_owner == owner && *candidate_dependency == dependency
+            })
+            .map(|((_, name), _)| name.as_str())
+    }
+
     pub fn is_package_file(&self, path: &Path) -> bool {
         self.packages
             .values()

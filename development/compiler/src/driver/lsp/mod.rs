@@ -4,12 +4,15 @@ use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
 mod analysis;
+mod auto_import;
+mod code_actions;
 mod completion;
 mod definition;
 mod diagnostics;
 mod documents;
 mod hover;
 mod import_completion;
+mod inlay_hints;
 mod locations;
 mod package_completion;
 mod package_index;
@@ -27,6 +30,8 @@ mod symbols;
 use analysis::LspWorkspaceAnalysis;
 #[cfg(test)]
 use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
+use auto_import::{AutoImportContext, auto_import_completion_items};
+use code_actions::code_actions;
 #[cfg(test)]
 use completion::{
     LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR, LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER,
@@ -49,6 +54,7 @@ use documents::{
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 use import_completion::module_completion_items;
+use inlay_hints::inlay_hints;
 use package_completion::package_manifest_completion_items;
 use package_index::{PackageReferenceQuery, package_references};
 use package_navigation::package_entry_definition;
@@ -277,6 +283,14 @@ impl LspServer {
             }
             "textDocument/documentSymbol" => {
                 write_message(writer, self.document_symbol_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/codeAction" => {
+                write_message(writer, self.code_action_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/inlayHint" => {
+                write_message(writer, self.inlay_hint_response(id, params))?;
                 Ok(None)
             }
             "textDocument/completion" => {
@@ -585,30 +599,94 @@ impl LspServer {
         response(id, Value::Array(symbols))
     }
 
+    fn code_action_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
+        let actions = document_uri_from_params(params)
+            .and_then(|uri| {
+                self.with_workspace_file_for_uri(&snapshot, &uri, |document, _workspace, file| {
+                    Some(code_actions(
+                        &AutoImportContext {
+                            document,
+                            file,
+                            index: snapshot.package_index(&uri)?,
+                            graph: snapshot.package_graph(&uri)?,
+                        },
+                        file,
+                        params,
+                    ))
+                })
+            })
+            .unwrap_or_default();
+        response(id, Value::Array(actions))
+    }
+
+    fn inlay_hint_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
+        let hints = document_uri_from_params(params)
+            .and_then(|uri| {
+                self.with_workspace_file_for_uri(&snapshot, &uri, |document, workspace, file| {
+                    Some(inlay_hints(
+                        document,
+                        &workspace.sources,
+                        workspace.semantic()?,
+                        file,
+                        params,
+                    ))
+                })
+            })
+            .unwrap_or_default();
+        response(id, Value::Array(hints))
+    }
+
     fn completion_response(&self, id: Value, params: Option<&Value>) -> Value {
         let snapshot = self.snapshot();
-        let items = document_uri_from_params(params)
+        let uri = document_uri_from_params(params);
+        let mut items = uri
+            .as_deref()
             .and_then(|uri| {
                 let position = position_from_params(params)?;
-                let document = snapshot.document(&uri)?;
+                let document = snapshot.document(uri)?;
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
                 package_manifest_completion_items(document, offset)
                     .or_else(|| {
-                        module_completion_items(document, snapshot.package_graph(&uri), offset)
+                        module_completion_items(document, snapshot.package_graph(uri), offset)
                     })
                     .or_else(|| {
                         self.workspace_literal_completion_for_recovered_uri(
-                            &snapshot, &uri, &position,
+                            &snapshot, uri, &position,
                         )
                     })
                     .or_else(|| {
-                        self.workspace_completion_for_recovered_uri(&snapshot, &uri, &position)
+                        self.workspace_completion_for_recovered_uri(&snapshot, uri, &position)
                     })
-                    .or_else(|| self.workspace_completion_for_uri(&snapshot, &uri, &position))
+                    .or_else(|| self.workspace_completion_for_uri(&snapshot, uri, &position))
                     .or_else(|| completion_items_for_document_at_offset(document, offset))
             })
             .unwrap_or_else(keyword_completion_items);
+        if let Some(uri) = uri.as_deref()
+            && let Some(position) = position_from_params(params)
+            && let Some(additional) =
+                self.with_workspace_file_for_uri(&snapshot, uri, |document, _workspace, file| {
+                    let offset = lsp_position_to_byte_offset(
+                        &document.text,
+                        position.line,
+                        position.character,
+                    );
+                    Some(auto_import_completion_items(
+                        &AutoImportContext {
+                            document,
+                            file,
+                            index: snapshot.package_index(uri)?,
+                            graph: snapshot.package_graph(uri)?,
+                        },
+                        offset,
+                        &items,
+                    ))
+                })
+        {
+            items.extend(additional);
+        }
         response(
             id,
             json!({
@@ -938,6 +1016,10 @@ fn initialize_response(id: Value) -> Value {
                     "prepareProvider": true
                 },
                 "documentSymbolProvider": true,
+                "codeActionProvider": {
+                    "codeActionKinds": ["quickfix"]
+                },
+                "inlayHintProvider": true,
                 "completionProvider": {
                     "resolveProvider": false,
                     "triggerCharacters": [".", ":"]
