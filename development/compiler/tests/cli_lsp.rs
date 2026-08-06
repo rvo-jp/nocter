@@ -1612,7 +1612,7 @@ func main(): i32! {
     let hover_text = hover["contents"]["value"].as_str().unwrap();
     assert!(
         hover_text.contains("func lookup(name: &str): &str?! from static")
-            && hover_text.contains("Result provenance:** static storage"),
+            && hover_text.contains("Result provenance:** storage from static storage"),
         "{hover_text}"
     );
     assert_eq!(hover["range"]["start"]["line"], json!(line));
