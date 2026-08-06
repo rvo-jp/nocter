@@ -178,7 +178,10 @@ Compiler analysis exposes:
 - the source range responsible for an escape
 
 LSP converts these facts to hover, semantic tokens, completion, and diagnostics without maintaining
-a second provenance graph.
+a second provenance graph. The retained aggregate fact is an internal compiler value, not a public
+description of nominal representation. Analysis derives a bounded storage summary that omits
+storage-independent and scalar-only branches, coalesces equivalent origins, and does not reveal
+private field names.
 
 ## Completed Migration Boundary
 

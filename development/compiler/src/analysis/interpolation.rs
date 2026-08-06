@@ -55,8 +55,10 @@ pub(crate) fn interpolation_editor_info_at_offset(
             .map(|symbol| symbol.name.as_str())
             .unwrap_or("String");
         let mut documentation = vec![
-            "**Allocation effect:** uses the current allocation context.".to_string(),
-            "**Result provenance:** the current allocation context.".to_string(),
+            crate::analysis::presentation::AllocationEffectPresentation::current_context()
+                .render_markdown(),
+            crate::analysis::presentation::ResultProvenancePresentation::from_current_allocation_context()
+                .render_markdown(),
         ];
         if let Some(input) = accepted {
             documentation.push(format!(

@@ -1,6 +1,5 @@
 //! Whole-compile-unit semantic analysis.
 
-pub(crate) mod allocation;
 mod call_sites;
 pub(crate) mod call_specializations;
 mod collection_for_recovery;
@@ -23,7 +22,6 @@ pub(crate) mod literals;
 pub(crate) mod occurrences;
 pub(crate) mod package_index;
 pub(crate) mod presentation;
-pub(crate) mod provenance;
 pub(crate) mod references;
 mod region_recovery;
 pub(crate) mod regions;

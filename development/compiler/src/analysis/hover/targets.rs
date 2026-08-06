@@ -299,10 +299,15 @@ pub(in crate::analysis::hover) fn semantic_documentation(
     analysis: &CompileUnitAnalysis,
     target_span: ByteSpan,
 ) -> Option<String> {
-    combine_documentation(
-        crate::analysis::allocation::allocation_effect_markdown(analysis, target_span),
-        crate::analysis::provenance::result_provenance_markdown(sources, analysis, target_span),
-    )
+    let fact = analysis.callable_semantic_facts.get(target_span)?;
+    let details = crate::analysis::presentation::semantic_details_for_callable(sources, fact);
+    (!details.is_empty()).then(|| {
+        details
+            .iter()
+            .map(|detail| detail.render_markdown())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    })
 }
 
 pub(in crate::analysis::hover) fn combine_documentation(

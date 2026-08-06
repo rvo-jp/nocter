@@ -186,7 +186,9 @@ func main(): i32 {
     assert_eq!(hover.label, "literal Text \"\"(text: &str): Text from text");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some("Copies text into owned storage.\n\n**Result provenance:** input `text`.")
+        Some(
+            "Copies text into owned storage.\n\n**Result provenance:** storage from input `text`."
+        )
     );
 }
 
@@ -270,8 +272,46 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
     assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some("Returns its input.\n\n**Result provenance:** input `value`.")
+        Some("Returns its input.\n\n**Result provenance:** storage from input `value`.")
     );
+}
+
+#[test]
+fn workspace_hover_summarizes_result_storage_without_private_layout() {
+    let text = r#"struct Storage {
+    pointer: *i32,
+    allocator_state: usize,
+}
+
+struct Values {
+    storage: Storage,
+    end_index: usize,
+}
+
+func into_values(storage: Storage, len: usize): Values {
+    return Values {
+        storage: move storage,
+        end_index: len,
+    }
+}
+
+func inspect(storage: Storage): Values {
+    return into_values(move storage, 1)
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.rfind("into_values").expect("call");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset).expect("call hover");
+    let documentation = hover.documentation.expect("semantic documentation");
+
+    assert_eq!(
+        documentation,
+        "**Result provenance:** storage from input `storage`."
+    );
+    assert!(!documentation.contains("allocator_state"));
+    assert!(!documentation.contains("end_index"));
+    assert!(!documentation.contains("input `len`"));
 }
 
 #[test]

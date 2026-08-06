@@ -74,7 +74,8 @@ pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
 pub(crate) use semantic_facts::{
-    CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,
+    CallableSemanticFact, CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact,
+    collect_callable_semantic_facts,
 };
 
 pub(crate) fn type_expr_is_assignable(

@@ -113,10 +113,12 @@ fn sequence_spread_markdown(
     })
     .collect::<Vec<_>>();
     if !allocation_roles.is_empty() {
-        lines.push(format!(
-            "**Allocation effect:** {} uses the current allocation context.",
-            allocation_roles.join(", ")
-        ));
+        lines.push(
+            crate::analysis::presentation::AllocationEffectPresentation::current_context_for(
+                allocation_roles.join(", "),
+            )
+            .render_markdown(),
+        );
     }
     lines.join("\n\n")
 }
@@ -159,10 +161,12 @@ fn iteration_markdown(analysis: &CompileUnitAnalysis, plan: &TypecheckCollection
         allocation_roles.push("step");
     }
     if !allocation_roles.is_empty() {
-        lines.push(format!(
-            "**Allocation effect:** {} uses the current allocation context.",
-            allocation_roles.join(" and ")
-        ));
+        lines.push(
+            crate::analysis::presentation::AllocationEffectPresentation::current_context_for(
+                allocation_roles.join(" and "),
+            )
+            .render_markdown(),
+        );
     }
 
     lines.join("\n\n")

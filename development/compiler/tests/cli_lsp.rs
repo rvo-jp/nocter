@@ -1320,6 +1320,81 @@ fn lsp_inlay_hints_publish_inferred_types_from_snapshot_facts() {
 }
 
 #[test]
+fn lsp_inlay_hints_anchor_result_provenance_after_the_return_type() {
+    let project = TempProject::new("cli-lsp-provenance-inlay-anchor");
+    let source_text = "func label(): &str {\n    return \"static\"\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/inlayHint",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": 3, "character": 0 }
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hints = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("inlay hints");
+    let provenance = hints
+        .iter()
+        .find(|hint| hint["label"] == " from inferred storage")
+        .expect("provenance hint");
+    assert_eq!(provenance["position"]["line"], 0);
+    assert_eq!(provenance["position"]["character"], 18);
+    assert_eq!(
+        provenance["tooltip"]["value"],
+        "**Result provenance:** storage from static storage."
+    );
+}
+
+#[test]
 fn lsp_command_presents_native_tests_without_making_them_callable() {
     let project = TempProject::new("cli-lsp-native-tests");
     let source_text = "/// Verifies push behavior.\ntest pushes {\n    return\n}\n\n";

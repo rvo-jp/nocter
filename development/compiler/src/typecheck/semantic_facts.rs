@@ -29,6 +29,7 @@ impl CallableSemanticFacts {
 pub(crate) struct CallableSemanticFact {
     pub(crate) result: Option<ValueProvenanceFact>,
     pub(crate) needs_current_allocation_context: bool,
+    pub(crate) storage_inputs: HashSet<ByteSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +74,8 @@ pub(crate) fn collect_callable_semantic_facts(
                     insert_fact(
                         declaration,
                         &function.return_type,
+                        &function.parameters.parameters,
+                        None,
                         source.resolved,
                         &summaries,
                         &mut facts,
@@ -83,6 +86,8 @@ pub(crate) fn collect_callable_semantic_facts(
                     insert_fact(
                         test.name_span,
                         &return_type,
+                        &[],
+                        None,
                         source.resolved,
                         &summaries,
                         &mut facts,
@@ -92,6 +97,8 @@ pub(crate) fn collect_callable_semantic_facts(
                     insert_fact(
                         primitive.name_span,
                         &primitive.return_type,
+                        &primitive.parameters.parameters,
+                        None,
                         source.resolved,
                         &summaries,
                         &mut facts,
@@ -106,6 +113,8 @@ pub(crate) fn collect_callable_semantic_facts(
                             insert_fact(
                                 method.name_span,
                                 &method.return_type,
+                                &method.parameters.parameters,
+                                Some(&method.receiver),
                                 source.resolved,
                                 &summaries,
                                 &mut facts,
@@ -118,6 +127,8 @@ pub(crate) fn collect_callable_semantic_facts(
                         insert_fact(
                             method.name_span,
                             &method.return_type,
+                            &method.parameters.parameters,
+                            Some(&method.receiver),
                             source.resolved,
                             &summaries,
                             &mut facts,
@@ -134,6 +145,8 @@ pub(crate) fn collect_callable_semantic_facts(
                         insert_fact(
                             function.member_name_span,
                             &function.return_type,
+                            &function.parameters.parameters,
+                            None,
                             source.resolved,
                             &summaries,
                             &mut facts,
@@ -143,6 +156,8 @@ pub(crate) fn collect_callable_semantic_facts(
                         insert_fact(
                             literal.span,
                             &literal.return_type,
+                            &literal.parameters.parameters,
+                            None,
                             source.resolved,
                             &summaries,
                             &mut facts,
@@ -158,6 +173,8 @@ pub(crate) fn collect_callable_semantic_facts(
 fn insert_fact(
     declaration: ByteSpan,
     return_type: &TypeExpr,
+    parameters: &[crate::ast::Parameter],
+    receiver: Option<&crate::ast::MethodReceiver>,
     resolved: &ResolveOutput,
     summaries: &super::provenance::CallableProvenanceSummaries,
     facts: &mut CallableSemanticFacts,
@@ -170,13 +187,25 @@ fn insert_fact(
         .map(|fact| normalize_for_return_type(fact, return_type, resolved));
     let needs_current_allocation_context = summaries.needs_current_allocation_context(callable)
         || declaration_uses_current_allocation_context(resolved, declaration);
+    let storage_inputs = parameters
+        .iter()
+        .filter(|parameter| type_expr_carries_storage(&parameter.ty, resolved))
+        .map(|parameter| parameter.name_span)
+        .chain(receiver.map(|receiver| receiver.name_span))
+        .collect();
     facts.entries.insert(
         declaration,
         CallableSemanticFact {
             result,
             needs_current_allocation_context,
+            storage_inputs,
         },
     );
+}
+
+fn type_expr_carries_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_contains_borrow_like(ty, resolved, &HashMap::new(), &mut HashSet::new())
+        || type_expr_is_copy(ty, resolved) != Some(true)
 }
 
 fn declaration_uses_current_allocation_context(

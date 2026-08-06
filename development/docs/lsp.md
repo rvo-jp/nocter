@@ -53,6 +53,12 @@ Presentation owns:
 - callable allocation effects and result provenance
 - documentation extracted from declaration comments
 
+Callable presentation is indexed by compiler declaration identity. Each entry retains separate name,
+return-type, explicit-provenance, and semantic-signature anchors; editor hints never locate clauses
+by scanning declaration text. Typecheck provenance remains lossless, while presentation projects it
+to bounded result-storage summaries. That projection removes storage-independent branches and
+scalar dataflow, deduplicates origins, and never exposes private aggregate field names.
+
 LSP transport converts presentation blocks to Markdown and protocol structures. It does not retain
 a second signature formatter or fall back to raw declaration source.
 
@@ -86,7 +92,8 @@ request boundary before edits are returned.
 
 Inlay hints are projections of retained binding types, allocation effects, and provenance facts.
 Explicit source annotations suppress redundant hints. The server does not rerun inference or
-reconstruct provenance from hover text.
+reconstruct provenance from hover text. Callable semantic hints attach to the indexed signature
+anchor after the return type or explicit result-provenance clause, not to the callable name.
 
 ## Recovery
 
