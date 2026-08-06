@@ -19,7 +19,9 @@ mod tests;
 
 pub use dependency::{DependencyDeclaration, DependencyLock, DependencySource, LockedDependency};
 pub(crate) use graph::load_locked_offline_package_graph_with_overlay;
-pub use graph::{PackageGraph, PackageGraphLoad, PackageGraphOptions, load_package_graph};
+pub use graph::{
+    PackageGraph, PackageGraphLoad, PackageGraphOptions, inspect_package_graph, load_package_graph,
+};
 pub use loader::{PackageLoad, load_package};
 pub use model::{
     ExecutableId, ExecutableTarget, ModuleId, ModuleKey, NormalizedModulePath, PackageId,

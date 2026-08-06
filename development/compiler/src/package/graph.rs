@@ -83,7 +83,17 @@ pub struct PackageGraphLoad {
 }
 
 pub fn load_package_graph(root: &Path, options: PackageGraphOptions) -> PackageGraphLoad {
-    load_package_graph_impl(root, options, &super::PackageSourceOverlay::default())
+    load_package_graph_impl(root, options, &super::PackageSourceOverlay::default(), true)
+}
+
+/// Resolves the exact graph without rewriting the source-owned package lock.
+pub fn inspect_package_graph(root: &Path, options: PackageGraphOptions) -> PackageGraphLoad {
+    load_package_graph_impl(
+        root,
+        options,
+        &super::PackageSourceOverlay::default(),
+        false,
+    )
 }
 
 pub(crate) fn load_locked_offline_package_graph_with_overlay(
@@ -97,6 +107,7 @@ pub(crate) fn load_locked_offline_package_graph_with_overlay(
             offline: true,
         },
         overlay,
+        false,
     )
 }
 
@@ -104,6 +115,7 @@ fn load_package_graph_impl(
     root: &Path,
     options: PackageGraphOptions,
     overlay: &super::PackageSourceOverlay,
+    write_lock: bool,
 ) -> PackageGraphLoad {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let store = PackageStore::new(&root);
@@ -120,7 +132,7 @@ fn load_package_graph_impl(
         lock_changed: false,
     };
     let root_id = builder.visit(&root, None, true);
-    if builder.diagnostics.is_empty() {
+    if write_lock && builder.diagnostics.is_empty() {
         builder.commit_locks();
     }
     if !builder.diagnostics.is_empty() {

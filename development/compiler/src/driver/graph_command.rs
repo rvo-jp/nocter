@@ -1,5 +1,6 @@
 use super::errors::write_human_diagnostics;
-use crate::package::{DependencySource, PackageGraphOptions, load_package_graph};
+use super::json::write_diagnostics_json;
+use crate::package::{DependencySource, PackageGraphOptions, inspect_package_graph};
 use serde::Serialize;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -76,7 +77,7 @@ struct DependencyOutput {
 }
 
 pub(super) fn run_graph_command(command: &GraphCommand) -> ExitCode {
-    let load = load_package_graph(
+    let load = inspect_package_graph(
         &command.root,
         PackageGraphOptions {
             locked: command.locked,
@@ -84,6 +85,16 @@ pub(super) fn run_graph_command(command: &GraphCommand) -> ExitCode {
         },
     );
     if !load.diagnostics.is_empty() {
+        if command.json {
+            return write_diagnostics_json(
+                "graph",
+                None,
+                Some(command.root.join("nocter.nct").display().to_string()),
+                None,
+                load.diagnostics,
+                ExitCode::FAILURE,
+            );
+        }
         return write_human_diagnostics(&load.diagnostics, None, ExitCode::FAILURE);
     }
     let graph = load.graph.expect("successful graph load");

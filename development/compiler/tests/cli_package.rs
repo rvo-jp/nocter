@@ -22,7 +22,7 @@ fn init_creates_a_checkable_library_without_overwriting() {
     assert_success(&output);
     let package = project.root.join("created/nocter.nct");
     let source = fs::read_to_string(&package).unwrap();
-    assert!(source.contains("#name: \"sample\"") && source.contains("test exposes_name"));
+    assert!(source.contains("#name: \"sample\"") && source.contains("#test:"));
 
     let checked = Command::new(NOCTER)
         .args(["check"])

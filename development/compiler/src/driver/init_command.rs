@@ -56,10 +56,11 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
         return ExitCode::from(2);
     };
     let package_file = command.directory.join("nocter.nct");
-    if package_file.exists() {
+    let test_file = command.directory.join("tests/unit.nct");
+    if package_file.exists() || test_file.exists() {
         eprintln!(
-            "error[E0700]: package file `{}` already exists",
-            package_file.display()
+            "error[E0700]: package initialization target already exists in `{}`",
+            command.directory.display()
         );
         return ExitCode::from(2);
     }
@@ -75,6 +76,22 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
     } else {
         init_templates::executable(&name)
     };
+    if let Some(parent) = test_file.parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            eprintln!(
+                "error[E0700]: failed to create `{}`: {error}",
+                parent.display()
+            );
+            return ExitCode::from(2);
+        }
+    }
+    if let Err(error) = fs::write(&test_file, init_templates::test()) {
+        eprintln!(
+            "error[E0700]: failed to write `{}`: {error}",
+            test_file.display()
+        );
+        return ExitCode::from(2);
+    }
     if let Err(error) = fs::write(&package_file, source) {
         eprintln!(
             "error[E0700]: failed to write `{}`: {error}",
