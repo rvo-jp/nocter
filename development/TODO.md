@@ -2,9 +2,9 @@
 
 ## Current Task
 
-Nocter v0.5.0 is published and its GitHub asset has passed the post-publication digest and
-fresh-install audit. No release repair remains. The next task is to define one coherent v0.6.0
-milestone before beginning feature work.
+Complete v0.6.0 Phase 0: replace the remaining feature-local declaration formatting, source-text
+signature recovery, inlay placement heuristics, and raw provenance Markdown with one typed
+`analysis/presentation` boundary shared by hover, completion, signature help, and inlay hints.
 
 ## Completed Checkpoint
 
@@ -37,6 +37,6 @@ milestone before beginning feature work.
 
 ## Next Work
 
-Define the v0.6.0 purpose, completion definition, explicit non-goals, and Phase 0 foundation in a
-new `development/milestones/v0.6.0.md`. Keep v0.5.0 behavior and qualification frozen under
-`development/releases/`; do not append new design work to that release record.
+Implement and qualify the completion gate in [v0.6.0 Phase 0](milestones/v0.6.0.md). Keep v0.5.0
+behavior and qualification frozen under `development/releases/`; do not append new design work to
+that release record.
