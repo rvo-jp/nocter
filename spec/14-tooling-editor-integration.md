@@ -177,6 +177,35 @@ Nocter v0.5.0 Phase 2 editor rules:
 - Completion includes the `test` declaration keyword. Duplicate names and body errors use the
   normal parser, resolver, and typechecker diagnostics.
 
+Nocter v0.5.0 Phase 3 editor rules:
+
+- Package-wide operations use one immutable, generation-numbered semantic index attached to the
+  same snapshot as diagnostics, hover, completion, and semantic tokens. Numeric source identifiers
+  remain compile-unit local; the index joins declarations and uses through package identity,
+  canonical source path, and exact byte span.
+- The index starts from each package root module and each explicitly declared executable or test
+  entry in the exact locked graph, then follows normal compiler imports. It does not enumerate
+  ambient `.nct` files. An unopened module is visible to package-wide operations only when one of
+  those roots reaches it.
+- References include semantically identical declarations and uses in reached open and closed
+  modules. `includeDeclaration` controls the declaration result without changing symbol identity.
+- `prepareRename` selects exactly the identifier focus range. Rename accepts only a language
+  identifier, rejects a conflicting top-level declaration, and produces versioned document edits
+  for open files plus unversioned edits for closed files. A plan is rejected as a whole if its
+  declaration or any occurrence is not owned by the active source package; dependencies and
+  `std` are read-only even when their storage path is nested under the package directory.
+- Automatic import completion considers only reached public function and type exports. Candidate
+  module paths come from the active package, its declared dependency aliases, or `std`; private and
+  unreachable declarations are absent. The compiler plans the additional top-level `use` edit and
+  preserves documentation attached to the first declaration.
+- Quick fixes are derived from compiler diagnostics and compiler-owned edit planners. Phase 3
+  supports importing an unresolved public name, inserting required interface method skeletons,
+  and adding the enclosing callable's fallible or optional result contract.
+- Inlay hints project retained typechecker and callable semantic facts. Phase 3 can show inferred
+  binding types, transitive current-context allocation effects, and inferred result provenance.
+  Explicit type and provenance annotations suppress their corresponding hints; the LSP performs no
+  editor-only type, allocation, or provenance inference.
+
 Nocter v0.4.0 Phase 1 editor rules:
 
 - An opened package-root `nocter.nct` uses the same composite package-file AST as command-line
@@ -252,10 +281,8 @@ Nocter v0.3.0 stabilization editor rules for body-bearing interface implementati
 
 Later editor features:
 
-- rename
 - formatting through `nocter fmt`
 - context-sensitive member completion
-- workspace-wide indexing
 - incremental parsing
 
 Formatting behavior is specified in [Source Style and Formatting](16-source-style-formatting.md). Editor extensions may call `nocter fmt`, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.

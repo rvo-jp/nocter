@@ -181,7 +181,26 @@
   conventional tests directory or maintain a second test-target model.</li></ul><p>Nocter v0.5.0 Phase 2 editor rules:</p><ul><li>A native test name is a function-like declaration for semantic coloring and document symbols,
   but it is not offered as a callable or importable symbol.</li><li>Hover uses the normalized fixed contract <code>test name: void!</code>; its range is exactly the name.</li><li>Definition on a test name resolves to that same exact name span. The <code>test</code> keyword, whitespace,
   braces, and body are not part of the declaration focus range.</li><li>Completion includes the <code>test</code> declaration keyword. Duplicate names and body errors use the
-  normal parser, resolver, and typechecker diagnostics.</li></ul><p>Nocter v0.4.0 Phase 1 editor rules:</p><ul><li>An opened package-root <code>nocter.nct</code> uses the same composite package-file AST as command-line
+  normal parser, resolver, and typechecker diagnostics.</li></ul><p>Nocter v0.5.0 Phase 3 editor rules:</p><ul><li>Package-wide operations use one immutable, generation-numbered semantic index attached to the
+  same snapshot as diagnostics, hover, completion, and semantic tokens. Numeric source identifiers
+  remain compile-unit local; the index joins declarations and uses through package identity,
+  canonical source path, and exact byte span.</li><li>The index starts from each package root module and each explicitly declared executable or test
+  entry in the exact locked graph, then follows normal compiler imports. It does not enumerate
+  ambient <code>.nct</code> files. An unopened module is visible to package-wide operations only when one of
+  those roots reaches it.</li><li>References include semantically identical declarations and uses in reached open and closed
+  modules. <code>includeDeclaration</code> controls the declaration result without changing symbol identity.</li><li><code>prepareRename</code> selects exactly the identifier focus range. Rename accepts only a language
+  identifier, rejects a conflicting top-level declaration, and produces versioned document edits
+  for open files plus unversioned edits for closed files. A plan is rejected as a whole if its
+  declaration or any occurrence is not owned by the active source package; dependencies and
+  <code>std</code> are read-only even when their storage path is nested under the package directory.</li><li>Automatic import completion considers only reached public function and type exports. Candidate
+  module paths come from the active package, its declared dependency aliases, or <code>std</code>; private and
+  unreachable declarations are absent. The compiler plans the additional top-level <code>use</code> edit and
+  preserves documentation attached to the first declaration.</li><li>Quick fixes are derived from compiler diagnostics and compiler-owned edit planners. Phase 3
+  supports importing an unresolved public name, inserting required interface method skeletons,
+  and adding the enclosing callable's fallible or optional result contract.</li><li>Inlay hints project retained typechecker and callable semantic facts. Phase 3 can show inferred
+  binding types, transitive current-context allocation effects, and inferred result provenance.
+  Explicit type and provenance annotations suppress their corresponding hints; the LSP performs no
+  editor-only type, allocation, or provenance inference.</li></ul><p>Nocter v0.4.0 Phase 1 editor rules:</p><ul><li>An opened package-root <code>nocter.nct</code> uses the same composite package-file AST as command-line
   compilation.</li><li>Go to definition on an executable <code>entry</code> string selects the resolved <code>.nct</code> file or directory
   module and uses only the string content as the origin range.</li><li>Package directives outside <code>nocter.nct</code> are diagnostics.</li><li>Dependency aliases use namespace spans. LSP graph loading is locked and offline and never
   rewrites <code>nocter.nct</code>.</li><li><code>pub use path</code> exposes one namespace identity; hover, completion, definition, references, and
@@ -206,7 +225,7 @@
   conformance member's declaration span for a concrete receiver.</li><li>A generic-bound call defines to the interface contract while concrete specialization retains the
   selected implementation member and static call target.</li><li>Member visibility comes from the interface contract; the implementation member does not carry a
   separate <code>pub</code> modifier.</li><li>Competing inherent and conformance members produce ambiguity rather than an order-dependent
-  completion or jump target.</li></ul><p>Later editor features:</p><ul><li>rename</li><li>formatting through <code>nocter fmt</code></li><li>context-sensitive member completion</li><li>workspace-wide indexing</li><li>incremental parsing</li></ul><p>Formatting behavior is specified in <a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a>. Editor extensions may call <code>nocter fmt</code>, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.</p><h2 id="non-goals">Non-goals</h2><p>The following are not part of the intended editor architecture:</p><ul><li>implementing a Nocter parser inside the VS Code extension</li><li>implementing name resolution inside the VS Code extension</li><li>implementing type checking inside the VS Code extension</li><li>implementing borrow checking inside the VS Code extension</li><li>maintaining a separate editor-only module graph</li><li>maintaining a separate AI-only parser or semantic model</li><li>making TextMate scopes part of the language specification</li><li>requiring VS Code for normal command-line use</li></ul>
+  completion or jump target.</li></ul><p>Later editor features:</p><ul><li>formatting through <code>nocter fmt</code></li><li>context-sensitive member completion</li><li>incremental parsing</li></ul><p>Formatting behavior is specified in <a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a>. Editor extensions may call <code>nocter fmt</code>, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.</p><h2 id="non-goals">Non-goals</h2><p>The following are not part of the intended editor architecture:</p><ul><li>implementing a Nocter parser inside the VS Code extension</li><li>implementing name resolution inside the VS Code extension</li><li>implementing type checking inside the VS Code extension</li><li>implementing borrow checking inside the VS Code extension</li><li>maintaining a separate editor-only module graph</li><li>maintaining a separate AI-only parser or semantic model</li><li>making TextMate scopes part of the language specification</li><li>requiring VS Code for normal command-line use</li></ul>
             </div>
         </main>
     </div>

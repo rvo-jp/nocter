@@ -9,15 +9,14 @@ dependency graphs, immutable package-wide LSP snapshots, and the completed stabi
 The previous v0.3.0 language milestone and v0.2.0 contract remain historical records. Do not use
 `v0` as shorthand for a release name or work scope.
 
-Active development is **v0.5.0 Phase 3: Package-wide Editor Index and Refactoring**. Phase 0's
-published-artifact audit, Phase 1's explicit package test targets, and Phase 2's native test
-declarations and assertions are complete.
+Active development is **v0.5.0 Phase 4: Practical Standard Library**. Phase 0's published-artifact
+audit, Phase 1's explicit package test targets, Phase 2's native test declarations and assertions,
+and Phase 3's package-wide editor index and refactoring operations are complete.
 
 ## Documents
 
-- [v0.5.0 Development Plan](v0.5.0.md): completed published-artifact audit and explicit test
-  target and native test records, active package-wide editor phase, later standard-library gates,
-  and non-goals
+- [v0.5.0 Development Plan](v0.5.0.md): completed published-artifact, native testing, and
+  package-wide editor records; active standard-library gate; later stabilization; and non-goals
 - [v0.4.0 Release Record](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
   records, qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,

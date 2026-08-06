@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.5.0 Phase 2 native test declarations and assertions
-- active milestone: v0.5.0 Phase 3 package-wide editor index and refactoring
+- completed milestone: v0.5.0 Phase 3 package-wide editor index and refactoring
+- active milestone: v0.5.0 Phase 4 practical standard library
 - target: `arm64-darwin`
 
 The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
@@ -47,6 +47,12 @@ The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries a
   process execution without source rewriting or synthetic `main`
 - ordinary `std/testing` assertions, native test LSP presentation, and same-module/private versus
   separate-module/public visibility coverage
+- immutable generation-numbered package semantic indexes over exact graph roots and reached imports
+- source-backed cross-compile-unit identities, closed-module references, and version-aware rename
+- package-identity write boundaries that keep dependencies and `std` read-only
+- reachable-public automatic imports with compiler-owned top-level import edits
+- diagnostic quick fixes for unresolved imports, required interface members, and outcome contracts
+- inferred binding type, allocation-effect, and provenance inlay hints projected from compiler facts
 
 ## Qualification State
 
@@ -59,7 +65,9 @@ stabilization audit adds malformed root/transitive manifest recovery, missing-im
 symlink deletion, dynamic watcher registration, `didSave`, lifecycle, and a deterministic
 49-document invalidation partition. The complete verification script, public documentation build,
 optimized package build, installed-home `doctor`, archive inspection, and packaged LSP acceptance
-all pass after the audit.
+all pass after the audit. Phase 3 adds exact-graph index, cross-module rename, editor-assist, source
+edit, request-boundary, and installed-home LSP coverage. Its complete verification, generated docs,
+optimized distribution, `doctor`, packaged LSP smoke, and archive inspection all pass.
 
 ## Publication State
 
@@ -70,7 +78,8 @@ artifact.
 
 ## Next Work
 
-Begin Phase 3 with one generation-numbered package-wide declaration index built from the existing
-locked package graph and immutable LSP snapshot. Define source-backed cross-module reference and
-rename plans before adding edit-producing requests; do not introduce ambient directory scanning or
-a mutable editor-only symbol cache.
+Begin Phase 4 by auditing the smallest filesystem-oriented application that cannot yet be written
+against distributed `std`. Add APIs in ownership order: owned path representation, file handles and
+buffered input/output, text/vector search and conversion, iterator consumers, then process-facing
+convenience. Each allocating or ownership-transferring operation needs native source tests for
+success, allocation failure, partial initialization, provenance, and cleanup before promotion.

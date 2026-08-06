@@ -302,7 +302,7 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
     let workspace = install.root().join("workspace");
     fs::create_dir_all(&workspace).unwrap();
     let source = workspace.join("app.nct");
-    let source_text = "func main(): i32 {\n    return 0\n}\n";
+    let source_text = "func main(): i32 {\n    let value = 0\n    return value\n}\n";
     fs::write(&source, source_text).unwrap();
     let uri = file_uri(&source);
 
@@ -331,6 +331,18 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
             json!({
                 "jsonrpc": "2.0",
                 "id": 2,
+                "method": "textDocument/inlayHint",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "range": {
+                        "start": { "line": 0, "character": 0 },
+                        "end": { "line": 4, "character": 0 }
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
                 "method": "shutdown",
                 "params": null
             }),
@@ -355,7 +367,34 @@ fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
         text(&output.stderr)
     );
 
-    let diagnostics = read_frames(&output.stdout)
+    let messages = read_frames(&output.stdout);
+    let initialize = messages
+        .iter()
+        .find(|message| message["id"] == 1)
+        .expect("expected initialize response");
+    assert_eq!(
+        initialize["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    assert_eq!(
+        initialize["result"]["capabilities"]["codeActionProvider"]["codeActionKinds"][0],
+        "quickfix"
+    );
+    assert_eq!(
+        initialize["result"]["capabilities"]["inlayHintProvider"],
+        true
+    );
+    let hints = messages
+        .iter()
+        .find(|message| message["id"] == 2)
+        .and_then(|message| message["result"].as_array())
+        .expect("expected inlay-hint response");
+    assert!(
+        hints.iter().any(|hint| hint["label"] == ": i32"),
+        "installed LSP should expose compiler-inferred hints, got:\n{hints:#?}"
+    );
+
+    let diagnostics = messages
         .into_iter()
         .find(|message| message["method"] == "textDocument/publishDiagnostics")
         .and_then(|message| message["params"]["diagnostics"].as_array().cloned())

@@ -345,8 +345,15 @@ invalidation, missing and malformed dependency recovery, symlink deletion, root 
 manifest failure recovery, dynamic file-watcher registration, saved text, lifecycle ordering, and
 deterministic reuse in a 49-document workspace.
 
+v0.5.0 Phase 3 tests additionally cover source-backed identities across independent source maps,
+references into closed reached targets, version-aware multi-file rename, package-identity edit
+ownership, top-level collision and identifier rejection, reachable public auto imports,
+documentation-safe source edits, diagnostic quick fixes, inferred type/allocation/provenance hints,
+request validation, and installed-home capability and hint responses without `NOCTER_HOME`.
+
 ## Deferred Features
 
-Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints remain
-post-v0.3.0 work. Add them only through the semantic facts and recovery APIs already shared by
-hover, completion, and signature help.
+Formatting requests, background parallel analysis, and incremental parsing remain later work.
+Package-wide references, rename, automatic imports, code actions, and inlay hints were added in
+v0.5.0 Phase 3 through the same package graph, semantic identities, diagnostics, and retained facts
+used by existing editor operations.
