@@ -2,9 +2,8 @@
 
 ## Current Task
 
-Complete v0.6.0 Phase 0: replace the remaining feature-local declaration formatting, source-text
-signature recovery, inlay placement heuristics, and raw provenance Markdown with one typed
-`analysis/presentation` boundary shared by hover, completion, signature help, and inlay hints.
+v0.6.0 Phase 0 is complete. The next task is to define one coherent Phase 1 purpose, non-goals, and
+completion gate before beginning additional language or standard-library work.
 
 ## Completed Checkpoint
 
@@ -34,9 +33,15 @@ signature recovery, inlay placement heuristics, and raw provenance Markdown with
 - the published asset reports the qualified size and digest on GitHub; a fresh download passes
   `doctor`, `init`, locked/offline check and test, run, graph, explicit build, and direct Mach-O
   execution without repository configuration
+- callable source anchors, normalized declarations, and bounded semantic-detail projection now form
+  one `analysis/presentation` boundary shared by hover, completion, signature help, and inlay hints
+- result provenance no longer exposes private aggregate layout or copy-only dataflow, semantic hints
+  attach after the complete callable signature, and normalized recovery never slices a signature
+  from raw source
+- the v0.6.0 Phase 0 full verification record is owned by `milestones/v0.6.0.md`
 
 ## Next Work
 
-Implement and qualify the completion gate in [v0.6.0 Phase 0](milestones/v0.6.0.md). Keep v0.5.0
-behavior and qualification frozen under `development/releases/`; do not append new design work to
-that release record.
+Define v0.6.0 Phase 1 in [the active milestone](milestones/v0.6.0.md) before implementation. Keep
+v0.5.0 behavior and qualification frozen under `development/releases/`; do not append new design
+work to that release record.
