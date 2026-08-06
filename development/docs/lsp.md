@@ -75,6 +75,11 @@ rules. Fields, variants, methods, and associated functions always include their 
 establishes them. Canonical declaration identity remains internal and is not exposed as a
 repository or module path.
 
+Native test declarations use the same range discipline without entering the callable symbol table.
+Their name is a function-like semantic declaration and document symbol, hover renders the fixed
+`test name: void!` contract, and definition resolves to the exact name span. The keyword and body
+remain syntax, not part of the declaration focus range.
+
 ## Released v0.2.0 Capabilities
 
 ### Hover

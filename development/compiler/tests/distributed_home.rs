@@ -123,12 +123,24 @@ test assertions_pass {
     assert_eq_i32(2 + 2, 4)?
     assert_eq_str("nocter", "nocter")?
 }
+
+test assertion_fails {
+    assert_eq_i32(1, 2)?
+}
 "#,
     );
     let home = distributed_home();
 
     let output = Command::new(home.join("nocter"))
-        .args(["test", "--locked", "--offline"])
+        .args([
+            "test",
+            "--test",
+            "unit",
+            "--case",
+            "assertions_pass",
+            "--locked",
+            "--offline",
+        ])
         .current_dir(project.root())
         .env_remove("NOCTER_HOME")
         .output()
@@ -147,6 +159,34 @@ test assertions_pass {
         text(&output.stdout)
     );
     assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+
+    let failure = Command::new(home.join("nocter"))
+        .args([
+            "test",
+            "--test",
+            "unit",
+            "--case",
+            "assertion_fails",
+            "--format",
+            "json",
+            "--locked",
+            "--offline",
+        ])
+        .current_dir(project.root())
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(failure.stderr.is_empty(), "{}", text(&failure.stderr));
+    let report: Value = serde_json::from_slice(&failure.stdout).unwrap();
+    assert_eq!(report["runs"][0]["test"], "assertion_fails");
+    assert_eq!(report["runs"][0]["outcome"], "failed");
+    assert!(
+        report["runs"][0]["stderr"].as_str().is_some_and(
+            |stderr| stderr.contains("std.testing.not_equal: i32 values are not equal")
+        ),
+        "{report:#}"
+    );
 }
 
 #[test]

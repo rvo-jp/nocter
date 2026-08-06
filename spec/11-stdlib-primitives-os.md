@@ -14,9 +14,13 @@ std/os              common std plus target-gated internals: Platform, OSErrorKin
 std/error           Error, ErrorCode, and constructors for the built-in error payload
 std/io              user-facing I/O APIs
 std/process         user-facing process APIs
+std/testing         ordinary fallible assertions for native test declarations
 ```
 
 The compiler must not special-case names such as `Error`, `ErrorCode`, `OSError`, `Errno`, `File`, `args`, `env`, `cwd`, `exit`, or `abort`. These are ordinary standard-library names. The only compiler-level failure type is lowercase `error`.
+
+`std/testing` is likewise an ordinary module. Its assertion functions return `void!` and create
+stable `error` payloads through `Error.new`; assertion names and equality are not compiler syntax.
 
 ### Target Raw Errors
 

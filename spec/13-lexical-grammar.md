@@ -130,6 +130,10 @@ Built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`,
 `void`, and `never` are reserved type syntax, not importable user names. The
 special `error` type spelling is contextual as described above.
 
+Nocter v0.5.0 Phase 2 additionally reserves `test` for native top-level test declarations. Package
+metadata still uses the same token in `#test`; package parsing treats it as that directive's exact
+name rather than as a general identifier.
+
 Module file and directory names use snake_case identifiers:
 
 ```text

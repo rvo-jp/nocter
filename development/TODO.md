@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.5.0 Phase 1 explicit package test targets
-- active milestone: v0.5.0 Phase 2 native test declarations and assertions
+- completed milestone: v0.5.0 Phase 2 native test declarations and assertions
+- active milestone: v0.5.0 Phase 3 package-wide editor index and refactoring
 - target: `arm64-darwin`
 
 The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
@@ -42,6 +42,11 @@ The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries a
 - typed `#test` package targets with exact entry modules and separate executable/test namespaces
 - isolated `nocter test` execution with declaration-order continuation and stable human/JSON reports
 - package test formatter, JSON AST, semantic ranges, manifest completion, and definition navigation
+- native `test name { ... }` declarations with fixed `void!` contracts and module-local uniqueness
+- source-backed test discovery, `--case`, per-declaration compiler entry identities, and isolated
+  process execution without source rewriting or synthetic `main`
+- ordinary `std/testing` assertions, native test LSP presentation, and same-module/private versus
+  separate-module/public visibility coverage
 
 ## Qualification State
 
@@ -65,6 +70,7 @@ artifact.
 
 ## Next Work
 
-Design Phase 2's native test declaration and trusted runner-entry plan before adopting syntax.
-Decide declaration naming, result channels, per-test isolation, filtering, assertion failure data,
-and LSP presentation while preserving the Phase 1 target/report protocol.
+Begin Phase 3 with one generation-numbered package-wide declaration index built from the existing
+locked package graph and immutable LSP snapshot. Define source-backed cross-module reference and
+rename plans before adding edit-producing requests; do not introduce ambient directory scanning or
+a mutable editor-only symbol cache.

@@ -26,6 +26,7 @@ nocter check --format json
 nocter check app.nct
 nocter test
 nocter test --test unit
+nocter test --test unit --case pushes_in_order
 nocter test --locked --offline
 nocter test --format json
 nocter fmt app.nct
@@ -224,28 +225,31 @@ the compiler process are not part of this contract.
 ```sh
 nocter test
 nocter test --test unit
+nocter test --test unit --case pushes_in_order
 nocter test --locked --offline
 nocter test --format json
 ```
 
-`test` is package-only. It accepts `--root`, `--test`, `--target`, `--locked`, `--offline`, and
-`--format json`; it does not accept a positional source, `--file`, `--executable`, or `-o`.
+`test` is package-only. It accepts `--root`, `--test`, `--case`, `--target`, `--locked`, `--offline`,
+and `--format json`; it does not accept a positional source, `--file`, `--executable`, or `-o`.
+`--case` requires `--test` because target and declaration names are separate typed namespaces.
 
-Without `--test`, targets run in declaration order. Each target is compiled through the normal
-buildability and native-emission pipeline, written to a unique temporary location, and launched in
-its own process. The temporary executable is removed after every outcome. A nonzero exit, signal,
-compile failure, or launch failure marks that target failed and does not prevent later targets from
-running. Test modules currently provide a normal process `main` with the released executable entry
-signature; native source-level test declarations are a later language feature. Each process uses
-the selected package root as its working directory, including when `--root` was given elsewhere.
+Without `--test`, targets run in declaration order. Each target selects native `test name { ... }`
+declarations directly contained in its entry module. Cases run in source order, or `--case` selects
+one exact declaration. Every case is compiled through normal semantic, ownership, buildability,
+and native-emission stages, written to a unique temporary location, and launched in its own
+process. The temporary executable is removed after every outcome. A nonzero exit, signal, compile
+failure, or launch failure marks that run failed and does not prevent later runs. No legacy
+test-target `main` compatibility mode remains. Each process uses the selected package root as its
+working directory, including when `--root` was given elsewhere.
 
-Human output reports every target and aggregate passed/failed counts. `--format json` writes one
+Human output reports every run and aggregate passed/failed counts. `--format json` writes one
 `nocter.tests` version-1 envelope to stdout. It contains `ok`, package and compilation-target
 identity, top-level diagnostics, `runs`, and summary counts. Each run records separate `target` and
 nullable source-level `test` identity, outcome (`passed`, `failed`, `compile_failed`, or
-`runner_failed`), exit code or signal, captured stdout/stderr, and diagnostics. Phase 1 target-entry
-runs have `test: null`; native test declarations use that field without encoding identity into a
-display string. The command exits zero only when every selected run passes.
+`runner_failed`), exit code or signal, captured stdout/stderr, and diagnostics. Accepted native
+runs carry the exact declaration name. Target-wide failures use `test: null`; identity is never
+encoded into a display string. The command exits zero only when every selected run passes.
 
 ## Check
 

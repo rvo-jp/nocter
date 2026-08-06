@@ -79,6 +79,7 @@ fn keyword_lexemes_match_lexer_keywords() {
     assert!(!KEYWORD_LEXEMES.contains(&"from"));
     assert!(!KEYWORD_LEXEMES.contains(&"import"));
     assert!(KEYWORD_LEXEMES.contains(&"interface"));
+    assert!(KEYWORD_LEXEMES.contains(&"test"));
 }
 
 #[test]
@@ -90,6 +91,7 @@ fn validates_identifier_names() {
     assert!(is_valid_identifier_name("drop"));
     assert!(is_valid_identifier_name("trait"));
     assert!(!is_valid_identifier_name("interface"));
+    assert!(!is_valid_identifier_name("test"));
     assert!(!is_valid_identifier_name(""));
     assert!(!is_valid_identifier_name("2main"));
     assert!(!is_valid_identifier_name("main-entry"));

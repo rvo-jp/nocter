@@ -167,6 +167,16 @@ Nocter v0.5.0 Phase 1 editor rules:
 - Completion of `#test` inserts the required `name` and `entry` fields. The LSP does not scan a
   conventional tests directory or maintain a second test-target model.
 
+Nocter v0.5.0 Phase 2 editor rules:
+
+- A native test name is a function-like declaration for semantic coloring and document symbols,
+  but it is not offered as a callable or importable symbol.
+- Hover uses the normalized fixed contract `test name: void!`; its range is exactly the name.
+- Definition on a test name resolves to that same exact name span. The `test` keyword, whitespace,
+  braces, and body are not part of the declaration focus range.
+- Completion includes the `test` declaration keyword. Duplicate names and body errors use the
+  normal parser, resolver, and typechecker diagnostics.
+
 Nocter v0.4.0 Phase 1 editor rules:
 
 - An opened package-root `nocter.nct` uses the same composite package-file AST as command-line

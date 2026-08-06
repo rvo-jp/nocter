@@ -148,6 +148,7 @@
                 <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
@@ -177,7 +178,10 @@
   test entry string contents use an exact namespace span that excludes quotation marks.</li></ul><p>Nocter v0.5.0 Phase 1 editor rules:</p><ul><li>Test target metadata is parsed by the same package-file AST and validated by the same typed
   package model used by <code>nocter test</code>.</li><li>Go to definition on a test <code>entry</code> string selects the resolved module and uses only the string
   content as its origin range.</li><li>Completion of <code>#test</code> inserts the required <code>name</code> and <code>entry</code> fields. The LSP does not scan a
-  conventional tests directory or maintain a second test-target model.</li></ul><p>Nocter v0.4.0 Phase 1 editor rules:</p><ul><li>An opened package-root <code>nocter.nct</code> uses the same composite package-file AST as command-line
+  conventional tests directory or maintain a second test-target model.</li></ul><p>Nocter v0.5.0 Phase 2 editor rules:</p><ul><li>A native test name is a function-like declaration for semantic coloring and document symbols,
+  but it is not offered as a callable or importable symbol.</li><li>Hover uses the normalized fixed contract <code>test name: void!</code>; its range is exactly the name.</li><li>Definition on a test name resolves to that same exact name span. The <code>test</code> keyword, whitespace,
+  braces, and body are not part of the declaration focus range.</li><li>Completion includes the <code>test</code> declaration keyword. Duplicate names and body errors use the
+  normal parser, resolver, and typechecker diagnostics.</li></ul><p>Nocter v0.4.0 Phase 1 editor rules:</p><ul><li>An opened package-root <code>nocter.nct</code> uses the same composite package-file AST as command-line
   compilation.</li><li>Go to definition on an executable <code>entry</code> string selects the resolved <code>.nct</code> file or directory
   module and uses only the string content as the origin range.</li><li>Package directives outside <code>nocter.nct</code> are diagnostics.</li><li>Dependency aliases use namespace spans. LSP graph loading is locked and offline and never
   rewrites <code>nocter.nct</code>.</li><li><code>pub use path</code> exposes one namespace identity; hover, completion, definition, references, and

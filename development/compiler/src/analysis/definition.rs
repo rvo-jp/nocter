@@ -119,6 +119,19 @@ mod tests {
     }
 
     #[test]
+    fn native_test_declaration_defines_only_its_name_span() {
+        let text = "test pushes { return }\n";
+        let offset = text.find("pushes").unwrap();
+        let target = definition_target_for_text(text, offset).expect("test definition");
+        assert_eq!(
+            &text[target.focus_span.start..target.focus_span.end],
+            "pushes"
+        );
+        assert_eq!(target.focus_span, target.declaration_span);
+        assert!(definition_target_for_text(text, 0).is_none());
+    }
+
+    #[test]
     fn definition_query_keeps_the_whole_module_path_as_its_origin() {
         let root_text = "use lib/math\n";
         let module_text = "pub func answer(): i32 { return 7 }\n";

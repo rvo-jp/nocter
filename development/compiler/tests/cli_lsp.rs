@@ -725,6 +725,152 @@ fn lsp_command_serves_v0_editor_features() {
 }
 
 #[test]
+fn lsp_command_presents_native_tests_without_making_them_callable() {
+    let project = TempProject::new("cli-lsp-native-tests");
+    let source_text = "/// Verifies push behavior.\ntest pushes {\n    return\n}\n\n";
+    let source = project.write_source("tests.nct", source_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/documentSymbol",
+                "params": { "textDocument": { "uri": uri.clone() } }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 1, "character": 7 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 1, "character": 7 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/semanticTokens/full",
+                "params": { "textDocument": { "uri": uri.clone() } }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": 4, "character": 0 }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let symbols = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected document symbols");
+    let symbol = symbols
+        .iter()
+        .find(|symbol| symbol["name"] == "pushes")
+        .expect("expected native test symbol");
+    assert_eq!(symbol["kind"], 12);
+    assert_eq!(symbol["selectionRange"]["start"]["line"], 1);
+    assert_eq!(symbol["selectionRange"]["start"]["character"], 5);
+    assert_eq!(symbol["selectionRange"]["end"]["character"], 11);
+
+    let hover_response = &response_with_id(&messages, 3)["result"];
+    let hover = hover_response["contents"]["value"]
+        .as_str()
+        .expect("expected native test hover");
+    assert!(hover.contains("test pushes: void!"), "hover:\n{hover}");
+    assert!(hover.contains("Verifies push behavior."), "hover:\n{hover}");
+    assert_eq!(hover_response["range"]["start"]["character"], 5);
+    assert_eq!(hover_response["range"]["end"]["character"], 11);
+
+    let definitions = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["targetUri"], uri);
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["character"],
+        5
+    );
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["end"]["character"],
+        11
+    );
+
+    let semantic_data = response_with_id(&messages, 5)["result"]["data"]
+        .as_array()
+        .expect("expected semantic token data");
+    let tokens = decode_semantic_tokens(semantic_data);
+    let test_name = tokens
+        .iter()
+        .find(|token| token.lexeme(source_text) == Some("pushes"))
+        .expect("expected test-name semantic token");
+    assert_eq!(test_name.kind, 0);
+    assert!(
+        tokens
+            .iter()
+            .all(|token| token.lexeme(source_text) != Some("test"))
+    );
+
+    let completion_items = response_with_id(&messages, 6)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    assert!(completion_item_with_label(completion_items, "test").is_some());
+    assert!(completion_item_with_label(completion_items, "pushes").is_none());
+}
+
+#[test]
 fn lsp_hover_preserves_nested_process_result_and_static_provenance() {
     let project = TempProject::new("cli-lsp-process-env-hover");
     project.write_nocter_home_file(

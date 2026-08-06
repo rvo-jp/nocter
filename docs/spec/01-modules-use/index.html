@@ -148,6 +148,7 @@
                 <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
@@ -248,7 +249,9 @@ include std<span class="token-operator">/</span>prelude
 </code></pre><p>Package-file rules:</p><ul><li>File documentation precedes package directives; ordinary imports and declarations follow them.</li><li><code>#name</code> and <code>#version</code> accept one string and may occur at most once.</li><li><code>#name</code> defaults to the root directory basename for display only. That display name is not
   package identity.</li><li>An omitted <code>#version</code> remains absent.</li><li><code>#executable</code> is repeatable, requires a <code>name</code> string, and accepts an optional <code>entry</code> string.</li><li>Omitting <code>entry</code> selects the package-root module in <code>nocter.nct</code>.</li><li><code>#test</code> is repeatable and requires both a <code>name</code> string and an <code>entry</code> string. Test names are
   unique among tests; executable and test names occupy separate typed target namespaces.</li><li>Test entries use the same exact logical-module resolution and package-containment rules as
-  executable entries. The compiler never discovers tests by scanning a directory.</li><li><code>entry: "."</code> selects the root directory module at <code>index.nct</code>.</li><li><code>entry: "./src/app"</code> resolves <code>src/app.nct</code> or <code>src/app/index.nct</code>.</li><li>Logical module paths omit <code>.nct</code>, cannot escape the package root lexically or through symbolic
+  executable entries. The compiler never discovers tests by scanning a directory.</li><li>A test target selects declarations directly contained in its entry module. Imported modules are
+  not searched recursively. Tests in the entry module use normal module privacy; tests in a
+  separate entry module can import only public API.</li><li><code>entry: "."</code> selects the root directory module at <code>index.nct</code>.</li><li><code>entry: "./src/app"</code> resolves <code>src/app.nct</code> or <code>src/app/index.nct</code>.</li><li>Logical module paths omit <code>.nct</code>, cannot escape the package root lexically or through symbolic
   links, and are ambiguous when both file and directory-module forms exist.</li><li>Neither the package-root <code>nocter.nct</code> nor an explicit target entry may escape its package or
   cross into a nested package through a symbolic link or path.</li><li>Package directives are invalid outside <code>nocter.nct</code>. A nested <code>nocter.nct</code> defines another
   package; a nested <code>index.nct</code> remains an ordinary directory module.</li><li>Omitting a source from <code>build</code>, <code>run</code>, or <code>check</code> selects <code>./nocter.nct</code>; it never probes for

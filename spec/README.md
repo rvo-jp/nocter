@@ -36,6 +36,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
 - [Callable Values and Interface Default Methods](18-callables-default-methods.md)
 - [Construction Surfaces](19-construction-surfaces.md)
+- [Native Testing](20-native-testing.md)
 
 ## Supporting Material
 
@@ -49,6 +50,10 @@ immutable editor-snapshot, and release-qualification contracts are recorded in t
 [v0.4.0 Release Record](../development/docs/v0.4.0.md). The
 [v0.3.0 Release Record](../development/docs/v0.3.0.md) and
 [v0.2.0 Language Contract](00-v0.2.0-contract.md) remain historical boundaries.
+
+The adopted v0.5.0 Phase 2 development contract adds compiler-owned native test declarations,
+per-declaration process isolation, and `std/testing`. It is specified here before the v0.5.0
+release so packages and tooling share one source contract.
 
 ## Editing Policy
 

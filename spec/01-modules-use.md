@@ -277,6 +277,9 @@ Package-file rules:
   unique among tests; executable and test names occupy separate typed target namespaces.
 - Test entries use the same exact logical-module resolution and package-containment rules as
   executable entries. The compiler never discovers tests by scanning a directory.
+- A test target selects declarations directly contained in its entry module. Imported modules are
+  not searched recursively. Tests in the entry module use normal module privacy; tests in a
+  separate entry module can import only public API.
 - `entry: "."` selects the root directory module at `index.nct`.
 - `entry: "./src/app"` resolves `src/app.nct` or `src/app/index.nct`.
 - Logical module paths omit `.nct`, cannot escape the package root lexically or through symbolic
