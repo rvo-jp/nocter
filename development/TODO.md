@@ -1,15 +1,14 @@
-# Nocter v0.4.0 Handoff
+# Nocter v0.5.0 Handoff
 
 ## Baseline
 
 - branch: `develop`
 - released baseline: v0.4.0
-- completed milestone: v0.4.0 publication
-- qualification: complete for the published v0.4.0 distribution
-- active milestone: none
+- completed milestone: v0.5.0 Phase 0 published-artifact audit
+- active milestone: v0.5.0 Phase 1 explicit package test targets
 - target: `arm64-darwin`
 
-The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
+The normative plan is [v0.5.0.md](docs/v0.5.0.md). Package/compiler boundaries are defined in
 [packages.md](docs/packages.md). Public behavior belongs in `spec/`.
 
 ## Implemented Scope
@@ -63,5 +62,6 @@ artifact.
 
 ## Next Work
 
-Preserve v0.4.0 as a released record. Select and document the next exact milestone before changing
-the language, package format, standard library, or editor contract.
+Implement the Phase 1 typed `#test` target and `nocter test` boundaries in dependency order:
+manifest model/parser/formatter/JSON, shared module resolution and test identity, command selection,
+isolated execution and reports, then LSP integration. Keep test declaration syntax out of Phase 1.

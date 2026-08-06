@@ -9,8 +9,13 @@ dependency graphs, immutable package-wide LSP snapshots, and the completed stabi
 The previous v0.3.0 language milestone and v0.2.0 contract remain historical records. Do not use
 `v0` as shorthand for a release name or work scope.
 
+Active development is **v0.5.0 Phase 1: Explicit Package Test Targets**. Phase 0's independent
+published-artifact audit is complete.
+
 ## Documents
 
+- [v0.5.0 Development Plan](v0.5.0.md): completed published-artifact audit, active explicit test
+  target contract, later editor and standard-library gates, and non-goals
 - [v0.4.0 Release Record](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
   records, qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
@@ -58,6 +63,7 @@ The previous v0.3.0 language milestone and v0.2.0 contract remain historical rec
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
+| v0.5.0 milestone status and acceptance | `v0.5.0.md` |
 | v0.4.0 release status, scope, and qualification | `v0.4.0.md` |
 | Package/compiler responsibility boundary | `packages.md` |
 | Package-wide editor state and invalidation | `lsp-snapshots.md` |

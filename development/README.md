@@ -14,6 +14,10 @@ are recorded in the [v0.4.0 Release Record](docs/v0.4.0.md), with compiler bound
 The previous language milestone remains available in the [v0.3.0 release record](docs/v0.3.0.md),
 and the v0.2.0 criteria remain in the [v0.2.0 release record](docs/v0.2.0.md).
 
+Active development is **v0.5.0 Phase 1: Explicit Package Test Targets**. The published-artifact
+audit is complete, and the adopted phase boundaries are recorded in the
+[v0.5.0 Development Plan](docs/v0.5.0.md).
+
 ## Quick Start
 
 Run the complete verification suite from the repository root:
@@ -46,6 +50,7 @@ external runtime library, or the Xcode Command Line Tools.
 ## Documents
 
 - [Documentation Index](docs/README.md)
+- [v0.5.0 Development Plan](docs/v0.5.0.md)
 - [v0.4.0 Release Record](docs/v0.4.0.md)
 - [Packages, Dependencies, and Locks](docs/packages.md)
 - [Immutable LSP Snapshots](docs/lsp-snapshots.md)

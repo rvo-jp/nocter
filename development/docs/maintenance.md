@@ -22,6 +22,7 @@ responsibility naturally explains it.
 | Information | Owner |
 |---|---|
 | Language and public standard-library semantics | `spec/` |
+| Active v0.5.0 milestone and qualification | `docs/v0.5.0.md` |
 | Current release completion and qualification | `docs/v0.4.0.md` |
 | Previous v0.3.0 completion record | `docs/v0.3.0.md` |
 | Previous v0.2.0 completion record | `docs/v0.2.0.md` |
@@ -45,6 +46,7 @@ in `v0.4.0.md`; focused documents own design and concrete acceptance behavior. `
 ## Update Triggers
 
 - Current release status, non-goal, or qualification changed: update `v0.4.0.md`.
+- Active milestone scope, dependency order, or qualification changed: update `v0.5.0.md`.
 - Region, provenance, allocation-effect, or callable-summary design changed: update
   `region-provenance.md`.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.

@@ -12,6 +12,7 @@ Before compiler changes, read:
 - `TODO.md`
 - `docs/README.md`
 - `docs/v0.4.0.md`
+- `docs/v0.5.0.md`
 - `docs/architecture.md`
 - `docs/region-provenance.md`
 - the focused design document for the area being changed
@@ -22,8 +23,9 @@ rewrite them.
 
 ## Recorded Milestone
 
-v0.4.0 is complete through Phase 2 and the snapshot/package-graph stabilization audit. Its feature
-scope is frozen for release. Do not use `v0` as shorthand for a release scope. Use
+v0.4.0 is released and immutable. v0.5.0 Phase 0 is complete; Phase 1 explicit package test targets
+are active. Do not use `v0` as shorthand for a release scope. Use
+[docs/v0.5.0.md](docs/v0.5.0.md) for active development,
 [docs/v0.4.0.md](docs/v0.4.0.md) for the current release record,
 [docs/v0.3.0.md](docs/v0.3.0.md) for the previous release, and
 [docs/v0.2.0.md](docs/v0.2.0.md) only for the earlier historical baseline.
@@ -66,6 +68,7 @@ Keep structural changes and behavior changes in separate commits when practical.
 Update only the owner of the changed fact:
 
 - `TODO.md`: next concrete task, blockers, uncommitted handoff state
+- `docs/v0.5.0.md`: active milestone status, completion gate, scope, non-goal, or qualification
 - `docs/v0.4.0.md`: current release status, completion gate, scope, non-goal, or qualification
 - `docs/v0.3.0.md`: previous release record
 - `docs/v0.2.0.md`: released v0.2.0 completion record
