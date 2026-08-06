@@ -114,7 +114,17 @@ fn distributed_compiler_runs_package_tests_without_environment_configuration() {
         "nocter.nct",
         "#test: { name: \"unit\", entry: \"./unit\" }\n",
     );
-    project.write_source("unit.nct", "func main(): i32 { return 0 }\n");
+    project.write_source(
+        "unit.nct",
+        r#"use std/testing.{assert, assert_eq_i32, assert_eq_str}
+
+test assertions_pass {
+    assert(true)?
+    assert_eq_i32(2 + 2, 4)?
+    assert_eq_str("nocter", "nocter")?
+}
+"#,
+    );
     let home = distributed_home();
 
     let output = Command::new(home.join("nocter"))
@@ -131,7 +141,11 @@ fn distributed_compiler_runs_package_tests_without_environment_configuration() {
         text(&output.stdout),
         text(&output.stderr)
     );
-    assert!(text(&output.stdout).contains("test unit ... ok"));
+    assert!(
+        text(&output.stdout).contains("test unit::assertions_pass ... ok"),
+        "{}",
+        text(&output.stdout)
+    );
     assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
 }
 

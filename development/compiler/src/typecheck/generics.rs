@@ -46,6 +46,19 @@ pub(super) fn check_generic_type_arities(
                 );
                 check_block(sources, &function.body, resolved, &scope, diagnostics);
             }
+            Item::Test(test) => {
+                let generics = GenericParamList {
+                    span: None,
+                    parameters: Vec::new(),
+                };
+                check_block(
+                    sources,
+                    &test.body,
+                    resolved,
+                    &GenericScope::new(&generics),
+                    diagnostics,
+                );
+            }
             Item::Primitive(primitive) => {
                 let scope = GenericScope::new(&primitive.generics);
                 check_generic_bounds(sources, &primitive.generics, resolved, &scope, diagnostics);

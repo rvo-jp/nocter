@@ -19,3 +19,4 @@ mod imports;
 mod package_directives;
 mod parameters;
 mod provenance;
+mod tests;

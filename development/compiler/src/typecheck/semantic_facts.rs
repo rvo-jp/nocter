@@ -74,6 +74,16 @@ pub(crate) fn collect_callable_semantic_facts(
                         &mut facts,
                     );
                 }
+                Item::Test(test) => {
+                    let return_type = test.return_type();
+                    insert_fact(
+                        test.name_span,
+                        &return_type,
+                        source.resolved,
+                        &summaries,
+                        &mut facts,
+                    );
+                }
                 Item::Primitive(primitive) => {
                     insert_fact(
                         primitive.name_span,

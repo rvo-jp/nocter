@@ -13,6 +13,7 @@ pub(super) enum TestOutputFormat {
 pub(super) struct TestCommand {
     pub(super) root: PathBuf,
     pub(super) selected: Option<String>,
+    pub(super) case: Option<String>,
     pub(super) target: String,
     pub(super) locked: bool,
     pub(super) offline: bool,
@@ -23,6 +24,7 @@ pub(super) fn parse_test_command(args: &[OsString]) -> Result<TestCommand, Strin
     let mut command = TestCommand {
         root: PathBuf::from("."),
         selected: None,
+        case: None,
         target: DEFAULT_TARGET.to_string(),
         locked: false,
         offline: false,
@@ -48,6 +50,14 @@ pub(super) fn parse_test_command(args: &[OsString]) -> Result<TestCommand, Strin
                     return Err("test specified more than once".to_string());
                 }
                 command.selected = Some(value.to_string_lossy().into_owned());
+                index += 2;
+            }
+            "--case" => {
+                let value = required_value(args, index, "expected test case name after `--case`")?;
+                if command.case.is_some() {
+                    return Err("test case specified more than once".to_string());
+                }
+                command.case = Some(value.to_string_lossy().into_owned());
                 index += 2;
             }
             "--target" => {
@@ -78,6 +88,9 @@ pub(super) fn parse_test_command(args: &[OsString]) -> Result<TestCommand, Strin
             }
             _ => return Err(format!("unexpected argument `{flag}`")),
         }
+    }
+    if command.case.is_some() && command.selected.is_none() {
+        return Err("`--case` requires an explicit `--test` target".to_string());
     }
     Ok(command)
 }

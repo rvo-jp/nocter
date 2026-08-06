@@ -5,6 +5,53 @@ use super::support::{
 use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
+fn parses_native_test_declarations_as_non_callable_items() {
+    let output = parse_text(
+        r#"test pushes_in_order {
+    let count: i32 = 1
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Test(test) = &ast.items[0] else {
+        panic!("expected native test declaration");
+    };
+    assert_eq!(test.name, "pushes_in_order");
+    assert_eq!(test.body.statements.len(), 2);
+}
+
+#[test]
+fn rejects_test_signatures_and_modifiers() {
+    for source in [
+        "pub test hidden {}\n",
+        "test generic<T> {}\n",
+        "test parameter(value: i32) {}\n",
+        "test typed: void {}\n",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "accepted `{source}`");
+        assert!(
+            !output.diagnostics.is_empty(),
+            "rejected without diagnostic"
+        );
+    }
+}
+
+#[test]
+fn native_test_json_has_no_synthetic_function_signature() {
+    let (sources, output) = parse_text_with_sources("test works { return }\n");
+    let ast = output.ast.unwrap();
+    let json = ast.to_json(&sources);
+    let node = find_json_node(&json, "test_decl").expect("test JSON node");
+    assert_eq!(node.value.as_deref(), Some("works"));
+    assert!(find_json_node(node, "parameter_list").is_none());
+    assert!(find_json_node(node, "fallible_type").is_none());
+}
+
+#[test]
 fn rejects_package_directives_in_an_ordinary_module() {
     let output = parse_text("#name: \"json-tool\"\n");
     assert!(output.ast.is_none());

@@ -168,11 +168,40 @@ fn parses_explicit_package_test_selection_and_json_output() {
         Command::Test(TestCommand {
             root: PathBuf::from("packages/tool"),
             selected: Some("unit".to_string()),
+            case: None,
             target: "arm64-darwin".to_string(),
             locked: true,
             offline: true,
             format: TestOutputFormat::Json,
         })
+    );
+}
+
+#[test]
+fn parses_native_case_selection_and_requires_a_target() {
+    let command = parse_command(&[
+        OsString::from("test"),
+        OsString::from("--test"),
+        OsString::from("unit"),
+        OsString::from("--case"),
+        OsString::from("pushes"),
+    ])
+    .unwrap();
+    let Command::Test(command) = command else {
+        panic!("expected test command");
+    };
+    assert_eq!(command.selected.as_deref(), Some("unit"));
+    assert_eq!(command.case.as_deref(), Some("pushes"));
+
+    let error = parse_command(&[
+        OsString::from("test"),
+        OsString::from("--case"),
+        OsString::from("pushes"),
+    ])
+    .unwrap_err();
+    assert_eq!(
+        error.message(),
+        "`--case` requires an explicit `--test` target"
     );
 }
 

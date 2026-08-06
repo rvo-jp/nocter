@@ -237,6 +237,7 @@ fn result_provenance_completion_items(
                     ));
                 }
             }
+            Item::Test(_) => {}
             Item::Primitive(primitive) => {
                 if clause_contains_offset(primitive.result_provenance.as_ref(), offset) {
                     return Some(provenance_origin_items(

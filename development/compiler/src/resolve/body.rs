@@ -18,6 +18,10 @@ impl Resolver<'_> {
                 Item::Function(function) => {
                     self.resolve_function_body(function);
                 }
+                Item::Test(test) => {
+                    let mut scope = Scope::new();
+                    self.resolve_block(&test.body, &mut scope);
+                }
                 Item::Primitive(primitive) => {
                     let mut scope = Scope::new();
                     self.define_declaration_parameters(

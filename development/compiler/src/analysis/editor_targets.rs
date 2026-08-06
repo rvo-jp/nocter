@@ -157,6 +157,7 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
             Item::Import(import) => sites.push(ImportSite::Namespace(import)),
             Item::FromImport(import) => sites.push(ImportSite::Names(import)),
             Item::Function(function) => collect_block_import_sites(&function.body, sites),
+            Item::Test(test) => collect_block_import_sites(&test.body, sites),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {

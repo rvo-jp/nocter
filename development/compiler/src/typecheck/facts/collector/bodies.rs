@@ -10,7 +10,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) => None,
+            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -36,6 +36,18 @@ impl TypecheckFactCollector<'_> {
                     &function.body,
                     &mut environment,
                     Some(&return_success_type),
+                );
+            }
+            Item::Test(test) => {
+                let mut environment = TypeEnvironment::default();
+                let return_type = Type::Fallible {
+                    success: Box::new(Type::Void),
+                    error: Box::new(Type::Error),
+                };
+                self.collect_block_facts(
+                    &test.body,
+                    &mut environment,
+                    Some(return_type.success_type()),
                 );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),

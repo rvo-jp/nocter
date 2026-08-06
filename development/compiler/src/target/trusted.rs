@@ -118,6 +118,7 @@ pub(crate) fn trusted_declarations_for_module(
                 facts.insert(function.name_span, role);
             }
             Item::Import(_)
+            | Item::Test(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)
             | Item::Enum(_)

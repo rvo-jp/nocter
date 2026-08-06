@@ -100,7 +100,7 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
     writeln!(
         writer,
-        "  test [--root <dir>] [--test <name>] [--locked] [--offline] [--target <target>] [--format json]"
+        "  test [--root <dir>] [--test <name> [--case <name>]] [--locked] [--offline] [--target <target>] [--format json]"
     )?;
     writeln!(
         writer,

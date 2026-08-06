@@ -51,6 +51,7 @@ impl Resolver<'_> {
                         self.collect_function_symbol(function);
                     }
                 }
+                Item::Test(_) => {}
                 Item::Primitive(primitive) => {
                     self.output
                         .diagnostics

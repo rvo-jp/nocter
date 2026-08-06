@@ -6,6 +6,12 @@ use crate::lexer::{Keyword, Token, TokenKind};
 use crate::source::ByteSpan;
 
 impl Parser<'_> {
+    pub(super) fn token_at_offset_is_keyword(&self, offset: usize, keyword: Keyword) -> bool {
+        self.tokens
+            .get(self.index + offset)
+            .is_some_and(|token| token.kind == TokenKind::Keyword(keyword))
+    }
+
     pub(super) fn expect_identifier(&mut self, message: &str) -> ParseResult<ParsedIdentifier> {
         if self.current().kind == TokenKind::Identifier {
             let token = self.bump();

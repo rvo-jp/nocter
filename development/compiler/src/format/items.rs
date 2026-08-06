@@ -4,7 +4,7 @@ use crate::ast::{
     FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
     ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
     PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
-    StructField, TypeAliasDecl, TypeExpr, Visibility,
+    StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -42,6 +42,7 @@ impl Formatter {
             Item::Import(item) => self.format_import_item(item),
             Item::FromImport(item) => self.format_from_import_item(item),
             Item::Function(item) => self.format_function_decl(item),
+            Item::Test(item) => self.format_test_decl(item),
             Item::Primitive(item) => self.format_primitive_decl(item),
             Item::TypeAlias(item) => self.format_type_alias_decl(item),
             Item::Struct(item) => self.format_struct_decl(item),
@@ -50,6 +51,13 @@ impl Formatter {
             Item::Impl(item) => self.format_impl_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
         }
+    }
+
+    fn format_test_decl(&mut self, item: &TestDecl) {
+        self.write("test ");
+        self.write(&item.name);
+        self.write(" ");
+        self.format_block(&item.body);
     }
 
     fn format_construct_decl(&mut self, item: &ConstructDecl) {

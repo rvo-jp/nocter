@@ -1,12 +1,13 @@
 use super::errors::{temporary_executable_diagnostic, write_human_diagnostics};
 use super::package_plan::selected_tests;
-use super::pipeline::build_package_executable_to_path_with_target;
+use super::pipeline::{build_package_test_to_path_with_target, discover_package_tests_with_target};
 use super::temporary_executable::TemporaryExecutable;
 use super::test_options::{TestCommand, TestOutputFormat};
 use super::test_report::{TestOutcome, TestReport, TestRunReport, exit_code};
 use crate::diagnostics::Diagnostic;
 use crate::package::{PackageGraphOptions, TestTarget, load_package_graph};
 use crate::source::SourceMap;
+use crate::test_entry::TestRunId;
 use std::io::{self, Write};
 use std::process::{Command, ExitCode, ExitStatus};
 
@@ -42,9 +43,9 @@ pub(super) fn run_test_command(command: &TestCommand) -> ExitCode {
         }
     };
 
-    let mut executions = Vec::with_capacity(targets.len());
+    let mut executions = Vec::new();
     for target in targets {
-        executions.push(execute_target(command, &graph, target));
+        executions.extend(execute_target(command, &graph, target));
     }
     let (reports, sources): (Vec<_>, Vec<_>) = executions
         .into_iter()
@@ -71,14 +72,86 @@ fn execute_target(
     command: &TestCommand,
     graph: &crate::package::PackageGraph,
     target: &TestTarget,
+) -> Vec<TestExecution> {
+    let discovery =
+        discover_package_tests_with_target(target.entry().source_path(), graph, &command.target);
+    if !discovery.diagnostics.is_empty() {
+        return vec![TestExecution {
+            report: TestRunReport {
+                target: target.name().to_string(),
+                test: None,
+                outcome: TestOutcome::CompileFailed,
+                exit_code: None,
+                signal: None,
+                stdout: String::new(),
+                stderr: String::new(),
+                diagnostics: discovery.diagnostics,
+            },
+            sources: Some(discovery.sources),
+        }];
+    }
+    let mut tests = discovery.tests;
+    if let Some(case) = command.case.as_deref() {
+        tests.retain(|test| test.name() == case);
+        if tests.is_empty() {
+            return vec![selection_failure(
+                target,
+                format!("test target `{}` has no case named `{case}`", target.name()),
+            )];
+        }
+    }
+    if tests.is_empty() {
+        return vec![selection_failure(
+            target,
+            format!(
+                "test target `{}` declares no native test cases",
+                target.name()
+            ),
+        )];
+    }
+
+    tests
+        .into_iter()
+        .map(|declaration| {
+            execute_case(
+                command,
+                graph,
+                TestRunId::new(target.id().clone(), declaration),
+                target.entry().source_path(),
+            )
+        })
+        .collect()
+}
+
+fn selection_failure(target: &TestTarget, message: String) -> TestExecution {
+    TestExecution {
+        report: TestRunReport {
+            target: target.name().to_string(),
+            test: None,
+            outcome: TestOutcome::CompileFailed,
+            exit_code: None,
+            signal: None,
+            stdout: String::new(),
+            stderr: String::new(),
+            diagnostics: vec![Diagnostic::error("E0800", message)],
+        },
+        sources: None,
+    }
+}
+
+fn execute_case(
+    command: &TestCommand,
+    graph: &crate::package::PackageGraph,
+    run: TestRunId,
+    entry: &std::path::Path,
 ) -> TestExecution {
     let artifact = match TemporaryExecutable::new("test") {
         Ok(artifact) => artifact,
         Err(error) => {
             return TestExecution {
                 report: TestRunReport {
-                    target: target.name().to_string(),
-                    test: None,
+                    target: run.target().name().to_string(),
+                    test: Some(run.declaration().name().to_string()),
                     outcome: TestOutcome::RunnerFailed,
                     exit_code: None,
                     signal: None,
@@ -92,17 +165,18 @@ fn execute_target(
             };
         }
     };
-    let output = build_package_executable_to_path_with_target(
-        target.entry().source_path(),
+    let output = build_package_test_to_path_with_target(
+        entry,
         graph,
+        run.declaration(),
         artifact.path(),
         &command.target,
     );
     if !output.is_ok() {
         return TestExecution {
             report: TestRunReport {
-                target: target.name().to_string(),
-                test: None,
+                target: run.target().name().to_string(),
+                test: Some(run.declaration().name().to_string()),
                 outcome: TestOutcome::CompileFailed,
                 exit_code: None,
                 signal: None,
@@ -119,8 +193,8 @@ fn execute_target(
     {
         Ok(output) => TestExecution {
             report: TestRunReport {
-                target: target.name().to_string(),
-                test: None,
+                target: run.target().name().to_string(),
+                test: Some(run.declaration().name().to_string()),
                 outcome: if output.status.success() {
                     TestOutcome::Passed
                 } else {
@@ -136,8 +210,8 @@ fn execute_target(
         },
         Err(error) => TestExecution {
             report: TestRunReport {
-                target: target.name().to_string(),
-                test: None,
+                target: run.target().name().to_string(),
+                test: Some(run.declaration().name().to_string()),
                 outcome: TestOutcome::RunnerFailed,
                 exit_code: None,
                 signal: None,
@@ -145,12 +219,16 @@ fn execute_target(
                 stderr: String::new(),
                 diagnostics: vec![temporary_executable_diagnostic(format!(
                     "failed to run test `{}`: {error}",
-                    target.name()
+                    run_display_id(&run)
                 ))],
             },
             sources: None,
         },
     }
+}
+
+fn run_display_id(run: &TestRunId) -> String {
+    format!("{}::{}", run.target().name(), run.declaration().name())
 }
 
 fn write_initial_failure(command: &TestCommand, diagnostics: Vec<Diagnostic>) -> ExitCode {

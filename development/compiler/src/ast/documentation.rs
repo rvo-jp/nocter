@@ -26,6 +26,10 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
             push_target(text, function.span, targets);
             collect_block_targets(text, &function.body, targets);
         }
+        Item::Test(test) => {
+            push_target(text, test.span, targets);
+            collect_block_targets(text, &test.body, targets);
+        }
         Item::Primitive(primitive) => push_target(text, primitive.span, targets),
         Item::TypeAlias(alias) => push_target(text, alias.span, targets),
         Item::Struct(struct_) => {

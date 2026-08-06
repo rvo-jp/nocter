@@ -54,7 +54,7 @@ pub(super) fn infer_callable_allocation_effects(
                 .iter()
                 .map(|item| {
                     match item {
-                    Item::Function(_) => 1,
+                    Item::Function(_) | Item::Test(_) => 1,
                     Item::Impl(impl_) => impl_
                         .members
                         .iter()
@@ -88,6 +88,20 @@ pub(super) fn infer_callable_allocation_effects(
                                 &function.body,
                                 source.resolved,
                                 &mut environment_for_function(function, source.resolved),
+                                summaries,
+                            )
+                        {
+                            summaries.set_needs_current_allocation_context(callable);
+                            changed = true;
+                        }
+                    }
+                    Item::Test(test) => {
+                        let callable = CallableId::declared_at(test.name_span);
+                        if !summaries.needs_current_allocation_context(callable)
+                            && block_needs_current_allocation_context(
+                                &test.body,
+                                source.resolved,
+                                &mut TypeEnvironment::default(),
                                 summaries,
                             )
                         {

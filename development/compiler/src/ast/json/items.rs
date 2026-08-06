@@ -44,6 +44,12 @@ impl Item {
                     children,
                 )
             }
+            Item::Test(item) => JsonAstNode::with_value(
+                "test_decl",
+                item.name.clone(),
+                json_span(sources, item.span),
+                vec![item.body.to_json(sources)],
+            ),
             Item::Primitive(item) => {
                 let mut children = target_directive_json(item.target.as_ref(), sources);
                 children.extend([

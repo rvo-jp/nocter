@@ -1,10 +1,12 @@
-use super::buildability::v0_buildability_diagnostics;
+use super::buildability::{v0_buildability_diagnostics, v0_test_buildability_diagnostics};
 use crate::analysis::{analyze_executable_compile_unit, analyze_module_compile_unit};
-use crate::backend::{BuildRequest, build_executable};
+use crate::backend::{BuildRequest, build_executable, build_test};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::source::{SourceId, SourceMap};
 use std::path::{Path, PathBuf};
+
+use crate::test_entry::{TestDeclarationId, declared_tests};
 
 struct FrontendOutput {
     root: String,
@@ -31,6 +33,12 @@ pub(super) struct BuildOutput {
     pub output_path: PathBuf,
     pub sources: SourceMap,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+pub(super) struct TestDiscoveryOutput {
+    pub sources: SourceMap,
+    pub diagnostics: Vec<Diagnostic>,
+    pub tests: Vec<TestDeclarationId>,
 }
 
 impl BuildOutput {
@@ -99,6 +107,79 @@ pub(super) fn build_package_executable_to_path_with_target(
 ) -> BuildOutput {
     let options = frontend_options_for_package(target, package_graph);
     build_file_to_path_with_options(file, output_path, &options)
+}
+
+pub(super) fn discover_package_tests_with_target(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    target: &str,
+) -> TestDiscoveryOutput {
+    let options = frontend_options_for_package(target, package_graph);
+    let output = analyze_file(file, &options, false);
+    let tests = output
+        .analysis
+        .as_ref()
+        .and_then(|analysis| analysis.root_file())
+        .map_or_else(Vec::new, |root| declared_tests(&root.ast));
+    TestDiscoveryOutput {
+        sources: output.sources,
+        diagnostics: output.diagnostics,
+        tests,
+    }
+}
+
+pub(super) fn build_package_test_to_path_with_target(
+    file: &Path,
+    package_graph: &crate::package::PackageGraph,
+    test: &TestDeclarationId,
+    output_path: &Path,
+    target: &str,
+) -> BuildOutput {
+    let options = frontend_options_for_package(target, package_graph);
+    let output = analyze_file(file, &options, false);
+
+    if !output.diagnostics.is_empty() {
+        return BuildOutput {
+            output_path: output_path.to_path_buf(),
+            sources: output.sources,
+            diagnostics: output.diagnostics,
+        };
+    }
+    let Some(analysis) = output.analysis.as_ref() else {
+        return BuildOutput {
+            output_path: output_path.to_path_buf(),
+            sources: output.sources,
+            diagnostics: vec![Diagnostic::error(
+                "E0201",
+                "test analysis completed without diagnostics but produced no analysis output",
+            )],
+        };
+    };
+    let diagnostics = v0_test_buildability_diagnostics(&output.sources, analysis, test);
+    if !diagnostics.is_empty() {
+        return BuildOutput {
+            output_path: output_path.to_path_buf(),
+            sources: output.sources,
+            diagnostics,
+        };
+    }
+    let diagnostics = match build_test(
+        BuildRequest {
+            analysis,
+            sources: &output.sources,
+            output_path,
+            target: options.target.as_str(),
+        },
+        test,
+    ) {
+        Ok(()) => Vec::new(),
+        Err(diagnostics) => diagnostics,
+    };
+    BuildOutput {
+        output_path: output_path.to_path_buf(),
+        sources: output.sources,
+        diagnostics,
+    }
 }
 
 fn build_file_to_path_with_options(

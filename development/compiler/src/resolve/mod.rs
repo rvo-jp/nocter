@@ -79,6 +79,7 @@ fn root_access(
             Item::Import(import) => import.path.span,
             Item::FromImport(import) => import.path.span,
             Item::Function(_)
+            | Item::Test(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)

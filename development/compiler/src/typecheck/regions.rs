@@ -33,6 +33,7 @@ pub(super) fn check_region_statements(
             Item::Function(function) => {
                 check_block(sources, &function.body, None, &mut tree, diagnostics)
             }
+            Item::Test(test) => check_block(sources, &test.body, None, &mut tree, diagnostics),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {

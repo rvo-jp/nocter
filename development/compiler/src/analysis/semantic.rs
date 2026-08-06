@@ -111,9 +111,25 @@ struct SemanticIdentifierCollector<'a> {
 impl SemanticIdentifierCollector<'_> {
     fn collect(&mut self) {
         self.collect_semantic_occurrences();
+        self.collect_test_declarations();
         self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
         self.collect_editor_targets();
+    }
+
+    fn collect_test_declarations(&mut self) {
+        let declarations = self
+            .ast
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                crate::ast::Item::Test(test) => Some(test.name_span),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for span in declarations {
+            self.push(span, SemanticTokenKind::Function, true, 0);
+        }
     }
 
     fn finish(mut self) -> Vec<ClassifiedIdentifier> {
@@ -238,6 +254,7 @@ impl SemanticIdentifierCollector<'_> {
                     }
                 }
                 crate::ast::Item::Import(_)
+                | crate::ast::Item::Test(_)
                 | crate::ast::Item::FromImport(_)
                 | crate::ast::Item::TypeAlias(_)
                 | crate::ast::Item::Struct(_)
@@ -377,6 +394,26 @@ mod tests {
                 "expected `{name}` to be classified as a type"
             );
         }
+    }
+
+    #[test]
+    fn native_test_name_is_a_function_like_declaration_only_on_its_identifier() {
+        let text = "test pushes { return }\n";
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("semantic analysis");
+        let start = text.find("pushes").unwrap();
+        let test = identifiers
+            .iter()
+            .find(|identifier| identifier.start_byte == start)
+            .expect("test declaration token");
+        assert_eq!(test.end_byte, start + "pushes".len());
+        assert_eq!(test.kind, SemanticTokenKind::Function);
+        assert_ne!(test.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+        assert!(
+            !identifiers
+                .iter()
+                .any(|identifier| identifier.start_byte == 0)
+        );
     }
 
     #[test]

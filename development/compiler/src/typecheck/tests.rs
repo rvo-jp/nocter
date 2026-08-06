@@ -41,3 +41,14 @@ fn check_text(text: &str) -> Vec<Diagnostic> {
     diagnostics.extend(check(&sources, &ast, &resolved));
     diagnostics
 }
+
+#[test]
+fn duplicate_native_test_names_are_rejected_without_entering_the_callable_namespace() {
+    let diagnostics = check_text("test same { return }\ntest same { return }\n");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "E0400"
+            && diagnostic
+                .message
+                .contains("test `same` is already declared")
+    }));
+}
