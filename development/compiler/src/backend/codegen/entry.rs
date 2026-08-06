@@ -23,14 +23,11 @@ impl EntryEmitter {
         let Some(entry) = module
             .functions
             .iter()
-            .find(|function| function.name == DEFAULT_ENTRY_NAME)
+            .find(|function| function.target == module.entry)
         else {
             return Err(vec![Diagnostic::error(
                 "E9002",
-                format!(
-                    "codegen requires a lowered entry function `{}`",
-                    DEFAULT_ENTRY_NAME
-                ),
+                format!("codegen requires lowered entry target `{:?}`", module.entry),
             )]);
         };
         validate_module_call_return_shapes(module)?;

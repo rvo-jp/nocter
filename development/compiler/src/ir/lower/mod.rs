@@ -92,20 +92,20 @@ pub(crate) fn lower_executable(
     let function_names = function_index.names();
     let error_payloads = function_index.error_payloads(root.ast.span.source);
     let resolved_sources = function_index.resolved_sources();
-    let mut functions = vec![
-        entry::lower_entry_function(
-            entry,
-            sources,
-            function_signatures.clone(),
-            function_names.clone(),
-            root.ast.span.source,
-            &root.resolved,
-            &root.typecheck_facts,
-            resolved_sources.clone(),
-            error_payloads.clone(),
-        )
-        .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
-    ];
+    let lowered_entry = entry::lower_entry_function(
+        entry,
+        sources,
+        function_signatures.clone(),
+        function_names.clone(),
+        root.ast.span.source,
+        &root.resolved,
+        &root.typecheck_facts,
+        resolved_sources.clone(),
+        error_payloads.clone(),
+    )
+    .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?;
+    let entry_target = lowered_entry.target.clone();
+    let mut functions = vec![lowered_entry];
     lower_reachable_functions(
         &mut functions,
         &function_index,
@@ -117,7 +117,7 @@ pub(crate) fn lower_executable(
         sources,
     )?;
 
-    Ok(IrModule::new(functions))
+    Ok(IrModule::with_entry(entry_target, functions))
 }
 
 fn lower_signature_return_type(
