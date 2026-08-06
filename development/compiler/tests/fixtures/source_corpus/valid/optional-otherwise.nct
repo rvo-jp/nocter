@@ -1,0 +1,10 @@
+// Valid source-corpus fixture.
+func main(): i32 {
+    let value = maybe_answer() otherwise { return 0 }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}

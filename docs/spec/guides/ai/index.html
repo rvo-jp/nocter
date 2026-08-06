@@ -144,6 +144,7 @@
                 <li><a href="../../20-native-testing/index.html#content">Native Testing</a></li>
                 <li><a href="../../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="./index.html#content" aria-current="page">AI Guide</a></li>
+                <li><a href="../../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../../releases/index.html#content">release index</a></li>
             </ul>
         </aside>
@@ -245,9 +246,7 @@ run nocter build or nocter run when runtime buildability matters
 use diagnostics spans and fix hints
 repeat
 </code></pre><p>Rules:</p><ul><li><code>fmt</code> is the source of canonical formatting.</li><li><code>check --format json</code> is the source of semantic diagnostics.</li><li><code>check</code> can accept explicitly check-only surfaces; use <code>build</code> or <code>run</code> when
-  the generated program must be runtime-buildable today.</li><li><code>tokens --format json</code> is the source of lexer output.</li><li><code>ast --format json</code> is the source of parser structure and attached documentation text.</li><li>AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root <code>main</code> entry rule.</li></ul><h2 id="example-corpus">Example Corpus</h2><p>Use examples as training and repair references:</p><pre><code class="language-text">spec/examples/valid/
-spec/examples/invalid/
-</code></pre><p>Valid examples should be formatter-ready Nocter code. Invalid examples should contain one intended error pattern and a short comment explaining it.</p>
+  the generated program must be runtime-buildable today.</li><li><code>tokens --format json</code> is the source of lexer output.</li><li><code>ast --format json</code> is the source of parser structure and attached documentation text.</li><li>AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root <code>main</code> entry rule.</li></ul><h2 id="examples">Examples</h2><p>Use the complete packages under the repository-root <a href="../../../examples/index.html#content">examples directory</a> as generation references. They demonstrate canonical source that can be checked and run. Invalid compiler fixtures are development inputs, not user examples or an alternate language contract.</p>
             </div>
         </main>
     </div>

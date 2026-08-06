@@ -192,6 +192,7 @@ published language boundary.
 
 ## Learn More
 
+- [Examples](examples/README.md): complete packages that can be checked and run locally.
 - [Language Specification](spec/README.md): Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
 - [Design Principles](spec/00-design-principles.md): the simplicity,

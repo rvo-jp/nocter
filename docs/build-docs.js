@@ -27,6 +27,10 @@ const PAGE_META = {
         title: "Nocter Releases",
         description: "Published Nocter downloads, release notes, supported targets, and qualified candidate status."
     },
+    "examples/README.md": {
+        title: "Nocter Examples",
+        description: "Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use."
+    },
     "development/README.md": {
         title: "Nocter Development Documentation",
         description: "Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow."

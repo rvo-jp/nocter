@@ -26,6 +26,6 @@ The build script recursively reads project Markdown outside `docs/`, writes stat
 
 ## Editing Rule
 
-Edit user-facing source Markdown in the repository root, `releases/`, and `spec/`. Edit
-compiler-developer documentation under `development/`. Do not manually edit generated HTML;
+Edit user-facing source Markdown in the repository root, `examples/`, `releases/`, and `spec/`.
+Edit compiler-developer documentation under `development/`. Do not manually edit generated HTML;
 regenerate it with `node docs/build-docs.js` after Markdown changes.

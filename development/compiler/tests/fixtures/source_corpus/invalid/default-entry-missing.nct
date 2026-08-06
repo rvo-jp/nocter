@@ -1,0 +1,4 @@
+// Invalid: a selected executable module must define top-level `main`.
+func start(): i32 {
+    return 0
+}

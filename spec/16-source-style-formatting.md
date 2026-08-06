@@ -13,7 +13,8 @@ Rules:
 - Style violations are not compile errors.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
-- Specification examples, `README.md` examples, `spec/guides/ai.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
+- Specification snippets, root documentation examples, `spec/guides/ai.md`, and packages under
+  `examples/` should use formatter output as the canonical presentation.
 - The formatter belongs in the compiler toolchain, not in editor extensions.
 
 This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.

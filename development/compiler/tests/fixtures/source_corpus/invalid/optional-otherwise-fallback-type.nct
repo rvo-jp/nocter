@@ -1,0 +1,16 @@
+// Invalid: the fallback body must produce the optional payload type.
+func main(): i32 {
+    let value = maybe_answer() otherwise {
+        log_missing()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func log_missing(): void {
+    return
+}

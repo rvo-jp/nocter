@@ -2,9 +2,9 @@
 
 ## Current Task
 
-The documentation ownership migration is complete. The ownership map is
-[docs/README.md](docs/README.md#information-ownership); the qualified candidate record is
-[milestones/v0.5.0.md](milestones/v0.5.0.md).
+The example ownership migration is complete. Runnable user packages live under the repository-root
+`examples/`; compiler-only valid and invalid inputs live under
+`compiler/tests/fixtures/source_corpus/`.
 
 ## Completed Checkpoint
 
@@ -19,8 +19,12 @@ The documentation ownership migration is complete. The ownership map is
   released-version and phase-specific APIs
 - lexical keywords, construction examples, allocator use, iteration, and primitive-boundary text
   have been reconciled with the current compiler and distributed standard library
+- the root `example.nct` and mixed-audience `spec/examples/` tree have been removed
+- `examples/hello` and `examples/file-summary` are formatter-checked and verified through the
+  distributed standard-library boundary
+- source-corpus fixtures and public package verification now have separate integration tests
 
 ## Next Work
 
-No documentation-migration task remains. Select the next compiler or standard-library objective
-from the qualified candidate record; do not publish, tag, or merge as part of this handoff.
+No example-migration task remains. Select the next compiler or standard-library objective from the
+qualified candidate record; do not publish, tag, or merge as part of this handoff.

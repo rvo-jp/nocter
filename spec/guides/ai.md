@@ -258,14 +258,8 @@ Rules:
 - `ast --format json` is the source of parser structure and attached documentation text.
 - AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root `main` entry rule.
 
-## Example Corpus
+## Examples
 
-Use examples as training and repair references:
-
-```text
-spec/examples/valid/
-spec/examples/invalid/
-```
-
-Valid examples should be formatter-ready Nocter code.
-Invalid examples should contain one intended error pattern and a short comment explaining it.
+Use the complete packages under the repository-root [examples directory](../../examples/README.md)
+as generation references. They demonstrate canonical source that can be checked and run. Invalid
+compiler fixtures are development inputs, not user examples or an alternate language contract.

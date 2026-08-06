@@ -42,7 +42,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 ## Supporting Material
 
 - [AI Guide](guides/ai.md)
-- [Example Corpus](examples/)
+- [Runnable Examples](../examples/README.md)
 
 ## Contract Status
 

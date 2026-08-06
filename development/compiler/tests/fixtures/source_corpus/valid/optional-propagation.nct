@@ -1,0 +1,12 @@
+// Valid source-corpus fixture.
+func main(): i32 {
+    return value() otherwise { 0 }
+}
+
+func value(): i32? {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}

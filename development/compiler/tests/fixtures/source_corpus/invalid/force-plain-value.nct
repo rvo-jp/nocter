@@ -1,0 +1,8 @@
+// Invalid: postfix `!` unwraps only T! or T?.
+func main(): i32 {
+    return answer()!
+}
+
+func answer(): i32 {
+    return 0
+}
