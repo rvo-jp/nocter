@@ -4,7 +4,6 @@
 //! are non-owning array slice types. Vec<T> is the owning variable-length array
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
-//! v0.2.0 fixes the public contract while promoting generic collection lowering.
 //! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
 //! that prefix, while clear and drop destroy its elements in reverse order.
 //! `from_slice` remains a copying constructor and therefore accepts only copyable

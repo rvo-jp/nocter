@@ -5,12 +5,12 @@ The specification entry point is [README.md](README.md).
 
 ## Direction
 
-Adopted: Nocter syntax should be tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.
+Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.
 
 Rules:
 
 - Formatting must not change program semantics.
-- Style violations are not compile errors in v0.2.0.
+- Style violations are not compile errors.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
 - Specification examples, `README.md` examples, `spec/guides/ai.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
@@ -29,7 +29,7 @@ nocter fmt --check app.nct
 
 Rules:
 
-- `fmt` takes one `.nct` source file in v0.2.0.
+- `fmt` takes one `.nct` source file.
 - `fmt` formats only the file named on the command line.
 - `fmt` does not follow imports.
 - `fmt` does not treat the input as a compile-unit root.
@@ -42,8 +42,8 @@ Rules:
 - `fmt --check` exits successfully only when the file already matches formatter output.
 - `fmt` does not need a target option.
 
-Project-wide formatting remains deferred after v0.4.0 Phase 0; package identity alone does not
-define comment-preserving traversal, atomic multi-file writes, or partial-failure behavior.
+Project-wide formatting is not supported. Package identity alone does not define comment-preserving
+traversal, atomic multi-file writes, or partial-failure behavior.
 
 ## Package Directives
 
@@ -126,9 +126,9 @@ Rules:
 - Commas have no preceding space and one following space on a single line.
 - Multi-line parameter lists put one parameter per line and keep a trailing comma.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
-- A v0.3.0 Phase 4 generic bound uses no space before `:` and one space after it:
+- A generic bound uses no space before `:` and one space after it:
   `T: Interface<U>`.
-- Multiple v0.3.0 Phase 9 bounds use one space around `+`:
+- Multiple bounds use one space around `+`:
   `T: Iterator<U> + ExactSizeIterator<U>`.
 - A result provenance clause follows the return type on the same line with one space before
   `from`. Union origins use one space around `|`.
@@ -225,17 +225,17 @@ for i in 0..<bytes.len() {
 Rules:
 
 - Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.
-- Current formatter v0.2.0 rejects files that contain comments with a diagnostic instead of rewriting them.
+- The current formatter rejects files that contain comments with a diagnostic instead of rewriting them.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
-- Block comments keep their internal text unchanged in v0.2.0.
+- Block comments keep their internal text unchanged once comment-preserving formatting is implemented.
 - Doc comments keep their doc marker spelling: `///`, `/**`, `//!`, or `/*!`.
 
-Comment paragraph reflow is not part of v0.2.0.
+The formatter does not reflow comment paragraphs.
 
 ## Formatter Non-goals
 
-The following are not part of formatter v0.2.0:
+The formatter does not support:
 
 - project-wide formatting
 - import sorting

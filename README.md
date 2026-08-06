@@ -186,8 +186,9 @@ The v0.4.0 compiler parses, checks, builds, and runs the supported language on
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The released language boundary is defined throughout
-the [language specification](spec/README.md).
+machine code is emitted. The [language specification](spec/README.md) describes
+the qualified v0.5.0 candidate; the `v0.4.0` repository tag preserves the exact
+published language boundary.
 
 ## Learn More
 

@@ -5,9 +5,9 @@ The specification entry point is [README.md](README.md).
 
 ## Nocter ABI
 
-Adopted: Nocter uses its own internal ABI for Nocter functions and primitives.
+Nocter uses its own internal ABI for Nocter functions and primitives.
 
-Nocter ABI v0.2.0 is defined only for the initial `arm64-darwin` target. It is not a C ABI, and it does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, should use an explicit separate ABI form such as an `extern "c"`-style declaration.
+The current Nocter ABI is defined only for `arm64-darwin`. It is not a C ABI and does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, requires an explicit separate ABI form.
 
 Scope:
 
@@ -15,7 +15,7 @@ Scope:
 - word size: 64-bit
 - endian: little-endian
 - stack alignment: 16 bytes at call boundaries
-- compilation model: whole-program compilation in the initial implementation
+- compilation model: whole-program compilation
 
 Rules:
 
@@ -30,7 +30,7 @@ Rules:
 
 ### Registers
 
-Nocter ABI v0.2.0 uses the following ARM64 register roles:
+The Nocter ABI uses the following ARM64 register roles:
 
 ```text
 x0-x7    argument registers and direct return registers
@@ -119,7 +119,7 @@ Rules:
 - `copy struct` and ordinary `struct` use the same layout rules.
 - `drop` presence does not change layout.
 
-Field alignment follows the field's ABI type. Initial alignments:
+Field alignment follows the field's ABI type. Current target alignments:
 
 ```text
 bool, u8, i8       align 1
@@ -187,11 +187,11 @@ Rules:
   fields according to ordinary aggregate drop order. Recursive payload drop
   glue includes fixed arrays, whose initialized elements drop in reverse index
   order.
-- No niche optimization is part of ABI v0.2.0.
+- The ABI does not use niche optimization.
 
 ### Stored Optional and Fallible Layout
 
-The adopted v0.3.0 Phase 6 stored representation is recursive and distinct from callable register
+The stored representation is recursive and distinct from callable register
 passing. Each optional or fallible layer begins with one `usize` tag. The active branch begins at
 the next offset satisfying the maximum branch alignment, and the layer ends after the largest
 branch rounded up to that alignment.
@@ -228,7 +228,7 @@ Rules:
 - `error.code` and `error.message` are the user-facing fields of `error`.
 - Both fields have type `&str`.
 - The field order is `code`, then `message`.
-- The built-in `error` type has size 32 bytes and alignment 8 on ABI v0.2.0.
+- The built-in `error` type has size 32 bytes and alignment 8 on the current ABI.
 - `error` does not own its string storage and has no drop member.
 - `error` is copyable because both fields are copyable borrowed views.
 - An `error` value carries borrow-like provenance from both `&str` fields.
@@ -256,7 +256,7 @@ Rules:
 - `none` has no live payload.
 - Drop code drops the payload only when the tag is `1`.
 
-No niche optimization is part of ABI v0.2.0. Even if a type has unused bit patterns, `T?` still uses the explicit tag representation.
+The ABI does not use niche optimization. Even if a type has unused bit patterns, `T?` still uses the explicit tag representation.
 
 ### Fallible Layout
 
@@ -277,7 +277,7 @@ Rules:
 - The payload is live only for the active tag.
 - Drop code drops only the active payload.
 
-Nocter source uses `return value` for success and `return error_value` for failure. ABI v0.2.0 does not reserve the identifier `success`; it defines only the binary tag meaning.
+Nocter source uses `return value` for success and `return error_value` for failure. The ABI does not reserve the identifier `success`; it defines only the binary tag meaning.
 
 Composed optional and fallible values use the same layout rules recursively. For example, `T?!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
 
@@ -326,7 +326,7 @@ Rules:
 
 ### ABI Stability
 
-ABI v0.2.0 is an internal compiler ABI. It is stable enough for the initial compiler, standard library, and primitive boundary, but it is not a public binary compatibility promise across compiler versions.
+The Nocter ABI is internal to the compiler. It is not a public binary-compatibility promise across compiler versions.
 
 The ABI should not be changed casually. Changes require updating:
 

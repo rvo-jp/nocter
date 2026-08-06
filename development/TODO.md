@@ -2,9 +2,9 @@
 
 ## Current Task
 
-Restructure documentation so each fact has one owner and each directory serves one audience. The
-ownership map is [docs/README.md](docs/README.md#information-ownership); the qualified candidate
-record is [milestones/v0.5.0.md](milestones/v0.5.0.md).
+The documentation ownership migration is complete. The ownership map is
+[docs/README.md](docs/README.md#information-ownership); the qualified candidate record is
+[milestones/v0.5.0.md](milestones/v0.5.0.md).
 
 ## Completed Checkpoint
 
@@ -15,11 +15,12 @@ record is [milestones/v0.5.0.md](milestones/v0.5.0.md).
 - developer website instructions moved out of generated `docs/` Markdown
 - standard-library and LSP development documents now describe implementation architecture rather
   than public API inventories
+- current specification chapters describe one unqualified candidate contract instead of mixing
+  released-version and phase-specific APIs
+- lexical keywords, construction examples, allocator use, iteration, and primitive-boundary text
+  have been reconciled with the current compiler and distributed standard library
 
 ## Next Work
 
-Normalize the remaining specification chapters around the current v0.5.0 candidate contract.
-Remove release-phase archaeology from unqualified rules, preserve only explicit current non-goals,
-and keep old version semantics in repository tags rather than the current specification.
-
-Do not publish, tag, merge, or change compiler behavior as part of this documentation migration.
+No documentation-migration task remains. Select the next compiler or standard-library objective
+from the qualified candidate record; do not publish, tag, or merge as part of this handoff.

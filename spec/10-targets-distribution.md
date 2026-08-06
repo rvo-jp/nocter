@@ -5,15 +5,15 @@ The specification entry point is [README.md](README.md).
 
 ## Target Model
 
-Adopted: Nocter has one initial target, but the compiler architecture should keep target-specific behavior isolated.
+Nocter currently has one implemented target, while target-specific behavior remains isolated.
 
-Initial target:
+Implemented target:
 
 ```text
 arm64-darwin
 ```
 
-Initial target properties:
+Target properties:
 
 - CPU architecture: ARM64
 - OS: macOS
@@ -24,8 +24,8 @@ Initial target properties:
 
 Rules:
 
-- The initial compiler implementation targets only `arm64-darwin`.
-- The initial implementation does not support cross compilation beyond `arm64-darwin`, but the compiler still models host and target separately.
+- The compiler currently targets only `arm64-darwin`.
+- Cross compilation beyond `arm64-darwin` is not supported, but the compiler still models host and target separately.
 - The default active target is the host target.
 - The language grammar, type system, ownership model, borrow rules, regions, and high-level standard-library APIs should not depend on macOS-specific names.
 - Target-specific logic belongs in target backends, primitive lowering, executable writers, and target-gated standard-library declarations.
@@ -49,12 +49,12 @@ Future target-specific boundaries should keep stable ordinary modules under `std
 ~/.nocter/std/process.nct
 ```
 
-Future target declarations beyond `arm64-darwin` are not part of the initial implementation goal.
+Target declarations beyond `arm64-darwin` are not currently buildable.
 
 Recognized targets:
 
 ```text
-arm64-darwin    implemented first
+arm64-darwin    implemented
 x64-linux      reserved, not implemented
 arm64-linux    reserved, not implemented
 x64-windows    reserved, not implemented
@@ -69,9 +69,9 @@ error: target x64-linux is recognized but not implemented
 
 ## Distribution Layout
 
-Adopted: the downloadable archive name is host-specific, but the archive root and normal user installation directory are host-independent.
+The downloadable archive name is host-specific, but the archive root and normal user installation directory are host-independent.
 
-The initial archive name and root are:
+Archive name and root:
 
 ```text
 nocter-v<version>-arm64-darwin.tar.gz
@@ -108,15 +108,15 @@ The installed layout is:
         vec.nct
 ```
 
-The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
+The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The current host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
 
-The installed Nocter home contains standard-library source files under `std/`. Target-dependent type, helper, and primitive declarations in those files use `#target: "..."`; ordinary public wrapper functions remain normal functions. The v0.2.0 public standard-library surface is specified in [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md).
+The installed Nocter home contains standard-library source files under `std/`. Target-dependent type, helper, and primitive declarations in those files use `#target: "..."`; ordinary public wrapper functions remain normal functions. The public standard-library surface is specified in [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md).
 
-Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os.nct` contains the `#target: "arm64-darwin"` primitive boundary for that target.
+Because cross compilation beyond `arm64-darwin` is not implemented, the default active target is the host target. The `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os.nct` contains the `#target: "arm64-darwin"` primitive boundary for that target.
 
 ## Release Metadata
 
-Adopted: each Nocter home contains simple release metadata at its root.
+Each Nocter home contains release metadata at its root.
 
 ```text
 .nocter/
@@ -131,7 +131,7 @@ Adopted: each Nocter home contains simple release metadata at its root.
 `VERSION` is a single UTF-8 text line containing the release version:
 
 ```text
-0.1.0
+<version>
 ```
 
 `MANIFEST.json` is structured metadata for tools:
@@ -140,7 +140,7 @@ Adopted: each Nocter home contains simple release metadata at its root.
 {
   "schema": "nocter.manifest",
   "schema_version": 1,
-  "release": "0.1.0",
+  "release": "<version>",
   "host": "arm64-darwin",
   "default_target": "arm64-darwin",
   "compiler": {
@@ -163,7 +163,7 @@ Adopted: each Nocter home contains simple release metadata at its root.
     }
   ],
   "archive": {
-    "name": "nocter-v0.1.0-arm64-darwin.tar.gz",
+    "name": "nocter-v<version>-arm64-darwin.tar.gz",
     "root": ".nocter"
   }
 }
@@ -183,12 +183,12 @@ Rules:
 - `compiler.path` is `nocter` and is relative to Nocter home.
 - `std.path` is `std` and is relative to Nocter home.
 - v1 does not include a compiler checksum. Checksum metadata should be added only after the release pipeline and hash verification rules are designed.
-- The source repository tag for release `0.1.0` is `v0.1.0`.
-- The GitHub Release asset for the first host is `nocter-v0.1.0-arm64-darwin.tar.gz`.
+- A release `<version>` uses source tag `v<version>`.
+- Its ARM64 macOS asset is `nocter-v<version>-arm64-darwin.tar.gz`.
 
 ## Nocter Home Resolution
 
-Adopted: `nocter` must use an explicit, deterministic Nocter home. It must not silently search unrelated directories.
+`nocter` uses an explicit, deterministic Nocter home. It does not silently search unrelated directories.
 
 Resolution order:
 
@@ -219,7 +219,7 @@ Future cross compilation adds target-gated standard-library primitive declaratio
         process.nct
 ```
 
-Initial command-line direction:
+Command-line surface:
 
 ```sh
 nocter --version
@@ -240,17 +240,16 @@ nocter build --target x64-linux
 
 The command-line contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-In v0.4.0 Phase 1, `build`, `run`, and `check` select the current directory's `nocter.nct` package
-when no explicit file is supplied. Package metadata remains Nocter source rather than a second
-manifest language. The immutable v0.2.0 single-file boundary is recorded separately.
+`build`, `run`, and `check` select the current directory's `nocter.nct` package when no explicit file
+is supplied. Package metadata remains Nocter source rather than a second manifest language.
 
-`-o path` sets the executable output path. If `-o` is omitted, the initial driver may derive an output path from the root file stem.
+`-o path` sets the executable output path. If `-o` is omitted, the driver derives an output path from the selected executable name or root file stem.
 
-If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-darwin`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
+If `--target` is omitted, the compiler uses the host target. The compiler currently emits only `arm64-darwin`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library boundary are implemented.
 
 Build profile direction:
 
-- The initial language semantics do not define different safety levels for debug and release builds.
+- Language semantics do not define different safety levels for debug and release builds.
 - Future profile options may control optimization level, debug information, and diagnostics.
 - Profile options must not disable the safety checks specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
 - A release build may be faster because the optimizer proves checks unnecessary, not because checks are globally removed.

@@ -326,7 +326,7 @@ nocter check app.nct --target arm64-darwin
 nocter test --target arm64-darwin
 ```
 
-The default is the host target. `arm64-darwin` is the initial implemented target. Recognized but
+The default is the host target. `arm64-darwin` is the currently implemented target. Recognized but
 unimplemented targets produce target-selection diagnostics. Formatting and syntax-inspection
 commands do not accept `--target`.
 

@@ -54,10 +54,9 @@ The compiler records an allocation effect for each callable and statically passe
 where required. Source functions infer that effect from their bodies and callees. Trusted bodyless
 standard-library declarations carry compiler metadata attached to declaration identity.
 
-Changing a helper body so that it allocates may change its inferred allocation effect. Before Nocter
-offers separate compilation or a stable v1 ABI, the whole compile unit contains the source and
-summary required to propagate that effect. A future stable public-API spelling may make the effect
-explicit; v0.3.0 Phase 0 does not add that surface syntax.
+Changing a helper body so that it allocates may change its inferred allocation effect. The whole
+compile unit contains the source and summaries required to propagate that effect. Allocation
+effects have no source-level annotation.
 
 ## Allocation Failure Policies
 
@@ -98,7 +97,7 @@ The two policies share layout validation, backend calls, buffer publication, pro
 logic. Conceptually, `Allocator` is an abort-on-error adapter over the `TryAllocator` core. They are
 not separate allocator implementations.
 
-During Phase 0, an ambient allocation context contains an `Allocator`, not a `TryAllocator`.
+An ambient allocation context contains an `Allocator`, not a `TryAllocator`.
 Recoverable allocation uses named `try_*` APIs. This prevents the type of one expression from
 changing between `T` and `T!` based only on which context is selected.
 
@@ -228,8 +227,8 @@ func count_bytes(allocator: &+Allocator): usize {
 
 ## Borrow Origins and Elision
 
-Nocter v0.3.0 does not add Rust-style lifetime parameters or annotations. The compiler tracks
-storage origins through values and callable summaries.
+Nocter does not expose Rust-style lifetime parameters or annotations. The compiler tracks storage
+origins through values and callable summaries.
 
 Elision and inference rules:
 
@@ -251,8 +250,7 @@ higher-order functions, or separately compiled region-parameterized types.
 
 ### Explicit result provenance
 
-Nocter v0.3.0 Phase 4 adds an identity-based `from` clause for public abstraction boundaries without
-adding lifetime names:
+An identity-based `from` clause expresses public result provenance without adding lifetime names:
 
 ```nct
 pub method &self.get(key: &K): &V? from self
@@ -268,12 +266,11 @@ Result provenance applies both to source-level borrows and to pointer-backed own
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
 buffer still carries the allocation context responsible for its storage.
 
-Allocation effects otherwise remain inferred and have no source annotation in Phase 4.
+Allocation effects remain inferred and have no source annotation.
 
 ## Typed Literal Allocation
 
-Typed literals were completed after Phase 0, and their allocation boundary follows the Phase 0
-contract:
+Typed literals use the same allocation boundary:
 
 ```nct
 let values = Vec [1, 2, 3]

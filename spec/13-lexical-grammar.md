@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 ## Source Text
 
-Adopted: Nocter v0.2.0 source files are UTF-8 text files with explicit, simple lexical rules.
+Nocter source files are UTF-8 text files with explicit, simple lexical rules.
 
 Rules:
 
@@ -30,7 +30,7 @@ Rules:
 - `/**` starts an item doc block comment for the next documentable construct, except for `/**/` and comments beginning with `/***`.
 - `//!` starts a file doc line comment.
 - `/*!` starts a file doc block comment.
-- Block comments do not nest in v0.2.0.
+- Block comments do not nest.
 - Unterminated block comments are lexical errors.
 - Comments are not recognized inside string literals or byte literals.
 - Newlines inside block comments still count as line breaks for diagnostics and statement separation.
@@ -56,7 +56,7 @@ let b = 2
 
 ## Identifiers
 
-Adopted: identifiers are ASCII-only in v0.2.0.
+Identifiers are ASCII-only.
 
 Identifier grammar:
 
@@ -66,19 +66,19 @@ identifier = [A-Za-z_][A-Za-z0-9_]*
 
 Rules:
 
-- Unicode letters are not accepted in identifiers in v0.2.0.
+- Unicode letters are not accepted in identifiers.
 - Reserved keywords are not identifiers.
 - `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
 - `copy` is not a reserved keyword. It is emitted as an identifier token; the
   parser recognizes the contextual `copy struct` source form.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
 - `interface` is a reserved keyword.
-- `from` and `import` are not reserved keywords in v0.2.0. They are emitted as
+- `from` and `import` are not reserved keywords. They are emitted as
   identifier tokens; top-level legacy import syntax is diagnosed as removed
   syntax by the parser.
-- Nocter v0.3.0 Phase 4 retains `from` as an identifier token and recognizes it contextually after
-  a callable return type. This does not reserve `from` as a general identifier.
-- `trait` is not a reserved keyword in v0.2.0. It is emitted as an identifier token;
+- The parser recognizes `from` contextually after a callable return type. This does not reserve
+  `from` as a general identifier.
+- `trait` is not a reserved keyword. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.
 - `Self` has identifier spelling but is reserved as contextual type syntax in
   inherent member type positions. It is not a valid binding, declaration, field,
@@ -86,16 +86,17 @@ Rules:
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
 - A single `_` is the wildcard or discard spelling in pattern positions. It is
   not a valid binding, declaration, field, variant, type parameter, or import
-  alias name in v0.2.0.
+  alias name.
 - Identifiers beginning with `_` are otherwise valid.
 
-Reserved keyword tokens in v0.2.0:
+Reserved keyword tokens:
 
 ```text
 as
 break
 catch
 continue
+construct
 else
 enum
 false
@@ -107,10 +108,12 @@ in
 interface
 is
 let
+literal
 loop
 match
 method
 move
+never
 none
 otherwise
 primitive
@@ -118,11 +121,13 @@ pub
 region
 return
 struct
+test
 true
 type
 use
 using
 var
+void
 while
 ```
 
@@ -130,9 +135,8 @@ Built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`,
 `void`, and `never` are reserved type syntax, not importable user names. The
 special `error` type spelling is contextual as described above.
 
-Nocter v0.5.0 Phase 2 additionally reserves `test` for native top-level test declarations. Package
-metadata still uses the same token in `#test`; package parsing treats it as that directive's exact
-name rather than as a general identifier.
+Package metadata uses the same `test` token in `#test`; package parsing treats it as that
+directive's exact name rather than as a general identifier.
 
 Module file and directory names use snake_case identifiers:
 
@@ -151,7 +155,7 @@ Rules:
 
 ## Statement Separation
 
-Nocter does not use semicolons as statement terminators in v0.2.0. The `;` token is reserved for grammar positions that explicitly require it, such as fixed-size array types `[T; N]`.
+Nocter does not use semicolons as statement terminators. The `;` token is reserved for grammar positions that explicitly require it, such as fixed-size array types `[T; N]`.
 
 Rules:
 
@@ -165,17 +169,17 @@ Rules:
 
 The lexer uses longest-match tokenization for multi-character tokens.
 
-Adopted v0.2.0 lexer boundary:
+Lexer boundary:
 
 - The lexer receives a `SourceId` and normalized UTF-8 source text from `SourceMap`.
 - The lexer returns a token stream and diagnostics.
 - The token stream includes keyword tokens, newline tokens, and one EOF token.
 - Comments are not emitted as tokens.
 - Literal tokens keep their source text; final literal value interpretation belongs to later compiler stages except for lexical validity checks.
-- Invalid lexical constructs produce diagnostics. The v0.2.0 lexer may stop after the first unrecoverable lexical error.
+- Invalid lexical constructs produce diagnostics. The lexer may stop after the first unrecoverable lexical error.
 - `nocter tokens app.nct --format json` emits a JSON envelope even when lexer diagnostics are present.
 
-Initial token categories:
+Token categories:
 
 ```text
 identifier
@@ -195,8 +199,8 @@ Keyword rules:
 - `drop` is emitted as an identifier token; the parser treats `drop &+self { ... }` in an inherent `impl` block and `drop name` in statement position as contextual source forms.
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
-- `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0.2.0 and are emitted as identifier tokens.
-- `literal` is not reserved in v0.2.0. The v0.3.0 grammar reserves it for literal definitions.
+- `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
+- `default` is not reserved. The parser recognizes it contextually inside `construct` blocks.
 
 Newline rules:
 
@@ -239,10 +243,10 @@ Examples of single lexical tokens:
 Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
-- `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
+- `..<` is one token. It is used only in `for name in start..<end` range syntax.
 - `#` is punctuation. It begins a declarative directive. Directive names remain identifiers rather
   than reserved keywords.
-- `@` is reserved for possible future attribute-like syntax and is invalid in v0.2.0 outside string literals, byte literals, and comments.
+- `@` is reserved for possible future attribute-like syntax and is invalid outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.
 
 `#target: "target-name"` is tokenized as ordinary punctuation, identifier, punctuation, and string
@@ -260,7 +264,7 @@ is a syntax error.
 
 ## Integer Literals
 
-Adopted: integer literals support decimal, hexadecimal, binary, and `_` digit separators.
+Integer literals support decimal, hexadecimal, binary, and `_` digit separators.
 
 Forms:
 
@@ -284,9 +288,9 @@ Rules:
 - `_` must not appear at the start or end of a literal.
 - `_` must not appear immediately after `0x` or `0b`.
 - Adjacent `_` separators are invalid.
-- Integer literals have no type suffix in v0.2.0.
+- Integer literals have no type suffix.
 - Negative numbers are parsed as unary `-` applied to an integer literal, not as a negative literal token.
-- Float literals are not part of v0.2.0. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
+- Float literals are not supported. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
 
 The type rules for integer literals are specified in [Values and Types](02-values-types.md#integer-literals).
 
@@ -320,11 +324,10 @@ Rules:
 - A multi-line string literal starts with `"""` and ends at a closing `"""` delimiter.
 - A byte literal starts with `b'` and ends at the next unescaped `'`.
 - No whitespace is allowed between `b` and `'` in a byte literal.
-- Plain single-quoted literals such as `'a'` are invalid in v0.2.0.
+- Plain single-quoted literals such as `'a'` are invalid.
 - Raw newlines are invalid inside single-line string literals and byte literals.
 - Raw newlines are valid inside multi-line string literals.
-- Raw string literals are not part of v0.2.0.
-- Unicode escape syntax is not part of v0.2.0.
+- Raw string literals and Unicode escape syntax are not supported.
 - Escapes are interpreted by the compiler before literal bytes are placed into the output executable.
 - A string literal must decode to valid UTF-8 after escapes are processed.
 - A byte literal must decode to exactly one byte.
@@ -344,7 +347,7 @@ Multi-line string literal rules:
 - The closing delimiter ends the multi-line string literal. Following source text is tokenized normally.
 - A `"""` sequence that is not in closing-delimiter position is ordinary literal content.
 
-Initial escapes:
+Escapes:
 
 ```text
 \n      newline, byte 0x0A
@@ -393,7 +396,7 @@ The type and storage rules for string and byte literals are specified in [String
 
 ## Unsupported Tokens and Forms
 
-The following lexical features are intentionally not part of v0.2.0:
+The following lexical features are intentionally unsupported:
 
 - Unicode identifiers
 - nested block comments
@@ -404,4 +407,3 @@ The following lexical features are intentionally not part of v0.2.0:
 - raw string literals
 - Unicode escape syntax
 - attribute syntax
-- user-defined literal-definition syntax

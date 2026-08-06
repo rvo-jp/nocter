@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 ## Modules
 
-Adopted: Nocter modules are derived from file paths. The language does not have a `module` declaration.
+Nocter modules are derived from file paths. The language does not have a `module` declaration.
 
 A module identity is derived from the canonical source file path. One `.nct` file defines one module.
 
@@ -27,7 +27,7 @@ use std/io.{File, stdout}
 use std/mem.Allocator
 ```
 
-Adopted `use` forms:
+Supported `use` forms:
 
 ```nct
 use std/mem.Allocator
@@ -153,7 +153,7 @@ func debug(): void {
 }
 ```
 
-Not adopted:
+Invalid forms:
 
 ```nct
 import std/io
@@ -169,11 +169,11 @@ include std/prelude
 ./path/to/file.something()
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and relative or absolute path-like module expressions are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and relative or absolute path-like module expressions are not supported.
 
 ## Re-exports
 
-Adopted: public re-export may expose a module namespace or selected public names.
+Public re-export may expose a module namespace or selected public names.
 
 ```nct
 pub use ./src/json
@@ -200,17 +200,17 @@ Rules:
 - `pub use path as alias` remains invalid; namespace re-exports use their final path segment.
 - `pub use path.Name` and `pub use path.{...}` do not make private names public.
 - Selected-name re-exports do not create a namespace alias.
-- Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors in the initial design.
+- Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors.
 
 ## Synthetic Standard Prelude
 
-Adopted: user project modules receive a compiler-managed synthetic standard prelude loaded from `std/prelude.nct` in the active Nocter home.
+User project modules receive a compiler-managed synthetic standard prelude loaded from `std/prelude.nct` in the active Nocter home.
 
 The compiler does not rewrite source text and does not model the prelude as a source-level `use std/prelude` item. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
 
 The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for ordinary standard-library names. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
 
-Initial rules:
+Rules:
 
 - Every user project module receives a synthetic file-local prelude import from `std/prelude.nct`.
 - The synthetic prelude is applied independently to each user project module.
@@ -220,27 +220,27 @@ Initial rules:
 - The synthetic prelude is not applied to `std/prelude.nct` itself.
 - The synthetic prelude path is resolved directly under the active Nocter home;
   a user project file such as `std/prelude.nct` does not shadow it.
-- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid in v0.2.0.
+- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid.
 - The prelude imports all public exported names from `std/prelude.nct` into the current file.
 - Source-level `use path` does not import every public exported name from `path`; it imports only the module namespace.
 - `include std/prelude` is invalid.
 - Names introduced by the synthetic prelude participate in the same collision checks as explicit imports.
 - If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.
 - Diagnostics should identify collisions with the synthetic prelude as prelude collisions, not as hidden compiler built-ins.
-- Project-wide prelude configuration is not part of the initial design.
+- Project-wide prelude configuration is not supported.
 
-Initial prelude surface direction:
+The standard prelude exports:
 
 ```nct
 pub use std/error.{Error, ErrorCode}
 pub use std/string.String
 ```
 
-The prelude must remain small. `Int` is not part of v0.2.0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0.2.0 because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude remains deliberately small. There is no built-in `Int` alias; write `i32` or define a project-local alias. `Vec` is not re-exported because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` must be imported explicitly from their domain modules.
 
 ## Package Layout
 
-Adopted for v0.4.0 Phase 1: a package root is a directory that directly contains `nocter.nct`.
+A package root is a directory that directly contains `nocter.nct`.
 There is no source-root concept. `index.nct` remains only a directory module.
 
 ```text
@@ -349,13 +349,13 @@ Rules:
 - Entry lookup does not select imported functions.
 - Imported files may define ordinary functions named `main`, subject to normal name visibility and duplicate-name rules.
 - The same canonical file path is loaded at most once, even if reached through different relative paths.
-- Import cycles are errors in the initial design.
+- Import cycles are errors.
 - The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.
-- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not part of v0.2.0.
+- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not supported.
 
 ## Source File Identity
 
-Adopted: compiler-internal source file identity is the canonical absolute path.
+Compiler-internal source file identity is the canonical absolute path.
 
 Rules:
 
@@ -454,7 +454,7 @@ Rules:
 - `/src/path` is resolved from the owning package root. Filesystem-absolute imports are invalid.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
-- Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.2.0.
+- Directory modules use `index.nct`; `mod.nct` is not a directory-module convention.
 - The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory. This supports normal installs where a `PATH` directory contains a symlink to `~/.nocter/nocter`.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
 - The repository local release image `dist/.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
@@ -472,7 +472,7 @@ Lookup order:
 5. Explicitly imported names and names introduced by the synthetic prelude.
 6. Built-in types and reserved syntax forms.
 
-Initial rules:
+Rules:
 
 - Shadowing is not allowed.
 - Function parameter names must be unique within the parameter list.
@@ -489,7 +489,7 @@ Initial rules:
 
 ## Visibility
 
-Adopted: definitions are private by default. Public API is marked with `pub`. Nocter-distribution-internal API is marked with `pub(nocter)`.
+Definitions are private by default. Public API is marked with `pub`. Nocter-distribution-internal API is marked with `pub(nocter)`.
 
 ```nct
 pub struct File {
@@ -545,11 +545,10 @@ Rules:
 - Public associated functions declared as `func Type.name` and public methods inside `impl` blocks must be marked with `pub`.
 - Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
 - `impl` blocks themselves are not marked `pub`.
-- Enum variants follow the visibility of their enum in the initial design.
+- Enum variants follow the visibility of their enum.
 - Interface members must be explicitly marked `pub`.
-- There is no `private` keyword in the initial design.
-- There is no standalone `export` declaration in the initial design.
-- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.2.0.
+- There is no `private` keyword or standalone `export` declaration.
+- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not supported visibility forms.
 
 Example:
 
@@ -567,7 +566,7 @@ pub enum Direction {
 }
 ```
 
-Initial rules:
+Rules:
 
 - One `.nct` file defines one module.
 - The `.nct` extension is removed.

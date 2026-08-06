@@ -13,9 +13,9 @@ func scan_words(text: &str): WordStats {
 }
 ```
 
-Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A root-file function named `main` is selected as the executable entry point because v0.2.0 fixes that entry name. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
+Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A selected executable module's function named `main` is the executable entry point. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
 
-Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0.2.0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
+Parameters are written as `name: Type`. Mutable parameter bindings are not supported. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 
 Return checking:
 
@@ -36,7 +36,7 @@ Return value ownership, move, borrow, and view rules are specified in [Ownership
 
 ## Function Calls and Arguments
 
-Adopted: v0.2.0 uses positional arguments only.
+Calls use positional arguments only.
 
 ```nct
 func copy(allocator: &+Allocator, source: &str): String! {
@@ -56,13 +56,11 @@ Rules:
 - Method receiver expressions are evaluated before method arguments.
 - Method arguments are then evaluated left to right in the order written.
 - Parameter names are not part of call syntax.
-- Named arguments are not part of v0.2.0.
-- Default parameters are not part of v0.2.0.
-- Variadic functions are not part of v0.2.0.
-- Function, associated function, and method overload by type, arity, or return type is not part of v0.2.0.
+- Named arguments, default parameters, and variadic functions are not supported.
+- Functions, associated functions, and methods cannot be overloaded by type, arity, or return type.
 - A duplicate callable name in the same namespace is a compile error.
 - A trailing comma is allowed in multi-line parameter lists and multi-line argument lists.
-- A trailing comma is not allowed in single-line parameter lists or single-line argument lists in v0.2.0.
+- A trailing comma is not allowed in single-line parameter lists or single-line argument lists.
 
 Examples:
 
@@ -77,15 +75,14 @@ pub func copy(
 
 ```nct
 let text = String.copy(
-    &+allocator,
     "hello",
-)?
+)
 ```
 
-Invalid in v0.2.0:
+Invalid:
 
 ```nct
-String.copy(allocator: &+allocator, source: "hello") // named arguments
+String.copy(source: "hello") // named argument
 
 func open(path: &str = "input.txt"): File! {
     ...
@@ -101,7 +98,7 @@ func open(path: &str, mode: OpenMode): File! {
 ```
 
 Use a configuration struct when an API has many boolean or optional choices.
-Variadic capture is a future `...values` design, not v0.2.0 syntax.
+Variadic capture is not function-parameter syntax. Literal definitions use their own `...items` capture form.
 
 ```nct
 pub struct OpenOptions {
@@ -119,7 +116,7 @@ let file = File.open_with(path, OpenOptions {
 
 ## Body Results and Control Expressions
 
-Adopted: braced bodies have a unified result form.
+Braced bodies have a unified result form.
 
 ```nct
 {
@@ -148,7 +145,7 @@ Rules:
 - A `void` function may have no body result and may reach the end of the body.
 - A non-`void` function must either have a body result assignable to the declared return type or guarantee an explicit return or `never` on every reachable path.
 
-Adopted: `if`, `if is`, and `match` can be used as expressions.
+`if`, `if is`, and `match` can be used as expressions.
 
 ```nct
 func max(a: i32, b: i32): i32 {
@@ -205,7 +202,7 @@ Removed:
 
 Statement separation:
 
-- Semicolons are not part of the initial grammar.
+- Semicolons are not statement terminators.
 - One statement per line is the normal style.
 - A newline separates statements where the grammar can end a statement.
 - A closing brace `}` ends the current block or arm.
@@ -214,7 +211,7 @@ Statement separation:
 
 ## Evaluation Order and Temporaries
 
-Adopted: expression evaluation is left-to-right.
+Expression evaluation is left-to-right.
 
 Rules:
 
@@ -232,7 +229,7 @@ Rules:
 - Maybe initialized local values use compiler-generated conditional drop at scope end.
 - Postfix `?`, `return`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
 - Borrows and borrow-like views derived from temporaries cannot escape the statement.
-- Temporary lifetime extension is not part of the initial design.
+- Temporary lifetime extension is not supported.
 
 Examples:
 
@@ -251,7 +248,7 @@ Evaluation order:
 This is invalid:
 
 ```nct
-let view = (String.copy(allocator, "abc")?).view()
+let view = String.copy("abc").view()
 ```
 
 `String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `&str` cannot be stored in `view`.
@@ -259,7 +256,7 @@ let view = (String.copy(allocator, "abc")?).view()
 Write this instead:
 
 ```nct
-var text = String.copy(allocator, "abc")?
+var text = String.copy("abc")
 let view = text.view()
 ```
 
@@ -281,7 +278,7 @@ If `File.open(path)` fails, no `File` temporary exists. If `write_text` fails, t
 
 ## Loops
 
-Adopted: the initial loop forms are `while`, `loop`, range `for`, `break`, and `continue`.
+Loop forms are `while`, `loop`, range `for`, collection `for`, `break`, and `continue`.
 
 ```nct
 var i: usize = 0
@@ -318,25 +315,25 @@ Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Optional values do not have dedicated loop syntax in v0.2.0; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
+- Optional values do not have dedicated loop syntax; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
-- `..<` is the half-open range token in the initial `for` header syntax.
+- `..<` is the half-open range token in range `for` header syntax.
 - `start` and `end` are evaluated once, left-to-right, before the loop begins.
 - `start` and `end` must have the same integer type after literal contextual typing.
 - The loop variable has the same type as `start` and `end`.
 - The loop variable is an immutable binding scoped to the loop body.
 - If `start >= end`, the loop body runs zero times.
-- The step is always `+1` in the initial design.
+- The range step is always `+1`.
 - `break` exits the innermost loop.
 - `continue` skips to the next iteration of the innermost loop.
-- `break value` is not part of the initial design.
+- `break value` is not supported.
 - Loops are statements and do not produce values.
 - Exiting a loop runs the normal scope-end `drop` behavior for values whose scopes end.
 - `break` and `continue` run the same cleanup for scopes they leave.
 
-v0.3.0 Phase 7 adopts protocol-driven collection iteration with an explicit ownership mode:
+Collection iteration is protocol-driven and has an explicit ownership mode:
 
 ```nct
 for item in &values {
@@ -385,7 +382,7 @@ for i in 0..<bytes.len() {
 
 ## Never and Reachability
 
-Adopted: `never` represents a computation that does not return normally.
+`never` represents a computation that does not return normally.
 
 `never` is not an ordinary value-carrying type. It is the type of control flow that terminates the current path instead of producing a value.
 
@@ -401,7 +398,7 @@ Typical uses:
 
 `abort` and `exit` are standard-library process APIs. They are not compiler primitives.
 
-`panic` is not a language feature in v0.2.0. No stack unwinding mechanism is part of v0.2.0.
+`panic` is not a language feature. Nocter has no stack-unwinding mechanism.
 
 Example:
 
@@ -423,20 +420,18 @@ Rules:
 - Falling off the end of a `never` function is a compile error.
 - A call whose type is `never` terminates the current control path.
 - Code after `return`, `break`, `continue`, or a `never` call in the same block is unreachable.
-- Unreachable statements have no runtime semantics. They do not contribute to
-  body result typing, definite-initialization joins, move/drop liveness on later
-  reachable paths, or v0.2.0 buildability requirements.
-- v0.2.0 accepts unreachable statements after a proven terminal statement. A future
-  lint may report them, but unreachable code is not a required compile-time
-  error.
+- Unreachable statements have no runtime semantics. They do not contribute to body result typing,
+  definite-initialization joins, move/drop liveness on later reachable paths, or buildability.
+- Unreachable statements after a proven terminal statement are accepted. A future lint may report
+  them, but unreachable code is not a required compile-time error.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
-- `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
+- `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
 - If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `break`, or `continue` path.
 - Fallible failure is recoverable failure and is valid only through fallible type `T!`.
 - `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
 - `abort` is immediate process termination and does not run Nocter cleanup.
-- `panic` and stack unwinding are not part of v0.2.0.
+- `panic` and stack unwinding are not language features.
 - `panic` is not reserved. A user-defined function named `panic` is ordinary and has no language-defined behavior.
 
 Example:
@@ -474,7 +469,7 @@ The first function returns normally. The second contains unreachable code after 
 
 ## Safety Checks and Build Modes
 
-Adopted: safety checks are part of Nocter semantics and remain enabled in every build mode.
+Safety checks are part of Nocter semantics and remain enabled in every build mode.
 
 Build modes may change diagnostics, debug information, and optimization level. They must not change the safety meaning of a valid Nocter program.
 
@@ -496,6 +491,6 @@ Rules:
 - The optimizer may remove a safety check only when it proves that the trap condition cannot occur on that path.
 - Removing a check is valid only when the source-level observable behavior is unchanged.
 - If a check is statically known to fail, the compiler may emit an unconditional trap for that path.
-- General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation in v0.2.0.
+- General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation.
 - Wrapping arithmetic is not unchecked arithmetic. It must be exposed through explicit numeric APIs.
 - Target overlays and compiler primitive lowering may use target-specific machine instructions internally, but that must not expose undefined behavior to ordinary Nocter code.

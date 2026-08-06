@@ -5,7 +5,7 @@ The specification entry point is [README.md](README.md).
 
 ## Diagnostic Policy
 
-Adopted: compiler diagnostics are part of the Nocter user experience and must explain source-level concepts clearly.
+Compiler diagnostics are part of the Nocter user experience and must explain source-level concepts clearly.
 
 Diagnostics for type checking, ownership, borrowing, initialization state, visibility, imports, fallible values, optionals, primitive boundaries, and target selection should include:
 
@@ -18,7 +18,7 @@ Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `mo
 
 ## Format
 
-Adopted: errors use stable error codes and source spans.
+Errors use stable error codes and source spans.
 
 Minimum source diagnostic shape:
 
@@ -48,7 +48,7 @@ Rules:
 - Error codes should not encode compiler phase. The same user-visible mistake should keep the same code even if implementation phases change.
 - Error codes become compatibility-sensitive once published in user-facing documentation.
 
-Initial spanless CLI diagnostic codes:
+Spanless CLI diagnostic codes:
 
 - `E0602`: formatter check found a source file that would change.
 - `E0700`: command-line syntax or unsupported command.
@@ -60,7 +60,7 @@ Initial spanless CLI diagnostic codes:
 
 ## Source And Span Model
 
-Adopted: compiler source identity and source positions are byte-based internally.
+Compiler source identity and source positions are byte-based internally.
 
 Internal model:
 
@@ -79,7 +79,7 @@ Rules:
 - `ByteSpan.start` and `ByteSpan.end` are UTF-8 byte offsets in the normalized source text.
 - `ByteSpan.end` is exclusive.
 - The compiler normalizes CRLF to LF before computing spans.
-- Bare carriage return is a source error in v0.2.0.
+- Bare carriage return is a source error.
 - Internal compiler analysis should use `ByteSpan` instead of line/column pairs.
 - Line and column pairs are derived only for human-readable diagnostics, JSON output, editor adapters, tests, and AI tooling.
 
@@ -112,7 +112,7 @@ JSON span rules:
 
 ## Machine-Readable JSON Diagnostics
 
-Adopted: `nocter check --format json` writes exactly one JSON object to stdout.
+`nocter check --format json` writes exactly one JSON object to stdout.
 
 Top-level envelope:
 
@@ -185,7 +185,7 @@ Diagnostic object:
 Diagnostic object rules:
 
 - `code` uses the `E0000` form for source diagnostics, command-line errors, filesystem errors, Nocter-home errors, target-selection errors, and internal compiler errors that are reported through this JSON format.
-- `severity` is `"error"` in v0.2.0.
+- `severity` is currently `"error"`.
 - Future schema versions may add `"warning"` and `"info"`.
 - `message` is the primary human-readable diagnostic message.
 - `primary_span` is a span object when a source location is known.
@@ -228,11 +228,11 @@ Example for a command-line or filesystem diagnostic:
 
 ## Error Recovery
 
-Adopted: parser recovery may be conservative; semantic diagnostics should avoid cascades.
+Parser recovery may be conservative; semantic diagnostics should avoid cascades.
 
 Rules:
 
-- The parser may stop after the first syntax error in v0.2.0.
+- The parser may stop after the first syntax error.
 - After parsing succeeds, later compiler phases may report multiple independent errors.
 - Cascaded errors should be suppressed when they are caused by an earlier error.
 - The compiler may use internal error placeholders to continue analysis, but diagnostics must not mention those placeholders.
@@ -241,9 +241,9 @@ Rules:
 
 ## Required Dedicated Diagnostics
 
-Adopted: common Nocter-specific mistakes should have dedicated diagnostics instead of generic type errors.
+Common Nocter-specific mistakes should have dedicated diagnostics instead of generic type errors.
 
-Required v0.2.0 diagnostic families:
+Required diagnostic families:
 
 - Root file path missing, not found, or not a `.nct` file.
 - Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, or `std/`.
@@ -253,9 +253,9 @@ Required v0.2.0 diagnostic families:
 - Unterminated block comment, string literal, or byte literal.
 - Invalid escape sequence in a string literal or byte literal.
 - Invalid integer literal syntax or digit separator placement.
-- Float literal used in v0.2.0 source.
-- Plain single-quoted character literal used in v0.2.0 source.
-- Semicolon used in v0.2.0 source.
+- Unsupported float literal.
+- Plain single-quoted character literal.
+- Semicolon used as a statement terminator.
 - Non-ASCII identifier or invalid module path segment.
 - Import path not found.
 - Import cycle detected, including the cycle path.
@@ -263,7 +263,7 @@ Required v0.2.0 diagnostic families:
 - Type reference not declared in the current scope, such as `Int` when no alias
   or import defines it.
 - Name collision in imports or declarations.
-- Attribute syntax or reserved `@` used in v0.2.0 source.
+- Attribute syntax or reserved `@` used in source.
 - `pub(nocter)` item imported from a user project module.
 - `pub(nocter)` used outside the active Nocter home.
 - Primitive declaration outside the active Nocter home.
@@ -307,8 +307,8 @@ Required v0.2.0 diagnostic families:
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
-- Selected entry function with type parameters, such as `func main<T>(): i32!`, used in v0.2.0.
-- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.2.0.
+- Selected entry function with type parameters, such as `func main<T>(): i32!`.
+- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`.
 - Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
 - `return` without a value in a non-`void` function.
 - `return` with a value in a `void` function.
@@ -362,6 +362,6 @@ help: reinitialize `file` on every path before using it
 
 ## Warnings
 
-Warnings are not part of the initial required diagnostic surface.
+Warnings are not part of the current diagnostic surface.
 
 Future warnings may be added for style, portability, or likely mistakes, but warnings must not change language semantics. A warning must not be required for memory safety or type soundness.

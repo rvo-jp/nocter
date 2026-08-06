@@ -41,8 +41,8 @@ Rules:
 
 - `let` creates an immutable binding.
 - `var` creates a mutable binding.
-- Local `let` and `var` bindings require an initializer in the initial design.
-- Uninitialized local variables are not part of the initial design.
+- Local `let` and `var` bindings require an initializer.
+- Uninitialized local declarations are not supported.
 - `let` bindings cannot be reassigned.
 - `var` bindings may be reassigned.
 - After `move name`, the binding enters an uninitialized state.
@@ -56,10 +56,10 @@ Rules:
 - A maybe initialized binding cannot be read, borrowed, moved, explicitly dropped, assigned through a field, or used for field access.
 - At scope end, maybe initialized bindings use conditional drop.
 - To use a binding after a branch, every reachable path to that use must leave the binding initialized.
-- Reinitializing only a field of an uninitialized binding is not part of v0.2.0.
+- Reinitializing only a field of an uninitialized binding is not supported.
 - Assignment is a statement, not an expression.
 - Assignment target must be a writable place.
-- Writable places in v0.2.0 are `var` bindings, fields reachable through writable
+- Writable places are `var` bindings, fields reachable through writable
   places, fields reachable through `&+T` borrow bindings or parameters,
   elements of fixed-size arrays reached through writable places, and elements
   of `&+[T]` readwrite slices.
@@ -68,7 +68,7 @@ Rules:
 - Elements reached through `&[T]` are not writable places.
 - Built-in index assignment applies to fixed-size arrays and `&+[T]` slices.
   Owned collection indexing is ordinary library API behavior and is not a
-  compiler-provided writable place in v0.2.0.
+  compiler-provided writable place.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
@@ -79,8 +79,8 @@ Rules:
 - Assigning a copy value copies it.
 - Field assignment follows the same ownership and borrow rules as local reassignment.
 - Assignment itself produces no value.
-- Chained assignment such as `a = b = c` is not part of v0.2.0.
-- Compound assignment such as `+=` is allowed only for numeric writable places in v0.2.0.
+- Chained assignment such as `a = b = c` is not supported.
+- Compound assignment such as `+=` is allowed only for numeric writable places.
 - Compound assignment follows the same writable-place and borrow rules as assignment.
 
 Examples:
@@ -125,7 +125,7 @@ If step 1 fails because the right-hand side contains postfix `?`, `user.name` is
 
 ### Reinitialization After Move Or Drop
 
-Adopted: v0.2.0 allows reinitialization only for whole `var` bindings after `move` or explicit `drop`.
+Only whole `var` bindings may be reinitialized after `move` or explicit `drop`.
 
 ```nct
 var text = String.new()
@@ -142,8 +142,8 @@ Rules:
 - If reinitialization succeeds, the binding becomes initialized again.
 - If reinitialization fails through postfix `?`, the binding remains uninitialized.
 - `let` bindings cannot be reinitialized after move or explicit drop.
-- Field reinitialization after moving a whole binding is not part of v0.2.0.
-- Partial initialization states for structs are not part of v0.2.0.
+- Field reinitialization after moving a whole binding is not supported.
+- Structs do not have partial initialization states.
 - At scope end, only initialized bindings are dropped.
 - Definite initialization is checked across control flow.
 
@@ -182,7 +182,7 @@ consume(move text) // error: text may be uninitialized
 
 ### Initialization State Across Control Flow
 
-Adopted: the compiler tracks binding initialization state across control flow.
+The compiler tracks binding initialization state across control flow.
 
 Tracked states:
 
@@ -261,7 +261,7 @@ file.read()? // OK: whole-binding assignment restored initialized state
 
 Nocter is value-centered. Data is represented with explicit value types.
 
-Initial primitive and built-in type names:
+Primitive and built-in type names:
 
 ```text
 bool
@@ -274,7 +274,7 @@ void
 never
 ```
 
-Initial built-in type syntax:
+Built-in type syntax:
 
 ```text
 *T
@@ -293,14 +293,14 @@ Self
 
 `T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. `T?!` means a fallible value whose success payload is optional.
 
-In the adopted v0.3.0 Phase 6 model, supported optional and fallible compositions are ordinary sized
+Supported optional and fallible compositions are ordinary sized
 values. They may be stored in bindings and sized aggregates, moved, copied when every possible
 payload is copyable, assigned, passed as arguments, returned, and consumed later. Only the selected
 tag branch is initialized. Absence never initializes a success payload, and failure initializes the
 `error` payload instead of the success payload.
 
-Phase 6 supports one optional layer, one fallible layer, or one of each in either order. Repeated
-equal layers and deeper recursive outcome types remain later work.
+Nocter supports one optional layer, one fallible layer, or one of each in either order. Repeated
+equal layers and deeper recursive outcome types are not supported.
 
 Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
@@ -308,7 +308,7 @@ type syntax group a type without creating a new type.
 
 ### Self Type Syntax
 
-Adopted: `Self` is type-position syntax, not an ordinary user-defined name.
+`Self` is type-position syntax, not an ordinary user-defined name.
 
 `Self` is valid only in type positions inside an inherent `impl` block or a
 qualified associated function declaration such as `func File.open`.
@@ -329,7 +329,7 @@ Rules:
 
 This preserves Nocter's rule that ordinary names do not define special behavior. The special behavior belongs to type syntax, not to a value or declaration name.
 
-Initial built-in literal values:
+Built-in literal values:
 
 ```text
 true
@@ -339,10 +339,9 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
-User-defined typed literal construction, such as `Vec [1, 2, 3]` or
-`Path "README.md"`, is not part of v0.2.0. The v0.3.0 Phase 1 and Phase 8 behavior is specified in
-[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
-and does not change the meaning of built-in literals in v0.2.0.
+User-defined typed literal construction, such as `Vec [1, 2, 3]` or `Path "README.md"`, is specified
+in [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md). It does
+not change the meaning of built-in literals.
 
 Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.
 
@@ -350,11 +349,11 @@ Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`,
 
 Names such as `String`, `Error`, `ErrorCode`, `Vec`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
-`Int` is not part of v0.2.0. The compiler must not treat the identifier `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
+The compiler does not treat `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
 
 ### Type Aliases
 
-Adopted: `type` declares a pure type alias. A type alias introduces another name for the exact same type. It does not create a distinct nominal type.
+`type` declares a pure type alias. A type alias introduces another name for the exact same type. It does not create a distinct nominal type.
 
 ```nct
 pub type Count = i32
@@ -373,7 +372,7 @@ Rules:
 - A type alias does not change ownership, copyability, drop behavior, layout, or ABI.
 - Implementations cannot target a type alias.
 - A type alias cannot be used to create a type-safe wrapper around an existing type.
-- No dedicated `newtype` syntax is part of v0.2.0.
+- There is no dedicated `newtype` syntax.
 - Use a `struct` when a distinct type is required.
 
 Examples:
@@ -414,7 +413,7 @@ Integer literal rules:
 - If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
-- Float literals are not part of v0.2.0.
+- Float literals are not supported.
 
 Examples:
 
@@ -431,7 +430,7 @@ let y: u64 = x    // error: no implicit integer conversion
 
 ## Numeric Operations and Conversions
 
-Adopted: numeric operations do not perform implicit integer conversion.
+Numeric operations do not perform implicit integer conversion.
 
 Rules:
 
@@ -442,10 +441,10 @@ Rules:
 - Non-literal integer values are not implicitly converted.
 - `bool` does not implicitly convert to or from integer types.
 - Explicit conversion uses `expr as Type`.
-- `as` is allowed only for lossless conversions in the initial design.
+- `as` is allowed only for lossless conversions.
 - Narrowing conversions are not allowed with `as`.
 - Signedness-changing conversions are not allowed with `as` unless the target type can represent every value of the source type.
-- On the initial ARM64 macOS target, `usize` has the same range as `u64`, and `isize` has the same range as `i64` for conversion checking.
+- On the ARM64 macOS target, `usize` has the same range as `u64`, and `isize` has the same range as `i64` for conversion checking.
 
 Examples:
 
@@ -488,18 +487,18 @@ The exact names for wrapping arithmetic APIs belong to the primitive numeric API
 
 ## Operators, Comparison, and Precedence
 
-Adopted: operator behavior is built in for a small initial set. User-defined operator overloads are not part of the initial design.
+Operator behavior is built in for a small set. User-defined operator overloads are not supported.
 
 Comparison rules:
 
 - `==` and `!=` require operands of the same type.
 - Built-in equality is available for `bool`, integer types, `&str`, and payloadless enum types.
-- `String == String`, `String == &str`, and `&str == String` require operator definitions and are deferred in v0.2.0.
+- `String == String`, `String == &str`, and `&str == String` require explicit operator support and are not built-in equality operations.
 - Struct equality is not automatically generated.
-- Payload-carrying enum equality is not part of the initial design. Use `match` or `if expr is Pattern`.
+- Payload-carrying enum equality is not supported. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.
 - Ordering comparisons require numeric operands of the same type.
-- Ordering comparisons are not defined for `bool`, structs, strings, or enums in the initial design.
+- Ordering comparisons are not defined for `bool`, structs, strings, or enums.
 
 Logical rules:
 
@@ -511,7 +510,7 @@ Logical rules:
 
 Unary numeric rules:
 
-- `-expr` requires a signed numeric operand in the initial design.
+- `-expr` requires a signed numeric operand.
 - Unary `+expr` is not part of the language.
 
 Precedence, from highest to lowest:
@@ -555,7 +554,7 @@ Precedence, from highest to lowest:
 Rules:
 
 - Assignment is a statement, not an expression, and is not part of the precedence table.
-- The half-open range token `..<` is part of the initial `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
+- The half-open range token `..<` is part of range `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
 - `catch` binds to the immediately preceding expression after higher-precedence
   operators have been parsed.
 - `otherwise` is right-associative.
@@ -574,7 +573,8 @@ if count > 0 && state == ScanState.inside_word {
 
 ## Structs and Value Construction
 
-Adopted: struct values are constructed with explicit named-field struct literals.
+Struct values may be constructed with explicit named-field struct literals when the structural
+entry is accessible.
 
 ```nct
 pub struct User {
@@ -586,7 +586,7 @@ pub struct User {
 ```nct
 let user = User {
     id: 1,
-    name: String.copy(allocator, "alice")?,
+    name: String.copy("alice"),
 }
 ```
 
@@ -603,20 +603,22 @@ Rules:
 - If a later field initializer fails through postfix `?`, already initialized owned field values are dropped in reverse initialization order before the failure propagates.
 - Private fields may be initialized only inside the module that defines the struct.
 - Public fields may be initialized from other modules.
-- There is no constructor overloading in v0.2.0.
-- Field default values are not part of v0.2.0.
-- Struct update syntax is not part of v0.2.0.
-- Positional structs and tuple structs are not part of v0.2.0.
-- Dedicated constructor syntax is not part of v0.2.0.
+- Construction entries cannot be overloaded.
+- Field default values, struct update syntax, positional structs, and tuple structs are not supported.
+- A `construct` declaration groups public construction functions and typed literals and may make
+  structural construction module-private. See [Construction Surfaces](19-construction-surfaces.md).
 - Names such as `new`, `init`, and `create` are ordinary associated function names. The compiler does not special-case them.
 
-When initialization logic or validation is needed, use an ordinary associated function.
+When initialization logic or validation is needed, place a public construction function in the
+type's `construct` declaration.
 
 ```nct
-pub func User.create(id: u64, name: String): User {
-    return User {
-        id: id,
-        name: move name,
+construct User {
+    pub default func create(id: u64, name: String): Self {
+        return User {
+            id: id,
+            name: move name,
+        }
     }
 }
 ```
@@ -624,12 +626,12 @@ pub func User.create(id: u64, name: String): User {
 Outside the defining module, a struct with private fields can be created only through public APIs exposed by that module.
 
 ```nct
-let user = User.create(1, String.copy(allocator, "alice")?)
+let user = User.create(1, String.copy("alice"))
 ```
 
 ## Enums and Variant Construction
 
-Adopted: enums represent finite variants and may carry data.
+Enums represent finite variants and may carry data.
 
 ```nct
 enum AppError {
@@ -644,15 +646,15 @@ Rules:
 - Variants may carry zero or more payload values.
 - Payloadless variants are constructed as `EnumName.variant_name`.
 - Payload variants are constructed as `EnumName.variant_name(args...)`.
-- In the v0.2.0 backend, payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
+- Payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
 - Variant construction requires the payload arity and types to match the variant declaration.
 - Variant payload arguments are evaluated left to right.
 - Variant constructors are qualified with the enum name, such as `AppError.open_failed(path)`.
-- Unqualified variant constructors are not part of v0.2.0.
+- Variant constructors must be qualified.
 - Variant constructors are not ordinary functions and are not magic identifier names; they are generated by the enum declaration.
-- Enum variants and associated functions share the type member namespace in v0.2.0. Defining an associated function with the same member name as a variant is a compile error.
-- If an enum is public, its variants are public in the initial design.
-- Per-variant visibility is not part of the initial design.
+- Enum variants and associated functions share the type member namespace. Defining an associated function with the same member name as a variant is a compile error.
+- If an enum is public, its variants are public.
+- Per-variant visibility is not supported.
 
 Examples:
 
@@ -661,7 +663,7 @@ let state = ScanState.inside_word
 let error = AppError.open_failed(path)
 ```
 
-Adopted: `match` is the initial control flow form for enum pattern matching.
+`match` is the control-flow form for enum pattern matching.
 
 ```nct
 match error {
@@ -689,7 +691,7 @@ Rules:
 - Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
 - `match` without `_` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
 - `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
-- In the v0.2.0 backend, payloadless enum `match` statements and supported
+- Payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum construction, local storage, returns, and value
   arguments lower in the current runtime-supported payload subset: copy/no-drop
@@ -751,7 +753,7 @@ return match error {
 
 Removed: `enum_expr ?{ ... }` is not Nocter syntax. Use `match` expressions for enum pattern value selection.
 
-Adopted: `if enum_expr is Pattern` checks one enum pattern.
+`if enum_expr is Pattern` checks one enum pattern.
 
 ```nct
 if error is AppError.open_failed(path) {
