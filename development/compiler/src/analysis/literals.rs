@@ -28,6 +28,7 @@ pub(crate) struct LiteralEditorInfo {
     pub(crate) declaration_shape_span: ByteSpan,
     pub(crate) label: String,
     pub(crate) parameters: Vec<LiteralParameterInfo>,
+    pub(crate) result_type: crate::ast::TypeExpr,
     pub(crate) is_specialized: bool,
 }
 
@@ -227,6 +228,7 @@ fn editor_info(
         declaration_shape_span: declaration.shape_span,
         label,
         parameters,
+        result_type: specialization.result_type,
         is_specialized: !specialization.substitutions.is_empty(),
     }
 }

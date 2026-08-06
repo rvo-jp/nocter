@@ -169,4 +169,27 @@ func label(): &str {
                 .all(|hint| hint.label != " from inferred storage")
         );
     }
+
+    #[test]
+    fn allocation_effect_follows_an_explicit_provenance_clause() {
+        let text = r#"primitive allocate(): usize
+
+func build(): &str from static {
+    let address = allocate()
+    return "static"
+}
+"#;
+        let (sources, analysis) =
+            crate::analysis::test_support::analyze_text_with_trusted_current_allocation_operation(
+                text, "allocate",
+            );
+        let file = analysis.root_file().unwrap();
+        let hints = inlay_hints_for_file_analysis(&sources, &analysis, file, 0..=text.len());
+        let expected = text.find("from static").unwrap() + "from static".len();
+        assert!(
+            hints
+                .iter()
+                .any(|hint| { hint.offset == expected && hint.label == " allocates" })
+        );
+    }
 }

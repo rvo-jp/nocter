@@ -66,7 +66,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Import(_) | Item::FromImport(_) => {}
         Item::Function(function) => {
             push_function_hover_symbol(text, function, symbols);
-            collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+            collect_parameter_hover_symbols(&function.parameters.parameters, symbols);
             collect_block_hover_symbols(text, &function.body, symbols);
         }
         Item::Test(test) => {
@@ -81,17 +81,13 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         }
         Item::Primitive(primitive) => {
             push_primitive_hover_symbol(text, primitive, symbols);
-            collect_parameter_hover_symbols(text, &primitive.parameters.parameters, symbols);
+            collect_parameter_hover_symbols(&primitive.parameters.parameters, symbols);
         }
         Item::TypeAlias(alias) => push_hover_symbol(
             text,
             alias.name_span,
             alias.span.start,
-            format!(
-                "type {} = {}",
-                alias.name,
-                source_fragment(text, alias.target.span())
-            ),
+            crate::analysis::presentation::ast_type_alias_presentation(alias),
             symbols,
         ),
         Item::Struct(struct_) => collect_struct_hover_symbols(text, struct_, symbols),
@@ -110,7 +106,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Construct(construct) => {
             for (_, function) in construct.functions() {
                 push_function_hover_symbol(text, function, symbols);
-                collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+                collect_parameter_hover_symbols(&function.parameters.parameters, symbols);
                 collect_block_hover_symbols(text, &function.body, symbols);
             }
             for (_, literal) in construct.literals() {
@@ -129,10 +125,10 @@ fn collect_literal_hover_symbols(
         text,
         literal.shape_span,
         literal.span.start,
-        function_like_header(text, literal.span, Some(literal.body.span.start)),
+        crate::analysis::presentation::ast_literal_presentation(literal),
         symbols,
     );
-    collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
+    collect_parameter_hover_symbols(&literal.parameters.parameters, symbols);
     if let Some(capture) = &literal.capture {
         push_hover_symbol(
             text,
@@ -141,7 +137,7 @@ fn collect_literal_hover_symbols(
             format!(
                 "literal pack {}: {}",
                 capture.name,
-                source_fragment(text, capture.element_type.span())
+                crate::ast::canonical_type_expr(&capture.element_type)
             ),
             symbols,
         );
@@ -163,12 +159,11 @@ pub(in crate::analysis::hover) fn collect_struct_hover_symbols(
             .map(|parameter| parameter.name.clone())
             .collect::<Vec<_>>(),
     );
-    let copy_prefix = if struct_.is_copy { "copy " } else { "" };
     push_hover_symbol(
         text,
         struct_.name_span,
         struct_.span.start,
-        format!("{copy_prefix}struct {owner}"),
+        crate::analysis::presentation::ast_struct_presentation(struct_),
         symbols,
     );
     for field in &struct_.fields {
@@ -194,7 +189,7 @@ pub(in crate::analysis::hover) fn collect_enum_hover_symbols(
         text,
         enum_.name_span,
         enum_.span.start,
-        format!("enum {owner}"),
+        crate::analysis::presentation::ast_enum_presentation(enum_),
         symbols,
     );
     for variant in &enum_.variants {
@@ -205,11 +200,11 @@ pub(in crate::analysis::hover) fn collect_enum_hover_symbols(
             enum_variant_member_label(
                 &owner,
                 &variant.name,
-                &parameter_labels(text, &variant.payload),
+                &crate::analysis::presentation::ast_parameter_labels(&variant.payload),
             ),
             symbols,
         );
-        collect_parameter_hover_symbols(text, &variant.payload, symbols);
+        collect_parameter_hover_symbols(&variant.payload, symbols);
     }
 }
 
@@ -222,7 +217,7 @@ pub(in crate::analysis::hover) fn collect_interface_hover_symbols(
         text,
         interface.name_span,
         interface.span.start,
-        format!("interface {}", interface.name),
+        crate::analysis::presentation::ast_interface_presentation(interface),
         symbols,
     );
     for method in &interface.methods {
@@ -239,10 +234,10 @@ pub(in crate::analysis::hover) fn collect_drop_hover_symbols(
         text,
         drop_.name_span,
         drop_.span.start,
-        function_like_header(text, drop_.span, Some(drop_.body.span.start)),
+        crate::analysis::presentation::ast_drop_presentation(drop_),
         symbols,
     );
-    collect_parameter_hover_symbols(text, std::slice::from_ref(&drop_.binding), symbols);
+    collect_parameter_hover_symbols(std::slice::from_ref(&drop_.binding), symbols);
     collect_block_hover_symbols(text, &drop_.body, symbols);
 }
 
@@ -255,16 +250,12 @@ pub(in crate::analysis::hover) fn collect_method_hover_symbols(
         text,
         method.name_span,
         method.span.start,
-        function_like_header(
-            text,
-            method.span,
-            method.body.as_ref().map(|body| body.span.start),
-        ),
+        crate::analysis::presentation::ast_method_presentation(method),
         symbols,
     );
     let receiver = method.receiver.implicit_parameter();
-    collect_parameter_hover_symbols(text, std::slice::from_ref(&receiver), symbols);
-    collect_parameter_hover_symbols(text, &method.parameters.parameters, symbols);
+    collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
+    collect_parameter_hover_symbols(&method.parameters.parameters, symbols);
     if let Some(body) = &method.body {
         collect_block_hover_symbols(text, body, symbols);
     }
@@ -280,7 +271,7 @@ pub(in crate::analysis::hover) fn push_function_hover_symbol(
         function.member_name_span,
         function.name_span,
         function.span.start,
-        function_like_header(text, function.span, Some(function.body.span.start)),
+        crate::analysis::presentation::ast_function_presentation(function),
         symbols,
     );
 }
@@ -294,7 +285,7 @@ pub(in crate::analysis::hover) fn push_primitive_hover_symbol(
         text,
         primitive.name_span,
         primitive.span.start,
-        function_like_header(text, primitive.span, None),
+        crate::analysis::presentation::ast_primitive_presentation(primitive),
         symbols,
     );
 }
@@ -309,13 +300,16 @@ pub(in crate::analysis::hover) fn push_struct_field_hover_symbol(
         text,
         field.name_span,
         field.span.start,
-        field_member_label(owner, &field.name, source_fragment(text, field.ty.span())),
+        field_member_label(
+            owner,
+            &field.name,
+            &crate::ast::canonical_type_expr(&field.ty),
+        ),
         symbols,
     );
 }
 
 pub(in crate::analysis::hover) fn collect_parameter_hover_symbols(
-    text: &str,
     parameters: &[Parameter],
     symbols: &mut Vec<HoverSymbol>,
 ) {
@@ -327,7 +321,7 @@ pub(in crate::analysis::hover) fn collect_parameter_hover_symbols(
             format!(
                 "parameter {}: {}",
                 parameter.name,
-                source_fragment(text, parameter.ty.span())
+                crate::ast::canonical_type_expr(&parameter.ty)
             ),
             symbols,
         );
@@ -468,7 +462,7 @@ pub(in crate::analysis::hover) fn push_binding_hover_symbol(
     let ty = statement
         .ty
         .as_ref()
-        .map(|ty| format!(": {}", source_fragment(text, ty.span())))
+        .map(|ty| format!(": {}", crate::ast::canonical_type_expr(ty)))
         .unwrap_or_default();
     push_hover_symbol(
         text,

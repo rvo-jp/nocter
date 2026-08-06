@@ -26,7 +26,15 @@ pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
         label: signature.label,
         documentation: combine_documentation(
             signature.documentation,
-            target.and_then(|target| semantic_documentation(sources, analysis, target)),
+            target.and_then(|target| {
+                semantic_documentation_for_result(
+                    sources,
+                    analysis,
+                    target,
+                    &signature.result_type,
+                    &file.resolved,
+                )
+            }),
         ),
     })
 }
@@ -301,6 +309,29 @@ pub(in crate::analysis::hover) fn semantic_documentation(
 ) -> Option<String> {
     let fact = analysis.callable_semantic_facts.get(target_span)?;
     let details = crate::analysis::presentation::semantic_details_for_callable(sources, fact);
+    (!details.is_empty()).then(|| {
+        details
+            .iter()
+            .map(|detail| detail.render_markdown())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    })
+}
+
+fn semantic_documentation_for_result(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    target_span: ByteSpan,
+    result_type: &crate::ast::TypeExpr,
+    resolved: &crate::resolve::ResolveOutput,
+) -> Option<String> {
+    let fact = analysis.callable_semantic_facts.get(target_span)?;
+    let details = crate::analysis::presentation::semantic_details_for_callable_result(
+        sources,
+        fact,
+        result_type,
+        resolved,
+    );
     (!details.is_empty()).then(|| {
         details
             .iter()

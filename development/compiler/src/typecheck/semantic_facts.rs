@@ -203,7 +203,7 @@ fn insert_fact(
     );
 }
 
-fn type_expr_carries_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+pub(crate) fn type_expr_carries_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
     type_expr_contains_borrow_like(ty, resolved, &HashMap::new(), &mut HashSet::new())
         || type_expr_is_copy(ty, resolved) != Some(true)
 }

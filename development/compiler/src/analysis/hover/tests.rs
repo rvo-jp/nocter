@@ -270,10 +270,7 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
     assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
-    assert_eq!(
-        hover.documentation.as_deref(),
-        Some("Returns its input.\n\n**Result provenance:** storage from input `value`.")
-    );
+    assert_eq!(hover.documentation.as_deref(), Some("Returns its input."));
 }
 
 #[test]

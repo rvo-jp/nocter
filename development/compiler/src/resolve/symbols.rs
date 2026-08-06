@@ -576,6 +576,7 @@ pub struct MethodSignature {
     pub is_accessible: bool,
     pub impl_target_ty: Option<TypeExpr>,
     pub has_default_body: bool,
+    pub owner_generic_count: usize,
     pub receiver: MethodReceiver,
     pub signature: FunctionSignature,
 }

@@ -75,7 +75,7 @@ pub(crate) use member_presentation::{
 };
 pub(crate) use semantic_facts::{
     CallableSemanticFact, CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact,
-    collect_callable_semantic_facts,
+    collect_callable_semantic_facts, type_expr_carries_storage,
 };
 
 pub(crate) fn type_expr_is_assignable(

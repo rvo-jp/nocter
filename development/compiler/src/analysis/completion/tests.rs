@@ -1159,3 +1159,39 @@ func inspect<T: Readable + >(value: &T): i32 {
         })
     );
 }
+
+#[test]
+fn method_presentation_matches_completion_hover_and_signature_help() {
+    let text = r#"struct Box<T> { value: T }
+
+impl<T> Box<T> {
+    method &self.replace(value: T): T {
+        return value
+    }
+}
+
+func main(box: &Box<i32>): i32 {
+    return box.replace(42)
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let member = text.find("box.replace").expect("method call") + "box.".len();
+    let completion = completion_items_for_file_analysis_at_offset(file, member)
+        .into_iter()
+        .find(|item| item.label == "replace")
+        .expect("method completion");
+    let hover = crate::analysis::hover::hover_for_file_analysis(&sources, &analysis, file, member)
+        .expect("method hover");
+    let signature = crate::analysis::signature_help::signature_help_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        text.find("42").expect("argument"),
+    )
+    .expect("signature help");
+
+    assert_eq!(completion.detail.as_deref(), Some(hover.label.as_str()));
+    assert_eq!(hover.label, signature.label);
+    assert_eq!(signature.label, "method &Box<i32>.replace(value: i32): i32");
+}

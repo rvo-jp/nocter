@@ -466,16 +466,11 @@ fn symbol_detail(symbol: &Symbol, resolved: &ResolveOutput) -> String {
         SymbolKind::Primitive(signature) => {
             callable_detail("primitive", &symbol.name, signature, resolved)
         }
-        SymbolKind::Type(type_symbol) => match type_symbol.kind {
-            TypeSymbolKind::Alias => format!("type {}{}", symbol.name, generic_suffix(type_symbol)),
-            TypeSymbolKind::Struct => {
-                format!("struct {}{}", symbol.name, generic_suffix(type_symbol))
-            }
-            TypeSymbolKind::Enum => format!("enum {}{}", symbol.name, generic_suffix(type_symbol)),
-            TypeSymbolKind::Interface => {
-                format!("interface {}{}", symbol.name, generic_suffix(type_symbol))
-            }
-        },
+        SymbolKind::Type(_) => {
+            crate::analysis::presentation::type_declaration_presentation(symbol, resolved)
+                .expect("type symbols have a declaration presentation")
+                .render()
+        }
         SymbolKind::Imported(imported) => format!("imported from {}", imported.path),
     }
 }
@@ -484,14 +479,6 @@ fn symbol_insert_text(symbol: &Symbol) -> String {
     match &symbol.kind {
         SymbolKind::Function(_) | SymbolKind::Primitive(_) => format!("{}()", symbol.name),
         SymbolKind::Type(_) | SymbolKind::Imported(_) => symbol.name.clone(),
-    }
-}
-
-fn generic_suffix(symbol: &TypeSymbol) -> String {
-    if symbol.generic_parameters.is_empty() {
-        String::new()
-    } else {
-        format!("<{}>", symbol.generic_parameters.join(", "))
     }
 }
 

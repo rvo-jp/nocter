@@ -414,6 +414,7 @@ fn method_signature_inner(
         is_accessible: true,
         impl_target_ty,
         has_default_body,
+        owner_generic_count: generics.parameters.len(),
         receiver: method.receiver.clone(),
         signature: method_callable_signature(
             generics,

@@ -1,33 +1,5 @@
 use super::*;
 
-pub(in crate::analysis::hover) fn function_like_header(
-    text: &str,
-    span: ByteSpan,
-    body_start: Option<usize>,
-) -> String {
-    let end = body_start.unwrap_or(span.end).min(span.end);
-    source_fragment(text, ByteSpan::new(span.source, span.start, end))
-        .trim_end_matches('{')
-        .trim()
-        .to_string()
-}
-
-pub(in crate::analysis::hover) fn parameter_labels(
-    text: &str,
-    parameters: &[Parameter],
-) -> Vec<String> {
-    parameters
-        .iter()
-        .map(|parameter| {
-            format!(
-                "{}: {}",
-                parameter.name,
-                source_fragment(text, parameter.ty.span())
-            )
-        })
-        .collect()
-}
-
 pub(in crate::analysis::hover) fn binding_kind_label(
     kind: crate::ast::BindingKind,
 ) -> &'static str {
@@ -46,7 +18,7 @@ pub(in crate::analysis::hover) fn resolved_reference_hover_contents(
         ResolvedReference::TopLevel(symbol) => {
             resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
                 (
-                    symbol_hover_label_for_sources(sources, symbol),
+                    crate::analysis::presentation::symbol_presentation_without_resolution(symbol),
                     None::<String>,
                 )
             })
@@ -158,92 +130,6 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
             construction,
         ),
     ))
-}
-
-pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
-    sources: &SourceMap,
-    symbol: &Symbol,
-) -> String {
-    match &symbol.kind {
-        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
-            append_signature_provenance(
-                format!(
-                    "{} {}({}): {}",
-                    if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
-                        "primitive"
-                    } else {
-                        "func"
-                    },
-                    symbol.name,
-                    parameter_signatures_label_for_sources(sources, &signature.parameters),
-                    source_fragment_from_sources(sources, signature.return_type.span())
-                ),
-                signature.result_provenance.as_ref(),
-            )
-        }
-        SymbolKind::Type(type_symbol) => match type_symbol.kind {
-            TypeSymbolKind::Alias => type_symbol
-                .alias_target
-                .as_ref()
-                .map(|target| {
-                    format!(
-                        "type {} = {}",
-                        symbol.name,
-                        source_fragment_from_sources(sources, target.span())
-                    )
-                })
-                .unwrap_or_else(|| format!("type {}", symbol.name)),
-            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
-            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
-            TypeSymbolKind::Interface => format!("interface {}", symbol.name),
-        },
-        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
-    }
-}
-
-fn append_signature_provenance(
-    mut label: String,
-    clause: Option<&crate::ast::ResultProvenanceClause>,
-) -> String {
-    if let Some(clause) = clause {
-        label.push_str(" from ");
-        label.push_str(
-            &clause
-                .origins
-                .iter()
-                .map(|origin| origin.kind.source_label())
-                .collect::<Vec<_>>()
-                .join(" | "),
-        );
-    }
-    label
-}
-
-pub(in crate::analysis::hover) fn parameter_signatures_label_for_sources(
-    sources: &SourceMap,
-    parameters: &[crate::resolve::ParameterSignature],
-) -> String {
-    parameters
-        .iter()
-        .map(|parameter| {
-            format!(
-                "{}: {}",
-                parameter.name,
-                source_fragment_from_sources(sources, parameter.ty.span())
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-pub(in crate::analysis::hover) fn source_fragment_from_sources(
-    sources: &SourceMap,
-    span: ByteSpan,
-) -> String {
-    sources
-        .get(span.source)
-        .map(|source| source_fragment(source.text(), span).to_string())
-        .unwrap_or_default()
 }
 
 pub(in crate::analysis::hover) fn source_fragment(text: &str, span: ByteSpan) -> &str {

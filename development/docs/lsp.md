@@ -44,6 +44,10 @@ near the root package.
 facts. It receives the visible owner spelling separately from canonical identity, allowing user
 output to stay concise without losing exact navigation targets.
 
+Resolved method signatures retain the number of owner generic parameters separately from method
+generic parameters. Presentation therefore specializes an owner such as `Box<T>` without inventing
+method arguments, and hover, completion detail, and signature help use the same method renderer.
+
 Presentation owns:
 
 - canonical type notation and precedence
@@ -104,7 +108,8 @@ replaces the authoritative generation.
 Recovery helpers are narrowly scoped by syntax responsibility: delimiter closure, incomplete call
 arguments, imports, member access, iteration headers, interpolation bodies, and provenance clauses.
 They may make a parseable temporary source but must preserve original byte-to-source mappings and
-must not publish recovered text.
+must not publish recovered text. If resolution remains unavailable, degraded declaration labels are
+rendered from normalized AST type notation; raw declaration substrings are not a signature format.
 
 ## Protocol Boundary
 

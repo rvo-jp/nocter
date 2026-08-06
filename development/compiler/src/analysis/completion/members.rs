@@ -243,53 +243,17 @@ fn method_completion_item(
     resolved: &ResolveOutput,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> CompletionItemInfo {
-    let mut substitutions = substitutions.clone();
-    if let Some(impl_target) = &method.impl_target_ty {
-        let impl_target = substitute_type_expr_parameters(impl_target, &substitutions);
-        substitutions.insert("Self".to_string(), impl_target);
-    }
-    let receiver_owner = substitutions
-        .get("Self")
-        .map(|ty| type_expr_presentation_label(ty, resolved))
-        .unwrap_or_else(|| "Self".to_string());
-    let receiver = format!("{}{receiver_owner}", method.receiver.mode.source_prefix());
-    let return_type =
-        substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
-    let mut detail = format!(
-        "method {}.{}({}): {}",
-        receiver,
-        method.name,
-        method
-            .signature
-            .parameters
-            .iter()
-            .map(|parameter| {
-                let ty = substitute_type_expr_parameters(&parameter.ty, &substitutions);
-                format!(
-                    "{}: {}",
-                    parameter.name,
-                    type_expr_presentation_label(&ty, resolved)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", "),
-        type_expr_presentation_label(&return_type, resolved)
-    );
-    if let Some(clause) = &method.signature.result_provenance {
-        detail.push_str(" from ");
-        detail.push_str(
-            &clause
-                .origins
-                .iter()
-                .map(|origin| origin.kind.source_label())
-                .collect::<Vec<_>>()
-                .join(" | "),
-        );
-    }
     CompletionItemInfo {
         label: method.name.clone(),
         kind: CompletionItemKind::Method,
-        detail: Some(detail),
+        detail: Some(
+            crate::analysis::presentation::method_presentation_with_substitutions(
+                method,
+                substitutions,
+                resolved,
+            )
+            .render(),
+        ),
         documentation: None,
         insert_text: Some(format!("{}()", method.name)),
         sort_text: None,

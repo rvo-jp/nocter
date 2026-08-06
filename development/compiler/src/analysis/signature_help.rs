@@ -18,6 +18,7 @@ pub(crate) struct SignatureHelpInfo {
     pub(crate) parameters: Vec<SignatureParameterInfo>,
     pub(crate) active_parameter: usize,
     pub(crate) documentation: Option<String>,
+    pub(crate) result_type: TypeExpr,
     pub(crate) is_specialized: bool,
 }
 
@@ -57,6 +58,7 @@ pub(crate) fn signature_help_for_file_analysis(
                 analysis,
                 literal.declaration_shape_span,
             ),
+            result_type: literal.result_type,
             is_specialized: literal.is_specialized,
         });
     }
@@ -252,6 +254,7 @@ fn signature_info_for_call(
             .collect(),
         active_parameter: active_parameter(call, offset, parameters.len()),
         documentation: callable_documentation(sources, declaration, call_target),
+        result_type: return_type,
         is_specialized: !substitutions.is_empty(),
     })
 }
@@ -305,6 +308,7 @@ fn callable_value_signature_info(
         parameters,
         active_parameter: active_parameter(call, offset, signature.parameters.len()),
         documentation: None,
+        result_type: signature.return_type.clone(),
         is_specialized: false,
     })
 }

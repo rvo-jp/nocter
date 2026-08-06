@@ -194,6 +194,77 @@ pub(crate) fn method_presentation(
     )
 }
 
+pub(crate) fn method_presentation_with_substitutions(
+    method: &MethodSignature,
+    substitutions: &std::collections::HashMap<String, TypeExpr>,
+    resolved: &ResolveOutput,
+) -> CallablePresentation {
+    let mut substitutions = substitutions.clone();
+    if let Some(impl_target) = &method.impl_target_ty {
+        let impl_target = crate::ast::substitute_type_expr_parameters(impl_target, &substitutions);
+        substitutions.insert("Self".to_string(), impl_target);
+    }
+    let owner = substitutions
+        .get("Self")
+        .map(|ty| type_expr_presentation_label(ty, resolved))
+        .unwrap_or_else(|| "Self".to_string());
+    let generics = method
+        .signature
+        .generic_parameters
+        .iter()
+        .enumerate()
+        .skip(method.owner_generic_count)
+        .map(|(index, parameter)| {
+            if let Some(argument) = substitutions.get(parameter) {
+                return type_expr_presentation_label(argument, resolved);
+            }
+            let bounds = method
+                .signature
+                .generic_parameter_bounds
+                .get(index)
+                .into_iter()
+                .flatten()
+                .map(|bound| {
+                    let bound = crate::ast::substitute_type_expr_parameters(bound, &substitutions);
+                    type_expr_presentation_label(&bound, resolved)
+                })
+                .collect::<Vec<_>>();
+            if bounds.is_empty() {
+                parameter.clone()
+            } else {
+                format!("{parameter}: {}", bounds.join(" + "))
+            }
+        })
+        .collect();
+    let parameters = method
+        .signature
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let ty = crate::ast::substitute_type_expr_parameters(&parameter.ty, &substitutions);
+            format!(
+                "{}: {}",
+                parameter.name,
+                type_expr_presentation_label(&ty, resolved)
+            )
+        })
+        .collect();
+    let return_type =
+        crate::ast::substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
+    CallablePresentation::new(
+        "method",
+        format!(
+            "{}{owner}.{}",
+            method.receiver.mode.source_prefix(),
+            method.name
+        ),
+        generics,
+        parameters,
+        type_expr_presentation_label(&return_type, resolved),
+        result_origin_labels(method.signature.result_provenance.as_ref()),
+    )
+}
+
 pub(crate) fn drop_presentation(drop_: &DropSignature, resolved: &ResolveOutput) -> String {
     let binding = match self_receiver_prefix(&drop_.binding.ty) {
         Some(prefix) => format!("{prefix}{}", drop_.binding.name),

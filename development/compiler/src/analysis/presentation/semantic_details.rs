@@ -133,6 +133,21 @@ pub(crate) fn semantic_details_for_callable(
     details
 }
 
+pub(crate) fn semantic_details_for_callable_result(
+    sources: &SourceMap,
+    fact: &CallableSemanticFact,
+    result_type: &crate::ast::TypeExpr,
+    resolved: &crate::resolve::ResolveOutput,
+) -> Vec<SemanticDetail> {
+    semantic_details_for_callable(sources, fact)
+        .into_iter()
+        .filter(|detail| {
+            !matches!(detail, SemanticDetail::ResultProvenance(_))
+                || crate::typecheck::type_expr_carries_storage(result_type, resolved)
+        })
+        .collect()
+}
+
 fn result_provenance_presentation(
     sources: &SourceMap,
     fact: &CallableSemanticFact,
@@ -300,5 +315,29 @@ mod tests {
         let markdown = semantic_details_for_callable(&sources, &fact)[0].render_markdown();
         assert!(markdown.contains("2 other source(s)"), "{markdown}");
         assert!(!markdown.contains("input `e`"), "{markdown}");
+    }
+
+    #[test]
+    fn fallible_results_preserve_only_meaningful_storage_branches() {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, "value".to_string());
+        let value = ByteSpan::new(source, 0, 5);
+        let fact = CallableSemanticFact {
+            result: Some(ValueProvenanceFact::Fallible {
+                success: Some(Box::new(ValueProvenanceFact::Origins(vec![
+                    StorageOriginFact::Input(value),
+                ]))),
+                error: Some(Box::new(ValueProvenanceFact::Origins(vec![
+                    StorageOriginFact::Static,
+                ]))),
+            }),
+            needs_current_allocation_context: false,
+            storage_inputs: HashSet::from([value]),
+        };
+
+        assert_eq!(
+            semantic_details_for_callable(&sources, &fact)[0].render_markdown(),
+            "**Result provenance:** success storage from input `value`; error storage from static storage."
+        );
     }
 }
