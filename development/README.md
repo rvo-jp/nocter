@@ -1,4 +1,4 @@
-# Nocter Development
+# Contributor Documentation
 
 This directory is the entry point for compiler contributors. It contains the Rust bootstrap
 compiler, distributed standard-library source, release packaging inputs, implementation design,

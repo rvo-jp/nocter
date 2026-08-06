@@ -8,13 +8,6 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-The latest published release is **v0.4.0** for `arm64-darwin`. A Nocter package keeps source,
-executable targets, dependency requests, and exact locks together in `nocter.nct`; the command line
-and language server analyze that same package model.
-
-[Download Nocter v0.4.0](https://github.com/rvo-jp/nocter/releases/tag/v0.4.0) or read the
-[release notes](releases/v0.4.0.md).
-
 ## Why Nocter Exists
 
 Nocter exists because trying a programming language should not require accepting
@@ -79,17 +72,19 @@ The normative language definition lives in
 
 ## One Directory Install
 
+[Download nocter-v0.4.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.4.0/nocter-v0.4.0-arm64-darwin.tar.gz)
+
 Nocter release archives are designed to unpack to a single `.nocter/`
 directory:
 
 ```text
 .nocter/
-|-- nocter
-|-- VERSION
-|-- MANIFEST.json
-|-- LICENSE
-|-- NOTICE
-`-- std/
+├── nocter
+├── VERSION
+├── MANIFEST.json
+├── LICENSE
+├── NOTICE
+└── std/
 ```
 
 Install by placing `.nocter/` somewhere stable, for example under your home
@@ -200,10 +195,6 @@ published language boundary.
 - [Generics, Interfaces, and Methods](spec/08-generics-interfaces-embedding-methods.md): explicit
   capability contracts, static conformance, method lookup, and unsupported composition syntax.
 - [Release Index](releases/README.md): published downloads, candidate status, and version history.
-- [v0.4.0 Release Notes](releases/v0.4.0.md): the
-  release highlights, distribution shape, verification, and explicit limits.
-- [v0.3.0 Release Notes](releases/v0.3.0.md): the
-  previous release record.
 - [Contributor Documentation](development/README.md): development setup,
   compiler architecture, milestone plans, tests, and maintenance policy.
 

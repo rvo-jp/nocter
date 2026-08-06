@@ -120,6 +120,8 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
+                <li><a href="./hello/nocter/index.html#content">hello/nocter.nct</a></li>
+                <li><a href="./file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
             </ul>
         </aside>
@@ -128,10 +130,10 @@
                 <span class="markdown-path-text">/examples/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-examples">Nocter Examples</h1><p>These complete packages demonstrate current Nocter source style and public standard-library use. Each directory contains its own <code>nocter.nct</code>, so commands run in package mode without an implicit entry file.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="hello">Hello</h2><p><a href="https://github.com/rvo-jp/nocter/blob/main/examples/hello/nocter.nct">hello/nocter.nct</a> is the smallest executable package. It keeps package metadata and <code>main</code> in the same file.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/hello
+                <h1 id="nocter-examples">Nocter Examples</h1><p>These complete packages demonstrate current Nocter source style and public standard-library use. Each directory contains its own <code>nocter.nct</code>, so commands run in package mode without an implicit entry file.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="hello">Hello</h2><p><a href="./hello/nocter/index.html#content">hello/nocter.nct</a> is the smallest executable package. It keeps package metadata and <code>main</code> in the same file.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/hello
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> run
-</code></pre><h2 id="file-summary">File Summary</h2><p><a href="https://github.com/rvo-jp/nocter/blob/main/examples/file-summary/nocter.nct">file-summary/nocter.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. It demonstrates process arguments, owned paths, file input, buffering, <code>Vec&lt;u8&gt;</code>, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
+</code></pre><h2 id="file-summary">File Summary</h2><p><a href="./file-summary/nocter/index.html#content">file-summary/nocter.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. It demonstrates process arguments, owned paths, file input, buffering, <code>Vec&lt;u8&gt;</code>, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./file-summary ../../README.md
