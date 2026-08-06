@@ -26,7 +26,7 @@ const PAGE_META = {
     },
     "releases/README.md": {
         title: "Nocter Releases",
-        description: "Published Nocter downloads, release notes, supported targets, and qualified candidate status."
+        description: "Published Nocter downloads, release notes, supported targets, and version history."
     },
     "examples/README.md": {
         title: "Nocter Examples",

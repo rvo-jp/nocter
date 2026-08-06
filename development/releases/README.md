@@ -5,6 +5,7 @@ records own qualification commands, implementation gates, and frozen engineering
 do not define public language behavior; versioned source semantics remain in the repository tag and
 the current public contract remains in `spec/`.
 
+- [v0.5.0](v0.5.0.md)
 - [v0.4.0](v0.4.0.md)
 - [v0.3.0](v0.3.0.md)
 - [v0.2.0](v0.2.0.md), including its [archived mixed language/backend

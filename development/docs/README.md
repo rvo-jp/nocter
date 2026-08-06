@@ -58,7 +58,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Public language rules | `spec/` |
 | Runnable user packages | `examples/` |
 | Compiler source-corpus fixtures | `../compiler/tests/fixtures/source_corpus/` |
-| Published download and public candidate status | `releases/README.md` |
+| Published downloads and public release status | `releases/README.md` |
 | Candidate scope, status, and qualification | `../milestones/<version>.md` |
 | Published release qualification | `../releases/<version>.md` |
 | Package/compiler responsibility boundary | `packages.md` |
