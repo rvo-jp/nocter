@@ -8,12 +8,12 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.4.0 makes a source-owned package graph the shared compilation unit for
-the command line and language server. A package keeps its declarations,
-executable targets, dependency requests, and generated exact locks in
-`nocter.nct`. Immutable editor snapshots use that same graph for diagnostics,
-navigation, completion, and semantic information. The implementation target is
-`arm64-darwin`.
+The latest published release is **v0.4.0** for `arm64-darwin`. A Nocter package keeps source,
+executable targets, dependency requests, and exact locks together in `nocter.nct`; the command line
+and language server analyze that same package model.
+
+[Download Nocter v0.4.0](https://github.com/rvo-jp/nocter/releases/tag/v0.4.0) or read the
+[release notes](releases/v0.4.0.md).
 
 ## Why Nocter Exists
 
@@ -63,8 +63,6 @@ resource handling.
 - `interface` describes public capability and can provide reusable default
   methods derived from that capability without adding state or implicit
   conformance.
-- Future `embedding` is composition-only: it will own contained values and
-  promote only their public contracts without exposing private internals.
 - `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
 - `T!` represents recoverable failure.
 - `T?` represents absence.
@@ -197,14 +195,13 @@ the [language specification](spec/README.md).
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
 - [Design Principles](spec/00-design-principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
-- [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
-  the separation between explicit contracts and composition-based reuse.
-- [v0.4.0 Release Notes](development/packaging/v0.4.0-release-notes.md): the
+- [Generics, Interfaces, and Methods](spec/08-generics-interfaces-embedding-methods.md): explicit
+  capability contracts, static conformance, method lookup, and unsupported composition syntax.
+- [Release Index](releases/README.md): published downloads, candidate status, and version history.
+- [v0.4.0 Release Notes](releases/v0.4.0.md): the
   release highlights, distribution shape, verification, and explicit limits.
-- [v0.3.0 Release Notes](development/packaging/v0.3.0-release-notes.md): the
+- [v0.3.0 Release Notes](releases/v0.3.0.md): the
   previous release record.
-- [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the preserved
-  historical boundary of the previous release.
 - [Contributor Documentation](development/README.md): development setup,
   compiler architecture, milestone plans, tests, and maintenance policy.
 

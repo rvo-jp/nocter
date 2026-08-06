@@ -3,7 +3,7 @@
 This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and
 formatting semantics belong to [Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md)
 and [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md). The completed gate
-belongs to the [v0.3.0 Release Record](v0.3.0.md).
+belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 
 ## Boundary
 

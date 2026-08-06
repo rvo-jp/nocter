@@ -95,7 +95,7 @@ A newly created owned temporary may be used as a readwrite receiver for one meth
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
 
-## Borrow Checker v0.2.0
+## Borrow Checker
 
 Adopted: v0.2.0 uses source-level non-lexical borrow ranges.
 

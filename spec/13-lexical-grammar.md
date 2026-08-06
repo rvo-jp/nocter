@@ -391,7 +391,7 @@ Rules:
 
 The type and storage rules for string and byte literals are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-and-byte-literals).
 
-## Not Adopted in v0.2.0
+## Unsupported Tokens and Forms
 
 The following lexical features are intentionally not part of v0.2.0:
 

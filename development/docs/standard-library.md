@@ -1,315 +1,125 @@
-# Standard Library Runtime
+# Standard Library Implementation
 
-This document records the implementation tracked in the repository and packaged under
-`.nocter/std`. [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md) is the
-authority for public API semantics; this document adds no specification rules.
+This document owns implementation architecture and runtime invariants for the source tracked under
+`development/std/` and packaged as `.nocter/std`. Public modules, signatures, and behavior are
+defined only by [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md) and
+[Practical Standard Library](../../spec/21-practical-standard-library.md).
 
-## Released Runtime Baseline
+## Responsibility Boundaries
 
-| Module | Current role | v0.2.0 result |
-|---|---|---|
-| `error` | structured recoverable errors | stable allocator and collection error IDs |
-| `fmt` | scalar and text formatting helpers | owning-text behavior verified |
-| `io` | file open/read/write/close and stdout/stderr | deterministic handle ownership |
-| `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | complete layout/grow/free contract |
-| `os` | target-gated syscall boundary | restricted to allocator internals |
-| `prelude` | implicit common declarations | unchanged for v0.2.0 |
-| `process` | exit/abort/cwd plus allocation-free argument and environment queries | v0.5.0 Phase 4 |
-| `path` | owned, NUL-free UTF-8 paths and lexical join | v0.5.0 Phase 4 |
-| `io`, `io_buffer` | file read/create/append, static Reader/Writer contracts, explicit buffered flush | v0.5.0 Phase 4 |
-| `num` | checked decimal parsing and owned text conversion | v0.5.0 Phase 4 |
-| `ptr` | restricted pointer primitives | retained within the `pub(nocter)` trust boundary |
-| `string` | owned UTF-8 bytes | common allocator and failure-atomic growth |
-| `vec` | owned generic sequence | non-copy initialized-prefix drop and pop |
-
-### Shared buffers
-
-`std/mem` provides checked `Layout`, a canonical empty buffer, private allocator provenance,
-failure-atomic growth, and deterministic `RawBuffer` drop. Distributed-home runtime tests fix the
-alignment, zero-size, out-of-memory, and failed-growth preservation behavior.
-
-`String` stores allocator provenance and capacity in a private `RawBuffer`. Its common Allocator
-supports empty, with_capacity, from/copy, view, len/capacity, reserve, clear, push_str, and
-deterministic storage release. Runtime tests prove content, length, and capacity preservation after
-failed growth.
-
-`Vec<T>` also centralizes byte capacity and allocator provenance in private `RawBuffer`; its typed
-pointer is a non-owning alias. Empty, with_capacity, from_slice, len/capacity, reserve, push, clear,
-views, and storage release use the common Allocator. Non-copy push transfers ownership into storage;
-clear and drop recursively destroy the initialized prefix in reverse order; pop transfers the final
-obligation into the return value. Phase 2 adds optional borrowed access, insertion/removal, and
-readonly/consuming iteration while retaining the same initialized-prefix model.
-
-An externally observable test proves that a descriptor number reallocated after
-`Vec<File>.clear()` remains readable after vector drop, fixing close-once behavior. A nested-vector
-test proves that an inner `String` remains recoverable and usable after failed growth.
-
-### v0.2.0 fixed behavior
-
-### `std/mem`
-
-- checked `Layout` construction
-- canonical empty allocation state
-- allocator identity retained through allocation, growth, and free
-- recoverable overflow, invalid alignment, and out-of-memory errors
-- failure-atomic growth that retains the old allocation
-- representation fields hidden outside `pub(nocter)`
-
-### `std/string`
-
-- empty / with_capacity / from_str / copy
-- len / capacity / is_empty / view / bytes
-- reserve / push_str / clear / drop
-- agreement between UTF-8 view and owned storage after repeated growth
-- unchanged content, length, and capacity after allocation failure
-
-Unicode scalar/character indexing and normalization are not v0.2.0 criteria. Do not add an
-ambiguously bounded byte-indexing API.
-
-### `std/vec`
-
-- empty / with_capacity / reserve / push / clear / drop for both copy and non-copy elements
-- from_slice and immutable/mutable views for copy elements
-- pop as ownership extraction from the end
-- recursive drop of nested owning elements
-- atomic behavior on capacity overflow and allocation failure
-
-The meaning of duplicating non-copy elements from a borrowed slice is not defined, so `from_slice`
-is limited to copyable `T`. Until the type system can express that constraint, the compiler keeps
-the public boundary narrow and rejects misuse with a source-backed diagnostic.
-
-## Phase 0 Allocator and Region Runtime
-
-The completed Phase 0 implementation retains the v0.2.0 buffer, initialized-prefix, recursive-drop,
-and failure-atomic publication invariants while changing how allocation failure is exposed.
-
-`std/mem` provides one recoverable core and one aborting adapter:
-
-- `TryAllocator` and `try_*` operations return stable `std.mem.*` errors
-- `Allocator` and normal operations terminate without unwinding on allocation failure
-- the root allocation context uses the aborting system allocator
-- `RawBuffer` keeps backend identity and storage origin independently of failure policy
-- region child allocators derive from an established aborting parent context
-
-`String` and `Vec<T>` provide paired policy surfaces. Normal constructors and growth use the current
-allocation context and do not return allocation-only `T!`. Explicit `try_*` operations retain
-recoverable failure and the old failure-atomic state guarantees.
-
-Do not duplicate collection algorithms between the two surfaces. The aborting path adapts the
-fallible core after it has performed checked arithmetic and preserved the old value.
-
-## Stable Acceptance Baseline
-
-| Scenario | Required observation |
+| Area | Implementation owner |
 |---|---|
-| `String` repeated growth | bytes preserved; one final storage free |
-| failed `String.reserve` | pointer/content/len/capacity unchanged |
-| `Vec<String>` growth | every string remains usable and drops once |
-| `Vec<String>.pop()` | returned string remains owned after vector drop |
-| `Vec<File>.clear()` | initialized handles close once; later vector drop is empty |
-| `Vec<Vec<String>>` early `?` | completed prefixes unwind in reverse order |
-| zero-capacity values | no allocation and no invalid free |
-| lexical region storage | mapping remains live in the body and is released at region exit |
-| region-backed aggregate/error | direct and indirect escape rejected before lowering |
-| packaged-home execution | behavior matches repository-local source |
+| allocation layout, raw storage, allocator policy | `std/mem` |
+| owned UTF-8 storage | `std/string` |
+| generic initialized-prefix storage | `std/vec` |
+| iterator protocols and stateless operations | `std/iter/core`, `std/iter/ops` |
+| stateful iterator adapters | focused modules under `std/iter/` |
+| OS-independent file ownership | `std/io` |
+| buffered byte state | `std/io_buffer` |
+| path validation and lexical operations | `std/path` |
+| numeric parsing and formatting | `std/num`, `std/fmt` |
+| process-state validation and ownership | `std/process` |
+| target-specific system boundary | target-gated declarations in `std/os` |
 
-Tests observe semantic effects such as handle closure, output, error identity, and post-operation
-state. Backend instruction snapshots alone do not prove the standard-library contract.
+The compiler does not infer behavior from public names such as `String`, `Vec`, `File`, `Iterator`,
+or `Allocator`. Trusted primitives and protocol roles are resolved to validated declaration
+identities. Ordinary standard-library algorithms remain Nocter source.
 
-## Phase 0 Boundary
+## Buffer Ownership
 
-Phase 0 includes the root allocation context, aborting/recoverable policy split, lexical region
-runtime, and storage-origin propagation through existing owning types. It intentionally left typed
-literals and per-literal `using` to Phase 1.
+`RawBuffer` owns byte storage, allocator backend identity, and storage origin. `String` and
+`Vec<T>` embed that one representation instead of maintaining independent allocation machinery.
 
-## Phase 1 Typed Construction
+The common invariants are:
 
-Distributed `std/vec` and `std/string` now declare their construction syntax in ordinary Nocter
-source:
+- zero capacity uses a canonical allocation-free representation
+- checked layout arithmetic completes before allocation or element relocation
+- failed growth leaves pointer, length, capacity, initialized elements, and allocator identity
+  unchanged
+- storage publication occurs only after initialization succeeds
+- storage is released through the backend that created it
+- private representation never becomes public construction or field access
 
-```nct
-construct Vec<T> {
-    pub default literal [](...items: T): Self { ... }
-}
+`Vec<T>` separately tracks its initialized prefix. Moving an element into or out of storage
+transfers exactly one drop obligation. Partial initialization drops the current element and then the
+completed prefix in reverse order. Removal may create one compiler-proven transient hole; it never
+publishes a sparse vector state.
 
-construct String {
-    pub default literal ""(text: &str): Self { ... }
-}
-```
+`String` applies the same storage rules to UTF-8 bytes. Encoding validation belongs to source
+operations before publication; buffer machinery does not acquire text semantics.
 
-`Vec [..]` evaluates and transfers its owned elements from left to right, reserves exactly the
-non-empty element count, and uses the canonical allocation-free empty state for `Vec<T> []`.
-`String ".."` copies the static `&str` payload into owned storage. Both bodies use only public
-collection construction APIs and inherit the current allocation context unless the expression has
-an explicit `using` override.
+## Allocation Policy and Regions
 
-Packaged-home native tests cover inferred scalar vectors, empty vectors, owned `String` elements,
-reverse-order pack cleanup, stable allocation-abort status, lexical-region construction, explicit
-root-context construction inside a child region, child-origin escape rejection, and OS-observed
-release of `Vec` literal storage.
+Recoverable allocation is the implementation core. Aborting allocation adapts that core only after
+checked arithmetic and failure-atomic state preservation. The two policies do not duplicate
+collection algorithms.
 
-## Phase 2 Collection Access and Iteration
+An allocation context carries backend, failure policy, and storage origin as separate facts.
+Lexical child regions derive from an established parent context and release their owned storage at
+region exit. Owned results retain the selected origin so compiler escape checking can reject both
+direct and aggregate-hidden region escapes.
 
-Distributed `std/iter` and `std/vec_into_iter` provide two deliberately separate cursor modes:
+The runtime must not allocate an error while handling aborting allocation failure and must not
+unwind partially initialized Nocter values through a second failure mechanism.
 
-- `ViewIter<T>` borrows a contiguous readonly view, allocates nothing, and returns `&T?`
-- `VecIntoIter<T>` consumes `Vec<T>`, returns owned `T?`, drops its unconsumed suffix in reverse
-  order, and releases the transferred raw storage once
+## Target Boundary
 
-`Vec<T>` now exposes `get`, `get_mut`, `insert`, `try_insert`, `remove`, `iter`, and `into_iter`.
-`String.bytes_iter()` yields borrows to exact UTF-8 bytes and makes no Unicode scalar or grapheme
-claim. `try_insert` performs every fallible step before element relocation and publishes `len`
-last. Move-only insertion and removal use one transient uninitialized slot, never a sparse public
-state.
+Target-specific declarations expose the minimum primitive operations needed by portable source.
+They are available only inside the `pub(nocter)` trust boundary and are validated as one coherent
+runtime capability set before lowering.
 
-Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
-byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
-escape rejection, and cleanup across exhaustion and early exits. Rich path APIs, iterator adapters,
-Unicode text APIs, and general allocator plugins remain later work.
+The `arm64-darwin` entry path retains process arguments and environment pointers in reserved
+runtime state. `std/process` performs bounds checks, UTF-8 validation, environment-name matching,
+allocation selection, and error construction in Nocter source. Backend code never searches for
+public process function names.
 
-## Phase 3 Formatting and Interpolation
+File opening lowers through one compiler-owned operation carrying path, flags, and mode as distinct
+values. Source modules own path validation and open policy. File handles are move-only owners;
+close transfers them to an inert state so later drop cannot close a reused descriptor.
 
-The completed Phase 3 implementation rebuilds `std/fmt` around paired `append_*` and
-`try_append_*` operations. The recoverable surface owns checked formatting and failure
-propagation; the normal surface converts allocation failure into the established non-allocating
-abort path. Both surfaces share the same checked implementation core for text, owned string,
-boolean, `i32`, `u8`, and `usize`.
+## Buffered I/O
 
-Interpolation starts from a zero-capacity `String` retaining the current allocation context, then
-calls only the normal surface through validated declaration identities. Packaged-home tests cover
-decoded and multiline text, integer boundaries, existing and temporary strings, left-to-right side
-effects, deterministic allocation abort, lexical-region allocation, and indirect escape rejection.
+Buffered readers initialize backing storage before exposing a mutable view to an underlying reader
+and retain unread byte ranges across calls. End-of-file is represented without publishing
+uninitialized bytes.
 
-## Phase 4 Readonly Sequence Contract
+Buffered writers remove bytes from pending state only after the underlying write succeeds. Explicit
+close performs fallible flush before closing. Drop does not attempt an unreportable flush; it only
+releases owned state according to ordinary destruction rules.
 
-Distributed `std/sequence` defines the first cross-type collection capability used by ordinary
-generic code:
+Reader and writer dispatch uses resolved interface identities and static specialization. The
+standard library does not retain duplicate inherent forwarding methods, and the compiler contains
+no I/O type-name table.
 
-```nct
-pub interface Sequence<T> {
-    pub method &self.len(): usize
-    pub method &self.get(index: usize): &T? from self
-}
+## Iterator Architecture
 
-pub func first<S: Sequence<T>, T>(values: &S): &T? from values
-```
+Protocol declarations live in `std/iter/core`. Stateful adapters live beside their state machines;
+terminal operations that need no new state live in `std/iter/ops`. This prevents the core protocol
+module from owning unrelated algorithms or creating module cycles.
 
-`Vec<T>` explicitly conforms to `Sequence<T>` and its implementation member `get` declares
-`from self`. `first` is allocation-free: it forwards the element borrow and keeps the original
-sequence loan active until the result's last use. Generic checking uses the interface signature,
-while each buildable concrete instantiation statically calls the conformance member.
+Adapters own their sources and callbacks as ordinary values. They allocate nothing unless a public
+collection operation explicitly builds an owned collection. Early exit drops the current yielded
+owner before the remaining adapter/source state. Exact-size conformance is exposed only when every
+required source can prove an exact remaining count; filtering never inherits exact cardinality.
 
-Repository-home and packaged-home tests reject mutation while the returned element is live. A
-packaged native test observes the concrete element and subsequent ordinary vector cleanup, proving
-that the abstraction is not check-only and introduces no runtime interface representation.
+Collection builders treat iterator output as authoritative. An exact-size hint may reserve
+capacity, but under-reporting continues through checked growth and over-reporting yields a shorter
+valid collection.
 
-## Phase 5 Process Context
+## Verification Boundary
 
-The completed Phase 5 implementation captures `argc`, `argv`, and `envp` at the Darwin entry
-boundary and retains them in compiler-reserved callee-saved registers. Target primitives expose
-only counts and bounded indexed views; `std/process` owns UTF-8 validation, exact environment-name
-matching, allocation policy, and public errors.
+Distributed-home tests are the executable authority for implementation invariants. They must cover:
 
-`args()` returns an ambiently allocated `Vec<&str>` whose elements borrow process-lifetime storage.
-`env(name)` distinguishes present, absent, and invalid text through the structural `&str?!` ABI.
-`cwd()` allocates its owned result in the current aborting allocation context, while `try_cwd`
-retains explicit recoverable allocation. Both close temporary descriptors and release scratch
-buffers on every supported exit path.
+- zero-capacity values and final storage release
+- failed growth with byte-for-byte and ownership-state preservation
+- nested move-only values and reverse-order partial cleanup
+- region-backed direct and aggregate escape rejection
+- handle close-once behavior after descriptor reuse
+- iterator exhaustion, early exit, propagation, and unconsumed-suffix cleanup
+- malformed UTF-8, paths, arguments, and environment data
+- short reads, partial writes, explicit flush, reopen, and append
+- repository-home and packaged-home agreement without repository-local environment configuration
 
-Native repository and packaged-home tests cover multi-entry argv, malformed argument bytes,
-present and absent environment entries, malformed requested names and environment bytes, ambient
-cwd, explicit recoverable cwd, renamed imports, region escape rejection, and LSP provenance.
-
-## Phase 7 Iteration Protocols
-
-Distributed `std/iter` defines ordinary `Iterator<T>`, `Iterable<T, I>`, and
-`IntoIterator<T, I>` interfaces. `ViewIter<T>` conforms to `Iterator<&T>`, `VecIntoIter<T>`
-conforms to `Iterator<T>`, and `Vec<T>` conforms to both conversion interfaces. The compiler
-validates the trusted interface shapes once, then resolves standard and user types through the
-same explicit conformance and static-specialization machinery.
-
-Readonly collection loops retain the source loan and allocate nothing for the standard vector
-conversion. Consuming loops transfer vector storage into `VecIntoIter<T>` and drop only the
-unconsumed suffix before releasing storage. Empty, nested, `continue`, `break`, `return`,
-propagation, and user-conformance tests execute against the packaged standard library.
-
-## Phase 8 Exact-Size Iteration and Sequence Spread
-
-Distributed `std/iter` adds `ExactSizeIterator<T>` with readonly `remaining_len(): usize`.
-`ViewIter<T>` and `VecIntoIter<T>` conform beside their existing `Iterator<T>` conformances. The
-count describes the exact unconsumed suffix and never grants the compiler unchecked memory access.
-
-Typed `Vec` literals now accept fixed values mixed with readonly-copy, readonly-reference, and
-owned-transfer spread segments. The compiler prepares standard or user iterators once, caches one
-checked total length, and streams `next()` calls into the existing literal body. Standard code does
-not allocate an intermediate vector for spread, and unknown-size iterators are rejected explicitly.
-
-Packaged tests cover repeated and empty spreads, move-only `String` elements, `Vec<&T>` pointer
-storage, direct `VecIntoIter<T>`, source loans, region provenance, exact cached length, early-exit
-suffix destruction, formatter output, and LSP protocol facts.
-
-## Phase 9 Iterator Composition and Collection Builders
-
-The completed Phase 9 standard library keeps protocol declarations in `std/iter` and separates
-stateful algorithms by responsibility:
-
-- `std/iter/sources` owns `empty`, `once`, `EmptyIter<T>`, and `OnceIter<T>`
-- `std/iter/range` owns `take`, `skip`, and their prefix state machines
-- `std/iter/chain` owns sequential two-source composition
-- `std/iter/enumerate` owns zero-based `Indexed<T>` production
-- `std/iter/ops` owns consuming `count` and `last` terminal operations
-
-Every adapter owns its source and allocates nothing. Conditional conformances expose
-`ExactSizeIterator<T>` only when every required source is exact. Generic collection loops dispatch
-through the same interface declaration identities as ordinary bound method calls; the compiler
-contains no adapter-name table.
-
-`Vec.from_iter` starts from the allocation-free empty representation and grows through checked
-`push`. `Vec.from_exact_iter` reserves the initial reported remainder, but still treats `next()` as
-authoritative. Under-reporting uses checked growth and over-reporting leaves a shorter valid vector.
-Both builders inherit the current allocation context and retain its region provenance.
-
-Packaged-home native tests cover empty and scalar adapters, unknown-size growth, honest and
-dishonest exact-size reports, move-only drop order, early break, `last` replacement, vector transfer,
-lexical-region allocation, and region-escape rejection.
-
-## Phase 10 Callable Iterator Defaults
-
-The completed Phase 10 library makes `Iterator<T>` the owner of reusable consuming behavior. Its
-defaults include `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`, `find`,
-`any`, `all`, `fold`, and `to_vec`. `MapIter` and `FilterIter` store their source and callback in
-`std/iter/core`; keeping their inherent implementations beside the declarations avoids a module
-cycle and preserves Nocter's same-module implementation rule.
-
-Callbacks use the built-in mutable repeated contract `&+func(Input): Output` and direct
-`callback(...)` invocation. No `std/callable` protocol declarations or `call_mut` forwarding
-methods exist. Adapters allocate nothing; `to_vec` is the explicit allocation boundary and
-inherits the current allocation context. `map` conditionally preserves `ExactSizeIterator`, while
-`filter` never claims exact cardinality. Packaged-home tests cover scalar and move-only chains,
-source order, exact-size behavior, early-exit cleanup, capture and argument result provenance,
-lexical-region escape rejection, and callback allocation in the active context.
-
-## v0.5.0 Phase 4 Practical Services
-
-Phase 4 adds four focused source modules instead of extending unrelated owners:
-
-- `std/path` owns `Utf8Path`, NUL validation, and lexical joining;
-- `std/io_buffer` owns buffered file state and explicit flush policy;
-- `std/num` owns checked decimal parsing and integer text construction;
-- `std/string`, `std/vec`, and `std/process` retain operations on their existing representations.
-
-The compiler-owned file-open IR now carries path, flags, and mode as separate values. Read,
-create/truncate, and append declarations lower through that one target boundary; filesystem policy
-and UTF-8 path construction stay in Nocter source. `Reader` and `Writer` use static interface
-dispatch. The inherent duplicates were removed because the current method resolver correctly
-rejects an inherent and interface member with the same concrete receiver as ambiguous.
-
-`BufReader` initializes its byte buffer before exposing a mutable slice to `read`, retains unread
-bytes across calls, and reports EOF as zero bytes. `BufWriter` clears buffered bytes only after the
-underlying write succeeds. `close` flushes before closing; drop intentionally does not flush because
-a destructor cannot report the failure.
-
-Packaged-home tests compile the complete public surface and run UTF-8 validation, byte search,
-owned split, ordered retain, decimal edge cases, process queries, short-buffer reads, buffered
-stdout, file creation, explicit flush/close, reopen, and append. The test invokes the installed
-compiler and distributed standard library without repository-local environment configuration.
+Compiler snapshots or backend instruction inspection alone do not prove these invariants. Public
+API conformance is checked against the specification-owned surface; this document records only how
+the implementation preserves it.

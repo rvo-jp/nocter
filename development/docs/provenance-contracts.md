@@ -2,7 +2,7 @@
 
 This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong
 in the specification. The completion gate belongs to the
-[v0.3.0 Release Record](v0.3.0.md).
+[v0.3.0 Release Record](../releases/v0.3.0.md).
 
 ## Design Boundary
 
@@ -35,45 +35,15 @@ generic bound
 
 Neither layer searches for standard-library names.
 
-## Surface Grammar
+## Contract Representation
 
-A callable, including a typed literal definition, may append one result provenance clause after
-its return type:
-
-```nct
-from self
-from value
-from left | right
-from static
-from current
-```
-
-`self` is eligible only for methods. Other identifiers must name borrow-like input parameters.
-`static` means program-lifetime storage. `current` means the caller's current allocation context and
-implies the existing allocation effect. Duplicate origins are invalid. Source order is retained for
-formatting and diagnostics; semantic comparison uses declaration identities.
-
-A Phase 1 sequence literal pack is a set of owned element values rather than one borrow-like input
-identity, so its capture name is not an eligible origin. Literal definitions that allocate their
-result use `from current`; a string literal definition may use its `&str` parameter as an origin.
-
-The clause describes an upper bound on possible result storage. A concrete result may be
-storage-independent or static when the contract permits a shorter input origin. It may not contain
-an input, region, scope, or current-context origin absent from the contract.
-
-Tracked result storage includes source-level borrows and pointer-backed owned aggregates. The
-distinction is intentional: raw pointers do not participate in borrow checking, but an owning value
-such as `String` or `Vec<T>` must still retain the allocation context that owns its buffer.
-
-Generic parameters accept one interface bound:
-
-```nct
-func inspect<T: Readable<i32>>(value: &T): i32
-```
-
-Phase 4 deliberately excludes `where` clauses and multiple bounds. Bound lookup never falls back
-to methods from an unconstrained receiver. Phase 10 default bodies remain attached to their exact
-interface declaration identity.
+Public provenance and generic-bound rules are defined by [Memory, Regions, and
+Allocators](../../spec/06-memory-region-allocator.md) and [Generics, Interfaces, Embedding, and
+Methods](../../spec/08-generics-interfaces-embedding-methods.md). Internally, source order is
+retained for formatting and diagnostics while contract comparison uses resolved declaration
+identities. Tracked storage includes both source borrows and pointer-backed owned aggregates because
+owned buffers must retain their allocation-context origin even though raw pointers do not
+participate in loan checking.
 
 ## Internal Ownership
 

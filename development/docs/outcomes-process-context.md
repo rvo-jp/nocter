@@ -2,7 +2,7 @@
 
 This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5.
 Public optional, fallible, provenance, and process semantics belong to the specification. The
-completed gate belongs to the [v0.3.0 Release Record](v0.3.0.md).
+completed gate belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 
 ## Boundary
 

@@ -9,7 +9,7 @@ failed counts. Success exits with status 0; any compile, runner, assertion, erro
 failure exits with status 1; command-line misuse exits with status 2; serialization/internal
 failure exits with status 3. JSON output does not use terminal color or progress text.
 
-This chapter specifies the native source-test contract adopted in Nocter v0.5.0 Phase 2.
+This chapter specifies native source-test declarations, visibility, execution, and reporting.
 
 ## Declarations
 

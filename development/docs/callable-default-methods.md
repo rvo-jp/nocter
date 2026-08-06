@@ -2,7 +2,7 @@
 
 This document records the compiler implementation design completed by v0.3.0 Phase 10. Public
 semantics belong to the specification. The completion record belongs to the
-[v0.3.0 Release Record](v0.3.0.md).
+[v0.3.0 Release Record](../releases/v0.3.0.md).
 
 ## Separation of Responsibilities
 

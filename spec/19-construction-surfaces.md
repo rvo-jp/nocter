@@ -3,7 +3,7 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-This chapter defines the implemented v0.3.0 construction-surface model. A construction surface
+This chapter defines the construction-surface model. A construction surface
 groups the public operations that directly create one nominal type so source readers and editor
 tooling do not have to discover field literals, typed literals, and associated functions
 independently.

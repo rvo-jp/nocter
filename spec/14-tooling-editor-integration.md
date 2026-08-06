@@ -1,301 +1,170 @@
 # Tooling and Editor Integration
 
-This file is part of the Nocter language specification.
-The specification entry point is [README.md](README.md).
+This file is part of the Nocter language specification. The specification entry point is
+[README.md](README.md).
 
-## Direction
+## Compiler Authority
 
-Adopted: editor tooling must be able to start with TextMate grammar support and later migrate to LSP without replacing the extension.
+Editor and AI tooling must consume compiler-owned lexical, syntax, resolution, type, ownership,
+diagnostic, formatting, and source-edit results. It must not maintain a second semantic model that
+can diverge from `nocter check` or `nocter build`.
 
-The compiler is the source of truth for language semantics. Editor extensions may present Nocter code, but they must not become a second implementation of import resolution, name lookup, type checking, ownership checking, or borrow checking.
-
-AI-assisted coding tools follow the same rule. They may generate, format, inspect, and repair Nocter code, but they should use compiler-owned formatting, diagnostics, token dumps, and AST dumps instead of maintaining a separate interpretation of the language.
-
-The VS Code extension is developed outside the compiler/spec repository, in a separate `vscode-nocter` repository. Expected extension-side layout:
-
-```text
-vscode-nocter/
-    package.json
-    language-configuration.json
-    syntaxes/
-        nocter.tmLanguage.json
-    snippets/
-        nocter.code-snippets
-    src/
-        extension.ts
-```
-
-## TextMate Stage
-
-The first editor integration layer is TextMate grammar plus language configuration.
-
-Allowed responsibilities:
-
-- syntax highlighting
-- comment toggling for `//`, `/* ... */`, `///`, `/** ... */`, `//!`, and `/*! ... */`
-- bracket matching for `()`, `{}`, and `[]`
-- auto closing quotes and braces
-- snippets for common declarations
-
-Rules:
-
-- TextMate grammar must follow [Lexical Grammar](13-lexical-grammar.md).
-- TextMate grammar may use the reserved keyword and token rules from [Lexical Grammar](13-lexical-grammar.md#identifiers).
-- TextMate grammar must not define semantic validity beyond lexical and shallow syntactic patterns.
-- TextMate grammar must not attempt to resolve imports.
-- TextMate grammar must not infer types.
-- TextMate grammar must not implement ownership, borrow, move, drop, optional, fallible, or region checks.
-
-## Compiler Diagnostics Stage
-
-Before LSP, editor diagnostics should come from the compiler.
-
-Initial command direction:
+The supported compiler entry points are:
 
 ```sh
 nocter check --format json
-nocter check app.nct --format json
-```
-
-Rules:
-
-- `nocter check` parses, resolves, type-checks, and ownership-checks the same compile unit model as `nocter build`.
-- `nocter check` does not emit an executable.
-- `--format json` emits machine-readable diagnostics suitable for editor integrations.
-- The complete `check` command contract is specified in [Command Line Interface](15-command-line-interface.md#check).
-- JSON diagnostics use the same error codes and source concepts as human-readable diagnostics.
-- The JSON envelope and diagnostic object are specified in [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
-- The VS Code extension may translate JSON diagnostics into VS Code Problems.
-- The VS Code extension must not synthesize semantic diagnostics that the compiler did not report.
-
-Editor adapters should treat the JSON envelope as a transport format. They may map `diagnostics` into editor Problems, but they must not infer extra semantic diagnostics from syntax highlighting scopes or editor-local parsing.
-
-Editor path mapping rules:
-
-- Use `span.absolute_path` for editor document identity when it is present.
-- Use `span.file` for human-facing display.
-- Do not use display paths to decide whether two source files are the same file.
-- LSP document mapping must follow the canonical source-file identity rules in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
-
-## Hover And Documentation
-
-Adopted: hover text and generated API documentation must come from compiler-owned semantic data, not from editor-side parsing.
-
-Rules:
-
-- `///` and `/** ... */` document the next declaration, field, enum variant, method, function, or local binding that the compiler marks as documentable.
-- `//!` and `/*! ... */` document the source file/module itself.
-- Documentation comment bodies are Markdown. LSP hover and generated API documentation should pass that Markdown through as documentation text instead of inventing a separate Nocter documentation format.
-- `//` and `/* ... */` are normal comments and must not appear in hover text.
-- Empty lines break attachment between a doc comment and the following construct.
-- Multiple adjacent doc comments are concatenated in source order.
-- Hovering an import module path such as `std/io` should show the resolved module's file documentation when the module is loaded.
-- `nocter ast app.nct --format json` may expose attached doc text through AST node `documentation` fields for tooling and tests.
-- The VS Code extension must request hover data from `nocter lsp` once LSP support exists.
-- Before LSP exists, the TextMate extension may highlight doc comments but must not infer hover text independently.
-
-## AI-Assisted Tooling Stage
-
-Nocter should be easy for AI tools to read, write, review, and repair without adding alternate syntax to the language.
-
-Reserved command direction:
-
-```sh
 nocter tokens app.nct --format json
 nocter ast app.nct --format json
-```
-
-Rules:
-
-- `tokens` exposes the compiler lexer output for one source file.
-- `ast` exposes the compiler parser output for one source file.
-- Both commands are tooling and debugging commands, not user program execution commands.
-- Both commands are JSON-only in v0.2.0.
-- Both commands use compiler-owned source spans and token / AST node names.
-- Both commands must not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
-- The JSON shapes are versioned and may evolve while the parser and AST are still unstable.
-- AI tools should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, and `nocter ast --format json` over reimplementing syntax and semantics.
-
-The compact AI-facing guide is [guides/ai.md](guides/ai.md). The example corpus is [examples/](examples/).
-
-## LSP Stage
-
-Long-term editor support should be provided by a compiler-backed language server.
-
-Command direction:
-
-```sh
 nocter lsp
 ```
 
-Rules:
+`tokens` and `ast` inspect one file without resolution, typechecking, lowering, or execution.
+Diagnostics use the envelope specified in [Diagnostics](12-diagnostics.md). The language server
+reuses the full compiler pipeline and package model.
 
-- `nocter lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
-- LSP must not maintain a separate semantic model that can diverge from `nocter build` or `nocter check`.
-- LSP features are added incrementally after diagnostics are reliable.
-- The VS Code extension should become an LSP client when `nocter lsp` exists.
-- The extension may keep TextMate grammar for baseline highlighting while semantic tokens mature.
-- The LSP server is responsible for converting compiler byte spans to the client position encoding.
+## Documentation
 
-LSP v0.2.0 feature set:
+Hover and generated API documentation use compiler-attached Markdown documentation:
 
-1. publish diagnostics
-2. document symbols
-3. go to definition
-4. hover type information
-5. completion for imports and visible names
-6. references
-7. semantic tokens
+- `///` and `/** ... */` document the following declaration or documentable member.
+- `//!` and `/*! ... */` document the source module.
+- Ordinary `//` and `/* ... */` comments are not documentation.
+- An empty line ends attachment.
+- Adjacent documentation comments are concatenated in source order.
 
-Semantic token rules:
+Hover on an imported module path presents the resolved module documentation when available.
+Tooling must not infer documentation from nearby raw text after the compiler reports no attachment.
 
-- The `readonly` semantic token modifier is an editor hint that `=` cannot be used at that token position.
-- `readonly` does not mean that the token was declared with a readonly declaration form.
-- Binding and parameter tokens use `readonly` when the whole binding cannot be assigned with `=`.
-- Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
-- Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
-- Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
-- Package directive names and record-field names use their exact identifier spans. Executable and
-  test entry string contents use an exact namespace span that excludes quotation marks.
+## Language Server Snapshot
 
-Nocter v0.5.0 Phase 1 editor rules:
+One accepted document version belongs to one immutable, generation-numbered package snapshot.
+Diagnostics, hover, completion, signature help, definition, references, rename, code actions,
+inlay hints, and semantic tokens for that request observe the same generation.
 
-- Test target metadata is parsed by the same package-file AST and validated by the same typed
-  package model used by `nocter test`.
-- Go to definition on a test `entry` string selects the resolved module and uses only the string
-  content as its origin range.
-- Completion of `#test` inserts the required `name` and `entry` fields. The LSP does not scan a
-  conventional tests directory or maintain a second test-target model.
+An open document overrides disk content throughout its generation. Package graphs for open
+`nocter.nct` overlays are locked, offline, and read-only: analysis never fetches dependencies,
+generates locks, or rewrites source. Changed imports invalidate reverse importers; unrelated modules
+and nested packages retain independent state.
 
-Nocter v0.5.0 Phase 2 editor rules:
+A failed source or package load retains every reached source and unresolved candidate needed for
+future invalidation. A failed graph is not replaced by a stale successful graph.
 
-- A native test name is a function-like declaration for semantic coloring and document symbols,
-  but it is not offered as a callable or importable symbol.
-- Hover uses the normalized fixed contract `test name: void!`; its range is exactly the name.
-- Definition on a test name resolves to that same exact name span. The `test` keyword, whitespace,
-  braces, and body are not part of the declaration focus range.
-- Completion includes the `test` declaration keyword. Duplicate names and body errors use the
-  normal parser, resolver, and typechecker diagnostics.
+## Semantic Ranges
 
-Nocter v0.5.0 Phase 3 editor rules:
+Every semantic result uses the exact token or identifier that carries the fact. Keywords,
+visibility modifiers, owners, whitespace, delimiters, braces, and bodies are excluded unless the
+request explicitly targets that syntax.
 
-- Package-wide operations use one immutable, generation-numbered semantic index attached to the
-  same snapshot as diagnostics, hover, completion, and semantic tokens. Numeric source identifiers
-  remain compile-unit local; the index joins declarations and uses through package identity,
-  canonical source path, and exact byte span.
-- The index starts from each package root module and each explicitly declared executable or test
-  entry in the exact locked graph, then follows normal compiler imports. It does not enumerate
-  ambient `.nct` files. An unopened module is visible to package-wide operations only when one of
-  those roots reaches it.
-- References include semantically identical declarations and uses in reached open and closed
-  modules. `includeDeclaration` controls the declaration result without changing symbol identity.
-- `prepareRename` selects exactly the identifier focus range. Rename accepts only a language
-  identifier, rejects a conflicting top-level declaration, and produces versioned document edits
-  for open files plus unversioned edits for closed files. A plan is rejected as a whole if its
-  declaration or any occurrence is not owned by the active source package; dependencies and
-  `std` are read-only even when their storage path is nested under the package directory.
-- Automatic import completion considers only reached public function and type exports. Candidate
-  module paths come from the active package, its declared dependency aliases, or `std`; private and
-  unreachable declarations are absent. The compiler plans the additional top-level `use` edit and
-  preserves documentation attached to the first declaration.
-- Quick fixes are derived from compiler diagnostics and compiler-owned edit planners. Phase 3
-  supports importing an unresolved public name, inserting required interface method skeletons,
-  and adding the enclosing callable's fallible or optional result contract.
-- Inlay hints project retained typechecker and callable semantic facts. Phase 3 can show inferred
-  binding types, transitive current-context allocation effects, and inferred result provenance.
-  Explicit type and provenance annotations suppress their corresponding hints; the LSP performs no
-  editor-only type, allocation, or provenance inference.
+Examples:
 
-Nocter v0.4.0 Phase 1 editor rules:
+- a declaration hover focuses its declared name
+- a method receiver binding focuses `self`, while the semantic owner type remains display data
+- a field or variant focuses its member name and may display the qualified `Type.member`
+- an import module path is one namespace range
+- executable and test entry strings use their content without quotation marks
+- a native test declaration focuses its test name, not `test` or its body
 
-- An opened package-root `nocter.nct` uses the same composite package-file AST as command-line
-  compilation.
-- Go to definition on an executable `entry` string selects the resolved `.nct` file or directory
-  module and uses only the string content as the origin range.
-- Package directives outside `nocter.nct` are diagnostics.
-- Dependency aliases use namespace spans. LSP graph loading is locked and offline and never
-  rewrites `nocter.nct`.
-- `pub use path` exposes one namespace identity; hover, completion, definition, references, and
-  semantic tokens must not reconstruct a flattened substitute.
+Internal canonical identities may contain package/module qualification. User presentation chooses
+the shortest unambiguous visible spelling and must not leak storage paths such as
+`std/iter/core.Type` into ordinary signatures.
 
-Nocter v0.4.0 Phase 2 editor rules:
+## Semantic Tokens
 
-- Diagnostics, hover, completion, signature help, definition, references, and semantic tokens for
-  one accepted document version observe one immutable editor generation.
-- An open document overrides its disk contents throughout that generation, including an open
-  `nocter.nct` used to construct a locked, offline package graph.
-- An unsaved package-file overlay never fetches dependencies, generates locks, or rewrites source.
-- Accepted source changes invalidate dependent analyses; unrelated open modules and nested packages
-  retain independent analysis state.
-- Published diagnostics include the accepted document version. Semantic-token results include a
-  generation identifier suitable for rejecting stale cached results.
-- Watched disk changes invalidate open analyses that imported the changed source.
+Semantic tokens are emitted only for compiler-resolved facts. Unresolved identifiers and module
+paths do not receive guessed semantic classifications.
 
-Nocter v0.4.0 stabilization editor rules:
+The `readonly` modifier means assignment with `=` is invalid at that exact token position. It does
+not mean the declaration used a readonly keyword. Binding and parameter tokens are readonly when
+the whole binding cannot be assigned; field access is `property.readonly` when that access path is
+not a writable place. Field declarations are not readonly merely because some uses are borrowed.
 
-- Failed frontend loading retains reached sources and unresolved file/directory-module candidates.
-  Creating a missing import, repairing malformed source, and deleting a symlinked import invalidate
-  the affected reverse importers.
-- A failed package graph is not replaced by a stale successful graph. Every visited transitive
-  `nocter.nct` remains watched so repairing it can rebuild the graph.
-- The server advertises saved-text synchronization. Included `didSave` text is analyzed before new
-  diagnostics are published.
-- Clients supporting dynamic watched-file registration receive a `**/*.nct` watcher after
-  initialization.
-- Requests are accepted only in the initialized running state. Requests before initialization,
-  repeated initialization, and requests after shutdown return JSON-RPC/LSP protocol errors.
+Package directive names, native test names, interface members, implementation members, closure
+parameters, catch bindings, and method receivers retain their semantic declaration kinds and exact
+ranges.
 
-Nocter v0.3.0 Phase 4 editor rules:
+## Hover and Signature Help
 
-- Hover and signature help show normalized result provenance clauses such as `from self` and
-  `from left | right`.
-- Completion after `from` offers only eligible receiver and borrow-like parameter declarations,
-  plus `static` and `current`.
-- Member completion on a bounded generic receiver lists only methods from its declared interface.
-- Definition and references for a generic bound call target the interface method declaration.
-- Generic parameter names use type semantic tokens. Receiver and parameter names referenced by a
-  provenance clause use readonly parameter tokens.
-- Recovery may complete missing delimiters or insert a temporary placeholder, but a response is
-  valid only when the recovered compiler run resolves every bound and origin identity.
+Hover and signature help render normalized compiler declarations, not raw source excerpts. They
+preserve specialized generic arguments, every interface bound, callable capability, outcome layers,
+allocation effects, and result provenance supplied by analysis.
 
-Nocter v0.3.0 Phase 9 editor rules:
+Declaration owners are shown when they disambiguate a member. Construction hover presents the
+type-owned public construction surface, including its default entry. Raw private construction and
+inaccessible members are absent.
 
-- Hover and signature help preserve every normalized interface bound on a generic parameter.
-- Member completion combines the resolved capability set, removes declaration-identity duplicates,
-  and reports an ambiguity instead of choosing between distinct interfaces with the same member.
-- Conditional-conformance definition and specialization use the conformance declaration selected by
-  typecheck; protocol code does not inspect adapter or interface names.
-- Recovery for an incomplete `T: A +` edit returns semantic results only when all preceding bounds
-  retain their declaration identities.
+## Completion
 
-Nocter v0.3.0 stabilization editor rules for body-bearing interface implementations:
+Completion follows lexical scope, visibility, shadowing, receiver capability, generic bounds, and
+the exact package graph. It includes accessible declarations, imports, members, enum-pattern
+variants, unused struct fields, construction entries, native-test syntax, and relevant keywords.
 
-- Hover, completion, signature help, definition, references, and semantic tokens retain the
-  conformance member's declaration span for a concrete receiver.
-- A generic-bound call defines to the interface contract while concrete specialization retains the
-  selected implementation member and static call target.
-- Member visibility comes from the interface contract; the implementation member does not carry a
-  separate `pub` modifier.
-- Competing inherent and conformance members produce ambiguity rather than an order-dependent
-  completion or jump target.
+Automatic imports consider only reached public exports in the active package, direct dependency
+aliases, and `std`. The compiler supplies the additional top-level `use` edit while preserving
+leading documentation and existing import groups. Private, unreachable, dependency-internal, and
+standard-library-internal declarations are not candidates.
 
-Later editor features:
+Member completion for a generic receiver combines its declared capability set. Distinct interfaces
+with the same applicable member name are ambiguous; order never chooses one.
 
-- formatting through `nocter fmt`
-- context-sensitive member completion
-- incremental parsing
+## Navigation, References, and Rename
 
-Formatting behavior is specified in [Source Style and Formatting](16-source-style-formatting.md). Editor extensions may call `nocter fmt`, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.
+Definition and references use semantic declaration identity rather than spelling. Package-wide
+operations start from package roots and explicit executable/test entries, then follow normal imports;
+they do not scan ambient `.nct` files.
+
+Rename focuses one identifier, validates the replacement as a language identifier, rejects
+collisions, and returns one atomic workspace edit. Open documents receive versioned edits; closed
+documents receive unversioned edits. Dependencies and `std` are read-only regardless of filesystem
+location, so a plan containing any non-owned occurrence is rejected as a whole.
+
+A generic-bound call defines to the interface declaration. Concrete specialization may retain its
+selected implementation target internally without changing that source-level definition result.
+
+## Diagnostics, Code Actions, and Hints
+
+Diagnostics are compiler results with stable codes, exact spans, related information, and optional
+fix plans. The server clears diagnostics absent from the next complete publication and includes the
+accepted document version.
+
+Code actions expose compiler-planned edits, including imports, required interface members, and
+optional/fallible callable contracts. Generated edits must parse and typecheck as ordinary Nocter;
+the protocol layer does not synthesize source templates independently.
+
+Inlay hints project retained inferred binding types, current-allocation effects, and result
+provenance. Explicit source annotations suppress redundant hints. The language server performs no
+second inference pass.
+
+## Incomplete Source Recovery
+
+Recovery may create a temporary syntax overlay for missing delimiters, call operands, imports,
+member access, iteration headers, interpolation bodies, literal declarations, or provenance clauses.
+Semantic results are returned only when the ordinary compiler query resolves the required
+declaration and type identities. Recovery must not invent conformance, imports, members, or types,
+and it never replaces the authoritative document generation.
+
+## Protocol Lifecycle
+
+The server validates initialization, shutdown, exit, request parameters, document versions, and
+UTF-16 position conversion before invoking analysis. Requests before initialization, repeated
+initialization, and requests after shutdown return protocol errors. Stale document changes are
+ignored.
+
+The server advertises saved-text synchronization and dynamically registers a `**/*.nct` watcher
+when supported. Included `didSave` text is analyzed before diagnostics are published. Semantic-token
+results carry a generation identifier suitable for rejecting stale cached results.
+
+## TextMate and AI Tools
+
+TextMate grammar may provide lexical highlighting, comments, brackets, quote completion, and
+snippets. It must not define semantic validity, imports, types, ownership, or borrows. Semantic
+tokens supersede guesses when compiler results are available.
+
+AI tools should prefer compiler formatting, diagnostics, tokens, AST output, and LSP queries over a
+separate Nocter parser. The compact generation guide is [AI Guide](guides/ai.md), and executable
+examples live under [examples/](examples/README.md).
 
 ## Non-goals
 
-The following are not part of the intended editor architecture:
-
-- implementing a Nocter parser inside the VS Code extension
-- implementing name resolution inside the VS Code extension
-- implementing type checking inside the VS Code extension
-- implementing borrow checking inside the VS Code extension
-- maintaining a separate editor-only module graph
-- maintaining a separate AI-only parser or semantic model
-- making TextMate scopes part of the language specification
-- requiring VS Code for normal command-line use
+The tooling contract does not require VS Code, an editor-local module graph, editor-local type or
+borrow checking, TextMate scopes as language semantics, a separate AI-only grammar, background
+concurrent analysis, or persistent cross-session semantic caches.

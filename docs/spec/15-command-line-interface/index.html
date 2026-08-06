@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Command Line Interface - Nocter</title>
-    <meta name="description" content="Adopted for v0.5.0 Phase 5, nocter init [DIR] creates a source-owned package without overwriting an existing nocter.nct or generated tests/unit.nct. The di">
+    <meta name="description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/spec/15-command-line-interface/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Command Line Interface - Nocter">
-    <meta property="og:description" content="Adopted for v0.5.0 Phase 5, nocter init [DIR] creates a source-owned package without overwriting an existing nocter.nct or generated tests/unit.nct. The di">
+    <meta property="og:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta property="og:url" content="https://nocter.dev/spec/15-command-line-interface/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Command Line Interface - Nocter">
-    <meta name="twitter:description" content="Adopted for v0.5.0 Phase 5, nocter init [DIR] creates a source-owned package without overwriting an existing nocter.nct or generated tests/unit.nct. The di">
+    <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Command Line Interface - Nocter","description":"Adopted for v0.5.0 Phase 5, nocter init [DIR] creates a source-owned package without overwriting an existing nocter.nct or generated tests/unit.nct. The di","url":"https://nocter.dev/spec/15-command-line-interface/","mainEntityOfPage":"https://nocter.dev/spec/15-command-line-interface/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"15 Command Line Interface","item":"https://nocter.dev/spec/15-command-line-interface/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Command Line Interface - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/15-command-line-interface/","mainEntityOfPage":"https://nocter.dev/spec/15-command-line-interface/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"15 Command Line Interface","item":"https://nocter.dev/spec/15-command-line-interface/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -128,7 +122,6 @@
             <ul class="directory-toc-list">
                 <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
                 <li><a href="../00-overview/index.html#content">Overview</a></li>
-                <li><a href="../00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li>
                 <li><a href="../01-modules-use/index.html#content">Modules and Use Declarations</a></li>
                 <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
                 <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
@@ -136,7 +129,7 @@
                 <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
                 <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
                 <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
                 <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
                 <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
                 <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
@@ -146,14 +139,12 @@
                 <li><a href="./index.html#content" aria-current="page">Command Line Interface</a></li>
                 <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
                 <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
-                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="../00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
+                <li><a href="../../releases/index.html#content">release index</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -161,7 +152,7 @@
                 <span class="markdown-path-text">/spec/15-command-line-interface.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="command-line-interface">Command Line Interface</h1><h2 id="package-initialization-and-graph-inspection">Package Initialization and Graph Inspection</h2><p>Adopted for v0.5.0 Phase 5, <code>nocter init [DIR]</code> creates a source-owned package without overwriting an existing <code>nocter.nct</code> or generated <code>tests/unit.nct</code>. The directory name supplies <code>#name</code> unless <code>--name</code> is explicit. The default template is executable; <code>--library</code> selects a library template. Both templates declare a separate package test target and must pass <code>nocter check</code> and <code>nocter test</code> immediately after creation.</p><p><code>nocter graph</code> loads the same exact <code>PackageGraph</code> used by build, test, and LSP analysis. Its human form prints package identities and labeled edges. <code>--format json</code> emits deterministic format-1 data containing package IDs, names, versions, roots, dependency source kinds, exact locks, and resolved package IDs. <code>--locked</code> and <code>--offline</code> retain their normal resolution meaning.</p><p>Graph inspection never writes generated lock data. <code>nocter fetch</code> remains the only command that intentionally updates dependency locks.</p><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><h2 id="direction">Direction</h2><p>Adopted for v0.4.0 Phase 1: package commands operate on a source-owned <code>nocter.nct</code>. Omitting a source selects a package; it never guesses that <code>main.nct</code> is an executable. Explicit single-file operation remains available for scripts and isolated experiments.</p><pre><code class="language-sh"><span class="token-function">nocter</span> <span class="token-option">--version</span>
+                <h1 id="command-line-interface">Command Line Interface</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><h2 id="package-initialization-and-graph-inspection">Package Initialization and Graph Inspection</h2><p><code>nocter init [DIR]</code> creates a source-owned package without overwriting an existing <code>nocter.nct</code> or generated <code>tests/unit.nct</code>. The directory name supplies <code>#name</code> unless <code>--name</code> is explicit. The default template is executable; <code>--library</code> selects a library template. Both templates declare a separate package test target and must pass <code>nocter check</code> and <code>nocter test</code> immediately after creation.</p><p><code>nocter graph</code> loads the same exact <code>PackageGraph</code> used by build, test, and LSP analysis. Its human form prints package identities and labeled edges. <code>--format json</code> emits deterministic format-1 data containing package IDs, names, versions, roots, dependency source kinds, exact locks, and resolved package IDs. <code>--locked</code> and <code>--offline</code> retain their normal resolution meaning.</p><p>Graph inspection never writes generated lock data. <code>nocter fetch</code> remains the only command that intentionally updates dependency locks.</p><h2 id="command-model">Command Model</h2><p>Package commands operate on a source-owned <code>nocter.nct</code>. Omitting a source selects a package; it never guesses that <code>main.nct</code> is an executable. Explicit single-file operation remains available for scripts and isolated experiments.</p><pre><code class="language-sh"><span class="token-function">nocter</span> <span class="token-option">--version</span>
 <span class="token-function">nocter</span> doctor
 <span class="token-function">nocter</span> fetch
 <span class="token-function">nocter</span> fetch <span class="token-option">--locked</span> <span class="token-option">--offline</span>
@@ -258,7 +249,7 @@
 <span class="token-function">nocter</span> ast app.nct <span class="token-option">--format</span> json
 </code></pre><ul><li><code>fmt</code> rewrites only the named file after successful parsing. <code>--check</code> reports whether rewriting
   would be necessary.</li><li><code>tokens</code> exposes the compiler lexer output as a <code>nocter.tokens</code> JSON envelope.</li><li><code>ast</code> exposes the compiler parser output as a <code>nocter.ast</code> JSON envelope. A source-file AST
-  includes package directives when present.</li><li>These commands do not resolve dependencies, type-check, lower, emit, or execute code.</li></ul><h2 id="lsp">LSP</h2><p><code>nocter lsp</code> speaks the Language Server Protocol over stdin and stdout. Protocol messages are the only stdout data while the server is running.</p><p>The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration identities, and exact source spans. In v0.4.0 Phase 0 it also:</p><ul><li>diagnoses package manifests through the same parser and validation model as package commands</li><li>classifies directive and record-field names without coloring surrounding punctuation or space</li><li>classifies executable and test entry string contents as namespaces</li><li>resolves go-to-definition from an executable or test <code>entry</code> value to the selected module file</li><li>completes <code>#test</code> with its required <code>name</code> and <code>entry</code> fields in a package manifest</li><li>resolves public namespace re-exports through the same declaration identity used by compilation</li></ul><p>Rename, package-wide incremental invalidation, code actions, inlay hints, and multi-package workspace indexing are later capabilities.</p><h2 id="target-option">Target Option</h2><p><code>build</code>, <code>run</code>, and <code>check</code> accept <code>--target</code> in either input mode. Package-only <code>test</code> also accepts <code>--target</code>:</p><pre><code class="language-sh"><span class="token-function">nocter</span> build <span class="token-option">--target</span> arm64-darwin
+  includes package directives when present.</li><li>These commands do not resolve dependencies, type-check, lower, emit, or execute code.</li></ul><h2 id="lsp">LSP</h2><p><code>nocter lsp</code> speaks the Language Server Protocol over stdin and stdout. Protocol messages are the only stdout data while the server is running.</p><p>The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration identities, and exact source spans. Diagnostics and semantic requests share one locked, offline, read-only package snapshot. Public editor behavior, including package manifests, native tests, rename, code actions, hints, and incomplete-source recovery, is specified in <a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a>.</p><h2 id="target-option">Target Option</h2><p><code>build</code>, <code>run</code>, and <code>check</code> accept <code>--target</code> in either input mode. Package-only <code>test</code> also accepts <code>--target</code>:</p><pre><code class="language-sh"><span class="token-function">nocter</span> build <span class="token-option">--target</span> arm64-darwin
 <span class="token-function">nocter</span> run <span class="token-option">--executable</span> server <span class="token-option">--target</span> arm64-darwin
 <span class="token-function">nocter</span> check app.nct <span class="token-option">--target</span> arm64-darwin
 <span class="token-function">nocter</span> <span class="token-function">test</span> <span class="token-option">--target</span> arm64-darwin
@@ -268,7 +259,7 @@
 1  source diagnostics or a formatting difference
 2  command-line, filesystem, Nocter-home, or target-selection error
 3  internal compiler error
-</code></pre><p>After a program starts, <code>run</code> returns that program's exit status. <code>test</code> converts every failed test outcome into compiler status 1 so that one target cannot terminate the runner. Human diagnostics and command errors go to stderr. <code>--version</code> and successful <code>doctor</code> output go to stdout.</p><h2 id="v0-4-0-phase-0-non-goals">v0.4.0 Phase 0 Non-goals</h2><ul><li>dependency resolution, registries, package stores, lock data, or source acquisition</li><li>multi-package workspaces</li><li>project-wide formatting or incremental build artifacts</li><li>test-target declarations or a package test runner (added later by v0.5.0 Phase 1)</li><li>child-process argument forwarding before its separator and ownership contract are specified</li></ul><p>The immutable v0.2.0 command boundary remains recorded in <a href="../00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Completion Contract</a>.</p>
+</code></pre><p>After a program starts, <code>run</code> returns that program's exit status. <code>test</code> converts every failed test outcome into compiler status 1 so that one target cannot terminate the runner. Human diagnostics and command errors go to stderr. <code>--version</code> and successful <code>doctor</code> output go to stdout.</p><h2 id="current-command-non-goals">Current Command Non-goals</h2><ul><li>registries and semantic-version dependency resolution</li><li>multi-package workspaces</li><li>project-wide formatting or incremental build artifacts</li><li>child-process argument forwarding before its separator and ownership contract are specified</li></ul>
             </div>
         </main>
     </div>

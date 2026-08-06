@@ -233,7 +233,7 @@ Rules:
 
 Comment paragraph reflow is not part of v0.2.0.
 
-## Non-Goals in v0.2.0
+## Formatter Non-goals
 
 The following are not part of formatter v0.2.0:
 

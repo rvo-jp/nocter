@@ -1,36 +1,23 @@
 # Nocter Development Documents
 
-This directory contains implementation design and completion criteria. The public language
-[specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
-those rules here.
+This directory contains compiler and distributed-standard-library implementation design. The public
+language [specification](../../spec/README.md) is the sole authority for source behavior and public
+APIs. Implementation documents explain responsibility, data flow, invariants, and verification;
+they must link to a specification rule instead of restating it.
 
-The current release is **v0.4.0**. It includes source-native package roots, deterministic exact
-dependency graphs, immutable package-wide LSP snapshots, and the completed stabilization audit.
-The previous v0.3.0 language milestone and v0.2.0 contract remain historical records. Do not use
-`v0` as shorthand for a release name or work scope.
-
-The **v0.5.0 Phase 5 release candidate is complete**. Phase 0's
-published-artifact audit, Phase 1's explicit package test targets, Phase 2's native test
-declarations, Phase 3's package-wide editor index, Phase 4's practical standard library, and Phase
-5's package authoring, graph inspection, parity audit, and stabilization are complete.
+Candidate scope and qualification live in `development/milestones/`. Frozen release evidence lives
+in `development/releases/`. Short-lived handoff state lives only in `development/TODO.md`.
 
 ## Documents
 
-- [v0.5.0 Development Plan](v0.5.0.md): completed published-artifact, native testing,
-  package-wide editor, practical standard-library, authoring, and stabilization records
-- [v0.4.0 Release Record](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
-  records, qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries
 - [Immutable LSP Snapshots](lsp-snapshots.md): editor generations, package contexts, source
   overlays, invalidation, and request consistency
-- [v0.3.0 Release Record](v0.3.0.md): completed Phase 0 through Phase 10 records,
-  stabilization criteria, release qualification, and explicit limits
 - [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
   member identity, lookup, validation, migration, and editor boundaries
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
   default selection, lowering reuse, and editor boundaries
-- [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
   allocation-effect, lexical-region, and lowering design
@@ -54,23 +41,26 @@ declarations, Phase 3's package-wide editor index, Phase 4's practical standard 
   required/default methods, closure ownership, callable specialization, and iterator chains
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
-- [Standard Library](standard-library.md): released runtime baseline and completed v0.3.0 runtime
-  integrations
-- [LSP](lsp.md): released compiler-backed capabilities and completed v0.3.0 editor integrations
+- [Standard Library](standard-library.md): runtime responsibilities, ownership invariants, target
+  boundaries, and distributed-home verification
+- [LSP](lsp.md): compiler-backed semantic, presentation, recovery, protocol, and verification
+  boundaries
+- [Documentation Site Generation](site-generation.md): public Markdown build and generated output
 - [Maintenance](maintenance.md): update ownership, verification, and commit policy
 - [TODO](../TODO.md): internal short-term handoff state
+- [Active Milestones](../milestones/README.md): candidate scope and qualification
+- [Release Qualification Records](../releases/README.md): frozen compiler release evidence
 
 ## Information Ownership
 
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| v0.5.0 milestone status and acceptance | `v0.5.0.md` |
-| v0.4.0 release status, scope, and qualification | `v0.4.0.md` |
+| Published download and public candidate status | `releases/README.md` |
+| Candidate scope, status, and qualification | `../milestones/<version>.md` |
+| Published release qualification | `../releases/<version>.md` |
 | Package/compiler responsibility boundary | `packages.md` |
 | Package-wide editor state and invalidation | `lsp-snapshots.md` |
-| v0.3.0 release status, scope, and qualification | `v0.3.0.md` |
-| Previous v0.2.0 completion record | `v0.2.0.md` |
 | Compiler responsibility boundaries | `architecture.md` |
 | Region, provenance, and allocation-context implementation design | `region-provenance.md` |
 | Typed literal and ephemeral element-pack implementation design | `typed-literals.md` |
@@ -87,6 +77,8 @@ declarations, Phase 3's package-wide editor index, Phase 4's practical standard 
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |
 | Next concrete internal task | `../TODO.md` |
+| Documentation build process | `site-generation.md` |
 
-Do not copy chronological completion lists or commit history into design documents. Git owns the
+Entry points may summarize an owned fact in one sentence and link to its owner. They must not carry
+independent completion lists, qualification details, or mutable status. Git owns chronological
 history.

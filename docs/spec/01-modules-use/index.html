@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -128,7 +122,6 @@
             <ul class="directory-toc-list">
                 <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
                 <li><a href="../00-overview/index.html#content">Overview</a></li>
-                <li><a href="../00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li>
                 <li><a href="./index.html#content" aria-current="page">Modules and Use Declarations</a></li>
                 <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
                 <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
@@ -136,7 +129,7 @@
                 <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
                 <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
                 <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
                 <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
                 <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
                 <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
@@ -146,14 +139,12 @@
                 <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
                 <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
                 <li><a href="../17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
-                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="../00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
+                <li><a href="../../releases/index.html#content">release index</a></li>
             </ul>
         </aside>
         <main id="content">

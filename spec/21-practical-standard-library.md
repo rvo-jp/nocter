@@ -1,6 +1,6 @@
 # Practical Standard Library
 
-This chapter records the v0.5.0 Phase 4 standard-library contract. These APIs are ordinary Nocter
+This chapter records the practical standard-library contract. These APIs are ordinary Nocter
 source declarations distributed with the compiler. Only target boundaries such as opening a file
 descriptor are compiler-owned primitives.
 

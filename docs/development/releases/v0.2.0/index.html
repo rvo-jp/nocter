@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocter v0.2.0 Release Record - Nocter</title>
+    <meta name="description" content="v0.2.0 makes variable-length data safe to own in Nocter and exposes the same semantic information to editors. At completion, String and Vec are practical A">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/releases/v0.2.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Nocter v0.2.0 Release Record - Nocter">
+    <meta property="og:description" content="v0.2.0 makes variable-length data safe to own in Nocter and exposes the same semantic information to editors. At completion, String and Vec are practical A">
+    <meta property="og:url" content="https://nocter.dev/development/releases/v0.2.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-06">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nocter v0.2.0 Release Record - Nocter">
+    <meta name="twitter:description" content="v0.2.0 makes variable-length data safe to own in Nocter and exposes the same semantic information to editors. At completion, String and Vec are practical A">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.2.0 Release Record - Nocter","description":"v0.2.0 makes variable-length data safe to own in Nocter and exposes the same semantic information to editors. At completion, String and Vec are practical A","url":"https://nocter.dev/development/releases/v0.2.0/","mainEntityOfPage":"https://nocter.dev/development/releases/v0.2.0/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Releases","item":"https://nocter.dev/development/releases/"},{"@type":"ListItem","position":4,"name":"V0.2.0","item":"https://nocter.dev/development/releases/v0.2.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/releases/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../v0.4.0/index.html#content">v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.2.0</a></li>
+                <li><a href="../v0.2.0-language-contract/index.html#content">archived mixed language/backend
+  contract</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/releases/v0.2.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="nocter-v0-2-0-release-record">Nocter v0.2.0 Release Record</h1><h2 id="purpose">Purpose</h2><p>v0.2.0 makes variable-length data safe to own in Nocter and exposes the same semantic information to editors. At completion, <code>String</code> and <code>Vec&lt;T&gt;</code> are practical APIs built on a shared Allocator and ownership foundation rather than demonstration-only implementations.</p><p>This document records the completed v0.2.0 milestone. Because <code>v0</code> is ambiguous, it is not used as shorthand for a release name. New work belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a>.</p><p>The release is <code>0.2.0</code> for <code>arm64-darwin</code>. Public language rules follow the <a href="../../../spec/index.html#content">specification</a>.</p><h2 id="completion-definition">Completion Definition</h2><p>v0.2.0 is complete only when all four areas below are satisfied.</p><h3 id="1-allocator">1. Allocator</h3><ul><li><code>Layout</code> centralizes size, alignment, overflow, and zero-sized allocation rules.</li><li>Allocation, growth, and deallocation use one <code>Allocator</code> contract; <code>String</code> and <code>Vec&lt;T&gt;</code> do not
+  call OS page primitives directly.</li><li>Growth allocates and transfers content before freeing the old region. Failure preserves the old
+  value.</li><li><code>RawBuffer</code> retains allocator provenance and actual allocation layout, and invalid values cannot
+  be constructed through public APIs.</li><li>Runtime tests fix capacity arithmetic overflow, excessive alignment, allocation failure, and
+  freeing empty values.</li><li>Allocators are passed explicitly; v0.2.0 does not introduce an implicit global allocator.</li></ul><p>See <a href="../../docs/allocator-ownership/index.html#content">Allocator and Ownership</a>.</p><h3 id="2-ownership-and-destruction">2. Ownership and Destruction</h3><ul><li>Recursive partial-initialization state is representable for structs, fixed arrays, and payload
+  enums.</li><li>A fixed array tracks its completed prefix separately from the current element under construction.
+  If nested initialization of that element fails, acquired resources are destroyed exactly once in
+  reverse order.</li><li><code>Vec&lt;T&gt;</code> owns <code>[0, len)</code> and drops non-copy elements in reverse order.</li><li><code>push</code> publishes <code>len</code> only after element construction; <code>clear</code> and <code>drop</code> destroy every element
+  exactly once.</li><li><code>pop</code> transfers ownership of the final element to its return value and shrinks the vector-owned
+  range by one.</li><li>Normal return, early <code>?</code>, branches, loop exits, replacement, and partial-initialization failure all
+  apply the same drop rules.</li><li>Unsupported ownership shapes receive a source-backed diagnostic before reaching IR or backend.</li></ul><h3 id="3-standard-library-runtime">3. Standard Library Runtime</h3><ul><li><code>String</code> empty, from/copy, reserve, push, clear, view, and drop work on the shared Allocator.</li><li><code>Vec&lt;T&gt;</code> empty, with_capacity, from_slice, reserve, push, pop, clear, view, and drop work for copy
+  and non-copy elements where defined.</li><li>Build/run tests cover at least <code>Vec&lt;String&gt;</code>, <code>Vec&lt;File&gt;</code>, and <code>Vec&lt;Vec&lt;String&gt;&gt;</code> across growth,
+  early return, clear, and scope exit without double-free, leaks, or use-after-move.</li><li>The packaged <code>.nocter/std</code> and repository-local <code>development/std</code> expose the same behavior.</li><li>Runtime primitives remain inside the narrow <code>pub(nocter)</code> trust boundary; ordinary APIs are not
+  compiler-name special cases.</li></ul><p>See <a href="../../docs/standard-library/index.html#content">Standard Library</a>.</p><h3 id="4-lsp">4. LSP</h3><ul><li>Diagnostics, semantic tokens, definition, references, and document symbols use the same
+  compile-unit facts for open documents and imports.</li><li>Hover returns declaration kind, complete type or signature, generic specialization,
+  documentation, and ownership capability with a source-backed range.</li><li>Completion distinguishes global, local, import, member, enum-pattern, struct-field, and keyword
+  contexts and filters candidates by type, visibility, and position. Candidates include kind,
+  detail, and required insertion text.</li><li>Signature help at call positions returns parameters, active parameter, return type, and
+  documentation.</li><li>Incomplete source does not crash the server; hover and completion recover where semantic facts can
+  still be established.</li><li>The LSP does not reimplement name resolution, type inference, visibility, or ownership.</li></ul><p>See <a href="../../docs/lsp/index.html#content">LSP</a>.</p><h2 id="acceptance-programs">Acceptance Programs</h2><p>Release qualification includes distributed-home scenarios, not only focused unit tests:</p><ol><li>1. Grow <code>Vec&lt;String&gt;</code> from empty, reserve multiple times, pop a string, and use it after vector
+   drop.</li><li>Clear a <code>Vec&lt;File&gt;</code> partway through and close any remainder at scope exit; every handle closes
+   exactly once on failure paths as well.</li><li>Construct <code>Vec&lt;Vec&lt;String&gt;&gt;</code> and verify both normal completion and recovery of inner values after
+   failed growth.</li><li>Grow <code>String</code> from empty repeatedly, verify its view, clear it, and reuse it.</li><li>Fix JSON-RPC diagnostics, hover, completion, and signature-help responses for a multi-file
+   standard-library program.</li></ol><h2 id="explicit-non-goals">Explicit Non-goals</h2><p>The following are not v0.2.0 completion criteria, and temporary implementations that damage the foundation are not accepted:</p><ul><li>collection literals, map literals, and <code>...</code> spread or variadic syntax</li><li>implicit allocator selection for string interpolation</li><li>interface runtime dispatch and embedding</li><li><code>remove</code> ownership extraction from an arbitrary vector index and sparse live-element tracking</li><li>an implicit default allocator or multiple public allocator families</li><li>a workspace-wide package index, rename, code actions, or formatting requests</li><li>native backends other than <code>arm64-darwin</code></li></ul><p><code>pop</code> is included because it only shrinks the tail prefix. Arbitrary <code>remove</code> requires a separately designed sparse ownership state.</p><h2 id="work-order">Work Order</h2><p>The dependency order and completion state are:</p><ol><li>1. Add fixed-array current-element staging to recursive drop obligations. (complete)</li><li>Complete <code>Layout</code>, <code>RawBuffer</code>, and Allocator allocate/grow/free contracts. (complete)</li><li>Implement initialized-prefix ownership and non-copy push/clear/drop for <code>Vec&lt;T&gt;</code>. (complete)</li><li>Implement <code>Vec&lt;T&gt;.pop</code> as ownership transfer. (complete)</li><li>Move <code>String</code> to the shared Allocator and fix growth-failure invariants. (complete)</li><li>Integrate hover with the stable typecheck-fact presentation model. (complete)</li><li>Add context-aware completion and signature help to compiler analysis. (complete)</li><li>Pass distributed-home acceptance and all verification with no unresolved required documentation.
+   (complete)</li></ol><h2 id="release-gate">Release Gate</h2><p>Stable version and release metadata require all of:</p><ul><li><code>./development/compiler/scripts/verify.sh</code></li><li><code>cargo fmt --manifest-path development/compiler/Cargo.toml --check</code></li><li><code>git diff --check</code></li><li>build/run/LSP integration tests for the acceptance programs above</li><li>no unresolved required v0.2.0 item in <code>development/docs/</code> or <code>development/TODO.md</code></li><li>a distribution generated by <code>package-local-release.sh</code> and reverified using only its <code>.nocter</code>
+  home</li></ul><p>All gates passed for the v0.2.0 release commit.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

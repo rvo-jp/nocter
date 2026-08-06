@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-05">
+    <meta property="article:modified_time" content="2026-08-06">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Public Provenance Contracts and Generic Interface Bounds - Nocter">
     <meta name="twitter:description" content="This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Public Provenance Contracts and Generic Interface Bounds - Nocter","description":"This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ","url":"https://nocter.dev/development/docs/provenance-contracts/","mainEntityOfPage":"https://nocter.dev/development/docs/provenance-contracts/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Provenance Contracts","item":"https://nocter.dev/development/docs/provenance-contracts/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Public Provenance Contracts and Generic Interface Bounds - Nocter","description":"This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ","url":"https://nocter.dev/development/docs/provenance-contracts/","mainEntityOfPage":"https://nocter.dev/development/docs/provenance-contracts/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Provenance Contracts","item":"https://nocter.dev/development/docs/provenance-contracts/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -127,14 +121,10 @@
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="../v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
                 <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
                 <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
                 <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
@@ -149,7 +139,10 @@
                 <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
                 <li><a href="../standard-library/index.html#content">Standard Library</a></li>
                 <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
                 <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
+                <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -157,7 +150,7 @@
                 <span class="markdown-path-text">/development/docs/provenance-contracts.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="public-provenance-contracts-and-generic-interface-bounds">Public Provenance Contracts and Generic Interface Bounds</h1><p>This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a>.</p><h2 id="design-boundary">Design Boundary</h2><p>Phase 4 exposes only result-storage relationships that cannot safely be guessed at an abstraction boundary. It does not expose lexical lifetime arithmetic. Concrete bodies retain inference, and allocation effects remain compiler-owned inferred facts.</p><p>The dependency flow is:</p><pre><code class="language-text">source `from` clause
+                <h1 id="public-provenance-contracts-and-generic-interface-bounds">Public Provenance Contracts and Generic Interface Bounds</h1><p>This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the <a href="../../releases/v0.3.0/index.html#content">v0.3.0 Release Record</a>.</p><h2 id="design-boundary">Design Boundary</h2><p>Phase 4 exposes only result-storage relationships that cannot safely be guessed at an abstraction boundary. It does not expose lexical lifetime arithmetic. Concrete bodies retain inference, and allocation effects remain compiler-owned inferred facts.</p><p>The dependency flow is:</p><pre><code class="language-text">source `from` clause
   -&gt; resolver input identities
   -&gt; callable provenance contract
   -&gt; inferred-summary validation or bodyless-summary seed
@@ -170,13 +163,7 @@
   -&gt; concrete explicit conformance at specialization
   -&gt; public inherent implementation
   -&gt; ordinary static call lowering
-</code></pre><p>Neither layer searches for standard-library names.</p><h2 id="surface-grammar">Surface Grammar</h2><p>A callable, including a typed literal definition, may append one result provenance clause after its return type:</p><pre><code class="language-nct">from self
-from value
-from left | right
-from static
-from current
-</code></pre><p><code>self</code> is eligible only for methods. Other identifiers must name borrow-like input parameters. <code>static</code> means program-lifetime storage. <code>current</code> means the caller's current allocation context and implies the existing allocation effect. Duplicate origins are invalid. Source order is retained for formatting and diagnostics; semantic comparison uses declaration identities.</p><p>A Phase 1 sequence literal pack is a set of owned element values rather than one borrow-like input identity, so its capture name is not an eligible origin. Literal definitions that allocate their result use <code>from current</code>; a string literal definition may use its <code>&amp;str</code> parameter as an origin.</p><p>The clause describes an upper bound on possible result storage. A concrete result may be storage-independent or static when the contract permits a shorter input origin. It may not contain an input, region, scope, or current-context origin absent from the contract.</p><p>Tracked result storage includes source-level borrows and pointer-backed owned aggregates. The distinction is intentional: raw pointers do not participate in borrow checking, but an owning value such as <code>String</code> or <code>Vec&lt;T&gt;</code> must still retain the allocation context that owns its buffer.</p><p>Generic parameters accept one interface bound:</p><pre><code class="language-nct"><span class="token-keyword">func</span> inspect<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> <span class="token-type">Readable</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span>
-</code></pre><p>Phase 4 deliberately excludes <code>where</code> clauses and multiple bounds. Bound lookup never falls back to methods from an unconstrained receiver. Phase 10 default bodies remain attached to their exact interface declaration identity.</p><h2 id="internal-ownership">Internal Ownership</h2><ul><li><code>ast/provenance</code> owns source clauses and source spans.</li><li><code>resolve/body</code> binds origin spans to receiver and parameter symbols for navigation.</li><li><code>typecheck/provenance/contracts</code> converts eligible declarations into semantic storage origins.</li><li><code>resolve/signatures</code> and <code>resolve/imports/qualification</code> preserve bound and conformance identities
+</code></pre><p>Neither layer searches for standard-library names.</p><h2 id="contract-representation">Contract Representation</h2><p>Public provenance and generic-bound rules are defined by <a href="../../../spec/06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a> and <a href="../../../spec/08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a>. Internally, source order is retained for formatting and diagnostics while contract comparison uses resolved declaration identities. Tracked storage includes both source borrows and pointer-backed owned aggregates because owned buffers must retain their allocation-context origin even though raw pointers do not participate in loan checking.</p><h2 id="internal-ownership">Internal Ownership</h2><ul><li><code>ast/provenance</code> owns source clauses and source spans.</li><li><code>resolve/body</code> binds origin spans to receiver and parameter symbols for navigation.</li><li><code>typecheck/provenance/contracts</code> converts eligible declarations into semantic storage origins.</li><li><code>resolve/signatures</code> and <code>resolve/imports/qualification</code> preserve bound and conformance identities
   across module boundaries.</li><li><code>typecheck/interface_bounds</code> owns generic-receiver lookup and conformance substitution.</li><li><code>typecheck/facts</code> records bound-call targets and specializations; <code>analysis/call_specializations</code>
   redirects reachable concrete calls to conformance implementation members.</li><li><code>analysis</code> presents compiler facts; protocol code only converts source ranges and labels.</li></ul><p>Contract validation is covariant in safety: an implementation may return storage that outlives the declared source, but never storage that may die earlier or comes from an undeclared peer source. Unknown provenance never satisfies an explicit contract.</p><h2 id="static-dispatch">Static Dispatch</h2><p>Generic source is checked against the interface method signature. Each reachable concrete specialization must have explicit conformance to the canonical interface instantiation. The selected conformance member is lowered through the ordinary static method call path. No vtable, witness table, runtime type identity, or name-based backend lookup is introduced.</p><h2 id="editor-contract">Editor Contract</h2><p>Hover and signature help show normalized types and the resolved provenance relation. Completion on a generic receiver lists only accessible methods from its declared bound. Definition from a generic call targets the interface declaration; concrete-specialization facts may additionally identify the implementation internally. Recovery may insert delimiters or placeholder identifiers, but it may not invent bound or origin identities.</p><h2 id="allocation-effects">Allocation Effects</h2><p>There is no Phase 4 allocation-effect annotation. Source bodies infer their effect to a fixed point; trusted bodyless declarations retain compiler metadata. <code>from current</code> necessarily seeds the current-context effect. Result-independent temporary allocation remains inferred and visible in hover without becoming source syntax.</p><h2 id="completion-status">Completion Status</h2><p>Phase 4 completed on 2026-08-03. The parser, formatter, AST JSON, resolver, type checker, ownership checker, allocation propagation, buildability validation, IR, analysis, and LSP consume the shared models described here. The distributed <code>std/sequence.Sequence&lt;T&gt;</code> interface and generic <code>first</code> helper verify exact receiver-to-result provenance through <code>Vec&lt;T&gt;</code> across source modules. Import qualification retains both generic bounds and explicit conformance contracts, and IR selects a concrete method target only when the reachable callable index proves it unique.</p><p>Repository-home and packaged-home checks retain the source loan, packaged native execution observes the specialized element result, and protocol tests verify bound hover/completion plus definition ranges. No Phase 4 work remains active.</p>
             </div>

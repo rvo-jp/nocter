@@ -3,7 +3,7 @@
 This document owns the compiler design for v0.3.0 Phase 1 typed literal definitions and v0.3.0
 Phase 8 composable sequence packs. Public semantics belong to
 [Literal Definitions and Sequence Spread](../../spec/17-literal-definitions-sequence-spread.md),
-and the completed gates belong to the [v0.3.0 Release Record](v0.3.0.md).
+and the completed gates belong to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 
 ## Separate Concepts
 
@@ -18,37 +18,13 @@ and the completed gates belong to the [v0.3.0 Release Record](v0.3.0.md).
 The compiler must not infer literal behavior from nominal names such as `Vec` or `String`, method
 names, private representation, or delimiter-adjacent text rewriting.
 
-## Phase 1 Surface
+## Definition Identity
 
-Phase 1 implements only sequence and string shapes:
-
-```nct
-construct Vec<T> {
-    pub default literal [](...items: T): Self from current {
-        let result = Self.with_capacity(items.len())
-        for item in items {
-            result.push(move item)
-        }
-        return move result
-    }
-}
-
-construct String {
-    pub default literal ""(text: &str): Self from current {
-        return Self.copy(text)
-    }
-}
-```
-
-The empty delimiters in a definition are shape markers, not values. A definition is keyed by
-nominal declaration identity and shape. There is at most one definition for a key; parameter types,
-generic arguments, and visibility never form an overload set. Different shapes on one nominal type
-are distinct keys.
-
-Typed literal expressions require whitespace between the target type and its delimiter. Thus
-`Vec [1]` is a sequence literal while `values[1]` is an index expression. The distinction is
-lexical and independent of capitalization or later name resolution. The formatter preserves this
-single canonical spelling.
+The parser records literal shapes without assigning nominal meaning. Resolution keys each
+definition by nominal declaration identity and shape; parameter types, generic arguments, and
+visibility never create an overload set. Expression resolution selects that exact key and stores
+the declaration identity for typechecking, lowering, navigation, and presentation. Public shape and
+spelling rules remain exclusively in the linked specification chapter.
 
 ## Element Pack
 

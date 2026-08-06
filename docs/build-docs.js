@@ -21,7 +21,11 @@ const PAGE_META = {
     },
     "spec/README.md": {
         title: "Nocter Language Specification",
-        description: "Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts."
+        description: "Language specification for the qualified Nocter v0.5.0 candidate, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling."
+    },
+    "releases/README.md": {
+        title: "Nocter Releases",
+        description: "Published Nocter downloads, release notes, supported targets, and qualified candidate status."
     },
     "development/README.md": {
         title: "Nocter Development Documentation",
@@ -65,27 +69,21 @@ pub func Session.start(user: User, clock: &Clock): Session {
         expires_at: clock.now().plus_minutes(30),
     }
 }`,
-    profile: `struct Profile {
-    ...UserSummary
-    ...ActivityStats
-    visits: u32
-}
-
-func profile(user: &User, stats: ActivityStats): Profile {
-    return Profile {
-        ...user.summary(),
-        ...move stats,
-        visits: 0,
+    ownership: `func consume(values: Vec<String>): void! {
+    for value in move values {
+        print(value.view())?
     }
 }`,
-    literal: `literal NonEmptyList<T> [first: T, ...rest: [T]]: Self {
-    let list = Self.with_first(move first)
+    construction: `construct NonEmptyList<T> {
+    pub default literal [](...items: T): Self from current {
+        let list = Self.new()
 
-    for item in rest {
-        list.push(move item)
+        for item in items {
+            list.push(move item)
+        }
+
+        return list
     }
-
-    return list
 }`
 };
 

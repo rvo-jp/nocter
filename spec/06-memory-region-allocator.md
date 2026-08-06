@@ -5,11 +5,9 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-Nocter v0.3.0 implements deterministic ownership, explicit fallible allocation, lexical regions,
-storage provenance, and a statically propagated current allocation context for `String`, `Vec<T>`,
-and `RawBuffer`. Typed literals, sequence spread, and collection iteration build on that
-foundation. The completed release criteria live in the
-[v0.3.0 Release Record](../development/docs/v0.3.0.md).
+Nocter provides deterministic ownership, explicit fallible allocation, lexical regions, storage
+provenance, and a statically propagated current allocation context for `String`, `Vec<T>`, and
+`RawBuffer`. Typed literals, sequence spread, and collection iteration build on that foundation.
 
 ## Memory Model
 
@@ -297,7 +295,7 @@ region temp using arena {
 The full literal and sequence rules live in
 [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
 
-## Phase 0 Non-goals
+## Current Non-goals
 
 - typed literal parsing or lowering
 - sequence spread, variadic capture, or embedding

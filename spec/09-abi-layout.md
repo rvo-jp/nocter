@@ -3,7 +3,7 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-## Nocter ABI v0.2.0
+## Nocter ABI
 
 Adopted: Nocter uses its own internal ABI for Nocter functions and primitives.
 

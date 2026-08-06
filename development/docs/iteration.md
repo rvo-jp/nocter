@@ -2,7 +2,7 @@
 
 This document owns the compiler and standard-library design for v0.3.0 Phase 2. Public semantics
 belong to [Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md), and
-the completed gate belongs to the [v0.3.0 Release Record](v0.3.0.md).
+the completed gate belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 
 Phase 2 completed on 2026-08-02. This document records the implemented boundary; it is no longer an
 active checklist.

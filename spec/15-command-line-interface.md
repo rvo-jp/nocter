@@ -1,8 +1,11 @@
 # Command Line Interface
 
+This file is part of the Nocter language specification. The specification entry point is
+[README.md](README.md).
+
 ## Package Initialization and Graph Inspection
 
-Adopted for v0.5.0 Phase 5, `nocter init [DIR]` creates a source-owned package without overwriting
+`nocter init [DIR]` creates a source-owned package without overwriting
 an existing `nocter.nct` or generated `tests/unit.nct`. The directory name supplies `#name` unless
 `--name` is explicit. The default template is executable; `--library` selects a library template.
 Both templates declare a separate package test target and must pass `nocter check` and
@@ -16,12 +19,9 @@ resolved package IDs. `--locked` and `--offline` retain their normal resolution 
 Graph inspection never writes generated lock data. `nocter fetch` remains the only command that
 intentionally updates dependency locks.
 
-This file is part of the Nocter language specification.
-The specification entry point is [README.md](README.md).
+## Command Model
 
-## Direction
-
-Adopted for v0.4.0 Phase 1: package commands operate on a source-owned `nocter.nct`. Omitting a
+Package commands operate on a source-owned `nocter.nct`. Omitting a
 source selects a package; it never guesses that `main.nct` is an executable. Explicit single-file
 operation remains available for scripts and isolated experiments.
 
@@ -309,17 +309,10 @@ nocter ast app.nct --format json
 only stdout data while the server is running.
 
 The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration
-identities, and exact source spans. In v0.4.0 Phase 0 it also:
-
-- diagnoses package manifests through the same parser and validation model as package commands
-- classifies directive and record-field names without coloring surrounding punctuation or space
-- classifies executable and test entry string contents as namespaces
-- resolves go-to-definition from an executable or test `entry` value to the selected module file
-- completes `#test` with its required `name` and `entry` fields in a package manifest
-- resolves public namespace re-exports through the same declaration identity used by compilation
-
-Rename, package-wide incremental invalidation, code actions, inlay hints, and multi-package
-workspace indexing are later capabilities.
+identities, and exact source spans. Diagnostics and semantic requests share one locked, offline,
+read-only package snapshot. Public editor behavior, including package manifests, native tests,
+rename, code actions, hints, and incomplete-source recovery, is specified in [Tooling and Editor
+Integration](14-tooling-editor-integration.md).
 
 ## Target Option
 
@@ -365,13 +358,9 @@ After a program starts, `run` returns that program's exit status. `test` convert
 outcome into compiler status 1 so that one target cannot terminate the runner. Human diagnostics
 and command errors go to stderr. `--version` and successful `doctor` output go to stdout.
 
-## v0.4.0 Phase 0 Non-goals
+## Current Command Non-goals
 
-- dependency resolution, registries, package stores, lock data, or source acquisition
+- registries and semantic-version dependency resolution
 - multi-package workspaces
 - project-wide formatting or incremental build artifacts
-- test-target declarations or a package test runner (added later by v0.5.0 Phase 1)
 - child-process argument forwarding before its separator and ownership contract are specified
-
-The immutable v0.2.0 command boundary remains recorded in
-[Nocter v0.2.0 Completion Contract](00-v0.2.0-contract.md).

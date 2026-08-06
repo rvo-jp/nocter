@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter Development Documents - Nocter</title>
-    <meta name="description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
+    <meta name="description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/docs/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter Development Documents - Nocter">
-    <meta property="og:description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
+    <meta property="og:description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
     <meta property="og:url" content="https://nocter.dev/development/docs/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Development Documents - Nocter">
-    <meta name="twitter:description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
+    <meta name="twitter:description" content="This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"This directory contains compiler and distributed-standard-library implementation design. The public language specification is the sole authority for source","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -127,14 +121,10 @@
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../spec/index.html#content">specification</a></li>
-                <li><a href="./v0.5.0/index.html#content">v0.5.0 Development Plan</a></li>
-                <li><a href="./v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
                 <li><a href="./packages/index.html#content">Packages, Dependencies, and Locks</a></li>
                 <li><a href="./lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="./v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
                 <li><a href="./interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
                 <li><a href="./construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="./v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
                 <li><a href="./architecture/index.html#content">Architecture</a></li>
                 <li><a href="./region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="./typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
@@ -149,7 +139,10 @@
                 <li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a></li>
                 <li><a href="./standard-library/index.html#content">Standard Library</a></li>
                 <li><a href="./lsp/index.html#content">LSP</a></li>
+                <li><a href="./site-generation/index.html#content">Documentation Site Generation</a></li>
                 <li><a href="./maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../milestones/index.html#content">Active Milestones</a></li>
+                <li><a href="../releases/index.html#content">Release Qualification Records</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -157,14 +150,11 @@
                 <span class="markdown-path-text">/development/docs/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>This directory contains implementation design and completion criteria. The public language <a href="../../spec/index.html#content">specification</a> is the sole authority for language semantics; do not duplicate those rules here.</p><p>The current release is <strong>v0.4.0</strong>. It includes source-native package roots, deterministic exact dependency graphs, immutable package-wide LSP snapshots, and the completed stabilization audit. The previous v0.3.0 language milestone and v0.2.0 contract remain historical records. Do not use <code>v0</code> as shorthand for a release name or work scope.</p><p>The <strong>v0.5.0 Phase 5 release candidate is complete</strong>. Phase 0's published-artifact audit, Phase 1's explicit package test targets, Phase 2's native test declarations, Phase 3's package-wide editor index, Phase 4's practical standard library, and Phase 5's package authoring, graph inspection, parity audit, and stabilization are complete.</p><h2 id="documents">Documents</h2><ul><li><a href="./v0.5.0/index.html#content">v0.5.0 Development Plan</a>: completed published-artifact, native testing,
-  package-wide editor, practical standard-library, authoring, and stabilization records</li><li><a href="./v0.4.0/index.html#content">v0.4.0 Release Record</a>: completed Phase 0 through Phase 2 and stabilization
-  records, qualification, and non-goals</li><li><a href="./packages/index.html#content">Packages, Dependencies, and Locks</a>: package files, semantic identities,
+                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>This directory contains compiler and distributed-standard-library implementation design. The public language <a href="../../spec/index.html#content">specification</a> is the sole authority for source behavior and public APIs. Implementation documents explain responsibility, data flow, invariants, and verification; they must link to a specification rule instead of restating it.</p><p>Candidate scope and qualification live in <code>development/milestones/</code>. Frozen release evidence lives in <code>development/releases/</code>. Short-lived handoff state lives only in <code>development/TODO.md</code>.</p><h2 id="documents">Documents</h2><ul><li><a href="./packages/index.html#content">Packages, Dependencies, and Locks</a>: package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries</li><li><a href="./lsp-snapshots/index.html#content">Immutable LSP Snapshots</a>: editor generations, package contexts, source
-  overlays, invalidation, and request consistency</li><li><a href="./v0.3.0/index.html#content">v0.3.0 Release Record</a>: completed Phase 0 through Phase 10 records,
-  stabilization criteria, release qualification, and explicit limits</li><li><a href="./interface-implementations/index.html#content">Body-Bearing Interface Implementations</a>: canonical conformance
+  overlays, invalidation, and request consistency</li><li><a href="./interface-implementations/index.html#content">Body-Bearing Interface Implementations</a>: canonical conformance
   member identity, lookup, validation, migration, and editor boundaries</li><li><a href="./construction-surfaces/index.html#content">Construction Surfaces</a>: compiler-owned construction entries,
-  default selection, lowering reuse, and editor boundaries</li><li><a href="./v0.2.0/index.html#content">v0.2.0 Release Record</a>: immutable completion criteria for the released baseline</li><li><a href="./architecture/index.html#content">Architecture</a>: compiler phase responsibilities and boundaries</li><li><a href="./region-provenance/index.html#content">Region, Provenance, and Allocation Context</a>: shared storage-origin,
+  default selection, lowering reuse, and editor boundaries</li><li><a href="./architecture/index.html#content">Architecture</a>: compiler phase responsibilities and boundaries</li><li><a href="./region-provenance/index.html#content">Region, Provenance, and Allocation Context</a>: shared storage-origin,
   allocation-effect, lexical-region, and lowering design</li><li><a href="./typed-literals/index.html#content">Typed Literals and Composable Element Packs</a>: literal shapes, definitions,
   spread segments, context selection, and lowering boundaries</li><li><a href="./iteration/index.html#content">Explicit Iteration and Collection Access</a>: readonly and owned iterator invariants,
   optional access, shifting, cleanup, and LSP boundaries</li><li><a href="./interpolation/index.html#content">Owned String Interpolation and Formatting</a>: runtime declarations, semantic
@@ -175,8 +165,9 @@
   conversion, loop ownership, cleanup, and editor boundaries</li><li><a href="./iterator-composition/index.html#content">Composable Iterators and Collection Builders</a>: capability sets,
   conditional conformance, adapter state, collection construction, and editor boundaries</li><li><a href="./callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a>: method generics,
   required/default methods, closure ownership, callable specialization, and iterator chains</li><li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a>: the shared allocation, ownership, partial
-  initialization, <code>String</code>, and <code>Vec&lt;T&gt;</code> foundation</li><li><a href="./standard-library/index.html#content">Standard Library</a>: released runtime baseline and completed v0.3.0 runtime
-  integrations</li><li><a href="./lsp/index.html#content">LSP</a>: released compiler-backed capabilities and completed v0.3.0 editor integrations</li><li><a href="./maintenance/index.html#content">Maintenance</a>: update ownership, verification, and commit policy</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>: internal short-term handoff state</li></ul><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>Public language rules</td><td><code>spec/</code></td></tr><tr><td>v0.5.0 milestone status and acceptance</td><td><code>v0.5.0.md</code></td></tr><tr><td>v0.4.0 release status, scope, and qualification</td><td><code>v0.4.0.md</code></td></tr><tr><td>Package/compiler responsibility boundary</td><td><code>packages.md</code></td></tr><tr><td>Package-wide editor state and invalidation</td><td><code>lsp-snapshots.md</code></td></tr><tr><td>v0.3.0 release status, scope, and qualification</td><td><code>v0.3.0.md</code></td></tr><tr><td>Previous v0.2.0 completion record</td><td><code>v0.2.0.md</code></td></tr><tr><td>Compiler responsibility boundaries</td><td><code>architecture.md</code></td></tr><tr><td>Region, provenance, and allocation-context implementation design</td><td><code>region-provenance.md</code></td></tr><tr><td>Typed literal and ephemeral element-pack implementation design</td><td><code>typed-literals.md</code></td></tr><tr><td>Explicit readonly/owned iteration and collection access design</td><td><code>iteration.md</code></td></tr><tr><td>Owned interpolation and formatting implementation design</td><td><code>interpolation.md</code></td></tr><tr><td>Public provenance contracts and generic interface-bound dispatch</td><td><code>provenance-contracts.md</code></td></tr><tr><td>Nested outcome lowering and executable process context</td><td><code>outcomes-process-context.md</code></td></tr><tr><td>First-class stored outcome values</td><td><code>outcome-values.md</code></td></tr><tr><td>Protocol-driven collection iteration</td><td><code>iteration-protocol.md</code></td></tr><tr><td>Composable iterators and collection builders</td><td><code>iterator-composition.md</code></td></tr><tr><td>Callable values, interface default methods, and iterator chains</td><td><code>callable-default-methods.md</code></td></tr><tr><td>Construction declarations and type-owned creation APIs</td><td><code>construction-surfaces.md</code></td></tr><tr><td>Allocator, ownership, and drop design</td><td><code>allocator-ownership.md</code></td></tr><tr><td>Distributed <code>std</code> implementation state</td><td><code>standard-library.md</code></td></tr><tr><td>LSP capabilities and analysis boundary</td><td><code>lsp.md</code></td></tr><tr><td>Next concrete internal task</td><td><code>../TODO.md</code></td></tr></tbody></table><p>Do not copy chronological completion lists or commit history into design documents. Git owns the history.</p>
+  initialization, <code>String</code>, and <code>Vec&lt;T&gt;</code> foundation</li><li><a href="./standard-library/index.html#content">Standard Library</a>: runtime responsibilities, ownership invariants, target
+  boundaries, and distributed-home verification</li><li><a href="./lsp/index.html#content">LSP</a>: compiler-backed semantic, presentation, recovery, protocol, and verification
+  boundaries</li><li><a href="./site-generation/index.html#content">Documentation Site Generation</a>: public Markdown build and generated output</li><li><a href="./maintenance/index.html#content">Maintenance</a>: update ownership, verification, and commit policy</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>: internal short-term handoff state</li><li><a href="../milestones/index.html#content">Active Milestones</a>: candidate scope and qualification</li><li><a href="../releases/index.html#content">Release Qualification Records</a>: frozen compiler release evidence</li></ul><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>Public language rules</td><td><code>spec/</code></td></tr><tr><td>Published download and public candidate status</td><td><code>releases/README.md</code></td></tr><tr><td>Candidate scope, status, and qualification</td><td><code>../milestones/&lt;version&gt;.md</code></td></tr><tr><td>Published release qualification</td><td><code>../releases/&lt;version&gt;.md</code></td></tr><tr><td>Package/compiler responsibility boundary</td><td><code>packages.md</code></td></tr><tr><td>Package-wide editor state and invalidation</td><td><code>lsp-snapshots.md</code></td></tr><tr><td>Compiler responsibility boundaries</td><td><code>architecture.md</code></td></tr><tr><td>Region, provenance, and allocation-context implementation design</td><td><code>region-provenance.md</code></td></tr><tr><td>Typed literal and ephemeral element-pack implementation design</td><td><code>typed-literals.md</code></td></tr><tr><td>Explicit readonly/owned iteration and collection access design</td><td><code>iteration.md</code></td></tr><tr><td>Owned interpolation and formatting implementation design</td><td><code>interpolation.md</code></td></tr><tr><td>Public provenance contracts and generic interface-bound dispatch</td><td><code>provenance-contracts.md</code></td></tr><tr><td>Nested outcome lowering and executable process context</td><td><code>outcomes-process-context.md</code></td></tr><tr><td>First-class stored outcome values</td><td><code>outcome-values.md</code></td></tr><tr><td>Protocol-driven collection iteration</td><td><code>iteration-protocol.md</code></td></tr><tr><td>Composable iterators and collection builders</td><td><code>iterator-composition.md</code></td></tr><tr><td>Callable values, interface default methods, and iterator chains</td><td><code>callable-default-methods.md</code></td></tr><tr><td>Construction declarations and type-owned creation APIs</td><td><code>construction-surfaces.md</code></td></tr><tr><td>Allocator, ownership, and drop design</td><td><code>allocator-ownership.md</code></td></tr><tr><td>Distributed <code>std</code> implementation state</td><td><code>standard-library.md</code></td></tr><tr><td>LSP capabilities and analysis boundary</td><td><code>lsp.md</code></td></tr><tr><td>Next concrete internal task</td><td><code>../TODO.md</code></td></tr><tr><td>Documentation build process</td><td><code>site-generation.md</code></td></tr></tbody></table><p>Entry points may summarize an owned fact in one sentence and link to its owner. They must not carry independent completion lists, qualification details, or mutable status. Git owns chronological history.</p>
             </div>
         </main>
     </div>

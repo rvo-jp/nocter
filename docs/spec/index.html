@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter Language Specification</title>
-    <meta name="description" content="Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts.">
+    <meta name="description" content="Language specification for the qualified Nocter v0.5.0 candidate, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/spec/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter Language Specification">
-    <meta property="og:description" content="Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts.">
+    <meta property="og:description" content="Language specification for the qualified Nocter v0.5.0 candidate, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
     <meta property="og:url" content="https://nocter.dev/spec/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Language Specification">
-    <meta name="twitter:description" content="Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts.">
+    <meta name="twitter:description" content="Language specification for the qualified Nocter v0.5.0 candidate, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Language Specification","description":"Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts.","url":"https://nocter.dev/spec/","mainEntityOfPage":"https://nocter.dev/spec/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Language Specification","description":"Language specification for the qualified Nocter v0.5.0 candidate, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.","url":"https://nocter.dev/spec/","mainEntityOfPage":"https://nocter.dev/spec/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"}]}]</script>
 
     <link rel="stylesheet" href="../style.css">
 </head>
@@ -55,8 +55,8 @@
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
                     <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
-                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
                 </div>
 
                 <div class="hero-code-panels">
@@ -95,27 +95,21 @@
         expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
-    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
-    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
-        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
-        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
-                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
-        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> list
     <span class="token-operator">}</span>
-
-    <span class="token-keyword">return</span> list
 <span class="token-operator">}</span></code></pre>
                 </div>
             </aside>
@@ -128,7 +122,6 @@
             <ul class="directory-toc-list">
                 <li><a href="./00-design-principles/index.html#content">Design Principles</a></li>
                 <li><a href="./00-overview/index.html#content">Overview</a></li>
-                <li><a href="./00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li>
                 <li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li>
                 <li><a href="./02-values-types/index.html#content">Values and Types</a></li>
                 <li><a href="./03-control-flow/index.html#content">Control Flow</a></li>
@@ -136,7 +129,7 @@
                 <li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
                 <li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
                 <li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
+                <li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
                 <li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li>
                 <li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li>
                 <li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
@@ -146,14 +139,12 @@
                 <li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li>
                 <li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
                 <li><a href="./17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
-                <li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="./18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="./19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="./20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="./guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="./00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
+                <li><a href="../releases/index.html#content">release index</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -161,8 +152,9 @@
                 <span class="markdown-path-text">/spec/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-language-specification">Nocter Language Specification</h1><p>This directory is the authoritative source for Nocter language behavior. It is written for Nocter users, standard-library authors, editor/tool authors, and AI assistants that need to generate or analyze Nocter source.</p><p>The detailed specification is split by topic so each design area can evolve without turning this file into a monolith.</p><p>Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language. Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users. Nocter values simplicity, encapsulation, and foolproof design. It also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.</p><h2 id="chapters">Chapters</h2><ul><li><a href="./00-design-principles/index.html#content">Design Principles</a></li><li><a href="./00-overview/index.html#content">Overview</a></li><li><a href="./00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li><li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li><li><a href="./02-values-types/index.html#content">Values and Types</a></li><li><a href="./03-control-flow/index.html#content">Control Flow</a></li><li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li><li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li><li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li><li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li><li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li><li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li><li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li><li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li><li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li><li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li><li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li><li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li><li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li><li><a href="./17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li><li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li><li><a href="./18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li><li><a href="./19-construction-surfaces/index.html#content">Construction Surfaces</a></li><li><a href="./20-native-testing/index.html#content">Native Testing</a></li></ul><h2 id="supporting-material">Supporting Material</h2><ul><li><a href="./guides/ai/index.html#content">AI Guide</a></li><li><a href="./examples/index.html#content">Example Corpus</a></li></ul><h2 id="version-status">Version Status</h2><p>The released language baseline is v0.4.0. Its package-root, deterministic dependency-graph, immutable editor-snapshot, and release-qualification contracts are recorded in the <a href="../development/docs/v0.4.0/index.html#content">v0.4.0 Release Record</a>. The <a href="../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a> and <a href="./00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a> remain historical boundaries.</p><p>The adopted v0.5.0 Phase 2 contract adds compiler-owned native test declarations, per-declaration process isolation, and <code>std/testing</code>. The completed v0.5.0 Phase 3 contract adds an immutable exact-graph editor index, package-wide references and rename, compiler-planned source edits, and semantic inlay hints. The completed v0.5.0 Phase 4 contract adds UTF-8 paths, read/create/append files, buffered byte I/O, text and collection operations, numeric conversion, and allocation-free process queries. These contracts are specified here before the v0.5.0 release so packages and tooling share one source of truth.</p><h2 id="editing-policy">Editing Policy</h2><ul><li>Keep this file as the table of contents and high-level specification entry point.</li><li>Put normative language and public standard-library rules in the relevant
-  <code>spec/*.md</code> chapter.</li><li>Keep examples close to the rule they explain.</li><li>Keep <code>guides/ai.md</code> compact and example-oriented; do not let it replace normative specification chapters.</li><li>When a design is still provisional, mark it explicitly in that chapter instead of hiding uncertainty in broad wording.</li><li>Keep compiler implementation status, backend work plans, and handoff notes in
+                <h1 id="nocter-language-specification">Nocter Language Specification</h1><p>This directory is the sole normative source for Nocter language behavior, public standard-library APIs, command-line behavior, and editor-facing contracts. It is written for Nocter users, standard-library authors, editor/tool authors, and AI assistants that generate or analyze Nocter source.</p><p>The detailed specification is split by topic so each design area can evolve without turning this file into a monolith.</p><p>Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language. Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users. Nocter values simplicity, encapsulation, and foolproof design. It also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.</p><h2 id="chapters">Chapters</h2><ul><li><a href="./00-design-principles/index.html#content">Design Principles</a></li><li><a href="./00-overview/index.html#content">Overview</a></li><li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li><li><a href="./02-values-types/index.html#content">Values and Types</a></li><li><a href="./03-control-flow/index.html#content">Control Flow</a></li><li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li><li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li><li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li><li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li><li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li><li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li><li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li><li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li><li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li><li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li><li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li><li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li><li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li><li><a href="./17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li><li><a href="./18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li><li><a href="./19-construction-surfaces/index.html#content">Construction Surfaces</a></li><li><a href="./20-native-testing/index.html#content">Native Testing</a></li><li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li></ul><h2 id="supporting-material">Supporting Material</h2><ul><li><a href="./guides/ai/index.html#content">AI Guide</a></li><li><a href="./examples/index.html#content">Example Corpus</a></li></ul><h2 id="contract-status">Contract Status</h2><p>This working tree specifies the qualified v0.5.0 candidate. The latest published release is v0.4.0. The <a href="../releases/index.html#content">release index</a> owns publication and download status; repository tags preserve the exact specification for older releases.</p><p>A chapter states current behavior unless a section is explicitly labeled <strong>Future Direction</strong> or <strong>Non-goal</strong>. Development phases and compiler work order do not change the meaning of an otherwise unqualified rule.</p><p>Compiler architecture, backend boundaries, qualification evidence, and repository workflows are non-normative and live under <code>development/</code>.</p><h2 id="editing-policy">Editing Policy</h2><ul><li>Keep this file as the table of contents and high-level specification entry point.</li><li>Put normative language and public standard-library rules in the relevant
+  <code>spec/*.md</code> chapter.</li><li>Keep examples close to the rule they explain.</li><li>Keep <code>guides/ai.md</code> compact and example-oriented; do not let it replace normative specification chapters.</li><li>Mark proposed behavior under an explicit <strong>Future Direction</strong> heading. Do not mix implementation
+  phases or work plans into current rules.</li><li>Keep compiler implementation status, backend work plans, and handoff notes in
   <code>../development/</code>.</li></ul>
             </div>
         </main>
