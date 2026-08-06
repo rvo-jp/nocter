@@ -240,10 +240,12 @@ signature; native source-level test declarations are a later language feature. E
 the selected package root as its working directory, including when `--root` was given elsewhere.
 
 Human output reports every target and aggregate passed/failed counts. `--format json` writes one
-`nocter.tests` version-1 envelope to stdout. It contains `ok`, package and target identity,
-top-level diagnostics, per-target outcome (`passed`, `failed`, `compile_failed`, or
-`runner_failed`), exit code or signal, captured stdout/stderr, per-target diagnostics, and summary
-counts. The command exits zero only when every selected target passes.
+`nocter.tests` version-1 envelope to stdout. It contains `ok`, package and compilation-target
+identity, top-level diagnostics, `runs`, and summary counts. Each run records separate `target` and
+nullable source-level `test` identity, outcome (`passed`, `failed`, `compile_failed`, or
+`runner_failed`), exit code or signal, captured stdout/stderr, and diagnostics. Phase 1 target-entry
+runs have `test: null`; native test declarations use that field without encoding identity into a
+display string. The command exits zero only when every selected run passes.
 
 ## Check
 

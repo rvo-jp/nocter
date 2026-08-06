@@ -13,8 +13,9 @@ pub(super) enum TestOutcome {
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct TestTargetReport {
-    pub(super) name: String,
+pub(super) struct TestRunReport {
+    pub(super) target: String,
+    pub(super) test: Option<String>,
     pub(super) outcome: TestOutcome,
     pub(super) exit_code: Option<i32>,
     pub(super) signal: Option<i32>,
@@ -37,7 +38,7 @@ pub(super) struct TestReport {
     package: String,
     target: String,
     diagnostics: Vec<Diagnostic>,
-    tests: Vec<TestTargetReport>,
+    runs: Vec<TestRunReport>,
     summary: TestSummary,
 }
 
@@ -46,13 +47,13 @@ impl TestReport {
         package: String,
         target: String,
         diagnostics: Vec<Diagnostic>,
-        tests: Vec<TestTargetReport>,
+        runs: Vec<TestRunReport>,
     ) -> Self {
-        let passed = tests
+        let passed = runs
             .iter()
-            .filter(|test| test.outcome == TestOutcome::Passed)
+            .filter(|run| run.outcome == TestOutcome::Passed)
             .count();
-        let failed = tests.len() - passed;
+        let failed = runs.len() - passed;
         let ok = diagnostics.is_empty() && failed == 0;
         Self {
             schema: "nocter.tests",
@@ -61,7 +62,7 @@ impl TestReport {
             package,
             target,
             diagnostics,
-            tests,
+            runs,
             summary: TestSummary { passed, failed },
         }
     }
@@ -70,8 +71,8 @@ impl TestReport {
         self.ok
     }
 
-    pub(super) fn tests(&self) -> &[TestTargetReport] {
-        &self.tests
+    pub(super) fn runs(&self) -> &[TestRunReport] {
+        &self.runs
     }
 
     pub(super) fn summary(&self) -> &TestSummary {

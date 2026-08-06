@@ -3,7 +3,7 @@ use super::package_plan::selected_tests;
 use super::pipeline::build_package_executable_to_path_with_target;
 use super::temporary_executable::TemporaryExecutable;
 use super::test_options::{TestCommand, TestOutputFormat};
-use super::test_report::{TestOutcome, TestReport, TestTargetReport, exit_code};
+use super::test_report::{TestOutcome, TestReport, TestRunReport, exit_code};
 use crate::diagnostics::Diagnostic;
 use crate::package::{PackageGraphOptions, TestTarget, load_package_graph};
 use crate::source::SourceMap;
@@ -63,7 +63,7 @@ pub(super) fn run_test_command(command: &TestCommand) -> ExitCode {
 }
 
 struct TestExecution {
-    report: TestTargetReport,
+    report: TestRunReport,
     sources: Option<SourceMap>,
 }
 
@@ -76,8 +76,9 @@ fn execute_target(
         Ok(artifact) => artifact,
         Err(error) => {
             return TestExecution {
-                report: TestTargetReport {
-                    name: target.name().to_string(),
+                report: TestRunReport {
+                    target: target.name().to_string(),
+                    test: None,
                     outcome: TestOutcome::RunnerFailed,
                     exit_code: None,
                     signal: None,
@@ -99,8 +100,9 @@ fn execute_target(
     );
     if !output.is_ok() {
         return TestExecution {
-            report: TestTargetReport {
-                name: target.name().to_string(),
+            report: TestRunReport {
+                target: target.name().to_string(),
+                test: None,
                 outcome: TestOutcome::CompileFailed,
                 exit_code: None,
                 signal: None,
@@ -116,8 +118,9 @@ fn execute_target(
         .output()
     {
         Ok(output) => TestExecution {
-            report: TestTargetReport {
-                name: target.name().to_string(),
+            report: TestRunReport {
+                target: target.name().to_string(),
+                test: None,
                 outcome: if output.status.success() {
                     TestOutcome::Passed
                 } else {
@@ -132,8 +135,9 @@ fn execute_target(
             sources: None,
         },
         Err(error) => TestExecution {
-            report: TestTargetReport {
-                name: target.name().to_string(),
+            report: TestRunReport {
+                target: target.name().to_string(),
+                test: None,
                 outcome: TestOutcome::RunnerFailed,
                 exit_code: None,
                 signal: None,
@@ -162,22 +166,22 @@ fn write_initial_failure(command: &TestCommand, diagnostics: Vec<Diagnostic>) ->
 }
 
 fn write_human_report(report: &TestReport, sources: &[Option<SourceMap>]) -> ExitCode {
-    for (test, sources) in report.tests().iter().zip(sources) {
+    for (run, sources) in report.runs().iter().zip(sources) {
         println!(
             "test {} ... {}",
-            test.name,
-            if test.outcome == TestOutcome::Passed {
+            run_display_name(run),
+            if run.outcome == TestOutcome::Passed {
                 "ok"
             } else {
                 "FAILED"
             }
         );
-        if test.outcome != TestOutcome::Passed {
-            let _ = io::stdout().write_all(test.stdout.as_bytes());
-            let _ = io::stderr().write_all(test.stderr.as_bytes());
-            if !test.diagnostics.is_empty() {
+        if run.outcome != TestOutcome::Passed {
+            let _ = io::stdout().write_all(run.stdout.as_bytes());
+            let _ = io::stderr().write_all(run.stderr.as_bytes());
+            if !run.diagnostics.is_empty() {
                 let _ =
-                    write_human_diagnostics(&test.diagnostics, sources.as_ref(), ExitCode::FAILURE);
+                    write_human_diagnostics(&run.diagnostics, sources.as_ref(), ExitCode::FAILURE);
             }
         }
     }
@@ -189,6 +193,13 @@ fn write_human_report(report: &TestReport, sources: &[Option<SourceMap>]) -> Exi
         report.summary().failed
     );
     exit_code(report)
+}
+
+fn run_display_name(run: &TestRunReport) -> String {
+    match &run.test {
+        Some(test) => format!("{}::{test}", run.target),
+        None => run.target.clone(),
+    }
 }
 
 fn write_json_report(report: &TestReport) -> ExitCode {

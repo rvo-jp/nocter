@@ -133,10 +133,11 @@ fn json_report_is_one_stable_machine_readable_envelope() {
     assert_eq!(report["ok"], false);
     assert_eq!(report["package"], "json-tests");
     assert_eq!(report["diagnostics"], serde_json::json!([]));
-    assert_eq!(report["tests"][0]["name"], "unit");
-    assert_eq!(report["tests"][0]["outcome"], "failed");
-    assert_eq!(report["tests"][0]["exit_code"], 9);
-    assert_eq!(report["tests"][0]["signal"], Value::Null);
+    assert_eq!(report["runs"][0]["target"], "unit");
+    assert_eq!(report["runs"][0]["test"], Value::Null);
+    assert_eq!(report["runs"][0]["outcome"], "failed");
+    assert_eq!(report["runs"][0]["exit_code"], 9);
+    assert_eq!(report["runs"][0]["signal"], Value::Null);
     assert_eq!(report["summary"]["passed"], 0);
     assert_eq!(report["summary"]["failed"], 1);
 }
@@ -190,8 +191,8 @@ func main(): i32! {
 
     assert_eq!(output.status.code(), Some(1));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["tests"][0]["outcome"], "failed");
-    assert_eq!(report["tests"][0]["exit_code"], 1);
+    assert_eq!(report["runs"][0]["outcome"], "failed");
+    assert_eq!(report["runs"][0]["exit_code"], 1);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -218,11 +219,13 @@ fn process_trap_is_isolated_and_later_tests_still_run() {
 
     assert_eq!(output.status.code(), Some(1));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["tests"][0]["name"], "traps");
-    assert_eq!(report["tests"][0]["outcome"], "failed");
-    assert!(report["tests"][0]["signal"].as_i64().is_some());
-    assert_eq!(report["tests"][1]["name"], "healthy");
-    assert_eq!(report["tests"][1]["outcome"], "passed");
+    assert_eq!(report["runs"][0]["target"], "traps");
+    assert_eq!(report["runs"][0]["test"], Value::Null);
+    assert_eq!(report["runs"][0]["outcome"], "failed");
+    assert!(report["runs"][0]["signal"].as_i64().is_some());
+    assert_eq!(report["runs"][1]["target"], "healthy");
+    assert_eq!(report["runs"][1]["test"], Value::Null);
+    assert_eq!(report["runs"][1]["outcome"], "passed");
 }
 
 struct TempPackage {
