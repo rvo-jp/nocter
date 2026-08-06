@@ -1,5 +1,6 @@
 use super::{Command, parse_command};
 use crate::driver::compile_options::{BuildCommand, CompileInput, SourceCommand};
+use crate::driver::test_options::{TestCommand, TestOutputFormat};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -147,6 +148,45 @@ fn parses_package_check_json() {
         .unwrap(),
         Command::CheckJson(package_command("."))
     );
+}
+
+#[test]
+fn parses_explicit_package_test_selection_and_json_output() {
+    assert_eq!(
+        parse_command(&[
+            OsString::from("test"),
+            OsString::from("--root"),
+            OsString::from("packages/tool"),
+            OsString::from("--test"),
+            OsString::from("unit"),
+            OsString::from("--locked"),
+            OsString::from("--offline"),
+            OsString::from("--format"),
+            OsString::from("json"),
+        ])
+        .unwrap(),
+        Command::Test(TestCommand {
+            root: PathBuf::from("packages/tool"),
+            selected: Some("unit".to_string()),
+            target: "arm64-darwin".to_string(),
+            locked: true,
+            offline: true,
+            format: TestOutputFormat::Json,
+        })
+    );
+}
+
+#[test]
+fn rejects_file_and_executable_options_for_test_command() {
+    for option in ["--file", "--executable", "-o"] {
+        let error = parse_command(&[
+            OsString::from("test"),
+            OsString::from(option),
+            OsString::from("value"),
+        ])
+        .unwrap_err();
+        assert_eq!(error.message(), format!("unexpected argument `{option}`"));
+    }
 }
 
 #[test]

@@ -192,7 +192,7 @@ pub(super) fn parse_fetch_command(args: &[OsString]) -> Result<SourceCommand, St
     Ok(options.source)
 }
 
-fn required_value<'a>(
+pub(super) fn required_value<'a>(
     args: &'a [OsString],
     index: usize,
     message: &str,
@@ -200,6 +200,6 @@ fn required_value<'a>(
     args.get(index + 1).ok_or_else(|| message.to_string())
 }
 
-fn is_arg(arg: &OsString, expected: &str) -> bool {
+pub(super) fn is_arg(arg: &OsString, expected: &str) -> bool {
     arg.to_string_lossy() == expected
 }

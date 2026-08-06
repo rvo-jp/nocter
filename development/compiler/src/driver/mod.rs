@@ -12,6 +12,10 @@ mod package_commands;
 mod package_plan;
 mod pipeline;
 mod run;
+mod temporary_executable;
+mod test_command;
+mod test_options;
+mod test_report;
 
 use crate::target::{DEFAULT_TARGET, HOST};
 use command::{Command, CommandErrorKind, parse_command};
@@ -60,6 +64,7 @@ where
         Ok(Command::Run(command)) => package_commands::run_run_command(&command),
         Ok(Command::Check(command)) => package_commands::run_check_command(&command),
         Ok(Command::CheckJson(command)) => package_commands::run_check_json_command(&command),
+        Ok(Command::Test(command)) => test_command::run_test_command(&command),
         Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
@@ -93,6 +98,10 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
     writeln!(writer, "  fetch [--root <dir>] [--locked] [--offline]")?;
+    writeln!(
+        writer,
+        "  test [--root <dir>] [--test <name>] [--locked] [--offline] [--target <target>] [--format json]"
+    )?;
     writeln!(
         writer,
         "  build [--root <dir>] [--executable <name>] [-o <path>] [--target <target>]"
