@@ -308,7 +308,7 @@ func main(): i32 {
 }
 "#;
     let math_text = r#"/// Returns the provided value.
-pub func identity<T>(value: T): T {
+pub func identity<T>(value: T): T from value {
     return value
 }
 "#;
@@ -339,7 +339,7 @@ pub func identity<T>(value: T): T {
 
     assert_eq!(
         response["result"]["signatures"][0]["label"],
-        json!("func identity<i32>(value: i32): i32")
+        json!("func identity<i32>(value: i32): i32 from value")
     );
     assert_eq!(response["result"]["activeParameter"], json!(0));
     assert_eq!(

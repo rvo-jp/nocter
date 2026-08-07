@@ -2033,7 +2033,7 @@ func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
 fn lsp_command_serves_closures_default_methods_and_incomplete_bodies() {
     let project = TempProject::new("cli-lsp-phase10-editor-contract");
     let source_text = r#"interface Identity {
-    pub method &self.keep<T>(value: T): T {
+    pub method &self.keep<T>(value: T): T from value {
         return value
     }
 }
@@ -2158,7 +2158,7 @@ func main(): i32 {
     let signature = &response_with_id(&messages, 3)["result"];
     assert_eq!(
         signature["signatures"][0]["label"],
-        json!("method &Unit.keep<i32>(value: i32): i32")
+        json!("method &Unit.keep<i32>(value: i32): i32 from value")
     );
 
     let completion_items = response_with_id(&messages, 4)["result"]["items"]

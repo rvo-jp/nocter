@@ -256,8 +256,7 @@ fn workspace_hover_uses_typecheck_facts_for_namespace_imported_function_member_c
 #[test]
 fn workspace_hover_presents_imported_generic_call_specialization() {
     let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.identity(42)\n}\n";
-    let module_text =
-        "/// Returns its input.\npub func identity<T>(value: T): T {\n    return value\n}\n";
+    let module_text = "/// Returns its input.\npub func identity<T>(value: T): T from value {\n    return value\n}\n";
     let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
     let file = analysis.root_file().expect("expected root file");
     let offset = root_text
@@ -267,7 +266,10 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
+    assert_eq!(
+        hover.label,
+        "func identity<i32>(value: i32): i32 from value"
+    );
     assert_eq!(hover.documentation.as_deref(), Some("Returns its input."));
 }
 
@@ -516,7 +518,7 @@ interface ExactSizeIterator<T> {}
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-pub func filter<T, I: Iterator<T>>(source: I): I {
+pub func filter<T, I: Iterator<T>>(source: I): I from source {
     return source
 }
 

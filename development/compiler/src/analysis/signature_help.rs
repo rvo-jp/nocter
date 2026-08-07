@@ -547,7 +547,7 @@ func main(): i32 {
 }
 "#;
         let module = r#"/// Returns its input.
-pub func identity<T>(value: T): T {
+pub func identity<T>(value: T): T from value {
     return value
 }
 "#;
@@ -558,7 +558,10 @@ pub func identity<T>(value: T): T {
         let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
             .expect("expected signature help");
 
-        assert_eq!(signature.label, "func identity<i32>(value: i32): i32");
+        assert_eq!(
+            signature.label,
+            "func identity<i32>(value: i32): i32 from value"
+        );
         assert_eq!(signature.active_parameter, 0);
         assert_eq!(
             signature.documentation.as_deref(),
@@ -641,7 +644,7 @@ func main(box: &Box<i32>): i32 {
     #[test]
     fn presents_specialized_interface_default_method_generics() {
         let text = r#"interface Identity {
-    pub method &self.keep<T>(value: T): T {
+    pub method &self.keep<T>(value: T): T from value {
         return value
     }
 }
@@ -662,7 +665,10 @@ func main(): i32 {
         let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
             .expect("expected default method signature help");
 
-        assert_eq!(signature.label, "method &Unit.keep<i32>(value: i32): i32");
+        assert_eq!(
+            signature.label,
+            "method &Unit.keep<i32>(value: i32): i32 from value"
+        );
         assert_eq!(signature.parameters[0].label, "value: i32");
     }
 

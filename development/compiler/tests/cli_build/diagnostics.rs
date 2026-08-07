@@ -1694,7 +1694,7 @@ fn build_command_accepts_specialized_composed_outcome_method_return() {
 }
 
 impl<T> Holder<T> {
-    pub method &self.make(): T?! {
+    pub method &self.make(): T?! from self {
         return self.value
     }
 }
