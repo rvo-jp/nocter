@@ -1,5 +1,6 @@
 mod contracts;
 mod model;
+mod result_allocation;
 mod storage_capability;
 
 pub(in crate::typecheck) use contracts::*;

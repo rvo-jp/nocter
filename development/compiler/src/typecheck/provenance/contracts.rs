@@ -164,6 +164,16 @@ fn actual_origins_satisfy(actual: &ValueProvenance, allowed: &[StorageOrigin]) -
     match actual {
         ValueProvenance::Independent => true,
         ValueProvenance::Origins(origins) => origins.iter().all(|origin| match origin {
+            StorageOrigin::Allocated(domain) => match domain.allocation_domain() {
+                StorageOrigin::Static => true,
+                StorageOrigin::CurrentAllocationContext | StorageOrigin::Input(_) => {
+                    allowed.contains(domain.allocation_domain())
+                }
+                StorageOrigin::Scope { .. }
+                | StorageOrigin::Region { .. }
+                | StorageOrigin::Unknown => false,
+                StorageOrigin::Allocated(_) => unreachable!("allocation domains are unwrapped"),
+            },
             StorageOrigin::Static => true,
             StorageOrigin::CurrentAllocationContext | StorageOrigin::Input(_) => {
                 allowed.contains(origin)

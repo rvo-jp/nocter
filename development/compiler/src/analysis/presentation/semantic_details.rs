@@ -273,6 +273,7 @@ mod tests {
                 ]),
                 elements: BTreeMap::new(),
             }),
+            result_may_contain_allocation: false,
             needs_current_allocation_context: false,
             storage_inputs: HashSet::from([storage]),
         };
@@ -308,6 +309,7 @@ mod tests {
                     .map(StorageOriginFact::Input)
                     .collect(),
             )),
+            result_may_contain_allocation: false,
             needs_current_allocation_context: false,
             storage_inputs: spans.iter().copied().collect(),
         };
@@ -331,6 +333,7 @@ mod tests {
                     StorageOriginFact::Static,
                 ]))),
             }),
+            result_may_contain_allocation: false,
             needs_current_allocation_context: false,
             storage_inputs: HashSet::from([value]),
         };

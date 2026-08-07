@@ -43,6 +43,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
             Some(ValueProvenance::static_storage())
         }
         StorageOrigin::Input(_)
+        | StorageOrigin::Allocated(_)
         | StorageOrigin::Scope { .. }
         | StorageOrigin::Region { .. }
         | StorageOrigin::Unknown => Some(ValueProvenance::unknown()),

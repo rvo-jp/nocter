@@ -28,6 +28,7 @@ impl CallableSemanticFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CallableSemanticFact {
     pub(crate) result: Option<ValueProvenanceFact>,
+    pub(crate) result_may_contain_allocation: bool,
     pub(crate) needs_current_allocation_context: bool,
     pub(crate) storage_inputs: HashSet<ByteSpan>,
 }
@@ -185,6 +186,10 @@ fn insert_fact(
         .map(value_fact)
         .map(normalize_value_fact)
         .map(|fact| normalize_for_return_type(fact, return_type, resolved));
+    let result_may_contain_allocation = summaries
+        .result(callable)
+        .is_some_and(super::provenance::ValueProvenance::contains_result_allocation)
+        && type_expr_carries_storage(return_type, resolved);
     let needs_current_allocation_context = summaries.needs_current_allocation_context(callable)
         || declaration_uses_current_allocation_context(resolved, declaration);
     let storage_inputs = parameters
@@ -197,6 +202,7 @@ fn insert_fact(
         declaration,
         CallableSemanticFact {
             result,
+            result_may_contain_allocation,
             needs_current_allocation_context,
             storage_inputs,
         },
@@ -320,7 +326,7 @@ fn value_fact(value: &ValueProvenance) -> ValueProvenanceFact {
 }
 
 fn origin_fact(origin: &StorageOrigin) -> StorageOriginFact {
-    match origin {
+    match origin.allocation_domain() {
         StorageOrigin::Static => StorageOriginFact::Static,
         StorageOrigin::CurrentAllocationContext => StorageOriginFact::CurrentAllocationContext,
         StorageOrigin::Input(input) => StorageOriginFact::Input(input.declaration_span()),
@@ -329,5 +335,82 @@ fn origin_fact(origin: &StorageOrigin) -> StorageOriginFact {
             StorageOriginFact::Region(region.declaration_span())
         }
         StorageOrigin::Unknown => StorageOriginFact::Unknown,
+        StorageOrigin::Allocated(_) => unreachable!("allocation domains are unwrapped"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Item;
+    use crate::lexer::lex;
+    use crate::parser::parse;
+    use crate::resolve::resolve;
+    use crate::semantics::{AllocationFailurePolicy, AllocationSource, TrustedDeclarationRole};
+    use crate::source::SourceMap;
+
+    #[test]
+    fn retained_allocation_is_separate_from_execution_allocation() {
+        let text = r#"struct Buffer {
+    pointer: *u8
+}
+
+pub(nocter) primitive allocate(): Buffer
+
+func retained(): Buffer {
+    return allocate()
+}
+
+func scratch(): usize {
+    let temporary = allocate()
+    return 1
+}
+"#;
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, text.to_string());
+        let lexed = lex(&sources, source);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&sources, source, &lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let ast = parsed.ast.expect("expected AST");
+        let mut resolved = resolve(&sources, &ast);
+        let allocation = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Primitive(primitive) if primitive.name == "allocate" => {
+                    Some(primitive.name_span)
+                }
+                _ => None,
+            })
+            .expect("allocation primitive");
+        resolved.trusted_declarations.insert(
+            allocation,
+            TrustedDeclarationRole::AllocationOperation {
+                source: AllocationSource::CurrentContext,
+                failure_policy: AllocationFailurePolicy::Abort,
+            },
+        );
+
+        let facts = collect_callable_semantic_facts(&[TypecheckSource::new(&ast, &resolved)]);
+        let function_fact = |name: &str| {
+            let declaration = ast
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    Item::Function(function) if function.name == name => Some(function.name_span),
+                    _ => None,
+                })
+                .expect("function declaration");
+            facts.get(declaration).expect("callable semantic fact")
+        };
+
+        let retained = function_fact("retained");
+        assert!(retained.result_may_contain_allocation);
+        assert!(retained.needs_current_allocation_context);
+
+        let scratch = function_fact("scratch");
+        assert!(!scratch.result_may_contain_allocation);
+        assert!(scratch.needs_current_allocation_context);
     }
 }

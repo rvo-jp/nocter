@@ -11,7 +11,13 @@ pub(in crate::typecheck::returns) fn instantiate_provenance_summary(
         ValueProvenance::Origins(origins) => {
             let mut provenance = None;
             for origin in origins {
-                merge_provenance(&mut provenance, map_origin(origin));
+                let mapped = match origin {
+                    StorageOrigin::Allocated(domain) => {
+                        map_origin(domain).map(ValueProvenance::allocated)
+                    }
+                    _ => map_origin(origin),
+                };
+                merge_provenance(&mut provenance, mapped);
             }
             provenance
         }

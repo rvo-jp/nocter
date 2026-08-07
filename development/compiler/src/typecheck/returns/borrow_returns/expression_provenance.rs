@@ -2,7 +2,28 @@ use super::*;
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
     expression: &Expr,
-    _ty: &Type,
+    ty: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
+    let provenance = borrow_return_provenance_for_expression_unfiltered(
+        expression,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    );
+    if type_may_carry_result_provenance(ty, resolved) {
+        provenance
+    } else {
+        provenance.map(ValueProvenance::without_result_allocation)
+    }
+}
+
+fn borrow_return_provenance_for_expression_unfiltered(
+    expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &ProvenanceEnvironment,
@@ -64,9 +85,11 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             summaries,
         ),
         Expr::StringLiteral(_) => Some(ValueProvenance::static_storage()),
-        Expr::InterpolatedString(_) => {
-            Some(borrow_provenance.current_allocation_context_provenance())
-        }
+        Expr::InterpolatedString(_) => Some(
+            borrow_provenance
+                .current_allocation_context_provenance()
+                .allocated(),
+        ),
         Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
         | Expr::BoolLiteral(_)
@@ -516,6 +539,7 @@ fn trusted_call_result_provenance(
                     })
                     .unwrap_or_else(ValueProvenance::unknown),
             }
+            .allocated()
         }
         crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
         | crate::semantics::TrustedDeclarationRole::RegionEnter
@@ -591,6 +615,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
             borrow_provenance,
             summaries,
         ),
+        StorageOrigin::Allocated(_) => unreachable!("summary instantiation unwraps allocations"),
         StorageOrigin::Scope { .. } | StorageOrigin::Region { .. } | StorageOrigin::Unknown => {
             Some(ValueProvenance::unknown())
         }

@@ -57,6 +57,7 @@ pub(in crate::typecheck) enum StorageOrigin {
     Static,
     CurrentAllocationContext,
     Input(InputId),
+    Allocated(Box<StorageOrigin>),
     Scope {
         binding: ByteSpan,
         description: String,
@@ -138,14 +139,21 @@ impl ValueProvenance {
 
     pub(in crate::typecheck) fn escaping_source(&self) -> Option<&str> {
         match self {
-            Self::Origins(origins) => origins.iter().find_map(|origin| match origin {
-                StorageOrigin::Scope { description, .. } => Some(description.as_str()),
-                StorageOrigin::Region { description, .. } => Some(description.as_str()),
-                StorageOrigin::Unknown => Some("unknown storage"),
-                StorageOrigin::Static
-                | StorageOrigin::CurrentAllocationContext
-                | StorageOrigin::Input(_) => None,
-            }),
+            Self::Origins(origins) => {
+                origins
+                    .iter()
+                    .find_map(|origin| match origin.allocation_domain() {
+                        StorageOrigin::Scope { description, .. } => Some(description.as_str()),
+                        StorageOrigin::Region { description, .. } => Some(description.as_str()),
+                        StorageOrigin::Unknown => Some("unknown storage"),
+                        StorageOrigin::Static
+                        | StorageOrigin::CurrentAllocationContext
+                        | StorageOrigin::Input(_) => None,
+                        StorageOrigin::Allocated(_) => {
+                            unreachable!("allocation domains are unwrapped")
+                        }
+                    })
+            }
             Self::Aggregate {
                 fallback,
                 fields,
@@ -174,13 +182,17 @@ impl ValueProvenance {
         matching: impl Fn(RegionId) -> bool + Copy,
     ) -> Option<(RegionId, &str)> {
         match self {
-            Self::Origins(origins) => origins.iter().find_map(|origin| match origin {
-                StorageOrigin::Region {
-                    region,
-                    description,
-                } if matching(*region) => Some((*region, description.as_str())),
-                _ => None,
-            }),
+            Self::Origins(origins) => {
+                origins
+                    .iter()
+                    .find_map(|origin| match origin.allocation_domain() {
+                        StorageOrigin::Region {
+                            region,
+                            description,
+                        } if matching(*region) => Some((*region, description.as_str())),
+                        _ => None,
+                    })
+            }
             Self::Aggregate {
                 fallback,
                 fields,
@@ -214,7 +226,7 @@ impl ValueProvenance {
         match self {
             Self::Origins(origins) => {
                 for origin in origins {
-                    if let StorageOrigin::Input(input) = origin
+                    if let StorageOrigin::Input(input) = origin.allocation_domain()
                         && !inputs.contains(input)
                     {
                         inputs.push(*input);

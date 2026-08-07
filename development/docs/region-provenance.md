@@ -49,6 +49,7 @@ StorageOrigin
   Input(CallableId, InputId)
   Region(RegionId)
   CurrentAllocationContext
+  Allocated(StorageOrigin)
   Unknown
 
 ValueProvenance
@@ -66,13 +67,20 @@ identity. Renaming a parameter must not change callable-summary behavior.
 innermost lexical `RegionId`, or to `Static` in the root context. This lets an allocating helper
 retain storage provenance without baking a caller's region identity into its callable summary.
 
+`Allocated(origin)` records that storage newly created by an allocation operation survives in the
+value while preserving the underlying lifetime domain. It is not an execution effect: an
+allocation discarded before return does not appear in result provenance. Summary instantiation
+substitutes the underlying domain and retains the allocation marker across aggregate fields,
+outcome branches, calls, and literal construction.
+
 Origin joins are conservative unions. Escape succeeds only when every possible origin outlives the
 destination. A known static alternative does not erase a shorter alternative.
 
 ## Callable Summaries
 
 The existing return-only summary becomes a shared `CallableProvenanceSummary` keyed by declaration
-identity. It contains result provenance plus allocation effect.
+identity. It contains shaped result provenance, including retained allocation markers, plus the
+separate execution-time current-context requirement.
 
 Summary construction must:
 
@@ -97,11 +105,16 @@ targets use receiver and parameter identities in the same callable-summary fixed
 functions. An adapter calling a closure therefore propagates result origins and allocation effects
 without a closure-specific provenance graph.
 
-## Allocation Effects
+## Execution Allocation Requirements
 
 An allocating source callable receives the current allocation context as a hidden capability. The
 effect is inferred through calls to a fixed point and is part of compiler semantic facts. It is not
 implemented as a mutable global or thread-local lookup.
+
+This fact answers whether execution needs the ambient allocation context. It does not answer
+whether allocated storage survives in the result. Explicit allocator operations can produce an
+`Allocated(Input(...))` result without needing the ambient context; scratch allocation can require
+the ambient context without adding `Allocated(...)` to the callable result.
 
 The root driver supplies a program-lifetime aborting system context. Entering a lexical region
 derives a child context from its parent and installs it for the region body's allocating calls.
