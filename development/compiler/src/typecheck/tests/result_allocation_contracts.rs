@@ -113,11 +113,42 @@ func make(): Buffer {
 "#,
     );
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0462")
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "E0462")
+        .expect("missing allocation contract diagnostic");
+    let witness = diagnostic
+        .notes
+        .iter()
+        .find(|note| note.message.contains("returned expression"))
+        .and_then(|note| note.span.as_ref())
+        .expect("returned allocation witness");
+    assert_eq!(witness.start_line, 4, "{diagnostics:?}");
+}
+
+#[test]
+fn missing_contract_witness_ignores_scratch_allocation() {
+    let diagnostics = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+pub(nocter) alloc primitive allocate(): Buffer
+func make(): Buffer {
+    let scratch = allocate()
+    return allocate()
+}
+"#,
     );
+
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "E0462")
+        .expect("missing allocation contract diagnostic");
+    let witness = diagnostic
+        .notes
+        .iter()
+        .find(|note| note.message.contains("returned expression"))
+        .and_then(|note| note.span.as_ref())
+        .expect("returned allocation witness");
+    assert_eq!(witness.start_line, 5, "{diagnostics:?}");
 }
 
 #[test]

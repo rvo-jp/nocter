@@ -16,7 +16,7 @@ use super::environments::{
 };
 use super::model::TypeEnvironment;
 use super::provenance::{CallableId, CallableProvenanceSummaries, result_contains_allocation};
-use super::returns::function_summary_key;
+use super::returns::{function_summary_key, result_allocation_witness_for_callable_body};
 use super::type_expr::type_expr_to_type_in_environment;
 use crate::ast::{AstFile, Block, ImplMember, Item, ResultAllocationModifier, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -151,7 +151,7 @@ fn check_trusted_primitive_contract(
     };
     match (role, modifier) {
         (TrustedDeclarationRole::AllocationOperation { .. }, None) => diagnostics.push(
-            missing_result_allocation_contract_diagnostic(sources, declaration_span),
+            missing_result_allocation_contract_diagnostic(sources, declaration_span, None),
         ),
         (TrustedDeclarationRole::AllocationOperation { .. }, Some(_)) => {}
         (_, Some(modifier)) => {
@@ -185,10 +185,20 @@ fn check_body_contract(
         .result(CallableId::declared_at(summary_key))
         .is_some_and(|summary| result_contains_allocation(summary, &return_type, resolved));
     match (modifier, inferred) {
-        (None, true) => diagnostics.push(missing_result_allocation_contract_diagnostic(
-            sources,
-            declaration_span,
-        )),
+        (None, true) => {
+            let witness = result_allocation_witness_for_callable_body(
+                body,
+                &return_type,
+                resolved,
+                environment,
+                summaries,
+            );
+            diagnostics.push(missing_result_allocation_contract_diagnostic(
+                sources,
+                declaration_span,
+                witness,
+            ));
+        }
         (Some(modifier), false) => diagnostics.push(
             unjustified_result_allocation_contract_diagnostic(sources, modifier.span, body.span),
         ),

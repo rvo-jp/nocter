@@ -4,12 +4,21 @@ use crate::source::ByteSpan;
 pub(in crate::typecheck) fn missing_result_allocation_contract_diagnostic(
     sources: &SourceMap,
     declaration_span: ByteSpan,
+    witness_span: Option<ByteSpan>,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0462",
         "the callable can return newly allocated storage but is not marked `alloc`",
     );
     diagnostic.primary_span = sources.span_to_json(declaration_span).ok().map(Box::new);
+    if let Some(witness_span) = witness_span
+        && let Ok(span) = sources.span_to_json(witness_span)
+    {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "this returned expression retains newly allocated storage".to_string(),
+            span: Some(span),
+        });
+    }
     diagnostic.help = Some("add `alloc` before the callable keyword".to_string());
     diagnostic
 }

@@ -28,6 +28,10 @@ pub(in crate::typecheck::returns) fn collect_return_expression_provenance(
         borrow_provenance,
         summaries,
     );
+    let allocation_witness = provenance
+        .as_ref()
+        .is_some_and(|provenance| result_contains_allocation(provenance, &actual, resolved))
+        .then_some(expression.span());
     if expression_is_fallible_failure_for_return_type(
         expression,
         &actual,
@@ -35,9 +39,9 @@ pub(in crate::typecheck::returns) fn collect_return_expression_provenance(
         resolved,
         environment,
     ) {
-        flow.merge_fallible_error(provenance);
+        flow.merge_fallible_error(provenance, allocation_witness);
     } else {
-        flow.merge_value(provenance);
+        flow.merge_value(provenance, allocation_witness);
     }
 }
 
@@ -291,13 +295,18 @@ pub(in crate::typecheck::returns) fn collect_expression_fallible_propagation_pro
                 resolved,
                 environment,
             ) {
-                flow.merge_fallible_error(borrow_return_fallible_error_provenance_for_expression(
+                let provenance = borrow_return_fallible_error_provenance_for_expression(
                     &propagation.expression,
                     resolved,
                     environment,
                     borrow_provenance,
                     summaries,
-                ));
+                );
+                let allocation_witness = provenance
+                    .as_ref()
+                    .is_some_and(ValueProvenance::contains_result_allocation)
+                    .then_some(propagation.expression.span());
+                flow.merge_fallible_error(provenance, allocation_witness);
             }
             collect_expression_fallible_propagation_provenance(
                 &propagation.expression,
