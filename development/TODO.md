@@ -2,9 +2,8 @@
 
 ## Current Task
 
-Publish the qualified v0.8.0 archive authorized on 2026-08-08. Update the public release pointer,
-tag the exact publication commit, upload only the qualified archive, and verify the public download
-before recording the external audit and starting v0.9.0 Phase 0.
+Define v0.9.0 Phase 0 from the published v0.8.0 baseline. The phase must select one practical
+standard-library outcome with runnable acceptance packages before implementation begins.
 
 ## Completed Checkpoint
 
@@ -61,16 +60,20 @@ before recording the external audit and starting v0.9.0 Phase 0.
 - the 3,319,650-byte `arm64-darwin` candidate archive with SHA-256
   `cb6f0ce6b81e1aa71a65797e21f9f1d05a4164a17cf76427f34955966a63298a` passed the complete fresh
   extraction smoke matrix without `NOCTER_HOME`
+- annotated tag `v0.8.0` resolves to publication commit
+  `aa678abfec1a643e956a252cfc6a08d8e14ae65e`
+- GitHub resolves v0.8.0 as the latest release, containing exactly the qualified archive and marked
+  neither draft nor prerelease
+- a separate public download reproduced the qualified size and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
-The published v0.7.0 qualification remains in the immutable
+The published v0.7.0 qualification remains in its immutable
 [`releases/v0.7.0.md`](releases/v0.7.0.md) record. The completed v0.8.0 phases are recorded in
-[`milestones/v0.8.0.md`](milestones/v0.8.0.md), and candidate evidence is frozen in
+[`milestones/v0.8.0.md`](milestones/v0.8.0.md), and publication evidence is frozen in
 [`releases/v0.8.0.md`](releases/v0.8.0.md).
 
 ## Next Work
 
-1. Commit and push publication-status documentation without changing compiler, standard-library,
-   or packaging inputs.
-2. Create annotated tag `v0.8.0` at that commit and publish only the qualified archive.
-3. Download and audit the public artifact in a fresh directory.
-4. Record publication evidence, then define v0.9.0 Phase 0 before changing implementation.
+Audit the current public standard-library surface against small real programs, define v0.9.0
+Phase 0 with explicit non-goals and native/package/LSP acceptance gates, then implement that phase.
