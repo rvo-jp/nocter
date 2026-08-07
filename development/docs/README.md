@@ -18,6 +18,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   member identity, lookup, validation, migration, and editor boundaries
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
   default selection, lowering reuse, and editor boundaries
+- [Borrow Coercions](borrow-coercions.md): type-owned view declarations, contextual plans,
+  ownership, lowering, and editor boundaries
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
   allocation-effect, lexical-region, and lowering design
@@ -75,6 +77,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Composable iterators and collection builders | `iterator-composition.md` |
 | Callable values, interface default methods, and iterator chains | `callable-default-methods.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
+| Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

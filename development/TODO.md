@@ -2,8 +2,9 @@
 
 ## Current Task
 
-No active release task. v0.7.0 was published and audited on 2026-08-08. The next milestone has not
-been defined.
+Complete v0.8.0 Phase 0 borrowed-view coercion. The accepted entry uses
+`pub &self as &Target from self { ... }` or `pub &+self as &+Target from self { ... }`; callers
+remain responsible for writing the source borrow.
 
 ## Completed Checkpoint
 
@@ -41,5 +42,10 @@ immutable [`releases/v0.7.0.md`](releases/v0.7.0.md) qualification record.
 
 ## Next Work
 
-Define and review the next milestone before changing language, compiler, standard-library, package,
-or editor contracts. Do not reuse the completed v0.7.0 milestone as an active plan.
+1. Add declaration syntax, AST JSON, formatting, and recovery in focused files.
+2. Add coherent resolver identities and body contract validation without nominal-name allowlists.
+3. Create one expected-type `CoercionPlan` path and make ownership, regions, buildability, IR, and
+   analysis consume it.
+4. Add `String` and `Vec<T>` entries, user-facing specification, packaged-home coverage, and editor
+   behavior.
+5. Run the complete Phase 0 gate, record completion in the v0.8.0 milestone, and stop before Phase 1.

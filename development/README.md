@@ -58,6 +58,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Compiler Architecture](docs/architecture.md)
 - [Region, Provenance, and Allocation Context](docs/region-provenance.md)
 - [Typed Literal Core](docs/typed-literals.md)
+- [Borrow Coercion Compiler Boundary](docs/borrow-coercions.md)
 - [Explicit Iteration and Collection Access](docs/iteration.md)
 - [Owned String Interpolation and Formatting](docs/interpolation.md)
 - [Public Provenance Contracts and Compiler-Owned Result Storage](docs/provenance-contracts.md)
