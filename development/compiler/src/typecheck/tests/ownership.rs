@@ -460,6 +460,161 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn explicit_coercion_result_keeps_the_source_loan_until_last_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: &str
+}
+
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+
+func inspect(value: &str): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let text = Text { value: "hello" }
+    let view = &text as &str
+    take(move text)
+    inspect(view)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("view"));
+}
+
+#[test]
+fn explicit_coercion_loan_ends_after_its_last_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: &str
+}
+
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+
+func inspect(value: &str): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let text = Text { value: "hello" }
+    let view = &text as &str
+    inspect(view)
+    take(move text)
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn explicit_coercion_of_a_branch_result_keeps_every_possible_source_loan() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: &str
+}
+
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+
+func inspect(value: &str): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let first = Text { value: "first" }
+    let second = Text { value: "second" }
+    let view = (if true { &first } else { &second }) as &str
+    take(move second)
+    inspect(view)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("second"));
+    assert!(diagnostics[0].message.contains("view"));
+}
+
+#[test]
+fn borrow_valued_match_keeps_every_possible_source_loan() {
+    let diagnostics = check_text(
+        r#"enum Choice { first second }
+
+struct Text {
+    value: &str
+}
+
+func inspect(value: &Text): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let choice = Choice.first
+    let first = Text { value: "first" }
+    let second = Text { value: "second" }
+    let view = match choice {
+        Choice.first { &first }
+        Choice.second { &second }
+    }
+    take(move second)
+    inspect(view)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("second"));
+    assert!(diagnostics[0].message.contains("view"));
+}
+
+#[test]
+fn borrow_valued_if_is_keeps_every_possible_source_loan() {
+    let diagnostics = check_text(
+        r#"enum Choice { first second }
+
+struct Text {
+    value: &str
+}
+
+func inspect(value: &Text): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let choice = Choice.first
+    let first = Text { value: "first" }
+    let second = Text { value: "second" }
+    let view = if choice is Choice.first { &first } else { &second }
+    take(move second)
+    inspect(view)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("second"));
+    assert!(diagnostics[0].message.contains("view"));
+}
+
+#[test]
 fn accepts_move_before_unreachable_borrow_use() {
     let diagnostics = check_text(
         r#"struct Text {

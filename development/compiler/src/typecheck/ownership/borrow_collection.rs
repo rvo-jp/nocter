@@ -462,6 +462,15 @@ pub(super) fn returned_borrow_sources(
                 active_borrows,
             );
         }
+        Expr::TypeConversion(conversion) => {
+            return returned_borrow_sources(
+                &conversion.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+        }
         Expr::Catch(catch) => {
             let mut sources = returned_borrow_sources(
                 &catch.expression,
@@ -492,6 +501,53 @@ pub(super) fn returned_borrow_sources(
             if let Some(else_block) = &if_.else_block {
                 sources.extend(borrow_sources_for_block_result(
                     else_block,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::IfIs(if_is) => {
+            let then_environment = environment_for_if_is_binding(if_is, resolved, environment);
+            let mut sources = borrow_sources_for_block_result(
+                &if_is.then_block,
+                resolved,
+                &then_environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(else_block) = &if_is.else_block {
+                sources.extend(borrow_sources_for_block_result(
+                    else_block,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::Match(match_) => {
+            let mut sources = match_
+                .arms
+                .iter()
+                .flat_map(|arm| {
+                    let arm_environment =
+                        environment_for_switch_arm(arm, &match_.expression, resolved, environment);
+                    borrow_sources_for_block_result(
+                        &arm.body,
+                        resolved,
+                        &arm_environment,
+                        summaries,
+                        active_borrows,
+                    )
+                })
+                .collect::<Vec<_>>();
+            if let Some(wildcard_arm) = &match_.wildcard_arm {
+                sources.extend(borrow_sources_for_block_result(
+                    &wildcard_arm.body,
                     resolved,
                     environment,
                     summaries,
