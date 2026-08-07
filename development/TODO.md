@@ -2,8 +2,9 @@
 
 ## Current Task
 
-v0.6.0 Phase 1 is complete. No later v0.6.0 phase or release qualification gate is active. Define
-the next milestone explicitly before changing the completed result-allocation contract.
+v0.6.0 Phase 2 is active. Stabilize the completed result-allocation contract across recursive
+analysis, substitution boundaries, diagnostics, editor presentation, the distributed standard
+library, and packaged execution without adding source syntax.
 
 ## Completed Checkpoint
 
@@ -55,7 +56,8 @@ the next milestone explicitly before changing the completed result-allocation co
 
 ## Next Work
 
-Stop at the completed Phase 1 checkpoint. A later task may define another v0.6.0 phase or a release
-qualification plan in [the active milestone](milestones/v0.6.0.md). Keep v0.5.0 behavior and
-qualification frozen under `development/releases/`; do not append new design work to that release
-record.
+Execute the ordered Phase 2 audit in [the active milestone](milestones/v0.6.0.md). Begin with focused
+tests for recursion, outcome branches, retained mutations, callable variance, and interface
+boundaries, then preserve a concrete returned-expression witness for E0462. Keep v0.5.0 behavior
+and qualification frozen under `development/releases/`; do not append new design work to that
+release record.
