@@ -18,6 +18,14 @@ pub(crate) struct CallSpecializations {
     pub(crate) coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
+    pub(crate) method_target_aliases: Vec<MethodTargetAlias>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MethodTargetAlias {
+    pub(crate) requested_name: String,
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +42,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
+    let mut method_target_aliases = Vec::new();
     let mut queue = VecDeque::new();
     let literals = collect_literal_specializations(analysis);
 
@@ -137,8 +146,16 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 );
             }
             PendingCallSpecialization::Method(specialization) => {
+                let requested_name = specialization.target_name.clone();
                 let specialization =
                     redirect_interface_method_specialization(analysis, specialization);
+                if requested_name != specialization.target_name {
+                    method_target_aliases.push(MethodTargetAlias {
+                        requested_name,
+                        declaration_span: specialization.declaration_span,
+                        target_name: specialization.target_name.clone(),
+                    });
+                }
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
@@ -211,6 +228,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         coercions,
         drops,
         literals,
+        method_target_aliases,
     }
 }
 
@@ -240,14 +258,23 @@ fn redirect_interface_method_specialization(
     ) else {
         return specialization;
     };
-    specialization.declaration_span = actual_method.name_span;
-    if let Some((_file, Some(impl_), _method)) =
+    let Some((_file, Some(impl_), _method)) =
         method_declaration_for_span(analysis, actual_method.name_span)
-        && let Some(impl_substitutions) =
-            impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
-    {
-        specialization.substitutions.extend(impl_substitutions);
-    }
+    else {
+        return specialization;
+    };
+    let Some(impl_substitutions) = impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
+    else {
+        return specialization;
+    };
+    specialization.declaration_span = actual_method.name_span;
+    let runtime_self_ty = substitute_type_expr_parameters(&impl_.target_ty, &impl_substitutions);
+    specialization.target_name = format!(
+        "{}.{}",
+        canonical_type_expr(&runtime_self_ty),
+        specialization.method_name
+    );
+    specialization.substitutions.extend(impl_substitutions);
     specialization
 }
 

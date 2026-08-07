@@ -270,6 +270,7 @@ fn lower_reachable_functions(
 struct FunctionIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     resolved_sources: ResolvedSources<'a>,
+    method_target_aliases: Vec<(String, CallTarget)>,
 }
 
 struct IndexedCallable<'a> {
@@ -606,9 +607,24 @@ impl<'a> FunctionIndex<'a> {
                 ),
             );
         }
+        let method_target_aliases = call_specializations
+            .method_target_aliases
+            .iter()
+            .map(|alias| {
+                (
+                    alias.requested_name.clone(),
+                    call_target_for_source(
+                        alias.declaration_span.source,
+                        root_source,
+                        alias.target_name.clone(),
+                    ),
+                )
+            })
+            .collect();
         Self {
             definitions,
             resolved_sources,
+            method_target_aliases,
         }
     }
 
@@ -642,6 +658,7 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .keys()
                 .map(|target| (call_target_name(target).to_string(), target.clone()))
+                .chain(self.method_target_aliases.iter().cloned())
                 .collect(),
         )
     }
