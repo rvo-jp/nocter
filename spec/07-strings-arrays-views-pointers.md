@@ -453,6 +453,11 @@ invariants.
 
 There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `&str`; creating an owned `String` from it requires an explicit copy.
 
+The v0.8.0 development contract adds type-owned coercion from an explicit `&String` borrow to
+`&str`, and from explicit `&Vec<T>` or `&+Vec<T>` borrows to matching slice views. It does not
+change literal types or insert the source borrow. See
+[Borrow Coercions](22-borrow-coercions.md).
+
 The `char` type is not supported. String APIs operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
 
 ## String and Byte Literals

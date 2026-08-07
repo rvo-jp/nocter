@@ -38,6 +38,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Construction Surfaces](19-construction-surfaces.md)
 - [Native Testing](20-native-testing.md)
 - [Practical Standard Library](21-practical-standard-library.md)
+- [Borrow Coercions (v0.8.0 development contract)](22-borrow-coercions.md)
 
 ## Supporting Material
 
@@ -46,7 +47,9 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This specification describes the published v0.7.0 language. The
+Unqualified chapters describe the published v0.7.0 language. A chapter carrying an explicit
+availability notice may record behavior implemented for the next release without changing the
+v0.7.0 contract. The
 [release index](../releases/README.md) identifies published distributions, and repository tags
 preserve the exact specification for every published release.
 
