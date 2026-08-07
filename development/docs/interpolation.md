@@ -42,7 +42,7 @@ calls. Analysis exposes the resulting facts without reconstructing the capabilit
 
 Typecheck produces one interpolation plan per expression. It contains:
 
-- the owned result type and current-allocation effect
+- the owned result type and internal current-context requirement
 - current-context result provenance
 - the selected append declaration for each decoded text or expression part
 - the concrete input type and evaluation mode for each expression part
@@ -79,7 +79,7 @@ The result starts with a zero-capacity `String` that retains the current allocat
 allocating. It must not start from a canonical root-owned empty buffer, because a later append must
 still grow through the lexical region selected at the interpolation site.
 
-The interpolation expression therefore always has a current-allocation effect, including when all
+The interpolation expression therefore always has an internal current-context requirement, including when all
 rendered parts are empty. Its owned result carries the current allocation origin. A result created
 inside a child region cannot escape that region directly or through an aggregate, optional, or
 fallible channel.
@@ -100,7 +100,7 @@ unwind Nocter scopes.
 show:
 
 - the concrete `String` result type
-- current allocation effect and result origin
+- source-visible result provenance without the internal current-context requirement
 - the accepted type of an interpolation part
 - the same diagnostics as command-line checking
 

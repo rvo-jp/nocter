@@ -86,7 +86,8 @@ ranges.
 
 Hover and signature help render normalized compiler declarations, not raw source excerpts. They
 preserve specialized generic arguments, every interface bound, callable capability, outcome layers,
-allocation effects, and result provenance supplied by analysis.
+and source-visible result provenance supplied by analysis. Compiler-owned execution allocation and
+fresh-result storage do not appear as signature prose.
 
 Declaration owners are shown when they disambiguate a member. Construction hover presents the
 type-owned public construction surface, including its default entry. Raw private construction and
@@ -130,9 +131,9 @@ Code actions expose compiler-planned edits, including imports, required interfac
 optional/fallible callable contracts. Generated edits must parse and typecheck as ordinary Nocter;
 the protocol layer does not synthesize source templates independently.
 
-Inlay hints project retained inferred binding types, current-allocation effects, and result
-provenance. Explicit source annotations suppress redundant hints. The language server performs no
-second inference pass.
+Inlay hints project retained inferred binding types and source-visible result provenance. Explicit
+source annotations suppress redundant hints. The language server performs no second inference pass
+and does not expose compiler-owned allocation dataflow as source syntax.
 
 ## Incomplete Source Recovery
 

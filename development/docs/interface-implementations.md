@@ -36,7 +36,8 @@ members; the target type's inherent member table does not.
 
 Type checking resolves each member against exactly one method declaration from the stated
 interface. It validates receiver mode, method generics and bounds, parameter and result types,
-result provenance, and allocation effects. Parameter names do not participate. Missing, extra,
+result provenance. Compiler-owned result storage and execution allocation do not participate in
+source signature compatibility. Parameter names do not participate. Missing, extra,
 duplicate, or incompatible members are source errors.
 
 Concrete method lookup may select an inherent member or one accessible conformance member. A name
@@ -65,6 +66,6 @@ deprecated. No hidden desugaring recreates the former model.
 
 Repository-home and packaged-home checks now agree for direct calls, generic-bound calls,
 conditional conformances, interface defaults, ownership-sensitive receivers, provenance,
-allocation effects, malformed source, and editor requests. The migration passed the full compiler,
+result-storage inference, malformed source, and editor requests. The migration passed the full compiler,
 native runtime, packaged-home, Clippy, documentation, local distribution, `doctor`, and archive
 qualification matrix on 2026-08-04.

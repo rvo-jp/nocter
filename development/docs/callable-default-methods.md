@@ -118,6 +118,6 @@ aborting allocation context through the existing vector builder.
 
 Focused tests cover required/default conformance, conformance-body override, generic and concrete lookup,
 default ambiguity, method-generic scope, zero/one/two-parameter closures, every capture mode,
-move-only cleanup, closure provenance and allocation effects, map/filter order, exact-size
+move-only cleanup, closure provenance and compiler-owned result storage, map/filter order, exact-size
 preservation, terminal collection, region escape, incomplete editor input, and repository plus
 packaged-home native execution.

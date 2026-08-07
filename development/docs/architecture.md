@@ -33,7 +33,7 @@ external runtime library. The released and active-development native target is `
 | `ast` | syntax data, AST JSON, documentation extraction |
 | `frontend` | compile-unit loading, prelude, frontend orchestration |
 | `resolve` | imports, visibility, scopes, symbols, declaration identity |
-| `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, allocation effects, drop semantics |
+| `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, execution allocation requirements, drop semantics |
 | `analysis` | owned editor/query results derived from compiler facts |
 | `driver/buildability` | preflight rejection of checked forms not supported by the runtime |
 | `ir` | conversion from typed facts to explicit lower-level operations |
@@ -105,7 +105,7 @@ consume those facts instead of maintaining separate origin models. See
 [Region, Provenance, and Allocation Context](region-provenance.md).
 
 Phase 3 interpolation uses a validated runtime-capability bundle. Typecheck produces a semantic
-plan containing declaration identities, result type, allocation effect, provenance, and per-part
+plan containing declaration identities, result type, internal allocation requirement, provenance, and per-part
 evaluation mode. Dedicated IR lowering consumes that plan; it does not resolve standard-library
 names or repeat type dispatch. See [Owned String Interpolation and Formatting](interpolation.md).
 

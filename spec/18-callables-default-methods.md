@@ -19,7 +19,7 @@ An interface may mix required and default methods:
 
 ```nct
 pub interface Iterator<T> {
-    pub alloc method &+self.next(): T? from self
+    pub method &+self.next(): T? from self
 
     pub method self.count(): usize {
         var source = move self
@@ -39,7 +39,7 @@ the interface's required methods, other unambiguous default methods, and ordinar
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F: alloc &+func(T): U>(transform: F): MapIter<T, U, Self, F> {
+pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> from self | transform {
     return MapIter<T, U, Self, F> {
         source: move self,
         transform: move transform,
@@ -128,17 +128,9 @@ Parameter names are optional. A named parameter may be referenced by a result pr
 for example `&func(text: &str): &str from text`. A generic parameter may have interface bounds and
 one callable contract, but multiple callable contracts are ambiguous and rejected.
 
-`alloc` precedes the capability when a call may return newly allocated storage:
-
-```nct
-alloc &func(Input): Output
-alloc &+func(Input): Output
-alloc func(Input): Output
-```
-
-Result allocation is covariant for callable conversion: a callable that returns no newly allocated
-storage can satisfy an `alloc` upper bound, while an allocating callable cannot satisfy a contract
-without `alloc`. This modifier says nothing about temporary allocation during execution.
+Fresh result storage and execution allocation are inferred behind callable boundaries. They do not
+change callable capability or structural callable compatibility. A callable `from` clause remains
+part of the structural contract because it names caller-managed origins retained by the result.
 
 The invocation surface is identical for all three capabilities: `callback(arguments)`. There are
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
@@ -167,17 +159,12 @@ let output = values
 
 The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
 `fold`, `find`, `any`, `all`, and `to_vec`. Constructing an adapter is lazy and allocation-free.
-Advancing an adapter may return storage allocated by its source or callback, so the generic
-`Iterator<T>.next` contract is an `alloc` upper bound and retains `from self`. A concrete iterator
-implementation may provide the narrower non-`alloc` result contract permitted by interface
-variance.
-
-`map` accepts an `alloc &+func(T): U` upper bound. This accepts both allocating and non-allocating
-closures while preventing an allocating closure from crossing an unrelated non-`alloc` callable
-boundary. Terminal operations that can return yielded or callback-produced storage propagate that
-upper bound; scalar-only operations such as `count`, `any`, and `all` do not. `to_vec` performs an
-explicit consuming allocation in the current allocation context and retains element provenance
-from its source.
+Advancing an adapter may return storage carried by its source or callback, so
+`Iterator<T>.next` retains `from self`. Adapter construction contracts name every retained input;
+for example, `map` returns `from source | transform`. Compiler summaries preserve fresh storage
+through callback calls without adding variance to `&+func(T): U`. Scalar-only operations such as
+`count`, `any`, and `all` discard result-storage provenance. `to_vec` allocates in the current
+context and retains element provenance from its source internally.
 
 `map` preserves exact size when the mapped source is exact. `filter` does not, because its
 predicate determines how many elements remain. Callback evaluation occurs once per visited item

@@ -55,36 +55,32 @@ the context only where required. Source functions infer that internal requiremen
 and callees. Trusted bodyless standard-library declarations carry compiler metadata attached to
 declaration identity.
 
-Changing a helper body so that it allocates may change its inferred allocation effect. The whole
-compile unit contains the source and summaries required to propagate that effect. Allocation
-requirements have no source-level annotation. The source `alloc` modifier described below is a
-result contract, not this execution property.
+Changing a helper body so that it allocates may change its compiler-owned execution requirement.
+The whole compile unit contains the source and summaries required to propagate that fact. Execution
+allocation and fresh storage retained by a result have no source-level annotation.
 
-## Result Allocation Contracts
+## Result Storage Contracts
 
-The contextual `alloc` modifier states that some storage-bearing projection of a returned value may
-retain storage newly allocated while producing that value:
+Callers see only external storage relationships they must preserve:
 
 ```nct
 func len(text: &str): usize
-alloc func copy(text: &str): String
-alloc func copy_with(allocator: &+Allocator, text: &str): String from allocator
+func copy(text: &str): String
+func view(text: &String): &str from text
+func copy_with(allocator: &+Allocator, text: &str): String from allocator
 ```
 
-Temporary allocation that is dropped before return does not justify `alloc`. Conversely, absence of
-`alloc` does not promise allocation-free execution; future `noalloc` and `realtime` guarantees are
-outside the current language.
+`from X` reports a receiver, parameter, allocator capability, or `static` origin retained by a
+storage-bearing result projection. A public body that retains caller-managed storage must declare
+every such origin. Absence of `from` means that the result exposes no caller-managed external
+origin. It does not promise allocation-free execution or storage independence from the active
+lexical region; future `noalloc` and `realtime` guarantees are outside the current language.
 
-`alloc` and `from` are independent parts of one result contract. `alloc` reports newly allocated
-result storage. `from X` reports external storage or lifetime provenance retained from a receiver,
-parameter, or `static`. An `alloc` result with no named origin may use the ambient allocation domain
-without exposing that compiler-owned domain as source syntax.
-
-Body-backed callables are checked exactly: missing `alloc` and an unjustified `alloc` are errors.
-Bodyless primitive and interface declarations use the written modifier as an upper bound, except
-that trusted primitives must agree with their compiler-owned semantic role. A non-allocating
-implementation may satisfy an allocating interface contract, but the reverse substitution is not
-valid.
+Body-backed summaries infer fresh storage and exact path-sensitive origins from implementations.
+Bodyless abstract callables use their written `from` clause, or a conservative compiler-owned
+fresh-result capability when no external origin is declared. Trusted allocation primitives use
+semantic roles attached to declaration identity. None of these internal facts changes callable
+type compatibility or editor signature text.
 
 ## Allocation Failure Policies
 
@@ -287,10 +283,10 @@ func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 
 An identifier after `from` names a receiver or a parameter whose semantic value can carry storage
 provenance. This includes borrows, owning values, generic values, and allocator capabilities.
-`static` denotes program-lifetime storage. Source-level `from current` is not valid; ambient result
-allocation is expressed by `alloc` without inventing a public name for the compiler-owned current
-context. Concrete bodies are checked against the declared origin set; bodyless interface methods
-use the clause as their callable provenance summary.
+`static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
+result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
+are checked against the declared origin set; bodyless interface methods use the clause as their
+external provenance summary.
 
 Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined

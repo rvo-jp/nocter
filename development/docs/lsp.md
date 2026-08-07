@@ -54,7 +54,7 @@ Presentation owns:
 - specialized generic/member signatures
 - semantic owner qualification
 - construction surfaces and default ordering
-- callable allocation effects and result provenance
+- callable source contracts and result provenance
 - documentation extracted from declaration comments
 
 Callable presentation is indexed by compiler declaration identity. Each entry retains separate name,
@@ -94,10 +94,11 @@ request boundary before edits are returned.
 
 ## Inlay Hints
 
-Inlay hints are projections of retained binding types, allocation effects, and provenance facts.
-Explicit source annotations suppress redundant hints. The server does not rerun inference or
-reconstruct provenance from hover text. Callable semantic hints attach to the indexed signature
-anchor after the return type or explicit result-provenance clause, not to the callable name.
+Inlay hints are projections of retained binding types and source-visible provenance facts. Explicit
+source annotations suppress redundant hints. The server does not rerun inference, reconstruct
+provenance from hover text, or expose compiler-owned allocation dataflow. Callable semantic hints
+attach to the indexed signature anchor after the return type or explicit result-provenance clause,
+not to the callable name.
 
 ## Recovery
 

@@ -135,8 +135,8 @@ Conformance rules are:
 - the target is a nominal `struct` or `enum`
 - every bodyless interface method has exactly one matching implementation member
 - extra methods, associated functions, literals, `drop`, and construction members are invalid
-- receiver capability, generic parameters, parameter and result types, outcome layers, allocation
-  effect, and result provenance participate in signature compatibility
+- receiver capability, generic parameters, parameter and result types, outcome layers, and external
+  result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
 - a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
   storage-independent result may omit an interface origin that cannot apply to that result, while
@@ -148,7 +148,7 @@ target only when every specialized bound is satisfied:
 
 ```nct
 impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    alloc method &+self.next(): T? from self {
+    method &+self.next(): T? from self {
         if self.remaining == 0 {
             return none
         }

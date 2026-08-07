@@ -60,7 +60,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Typed Literal Core](docs/typed-literals.md)
 - [Explicit Iteration and Collection Access](docs/iteration.md)
 - [Owned String Interpolation and Formatting](docs/interpolation.md)
-- [Public Provenance Contracts and Generic Interface Bounds](docs/provenance-contracts.md)
+- [Public Provenance Contracts and Compiler-Owned Result Storage](docs/provenance-contracts.md)
 - [Composable Iterators and Collection Builders](docs/iterator-composition.md)
 - [Callable Values and Interface Default Methods](docs/callable-default-methods.md)
 - [Nested Outcomes and Executable Process Context](docs/outcomes-process-context.md)

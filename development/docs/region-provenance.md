@@ -102,8 +102,8 @@ introduces lifetime arithmetic or a parallel provenance graph.
 Phase 10 closure environments enter this model as compiler-generated aggregates. Each explicit
 capture field retains the captured place's exact provenance and loan. Generated closure call
 targets use receiver and parameter identities in the same callable-summary fixed point as source
-functions. An adapter calling a closure therefore propagates result origins and allocation effects
-without a closure-specific provenance graph.
+functions. An adapter calling a closure therefore propagates result origins and compiler-owned
+fresh-storage facts without a closure-specific provenance graph.
 
 ## Execution Allocation Requirements
 

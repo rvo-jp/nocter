@@ -170,7 +170,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/callable-default-methods/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -182,13 +182,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/interface-implementations/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/interpolation/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -206,7 +206,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/iterator-composition/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -218,7 +218,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/lsp/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -350,13 +350,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/error/</loc>
-    <lastmod>2026-07-30</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/fmt/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -368,7 +368,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/io/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -380,7 +380,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/chain/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -392,7 +392,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/enumerate/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -404,7 +404,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/range/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -428,7 +428,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/os/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -440,7 +440,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/prelude/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -452,13 +452,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/ptr/</loc>
-    <lastmod>2026-08-03</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/sequence/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -470,7 +470,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/testing/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -638,7 +638,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/14-tooling-editor-integration/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

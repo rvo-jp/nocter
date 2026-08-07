@@ -14,7 +14,7 @@ A `construct` declaration belongs to one nominal type in the same module:
 
 ```nct
 construct Vec<T> {
-    pub default alloc literal [](...items: T): Self {
+    pub default literal [](...items: T): Self {
         ...
     }
 
@@ -22,7 +22,7 @@ construct Vec<T> {
         ...
     }
 
-    pub alloc func with_capacity(capacity: usize): Self {
+    pub func with_capacity(capacity: usize): Self {
         ...
     }
 }

@@ -133,7 +133,7 @@
                 <li><a href="../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>
                 <li><a href="../../docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
                 <li><a href="../../docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../../docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
@@ -269,7 +269,7 @@
     <span class="token-keyword">return</span> <span class="token-function">cwd_path_len</span><span class="token-operator">(</span>buffer<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> alloc <span class="token-keyword">func</span> <span class="token-function">args</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span><span class="token-operator">!</span> from static <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">args</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span><span class="token-operator">!</span> from static <span class="token-operator">{</span>
     <span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">arg_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>count<span class="token-operator">)</span>
     <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
@@ -329,7 +329,7 @@
     <span class="token-keyword">return</span> none
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> alloc <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">open_current_directory_aborting</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-function">alloc</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-function">darwin_max_path_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
@@ -345,7 +345,7 @@
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> value
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> alloc <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
     <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">open_current_directory</span><span class="token-operator">(</span><span class="token-operator">)</span> catch error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error
     <span class="token-operator">}</span>

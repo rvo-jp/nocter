@@ -76,7 +76,7 @@ access.
 
 Phase 9 intentionally omits `map`, `filter`, callback-driven `fold`, and comparator-driven sorting.
 Those APIs require one first-class callable contract covering capture ownership, indirect-call
-allocation effects, result provenance, and cleanup.
+result storage, result provenance, and cleanup.
 
 ## Collection Builders
 
