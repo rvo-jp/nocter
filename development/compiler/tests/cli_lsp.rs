@@ -2279,6 +2279,318 @@ fn lsp_command_rejects_requests_after_shutdown_and_ignores_notifications() {
     );
 }
 
+#[test]
+fn lsp_conversion_hover_and_definition_use_exact_as_ranges() {
+    let project = TempProject::new("cli-lsp-conversion-plans");
+    let source_text = r#"struct Text { value: &str }
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+func project(value: &Text): &str from value { return value as &str }
+func widen(): i64 { return 1 as i64 }
+"#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let coercion_operator = source_text.rfind("as &str").unwrap();
+    let numeric_operator = source_text.rfind("as i64").unwrap();
+    let (coercion_line, coercion_character) =
+        lsp_position_for_ascii_byte_offset(source_text, coercion_operator);
+    let (numeric_line, numeric_character) =
+        lsp_position_for_ascii_byte_offset(source_text, numeric_operator);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            initialize_request(1),
+            did_open_notification(&uri, source_text),
+            text_document_position_request(
+                2,
+                "textDocument/hover",
+                &uri,
+                coercion_line,
+                coercion_character,
+            ),
+            text_document_position_request(
+                3,
+                "textDocument/definition",
+                &uri,
+                coercion_line,
+                coercion_character,
+            ),
+            text_document_position_request(
+                4,
+                "textDocument/hover",
+                &uri,
+                numeric_line,
+                numeric_character,
+            ),
+            text_document_position_request(
+                5,
+                "textDocument/definition",
+                &uri,
+                numeric_line,
+                numeric_character,
+            ),
+            shutdown_request(6),
+            exit_notification(),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(hover["range"]["start"]["line"], coercion_line);
+    assert_eq!(hover["range"]["start"]["character"], coercion_character);
+    assert_eq!(hover["range"]["end"]["character"], coercion_character + 2);
+    let hover_text = hover["contents"]["value"].as_str().unwrap();
+    assert!(hover_text.contains("&Text as &str"), "hover:\n{hover_text}");
+    assert!(
+        hover_text.contains("type-owned borrow coercion"),
+        "hover:\n{hover_text}"
+    );
+
+    let definition = &response_with_id(&messages, 3)["result"][0];
+    assert_eq!(definition["targetUri"], uri);
+    assert_eq!(definition["originSelectionRange"], hover["range"]);
+    assert_eq!(definition["targetSelectionRange"]["start"]["line"], 2);
+    assert_eq!(definition["targetSelectionRange"]["start"]["character"], 14);
+    assert_eq!(definition["targetSelectionRange"]["end"]["character"], 16);
+
+    let numeric_hover = &response_with_id(&messages, 4)["result"];
+    assert_eq!(numeric_hover["range"]["start"]["line"], numeric_line);
+    assert_eq!(
+        numeric_hover["range"]["start"]["character"],
+        numeric_character
+    );
+    assert_eq!(
+        numeric_hover["range"]["end"]["character"],
+        numeric_character + 2
+    );
+    assert!(
+        numeric_hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| value.contains("lossless integer conversion"))
+    );
+    assert_eq!(response_with_id(&messages, 5)["result"], Value::Null);
+}
+
+#[test]
+fn lsp_conversion_definition_crosses_a_public_reexport() {
+    let project = TempProject::new("cli-lsp-reexported-coercion");
+    let app_text = r#"use ./api.Text
+func project(value: &Text): &str from value { return value as &str }
+"#;
+    let model_text = r#"pub struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+"#;
+    let app = project.write_source("app.nct", app_text);
+    project.write_source("api.nct", "pub use ./model.Text\n");
+    let model = project.write_source("model.nct", model_text);
+    let app_uri = file_uri(&app);
+    let model_uri = file_uri(&model.canonicalize().unwrap());
+    let operator = app_text.rfind("as &str").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(app_text, operator);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            initialize_request(1),
+            did_open_notification(&app_uri, app_text),
+            text_document_position_request(2, "textDocument/hover", &app_uri, line, character),
+            text_document_position_request(3, "textDocument/definition", &app_uri, line, character),
+            shutdown_request(4),
+            exit_notification(),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(hover["range"]["start"]["line"], line);
+    assert_eq!(hover["range"]["start"]["character"], character);
+    assert!(
+        hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| value.contains("&Text as &str"))
+    );
+    let definition = &response_with_id(&messages, 3)["result"][0];
+    assert_eq!(definition["targetUri"], model_uri);
+    assert_eq!(definition["targetSelectionRange"]["start"]["line"], 1);
+    assert_eq!(definition["targetSelectionRange"]["start"]["character"], 24);
+    assert_eq!(definition["targetSelectionRange"]["end"]["character"], 26);
+}
+
+#[test]
+fn lsp_conversion_queries_remain_stable_for_private_and_incomplete_sources() {
+    let private_project = TempProject::new("cli-lsp-private-coercion");
+    let private_app_text = r#"use ./model.Text
+func project(value: &Text): &str from value { return value as &str }
+"#;
+    let private_app = private_project.write_source("app.nct", private_app_text);
+    private_project.write_source(
+        "model.nct",
+        "pub struct Text { value: &str }\ncoerce Text { &self as &str from self { return self.value } }\n",
+    );
+    let private_uri = file_uri(&private_app);
+    let private_operator = private_app_text.rfind("as &str").unwrap();
+    let (private_line, private_character) =
+        lsp_position_for_ascii_byte_offset(private_app_text, private_operator);
+    let private_output = nocter_lsp(
+        &private_project,
+        &[
+            initialize_request(1),
+            did_open_notification(&private_uri, private_app_text),
+            text_document_position_request(
+                2,
+                "textDocument/hover",
+                &private_uri,
+                private_line,
+                private_character,
+            ),
+            text_document_position_request(
+                3,
+                "textDocument/definition",
+                &private_uri,
+                private_line,
+                private_character,
+            ),
+            shutdown_request(4),
+            exit_notification(),
+        ],
+    );
+    assert_eq!(
+        private_output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&private_output.stderr)
+    );
+    let private_messages = read_frames(&private_output.stdout);
+    assert_eq!(
+        response_with_id(&private_messages, 2)["result"],
+        Value::Null
+    );
+    assert_eq!(
+        response_with_id(&private_messages, 3)["result"],
+        Value::Null
+    );
+    assert!(private_messages.iter().any(|message| {
+        message["method"] == "textDocument/publishDiagnostics"
+            && message["params"]["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| {
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic["message"]
+                            .as_str()
+                            .is_some_and(|text| text.contains("not accessible here"))
+                    })
+                })
+    }));
+
+    let incomplete_project = TempProject::new("cli-lsp-incomplete-coercion");
+    let incomplete_text = r#"struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+func project(value: &Text): &str from value { return value as &
+"#;
+    let incomplete_source = incomplete_project.write_source("app.nct", incomplete_text);
+    let incomplete_uri = file_uri(&incomplete_source);
+    let incomplete_operator = incomplete_text.rfind("as &").unwrap();
+    let (incomplete_line, incomplete_character) =
+        lsp_position_for_ascii_byte_offset(incomplete_text, incomplete_operator);
+    let incomplete_output = nocter_lsp(
+        &incomplete_project,
+        &[
+            initialize_request(1),
+            did_open_notification(&incomplete_uri, incomplete_text),
+            text_document_position_request(
+                2,
+                "textDocument/hover",
+                &incomplete_uri,
+                incomplete_line,
+                incomplete_character,
+            ),
+            text_document_position_request(
+                3,
+                "textDocument/definition",
+                &incomplete_uri,
+                incomplete_line,
+                incomplete_character,
+            ),
+            shutdown_request(4),
+            exit_notification(),
+        ],
+    );
+    assert_eq!(
+        incomplete_output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&incomplete_output.stderr)
+    );
+    let incomplete_messages = read_frames(&incomplete_output.stdout);
+    assert!(incomplete_messages.iter().any(|message| message["id"] == 2));
+    assert!(incomplete_messages.iter().any(|message| message["id"] == 3));
+    assert!(incomplete_messages.iter().any(|message| {
+        message["method"] == "textDocument/publishDiagnostics"
+            && message["params"]["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| !diagnostics.is_empty())
+    }));
+}
+
+fn initialize_request(id: u64) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "method": "initialize", "params": {} })
+}
+
+fn did_open_notification(uri: &str, source: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": uri,
+                "languageId": "nocter",
+                "version": 1,
+                "text": source
+            }
+        }
+    })
+}
+
+fn text_document_position_request(
+    id: u64,
+    method: &str,
+    uri: &str,
+    line: usize,
+    character: usize,
+) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": method,
+        "params": {
+            "textDocument": { "uri": uri },
+            "position": { "line": line, "character": character }
+        }
+    })
+}
+
+fn shutdown_request(id: u64) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "method": "shutdown", "params": null })
+}
+
+fn exit_notification() -> Value {
+    json!({ "jsonrpc": "2.0", "method": "exit", "params": null })
+}
+
 fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     let mut child = Command::new(NOCTER)
         .arg("lsp")
