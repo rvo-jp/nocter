@@ -55,6 +55,299 @@ func main(): i32 {
     assert_success(&nocter_check(&project, &source));
 }
 
+#[test]
+fn distributed_std_whole_stream_io_surface_passes_check() {
+    let project = TempProject::new("distributed-home-whole-stream-io-check");
+    let source = project.write_source(
+        "whole_stream_io_shape.nct",
+        r#"use std/io.{File, Reader, Writer}
+use std/io_buffer.{BufReader, BufWriter}
+
+func collect<R: Reader>(reader: &+R): String! {
+    return reader.read_to_string()?
+}
+
+func emit<W: Writer>(writer: &+W, text: &str): void! {
+    writer.write_text(text)?
+    writer.flush()?
+    return
+}
+
+func main(): i32! {
+    var input = File.open("input.txt")?
+    let bytes = input.read_to_end()?
+    let reopened = File.open("input.txt")?
+    var buffered = BufReader.new(move reopened)
+    let text = collect(&+buffered)?
+    let output = File.create("output.txt")?
+    var writer = BufWriter.new(move output)
+    emit(&+writer, text.view())?
+    writer.close()?
+    return 0
+}
+"#,
+    );
+
+    assert_success(&nocter_check(&project, &source));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_whole_stream_io_operations_run() {
+    let project = TempProject::new("distributed-home-whole-stream-io-run");
+    let empty_path = project.root().join("empty.txt");
+    let input_path = project.root().join("large.txt");
+    let invalid_path = project.root().join("invalid.txt");
+    let output_path = project.root().join("output.txt");
+    fs::write(&empty_path, []).unwrap();
+    let mut expected = vec![b'a'; 8191];
+    expected.extend_from_slice("é\n".as_bytes());
+    fs::write(&input_path, &expected).unwrap();
+    fs::write(&invalid_path, [0xf0, 0x28, 0x8c, 0x28]).unwrap();
+
+    let source_text = r#"use std/io.File
+use std/io_buffer.{BufReader, BufWriter}
+
+func rejects_invalid_utf8(path: &str): bool {
+    var input = File.open(path) catch error { return false }
+    let text = input.read_to_string() catch error { return true }
+    return false
+}
+
+func main(): i32! {
+    var empty = File.open("__EMPTY__")?
+    let nothing = empty.read_to_end()?
+    if nothing.len() != 0 { return 1 }
+
+    var direct = File.open("__INPUT__")?
+    let text = direct.read_to_string()?
+    if text.len() != 8194 { return 2 }
+    let encoded = text.bytes()
+    if encoded[8191] != 195 || encoded[8192] != 169 || encoded[8193] != 10 { return 3 }
+
+    let source = File.open("__INPUT__")?
+    var buffered = BufReader.with_capacity(move source, 3)
+    let collected = buffered.read_to_end()?
+    if collected.len() != 8194 { return 4 }
+    if collected.view()[0] != 97 || collected.view()[8192] != 169 { return 5 }
+
+    if !rejects_invalid_utf8("__INVALID__") { return 6 }
+
+    let destination = File.create("__OUTPUT__")?
+    var writer = BufWriter.with_capacity(move destination, 2)
+    writer.write_text(text.view())?
+    writer.close()?
+    return 42
+}
+"#
+    .replace("__EMPTY__", empty_path.to_str().unwrap())
+    .replace("__INPUT__", input_path.to_str().unwrap())
+    .replace("__INVALID__", invalid_path.to_str().unwrap())
+    .replace("__OUTPUT__", output_path.to_str().unwrap());
+    let source = project.write_source("whole_stream_io_run.nct", &source_text);
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(fs::read(output_path).unwrap(), expected);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_whole_stream_rejects_reader_contract_violations_and_failures() {
+    let project = TempProject::new("distributed-home-whole-stream-reader-errors");
+    let source = project.write_source(
+        "whole_stream_reader_errors.nct",
+        r#"use std/io.Reader
+
+struct InvalidCountReader {
+    called: bool
+}
+
+impl Reader for InvalidCountReader {
+    method &+self.read(buffer: &+[u8]): usize! from static {
+        self.called = true
+        return buffer.len() + 1
+    }
+}
+
+struct FailingReader {
+    calls: usize
+}
+
+impl Reader for FailingReader {
+    method &+self.read(buffer: &+[u8]): usize! from static {
+        if self.calls == 0 {
+            self.calls = 1
+            buffer[0] = 65
+            return 1
+        }
+        return Error.new("test.read_failed", "read failed")
+    }
+}
+
+func rejects_invalid_count(): bool {
+    var reader = InvalidCountReader { called: false }
+    let collected = reader.read_to_end() catch error { return reader.called }
+    return false
+}
+
+func propagates_read_failure(): bool {
+    var reader = FailingReader { calls: 0 }
+    let collected = reader.read_to_end() catch error { return reader.calls == 1 }
+    return false
+}
+
+func main(): i32 {
+    if !rejects_invalid_count() { return 1 }
+    if !propagates_read_failure() { return 2 }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+
+    let uncaught = project.write_source(
+        "invalid_count_uncaught.nct",
+        r#"use std/io.Reader
+
+struct InvalidCountReader {
+    called: bool
+}
+
+impl Reader for InvalidCountReader {
+    method &+self.read(buffer: &+[u8]): usize! from static {
+        return buffer.len() + 1
+    }
+}
+
+func main(): i32! {
+    var reader = InvalidCountReader { called: false }
+    let collected = reader.read_to_end()?
+    return 0
+}
+"#,
+    );
+    let uncaught_output = nocter_run(&project, &uncaught);
+    assert_eq!(uncaught_output.status.code(), Some(1));
+    let stderr = text(&uncaught_output.stderr);
+    assert!(
+        stderr.contains("std.io.invalid_read_count")
+            && stderr.contains("more bytes than the supplied buffer"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn distributed_lsp_presents_whole_stream_defaults_for_concrete_receivers() {
+    let project = TempProject::new("distributed-home-whole-stream-lsp");
+    let source_text = r#"use std/io.File
+
+func main(): i32! {
+    var input = File.open("input.txt")?
+    let text = input.read_to_string()?
+    return 0
+}
+"#;
+    let source = project.write_source("whole_stream_lsp.nct", source_text);
+    let uri = file_uri(&source);
+    let member_offset = source_text.find("read_to_string").unwrap();
+    let completion_offset = source_text.find("input.read_to_string").unwrap() + "input.".len();
+    let output = nocter_lsp(
+        &distributed_home().join("nocter"),
+        project.root(),
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"languageId":"nocter","version":1,"text":source_text}}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":2,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":io_lsp_position(source_text,member_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":3,
+                "method":"textDocument/definition",
+                "params":{"textDocument":{"uri":uri},"position":io_lsp_position(source_text,member_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":4,
+                "method":"textDocument/completion",
+                "params":{"textDocument":{"uri":uri},"position":io_lsp_position(source_text,completion_offset)}
+            }),
+            json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+            json!({"jsonrpc":"2.0","method":"exit","params":null}),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+    let frames = read_frames(&output.stdout);
+    let hover = io_lsp_response(&frames, 2)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected whole-stream method hover");
+    assert!(
+        hover.contains("method &+File.read_to_string(): String!"),
+        "{hover}"
+    );
+    assert!(!hover.contains("std/io/core."), "{hover}");
+
+    let definition = &io_lsp_response(&frames, 3)["result"];
+    let target_uri = definition
+        .as_array()
+        .and_then(|locations| locations.first())
+        .and_then(|location| location["targetUri"].as_str())
+        .or_else(|| definition["uri"].as_str());
+    assert!(
+        target_uri.is_some_and(|uri| uri.ends_with("/std/io/core.nct")),
+        "definition: {definition:#?}"
+    );
+
+    let completion = io_lsp_response(&frames, 4)["result"]["items"]
+        .as_array()
+        .expect("expected member completion items");
+    for expected in ["read", "read_to_end", "read_to_string"] {
+        assert!(
+            completion
+                .iter()
+                .any(|item| item["label"].as_str() == Some(expected)),
+            "missing {expected}: {completion:#?}"
+        );
+    }
+}
+
+fn io_lsp_position(text: &str, offset: usize) -> Value {
+    let line = text[..offset].bytes().filter(|byte| *byte == b'\n').count();
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    json!({"line":line,"character":text[line_start..offset].chars().count()})
+}
+
+fn io_lsp_response(frames: &[Value], id: u64) -> &Value {
+    frames
+        .iter()
+        .find(|message| message["id"] == id)
+        .unwrap_or_else(|| panic!("missing response {id}: {frames:#?}"))
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_text_and_collection_operations_run() {

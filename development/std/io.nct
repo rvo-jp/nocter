@@ -5,6 +5,7 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 use std/error.Error
+pub use std/io/core.{Reader, Writer, invalid_read_count}
 use std/mem.alloc_pages
 use std/mem.free_pages
 use std/os.{OSError, OSErrorKind}
@@ -132,15 +133,6 @@ pub struct File {
     close_on_drop: bool
 }
 
-pub interface Reader {
-    pub method &+self.read(buffer: &+[u8]): usize! from static
-}
-
-pub interface Writer {
-    pub method &+self.write(bytes: &[u8]): void! from static
-    pub method &+self.flush(): void! { return }
-}
-
 pub(nocter) func from_os_error(error: OSError): error {
     if error.kind is OSErrorKind.interrupted {
         return Error.new("std.io.interrupted", "operation interrupted")
@@ -234,11 +226,6 @@ pub func close(file: &+File): void {
 }
 
 impl File {
-    pub method &+self.write_text(text: &str): void! {
-        write_text(self, text)?
-        return
-    }
-
     pub method &+self.close(): void {
         close(self)
         return
