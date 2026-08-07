@@ -35,10 +35,11 @@ pub(crate) fn conversion_editor_info_at_offset(
                 crate::typecheck::type_expr_presentation_label(&coercion.self_ty, &file.resolved);
             let target =
                 crate::typecheck::type_expr_presentation_label(&coercion.target_ty, &file.resolved);
-            let provenance = coercion
-                .has_explicit_result_provenance
-                .then_some(" from self")
-                .unwrap_or_default();
+            let provenance = if coercion.has_explicit_result_provenance {
+                " from self"
+            } else {
+                ""
+            };
             (
                 "type-owned borrow coercion",
                 format!(

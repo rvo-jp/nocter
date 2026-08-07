@@ -13,11 +13,11 @@ pub(crate) fn coercion_surface_markdown(
         .iter()
         .filter(|coercion| coercion.is_accessible)
         .map(|coercion| {
-            let provenance = coercion
-                .result_provenance
-                .is_some()
-                .then_some(" from self")
-                .unwrap_or_default();
+            let provenance = if coercion.result_provenance.is_some() {
+                " from self"
+            } else {
+                ""
+            };
             format!(
                 "- `{}{} as {}{provenance}`",
                 coercion.receiver.mode.source_prefix(),
