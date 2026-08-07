@@ -7,6 +7,6 @@ state. Public language behavior belongs in `spec/`; compiler architecture belong
 The current milestone record is [v0.8.0](v0.8.0.md). Phase 0 completed contextual type-owned borrow
 coercion. Phase 1 completed unified conversion plans and explicit borrowed-view selection through
 the existing `as` expression. Phase 2 completed contract freeze and local release qualification.
-No later phase is active, and v0.8.0 has not been published.
+Publication was authorized on 2026-08-08. No later phase is active yet.
 
 Do not reuse or reopen a completed release qualification record as an active plan.

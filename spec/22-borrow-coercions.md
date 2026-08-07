@@ -1,7 +1,6 @@
 # Borrow Coercions
 
-**Availability:** This chapter specifies the v0.8.0 release-candidate contract. The latest
-published release remains v0.7.0 until publication is recorded in the release index.
+**Availability:** Published in v0.8.0.
 
 A borrow coercion lets a nominal type expose one of its borrowed views at a concrete expected-type
 boundary. It is a type-owned, statically selected call. It is not type equality, a representation

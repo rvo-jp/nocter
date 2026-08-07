@@ -2,7 +2,7 @@
 
 This document defines stable responsibility boundaries in the Rust bootstrap compiler. See the
 [specification](../../spec/README.md) for public language rules and the
-[v0.7.0 release record](../releases/v0.7.0.md) for the released callable-contract and
+[v0.8.0 release record](../releases/v0.8.0.md) for the released conversion, ownership, and
 editor-presentation boundaries.
 
 ## Pipeline

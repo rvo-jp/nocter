@@ -2,8 +2,9 @@
 
 ## Current Task
 
-No implementation phase is active. v0.8.0 Phase 2 is complete, and the exact local candidate is
-qualified. Stop before tagging, pushing, publishing, or defining a later milestone.
+Publish the qualified v0.8.0 archive authorized on 2026-08-08. Update the public release pointer,
+tag the exact publication commit, upload only the qualified archive, and verify the public download
+before recording the external audit and starting v0.9.0 Phase 0.
 
 ## Completed Checkpoint
 
@@ -68,5 +69,8 @@ The published v0.7.0 qualification remains in the immutable
 
 ## Next Work
 
-Wait for a separate planning or publication instruction. Publication must use the already qualified
-archive; any compiler, standard-library, or packaging change requires requalification.
+1. Commit and push publication-status documentation without changing compiler, standard-library,
+   or packaging inputs.
+2. Create annotated tag `v0.8.0` at that commit and publish only the qualified archive.
+3. Download and audit the public artifact in a fresh directory.
+4. Record publication evidence, then define v0.9.0 Phase 0 before changing implementation.
