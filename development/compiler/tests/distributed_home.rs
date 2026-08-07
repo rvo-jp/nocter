@@ -5322,6 +5322,49 @@ fn distributed_std_sources_do_not_reintroduce_removed_placeholders() {
     }
 }
 
+#[test]
+fn distributed_std_all_modules_pass_callable_contract_audit() {
+    let home = distributed_home();
+    let std_root = home.join("std");
+    let mut files = Vec::new();
+    collect_nocter_sources(&std_root, &mut files);
+    files.sort();
+
+    let mut source_text = String::new();
+    for file in &files {
+        let relative = file
+            .strip_prefix(&home)
+            .expect("standard-library module below distributed home");
+        let mut module = relative.with_extension("").to_string_lossy().to_string();
+        if std::path::MAIN_SEPARATOR != '/' {
+            module = module.replace(std::path::MAIN_SEPARATOR, "/");
+        }
+        // The compiler loads this module for every source and intentionally
+        // rejects an explicit import, so it is already part of the audit unit.
+        if module == "std/prelude" {
+            continue;
+        }
+        source_text.push_str("use ");
+        source_text.push_str(&module);
+        source_text.push('\n');
+    }
+    source_text.push_str("\nfunc main(): i32 { return 0 }\n");
+
+    let project = TempProject::new("distributed-home-all-contract-audit");
+    let source = project.write_source("contract_audit.nct", &source_text);
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "all {} distributed modules must pass callable contract validation:\n{}",
+        files.len(),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 fn nocter_check(project: &TempProject, source: &Path) -> Output {
     Command::new(NOCTER)
         .args(["check", source.to_str().unwrap()])
