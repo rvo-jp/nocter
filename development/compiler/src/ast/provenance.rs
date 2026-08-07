@@ -17,7 +17,6 @@ pub enum ResultProvenanceOriginKind {
     Receiver,
     Parameter(String),
     Static,
-    CurrentAllocationContext,
 }
 
 impl ResultProvenanceOriginKind {
@@ -26,7 +25,6 @@ impl ResultProvenanceOriginKind {
             Self::Receiver => "self",
             Self::Parameter(name) => name,
             Self::Static => "static",
-            Self::CurrentAllocationContext => "current",
         }
     }
 }

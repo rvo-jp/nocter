@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{ResultAllocationModifier, ResultProvenanceClause, ResultProvenanceOriginKind};
+use crate::ast::ResultAllocationModifier;
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
@@ -98,11 +98,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         &mut summaries,
                         callable,
                     );
-                    seed_declared_allocation_effect(
-                        &mut summaries,
-                        callable,
-                        function.result_provenance.as_ref(),
-                    );
                 }
                 Item::Primitive(primitive) => {
                     let declared = primitive.result_provenance.as_ref().and_then(|clause| {
@@ -123,11 +118,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     );
                     let callable = CallableId::declared_at(primitive.name_span);
                     summaries.insert_result(callable, provenance);
-                    seed_declared_allocation_effect(
-                        &mut summaries,
-                        callable,
-                        primitive.result_provenance.as_ref(),
-                    );
                 }
                 Item::Interface(interface) => {
                     for method in &interface.methods {
@@ -195,11 +185,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 callable,
                             );
                         }
-                        seed_declared_allocation_effect(
-                            &mut summaries,
-                            callable,
-                            method.result_provenance.as_ref(),
-                        );
                     }
                 }
                 Item::Impl(impl_) => {
@@ -248,11 +233,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &mut summaries,
                             callable,
                         );
-                        seed_declared_allocation_effect(
-                            &mut summaries,
-                            callable,
-                            method.result_provenance.as_ref(),
-                        );
                     }
                 }
                 Item::Construct(construct) => {
@@ -295,11 +275,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &mut summaries,
                             callable,
                         );
-                        seed_declared_allocation_effect(
-                            &mut summaries,
-                            callable,
-                            function.result_provenance.as_ref(),
-                        );
                     }
                     for (_, literal) in construct.literals() {
                         let environment = environment_for_literal(literal, source.resolved);
@@ -340,11 +315,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &mut summaries,
                             callable,
                         );
-                        seed_declared_allocation_effect(
-                            &mut summaries,
-                            callable,
-                            literal.result_provenance.as_ref(),
-                        );
                     }
                 }
                 _ => {}
@@ -373,23 +343,6 @@ fn declared_result_allocation(
         provenance.returned_allocation()
     } else {
         provenance
-    }
-}
-
-fn seed_declared_allocation_effect(
-    summaries: &mut CallableProvenanceSummaries,
-    callable: CallableId,
-    clause: Option<&ResultProvenanceClause>,
-) {
-    if clause.is_some_and(|clause| {
-        clause.origins.iter().any(|origin| {
-            matches!(
-                origin.kind,
-                ResultProvenanceOriginKind::CurrentAllocationContext
-            )
-        })
-    }) {
-        summaries.set_needs_current_allocation_context(callable);
     }
 }
 

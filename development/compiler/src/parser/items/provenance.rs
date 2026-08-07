@@ -15,7 +15,6 @@ impl Parser<'_> {
             let kind = match origin.value.as_str() {
                 "self" => ResultProvenanceOriginKind::Receiver,
                 "static" => ResultProvenanceOriginKind::Static,
-                "current" => ResultProvenanceOriginKind::CurrentAllocationContext,
                 _ => ResultProvenanceOriginKind::Parameter(origin.value),
             };
             origins.push(ResultProvenanceOrigin {

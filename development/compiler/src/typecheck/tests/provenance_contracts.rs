@@ -148,7 +148,7 @@ fn diagnoses_literal_body_result_outside_declared_provenance() {
         r#"struct Text { value: &str }
 
 construct Text {
-    pub default literal ""(text: &str): Self from current {
+    pub default literal ""(text: &str): Self from static {
         return Text { value: text }
     }
 }
@@ -167,13 +167,13 @@ func main(): i32 {
 }
 
 #[test]
-fn accepts_current_provenance_for_pointer_backed_owned_result() {
+fn accepts_alloc_contract_for_pointer_backed_owned_result() {
     let diagnostics = check_text(
-        r#"primitive allocate(): *u8 from current
+        r#"alloc primitive allocate(): *u8
 
 struct Buffer { ptr: *u8 }
 
-func build(): Buffer from current {
+alloc func build(): Buffer {
     return Buffer { ptr: allocate() }
 }
 

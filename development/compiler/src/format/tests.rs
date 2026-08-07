@@ -88,7 +88,7 @@ fn formats_result_provenance_contracts_stably() {
     assert_formats_stably(
         r#"interface Lookup<T>{pub method &self.get(fallback:&T):&T from self|fallback}
 func greeting():&str from static{return "hello"}
-primitive allocated_text():&str from current
+alloc primitive allocated_text():&str
 "#,
         concat!(
             "interface Lookup<T> {\n",
@@ -99,7 +99,7 @@ primitive allocated_text():&str from current
             "    return \"hello\"\n",
             "}\n",
             "\n",
-            "primitive allocated_text(): &str from current\n",
+            "alloc primitive allocated_text(): &str\n",
         ),
     );
 }
@@ -133,12 +133,12 @@ fn formats_generic_interface_bounds_stably() {
 #[test]
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
-        r#"construct Vec<T>{pub default literal [](...items:T):Self from current{for item in items{return move item}}}
+        r#"construct Vec<T>{pub default alloc literal [](...items:T):Self{for item in items{return move item}}}
 func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&other,...move other,3] using arena}
 "#,
         concat!(
             "construct Vec<T> {\n",
-            "    pub default literal [](...items: T): Self from current {\n",
+            "    pub default alloc literal [](...items: T): Self {\n",
             "        for item in items {\n",
             "            return move item\n",
             "        }\n",

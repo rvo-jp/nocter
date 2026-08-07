@@ -335,7 +335,6 @@ enum ProvenanceSlot {
     Receiver,
     Parameter(usize),
     Static,
-    Current,
 }
 
 pub(super) fn result_provenance_contract_is_compatible(
@@ -370,9 +369,6 @@ fn provenance_slots(
                 .position(|parameter| parameter.name == *name)
                 .map(ProvenanceSlot::Parameter),
             crate::ast::ResultProvenanceOriginKind::Static => Some(ProvenanceSlot::Static),
-            crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext => {
-                Some(ProvenanceSlot::Current)
-            }
         })
         .collect()
 }

@@ -4,15 +4,16 @@ use crate::ast::{
     TypeExpr,
 };
 use crate::resolve::ResolveOutput;
-use crate::typecheck::returns::type_expr_contains_borrow_like;
+use crate::typecheck::model::Type;
+use crate::typecheck::provenance::type_may_carry_result_provenance;
+use crate::typecheck::type_expr::type_expr_to_type_with_substitutions;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::typecheck) enum ContractOriginError {
     ReceiverOutsideMethod,
-    OwnedReceiver,
     UnknownParameter(String),
-    NonBorrowLikeParameter(String),
+    NonStorageCarryingParameter(String),
     Duplicate(String),
 }
 
@@ -39,10 +40,6 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
                     errors.push((origin, ContractOriginError::ReceiverOutsideMethod));
                     continue;
                 }
-                Some(method) if method.receiver.mode == MethodReceiverMode::Owned => {
-                    errors.push((origin, ContractOriginError::OwnedReceiver));
-                    continue;
-                }
                 Some(method) => {
                     StorageOrigin::Input(InputId::declared_at(method.receiver.name_span))
                 }
@@ -53,19 +50,16 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
                     errors.push((origin, ContractOriginError::UnknownParameter(name.clone())));
                     continue;
                 };
-                if !type_expression_is_borrow_like(&parameter.ty, resolved) {
+                if !type_expression_may_carry_result_provenance(&parameter.ty, resolved) {
                     errors.push((
                         origin,
-                        ContractOriginError::NonBorrowLikeParameter(name.clone()),
+                        ContractOriginError::NonStorageCarryingParameter(name.clone()),
                     ));
                     continue;
                 }
                 StorageOrigin::Input(InputId::declared_at(parameter.name_span))
             }
             ResultProvenanceOriginKind::Static => StorageOrigin::Static,
-            ResultProvenanceOriginKind::CurrentAllocationContext => {
-                StorageOrigin::CurrentAllocationContext
-            }
         };
         origins.push(storage_origin);
     }
@@ -83,7 +77,7 @@ pub(in crate::typecheck) fn elided_result_provenance_contract(
     return_type: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Option<ValueProvenance> {
-    if !type_expression_is_borrow_like(return_type, resolved) {
+    if !type_expression_may_carry_result_provenance(return_type, resolved) {
         return Some(ValueProvenance::Independent);
     }
     let mut origins = eligible_input_origins(method, parameters, resolved);
@@ -111,14 +105,19 @@ fn eligible_input_origins(
         .chain(
             parameters
                 .iter()
-                .filter(|parameter| type_expression_is_borrow_like(&parameter.ty, resolved))
+                .filter(|parameter| {
+                    type_expression_may_carry_result_provenance(&parameter.ty, resolved)
+                })
                 .map(|parameter| StorageOrigin::Input(InputId::declared_at(parameter.name_span))),
         )
         .collect()
 }
 
-fn type_expression_is_borrow_like(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_contains_borrow_like(ty, resolved, &HashMap::new(), &mut HashSet::new())
+fn type_expression_may_carry_result_provenance(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    let ty = type_expr_to_type_with_substitutions(ty, resolved, None, &HashMap::new());
+    type_may_carry_result_provenance(&ty, resolved)
+        || crate::typecheck::allocation::allocator_capability_kind(&ty, resolved).is_some()
+        || matches!(ty, Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown)
 }
 
 pub(in crate::typecheck) fn provenance_satisfies_contract(

@@ -12,22 +12,17 @@ pub(in crate::typecheck) fn invalid_provenance_origin_diagnostic(
         ContractOriginError::ReceiverOutsideMethod => (
             "E0440",
             "`self` is only a result origin on methods".to_string(),
-            "name a borrowed parameter, `static`, or `current`".to_string(),
-        ),
-        ContractOriginError::OwnedReceiver => (
-            "E0441",
-            "an owned method receiver cannot be a borrowed result origin".to_string(),
-            "borrow the receiver with `&self` or `&+self`, or choose another origin".to_string(),
+            "name a storage-carrying parameter or `static`".to_string(),
         ),
         ContractOriginError::UnknownParameter(name) => (
             "E0440",
             format!("`{name}` is not a parameter of this callable"),
-            "name a declared borrowed parameter, `static`, or `current`".to_string(),
+            "name a declared storage-carrying parameter or `static`".to_string(),
         ),
-        ContractOriginError::NonBorrowLikeParameter(name) => (
+        ContractOriginError::NonStorageCarryingParameter(name) => (
             "E0441",
-            format!("parameter `{name}` cannot carry borrowed result storage"),
-            "only a borrowed or storage-carrying parameter can be a result origin".to_string(),
+            format!("parameter `{name}` cannot carry result storage"),
+            "only a storage-carrying parameter can be a result origin".to_string(),
         ),
         ContractOriginError::Duplicate(name) => (
             "E0442",
@@ -79,8 +74,7 @@ pub(in crate::typecheck) fn missing_result_contract_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "add `from self`, `from parameter`, `from static`, or `from current` after the return type"
-            .to_string(),
+        "add `from self`, `from parameter`, or `from static` after the return type".to_string(),
     );
     diagnostic
 }

@@ -361,7 +361,7 @@ func retained(): Buffer {
     return allocate()
 }
 
-func declared(): Buffer from current {
+alloc func declared(): Buffer {
     return allocate()
 }
 

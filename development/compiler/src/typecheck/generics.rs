@@ -356,8 +356,7 @@ fn check_type_expr(
                             .parameters
                             .iter()
                             .any(|parameter| parameter.name.as_deref() == Some(name)),
-                        crate::ast::ResultProvenanceOriginKind::Static
-                        | crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext => true,
+                        crate::ast::ResultProvenanceOriginKind::Static => true,
                         crate::ast::ResultProvenanceOriginKind::Receiver => false,
                     };
                     if !valid {

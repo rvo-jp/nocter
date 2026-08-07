@@ -259,7 +259,7 @@ func run(values: Vec<i32>): void {
     );
     assert_eq!(
         response(10)["result"]["signatures"][0]["label"],
-        "literal Vec<i32> [](...items: i32): Vec<i32> from current"
+        "alloc literal Vec<i32> [](...items: i32): Vec<i32>"
     );
     let completion = response(6)["result"]["items"]
         .as_array()

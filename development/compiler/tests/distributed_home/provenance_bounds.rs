@@ -110,6 +110,6 @@ func main(): i32 {
     assert_eq!(stderr.matches("error[E0436]").count(), 1, "{stderr}");
     assert!(
         stderr.contains("region `temporary`") && stderr.contains("region ends before"),
-        "expected cwd's `from current` result to resolve to the active region:\n{stderr}"
+        "expected cwd's allocated result to resolve to the active region:\n{stderr}"
     );
 }

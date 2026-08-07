@@ -5,7 +5,7 @@ use crate::ast::{ConstructMemberDecl, Expr, Item, LiteralShape, Stmt, TypeExpr};
 fn parses_sequence_literal_definition_and_pack_loop() {
     let (sources, output) = parse_text_with_sources(
         r#"construct Vec<T> {
-    pub default literal [](...items: T): Self from current {
+    pub default alloc literal [](...items: T): Self {
     for item in items {
         consume(move item)
     }
@@ -28,12 +28,8 @@ fn parses_sequence_literal_definition_and_pack_loop() {
     let capture = literal.capture.as_ref().expect("expected element capture");
     assert_eq!(capture.name, "items");
     assert!(literal.parameters.parameters.is_empty());
-    assert_eq!(
-        literal.result_provenance.as_ref().unwrap().origins[0]
-            .kind
-            .source_label(),
-        "current"
-    );
+    assert!(literal.result_allocation.is_some());
+    assert!(literal.result_provenance.is_none());
     let Stmt::LiteralPackFor(loop_) = &literal.body.statements[0] else {
         panic!("expected literal-pack loop");
     };
@@ -42,7 +38,7 @@ fn parses_sequence_literal_definition_and_pack_loop() {
 
     let json = ast.to_json(&sources);
     assert!(find_json_node(&json, "construct_literal_member").is_some());
-    assert!(find_json_node(&json, "result_provenance").is_some());
+    assert!(find_json_node(&json, "result_allocation_modifier").is_some());
     assert!(find_json_node(&json, "literal_pack_for_statement").is_some());
 }
 

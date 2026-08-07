@@ -162,8 +162,7 @@ impl Resolver<'_> {
             let name = match &origin.kind {
                 ResultProvenanceOriginKind::Receiver => "self",
                 ResultProvenanceOriginKind::Parameter(name) => name,
-                ResultProvenanceOriginKind::Static
-                | ResultProvenanceOriginKind::CurrentAllocationContext => continue,
+                ResultProvenanceOriginKind::Static => continue,
             };
             if let Some(local_id) = scope.resolve(name) {
                 self.output

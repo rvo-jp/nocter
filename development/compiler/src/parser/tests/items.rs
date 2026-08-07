@@ -807,7 +807,7 @@ func greeting(): &str from static {
     return "hello"
 }
 
-primitive allocated_text(): &str from current
+alloc primitive allocated_text(): &str
 "#,
     );
 
@@ -840,10 +840,8 @@ primitive allocated_text(): &str from current
     let Item::Primitive(primitive) = &ast.items[2] else {
         panic!("expected primitive");
     };
-    assert!(matches!(
-        primitive.result_provenance.as_ref().unwrap().origins[0].kind,
-        crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext
-    ));
+    assert!(primitive.result_allocation.is_some());
+    assert!(primitive.result_provenance.is_none());
 
     let json = ast.to_json(&sources);
     let provenance =
