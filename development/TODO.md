@@ -2,8 +2,9 @@
 
 ## Current Task
 
-Define v0.9.0 Phase 0 from the published v0.8.0 baseline. The phase must select one practical
-standard-library outcome with runnable acceptance packages before implementation begins.
+Implement v0.9.0 Phase 0: Whole-Stream I/O. Move portable reader and writer contracts into their own
+source module, add common default operations, simplify the file-summary example, and close the
+native, package, specification, and LSP acceptance matrix.
 
 ## Completed Checkpoint
 
@@ -75,5 +76,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Audit the current public standard-library surface against small real programs, define v0.9.0
-Phase 0 with explicit non-goals and native/package/LSP acceptance gates, then implement that phase.
+Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 0 is fully verified and its
+completion record is committed. Do not bump the release version, prepare an archive, tag, push, or
+publish v0.9.0.
