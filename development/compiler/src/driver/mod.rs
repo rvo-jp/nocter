@@ -114,19 +114,19 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     )?;
     writeln!(
         writer,
-        "  build [--root <dir>] [--executable <name>] [-o <path>] [--target <target>]"
+        "  build [--root <dir>] [--executable <name>] [--locked] [--offline] [-o <path>] [--target <target>]"
     )?;
     writeln!(
         writer,
-        "  run [--root <dir>] [--executable <name>] [--target <target>]"
+        "  run [--root <dir>] [--executable <name>] [--locked] [--offline] [--target <target>]"
     )?;
     writeln!(
         writer,
-        "  check [--root <dir>] [--executable <name>] [--target <target>]"
+        "  check [--root <dir>] [--executable <name>] [--locked] [--offline] [--target <target>]"
     )?;
     writeln!(
         writer,
-        "  check [--root <dir>] [--executable <name>] [--target <target>] --format json"
+        "  check [--root <dir>] [--executable <name>] [--locked] [--offline] [--target <target>] --format json"
     )?;
     writeln!(
         writer,
@@ -138,4 +138,27 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "  doctor")?;
     writeln!(writer, "  --version")?;
     writeln!(writer, "  lsp")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_usage;
+
+    #[test]
+    fn usage_lists_reproducibility_options_for_every_package_compile_command() {
+        let mut output = Vec::new();
+        write_usage(&mut output).expect("usage should be writable");
+        let output = String::from_utf8(output).expect("usage should be UTF-8");
+
+        let package_compile_lines = output.lines().filter(|line| {
+            let line = line.trim_start();
+            line.starts_with("build ") || line.starts_with("run ") || line.starts_with("check ")
+        });
+        let mut line_count = 0;
+        for line in package_compile_lines {
+            assert!(line.contains("[--locked] [--offline]"), "{line}");
+            line_count += 1;
+        }
+        assert_eq!(line_count, 4);
+    }
 }
