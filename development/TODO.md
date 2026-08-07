@@ -2,12 +2,8 @@
 
 ## Current Task
 
-v0.8.0 Phase 2 is active. Freeze and audit the completed conversion contract, close LSP and
-ownership/runtime regression gaps, prepare the v0.8.0 candidate identity and English release
-records, and qualify the exact archive from a fresh extraction. Do not tag, push, or publish.
-
-The compiler, installed-home metadata, and specification now identify the v0.8.0 candidate. The
-root README and release index intentionally remain on the published v0.7.0 release.
+No implementation phase is active. v0.8.0 Phase 2 is complete, and the exact local candidate is
+qualified. Stop before tagging, pushing, publishing, or defining a later milestone.
 
 ## Completed Checkpoint
 
@@ -55,13 +51,22 @@ root README and release index intentionally remain on the published v0.7.0 relea
 - packaged `String` and `Vec<T>` explicit/contextual views pass check and native execution
 - `development/compiler/scripts/verify.sh` passed all 3,334 tests, formatting, and warnings-denied
   Clippy; documentation generation produced 121 pages
+- v0.8.0 Phase 2 preserved result loans through explicit conversion, projection, `if`, `if is`, and
+  `match`, including branch-specific pattern environments
+- process-level LSP coverage now includes local, re-exported, private, numeric, and incomplete
+  explicit-conversion queries with exact ranges
+- clean and incremental verification each passed 3,345 tests, formatting, and warnings-denied
+  Clippy; documentation generation produced 123 pages
+- the 3,319,650-byte `arm64-darwin` candidate archive with SHA-256
+  `cb6f0ce6b81e1aa71a65797e21f9f1d05a4164a17cf76427f34955966a63298a` passed the complete fresh
+  extraction smoke matrix without `NOCTER_HOME`
 
 The published v0.7.0 qualification remains in the immutable
-[`releases/v0.7.0.md`](releases/v0.7.0.md) record. The implemented v0.8.0 Phase 0 and Phase 1
-contracts and active Phase 2 gate are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
+[`releases/v0.7.0.md`](releases/v0.7.0.md) record. The completed v0.8.0 phases are recorded in
+[`milestones/v0.8.0.md`](milestones/v0.8.0.md), and candidate evidence is frozen in
+[`releases/v0.8.0.md`](releases/v0.8.0.md).
 
 ## Next Work
 
-Execute the Phase 2 gate in [`milestones/v0.8.0.md`](milestones/v0.8.0.md). Stop when the exact
-v0.8.0 candidate is locally qualified and the worktree is clean; publication requires separate
-authorization.
+Wait for a separate planning or publication instruction. Publication must use the already qualified
+archive; any compiler, standard-library, or packaging change requires requalification.
