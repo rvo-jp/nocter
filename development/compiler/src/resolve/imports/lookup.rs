@@ -115,9 +115,7 @@ impl Resolver<'_> {
             }
             Item::Struct(struct_) if struct_.name == name => {
                 let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
-                attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
-                attach_literal_definitions_to_symbol(&mut symbol, ast, &struct_.name);
-                super::super::constructions::attach_construction_surfaces_to_symbol(
+                super::super::type_surfaces::attach_nominal_type_surfaces(
                     &mut symbol,
                     ast,
                     &struct_.name,
@@ -133,9 +131,7 @@ impl Resolver<'_> {
             }
             Item::Enum(enum_) if enum_.name == name => {
                 let mut symbol = enum_type_symbol(enum_);
-                attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
-                attach_literal_definitions_to_symbol(&mut symbol, ast, &enum_.name);
-                super::super::constructions::attach_construction_surfaces_to_symbol(
+                super::super::type_surfaces::attach_nominal_type_surfaces(
                     &mut symbol,
                     ast,
                     &enum_.name,

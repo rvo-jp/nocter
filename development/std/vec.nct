@@ -153,6 +153,18 @@ construct Vec<T> {
     }
 }
 
+coerce Vec<T> {
+    /// Exposes the initialized element prefix as a readonly view.
+    pub &self as &[T] from self {
+        return view(self)
+    }
+
+    /// Exposes the initialized element prefix as a readwrite view.
+    pub &+self as &+[T] from self {
+        return view_mut(self)
+    }
+}
+
 pub func empty<T>(): Vec<T> {
     return Vec.empty()
 }

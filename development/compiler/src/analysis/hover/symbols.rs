@@ -115,6 +115,15 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         }
         Item::Coerce(coerce) => {
             for entry in &coerce.entries {
+                push_hover_symbol(
+                    text,
+                    entry.as_span,
+                    entry.span.start,
+                    crate::analysis::presentation::ast_coercion_presentation(entry),
+                    symbols,
+                );
+                let receiver = entry.receiver.implicit_parameter();
+                collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
                 collect_block_hover_symbols(text, &entry.body, symbols);
             }
         }

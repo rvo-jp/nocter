@@ -112,6 +112,13 @@ construct String {
     }
 }
 
+coerce String {
+    /// Exposes the initialized UTF-8 prefix without transferring ownership.
+    pub &self as &str from self {
+        return view(self)
+    }
+}
+
 pub func empty(): String {
     return String.empty()
 }

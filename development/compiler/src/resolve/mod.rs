@@ -14,6 +14,7 @@ mod module_index;
 mod regions;
 mod signatures;
 mod symbols;
+mod type_surfaces;
 
 #[cfg(test)]
 mod tests;

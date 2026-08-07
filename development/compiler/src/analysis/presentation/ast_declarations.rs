@@ -2,8 +2,8 @@
 
 use super::{CallablePresentation, LiteralPresentation};
 use crate::ast::{
-    DropDecl, EnumDecl, FunctionDecl, GenericParam, InterfaceDecl, LiteralDecl, LiteralShape,
-    MethodDecl, Parameter, PrimitiveDecl, StructDecl, TypeAliasDecl,
+    CoercionEntry, DropDecl, EnumDecl, FunctionDecl, GenericParam, InterfaceDecl, LiteralDecl,
+    LiteralShape, MethodDecl, Parameter, PrimitiveDecl, StructDecl, TypeAliasDecl, Visibility,
 };
 
 pub(crate) fn ast_type_alias_presentation(alias: &TypeAliasDecl) -> String {
@@ -74,6 +74,25 @@ pub(crate) fn ast_method_presentation(method: &MethodDecl) -> String {
         &method.parameters.parameters,
         &method.return_type,
         method.result_provenance.as_ref(),
+    )
+}
+
+pub(crate) fn ast_coercion_presentation(entry: &CoercionEntry) -> String {
+    let visibility = match entry.visibility {
+        Visibility::Private => "",
+        Visibility::Public => "pub ",
+        Visibility::Nocter => "pub(nocter) ",
+    };
+    let provenance = super::result_origin_labels(entry.result_provenance.as_ref());
+    let provenance = if provenance.is_empty() {
+        String::new()
+    } else {
+        format!(" from {}", provenance.join(" | "))
+    };
+    format!(
+        "{visibility}{}self as {}{provenance}",
+        entry.receiver.mode.source_prefix(),
+        crate::ast::canonical_type_expr(&entry.target),
     )
 }
 

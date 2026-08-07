@@ -700,6 +700,70 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[test]
+fn distributed_string_and_vec_borrow_coercions_pass_check() {
+    let project = TempProject::new("distributed-home-borrow-coercions");
+    let source = project.write_source(
+        "borrow_coercions.nct",
+        r#"use std/vec.Vec
+
+func accept_text(value: &str): void { return }
+func accept_values(value: &[usize]): void { return }
+func accept_values_mut(value: &+[usize]): void { return }
+
+func inspect(text: &String, values: &Vec<usize>, values_mut: &+Vec<usize>): void {
+    accept_text(text)
+    accept_values(values)
+    accept_values(values_mut)
+    accept_values_mut(values_mut)
+    return
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_string_and_vec_borrow_coercions_run() {
+    let project = TempProject::new("distributed-home-borrow-coercions-run");
+    let source = project.write_source(
+        "borrow_coercions_run.nct",
+        r#"use std/vec.Vec
+
+func text_len(value: &str): usize { return value.len() }
+func values_len(value: &[usize]): usize { return value.len() }
+func values_len_mut(value: &+[usize]): usize { return value.len() }
+
+func main(): i32 {
+    let text = String "abc"
+    var values: Vec<usize> = Vec [7, 11]
+
+    if text_len(&text) != 3 { return 1 }
+    if values_len(&values) != 2 { return 2 }
+    if values_len_mut(&+values) != 2 { return 3 }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_vec_with_capacity_zero_runs() {

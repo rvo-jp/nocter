@@ -40,6 +40,41 @@ construct Text {
 }
 
 #[test]
+fn workspace_hover_presents_coercion_entries_on_the_as_anchor() {
+    let text = r#"struct Text { value: &str }
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("as &str").expect("expected as anchor");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected coercion hover");
+
+    assert_eq!(hover.label, "pub &self as &str from self");
+    assert_eq!(&text[hover.span.start..hover.span.end], "as");
+}
+
+#[test]
+fn type_hover_lists_the_accessible_coercion_surface() {
+    let text = r#"pub struct Text { value: &str }
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("struct Text").unwrap() + "struct ".len();
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected type hover");
+    let documentation = hover.documentation.expect("expected type documentation");
+
+    assert!(documentation.contains("**Coercions**"));
+    assert!(documentation.contains("`&Text as &str from self`"));
+}
+
+#[test]
 fn construct_function_declaration_has_separate_owner_and_member_hover_targets() {
     let text = r#"struct File { fd: i32 }
 

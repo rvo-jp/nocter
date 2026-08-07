@@ -181,7 +181,7 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                         ),
                         DocumentSymbolKind::Method,
                         entry.span,
-                        entry.target.span(),
+                        entry.as_span,
                         Vec::new(),
                     )
                 })

@@ -574,7 +574,6 @@ impl File {
     method &self.read(): i32 {
         return self.fd
     }
-
 }
 "#;
         let identifiers =
@@ -589,6 +588,23 @@ impl File {
             0,
             "method receivers are readonly parameter bindings"
         );
+    }
+
+    #[test]
+    fn analysis_classifies_coercion_self_as_a_readonly_parameter() {
+        let text = r#"struct Text { value: &str }
+coerce Text {
+    pub &self as &str from self { return self.value }
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+        let receiver_start = text.find("self as").expect("expected receiver");
+        let receiver = identifier_starting_at(&identifiers, receiver_start)
+            .expect("expected receiver semantic token");
+
+        assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
+        assert_ne!(receiver.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
     }
 
     #[test]

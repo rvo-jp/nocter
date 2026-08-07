@@ -2,6 +2,7 @@
 
 mod call_sites;
 pub(crate) mod call_specializations;
+pub(crate) mod coercions;
 mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;

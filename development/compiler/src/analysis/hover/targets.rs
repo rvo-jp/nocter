@@ -390,12 +390,21 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         }
         _ => None,
     };
+    let coercions = match &construction_symbol.kind {
+        SymbolKind::Type(type_symbol) => {
+            crate::analysis::coercions::coercion_surface_markdown(type_symbol, &file.resolved)
+        }
+        _ => None,
+    };
     let documentation = combine_documentation(
         combine_documentation(
-            target_documentation(sources, analysis, symbol.name_span),
-            semantic_documentation(sources, analysis, declaration_span),
+            combine_documentation(
+                target_documentation(sources, analysis, symbol.name_span),
+                semantic_documentation(sources, analysis, declaration_span),
+            ),
+            construction,
         ),
-        construction,
+        coercions,
     );
     let presentation = match occurrence.contextual_type.as_ref() {
         Some(contextual_type) => crate::analysis::presentation::type_reference_presentation(
