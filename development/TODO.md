@@ -2,10 +2,8 @@
 
 ## Current Task
 
-v0.6.0 Phase 0 is complete. Phase 1 is now defined as explicit result-allocation contracts. Begin
-with the semantic split between result allocation provenance and the existing inferred execution
-allocation/current-context requirement; do not add `alloc` syntax before those facts have separate
-owners and tests.
+v0.6.0 Phase 1 is complete. No later v0.6.0 phase or release qualification gate is active. Define
+the next milestone explicitly before changing the completed result-allocation contract.
 
 ## Completed Checkpoint
 
@@ -41,10 +39,23 @@ owners and tests.
   attach after the complete callable signature, and normalized recovery never slices a signature
   from raw source
 - the v0.6.0 Phase 0 full verification record is owned by `milestones/v0.6.0.md`
+- result allocation provenance, external result provenance, and the execution allocation
+  requirement have separate compiler owners
+- contextual `alloc` is parsed, formatted, serialized, resolved, typechecked, presented, and
+  source-edited for every supported callable declaration and structural callable type
+- `from current`, inferred allocation-effect signature text, and private aggregate provenance prose
+  have been removed from current source and editor contracts
+- standard `String`, `Vec<T>`, iterator, process, I/O, typed-literal, and allocator APIs carry
+  explicit result contracts without blanket modifiers
+- type-directed contract projection excludes scalar and discarded local allocation facts while
+  retained-input mutation summaries preserve allocator and lexical-region origins through wrappers
+- neutral empty buffers select an allocation domain only on first growth; return checking and
+  summary inference share the same mutation effects
+- the v0.6.0 Phase 1 completion record is owned by `milestones/v0.6.0.md`
 
 ## Next Work
 
-Execute the ordered v0.6.0 Phase 1 plan in [the active milestone](milestones/v0.6.0.md). The first
-change creates the focused implementation-design boundary and lossless result-allocation fact while
-preserving current source behavior. Keep v0.5.0 behavior and qualification frozen under
-`development/releases/`; do not append new design work to that release record.
+Stop at the completed Phase 1 checkpoint. A later task may define another v0.6.0 phase or a release
+qualification plan in [the active milestone](milestones/v0.6.0.md). Keep v0.5.0 behavior and
+qualification frozen under `development/releases/`; do not append new design work to that release
+record.

@@ -88,13 +88,15 @@ is compiler-owned stack/runtime state and never causes an implicit heap allocati
 - An empty sequence requires explicit target arguments or sufficient expected type information.
 - A string expression passes its decoded static `&str` value to the single declared parameter.
 - Sequence capture is final and unique. Phase 1 does not implement required leading parameters.
-- Result provenance and allocation effect use the ordinary callable-summary model.
+- Result provenance, result allocation, and the internal execution allocation requirement use the
+  ordinary callable-summary model while remaining separate facts.
 - A literal declaration accepts the same `from` result-provenance clause after its return type as
   functions and methods. The clause is checked against the body, drives typed-literal call-site
   provenance, and appears in formatter and editor signatures.
 - A string literal parameter may be an input origin, such as `from text`. A Phase 1 sequence
   element pack is not one borrow-like input identity and therefore is not an eligible named
-  origin; an allocating collection normally declares `from current`.
+  origin. A collection literal that may retain newly allocated storage declares `alloc`; it does
+  not expose the ambient allocation context through `from`.
 
 ## Allocation Context
 

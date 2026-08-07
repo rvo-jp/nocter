@@ -22,7 +22,7 @@ Literal definitions are public members of the target's same-module `construct` d
 
 ```nct
 construct Vec<T> {
-    pub default literal [](...items: T): Self from current {
+    pub default alloc literal [](...items: T): Self {
         var result = Self.with_capacity(items.len())
         for item in items {
             result.push(move item)
@@ -32,7 +32,7 @@ construct Vec<T> {
 }
 
 construct String {
-    pub default literal ""(text: &str): Self from current {
+    pub default alloc literal ""(text: &str): Self {
         return Self.copy(text)
     }
 }
@@ -51,6 +51,7 @@ Rules:
 - Different supported shapes may coexist on one type.
 - A result-provenance clause follows the ordinary callable rules. The sequence pack is not one
   borrow-like input identity and cannot be named as an origin.
+- `alloc` is required when the literal result may retain newly allocated storage.
 - Same-module attachment prevents orphan literal definitions for another module's type.
 
 If a type needs multiple construction modes for one shape, it exposes named construction functions

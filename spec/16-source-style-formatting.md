@@ -141,17 +141,17 @@ let count: u64 = 0
 
 let home = maybe_home?
 
-func read_all(
+alloc func read_all(
     allocator: &+Allocator,
     path: &str,
-): String! {
+): String! from allocator {
     ...
 }
 
 pub method &self.get(index: usize): &T? from self
 func choose<T>(left: &T, right: &T): &T from left | right
 construct String {
-    pub default literal ""(text: &str): Self from current { ... }
+    pub default alloc literal ""(text: &str): Self { ... }
 }
 ```
 

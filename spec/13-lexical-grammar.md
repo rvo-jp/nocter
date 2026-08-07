@@ -78,6 +78,8 @@ Rules:
   syntax by the parser.
 - The parser recognizes `from` contextually after a callable return type. This does not reserve
   `from` as a general identifier.
+- `alloc` is not a reserved keyword. The parser recognizes it contextually immediately before
+  `func`, `method`, `primitive`, `literal`, or a structural callable capability.
 - `trait` is not a reserved keyword. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.
 - `Self` has identifier spelling but is reserved as contextual type syntax in
@@ -201,6 +203,8 @@ Keyword rules:
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
 - `default` is not reserved. The parser recognizes it contextually inside `construct` blocks.
+- `alloc` is emitted as an identifier token and is classified as a keyword only at a parsed result
+  allocation modifier span.
 
 Newline rules:
 

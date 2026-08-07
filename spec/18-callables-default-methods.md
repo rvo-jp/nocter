@@ -128,6 +128,18 @@ Parameter names are optional. A named parameter may be referenced by a result pr
 for example `&func(text: &str): &str from text`. A generic parameter may have interface bounds and
 one callable contract, but multiple callable contracts are ambiguous and rejected.
 
+`alloc` precedes the capability when a call may return newly allocated storage:
+
+```nct
+alloc &func(Input): Output
+alloc &+func(Input): Output
+alloc func(Input): Output
+```
+
+Result allocation is covariant for callable conversion: a callable that returns no newly allocated
+storage can satisfy an `alloc` upper bound, while an allocating callable cannot satisfy a contract
+without `alloc`. This modifier says nothing about temporary allocation during execution.
+
 The invocation surface is identical for all three capabilities: `callback(arguments)`. There are
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
 to their generated target.

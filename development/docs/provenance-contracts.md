@@ -1,19 +1,19 @@
 # Public Provenance Contracts and Generic Interface Bounds
 
-This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong
-in the specification. The completion gate belongs to the
-[v0.3.0 Release Record](../releases/v0.3.0.md).
+This document owns the compiler implementation boundary for source-visible result allocation and
+external provenance contracts. Public language semantics belong in the specification. The active
+completion gate belongs to the [v0.6.0 Milestone](../milestones/v0.6.0.md).
 
 ## Design Boundary
 
-Phase 4 exposes only result-storage relationships that cannot safely be guessed at an abstraction
-boundary. It does not expose lexical lifetime arithmetic. Concrete bodies retain inference, and
-allocation effects remain compiler-owned inferred facts.
+Source contracts expose only result-storage relationships that cannot safely be guessed at an
+abstraction boundary. They do not expose lexical lifetime arithmetic or the compiler's hidden
+execution allocation requirement. Concrete bodies retain lossless inference.
 
 The dependency flow is:
 
 ```text
-source `from` clause
+source `alloc` and `from` contracts
   -> resolver input identities
   -> callable provenance contract
   -> inferred-summary validation or bodyless-summary seed
@@ -50,12 +50,21 @@ participate in loan checking.
 - `ast/provenance` owns source clauses and source spans.
 - `resolve/body` binds origin spans to receiver and parameter symbols for navigation.
 - `typecheck/provenance/contracts` converts eligible declarations into semantic storage origins.
+- `typecheck/provenance/result_allocation` owns newly allocated result projections independently
+  from external origins and the execution allocation requirement.
+- `typecheck/provenance/storage_projection` projects lossless aggregate dataflow onto
+  storage-bearing fields and outcome branches when validating public `from` and `alloc` contracts.
+- `typecheck/returns/borrow_returns/mutation_effects` preserves allocation retained through
+  readwrite inputs, including allocator-origin inheritance and neutral-storage fallback.
+- return checking and summary inference consume the same retained-input mutation effects, so a
+  mutation performed before `return` cannot disappear from region escape validation.
 - `resolve/signatures` and `resolve/imports/qualification` preserve bound and conformance identities
   across module boundaries.
 - `typecheck/interface_bounds` owns generic-receiver lookup and conformance substitution.
 - `typecheck/facts` records bound-call targets and specializations; `analysis/call_specializations`
   redirects reachable concrete calls to conformance implementation members.
-- `analysis` presents compiler facts; protocol code only converts source ranges and labels.
+- `analysis/presentation` renders only declared source contracts; protocol code converts source
+  ranges, Markdown, and edits without reconstructing semantic prose.
 
 Contract validation is covariant in safety: an implementation may return storage that outlives the
 declared source, but never storage that may die earlier or comes from an undeclared peer source.
@@ -70,28 +79,30 @@ witness table, runtime type identity, or name-based backend lookup is introduced
 
 ## Editor Contract
 
-Hover and signature help show normalized types and the resolved provenance relation. Completion on
+Hover, completion, and signature help show the same normalized declaration, including written
+`alloc` and `from` contracts. They do not append inferred phrases such as `allocates`, `from
+inferred storage`, or a private aggregate provenance dump. Completion on
 a generic receiver lists only accessible methods from its declared bound. Definition from a generic
 call targets the interface declaration; concrete-specialization facts may additionally identify the
 implementation internally. Recovery may insert delimiters or placeholder identifiers, but it may
 not invent bound or origin identities.
 
-## Allocation Effects
+## Result Allocation and Execution Requirements
 
-There is no Phase 4 allocation-effect annotation. Source bodies infer their effect to a fixed point;
-trusted bodyless declarations retain compiler metadata. `from current` necessarily seeds the
-current-context effect. Result-independent temporary allocation remains inferred and visible in
-hover without becoming source syntax.
+`alloc` means that newly allocated storage may survive in a returned storage-bearing projection.
+It does not mean that evaluation merely performs allocation. Body-backed declarations are checked
+exactly after result summaries converge; trusted bodyless allocation operations must agree with
+their compiler metadata. Interface declarations and structural callable types use `alloc` as an
+upper bound.
 
-## Completion Status
+`from X` remains a separate external-origin contract. A named allocator is eligible because its
+capability carries storage provenance. The ambient allocation context remains an internal origin;
+source `from current` is rejected. Result-independent temporary allocation and the need to pass a
+hidden current context remain inferred implementation facts and are not presented as source text.
 
-Phase 4 completed on 2026-08-03. The parser, formatter, AST JSON, resolver, type checker, ownership
-checker, allocation propagation, buildability validation, IR, analysis, and LSP consume the shared
-models described here. The distributed `std/sequence.Sequence<T>` interface and generic `first`
-helper verify exact receiver-to-result provenance through `Vec<T>` across source modules. Import
-qualification retains both generic bounds and explicit conformance contracts, and IR selects a
-concrete method target only when the reachable callable index proves it unique.
+## Historical Foundation
 
-Repository-home and packaged-home checks retain the source loan, packaged native execution observes
-the specialized element result, and protocol tests verify bound hover/completion plus definition
-ranges. No Phase 4 work remains active.
+v0.3.0 Phase 4 established identity-resolved `from` contracts and generic-interface substitution.
+v0.6.0 Phase 1 extends that foundation with result allocation, type-directed public-contract
+projection, allocator-backed mutation provenance, canonical editor presentation, and shared source
+edits. Historical release qualification remains in the versioned release records.

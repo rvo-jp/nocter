@@ -50,13 +50,41 @@ The current context is not:
 - selected by searching for a standard-library name
 - reconstructed by the backend from source syntax
 
-The compiler records an allocation effect for each callable and statically passes the context only
-where required. Source functions infer that effect from their bodies and callees. Trusted bodyless
-standard-library declarations carry compiler metadata attached to declaration identity.
+The compiler records an execution allocation requirement for each callable and statically passes
+the context only where required. Source functions infer that internal requirement from their bodies
+and callees. Trusted bodyless standard-library declarations carry compiler metadata attached to
+declaration identity.
 
 Changing a helper body so that it allocates may change its inferred allocation effect. The whole
 compile unit contains the source and summaries required to propagate that effect. Allocation
-effects have no source-level annotation.
+requirements have no source-level annotation. The source `alloc` modifier described below is a
+result contract, not this execution property.
+
+## Result Allocation Contracts
+
+The contextual `alloc` modifier states that some storage-bearing projection of a returned value may
+retain storage newly allocated while producing that value:
+
+```nct
+func len(text: &str): usize
+alloc func copy(text: &str): String
+alloc func copy_with(allocator: &+Allocator, text: &str): String from allocator
+```
+
+Temporary allocation that is dropped before return does not justify `alloc`. Conversely, absence of
+`alloc` does not promise allocation-free execution; future `noalloc` and `realtime` guarantees are
+outside the current language.
+
+`alloc` and `from` are independent parts of one result contract. `alloc` reports newly allocated
+result storage. `from X` reports external storage or lifetime provenance retained from a receiver,
+parameter, or `static`. An `alloc` result with no named origin may use the ambient allocation domain
+without exposing that compiler-owned domain as source syntax.
+
+Body-backed callables are checked exactly: missing `alloc` and an unjustified `alloc` are errors.
+Bodyless primitive and interface declarations use the written modifier as an upper bound, except
+that trusted primitives must agree with their compiler-owned semantic role. A non-allocating
+implementation may satisfy an allocating interface contract, but the reverse substitution is not
+valid.
 
 ## Allocation Failure Policies
 
@@ -237,7 +265,7 @@ Elision and inference rules:
 - A concrete body can establish that a result comes from a particular parameter, receiver, static
   storage, or multiple possible inputs.
 - A result with multiple possible inputs is constrained by all of them at the caller.
-- A trusted bodyless declaration must provide origin metadata.
+- A trusted bodyless declaration must provide compiler-owned origin metadata.
 - An untrusted bodyless declaration with an ambiguous borrow-like result is invalid.
 
 A borrow returned through a call remains a loan of the original caller place through the returned
@@ -257,16 +285,18 @@ pub method &self.get(key: &K): &V? from self
 func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 ```
 
-An identifier after `from` names a receiver or borrow-like parameter declaration. `static` denotes
-program-lifetime storage. `current` denotes the current allocation context and implies the inferred
-allocation effect. Concrete bodies are checked against the declared origin set; bodyless interface
-methods use the clause as their callable provenance summary.
+An identifier after `from` names a receiver or a parameter whose semantic value can carry storage
+provenance. This includes borrows, owning values, generic values, and allocator capabilities.
+`static` denotes program-lifetime storage. Source-level `from current` is not valid; ambient result
+allocation is expressed by `alloc` without inventing a public name for the compiler-owned current
+context. Concrete bodies are checked against the declared origin set; bodyless interface methods
+use the clause as their callable provenance summary.
 
 Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
 buffer still carries the allocation context responsible for its storage.
 
-Allocation effects remain inferred and have no source annotation.
+The execution allocation requirement remains inferred and has no source annotation.
 
 ## Typed Literal Allocation
 
