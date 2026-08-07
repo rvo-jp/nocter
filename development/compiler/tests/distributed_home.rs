@@ -3679,6 +3679,47 @@ func main(): i32 {
     );
 }
 
+#[test]
+fn distributed_std_rejects_allocating_closure_across_imported_non_alloc_bound() {
+    let project = TempProject::new("distributed-home-imported-closure-allocation-contract");
+    project.write_source(
+        "callbacks.nct",
+        r#"pub func invoke<F: &func(): String>(callback: F): String {
+    return callback()
+}
+"#,
+    );
+    let source = project.write_source(
+        "app.nct",
+        r#"use ./callbacks.invoke
+
+func main(): i32 {
+    let callback = () { String.from_str("allocated") }
+    let text = invoke(callback)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0464]"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("callable bound is not `alloc`")
+            && stderr.contains("does not permit an allocated result"),
+        "stderr:\n{stderr}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_io_top_level_read_write_runs() {
