@@ -26,7 +26,9 @@ fn check_text_with_trusted_primitive(
     let source = sources.add_source("app.nct", None, text);
     let lexed = lex(&sources, source);
     let parsed = parse(&sources, source, &lexed.tokens);
-    let ast = parsed.ast.unwrap();
+    let ast = parsed
+        .ast
+        .unwrap_or_else(|| panic!("parse diagnostics: {:?}", parsed.diagnostics));
     let mut resolved = resolve(&sources, &ast);
     let allocation = ast
         .items
@@ -462,6 +464,82 @@ func second(flag: bool): Buffer {
             .filter(|diagnostic| diagnostic.code == "E0462")
             .count(),
         2,
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn allocating_closure_cannot_cross_a_non_alloc_callable_bound() {
+    let diagnostics = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+pub(nocter) alloc primitive allocate(): Buffer
+func invoke<F: &func(): Buffer>(callback: F): Buffer {
+    return callback()
+}
+func main(): i32 {
+    let callback = () { allocate() }
+    let result = invoke(callback)
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0464"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn non_allocating_closure_satisfies_an_alloc_callable_upper_bound() {
+    let diagnostics = check_text(
+        r#"struct Buffer { pointer: *u8 }
+primitive empty(): Buffer
+alloc func invoke<F: alloc &func(): Buffer>(callback: F): Buffer {
+    return callback()
+}
+func main(): i32 {
+    let callback = () { empty() }
+    let result = invoke(callback)
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "E0464"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn allocating_closure_cannot_cross_a_generic_method_bound() {
+    let diagnostics = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+struct Runner { marker: i32 }
+pub(nocter) alloc primitive allocate(): Buffer
+impl Runner {
+    method &self.invoke<F: &func(): Buffer>(callback: F): Buffer {
+        return callback()
+    }
+}
+func main(): i32 {
+    let runner = Runner { marker: 0 }
+    let callback = () { allocate() }
+    let result = runner.invoke(callback)
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0464"),
         "{diagnostics:?}"
     );
 }

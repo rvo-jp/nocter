@@ -63,3 +63,26 @@ pub(in crate::typecheck) fn incompatible_trusted_result_allocation_contract_diag
     diagnostic.help = Some("remove `alloc` from this primitive".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn closure_result_allocation_contract_diagnostic(
+    sources: &SourceMap,
+    witness_span: ByteSpan,
+    bound_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0464",
+        "the closure can return newly allocated storage but its callable bound is not `alloc`",
+    );
+    diagnostic.primary_span = sources.span_to_json(witness_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(bound_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "this callable contract does not permit an allocated result".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(
+        "mark the callable bound `alloc`, or return non-allocated storage from the closure"
+            .to_string(),
+    );
+    diagnostic
+}
