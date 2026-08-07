@@ -6,14 +6,16 @@ behavior belong in the specification; milestone scope and completion evidence be
 
 ## Responsibility Model
 
-Borrow coercion is an implicit statically resolved call, not type equality and not an IR cast.
+Borrow coercion is a statically resolved call, not type equality and not an IR cast. Contextual
+compatibility and explicit `as` share conversion selection; only the source of the target type
+differs.
 
 ```text
 coerce declaration
   -> resolver declaration identity and coherent key
   -> typechecked callable summary
-  -> expected-type selection
-  -> immutable CoercionPlan
+  -> contextual or explicit conversion selection
+  -> immutable ConversionPlan
   -> ownership, regions, analysis, and IR lowering
 ```
 
@@ -29,10 +31,23 @@ does not define identity.
 Only the source type's defining module may add entries. This rule prevents import order and package
 composition from changing the implicit conversion set.
 
-## Contextual Plan
+## Conversion Selection and Plans
 
-Expected-type checking may select one accessible entry after exact type compatibility fails. The
-resulting immutable plan records:
+One selector accepts a mode, concrete source type, concrete target type, source expression, and
+resolved type surface. Its result kind is exact compatibility, lossless integer conversion,
+capability weakening, or a selected borrow coercion. Contextual checking considers coercion only
+after exact compatibility fails. Explicit `as` accepts the existing lossless integer rule,
+capability weakening, or one accessible exact coercion; it does not accept arbitrary redundant
+casts.
+
+Every non-trivial successful selection produces an immutable `ConversionPlan` containing:
+
+- conversion kind
+- concrete source and target types
+- complete expression and source spans
+- the explicit operator span when one exists
+
+A borrow-coercion kind additionally records:
 
 - coercion declaration and source-module identity
 - concrete source, receiver, and target types
@@ -42,14 +57,30 @@ resulting immutable plan records:
 - source and expectation spans
 - concrete callable target used by lowering
 
-The plan is keyed by the source expression span. Nested consumers reuse it instead of applying the
-coercion again.
+The plan is keyed by the semantic conversion boundary. Contextual leaves use their expression span;
+explicit selection uses the complete type-conversion expression and separately retains its source
+and `as` spans. Existing coercion consumers obtain the nested call plan from the conversion fact,
+so there is no parallel lookup table or compatibility algorithm.
+
+## Expected-Type Structure
+
+Fact collection pushes concrete expectations through groups and value-producing `if`, `if is`, and
+`match` branches before selecting a leaf conversion. Typed-sequence declarations provide their
+instantiated capture element type. Enum constructors provide payload expectations through the same
+resolved owner, variant, and generic substitutions used by type checking. Optional and fallible
+projection retains the outer selected result boundary.
+
+This ordering prevents both an outer compound plan and duplicate inner plans. It also ensures the
+native control-flow lowering writes the selected result into one destination while each executed
+branch invokes exactly one coercion.
 
 ## Ownership and Provenance
 
-The caller supplies an explicit borrow expression. Selection may reborrow `&+Source` as readonly,
-but it never creates a borrow from an owned source. The returned view carries the original source
-loan and uses the same non-lexical lifetime and region escape machinery as an explicit method call.
+The caller supplies a borrowed source. Contextual source code writes that borrow at the producing
+site; explicit `as` requires it in the source expression or source value type. Selection may
+reborrow `&+Source` as readonly, but it never creates a borrow from an owned source. The returned
+view carries the original source loan and uses the same non-lexical lifetime and region escape
+machinery as an explicit method call.
 
 A readwrite result requires a readwrite receiver. Returning mutable access to invariant-bearing
 storage remains the defining type's responsibility; `String` therefore exposes only `&str`, while
@@ -61,6 +92,10 @@ IR lowering evaluates the source once, materializes the receiver according to th
 the concrete coercion body through the ordinary static-call ABI. Coercion does not create a target
 value by reinterpretation and does not bypass callable provenance or cleanup.
 
+Borrow-valued calls, optional/fallible projections, and value-producing control flow materialize
+through the common borrow destination path. Coercion lowering supplies the selected call but does
+not own special evaluation rules for those expression shapes.
+
 ## Editor Boundary
 
 AST source ranges feed semantic occurrences for `coerce`, the source type, `self`, `as`, the target
@@ -68,3 +103,7 @@ type, and `from self`. Hover and completion render normalized notation from the 
 Definition, references, and rename use resolver identities. LSP transport only converts positions
 and presentation blocks.
 
+An explicit conversion creates editor information from `ConversionPlan`. Hover focuses the exact
+`as` span and renders concrete normalized types. Definition is present only for a borrow-coercion
+kind and targets the entry's declaration identity; numeric and capability-only plans have no
+invented declaration.

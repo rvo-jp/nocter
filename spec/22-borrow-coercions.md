@@ -1,7 +1,7 @@
 # Borrow Coercions
 
-**Availability:** This chapter specifies behavior implemented for v0.8.0. It is not part of the
-published v0.7.0 language contract.
+**Availability:** This chapter specifies behavior implemented through v0.8.0 Phase 1. It is not
+part of the published v0.7.0 language contract.
 
 A borrow coercion lets a nominal type expose one of its borrowed views at a concrete expected-type
 boundary. It is a type-owned, statically selected call. It is not type equality, a representation
@@ -75,14 +75,21 @@ only when both of these facts are known:
 - the expression already has a borrowed nominal source type
 - the surrounding boundary requires a concrete borrowed target type
 
-Phase 0 supplies a concrete expected type at these boundaries:
+The compiler supplies a concrete expected type at these boundaries:
 
 - an explicitly typed binding initializer
 - a simple assignment
 - a callable argument
 - a struct field initializer
 - a fixed-array element initializer
+- a typed-sequence literal capture
+- an enum payload argument
 - an explicit or final-expression return
+
+Grouped expressions propagate that expectation to their inner expression. `if`, `if is`, and
+`match` propagate it independently to every value-producing branch. Optional and fallible
+projection preserves the expectation on the projected success or present value. Each resulting
+leaf owns at most one selected conversion.
 
 For example, every use of `source` below selects the same `&Box<i32> as &i32` entry independently:
 
@@ -119,9 +126,32 @@ func project(source: &Box<i32>): &i32 from source {
 A readwrite source borrow may use a readonly entry through ordinary capability weakening. A
 readwrite target still requires an entry with an `&+self` receiver.
 
+## Explicit Selection
+
+`as` selects the same one-step borrow coercion when the source expression is already a borrow and
+the written target exactly matches an accessible entry:
+
+```nct
+let text = String "Nocter"
+var values: Vec<i32> = Vec [1, 2, 3]
+
+let text_view = &text as &str
+let values_view = &values as &[i32]
+let values_mut = &+values as &+[i32]
+```
+
+The source borrow is mandatory. `text as &str` is invalid when `text` is an owned `String`; write
+`&text as &str` instead. Parentheses are not required because prefix borrowing binds before `as`.
+Use `&(integer as WiderInteger)` when the intended operation is to borrow a converted numeric
+value.
+
+Explicit selection applies either the existing lossless integer rule, built-in borrow capability
+weakening, or one accessible exact borrow coercion. It never chains coercions, inserts a borrow,
+consumes an owned value, or changes the selected entry based on later generic inference.
+
 ## Selection Limits
 
-Borrow coercions are deliberately one-step and expected-type-directed in v0.8.0 Phase 0:
+Borrow coercions are deliberately one-step in v0.8.0 Phase 1:
 
 - user-defined coercions never chain
 - coercion does not choose or infer an otherwise unconstrained generic argument
@@ -130,18 +160,19 @@ Borrow coercions are deliberately one-step and expected-type-directed in v0.8.0 
 - coercion does not convert an owned value and does not consume a value
 - coercion cannot return an owned, optional, or fallible value
 - coercion cannot declare fresh, static, allocator, parameter, or aggregate result provenance
-- `expression as Type` remains the explicit lossless numeric conversion form and does not invoke a
-  `coerce` entry
+- `expression as Type` invokes at most one exact borrow-coercion entry or the built-in lossless
+  integer/capability rule
 
 These limits keep source evaluation and ownership visible at the call site and prevent imported
 packages from creating a transitive or order-dependent conversion graph.
 
 ## Execution and Lifetime
 
-Selection records one concrete coercion plan before ownership and lowering. The plan contains the
-declaration identity, concrete source and target types, receiver capability, generic substitution,
-and `from self` provenance. Ownership, regions, analysis, and native lowering consume that same
-plan; they do not repeat declaration lookup.
+Selection records one concrete conversion plan before ownership and lowering. Its stable kind is
+lossless integer conversion, capability weakening, or borrow coercion. A borrow-coercion plan also
+contains the declaration identity, concrete source and target types, receiver capability, generic
+substitution, and `from self` provenance. Ownership, regions, analysis, and native lowering consume
+that same plan; they do not repeat declaration lookup.
 
 The source expression is evaluated once. Native lowering invokes the selected body as an ordinary
 statically resolved borrow-returning call. The resulting value carries the original source loan,
@@ -171,3 +202,6 @@ Editor tooling presents a normalized coercion entry on the declaration's exact `
 implicit `self` name is a readonly or readwrite parameter according to its receiver. Hovering a
 nominal type lists its accessible coercion surface alongside its construction surface.
 
+On an explicit expression, hover covers only the exact `as` token and describes the selected
+conversion kind and concrete source and target. Definition on that token navigates to the selected
+coercion entry. Numeric `as` has conversion hover but no declaration target.

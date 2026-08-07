@@ -161,10 +161,13 @@ Rules:
 
 - Assignment and compound assignment use spaces around the operator.
 - Binary operators use spaces around the operator.
+- Type conversion uses one space around `as`, as in `&value as &View`.
 - `otherwise` fallback blocks are formatted as `value otherwise { body }`.
 - `if` and `match` expressions use the same formatting as their statement forms.
 - A result-only body may be formatted as `{ expr }` when it is short.
 - Unary operators are attached to their operand.
+- Prefix borrowing binds before `as`; write `&value as &View` without redundant parentheses, and
+  write `&(value as WiderInteger)` when borrowing the converted result.
 - Function calls have no space between callee and `(`.
 - Method calls have no space around `.`.
 - Indexing has no space between value and `[`.

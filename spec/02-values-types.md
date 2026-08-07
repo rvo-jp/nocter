@@ -440,11 +440,15 @@ Rules:
 - Integer literals may take an expected integer type when the value fits.
 - Non-literal integer values are not implicitly converted.
 - `bool` does not implicitly convert to or from integer types.
-- Explicit conversion uses `expr as Type`.
-- `as` is allowed only for lossless conversions.
-- Narrowing conversions are not allowed with `as`.
-- Signedness-changing conversions are not allowed with `as` unless the target type can represent every value of the source type.
+- Explicit integer conversion uses `expr as Type`.
+- Integer `as` is allowed only for lossless conversions.
+- Narrowing integer conversions are not allowed with `as`.
+- Signedness-changing integer conversions are not allowed with `as` unless the target type can represent every value of the source type.
 - On the ARM64 macOS target, `usize` has the same range as `u64`, and `isize` has the same range as `i64` for conversion checking.
+
+The same `as` expression can explicitly select a one-step type-owned borrow coercion when the
+source is already borrowed. That distinct contract is specified in
+[Borrow Coercions](22-borrow-coercions.md); it does not relax the numeric rules above.
 
 Examples:
 
