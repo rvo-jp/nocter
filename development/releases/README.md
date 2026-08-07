@@ -5,7 +5,7 @@ published releases. These records own qualification commands, implementation gat
 identity, and frozen engineering non-goals. They do not define public language behavior; versioned
 source semantics remain in repository tags and the current public contract remains in `spec/`.
 
-- [v0.7.0](v0.7.0.md) — qualified candidate, not published
+- [v0.7.0](v0.7.0.md) — qualified; publication authorized
 - [v0.6.0](v0.6.0.md)
 - [v0.5.0](v0.5.0.md)
 - [v0.4.0](v0.4.0.md)

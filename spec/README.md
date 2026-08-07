@@ -46,8 +46,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the v0.7.0 release candidate. The latest published release remains
-v0.6.0 until the [release index](../releases/README.md) records publication. Repository tags
+This specification describes the published v0.7.0 language. The
+[release index](../releases/README.md) identifies published distributions, and repository tags
 preserve the exact specification for every published release.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or

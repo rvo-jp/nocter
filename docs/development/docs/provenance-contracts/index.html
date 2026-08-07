@@ -150,7 +150,7 @@
                 <span class="markdown-path-text">/development/docs/provenance-contracts.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="public-provenance-contracts-and-compiler-owned-result-storage">Public Provenance Contracts and Compiler-Owned Result Storage</h1><p>This document owns the compiler implementation boundary between source-visible <code>from</code> contracts and internal result-storage inference. Public language semantics belong in the specification. The active implementation gate belongs to the <a href="../../milestones/v0.7.0/index.html#content">v0.7.0 milestone</a>.</p><h2 id="design-boundary">Design Boundary</h2><p>Source contracts name only caller-managed origins retained by a result:</p><pre><code class="language-text">source `from` clause
+                <h1 id="public-provenance-contracts-and-compiler-owned-result-storage">Public Provenance Contracts and Compiler-Owned Result Storage</h1><p>This document owns the compiler implementation boundary between source-visible <code>from</code> contracts and internal result-storage inference. Public language semantics belong in the specification. The frozen v0.7.0 implementation evidence belongs to the <a href="../../releases/v0.7.0/index.html#content">v0.7.0 release record</a>.</p><h2 id="design-boundary">Design Boundary</h2><p>Source contracts name only caller-managed origins retained by a result:</p><pre><code class="language-text">source `from` clause
   -&gt; resolved receiver and parameter identities
   -&gt; external-origin contract validation
   -&gt; call-site identity substitution

@@ -2,8 +2,9 @@
 
 ## Current Task
 
-v0.7.0 Phase 1 is complete. The exact v0.7.0 archive candidate is qualified but not published. The
-released baseline remains v0.6.0.
+Publish the qualified v0.7.0 archive authorized on 2026-08-08. Update the public release pointer,
+tag the exact publication commit, upload only the qualified archive, and verify the public download
+before recording the external audit.
 
 ## Completed Checkpoint
 
@@ -29,12 +30,15 @@ released baseline remains v0.6.0.
   `080160481adbcb0b7f64ab87903b05814aad13fc16207dcc9602e655675f2d78` passed the complete fresh
   extraction smoke matrix
 
-The detailed design, non-goals, completion gate, and exact verification counts are recorded in
-[`milestones/v0.7.0.md`](milestones/v0.7.0.md).
+The detailed design, non-goals, completion gate, and exact verification counts are recorded in the
+immutable [`releases/v0.7.0.md`](releases/v0.7.0.md) qualification record.
 
 ## Next Work
 
-Wait for explicit publication authorization. Do not change the root README or public release index,
-create a tag, push commits, or upload the archive before authorization. Treat the qualified archive
-identity as immutable; any source change requires a new clean and incremental qualification and a
-new artifact digest.
+1. Commit and push the publication-status documentation without changing compiler or packaging
+   inputs.
+2. Create the annotated `v0.7.0` tag at that commit and publish the exact qualified archive.
+3. Download the public asset into a fresh directory, verify its size and SHA-256, and repeat the
+   installed-home smoke matrix.
+4. Record the external release evidence in this handoff and the release qualification record, then
+   stop without starting a new milestone.

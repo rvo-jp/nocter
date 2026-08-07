@@ -1,12 +1,11 @@
 # Development Milestones
 
-This directory owns the scope, acceptance criteria, qualification, and publication state of the
-active release candidate. Public language behavior belongs in `spec/`; compiler architecture
-belongs in `development/docs/`.
+This directory owns historical milestone scope, acceptance criteria, and qualification state.
+Public language behavior belongs in `spec/`; compiler architecture belongs in
+`development/docs/`.
 
-The active candidate is [v0.7.0](v0.7.0.md). Phase 0 and Phase 1 are complete: result allocation is
-absent from the public callable contract, allocation provenance remains compiler-owned dataflow,
-and the exact archive candidate has passed clean and incremental verification plus fresh-install
-qualification. The candidate remains unpublished.
+There is no active development milestone. [v0.7.0](v0.7.0.md) completed Phase 0 and Phase 1 and is
+being published from its qualified archive. Its immutable engineering evidence belongs in the
+[v0.7.0 release record](../releases/v0.7.0.md).
 
 Do not reuse or reopen a completed release qualification record as an active plan.

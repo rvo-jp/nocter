@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.7.0 Milestone - Nocter</title>
-    <meta name="description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed on 2026-08-08. The qualified candidate is not published.">
+    <meta name="description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed and qualified on 2026-08-08. Publication was authorized on 2026-08-08.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.7.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.7.0 Milestone - Nocter">
-    <meta property="og:description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed on 2026-08-08. The qualified candidate is not published.">
+    <meta property="og:description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed and qualified on 2026-08-08. Publication was authorized on 2026-08-08.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.7.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.7.0 Milestone - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed on 2026-08-08. The qualified candidate is not published.">
+    <meta name="twitter:description" content="Status: Phase 0 completed on 2026-08-07. Phase 1 completed and qualified on 2026-08-08. Publication was authorized on 2026-08-08.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.7.0 Milestone - Nocter","description":"Status: Phase 0 completed on 2026-08-07. Phase 1 completed on 2026-08-08. The qualified candidate is not published.","url":"https://nocter.dev/development/milestones/v0.7.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.7.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.7.0","item":"https://nocter.dev/development/milestones/v0.7.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.7.0 Milestone - Nocter","description":"Status: Phase 0 completed on 2026-08-07. Phase 1 completed and qualified on 2026-08-08. Publication was authorized on 2026-08-08.","url":"https://nocter.dev/development/milestones/v0.7.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.7.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.7.0","item":"https://nocter.dev/development/milestones/v0.7.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -121,6 +121,7 @@
             <p class="directory-toc-title">development/milestones/</p>
             <ul class="directory-toc-list">
                 <li><a href="./index.html#content" aria-current="page">v0.7.0</a></li>
+                <li><a href="../../releases/v0.7.0/index.html#content">v0.7.0 release record</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -128,7 +129,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.7.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-7-0-milestone">Nocter v0.7.0 Milestone</h1><p><strong>Status:</strong> Phase 0 completed on 2026-08-07. Phase 1 completed on 2026-08-08. The qualified candidate is not published.</p><h2 id="purpose">Purpose</h2><p>v0.7.0 separates implementation allocation from the storage-lifetime relationships an API user must manage. Public <code>from</code> clauses continue to name receiver, parameter, allocator, and static origins supplied by the caller. Newly allocated result storage and execution-time allocation are compiler-owned facts and do not appear in ordinary callable syntax.</p><p>The released baseline is v0.6.0. That release proved lossless result-allocation dataflow across aggregates, outcomes, recursion, closures, generics, interfaces, iterators, and ownership transfer. v0.7.0 keeps that semantic foundation while removing the <code>alloc</code> result modifier and its callable variance from the source language. It does not reinterpret <code>alloc</code> as an execution effect.</p><h2 id="phase-0-compiler-owned-result-storage">Phase 0: Compiler-Owned Result Storage</h2><p>Phase 0 completes the source and semantic migration. The accepted callable surface becomes:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">copy</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+                <h1 id="nocter-v0-7-0-milestone">Nocter v0.7.0 Milestone</h1><p><strong>Status:</strong> Phase 0 completed on 2026-08-07. Phase 1 completed and qualified on 2026-08-08. Publication was authorized on 2026-08-08.</p><h2 id="purpose">Purpose</h2><p>v0.7.0 separates implementation allocation from the storage-lifetime relationships an API user must manage. Public <code>from</code> clauses continue to name receiver, parameter, allocator, and static origins supplied by the caller. Newly allocated result storage and execution-time allocation are compiler-owned facts and do not appear in ordinary callable syntax.</p><p>The released baseline is v0.6.0. That release proved lossless result-allocation dataflow across aggregates, outcomes, recursion, closures, generics, interfaces, iterators, and ownership transfer. v0.7.0 keeps that semantic foundation while removing the <code>alloc</code> result modifier and its callable variance from the source language. It does not reinterpret <code>alloc</code> as an execution effect.</p><h2 id="phase-0-compiler-owned-result-storage">Phase 0: Compiler-Owned Result Storage</h2><p>Phase 0 completes the source and semantic migration. The accepted callable surface becomes:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">copy</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
 <span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text
 <span class="token-keyword">func</span> <span class="token-function">copy_with</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> from allocator
 </code></pre><h3 id="public-contract">Public Contract</h3><ul><li><code>from X</code> means that a returned storage-bearing projection may retain an origin supplied by the
@@ -195,7 +196,7 @@
   package initialization, locked/offline check and one native test, deterministic JSON graph
   generation, run, explicit build, direct Mach-O execution, and a framed LSP
   initialize/shutdown/exit lifecycle</li><li>the archive contains an executable ARM64 Mach-O compiler, version and manifest metadata, license
-  notices, and all 23 standard-library source files</li></ul><p>The detailed immutable evidence is preserved in <a href="../../releases/v0.7.0/index.html#content"><code>development/releases/v0.7.0.md</code></a>. Publication remains a separate, user-authorized action.</p>
+  notices, and all 23 standard-library source files</li></ul><p>The detailed immutable evidence is preserved in <a href="../../releases/v0.7.0/index.html#content"><code>development/releases/v0.7.0.md</code></a>. Publication was separately authorized after qualification completed.</p>
             </div>
         </main>
     </div>
