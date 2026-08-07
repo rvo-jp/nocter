@@ -2,7 +2,8 @@
 
 ## Current Task
 
-v0.6.0 publication is complete. No development milestone is active.
+v0.7.0 Phase 0 is active. Remove the public `alloc` result modifier while preserving fresh-result
+storage as compiler-owned provenance through every semantic and runtime boundary.
 
 ## Completed Checkpoint
 
@@ -67,6 +68,7 @@ v0.6.0 publication is complete. No development milestone is active.
 
 ## Next Work
 
-Treat the v0.6.0 tag, public Release, asset, notes, and qualification record as immutable. Plan the
-next release independently under `milestones/`; do not append unrelated design work to the v0.6.0
-record.
+Execute the ordered v0.7.0 Phase 0 migration in `milestones/v0.7.0.md`. Begin by removing the source
+modifier from AST and signature ownership, then make unknown bodyless result allocation
+conservative inside provenance summaries before migrating distributed source. Treat all v0.6.0
+release records and assets as immutable.

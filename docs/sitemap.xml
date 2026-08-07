@@ -289,6 +289,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/milestones/v0.7.0/</loc>
+    <lastmod>2026-08-07</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/packaging/</loc>
     <lastmod>2026-07-30</lastmod>
     <changefreq>weekly</changefreq>
