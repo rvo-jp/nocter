@@ -101,14 +101,14 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> default alloc <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
         <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
             list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
         <span class="token-operator">}</span>
 
-        <span class="token-keyword">return</span> list
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                 </div>
@@ -168,13 +168,15 @@
   infer behavior from spelling</li><li><code>String</code>, <code>Vec&lt;T&gt;</code>, iterators, I/O, process values, typed literals, and explicit allocator paths
   pass source and installed-home behavior matrices</li></ul><h3 id="release-work">Release Work</h3><ol><li>1. Record the Phase 1 boundary and add failing tests for uncovered public callable forms and
    interface narrowing.</li><li>Centralize externally callable body validation and correct interface provenance substitution.</li><li>Complete LSP and distributed standard-library contract coverage without adding editor-only
-   signature prose.</li><li>Update compiler, packaging, specification status, README installation commands, and generated
-   website content to the v0.7.0 candidate identity.</li><li>Write an English migration-focused public release note and a developer qualification record.</li><li>Run clean and incremental repository verification, produce the optimized archive, and smoke-test
+   signature prose.</li><li>Update compiler, packaging, specification status, release notes, and generated website content
+   to the v0.7.0 candidate identity. Keep the root README and release index on the latest published
+   release until publication is explicitly authorized.</li><li>Write an English migration-focused public release note and a developer qualification record.</li><li>Run clean and incremental repository verification, produce the optimized archive, and smoke-test
    a fresh extracted home through <code>doctor</code>, package initialization, locked/offline checking, native
    tests, graph, run, explicit build, direct execution, and LSP startup.</li><li>Record the archive byte size and SHA-256 digest, commit the qualified source tree, and stop before
    tagging, pushing, or publishing.</li></ol><h3 id="completion-gate-2">Completion Gate</h3><ul><li>no callable form can expose an undeclared caller-managed result origin</li><li>interface implementations narrow no-origin and explicit-origin contracts soundly</li><li>focused typecheck, interface, analysis, framed LSP, distributed-home, public-example, and source
   corpus tests cover the stabilized contract</li><li>v0.6.0-to-v0.7.0 migration is documented as removal of result <code>alloc</code> while valid <code>from</code> clauses
-  remain unchanged</li><li>all tracked current-version references identify v0.7.0, while historical release records remain
+  remain unchanged</li><li>candidate-owned version metadata and specification status identify v0.7.0, while the root README
+  and release index still identify the latest published release and historical records remain
   immutable</li><li>documentation generation, diff checking, formatting, warnings-denied Clippy, and clean and
   incremental complete repository verification pass</li><li>one optimized <code>arm64-darwin</code> archive has a recorded size and SHA-256 digest and passes the complete
   fresh-install smoke matrix</li><li>the working tree is clean and publication is the only remaining release action</li></ul><h3 id="non-goals-2">Non-goals</h3><p>Phase 1 does not add <code>noalloc</code>, <code>realtime</code>, <code>async</code>, named lifetime parameters, new <code>from</code> origins, runtime interface dispatch, a compatibility AST, or a new target. Publication remains a separate user-authorized action.</p><h2 id="v0-7-0-completion-definition">v0.7.0 Completion Definition</h2><p>v0.7.0 is complete when Phase 0 and Phase 1 have passed their recorded gates and the exact archive candidate has passed fresh-install qualification. Completion does not publish the release.</p><h2 id="phase-0-completion-record">Phase 0 Completion Record</h2><p>Phase 0 is complete. The compiler and distributed source use the compiler-owned result-storage model end to end:</p><ul><li>accepted callable declarations and structural callable types have no result-allocation modifier</li><li><code>alloc</code> is an ordinary identifier, while obsolete modifier positions produce one focused parser

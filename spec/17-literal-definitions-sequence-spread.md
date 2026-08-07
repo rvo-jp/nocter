@@ -22,7 +22,7 @@ Literal definitions are public members of the target's same-module `construct` d
 
 ```nct
 construct Vec<T> {
-    pub default literal [](...items: T): Self {
+    pub default literal [](...items: T): Self from items {
         var result = Self.with_capacity(items.len())
         for item in items {
             result.push(move item)
@@ -49,8 +49,9 @@ Rules:
 - A nominal type has at most one definition for each shape. Parameters, bounds, and result types do
   not form an overload set.
 - Different supported shapes may coexist on one type.
-- A result-provenance clause follows the ordinary callable rules. The sequence pack is not one
-  borrow-like input identity and cannot be named as an origin.
+- A result-provenance clause follows the ordinary callable rules. A sequence pack may be named as
+  an origin, such as `from items`, when storage carried by one or more elements may survive in the
+  result. This names the element origins, not the ephemeral pack container.
 - Fresh result storage and execution allocation are inferred from the literal body and trusted
   operations; they add no literal modifier.
 - Same-module attachment prevents orphan literal definitions for another module's type.
@@ -83,7 +84,9 @@ allocated collection, or an ordinary variadic ABI parameter. Its body surface is
 - consuming `for item in items`, which yields owned `T` values once from left to right
 
 The pack cannot be returned, stored, passed to an ordinary callable, or borrowed beyond the literal
-body. Every unconsumed element and iterator suffix retains its normal drop obligation.
+body. It can appear after `from` because that contract refers to storage carried by its elements,
+not to the pack as a runtime value. Every unconsumed element and iterator suffix retains its normal
+drop obligation.
 
 ## Sequence Elements and Spread
 

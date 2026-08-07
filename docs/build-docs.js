@@ -80,14 +80,14 @@ pub func Session.start(user: User, clock: &Clock): Session {
     }
 }`,
     construction: `construct NonEmptyList<T> {
-    pub default alloc literal [](...items: T): Self {
-        let list = Self.new()
+    pub default literal [](...items: T): Self from items {
+        var list = Self.new()
 
         for item in items {
             list.push(move item)
         }
 
-        return list
+        return move list
     }
 }`
 };

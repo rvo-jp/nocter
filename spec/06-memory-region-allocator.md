@@ -281,8 +281,10 @@ pub method &self.get(key: &K): &V? from self
 func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 ```
 
-An identifier after `from` names a receiver or a parameter whose semantic value can carry storage
-provenance. This includes borrows, owning values, generic values, and allocator capabilities.
+An identifier after `from` names a receiver, parameter, or typed-sequence-literal element pack
+whose semantic value can carry storage provenance. This includes borrows, owning values, generic
+values, and allocator capabilities. A pack origin represents the storage carried by its elements;
+the ephemeral pack container itself still cannot escape the literal body.
 `static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
 result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
 are checked against the declared origin set; bodyless interface methods use the clause as their

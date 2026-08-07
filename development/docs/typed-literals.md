@@ -93,10 +93,11 @@ is compiler-owned stack/runtime state and never causes an implicit heap allocati
 - A literal declaration accepts the same `from` result-provenance clause after its return type as
   functions and methods. The clause is checked against the body, drives typed-literal call-site
   provenance, and appears in formatter and editor signatures.
-- A string literal parameter may be an input origin, such as `from text`. A Phase 1 sequence
-  element pack is not one borrow-like input identity and therefore is not an eligible named
-  origin. Fresh storage retained by a collection literal is inferred from its body; it does not
-  expose the ambient allocation context through `from` or another source modifier.
+- A string literal parameter may be an input origin, such as `from text`. A sequence element pack
+  may be an input origin, such as `from items`, when returned elements retain caller-managed
+  storage. The contract maps the pack declaration identity to the supplied fixed and spread
+  elements; it does not make the ephemeral pack a runtime value. Fresh storage retained by a
+  collection literal remains compiler-owned and does not expose the ambient allocation context.
 
 ## Allocation Context
 
