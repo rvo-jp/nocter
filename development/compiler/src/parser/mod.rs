@@ -8,6 +8,7 @@ mod expressions;
 mod items;
 mod literals;
 mod regions;
+mod result_allocation;
 mod statements;
 mod support;
 mod types;

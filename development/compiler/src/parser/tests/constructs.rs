@@ -55,6 +55,34 @@ fn parses_type_owned_construction_members_and_contextual_default() {
 }
 
 #[test]
+fn parses_result_allocation_after_construct_default_modifier() {
+    let (sources, output) = parse_text_with_sources(
+        r#"construct Text {
+    pub default alloc func new(): Self { return make() }
+    pub alloc literal ""(text: &str): Self { return make() }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Construct(construct) = &ast.items[0] else {
+        panic!("expected construct");
+    };
+    assert!(construct.members[0].is_default());
+    assert!(matches!(
+        &construct.members[0].declaration,
+        ConstructMemberDecl::Function(function) if function.result_allocation.is_some()
+    ));
+    assert!(matches!(
+        &construct.members[1].declaration,
+        ConstructMemberDecl::Literal(literal) if literal.result_allocation.is_some()
+    ));
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "result_allocation_modifier").is_some());
+}
+
+#[test]
 fn requires_explicit_public_construct_members() {
     let output = parse_text(
         r#"construct Value {

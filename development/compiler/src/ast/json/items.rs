@@ -33,6 +33,9 @@ impl Item {
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
                 ]);
+                if let Some(modifier) = &item.result_allocation {
+                    children.insert(1, modifier.to_json(sources));
+                }
                 if let Some(provenance) = &item.result_provenance {
                     children.push(provenance.to_json(sources));
                 }
@@ -58,6 +61,9 @@ impl Item {
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
                 ]);
+                if let Some(modifier) = &item.result_allocation {
+                    children.insert(1, modifier.to_json(sources));
+                }
                 if let Some(provenance) = &item.result_provenance {
                     children.push(provenance.to_json(sources));
                 }
@@ -157,6 +163,9 @@ impl Item {
                     }
                     let (kind, value, declaration_span) = match &member.declaration {
                         ConstructMemberDecl::Function(function) => {
+                            if let Some(modifier) = &function.result_allocation {
+                                member_children.push(modifier.to_json(sources));
+                            }
                             member_children.extend([
                                 function.generics.to_json(sources),
                                 function.parameters.to_json(sources),
@@ -173,6 +182,9 @@ impl Item {
                             )
                         }
                         ConstructMemberDecl::Literal(literal) => {
+                            if let Some(modifier) = &literal.result_allocation {
+                                member_children.push(modifier.to_json(sources));
+                            }
                             let mut parameters = literal
                                 .parameters
                                 .parameters
@@ -355,6 +367,9 @@ impl MethodDecl {
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),
         ];
+        if let Some(modifier) = &self.result_allocation {
+            children.insert(1, modifier.to_json(sources));
+        }
         if let Some(provenance) = &self.result_provenance {
             children.push(provenance.to_json(sources));
         }
@@ -371,6 +386,16 @@ impl MethodDecl {
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl ResultAllocationModifier {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::new(
+            "result_allocation_modifier",
+            json_span(sources, self.span),
+            Vec::new(),
         )
     }
 }

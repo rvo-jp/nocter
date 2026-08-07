@@ -166,3 +166,35 @@ fn parses_builtin_callable_capability_types() {
                 && callable.result_provenance.is_some()
     ));
 }
+
+#[test]
+fn parses_result_allocating_callable_types_contextually() {
+    let output = parse_text(
+        r#"func apply<Factory: alloc &func(): Text>(factory: Factory): void {
+    return
+}
+func named(value: alloc): alloc { return value }
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(apply) = &ast.items[0] else {
+        panic!("expected apply function");
+    };
+    assert!(matches!(
+        &apply.generics.parameters[0].bounds[0],
+        TypeExpr::Callable(callable) if callable.result_allocation.is_some()
+    ));
+    let Item::Function(named) = &ast.items[1] else {
+        panic!("expected named function");
+    };
+    assert!(matches!(
+        &named.parameters.parameters[0].ty,
+        TypeExpr::Reference(reference) if reference.name == "alloc"
+    ));
+    assert!(matches!(
+        &named.return_type,
+        TypeExpr::Reference(reference) if reference.name == "alloc"
+    ));
+}

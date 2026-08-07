@@ -73,8 +73,13 @@ impl Parser<'_> {
 
         let visibility = self.parse_visibility()?;
         let is_copy = self.match_identifier_text("copy").is_some();
+        let result_allocation = self.parse_optional_result_allocation_modifier();
 
         if self.at_keyword(Keyword::Use) {
+            if result_allocation.is_some() {
+                self.error_current("`alloc` applies only to callable declarations");
+                return Err(());
+            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
@@ -97,7 +102,11 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Func) {
-            return self.parse_function_decl(visibility, target);
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            return self.parse_function_decl(visibility, target, result_allocation);
         }
 
         if self.at_keyword(Keyword::Test) {
@@ -113,7 +122,16 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Primitive) {
-            return self.parse_primitive_decl(visibility, target);
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            return self.parse_primitive_decl(visibility, target, result_allocation);
+        }
+
+        if result_allocation.is_some() {
+            self.error_current("`alloc` applies only to callable declarations");
+            return Err(());
         }
 
         if self.at_keyword(Keyword::Literal) {

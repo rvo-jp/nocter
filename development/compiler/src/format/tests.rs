@@ -373,6 +373,42 @@ fn formats_builtin_callable_contracts_stably() {
 }
 
 #[test]
+fn formats_result_allocation_contracts_stably() {
+    assert_formats_stably(
+        r#"pub alloc func copy(factory:alloc &func():Text):Text{return factory()}
+interface Factory{pub alloc method &self.make():Text}
+impl Factory for Builder{alloc method &self.make():Text{return make()}}
+construct Text{pub default alloc func new():Self{return make()}pub alloc literal ""(text:&str):Self{return make()}}
+"#,
+        concat!(
+            "pub alloc func copy(factory: alloc &func(): Text): Text {\n",
+            "    return factory()\n",
+            "}\n",
+            "\n",
+            "interface Factory {\n",
+            "    pub alloc method &self.make(): Text\n",
+            "}\n",
+            "\n",
+            "impl Factory for Builder {\n",
+            "    alloc method &self.make(): Text {\n",
+            "        return make()\n",
+            "    }\n",
+            "}\n",
+            "\n",
+            "construct Text {\n",
+            "    pub default alloc func new(): Self {\n",
+            "        return make()\n",
+            "    }\n",
+            "\n",
+            "    pub alloc literal \"\"(text: &str): Self {\n",
+            "        return make()\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_imports_impls_and_literals_stably() {
     assert_formats_stably(
         r#"use std/io

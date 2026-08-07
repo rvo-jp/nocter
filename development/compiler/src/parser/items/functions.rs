@@ -5,8 +5,9 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
         target: Option<TargetDirective>,
+        result_allocation: Option<ResultAllocationModifier>,
     ) -> ParseResult<Item> {
-        self.parse_function_decl_data(visibility, target)
+        self.parse_function_decl_data(visibility, target, result_allocation)
             .map(Item::Function)
     }
 
@@ -14,6 +15,7 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
         target: Option<TargetDirective>,
+        result_allocation: Option<ResultAllocationModifier>,
     ) -> ParseResult<FunctionDecl> {
         let start = self.expect_keyword(Keyword::Func, "`func`")?;
         let first_name = self.expect_name_identifier("expected function name after `func`")?;
@@ -50,13 +52,15 @@ impl Parser<'_> {
 
         Ok(FunctionDecl {
             span: self.span(
-                target
-                    .as_ref()
-                    .map_or(start.span.start, |target| target.span.start),
+                target.as_ref().map_or_else(
+                    || result_allocation.map_or(start.span.start, |modifier| modifier.span.start),
+                    |target| target.span.start,
+                ),
                 end,
             ),
             visibility,
             target,
+            result_allocation,
             owner,
             name,
             name_span,
@@ -74,6 +78,7 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
         target: Option<TargetDirective>,
+        result_allocation: Option<ResultAllocationModifier>,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Primitive, "`primitive`")?;
         let name = self.expect_name_identifier("expected primitive name after `primitive`")?;
@@ -88,13 +93,15 @@ impl Parser<'_> {
 
         Ok(Item::Primitive(PrimitiveDecl {
             span: self.span(
-                target
-                    .as_ref()
-                    .map_or(start.span.start, |target| target.span.start),
+                target.as_ref().map_or_else(
+                    || result_allocation.map_or(start.span.start, |modifier| modifier.span.start),
+                    |target| target.span.start,
+                ),
                 end,
             ),
             visibility,
             target,
+            result_allocation,
             name: name.value,
             name_span: name.span,
             generics,

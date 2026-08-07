@@ -10,6 +10,7 @@ mod literals;
 mod packages;
 mod provenance;
 mod receivers;
+mod result_allocation;
 mod tests;
 mod type_notation;
 mod types;
@@ -24,6 +25,7 @@ pub use literals::*;
 pub use packages::*;
 pub use provenance::*;
 pub use receivers::*;
+pub use result_allocation::*;
 pub use tests::*;
 pub(crate) use type_notation::canonical_type_expr;
 pub(crate) use types::substitute_type_expr_parameters;
@@ -106,6 +108,7 @@ pub struct FunctionDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub target: Option<TargetDirective>,
+    pub result_allocation: Option<ResultAllocationModifier>,
     pub owner: Option<FunctionOwner>,
     pub name: String,
     pub name_span: ByteSpan,
@@ -129,6 +132,7 @@ pub struct PrimitiveDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub target: Option<TargetDirective>,
+    pub result_allocation: Option<ResultAllocationModifier>,
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
@@ -233,6 +237,7 @@ pub struct DropDecl {
 pub struct MethodDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub result_allocation: Option<ResultAllocationModifier>,
     pub receiver: MethodReceiver,
     pub name: String,
     pub name_span: ByteSpan,

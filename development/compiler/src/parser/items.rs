@@ -4,8 +4,9 @@ use crate::ast::{
     AstFile, BorrowType, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
     FunctionOwner, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, InterfaceDecl,
     Item, MethodDecl, MethodReceiver, MethodReceiverMode, ModulePath, Parameter, ParameterList,
-    PrimitiveDecl, ResultProvenanceClause, ResultProvenanceOrigin, ResultProvenanceOriginKind,
-    StructDecl, StructField, TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, Visibility,
+    PrimitiveDecl, ResultAllocationModifier, ResultProvenanceClause, ResultProvenanceOrigin,
+    ResultProvenanceOriginKind, StructDecl, StructField, TargetDirective, TypeAliasDecl, TypeExpr,
+    TypeReference, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::literals::decode_string_literal_bytes;

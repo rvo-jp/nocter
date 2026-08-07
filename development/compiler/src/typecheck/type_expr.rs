@@ -237,6 +237,7 @@ fn type_expr_to_type_inner(
     match ty {
         TypeExpr::Callable(callable) => Type::Callable(CallableType {
             span: callable.span,
+            result_may_allocate: callable.result_allocation.is_some(),
             capability: callable.capability,
             parameters: callable
                 .parameters

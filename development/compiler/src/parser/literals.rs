@@ -1,8 +1,8 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
     Expr, LiteralCapture, LiteralContextOverride, LiteralDecl, LiteralShape, ParameterList,
-    TypeExpr, TypedSequenceLiteralExpr, TypedStringLiteralExpr, UnaryExpr, UnaryOperator,
-    Visibility,
+    ResultAllocationModifier, TypeExpr, TypedSequenceLiteralExpr, TypedStringLiteralExpr,
+    UnaryExpr, UnaryOperator, Visibility,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -11,6 +11,7 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
         target: Option<TypeExpr>,
+        result_allocation: Option<ResultAllocationModifier>,
     ) -> ParseResult<LiteralDecl> {
         let keyword = self.expect_keyword(Keyword::Literal, "`literal`")?;
         let target = match target {
@@ -61,9 +62,13 @@ impl Parser<'_> {
         self.literal_pack_capture = previous_capture;
         let body = body?;
         Ok(LiteralDecl {
-            span: self.span(keyword.span.start, body.span.end),
+            span: self.span(
+                result_allocation.map_or(keyword.span.start, |modifier| modifier.span.start),
+                body.span.end,
+            ),
             visibility,
             keyword_span: keyword.span,
+            result_allocation,
             target,
             shape,
             shape_span,

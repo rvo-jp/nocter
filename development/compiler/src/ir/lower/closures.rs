@@ -249,6 +249,7 @@ fn closure_method(
     MethodDecl {
         span: expression.span,
         visibility: Visibility::Private,
+        result_allocation: None,
         receiver: MethodReceiver {
             span: expression.parameters_span,
             name: "self".to_string(),
