@@ -1,4 +1,5 @@
 use super::{StorageOrigin, ValueProvenance};
+use std::collections::BTreeMap;
 
 /// Marks storage retained by a returned value as newly allocated while keeping
 /// its allocation domain available to ordinary lifetime and region checks.
@@ -94,6 +95,67 @@ impl ValueProvenance {
             },
         }
     }
+
+    pub(in crate::typecheck) fn retain_only_result_allocations(self) -> Self {
+        match self {
+            Self::Independent => Self::Independent,
+            Self::Origins(origins) => {
+                let origins = origins
+                    .into_iter()
+                    .filter(StorageOrigin::is_allocated)
+                    .collect::<Vec<_>>();
+                if origins.is_empty() {
+                    Self::Independent
+                } else {
+                    Self::Origins(origins)
+                }
+            }
+            Self::Aggregate {
+                fallback,
+                fields,
+                elements,
+            } => {
+                let fallback = fallback
+                    .map(|value| value.retain_only_result_allocations())
+                    .filter(Self::contains_result_allocation)
+                    .map(Box::new);
+                let fields = fields
+                    .into_iter()
+                    .map(|(name, value)| (name, value.retain_only_result_allocations()))
+                    .filter(|(_, value)| value.contains_result_allocation())
+                    .collect::<BTreeMap<_, _>>();
+                let elements = elements
+                    .into_iter()
+                    .map(|(index, value)| (index, value.retain_only_result_allocations()))
+                    .filter(|(_, value)| value.contains_result_allocation())
+                    .collect::<BTreeMap<_, _>>();
+                if fallback.is_none() && fields.is_empty() && elements.is_empty() {
+                    Self::Independent
+                } else {
+                    Self::Aggregate {
+                        fallback,
+                        fields,
+                        elements,
+                    }
+                }
+            }
+            Self::Fallible { success, error } => {
+                let success = success
+                    .map(|value| value.retain_only_result_allocations())
+                    .filter(Self::contains_result_allocation)
+                    .map(Box::new);
+                let error = error
+                    .map(|value| value.retain_only_result_allocations())
+                    .filter(Self::contains_result_allocation)
+                    .map(Box::new);
+                if success.is_none() && error.is_none() {
+                    Self::Independent
+                } else {
+                    Self::Fallible { success, error }
+                }
+            }
+        }
+    }
 }
 
 impl StorageOrigin {
@@ -183,6 +245,20 @@ mod tests {
                 .allocated()
                 .without_result_allocation(),
             ValueProvenance::input(input)
+        );
+    }
+
+    #[test]
+    fn retaining_allocations_discards_unallocated_peer_origins() {
+        let input = InputId::declared_at(span(3));
+        let mut provenance = ValueProvenance::input(input);
+        provenance.merge(&ValueProvenance::current_allocation_context().allocated());
+
+        assert_eq!(
+            provenance.retain_only_result_allocations(),
+            ValueProvenance::Origins(vec![StorageOrigin::Allocated(Box::new(
+                StorageOrigin::CurrentAllocationContext
+            ))])
         );
     }
 }

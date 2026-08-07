@@ -361,6 +361,10 @@ func retained(): Buffer {
     return allocate()
 }
 
+func declared(): Buffer from current {
+    return allocate()
+}
+
 func scratch(): usize {
     let temporary = allocate()
     return 1
@@ -408,6 +412,10 @@ func scratch(): usize {
         let retained = function_fact("retained");
         assert!(retained.result_may_contain_allocation);
         assert!(retained.needs_current_allocation_context);
+
+        let declared = function_fact("declared");
+        assert!(declared.result_may_contain_allocation);
+        assert!(declared.needs_current_allocation_context);
 
         let scratch = function_fact("scratch");
         assert!(!scratch.result_may_contain_allocation);

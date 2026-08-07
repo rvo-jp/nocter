@@ -84,7 +84,10 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         .ok()
                     });
                     let callable = CallableId::declared_at(function_summary_key(function));
-                    summaries.insert_result(callable, declared.unwrap_or(provenance));
+                    summaries.insert_result(
+                        callable,
+                        result_with_declared_origins(provenance, declared),
+                    );
                     seed_declared_allocation_effect(
                         &mut summaries,
                         callable,
@@ -140,14 +143,19 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 previous,
                             )
                         });
-                        let provenance = declared.or(inferred).or_else(|| {
-                            elided_result_provenance_contract(
-                                Some(method),
-                                &method.parameters.parameters,
-                                &method.return_type,
-                                source.resolved,
-                            )
-                        });
+                        let provenance = match inferred {
+                            Some(inferred) => {
+                                Some(result_with_declared_origins(inferred, declared))
+                            }
+                            None => declared.or_else(|| {
+                                elided_result_provenance_contract(
+                                    Some(method),
+                                    &method.parameters.parameters,
+                                    &method.return_type,
+                                    source.resolved,
+                                )
+                            }),
+                        };
                         let Some(provenance) = provenance else {
                             continue;
                         };
@@ -192,7 +200,10 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             .ok()
                         });
                         let callable = CallableId::declared_at(method.name_span);
-                        summaries.insert_result(callable, declared.unwrap_or(provenance));
+                        summaries.insert_result(
+                            callable,
+                            result_with_declared_origins(provenance, declared),
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -226,7 +237,10 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             .ok()
                         });
                         let callable = CallableId::declared_at(function_summary_key(function));
-                        summaries.insert_result(callable, declared.unwrap_or(provenance));
+                        summaries.insert_result(
+                            callable,
+                            result_with_declared_origins(provenance, declared),
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -258,7 +272,10 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             .ok()
                         });
                         let callable = CallableId::declared_at(literal.span);
-                        summaries.insert_result(callable, declared.unwrap_or(provenance));
+                        summaries.insert_result(
+                            callable,
+                            result_with_declared_origins(provenance, declared),
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -271,6 +288,17 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
         }
     }
     summaries
+}
+
+fn result_with_declared_origins(
+    inferred: ValueProvenance,
+    declared: Option<ValueProvenance>,
+) -> ValueProvenance {
+    let Some(mut declared) = declared else {
+        return inferred;
+    };
+    declared.merge(&inferred.retain_only_result_allocations());
+    declared
 }
 
 fn seed_declared_allocation_effect(
