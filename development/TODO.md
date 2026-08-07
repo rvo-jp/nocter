@@ -2,8 +2,9 @@
 
 ## Current Task
 
-No phase is active. v0.9.0 Phase 0: Whole-Stream I/O completed on 2026-08-08. Define and review a
-later phase before changing its scope or implementation.
+Implement v0.9.0 Phase 1: Result Origin Elision. Add one shared semantic classifier, migrate every
+compiler and editor consumer, remove redundant standard-library clauses, and stop after the full
+acceptance gate and completion record pass.
 
 ## Completed Checkpoint
 
@@ -87,5 +88,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the completed v0.9.0 Phase 0 boundary. Do not infer Phase 1, bump the release version,
-prepare an archive, tag, push, or publish v0.9.0 without a reviewed milestone plan.
+Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 1 is fully verified and its
+completion record is committed. Do not start borrowed text views, bump the release version, prepare
+an archive, tag, push, or publish v0.9.0.
