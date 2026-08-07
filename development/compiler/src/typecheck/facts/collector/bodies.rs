@@ -10,11 +10,8 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_)
-            | Item::FromImport(_)
-            | Item::Construct(_)
-            | Item::Coerce(_)
-            | Item::Test(_) => None,
+            Item::Coerce(item) => Some(&item.generics),
+            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -118,7 +115,9 @@ impl TypecheckFactCollector<'_> {
                     );
                 }
             }
-            Item::Coerce(_) => {}
+            Item::Coerce(coerce) => {
+                self.collect_impl_member_body_facts(&coerce.callable_impl());
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

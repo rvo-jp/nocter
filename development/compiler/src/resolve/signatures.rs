@@ -255,6 +255,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        coercions: Vec::new(),
         construction: ConstructionSurface::default(),
     }
 }
@@ -289,6 +290,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        coercions: Vec::new(),
         construction: ConstructionSurface::default(),
     }
 }
@@ -332,6 +334,7 @@ pub(super) fn struct_type_symbol(
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        coercions: Vec::new(),
         construction: {
             let mut surface = ConstructionSurface::default();
             surface.entries.push(ConstructionEntry {
@@ -380,6 +383,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        coercions: Vec::new(),
         construction: ConstructionSurface {
             declaration_span: None,
             entries: enum_

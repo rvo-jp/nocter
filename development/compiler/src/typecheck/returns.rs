@@ -198,6 +198,13 @@ pub(super) fn check_return_types(
                     );
                 }
             }
+            Item::Coerce(coerce) => check_impl_member_return_types(
+                sources,
+                &coerce.callable_impl(),
+                resolved,
+                diagnostics,
+                summaries,
+            ),
             _ => {}
         }
     }

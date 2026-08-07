@@ -1,7 +1,6 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    ConstructDecl, ConstructMember, ConstructMemberDecl, FunctionOwner, GenericParam,
-    GenericParamList, GenericType, Item, TypeExpr, Visibility,
+    ConstructDecl, ConstructMember, ConstructMemberDecl, FunctionOwner, Item, Visibility,
 };
 use crate::lexer::Keyword;
 
@@ -9,18 +8,20 @@ impl Parser<'_> {
     pub(super) fn parse_construct_decl(&mut self) -> ParseResult<Item> {
         let keyword = self.expect_keyword(Keyword::Construct, "`construct`")?;
         let target = self.parse_type()?;
-        let (target_name, target_name_span) = construct_target_name(&target).ok_or_else(|| {
-            self.error_at(
-                target.span(),
-                "construct target must be a nominal type reference",
-            );
-        })?;
-        let owner_generics = construct_target_generics(&target).map_err(|()| {
-            self.error_at(
-                target.span(),
-                "construct target arguments must be generic parameter names",
-            );
-        })?;
+        let (target_name, target_name_span) = super::items::type_owners::owner_target_name(&target)
+            .ok_or_else(|| {
+                self.error_at(
+                    target.span(),
+                    "construct target must be a nominal type reference",
+                );
+            })?;
+        let owner_generics =
+            super::items::type_owners::owner_target_generics(&target).map_err(|()| {
+                self.error_at(
+                    target.span(),
+                    "construct target arguments must be generic parameter names",
+                );
+            })?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
         self.skip_newlines();
@@ -90,34 +91,4 @@ impl Parser<'_> {
             members,
         }))
     }
-}
-
-fn construct_target_name(target: &TypeExpr) -> Option<(String, crate::source::ByteSpan)> {
-    match target {
-        TypeExpr::Reference(reference) => Some((reference.name.clone(), reference.span)),
-        TypeExpr::Generic(generic) => Some((generic.name.clone(), generic.name_span)),
-        _ => None,
-    }
-}
-
-fn construct_target_generics(target: &TypeExpr) -> ParseResult<GenericParamList> {
-    let TypeExpr::Generic(GenericType { arguments, .. }) = target else {
-        return Ok(GenericParamList::empty());
-    };
-    let mut parameters = Vec::with_capacity(arguments.len());
-    for argument in arguments {
-        let TypeExpr::Reference(reference) = argument else {
-            return Err(());
-        };
-        parameters.push(GenericParam {
-            span: reference.span,
-            name: reference.name.clone(),
-            name_span: reference.span,
-            bounds: Vec::new(),
-        });
-    }
-    Ok(GenericParamList {
-        span: Some(target.span()),
-        parameters,
-    })
 }

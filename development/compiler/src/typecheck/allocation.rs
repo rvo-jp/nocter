@@ -67,7 +67,7 @@ pub(super) fn infer_callable_allocation_effects(
                     Item::Construct(construct) => {
                         construct.functions().count() + construct.literals().count()
                     }
-                    Item::Coerce(_) => 0,
+                    Item::Coerce(coerce) => coerce.entries.len(),
                     _ => 0,
                 }
                 })
@@ -187,7 +187,29 @@ pub(super) fn infer_callable_allocation_effects(
                             }
                         }
                     }
-                    Item::Coerce(_) => {}
+                    Item::Coerce(coerce) => {
+                        let impl_ = coerce.callable_impl();
+                        for member in &impl_.members {
+                            let ImplMember::Method(method) = member else {
+                                continue;
+                            };
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            let callable = CallableId::declared_at(method.name_span);
+                            if !summaries.needs_current_allocation_context(callable)
+                                && block_needs_current_allocation_context(
+                                    body,
+                                    source.resolved,
+                                    &mut environment_for_method(method, source.resolved, &impl_),
+                                    summaries,
+                                )
+                            {
+                                summaries.set_needs_current_allocation_context(callable);
+                                changed = true;
+                            }
+                        }
+                    }
                     Item::Import(_)
                     | Item::FromImport(_)
                     | Item::Primitive(_)

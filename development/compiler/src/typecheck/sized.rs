@@ -87,7 +87,9 @@ pub(super) fn check_sized_value_types(
                     check_literal(sources, literal, resolved, diagnostics);
                 }
             }
-            Item::Coerce(_) => {}
+            Item::Coerce(coerce) => {
+                check_impl(sources, &coerce.callable_impl(), resolved, diagnostics);
+            }
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
     }

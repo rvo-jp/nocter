@@ -43,7 +43,19 @@ impl Resolver<'_> {
                         self.resolve_literal_body(literal);
                     }
                 }
-                Item::Coerce(_) => {}
+                Item::Coerce(coerce) => {
+                    for entry in &coerce.entries {
+                        let mut scope = Scope::new();
+                        self.define_local_name(
+                            entry.receiver.name.clone(),
+                            entry.receiver.name_span,
+                            LocalSymbolKind::Parameter,
+                            &mut scope,
+                        );
+                        self.resolve_result_provenance(entry.result_provenance.as_ref(), &scope);
+                        self.resolve_block(&entry.body, &mut scope);
+                    }
+                }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
                 | Item::FromImport(_)

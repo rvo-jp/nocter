@@ -21,3 +21,4 @@ mod package_directives;
 mod parameters;
 mod provenance;
 mod tests;
+pub(super) mod type_owners;

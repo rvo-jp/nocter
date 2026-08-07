@@ -3,6 +3,7 @@
 mod body;
 mod builtins;
 mod closures;
+mod coercions;
 mod collector;
 mod conformance;
 mod constructions;
@@ -18,9 +19,9 @@ mod symbols;
 mod tests;
 
 pub use symbols::{
-    AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
-    DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportSource,
-    ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
+    ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
+    ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
     LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
     LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
     StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,

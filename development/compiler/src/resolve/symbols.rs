@@ -472,7 +472,19 @@ pub struct TypeSymbol {
     pub interface_conformances: Vec<InterfaceConformance>,
     pub drop_member: Option<DropSignature>,
     pub literals: Vec<LiteralSignature>,
+    pub coercions: Vec<CoercionSignature>,
     pub construction: ConstructionSurface,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoercionSignature {
+    pub declaration_span: ByteSpan,
+    pub focus_span: ByteSpan,
+    pub visibility: Visibility,
+    pub is_accessible: bool,
+    pub receiver: MethodReceiver,
+    pub target: TypeExpr,
+    pub result_provenance: ResultProvenanceClause,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

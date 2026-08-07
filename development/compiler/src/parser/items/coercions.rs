@@ -13,6 +13,12 @@ impl Parser<'_> {
             );
             return Err(());
         }
+        let generics = super::type_owners::owner_target_generics(&target).map_err(|()| {
+            self.error_at(
+                target.span(),
+                "coerce source arguments must be generic parameter names",
+            );
+        })?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut entries = Vec::new();
         self.skip_newlines();
@@ -51,6 +57,7 @@ impl Parser<'_> {
             span: self.span(keyword.span.start, close.span.end),
             keyword_span: keyword.span,
             target,
+            generics,
             entries,
         }))
     }

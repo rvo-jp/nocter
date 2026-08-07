@@ -72,7 +72,17 @@ fn body_backed_summary_floor(
                         );
                     }
                 }
-                Item::Coerce(_) => {}
+                Item::Coerce(coerce) => {
+                    let impl_ = coerce.callable_impl();
+                    for member in &impl_.members {
+                        if let ImplMember::Method(method) = member {
+                            summaries.insert_result(
+                                CallableId::declared_at(method.name_span),
+                                ValueProvenance::Independent,
+                            );
+                        }
+                    }
+                }
                 Item::Primitive(_)
                 | Item::Test(_)
                 | Item::Import(_)
@@ -113,6 +123,7 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
             .iter()
             .filter(|member| matches!(member, ImplMember::Method(method) if method.body.is_some()))
             .count(),
+        Item::Coerce(coerce) => coerce.entries.len(),
         _ => 0,
     }
 }
@@ -277,58 +288,20 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         }
                     }
                 }
-                Item::Impl(impl_) => {
-                    for member in &impl_.members {
-                        let ImplMember::Method(method) = member else {
-                            continue;
-                        };
-                        let Some(body) = &method.body else {
-                            continue;
-                        };
-                        let environment = environment_for_method(method, source.resolved, impl_);
-                        let return_type = type_expr_to_type_in_environment(
-                            &method.return_type,
-                            source.resolved,
-                            &environment,
-                        );
-                        let provenance = borrow_return_provenance_for_callable_body(
-                            body,
-                            &return_type,
-                            source.resolved,
-                            &environment,
-                            previous,
-                        )
-                        .unwrap_or(ValueProvenance::Independent);
-                        let declared = method.result_provenance.as_ref().and_then(|clause| {
-                            result_provenance_contract(
-                                clause,
-                                Some(method),
-                                ResultProvenanceInputs::parameters(&method.parameters.parameters),
-                                source.resolved,
-                            )
-                            .ok()
-                        });
-                        let callable = CallableId::declared_at(method.name_span);
-                        summaries.insert_result(
-                            callable,
-                            result_with_declared_fallback(
-                                provenance,
-                                declared,
-                                &return_type,
-                                source.resolved,
-                            ),
-                        );
-                        collect_retained_input_mutations(
-                            body,
-                            Some(&method.receiver),
-                            &method.parameters.parameters,
-                            source.resolved,
-                            &environment,
-                            previous,
-                            &mut summaries,
-                            callable,
-                        );
-                    }
+                Item::Impl(impl_) => collect_impl_provenance_summaries(
+                    impl_,
+                    source.resolved,
+                    previous,
+                    &mut summaries,
+                ),
+                Item::Coerce(coerce) => {
+                    let impl_ = coerce.callable_impl();
+                    collect_impl_provenance_summaries(
+                        &impl_,
+                        source.resolved,
+                        previous,
+                        &mut summaries,
+                    );
                 }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
@@ -427,6 +400,57 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
         }
     }
     summaries
+}
+
+fn collect_impl_provenance_summaries(
+    impl_: &ImplDecl,
+    resolved: &ResolveOutput,
+    previous: &CallableProvenanceSummaries,
+    summaries: &mut CallableProvenanceSummaries,
+) {
+    for member in &impl_.members {
+        let ImplMember::Method(method) = member else {
+            continue;
+        };
+        let Some(body) = &method.body else {
+            continue;
+        };
+        let environment = environment_for_method(method, resolved, impl_);
+        let return_type =
+            type_expr_to_type_in_environment(&method.return_type, resolved, &environment);
+        let provenance = borrow_return_provenance_for_callable_body(
+            body,
+            &return_type,
+            resolved,
+            &environment,
+            previous,
+        )
+        .unwrap_or(ValueProvenance::Independent);
+        let declared = method.result_provenance.as_ref().and_then(|clause| {
+            result_provenance_contract(
+                clause,
+                Some(method),
+                ResultProvenanceInputs::parameters(&method.parameters.parameters),
+                resolved,
+            )
+            .ok()
+        });
+        let callable = CallableId::declared_at(method.name_span);
+        summaries.insert_result(
+            callable,
+            result_with_declared_fallback(provenance, declared, &return_type, resolved),
+        );
+        collect_retained_input_mutations(
+            body,
+            Some(&method.receiver),
+            &method.parameters.parameters,
+            resolved,
+            &environment,
+            previous,
+            summaries,
+            callable,
+        );
+    }
 }
 
 fn result_with_declared_fallback(

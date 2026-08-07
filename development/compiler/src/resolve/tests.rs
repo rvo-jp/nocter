@@ -1,3 +1,4 @@
+mod coercions;
 mod collection;
 mod constructions;
 mod duplicates;

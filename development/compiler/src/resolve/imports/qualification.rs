@@ -24,6 +24,10 @@ pub(super) fn filter_importable_symbol_for_access(
             literal.is_accessible =
                 literal.is_accessible && visibility_is_visible_to(literal.visibility, access);
         }
+        for coercion in &mut symbol.coercions {
+            coercion.is_accessible =
+                coercion.is_accessible && visibility_is_visible_to(coercion.visibility, access);
+        }
         refresh_construction_access(symbol);
     }
 
@@ -196,6 +200,14 @@ fn qualify_type_symbol(
         }
         qualify_type_expr(
             &mut literal.return_type,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+    }
+    for coercion in &mut symbol.coercions {
+        qualify_type_expr(
+            &mut coercion.target,
             import_path,
             local_type_names,
             imported_type_names,

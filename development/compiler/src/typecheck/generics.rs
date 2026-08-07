@@ -115,47 +115,7 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Impl(impl_) => {
-                let scope = GenericScope::new(&impl_.generics);
-                check_generic_bounds(sources, &impl_.generics, resolved, &scope, diagnostics);
-                if let Some(interface_ty) = &impl_.interface_ty {
-                    check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
-                }
-                check_type_expr(sources, &impl_.target_ty, resolved, &scope, diagnostics);
-                let member_scope = scope.clone().with_self_type();
-                for member in &impl_.members {
-                    match member {
-                        ImplMember::Method(method) => {
-                            let method_scope = member_scope.clone().with_generics(&method.generics);
-                            check_generic_bounds(
-                                sources,
-                                &method.generics,
-                                resolved,
-                                &method_scope,
-                                diagnostics,
-                            );
-                            check_method_signature(
-                                sources,
-                                method,
-                                resolved,
-                                &method_scope,
-                                diagnostics,
-                            );
-                            if let Some(body) = &method.body {
-                                check_block(sources, body, resolved, &method_scope, diagnostics);
-                            }
-                        }
-                        ImplMember::Drop(drop_) => {
-                            check_type_expr(
-                                sources,
-                                &drop_.binding.ty,
-                                resolved,
-                                &member_scope,
-                                diagnostics,
-                            );
-                            check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
-                        }
-                    }
-                }
+                check_impl_types(sources, impl_, resolved, diagnostics);
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
@@ -184,8 +144,53 @@ pub(super) fn check_generic_type_arities(
                     check_block(sources, &function.body, resolved, &scope, diagnostics);
                 }
             }
-            Item::Coerce(_) => {}
+            Item::Coerce(coerce) => {
+                check_impl_types(sources, &coerce.callable_impl(), resolved, diagnostics);
+            }
             Item::Import(_) | Item::FromImport(_) => {}
+        }
+    }
+}
+
+fn check_impl_types(
+    sources: &SourceMap,
+    impl_: &crate::ast::ImplDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let scope = GenericScope::new(&impl_.generics);
+    check_generic_bounds(sources, &impl_.generics, resolved, &scope, diagnostics);
+    if let Some(interface_ty) = &impl_.interface_ty {
+        check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
+    }
+    check_type_expr(sources, &impl_.target_ty, resolved, &scope, diagnostics);
+    let member_scope = scope.clone().with_self_type();
+    for member in &impl_.members {
+        match member {
+            ImplMember::Method(method) => {
+                let method_scope = member_scope.clone().with_generics(&method.generics);
+                check_generic_bounds(
+                    sources,
+                    &method.generics,
+                    resolved,
+                    &method_scope,
+                    diagnostics,
+                );
+                check_method_signature(sources, method, resolved, &method_scope, diagnostics);
+                if let Some(body) = &method.body {
+                    check_block(sources, body, resolved, &method_scope, diagnostics);
+                }
+            }
+            ImplMember::Drop(drop_) => {
+                check_type_expr(
+                    sources,
+                    &drop_.binding.ty,
+                    resolved,
+                    &member_scope,
+                    diagnostics,
+                );
+                check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
+            }
         }
     }
 }

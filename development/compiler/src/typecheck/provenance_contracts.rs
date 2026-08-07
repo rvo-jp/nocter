@@ -175,6 +175,13 @@ pub(super) fn check_result_provenance_contracts(
                     );
                 }
             }
+            Item::Coerce(coerce) => check_impl_methods(
+                sources,
+                &coerce.callable_impl(),
+                resolved,
+                summaries,
+                diagnostics,
+            ),
             _ => {}
         }
     }

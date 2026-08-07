@@ -1,7 +1,7 @@
 use super::{BorrowType, Parameter, TypeExpr, TypeReference};
 use crate::source::ByteSpan;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MethodReceiverMode {
     Owned,
     ReadonlyBorrow,

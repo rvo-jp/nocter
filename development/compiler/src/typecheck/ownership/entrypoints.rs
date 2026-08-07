@@ -81,7 +81,13 @@ pub(in crate::typecheck) fn check_ownership_states(
                     check_literal_ownership(sources, literal, resolved, summaries, diagnostics);
                 }
             }
-            Item::Coerce(_) => {}
+            Item::Coerce(coerce) => check_impl_member_ownership(
+                sources,
+                &coerce.callable_impl(),
+                resolved,
+                summaries,
+                diagnostics,
+            ),
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
