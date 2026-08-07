@@ -308,7 +308,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_conformance_with_missing_public_provenance_contract() {
+fn diagnoses_conformance_body_with_missing_public_provenance_contract() {
     let diagnostics = check_text(
         r#"interface Lookup<V> {
     pub method &self.get(): &V from self
@@ -333,7 +333,7 @@ func main(): i32 {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "E0426"),
+            .any(|diagnostic| diagnostic.code == "E0444"),
         "{diagnostics:?}"
     );
 }

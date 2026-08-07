@@ -35,7 +35,7 @@ pub struct Vec<T> {
 
 construct Vec<T> {
     /// Constructs a Vec from owned elements evaluated from left to right.
-    pub default literal [](...items: T): Self {
+    pub default literal [](...items: T): Self from items {
         let item_count: usize = items.len()
         if item_count == 0 {
             return Vec.empty()
@@ -106,7 +106,7 @@ construct Vec<T> {
         }
     }
 
-    pub func from_slice(values: &[T]): Self {
+    pub func from_slice(values: &[T]): Self from values {
         var result: Vec<T> = Vec.with_capacity(values.len())
         var index: usize = 0
         while index < values.len() {
@@ -117,7 +117,7 @@ construct Vec<T> {
     }
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
-    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+    pub func from_iter<I: Iterator<T>>(iterator: I): Self from iterator {
         var result: Vec<T> = Vec.empty()
         for item in iterator {
             result.push(move item)
@@ -128,7 +128,7 @@ construct Vec<T> {
     /// Consumes an exact iterator after reserving its initial reported remainder.
     pub func from_exact_iter<I: Iterator<T> + ExactSizeIterator<T>>(
         iterator: I,
-    ): Self {
+    ): Self from iterator {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()
@@ -168,7 +168,7 @@ pub func try_with_capacity<T>(
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func from_slice<T>(values: &[T]): Vec<T> {
+pub func from_slice<T>(values: &[T]): Vec<T> from values {
     return Vec.from_slice(values)
 }
 
@@ -497,12 +497,12 @@ impl<T> Vec<T> {
     }
 
     /// Removes and transfers an element, or returns `none` out of bounds.
-    pub method &+self.remove(index: usize): T? {
+    pub method &+self.remove(index: usize): T? from self {
         return remove(self, index)?
     }
 
     /// Transfers and returns the last initialized element, or `none` when empty.
-    pub method &+self.pop(): T? {
+    pub method &+self.pop(): T? from self {
         return pop(self)?
     }
 

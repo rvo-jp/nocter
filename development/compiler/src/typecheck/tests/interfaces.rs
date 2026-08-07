@@ -296,6 +296,108 @@ func main(): i32 {
 }
 
 #[test]
+fn fresh_result_narrows_interface_external_provenance_contract() {
+    let diagnostics = check_text(
+        r#"primitive fresh(): &i32
+
+interface Source {
+    pub method &self.get(): &i32 from self
+}
+
+struct Factory {}
+
+impl Source for Factory {
+    method &self.get(): &i32 {
+        return fresh()
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_interface_implementation_origin_absent_from_required_contract() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub method &self.get(): &i32
+}
+
+struct Holder { value: &i32 }
+
+impl Source for Holder {
+    method &self.get(): &i32 from self {
+        return self.value
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0426"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_interface_implementation_body_that_hides_external_origin() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub method &self.get(): &i32
+}
+
+struct Holder { value: &i32 }
+
+impl Source for Holder {
+    method &self.get(): &i32 {
+        return self.value
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0444"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn static_result_narrows_an_interface_without_external_origins() {
+    let diagnostics = check_text(
+        r#"primitive static_value(): &i32 from static
+
+interface Source {
+    pub method &self.get(): &i32
+}
+
+struct Factory {}
+
+impl Source for Factory {
+    method &self.get(): &i32 from static {
+        return static_value()
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_self_type_in_interface_method_signature() {
     let diagnostics = check_text(
         r#"interface Cloneable {

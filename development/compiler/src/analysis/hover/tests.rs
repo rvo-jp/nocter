@@ -71,7 +71,7 @@ fn construct_type_hover_explains_its_complete_public_surface() {
 
 construct Bucket<T> {
     pub default func new(value: T): Self { return Bucket<T> { value: value } }
-    pub literal [](...items: T): Self { return Bucket.new(move items[0]) }
+    pub literal [](...items: T): Self from items { return Bucket.new(move items[0]) }
 }
 "#;
     let (sources, analysis) = analyze_text(text);
@@ -87,7 +87,7 @@ construct Bucket<T> {
     assert_eq!(hover.label, "struct Bucket<T>");
     assert!(documentation.contains("**Construction**"));
     assert!(documentation.contains("default func Bucket<T>.new(value: T): Bucket<T>"));
-    assert!(documentation.contains("literal Bucket<T> [](...items: T): Bucket<T>"));
+    assert!(documentation.contains("literal Bucket<T> [](...items: T): Bucket<T> from items"));
     assert!(!documentation.contains("new<T>"));
 }
 

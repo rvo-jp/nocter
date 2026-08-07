@@ -1,6 +1,7 @@
 use super::{InputId, StorageOrigin, ValueProvenance};
 use crate::ast::{
-    MethodDecl, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, TypeExpr,
+    LiteralCapture, LiteralDecl, MethodDecl, Parameter, ResultProvenanceClause,
+    ResultProvenanceOriginKind, TypeExpr,
 };
 use crate::resolve::ResolveOutput;
 use crate::typecheck::model::Type;
@@ -16,10 +17,57 @@ pub(in crate::typecheck) enum ContractOriginError {
     Duplicate(String),
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::typecheck) struct ResultProvenanceInputs<'a> {
+    parameters: &'a [Parameter],
+    literal_capture: Option<&'a LiteralCapture>,
+}
+
+impl<'a> ResultProvenanceInputs<'a> {
+    pub(in crate::typecheck) fn parameters(parameters: &'a [Parameter]) -> Self {
+        Self {
+            parameters,
+            literal_capture: None,
+        }
+    }
+
+    pub(in crate::typecheck) fn literal(literal: &'a LiteralDecl) -> Self {
+        Self {
+            parameters: &literal.parameters.parameters,
+            literal_capture: literal.capture.as_ref(),
+        }
+    }
+
+    fn find(self, name: &str) -> Option<ProvenanceInput<'a>> {
+        if let Some(parameter) = self
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == name)
+        {
+            return Some(ProvenanceInput {
+                name_span: parameter.name_span,
+                ty: &parameter.ty,
+            });
+        }
+        self.literal_capture
+            .filter(|capture| capture.name == name)
+            .map(|capture| ProvenanceInput {
+                name_span: capture.name_span,
+                ty: &capture.element_type,
+            })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ProvenanceInput<'a> {
+    name_span: crate::source::ByteSpan,
+    ty: &'a TypeExpr,
+}
+
 pub(in crate::typecheck) fn result_provenance_contract<'a>(
     clause: &'a ResultProvenanceClause,
     method: Option<&MethodDecl>,
-    parameters: &[Parameter],
+    inputs: ResultProvenanceInputs<'_>,
     resolved: &ResolveOutput,
 ) -> Result<ValueProvenance, Vec<(&'a crate::ast::ResultProvenanceOrigin, ContractOriginError)>> {
     let mut origins = Vec::new();
@@ -44,19 +92,18 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
                 }
             },
             ResultProvenanceOriginKind::Parameter(name) => {
-                let Some(parameter) = parameters.iter().find(|parameter| parameter.name == *name)
-                else {
+                let Some(input) = inputs.find(name) else {
                     errors.push((origin, ContractOriginError::UnknownParameter(name.clone())));
                     continue;
                 };
-                if !type_expression_may_carry_result_provenance(&parameter.ty, resolved) {
+                if !type_expression_may_carry_result_provenance(input.ty, resolved) {
                     errors.push((
                         origin,
                         ContractOriginError::NonStorageCarryingParameter(name.clone()),
                     ));
                     continue;
                 }
-                StorageOrigin::Input(InputId::declared_at(parameter.name_span))
+                StorageOrigin::Input(InputId::declared_at(input.name_span))
             }
             ResultProvenanceOriginKind::Static => StorageOrigin::Static,
         };

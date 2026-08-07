@@ -143,7 +143,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         result_provenance_contract(
                             clause,
                             None,
-                            &function.parameters.parameters,
+                            ResultProvenanceInputs::parameters(&function.parameters.parameters),
                             source.resolved,
                         )
                         .ok()
@@ -174,7 +174,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         result_provenance_contract(
                             clause,
                             None,
-                            &primitive.parameters.parameters,
+                            ResultProvenanceInputs::parameters(&primitive.parameters.parameters),
                             source.resolved,
                         )
                         .ok()
@@ -202,7 +202,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             result_provenance_contract(
                                 clause,
                                 Some(method),
-                                &method.parameters.parameters,
+                                ResultProvenanceInputs::parameters(&method.parameters.parameters),
                                 source.resolved,
                             )
                             .ok()
@@ -302,7 +302,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             result_provenance_contract(
                                 clause,
                                 Some(method),
-                                &method.parameters.parameters,
+                                ResultProvenanceInputs::parameters(&method.parameters.parameters),
                                 source.resolved,
                             )
                             .ok()
@@ -349,7 +349,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             result_provenance_contract(
                                 clause,
                                 None,
-                                &function.parameters.parameters,
+                                ResultProvenanceInputs::parameters(&function.parameters.parameters),
                                 source.resolved,
                             )
                             .ok()
@@ -394,7 +394,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             result_provenance_contract(
                                 clause,
                                 None,
-                                &literal.parameters.parameters,
+                                ResultProvenanceInputs::literal(literal),
                                 source.resolved,
                             )
                             .ok()

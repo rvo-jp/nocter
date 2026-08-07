@@ -2305,9 +2305,14 @@ fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
 fn lsp_exposes_type_owned_construction_surfaces() {
     let project = TempProject::new("cli-lsp-construction-surfaces");
     let source_text = r#"pub struct Bucket<T> { pub value: T }
+primitive stop(): never
 
 construct Bucket<T> {
     pub default func new(value: T): Self { return Bucket<T> { value: value } }
+    pub literal [](...items: T): Self from items {
+        for item in items { return Bucket.new(move item) }
+        return stop()
+    }
 }
 
 func main(): i32 {
@@ -2394,6 +2399,10 @@ func main(): i32 {
     assert!(hover.contains("**Construction**"), "hover:\n{hover}");
     assert!(
         hover.contains("default func Bucket<T>.new(value: T): Bucket<T>"),
+        "hover:\n{hover}"
+    );
+    assert!(
+        hover.contains("literal Bucket<T> [](...items: T): Bucket<T> from items"),
         "hover:\n{hover}"
     );
 

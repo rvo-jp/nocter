@@ -9,7 +9,7 @@ struct Text {
 }
 
 construct Text {
-    pub default literal ""(text: &str): Self {
+    pub default literal ""(text: &str): Self from text {
         return Text { value: text }
     }
 }
@@ -138,7 +138,7 @@ struct Text {
 }
 
 construct Text {
-    pub default literal ""(text: &str): Self {
+    pub default literal ""(text: &str): Self from text {
         return Text { value: text }
     }
 }
@@ -303,7 +303,7 @@ fn lowers_typed_literal_directly_from_aggregate_return_context() {
 struct Text { value: &str }
 
 construct Text {
-    pub default literal ""(text: &str): Self {
+    pub default literal ""(text: &str): Self from text {
         return Text { value: text }
     }
 }

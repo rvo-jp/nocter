@@ -284,6 +284,12 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
         Stmt::LiteralPackFor(statement) => {
             let mut body_environment = environment_for_literal_pack_binding(statement, environment);
             let mut body_provenance = borrow_provenance.clone();
+            define_literal_pack_item_provenance(
+                statement,
+                environment,
+                resolved,
+                &mut body_provenance,
+            );
             apply_borrow_return_statement_effects(
                 &statement.body,
                 resolved,

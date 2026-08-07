@@ -141,6 +141,115 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn diagnoses_public_inherent_method_without_external_result_contract() {
+    let diagnostics = check_text(
+        r#"struct Holder { value: &i32 }
+
+impl Holder {
+    pub method &self.view(): &i32 { return self.value }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0444"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn private_inherent_method_may_infer_an_external_result_origin() {
+    let diagnostics = check_text(
+        r#"struct Holder { value: &i32 }
+
+impl Holder {
+    method &self.view(): &i32 { return self.value }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_public_literal_without_external_result_contract() {
+    let diagnostics = check_text(
+        r#"struct Text { value: &str }
+
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0444"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn accepts_sequence_literal_capture_as_an_external_result_origin() {
+    let diagnostics = check_text(
+        r#"struct Holder<T> { value: T }
+primitive stop(): never
+
+construct Holder<T> {
+    pub default literal [](...items: T): Self from items {
+        for item in items {
+            return Holder<T> { value: move item }
+        }
+        return stop()
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_sequence_literal_that_hides_its_element_pack_origin() {
+    let diagnostics = check_text(
+        r#"struct Holder<T> { value: T }
+primitive stop(): never
+
+construct Holder<T> {
+    pub default literal [](...items: T): Self {
+        for item in items {
+            return Holder<T> { value: move item }
+        }
+        return stop()
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0444"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn diagnoses_contract_on_storage_independent_result() {
     let diagnostics = check_text(
         r#"func size(): i32 from static {

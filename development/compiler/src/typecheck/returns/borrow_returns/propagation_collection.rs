@@ -918,6 +918,12 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                 let mut body_environment =
                     environment_for_literal_pack_binding(pack_statement, environment);
                 let mut body_borrow_provenance = borrow_provenance.clone();
+                define_literal_pack_item_provenance(
+                    pack_statement,
+                    environment,
+                    resolved,
+                    &mut body_borrow_provenance,
+                );
                 collect_return_statement_provenance(
                     &pack_statement.body,
                     return_type,

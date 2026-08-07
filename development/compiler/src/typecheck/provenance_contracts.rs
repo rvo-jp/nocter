@@ -8,8 +8,8 @@ use super::environments::{
 };
 use super::model::TypeEnvironment;
 use super::provenance::{
-    CallableProvenanceSummaries, InputId, ValueProvenance, provenance_satisfies_contract,
-    result_provenance_contract, type_may_carry_result_provenance,
+    CallableProvenanceSummaries, InputId, ResultProvenanceInputs, ValueProvenance,
+    provenance_satisfies_contract, result_provenance_contract, type_may_carry_result_provenance,
 };
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
@@ -36,45 +36,37 @@ pub(super) fn check_result_provenance_contracts(
                     sources,
                     function.result_provenance.as_ref(),
                     None,
-                    &function.parameters.parameters,
+                    ResultProvenanceInputs::parameters(&function.parameters.parameters),
                     &function.return_type,
                     Some(&environment),
                     resolved,
                     diagnostics,
                 );
-                if let Some(clause) = &function.result_provenance {
-                    check_body_contract(
-                        sources,
-                        super::returns::function_summary_key(function),
-                        &function.body,
-                        clause,
-                        None,
-                        &function.parameters.parameters,
-                        &function.return_type,
-                        resolved,
-                        &environment,
-                        summaries,
-                        diagnostics,
-                    );
-                } else if function.visibility == Visibility::Public {
-                    check_public_body_without_contract(
-                        sources,
-                        super::returns::function_summary_key(function),
-                        &function.body,
-                        &function.parameters.parameters,
-                        &function.return_type,
-                        resolved,
-                        &environment,
-                        summaries,
-                        diagnostics,
-                    );
-                }
+                check_body_result_contract(
+                    sources,
+                    BodyResultContract {
+                        declaration_span: super::returns::function_summary_key(function),
+                        body: &function.body,
+                        clause: function.result_provenance.as_ref(),
+                        method: None,
+                        contract_inputs: ResultProvenanceInputs::parameters(
+                            &function.parameters.parameters,
+                        ),
+                        parameters: &function.parameters.parameters,
+                        return_type: &function.return_type,
+                        environment: &environment,
+                        externally_callable: function.visibility == Visibility::Public,
+                    },
+                    resolved,
+                    summaries,
+                    diagnostics,
+                );
             }
             Item::Primitive(primitive) => check_clause(
                 sources,
                 primitive.result_provenance.as_ref(),
                 None,
-                &primitive.parameters.parameters,
+                ResultProvenanceInputs::parameters(&primitive.parameters.parameters),
                 &primitive.return_type,
                 None,
                 resolved,
@@ -87,37 +79,29 @@ pub(super) fn check_result_provenance_contracts(
                         sources,
                         method.result_provenance.as_ref(),
                         Some(method),
-                        &method.parameters.parameters,
+                        ResultProvenanceInputs::parameters(&method.parameters.parameters),
                         &method.return_type,
                         Some(&environment),
                         resolved,
                         diagnostics,
                     );
-                    if let (Some(body), Some(clause)) =
-                        (method.body.as_ref(), method.result_provenance.as_ref())
-                    {
-                        check_body_contract(
+                    if let Some(body) = &method.body {
+                        check_body_result_contract(
                             sources,
-                            method.name_span,
-                            body,
-                            clause,
-                            Some(method),
-                            &method.parameters.parameters,
-                            &method.return_type,
+                            BodyResultContract {
+                                declaration_span: method.name_span,
+                                body,
+                                clause: method.result_provenance.as_ref(),
+                                method: Some(method),
+                                contract_inputs: ResultProvenanceInputs::parameters(
+                                    &method.parameters.parameters,
+                                ),
+                                parameters: &method.parameters.parameters,
+                                return_type: &method.return_type,
+                                environment: &environment,
+                                externally_callable: true,
+                            },
                             resolved,
-                            &environment,
-                            summaries,
-                            diagnostics,
-                        );
-                    } else if let Some(body) = &method.body {
-                        check_public_body_without_contract(
-                            sources,
-                            method.name_span,
-                            body,
-                            &method.parameters.parameters,
-                            &method.return_type,
-                            resolved,
-                            &environment,
                             summaries,
                             diagnostics,
                         );
@@ -134,39 +118,31 @@ pub(super) fn check_result_provenance_contracts(
                         sources,
                         function.result_provenance.as_ref(),
                         None,
-                        &function.parameters.parameters,
+                        ResultProvenanceInputs::parameters(&function.parameters.parameters),
                         &function.return_type,
                         Some(&environment),
                         resolved,
                         diagnostics,
                     );
-                    if let Some(clause) = &function.result_provenance {
-                        check_body_contract(
-                            sources,
-                            super::returns::function_summary_key(function),
-                            &function.body,
-                            clause,
-                            None,
-                            &function.parameters.parameters,
-                            &function.return_type,
-                            resolved,
-                            &environment,
-                            summaries,
-                            diagnostics,
-                        );
-                    } else if function.visibility == Visibility::Public {
-                        check_public_body_without_contract(
-                            sources,
-                            super::returns::function_summary_key(function),
-                            &function.body,
-                            &function.parameters.parameters,
-                            &function.return_type,
-                            resolved,
-                            &environment,
-                            summaries,
-                            diagnostics,
-                        );
-                    }
+                    check_body_result_contract(
+                        sources,
+                        BodyResultContract {
+                            declaration_span: super::returns::function_summary_key(function),
+                            body: &function.body,
+                            clause: function.result_provenance.as_ref(),
+                            method: None,
+                            contract_inputs: ResultProvenanceInputs::parameters(
+                                &function.parameters.parameters,
+                            ),
+                            parameters: &function.parameters.parameters,
+                            return_type: &function.return_type,
+                            environment: &environment,
+                            externally_callable: function.visibility == Visibility::Public,
+                        },
+                        resolved,
+                        summaries,
+                        diagnostics,
+                    );
                 }
                 for (_, literal) in construct.literals() {
                     let environment = environment_for_literal(literal, resolved);
@@ -174,27 +150,29 @@ pub(super) fn check_result_provenance_contracts(
                         sources,
                         literal.result_provenance.as_ref(),
                         None,
-                        &literal.parameters.parameters,
+                        ResultProvenanceInputs::literal(literal),
                         &literal.return_type,
                         Some(&environment),
                         resolved,
                         diagnostics,
                     );
-                    if let Some(clause) = &literal.result_provenance {
-                        check_body_contract(
-                            sources,
-                            literal.span,
-                            &literal.body,
-                            clause,
-                            None,
-                            &literal.parameters.parameters,
-                            &literal.return_type,
-                            resolved,
-                            &environment,
-                            summaries,
-                            diagnostics,
-                        );
-                    }
+                    check_body_result_contract(
+                        sources,
+                        BodyResultContract {
+                            declaration_span: literal.span,
+                            body: &literal.body,
+                            clause: literal.result_provenance.as_ref(),
+                            method: None,
+                            contract_inputs: ResultProvenanceInputs::literal(literal),
+                            parameters: &literal.parameters.parameters,
+                            return_type: &literal.return_type,
+                            environment: &environment,
+                            externally_callable: literal.visibility == Visibility::Public,
+                        },
+                        resolved,
+                        summaries,
+                        diagnostics,
+                    );
                 }
             }
             _ => {}
@@ -209,6 +187,7 @@ fn check_impl_methods(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let implements_interface = impl_.interface_ty.is_some();
     for member in &impl_.members {
         let ImplMember::Method(method) = member else {
             continue;
@@ -217,26 +196,80 @@ fn check_impl_methods(
             sources,
             method.result_provenance.as_ref(),
             Some(method),
-            &method.parameters.parameters,
+            ResultProvenanceInputs::parameters(&method.parameters.parameters),
             &method.return_type,
             Some(&environment_for_method(method, resolved, impl_)),
             resolved,
             diagnostics,
         );
-        let (Some(clause), Some(body)) = (&method.result_provenance, &method.body) else {
+        let Some(body) = &method.body else {
             continue;
         };
         let environment = environment_for_method(method, resolved, impl_);
+        check_body_result_contract(
+            sources,
+            BodyResultContract {
+                declaration_span: method.name_span,
+                body,
+                clause: method.result_provenance.as_ref(),
+                method: Some(method),
+                contract_inputs: ResultProvenanceInputs::parameters(&method.parameters.parameters),
+                parameters: &method.parameters.parameters,
+                return_type: &method.return_type,
+                environment: &environment,
+                externally_callable: implements_interface
+                    || method.visibility == Visibility::Public,
+            },
+            resolved,
+            summaries,
+            diagnostics,
+        );
+    }
+}
+
+struct BodyResultContract<'a> {
+    declaration_span: crate::source::ByteSpan,
+    body: &'a crate::ast::Block,
+    clause: Option<&'a ResultProvenanceClause>,
+    method: Option<&'a MethodDecl>,
+    contract_inputs: ResultProvenanceInputs<'a>,
+    parameters: &'a [Parameter],
+    return_type: &'a TypeExpr,
+    environment: &'a TypeEnvironment,
+    externally_callable: bool,
+}
+
+fn check_body_result_contract(
+    sources: &SourceMap,
+    subject: BodyResultContract<'_>,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(clause) = subject.clause {
         check_body_contract(
             sources,
-            method.name_span,
-            body,
+            subject.declaration_span,
+            subject.body,
             clause,
-            Some(method),
-            &method.parameters.parameters,
-            &method.return_type,
+            subject.method,
+            subject.contract_inputs,
+            subject.parameters,
+            subject.return_type,
             resolved,
-            &environment,
+            subject.environment,
+            summaries,
+            diagnostics,
+        );
+    } else if subject.externally_callable {
+        check_public_body_without_contract(
+            sources,
+            subject.declaration_span,
+            subject.body,
+            subject.parameters,
+            subject.return_type,
+            resolved,
+            subject.environment,
             summaries,
             diagnostics,
         );
@@ -247,7 +280,7 @@ fn check_clause(
     sources: &SourceMap,
     clause: Option<&ResultProvenanceClause>,
     method: Option<&MethodDecl>,
-    parameters: &[Parameter],
+    inputs: ResultProvenanceInputs<'_>,
     return_type: &TypeExpr,
     environment: Option<&TypeEnvironment>,
     resolved: &ResolveOutput,
@@ -263,7 +296,7 @@ fn check_clause(
             return_type,
         ));
     }
-    if let Err(errors) = result_provenance_contract(clause, method, parameters, resolved) {
+    if let Err(errors) = result_provenance_contract(clause, method, inputs, resolved) {
         diagnostics.extend(
             errors.into_iter().map(|(origin, error)| {
                 invalid_provenance_origin_diagnostic(sources, origin, &error)
@@ -279,6 +312,7 @@ fn check_body_contract(
     body: &crate::ast::Block,
     clause: &ResultProvenanceClause,
     method: Option<&MethodDecl>,
+    inputs: ResultProvenanceInputs<'_>,
     parameters: &[Parameter],
     return_type: &TypeExpr,
     resolved: &ResolveOutput,
@@ -286,7 +320,7 @@ fn check_body_contract(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Ok(contract) = result_provenance_contract(clause, method, parameters, resolved) else {
+    let Ok(contract) = result_provenance_contract(clause, method, inputs, resolved) else {
         return;
     };
     let return_type = type_expr_to_type_in_environment(return_type, resolved, environment);

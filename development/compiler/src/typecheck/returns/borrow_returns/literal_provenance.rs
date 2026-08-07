@@ -2,10 +2,10 @@ use super::*;
 
 /// Instantiates a literal body's callable summary at the expression site.
 ///
-/// Literal parameters are not ordinary ABI arguments. The string parameter is
-/// backed by the source literal's static bytes, while an ephemeral sequence
-/// capture is forbidden from escaping its body. `using` replaces only the
-/// declaration-relative current allocation context.
+/// Literal inputs are not ordinary ABI arguments. The string parameter is
+/// backed by the source literal's static bytes, while a sequence capture maps
+/// its declaration-identity origin to the supplied element provenances.
+/// `using` replaces only the declaration-relative current allocation context.
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
     span: ByteSpan,
     using: Option<&crate::ast::LiteralContextOverride>,
@@ -19,8 +19,21 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
     let resolution = resolved.literal_resolution(span)?;
     let signature = resolved.literal_signature(resolution)?;
     let summary = summaries.result(CallableId::declared_at(resolution.literal_declaration_span))?;
+    let sequence_input = sequence_elements.map(|elements| {
+        sequence_pack_provenance(
+            elements,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        )
+    });
+    let capture_input = signature
+        .capture
+        .as_ref()
+        .map(|capture| InputId::declared_at(capture.name_span));
 
-    let base = instantiate_provenance_summary(summary, &mut |origin| match origin {
+    instantiate_provenance_summary(summary, &mut |origin| match origin {
         StorageOrigin::Static => Some(ValueProvenance::static_storage()),
         StorageOrigin::CurrentAllocationContext => match using {
             Some(context) => value_provenance_for_call_input(
@@ -42,16 +55,25 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
         {
             Some(ValueProvenance::static_storage())
         }
+        StorageOrigin::Input(source) if capture_input.as_ref() == Some(source) => sequence_input
+            .clone()
+            .or(Some(ValueProvenance::Independent)),
         StorageOrigin::Input(_)
         | StorageOrigin::InputWithCurrentFallback(_)
         | StorageOrigin::Allocated(_)
         | StorageOrigin::Scope { .. }
         | StorageOrigin::Region { .. }
         | StorageOrigin::Unknown => Some(ValueProvenance::unknown()),
-    });
-    let Some(sequence_elements) = sequence_elements else {
-        return base;
-    };
+    })
+}
+
+fn sequence_pack_provenance(
+    sequence_elements: &[Expr],
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> ValueProvenance {
     let mut elements = BTreeMap::new();
     for (index, element) in sequence_elements.iter().enumerate() {
         let Some(spread) = crate::typecheck::sequence_spread(element) else {
@@ -98,12 +120,12 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
         }
     }
     if elements.is_empty() {
-        base
+        ValueProvenance::Independent
     } else {
-        Some(ValueProvenance::Aggregate {
-            fallback: base.map(Box::new),
+        ValueProvenance::Aggregate {
+            fallback: None,
             fields: BTreeMap::new(),
             elements,
-        })
+        }
     }
 }
