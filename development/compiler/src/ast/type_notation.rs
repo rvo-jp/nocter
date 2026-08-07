@@ -4,7 +4,6 @@ use crate::type_notation::{PostfixOperator, PrefixOperator, TypeNotation, TypeNo
 pub(crate) fn type_expr_notation(ty: &TypeExpr) -> TypeNotation {
     match ty {
         TypeExpr::Callable(callable) => TypeNotation::Callable {
-            result_may_allocate: callable.result_allocation.is_some(),
             capability_prefix: callable.capability.source_prefix(),
             parameters: callable
                 .parameters

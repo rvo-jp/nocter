@@ -36,7 +36,7 @@ fn specializes_construct_self_results_before_abi_validation() {
         r#"struct Box<T> { value: T }
 
 construct Box<T> {
-    pub default func new(value: T): Self {
+    pub default func new(value: T): Self from value {
         return Box<T> { value: value }
     }
 }

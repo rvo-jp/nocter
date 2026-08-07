@@ -24,7 +24,6 @@ pub(crate) enum TypeNotation {
         operator: PostfixOperator,
     },
     Callable {
-        result_may_allocate: bool,
         capability_prefix: &'static str,
         parameters: Vec<TypeNotationParameter>,
         return_type: Box<TypeNotation>,
@@ -95,15 +94,11 @@ impl TypeNotation {
                 output.push_str(operator.source_text());
             }
             Self::Callable {
-                result_may_allocate,
                 capability_prefix,
                 parameters,
                 return_type,
                 provenance,
             } => {
-                if *result_may_allocate {
-                    output.push_str("alloc ");
-                }
                 output.push_str(capability_prefix);
                 output.push_str("func(");
                 render_separated(parameters, output, |parameter, output| {
@@ -225,7 +220,6 @@ mod tests {
     #[test]
     fn postfix_callable_is_grouped_away_from_its_return_type() {
         let callable = TypeNotation::Callable {
-            result_may_allocate: false,
             capability_prefix: "",
             parameters: Vec::new(),
             return_type: Box::new(atom("T")),
@@ -240,7 +234,6 @@ mod tests {
     #[test]
     fn borrowed_callable_is_not_confused_with_callable_capability() {
         let callable = TypeNotation::Callable {
-            result_may_allocate: false,
             capability_prefix: "",
             parameters: Vec::new(),
             return_type: Box::new(atom("T")),

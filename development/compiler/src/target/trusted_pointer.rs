@@ -30,7 +30,6 @@ fn take_value_shape_matches(primitive: &crate::ast::PrimitiveDecl) -> bool {
         && primitive.parameters.parameters[1].name == "offset"
         && canonical_type_expr(&primitive.parameters.parameters[1].ty) == "usize"
         && canonical_type_expr(&primitive.return_type) == "T"
-        && primitive.result_allocation.is_none()
         && primitive.result_provenance.is_none()
 }
 

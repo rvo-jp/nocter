@@ -452,12 +452,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         borrow_provenance,
         summaries,
     ) {
-        return apply_declared_result_allocation(
-            Some(provenance),
-            &signature,
-            &return_type,
-            borrow_provenance,
-        );
+        return Some(provenance);
     }
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
@@ -488,12 +483,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     }
 
     if !type_may_carry_result_provenance(&return_type, resolved) {
-        return apply_declared_result_allocation(
-            Some(ValueProvenance::Independent),
-            &signature,
-            &return_type,
-            borrow_provenance,
-        );
+        return Some(ValueProvenance::Independent);
     }
 
     let mut provenance = None;
@@ -553,16 +543,25 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         }
         _ => provenance,
     };
-    apply_declared_result_allocation(provenance, &signature, &return_type, borrow_provenance)
+    apply_abstract_result_storage(
+        provenance,
+        &signature,
+        &return_type,
+        resolved,
+        borrow_provenance,
+    )
 }
 
-fn apply_declared_result_allocation(
+fn apply_abstract_result_storage(
     provenance: Option<ValueProvenance>,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     return_type: &Type,
+    resolved: &ResolveOutput,
     borrow_provenance: &ProvenanceEnvironment,
 ) -> Option<ValueProvenance> {
-    if signature.signature.result_may_allocate {
+    if signature.signature.result_provenance.is_none()
+        && type_may_retain_fresh_result_storage(return_type, resolved)
+    {
         let provenance = provenance.unwrap_or(match return_type {
             Type::Fallible { .. } => ValueProvenance::Fallible {
                 success: None,

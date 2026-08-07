@@ -212,7 +212,6 @@ fn editor_info(
             .map(|parameter| parameter.label.clone())
             .collect(),
         result,
-        declaration.result_allocation.is_some(),
         crate::analysis::presentation::result_origin_labels(declaration.result_provenance.as_ref()),
     )
     .render();

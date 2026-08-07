@@ -1020,7 +1020,7 @@ func leak(): View {
 #[test]
 fn diagnoses_return_error_borrow_of_local_binding() {
     let diagnostics = check_text(
-        r#"primitive make_error(value: &i32): error
+        r#"primitive make_error(value: &i32): error from value
 
 func main(): i32 {
     return 0
@@ -1043,7 +1043,7 @@ func leak(): error {
 #[test]
 fn diagnoses_return_error_after_static_argument_and_local_borrow_argument() {
     let diagnostics = check_text(
-        r#"primitive make_error(label: &str, value: &i32): error
+        r#"primitive make_error(label: &str, value: &i32): error from label | value
 
 func main(): i32 {
     return 0
@@ -1065,7 +1065,7 @@ func leak(): error {
 #[test]
 fn accepts_return_error_borrow_of_parameter() {
     let diagnostics = check_text(
-        r#"primitive make_error(value: &i32): error
+        r#"primitive make_error(value: &i32): error from value
 
 func main(): i32 {
     return 0
@@ -1425,7 +1425,7 @@ func leak(): &i32 {
 #[test]
 fn accepts_return_force_unwrapped_fallible_failure_borrow_from_local() {
     let diagnostics = check_text(
-        r#"primitive make_error(label: &str, value: &i32): error
+        r#"primitive make_error(label: &str, value: &i32): error from label | value
 
 func main(): i32 {
     return 0
@@ -1475,7 +1475,7 @@ func leak(): &i32? {
 #[test]
 fn diagnoses_return_propagated_fallible_failure_borrow_from_local() {
     let diagnostics = check_text(
-        r#"primitive make_error(label: &str, value: &i32): error
+        r#"primitive make_error(label: &str, value: &i32): error from label | value
 
 func main(): i32 {
     return 0
@@ -1504,7 +1504,7 @@ func leak(success: &i32, choose: bool): &i32! {
 #[test]
 fn diagnoses_return_catch_success_borrow_from_local() {
     let diagnostics = check_text(
-        r#"primitive make_error(label: &str, value: &i32): error
+        r#"primitive make_error(label: &str, value: &i32): error from label | value
 
 func main(): i32 {
     return 0
@@ -1535,7 +1535,7 @@ func leak(fallback: &i32, choose: bool): &i32 {
 #[test]
 fn accepts_return_catch_failure_borrow_from_local() {
     let diagnostics = check_text(
-        r#"primitive make_error(label: &str, value: &i32): error
+        r#"primitive make_error(label: &str, value: &i32): error from label | value
 
 func main(): i32 {
     return 0

@@ -13,11 +13,11 @@ fn distributed_std_typed_literals_check_from_packaged_home() {
         "typed_literals.nct",
         r#"use std/vec.Vec
 
-alloc func values(): Vec<i32> {
+func values(): Vec<i32> {
     return Vec [1, 2, 3]
 }
 
-alloc func text(): String {
+func text(): String {
     return String "hello"
 }
 
@@ -259,7 +259,7 @@ func run(values: Vec<i32>): void {
     );
     assert_eq!(
         response(10)["result"]["signatures"][0]["label"],
-        "alloc literal Vec<i32> [](...items: i32): Vec<i32>"
+        "literal Vec<i32> [](...items: i32): Vec<i32>"
     );
     let completion = response(6)["result"]["items"]
         .as_array()
@@ -610,7 +610,7 @@ fn explicit_literal_context_overrides_a_lexical_region() {
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-alloc func make_values(): Vec<i32> {
+func make_values(): Vec<i32> {
     let root = page_allocator()
     let arena = page_allocator()
     region temp using arena {
@@ -618,7 +618,7 @@ alloc func make_values(): Vec<i32> {
     }
 }
 
-alloc func make_text(): String {
+func make_text(): String {
     let root = page_allocator()
     let arena = page_allocator()
     region temp using arena {

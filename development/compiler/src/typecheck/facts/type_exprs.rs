@@ -39,11 +39,6 @@ pub(super) fn type_to_type_expr_inner(
             Some(TypeExpr::Callable(crate::ast::CallableTypeExpr {
                 span: callable.span,
                 func_span: callable.span,
-                result_allocation: callable.result_may_allocate.then_some(
-                    crate::ast::ResultAllocationModifier {
-                        span: callable.span,
-                    },
-                ),
                 capability: callable.capability,
                 parameters_span: callable.span,
                 parameters,

@@ -30,23 +30,17 @@ impl Parser<'_> {
             }
 
             let visibility = self.parse_visibility()?;
-            let result_allocation = self.parse_optional_result_allocation_modifier();
+            self.reject_removed_result_allocation_modifier()?;
             if self.at_keyword(Keyword::Func) {
                 self.error_current(
                     "associated `func` declarations are written at top level as `func Type.name(...)`",
                 );
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {
-                members.push(ImplMember::Method(self.parse_method_decl(
-                    visibility,
-                    true,
-                    result_allocation,
-                )?));
+                members.push(ImplMember::Method(
+                    self.parse_method_decl(visibility, true)?,
+                ));
             } else if self.at_identifier_text("drop") {
-                if result_allocation.is_some() {
-                    self.error_current("`alloc` applies only to callable declarations");
-                    return Err(());
-                }
                 if visibility != Visibility::Private {
                     self.error_current("drop member cannot be marked pub");
                     return Err(());
@@ -96,16 +90,14 @@ impl Parser<'_> {
                 );
                 return Err(());
             }
-            let result_allocation = self.parse_optional_result_allocation_modifier();
+            self.reject_removed_result_allocation_modifier()?;
             if !self.at_keyword(Keyword::Method) {
                 self.error_current("expected `method` in interface implementation block");
                 return Err(());
             }
-            members.push(ImplMember::Method(self.parse_method_decl(
-                Visibility::Private,
-                true,
-                result_allocation,
-            )?));
+            members.push(ImplMember::Method(
+                self.parse_method_decl(Visibility::Private, true)?,
+            ));
             self.skip_newlines();
         }
 
@@ -136,12 +128,12 @@ impl Parser<'_> {
                 self.error_current("interface members must be marked `pub`");
                 return Err(());
             }
-            let result_allocation = self.parse_optional_result_allocation_modifier();
+            self.reject_removed_result_allocation_modifier()?;
             if !self.at_keyword(Keyword::Method) {
                 self.error_current("expected `pub method` in interface declaration");
                 return Err(());
             }
-            methods.push(self.parse_method_decl(method_visibility, false, result_allocation)?);
+            methods.push(self.parse_method_decl(method_visibility, false)?);
 
             self.skip_newlines();
         }
@@ -180,7 +172,6 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
         require_body: bool,
-        result_allocation: Option<ResultAllocationModifier>,
     ) -> ParseResult<MethodDecl> {
         let start = self.expect_keyword(Keyword::Method, "`method`")?;
         let receiver = self.parse_method_receiver()?;
@@ -206,13 +197,9 @@ impl Parser<'_> {
         );
 
         Ok(MethodDecl {
-            span: self.span(
-                result_allocation.map_or(start.span.start, |modifier| modifier.span.start),
-                end,
-            ),
+            span: self.span(start.span.start, end),
             visibility,
             keyword_span: start.span,
-            result_allocation,
             receiver,
             name: name.value,
             name_span: name.span,

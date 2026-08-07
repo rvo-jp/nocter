@@ -56,29 +56,6 @@ pub(in crate::typecheck) fn independent_result_contract_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn missing_result_contract_diagnostic(
-    sources: &SourceMap,
-    return_span: ByteSpan,
-    eligible_origins: usize,
-) -> Diagnostic {
-    let detail = if eligible_origins == 0 {
-        "the result has no input origin that can be inferred"
-    } else {
-        "the result could originate from more than one input"
-    };
-    let mut diagnostic = Diagnostic::error(
-        "E0444",
-        format!(
-            "a bodyless storage-carrying callable needs an explicit result provenance contract: {detail}"
-        ),
-    );
-    diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "add `from self`, `from parameter`, or `from static` after the return type".to_string(),
-    );
-    diagnostic
-}
-
 pub(in crate::typecheck) fn result_contract_violation_diagnostic(
     sources: &SourceMap,
     body_span: ByteSpan,
@@ -97,6 +74,22 @@ pub(in crate::typecheck) fn result_contract_violation_diagnostic(
     }
     diagnostic.help = Some(
         "return only values covered by the `from` clause, or widen the declared contract"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn missing_external_result_contract_diagnostic(
+    sources: &SourceMap,
+    return_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0444",
+        "a public callable returning caller-managed storage needs an explicit result provenance contract",
+    );
+    diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "add a `from` clause naming every receiver or parameter origin retained by the result"
             .to_string(),
     );
     diagnostic

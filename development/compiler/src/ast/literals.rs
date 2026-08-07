@@ -1,6 +1,5 @@
 use super::{
-    Block, Expr, LiteralExpr, ParameterList, ResultAllocationModifier, ResultProvenanceClause,
-    TypeExpr, Visibility,
+    Block, Expr, LiteralExpr, ParameterList, ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::source::ByteSpan;
 
@@ -15,7 +14,6 @@ pub struct LiteralDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub keyword_span: ByteSpan,
-    pub result_allocation: Option<ResultAllocationModifier>,
     pub target: TypeExpr,
     pub shape: LiteralShape,
     pub shape_span: ByteSpan,

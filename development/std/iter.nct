@@ -32,7 +32,7 @@ pub struct ViewIter<T> {
 
 construct ViewIter<T> {
     /// Creates an allocation-free readonly iterator over `view`.
-    pub default func from_view(view: &[T]): Self {
+    pub default func from_view(view: &[T]): Self from view {
         return ViewIter<T> {
             view: view,
             next_index: 0,
@@ -40,7 +40,7 @@ construct ViewIter<T> {
     }
 }
 
-pub func from_view<T>(view: &[T]): ViewIter<T> {
+pub func from_view<T>(view: &[T]): ViewIter<T> from view {
     return ViewIter.from_view(view)
 }
 
@@ -48,7 +48,7 @@ pub func remaining<T>(iterator: &ViewIter<T>): usize {
     return iterator.view.len() - iterator.next_index
 }
 
-pub func next<T>(iterator: &+ViewIter<T>): &T? {
+pub func next<T>(iterator: &+ViewIter<T>): &T? from iterator {
     if iterator.next_index >= iterator.view.len() {
         return none
     }

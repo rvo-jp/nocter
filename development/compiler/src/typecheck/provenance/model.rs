@@ -608,42 +608,18 @@ impl CallableProvenanceSummaries {
 pub(in crate::typecheck) struct ProvenanceFlow {
     value: Option<ValueProvenance>,
     fallible_error: Option<ValueProvenance>,
-    result_allocation_witness: Option<ByteSpan>,
 }
 
 impl ProvenanceFlow {
-    pub(in crate::typecheck) fn merge_value(
-        &mut self,
-        provenance: Option<ValueProvenance>,
-        result_allocation_witness: Option<ByteSpan>,
-    ) {
+    pub(in crate::typecheck) fn merge_value(&mut self, provenance: Option<ValueProvenance>) {
         merge_provenance(&mut self.value, provenance);
-        self.merge_result_allocation_witness(result_allocation_witness);
     }
 
     pub(in crate::typecheck) fn merge_fallible_error(
         &mut self,
         provenance: Option<ValueProvenance>,
-        result_allocation_witness: Option<ByteSpan>,
     ) {
         merge_provenance(&mut self.fallible_error, provenance);
-        self.merge_result_allocation_witness(result_allocation_witness);
-    }
-
-    pub(in crate::typecheck) fn result_allocation_witness(&self) -> Option<ByteSpan> {
-        self.result_allocation_witness
-    }
-
-    fn merge_result_allocation_witness(&mut self, witness: Option<ByteSpan>) {
-        let Some(witness) = witness else {
-            return;
-        };
-        if self.result_allocation_witness.is_none_or(|existing| {
-            (witness.source.raw(), witness.start, witness.end)
-                < (existing.source.raw(), existing.start, existing.end)
-        }) {
-            self.result_allocation_witness = Some(witness);
-        }
     }
 
     pub(in crate::typecheck) fn into_return_provenance(

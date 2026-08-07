@@ -40,11 +40,10 @@ impl Parser<'_> {
             let default_span = self
                 .match_identifier_text("default")
                 .map(|token| token.span);
-            let result_allocation = self.parse_optional_result_allocation_modifier();
+            self.reject_removed_result_allocation_modifier()?;
 
             let declaration = if self.at_keyword(Keyword::Func) {
-                let mut function =
-                    self.parse_function_decl_data(Visibility::Public, None, result_allocation)?;
+                let mut function = self.parse_function_decl_data(Visibility::Public, None)?;
                 if function.owner.is_some() {
                     self.error_at(
                         function.name_span,
@@ -63,11 +62,9 @@ impl Parser<'_> {
                     .splice(0..0, owner_generics.parameters.iter().cloned());
                 ConstructMemberDecl::Function(function)
             } else if self.at_keyword(Keyword::Literal) {
-                ConstructMemberDecl::Literal(self.parse_literal_decl_data(
-                    Visibility::Public,
-                    Some(target.clone()),
-                    result_allocation,
-                )?)
+                ConstructMemberDecl::Literal(
+                    self.parse_literal_decl_data(Visibility::Public, Some(target.clone()))?,
+                )
             } else {
                 self.error_current("expected `func` or `literal` in construct declaration");
                 return Err(());

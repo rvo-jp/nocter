@@ -4,7 +4,6 @@ use super::protocol::{lsp_position_to_byte_offset, range_for_byte_span};
 use crate::analysis::FileAnalysis;
 use crate::analysis::source_edits::{
     OutcomeContractKind, plan_missing_interface_members, plan_outcome_contract,
-    plan_result_allocation_contract,
 };
 use crate::source::{ByteSpan, SourceId};
 use serde_json::{Value, json};
@@ -62,18 +61,6 @@ pub(super) fn code_actions(
                 span.start_byte,
                 OutcomeContractKind::Optional,
             ),
-            "E0462" => {
-                if let Some(plan) = plan_result_allocation_contract(file, span.start_byte) {
-                    actions.push(quick_fix(
-                        context.document,
-                        "Mark the callable result as allocated".to_string(),
-                        plan.offset,
-                        plan.offset,
-                        plan.new_text.to_string(),
-                        true,
-                    ));
-                }
-            }
             _ => {}
         }
     }

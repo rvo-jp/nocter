@@ -94,7 +94,6 @@ impl Formatter {
         }
         match &member.declaration {
             ConstructMemberDecl::Function(function) => {
-                self.format_result_allocation(function.result_allocation.as_ref());
                 self.write("func ");
                 self.write(&function.member_name);
                 self.format_generic_params(&function.generics.parameters[owner_generic_count..]);
@@ -105,10 +104,7 @@ impl Formatter {
                 self.write(" ");
                 self.format_block(&function.body);
             }
-            ConstructMemberDecl::Literal(literal) => {
-                self.format_result_allocation(literal.result_allocation.as_ref());
-                self.format_construct_literal(literal)
-            }
+            ConstructMemberDecl::Literal(literal) => self.format_construct_literal(literal),
         }
     }
 
@@ -161,7 +157,6 @@ impl Formatter {
     fn format_function_decl(&mut self, item: &FunctionDecl) {
         self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
-        self.format_result_allocation(item.result_allocation.as_ref());
         self.write("func ");
         self.write(&item.name);
         self.format_generics(&item.generics);
@@ -176,7 +171,6 @@ impl Formatter {
     fn format_primitive_decl(&mut self, item: &PrimitiveDecl) {
         self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
-        self.format_result_allocation(item.result_allocation.as_ref());
         self.write("primitive ");
         self.write(&item.name);
         self.format_generics(&item.generics);
@@ -327,7 +321,6 @@ impl Formatter {
 
     fn format_method_decl(&mut self, item: &MethodDecl) {
         self.format_visibility(item.visibility);
-        self.format_result_allocation(item.result_allocation.as_ref());
         self.write("method ");
         self.format_method_receiver(&item.receiver);
         self.write(".");
@@ -362,15 +355,6 @@ impl Formatter {
                 self.write(" | ");
             }
             self.write(origin.kind.source_label());
-        }
-    }
-
-    fn format_result_allocation(
-        &mut self,
-        modifier: Option<&crate::ast::ResultAllocationModifier>,
-    ) {
-        if modifier.is_some() {
-            self.write("alloc ");
         }
     }
 

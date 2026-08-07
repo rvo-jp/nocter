@@ -28,7 +28,7 @@ pub struct String {
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.
-    pub default alloc literal ""(text: &str): Self {
+    pub default literal ""(text: &str): Self {
         return String.copy(text)
     }
 
@@ -39,7 +39,7 @@ construct String {
         }
     }
 
-    pub alloc func with_capacity(requested_capacity: usize): Self {
+    pub func with_capacity(requested_capacity: usize): Self {
         var allocator = current_allocator()
         return String {
             storage: alloc(&+allocator, requested_capacity, 1),
@@ -47,7 +47,7 @@ construct String {
         }
     }
 
-    pub alloc func try_with_capacity(
+    pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self! from allocator {
@@ -57,7 +57,7 @@ construct String {
         }
     }
 
-    pub alloc func from_str(value: &str): Self {
+    pub func from_str(value: &str): Self {
         let value_len: usize = value.len()
         var result = String.with_capacity(value_len)
         copy_str_to_ptr(result.storage.ptr, 0, value)
@@ -65,11 +65,11 @@ construct String {
         return move result
     }
 
-    pub alloc func copy(value: &str): Self {
+    pub func copy(value: &str): Self {
         return String.from_str(value)
     }
 
-    pub alloc func try_from_str(
+    pub func try_from_str(
         allocator: &+TryAllocator,
         value: &str,
     ): Self! from allocator {
@@ -80,11 +80,11 @@ construct String {
         return move result
     }
 
-    pub alloc func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
+    pub func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
         return String.try_from_str(allocator, value)?
     }
 
-    pub alloc func from_utf8(candidate: &[u8]): Self! {
+    pub func from_utf8(candidate: &[u8]): Self! {
         if !is_valid_utf8(candidate) { return invalid_utf8() }
         var result = String.with_capacity(candidate.len())
         var offset: usize = 0
@@ -96,7 +96,7 @@ construct String {
         return move result
     }
 
-    pub alloc func try_from_utf8(
+    pub func try_from_utf8(
         allocator: &+TryAllocator,
         candidate: &[u8],
     ): Self! from allocator {
@@ -116,40 +116,40 @@ pub func empty(): String {
     return String.empty()
 }
 
-pub alloc func with_capacity(requested_capacity: usize): String {
+pub func with_capacity(requested_capacity: usize): String {
     return String.with_capacity(requested_capacity)
 }
 
-pub alloc func try_with_capacity(
+pub func try_with_capacity(
     allocator: &+TryAllocator,
     requested_capacity: usize,
 ): String! from allocator {
     return String.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub alloc func from_str(value: &str): String {
+pub func from_str(value: &str): String {
     return String.from_str(value)
 }
 
-pub alloc func try_from_str(
+pub func try_from_str(
     allocator: &+TryAllocator,
     value: &str,
 ): String! from allocator {
     return String.try_from_str(allocator, value)?
 }
 
-pub alloc func from_utf8(candidate: &[u8]): String! {
+pub func from_utf8(candidate: &[u8]): String! {
     return String.from_utf8(candidate)?
 }
 
-pub alloc func try_from_utf8(
+pub func try_from_utf8(
     allocator: &+TryAllocator,
     candidate: &[u8],
 ): String! from allocator {
     return String.try_from_utf8(allocator, candidate)?
 }
 
-pub func view(text: &String): &str {
+pub func view(text: &String): &str from text {
     return str_from_raw_parts(text.storage.ptr, text.len)
 }
 
@@ -195,7 +195,7 @@ pub func clear(text: &+String): void {
     return
 }
 
-pub func bytes(value: &str): &[u8] {
+pub func bytes(value: &str): &[u8] from value {
     return bytes_from_str(value)
 }
 
@@ -292,7 +292,7 @@ pub func ends_with(value: &str, suffix: &str): bool {
 ///
 /// An empty separator is rejected because character-boundary splitting belongs
 /// to a future scalar-value iterator rather than byte-oriented search.
-pub alloc func split(value: &str, separator: &str): Vec<String>! {
+pub func split(value: &str, separator: &str): Vec<String>! {
     if separator.len() == 0 {
         return empty_separator()
     }
@@ -309,7 +309,7 @@ pub alloc func split(value: &str, separator: &str): Vec<String>! {
     return move result
 }
 
-alloc func copy_range(value: &str, start: usize, end: usize): String {
+func copy_range(value: &str, start: usize, end: usize): String {
     let source: &[u8] = bytes_from_str(value)
     var result = String.with_capacity(end - start)
     var offset: usize = start
@@ -329,7 +329,7 @@ pub func empty_separator(): error {
     return Error.new("std.string.empty_separator", "string separator must not be empty")
 }
 
-pub func bytes_iter(text: &String): ViewIter<u8> {
+pub func bytes_iter(text: &String): ViewIter<u8> from text {
     return ViewIter.from_view(bytes_from_str(view(text)))
 }
 
@@ -354,7 +354,7 @@ pub func capacity_overflow(): error {
 }
 
 impl String {
-    pub method &self.view(): &str {
+    pub method &self.view(): &str from self {
         return view(self)
     }
 
@@ -385,7 +385,7 @@ impl String {
         return
     }
 
-    pub method &self.bytes(): &[u8] {
+    pub method &self.bytes(): &[u8] from self {
         return bytes_from_str(view(self))
     }
 
@@ -405,12 +405,12 @@ impl String {
         return ends_with(view(self), suffix)
     }
 
-    pub alloc method &self.split(separator: &str): Vec<String>! {
+    pub method &self.split(separator: &str): Vec<String>! {
         return split(view(self), separator)?
     }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.
-    pub method &self.bytes_iter(): ViewIter<u8> {
+    pub method &self.bytes_iter(): ViewIter<u8> from self {
         return bytes_iter(self)
     }
 

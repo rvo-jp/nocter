@@ -12,7 +12,6 @@ pub(crate) struct CallablePresentation {
     generics: Vec<String>,
     parameters: Vec<String>,
     return_type: String,
-    result_may_allocate: bool,
     result_origins: Vec<String>,
 }
 
@@ -22,7 +21,6 @@ pub(crate) struct LiteralPresentation {
     shape: &'static str,
     parameters: Vec<String>,
     return_type: String,
-    result_may_allocate: bool,
     result_origins: Vec<String>,
 }
 
@@ -32,7 +30,6 @@ impl LiteralPresentation {
         shape: &'static str,
         parameters: Vec<String>,
         return_type: impl Into<String>,
-        result_may_allocate: bool,
         result_origins: Vec<String>,
     ) -> Self {
         Self {
@@ -40,7 +37,6 @@ impl LiteralPresentation {
             shape,
             parameters,
             return_type: return_type.into(),
-            result_may_allocate,
             result_origins,
         }
     }
@@ -51,13 +47,8 @@ impl LiteralPresentation {
         } else {
             format!(" from {}", self.result_origins.join(" | "))
         };
-        let allocation = if self.result_may_allocate {
-            "alloc "
-        } else {
-            ""
-        };
         format!(
-            "{allocation}literal {} {}({}): {}{origins}",
+            "literal {} {}({}): {}{origins}",
             self.target,
             self.shape,
             self.parameters.join(", "),
@@ -73,7 +64,6 @@ impl CallablePresentation {
         generics: Vec<String>,
         parameters: Vec<String>,
         return_type: impl Into<String>,
-        result_may_allocate: bool,
         result_origins: Vec<String>,
     ) -> Self {
         Self {
@@ -82,7 +72,6 @@ impl CallablePresentation {
             generics,
             parameters,
             return_type: return_type.into(),
-            result_may_allocate,
             result_origins,
         }
     }
@@ -98,13 +87,8 @@ impl CallablePresentation {
         } else {
             format!(" from {}", self.result_origins.join(" | "))
         };
-        let allocation = if self.result_may_allocate {
-            "alloc "
-        } else {
-            ""
-        };
         format!(
-            "{allocation}{} {}{generics}({}): {}{origins}",
+            "{} {}{generics}({}): {}{origins}",
             self.kind,
             self.name,
             self.parameters.join(", "),
@@ -157,7 +141,6 @@ pub(crate) fn callable_signature_presentation(
         generics,
         parameters,
         type_expr_presentation_label(&signature.return_type, resolved),
-        signature.result_may_allocate,
         result_origin_labels(signature.result_provenance.as_ref()),
     )
 }
@@ -278,7 +261,6 @@ pub(crate) fn method_presentation_with_substitutions(
         generics,
         parameters,
         type_expr_presentation_label(&return_type, resolved),
-        method.signature.result_may_allocate,
         result_origin_labels(method.signature.result_provenance.as_ref()),
     )
 }
@@ -345,7 +327,6 @@ pub(crate) fn literal_presentation_with_substitutions(
         },
         parameters,
         type_expr_presentation_label(&return_type, resolved),
-        literal.result_may_allocate,
         result_origin_labels(literal.result_provenance.as_ref()),
     )
 }

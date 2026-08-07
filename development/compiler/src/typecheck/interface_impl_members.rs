@@ -67,10 +67,7 @@ pub(super) fn check_interface_impl_members(
         if expected.has_unknown_or_unresolved() || found.has_unknown_or_unresolved() {
             continue;
         }
-        let allocation_contract_is_compatible =
-            required.signature.result_may_allocate || !actual.signature.result_may_allocate;
         if expected != found
-            || !allocation_contract_is_compatible
             || !result_provenance_contract_is_compatible(
                 required,
                 actual,

@@ -147,7 +147,7 @@ struct String {
     bytes: &[u8]
 }
 
-alloc func leak(parent: Arena): String {
+func leak(parent: Arena): String {
     region temp using parent {
         return "value ${42}"
     }
@@ -371,17 +371,17 @@ func current_allocator(): Arena {
     return Arena { state: current_allocator_state() }
 }
 
-alloc func allocate(allocator: &+Arena): Buffer {
+func allocate(allocator: &+Arena): Buffer {
     return Buffer { ptr: allocator.state }
 }
 
-alloc func make_text(): Text {
+func make_text(): Text {
     var allocator = current_allocator()
     var text = Text { buffer: allocate(&+allocator) }
     return move text
 }
 
-alloc func leak(parent: Arena): Text {
+func leak(parent: Arena): Text {
     region temp using parent {
         return make_text()
     }

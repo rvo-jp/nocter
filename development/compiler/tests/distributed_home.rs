@@ -443,7 +443,7 @@ func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
     return raw_prefix_mut(buffer, prefix_len)?
 }
 
-alloc func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer from allocator {
+func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer from allocator {
     return allocator.alloc(size, align)
 }
 
@@ -469,7 +469,7 @@ func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void {
     return
 }
 
-alloc func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! from allocator {
+func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! from allocator {
     return alloc_layout(allocator, Layout.new(8, 8)?)
 }
 
@@ -520,15 +520,15 @@ func file_write_text(file: &+File, text: &str): void! {
     return
 }
 
-alloc func process_cwd(): String! {
+func process_cwd(): String! {
     return cwd()?
 }
 
-alloc func process_try_cwd(allocator: &+TryAllocator): String! from allocator {
+func process_try_cwd(allocator: &+TryAllocator): String! from allocator {
     return try_cwd(allocator)?
 }
 
-alloc func process_args_shape(): Vec<&str>! {
+func process_args_shape(): Vec<&str>! {
     return args()?
 }
 "#,
@@ -2214,7 +2214,7 @@ fn distributed_std_vec_builds_cross_source_generic_copy_aggregate_with_capacity(
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub alloc func make<T>(seed: T): Vec<T>! {
+pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -2270,7 +2270,7 @@ fn distributed_std_vec_builds_cross_source_generic_non_copy_aggregate_with_capac
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub alloc func make<T>(seed: T): Vec<T>! {
+pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -2326,7 +2326,7 @@ pub copy struct Box<T> {
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub alloc func make<T>(seed: T): Vec<T>! {
+pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -3158,7 +3158,7 @@ fn distributed_std_allocator_methods_run() {
         r#"use std/io.File
 use std/mem.{Allocator, RawBuffer, page_allocator}
 
-alloc func allocate(allocator: &+Allocator): RawBuffer! from allocator {
+func allocate(allocator: &+Allocator): RawBuffer! from allocator {
     return allocator.alloc(2, 1)
 }
 
@@ -3495,7 +3495,7 @@ pub func buffer_address(buffer: &RawBuffer): usize {
     return addr(buffer.ptr)
 }
 
-pub alloc func allocate_current(size: usize, align: usize): RawBuffer {
+pub func allocate_current(size: usize, align: usize): RawBuffer {
     var allocator = current_allocator()
     return alloc(&+allocator, size, align)
 }
@@ -3620,21 +3620,21 @@ struct Holder {
     text: String
 }
 
-alloc func leak_struct(): Holder {
+func leak_struct(): Holder {
     var arena = page_allocator()
     region temporary using arena {
         return Holder { text: String.from_str("struct") }
     }
 }
 
-alloc func leak_optional(): String? {
+func leak_optional(): String? {
     var arena = page_allocator()
     region temporary using arena {
         return String.from_str("optional")
     }
 }
 
-alloc func leak_error_view(): i32! {
+func leak_error_view(): i32! {
     var arena = page_allocator()
     region temporary using arena {
         let text = String.from_str("error")
@@ -3642,7 +3642,7 @@ alloc func leak_error_view(): i32! {
     }
 }
 
-alloc func leak_empty_growth(): Vec<u8> {
+func leak_empty_growth(): Vec<u8> {
     var arena = page_allocator()
     region temporary using arena {
         var values: Vec<u8> = Vec.empty()
@@ -3680,7 +3680,7 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_std_rejects_allocating_closure_across_imported_non_alloc_bound() {
+fn distributed_std_accepts_allocating_closure_without_result_variance() {
     let project = TempProject::new("distributed-home-imported-closure-allocation-contract");
     project.write_source(
         "callbacks.nct",
@@ -3703,21 +3703,7 @@ func main(): i32 {
 
     let output = nocter_check(&project, &source);
 
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(output.stdout.is_empty(), "expected empty stdout");
-    let stderr = text(&output.stderr);
-    assert!(stderr.contains("error[E0464]"), "stderr:\n{stderr}");
-    assert!(
-        stderr.contains("callable bound is not `alloc`")
-            && stderr.contains("does not permit an allocated result"),
-        "stderr:\n{stderr}"
-    );
+    assert_success(&output);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -4567,7 +4553,7 @@ fn distributed_std_explicit_string_construction_builds_to_macho() {
 use std/mem.page_allocator
 use std/string.with_capacity
 
-alloc func make(): String {
+func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
     append_str(&+out, "hello")
@@ -4599,7 +4585,7 @@ use std/io.print
 use std/mem.page_allocator
 use std/string.{view, with_capacity}
 
-alloc func make(): String {
+func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
     append_str(&+out, "hello")
@@ -4747,7 +4733,7 @@ fn distributed_std_string_from_str_forward_return_runs() {
 use std/mem.page_allocator
 use std/string.{from_str, view}
 
-alloc func make(): String! {
+func make(): String! {
     var allocator = page_allocator()
     return from_str("Forwarded String")
 }
@@ -5301,6 +5287,20 @@ fn distributed_std_sources_do_not_reintroduce_removed_placeholders() {
 
     for file in files {
         let text = fs::read_to_string(&file).unwrap();
+        for removed in [
+            "alloc func",
+            "alloc method",
+            "alloc primitive",
+            "alloc literal",
+            "alloc &func",
+            "alloc &+func",
+        ] {
+            assert!(
+                !text.contains(removed),
+                "`{}` still contains removed result modifier `{removed}`",
+                file.display()
+            );
+        }
         assert!(
             !text.contains("make_error"),
             "`{}` still references removed make_error helper",

@@ -1,13 +1,12 @@
 //! Built-in structural callable contracts.
 
-use super::{ResultAllocationModifier, ResultProvenanceClause, TypeExpr};
+use super::{ResultProvenanceClause, TypeExpr};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallableTypeExpr {
     pub span: ByteSpan,
     pub func_span: ByteSpan,
-    pub result_allocation: Option<ResultAllocationModifier>,
     pub capability: CallableCapability,
     pub parameters_span: ByteSpan,
     pub parameters: Vec<CallableTypeParameter>,

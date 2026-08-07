@@ -570,7 +570,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2281,7 +2281,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2341,7 +2341,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2402,7 +2402,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2465,7 +2465,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2525,7 +2525,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -2738,7 +2738,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,

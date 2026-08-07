@@ -49,7 +49,6 @@ fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
         generics,
         parameters,
         crate::ast::canonical_type_expr(&signature.return_type),
-        signature.result_may_allocate,
         super::result_origin_labels(signature.result_provenance.as_ref()),
     )
     .render()

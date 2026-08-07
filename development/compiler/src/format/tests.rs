@@ -84,11 +84,11 @@ fn formats_lexical_regions_stably() {
 }
 
 #[test]
-fn formats_result_provenance_contracts_stably() {
+fn formats_result_provenance_across_callable_forms_stably() {
     assert_formats_stably(
         r#"interface Lookup<T>{pub method &self.get(fallback:&T):&T from self|fallback}
 func greeting():&str from static{return "hello"}
-alloc primitive allocated_text():&str
+primitive allocated_text():&str
 "#,
         concat!(
             "interface Lookup<T> {\n",
@@ -99,7 +99,7 @@ alloc primitive allocated_text():&str
             "    return \"hello\"\n",
             "}\n",
             "\n",
-            "alloc primitive allocated_text(): &str\n",
+            "primitive allocated_text(): &str\n",
         ),
     );
 }
@@ -133,12 +133,12 @@ fn formats_generic_interface_bounds_stably() {
 #[test]
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
-        r#"construct Vec<T>{pub default alloc literal [](...items:T):Self{for item in items{return move item}}}
+        r#"construct Vec<T>{pub default literal [](...items:T):Self{for item in items{return move item}}}
 func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&other,...move other,3] using arena}
 "#,
         concat!(
             "construct Vec<T> {\n",
-            "    pub default alloc literal [](...items: T): Self {\n",
+            "    pub default literal [](...items: T): Self {\n",
             "        for item in items {\n",
             "            return move item\n",
             "        }\n",
@@ -373,34 +373,34 @@ fn formats_builtin_callable_contracts_stably() {
 }
 
 #[test]
-fn formats_result_allocation_contracts_stably() {
+fn formats_result_provenance_contracts_stably() {
     assert_formats_stably(
-        r#"pub alloc func copy(factory:alloc &func():Text):Text{return factory()}
-interface Factory{pub alloc method &self.make():Text}
-impl Factory for Builder{alloc method &self.make():Text{return make()}}
-construct Text{pub default alloc func new():Self{return make()}pub alloc literal ""(text:&str):Self{return make()}}
+        r#"pub func view(factory:&func():&Text from static):&Text from static{return factory()}
+interface Factory{pub method &self.view():&Text from self}
+impl Factory for Builder{method &self.view():&Text from self{return borrow()}}
+construct Text{pub default func new():Self{return make()}pub literal ""(text:&str):Self{return make()}}
 "#,
         concat!(
-            "pub alloc func copy(factory: alloc &func(): Text): Text {\n",
+            "pub func view(factory: &func(): &Text from static): &Text from static {\n",
             "    return factory()\n",
             "}\n",
             "\n",
             "interface Factory {\n",
-            "    pub alloc method &self.make(): Text\n",
+            "    pub method &self.view(): &Text from self\n",
             "}\n",
             "\n",
             "impl Factory for Builder {\n",
-            "    alloc method &self.make(): Text {\n",
-            "        return make()\n",
+            "    method &self.view(): &Text from self {\n",
+            "        return borrow()\n",
             "    }\n",
             "}\n",
             "\n",
             "construct Text {\n",
-            "    pub default alloc func new(): Self {\n",
+            "    pub default func new(): Self {\n",
             "        return make()\n",
             "    }\n",
             "\n",
-            "    pub alloc literal \"\"(text: &str): Self {\n",
+            "    pub literal \"\"(text: &str): Self {\n",
             "        return make()\n",
             "    }\n",
             "}\n",

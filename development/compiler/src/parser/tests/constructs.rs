@@ -55,8 +55,8 @@ fn parses_type_owned_construction_members_and_contextual_default() {
 }
 
 #[test]
-fn parses_result_allocation_after_construct_default_modifier() {
-    let (sources, output) = parse_text_with_sources(
+fn rejects_removed_result_allocation_in_construct_members() {
+    let (_sources, output) = parse_text_with_sources(
         r#"construct Text {
     pub default alloc func new(): Self { return make() }
     pub alloc literal ""(text: &str): Self { return make() }
@@ -64,22 +64,12 @@ fn parses_result_allocation_after_construct_default_modifier() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Construct(construct) = &ast.items[0] else {
-        panic!("expected construct");
-    };
-    assert!(construct.members[0].is_default());
-    assert!(matches!(
-        &construct.members[0].declaration,
-        ConstructMemberDecl::Function(function) if function.result_allocation.is_some()
-    ));
-    assert!(matches!(
-        &construct.members[1].declaration,
-        ConstructMemberDecl::Literal(literal) if literal.result_allocation.is_some()
-    ));
-    let json = ast.to_json(&sources);
-    assert!(find_json_node(&json, "result_allocation_modifier").is_some());
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("result `alloc` modifiers have been removed")
+    }));
 }
 
 #[test]

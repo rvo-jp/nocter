@@ -89,7 +89,7 @@ func main(): i32 {
     return 0
 }
 
-alloc func message(name: &str, count: i32, byte: u8, size: usize, ready: bool, owned: String): String {
+func message(name: &str, count: i32, byte: u8, size: usize, ready: bool, owned: String): String {
     return "name ${name} count ${count} byte ${byte} size ${size} ready ${ready} owned ${owned}"
 }
 "#,
@@ -109,7 +109,7 @@ func main(): i32 {
     return 0
 }
 
-alloc func message(values: &[i32]): String {
+func message(values: &[i32]): String {
     return "values ${values}"
 }
 "#,
@@ -131,7 +131,7 @@ func main(): i32 {
     return 0
 }
 
-alloc func message(value: u16): String {
+func message(value: u16): String {
     return "value ${value}"
 }
 "#,

@@ -34,7 +34,7 @@ pub struct OnceIter<T> {
 }
 
 /// Constructs an iterator that yields `item` once.
-pub func once<T>(item: T): OnceIter<T> {
+pub func once<T>(item: T): OnceIter<T> from item {
     return OnceIter<T> {
         item: move item,
         remaining: 1,

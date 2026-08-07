@@ -67,7 +67,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_ambiguous_bodyless_interface_result() {
+fn bodyless_interface_without_from_declares_no_external_origin() {
     let diagnostics = check_text(
         r#"interface Choose {
     pub method &self.choose(other: &Self): &Self
@@ -79,11 +79,7 @@ func main(): i32 {
 "#,
     );
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0444")
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -96,6 +92,48 @@ fn accepts_explicit_bodyless_interface_result_contract() {
 func main(): i32 {
     return 0
 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_bodyless_result_without_an_external_origin() {
+    let diagnostics = check_text(
+        r#"interface View {
+    pub method &self.view(): &Self
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_elided_public_body_external_result_origin() {
+    let diagnostics = check_text(
+        r#"pub func view(value: &i32): &i32 { return value }
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0444")
+    );
+}
+
+#[test]
+fn private_body_may_keep_an_inferred_external_result_origin() {
+    let diagnostics = check_text(
+        r#"func view(value: &i32): &i32 { return value }
+
+func main(): i32 { return 0 }
 "#,
     );
 
@@ -167,13 +205,13 @@ func main(): i32 {
 }
 
 #[test]
-fn accepts_alloc_contract_for_pointer_backed_owned_result() {
+fn infers_fresh_storage_for_pointer_backed_owned_result() {
     let diagnostics = check_text(
-        r#"alloc primitive allocate(): *u8
+        r#"primitive allocate(): *u8
 
 struct Buffer { ptr: *u8 }
 
-alloc func build(): Buffer {
+func build(): Buffer {
     return Buffer { ptr: allocate() }
 }
 
@@ -187,11 +225,11 @@ func main(): i32 {
 }
 
 #[test]
-fn result_allocation_and_external_provenance_contracts_are_independent() {
+fn internal_fresh_storage_and_external_provenance_are_independent() {
     let diagnostics = check_text(
-        r#"alloc primitive fresh(): &i32
+        r#"primitive fresh(): &i32
 
-alloc func choose(existing: &i32, create: bool): &i32 from existing {
+func choose(existing: &i32, create: bool): &i32 from existing {
     if create {
         return fresh()
     }
@@ -216,9 +254,9 @@ fn result_contract_ignores_scalar_fields_in_storage_carrying_aggregates() {
         r#"struct Allocator { state: usize }
 struct Buffer { ptr: *u8, len: usize }
 
-alloc primitive allocate(allocator: &+Allocator): *u8 from allocator
+primitive allocate(allocator: &+Allocator): *u8 from allocator
 
-alloc func make(allocator: &+Allocator, len: usize): Buffer from allocator {
+func make(allocator: &+Allocator, len: usize): Buffer from allocator {
     return Buffer { ptr: allocate(allocator), len: len }
 }
 

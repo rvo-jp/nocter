@@ -489,7 +489,7 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error {
+pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
 }
 "#,
@@ -522,9 +522,9 @@ pub func print(text: &str): void! {
 fn std_string_bytes_file() -> (&'static str, &'static str) {
     (
         "std/string.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8] from value
 
-pub func bytes(value: &str): &[u8] {
+pub func bytes(value: &str): &[u8] from value {
     return bytes_from_str(value)
 }
 "#,

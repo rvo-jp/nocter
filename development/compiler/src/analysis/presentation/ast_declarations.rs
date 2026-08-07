@@ -47,7 +47,6 @@ pub(crate) fn ast_function_presentation(function: &FunctionDecl) -> String {
         &function.generics.parameters,
         &function.parameters.parameters,
         &function.return_type,
-        function.result_allocation.is_some(),
         function.result_provenance.as_ref(),
     )
 }
@@ -59,7 +58,6 @@ pub(crate) fn ast_primitive_presentation(primitive: &PrimitiveDecl) -> String {
         &primitive.generics.parameters,
         &primitive.parameters.parameters,
         &primitive.return_type,
-        primitive.result_allocation.is_some(),
         primitive.result_provenance.as_ref(),
     )
 }
@@ -75,7 +73,6 @@ pub(crate) fn ast_method_presentation(method: &MethodDecl) -> String {
         &method.generics.parameters,
         &method.parameters.parameters,
         &method.return_type,
-        method.result_allocation.is_some(),
         method.result_provenance.as_ref(),
     )
 }
@@ -98,7 +95,6 @@ pub(crate) fn ast_literal_presentation(literal: &LiteralDecl) -> String {
         },
         parameters,
         crate::ast::canonical_type_expr(&literal.return_type),
-        literal.result_allocation.is_some(),
         super::result_origin_labels(literal.result_provenance.as_ref()),
     )
     .render()
@@ -131,7 +127,6 @@ fn callable(
     generics: &[GenericParam],
     parameters: &[Parameter],
     return_type: &crate::ast::TypeExpr,
-    result_may_allocate: bool,
     result_provenance: Option<&crate::ast::ResultProvenanceClause>,
 ) -> String {
     CallablePresentation::new(
@@ -140,7 +135,6 @@ fn callable(
         generics.iter().map(generic_label).collect(),
         ast_parameter_labels(parameters),
         crate::ast::canonical_type_expr(return_type),
-        result_may_allocate,
         super::result_origin_labels(result_provenance),
     )
     .render()

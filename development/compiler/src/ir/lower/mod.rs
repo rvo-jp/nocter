@@ -1258,7 +1258,6 @@ fn resolved_function_signature(
     return_type: TypeExpr,
 ) -> ResolvedFunctionSignature {
     ResolvedFunctionSignature {
-        result_may_allocate: false,
         generic_parameters: Vec::new(),
         generic_parameter_bounds: Vec::new(),
         parameters: parameters

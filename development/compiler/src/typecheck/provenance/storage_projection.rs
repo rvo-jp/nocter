@@ -86,6 +86,7 @@ pub(super) fn external_origins_satisfy(
     }
 }
 
+#[cfg(test)]
 pub(in crate::typecheck) fn result_contains_allocation(
     actual: &ValueProvenance,
     ty: &Type,
@@ -134,6 +135,7 @@ pub(in crate::typecheck) fn result_contains_allocation(
     }
 }
 
+#[cfg(test)]
 fn conservative_children_contain_allocation(
     actual: &ValueProvenance,
     ty: &Type,

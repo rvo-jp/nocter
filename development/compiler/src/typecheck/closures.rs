@@ -193,31 +193,6 @@ pub(super) fn environment_for_closure_with_parameters(
     environment
 }
 
-/// Reconstructs the closure-local environment from compiler-owned materialized
-/// type facts. This is used by post-inference contract checks, which must not
-/// guess capture or parameter types from source spelling.
-pub(super) fn environment_for_materialized_closure(
-    closure: &ClosureExpr,
-    ty: &ClosureTypeExpr,
-    resolved: &ResolveOutput,
-) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::default();
-    for capture in &ty.captures {
-        let capture_type = type_expr_to_type_in_environment(&capture.ty, resolved, &environment);
-        environment.define_binding(
-            capture.name.clone(),
-            capture_type,
-            capture.mode == ClosureCaptureMode::ReadwriteBorrow,
-        );
-    }
-    for (parameter, parameter_type) in closure.parameters.iter().zip(&ty.parameters) {
-        let parameter_type =
-            type_expr_to_type_in_environment(parameter_type, resolved, &environment);
-        environment.define(parameter.name.clone(), parameter_type);
-    }
-    environment
-}
-
 pub(super) fn infer_closure_type(
     closure: &ClosureExpr,
     resolved: &ResolveOutput,

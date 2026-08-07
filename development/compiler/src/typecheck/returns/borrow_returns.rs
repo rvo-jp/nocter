@@ -8,7 +8,6 @@ mod input_sources;
 mod literal_provenance;
 mod mutation_effects;
 mod propagation_collection;
-mod result_allocation_evidence;
 mod summaries;
 mod summary_instantiation;
 mod type_predicates;
@@ -20,7 +19,6 @@ pub(super) use input_sources::*;
 pub(super) use literal_provenance::*;
 pub(super) use mutation_effects::*;
 pub(super) use propagation_collection::*;
-pub(in crate::typecheck) use result_allocation_evidence::result_allocation_witness_for_callable_body;
 pub(in crate::typecheck) use summaries::{
     borrow_return_provenance_for_callable_body, callable_provenance_summaries, function_summary_key,
 };

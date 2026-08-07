@@ -23,6 +23,49 @@ pub(in crate::typecheck) fn type_may_carry_result_provenance(
         || type_contains_pointer(ty, resolved, &mut HashSet::new())
 }
 
+/// Returns whether an abstract callable result may own fresh storage.
+///
+/// This is intentionally type-directed rather than name-directed. A borrow or
+/// view without a declared external origin is conservative at an abstract
+/// boundary, while scalar and `error` outcome branches remain independent.
+pub(in crate::typecheck) fn type_may_retain_fresh_result_storage(
+    ty: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    match ty {
+        Type::Pointer(_) | Type::Borrow { .. } | Type::View { .. } => true,
+        Type::Named(_) | Type::Generic { .. } => {
+            type_contains_pointer(ty, resolved, &mut HashSet::new())
+        }
+        Type::Array { element, .. } | Type::Optional(element) | Type::ArrayData { element } => {
+            type_may_retain_fresh_result_storage(element, resolved)
+        }
+        Type::Fallible { success, error } => {
+            type_may_retain_fresh_result_storage(success, resolved)
+                || type_may_retain_fresh_result_storage(error, resolved)
+        }
+        Type::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode == crate::ast::ClosureCaptureMode::Move
+                && type_expr_contains_pointer(
+                    &capture.ty,
+                    resolved,
+                    &HashMap::new(),
+                    &mut HashSet::new(),
+                )
+        }),
+        Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => true,
+        Type::Callable(_)
+        | Type::I32
+        | Type::Primitive(_)
+        | Type::Str
+        | Type::StrData
+        | Type::Void
+        | Type::Never
+        | Type::None
+        | Type::Error => false,
+    }
+}
+
 fn type_contains_pointer(
     ty: &Type,
     resolved: &ResolveOutput,

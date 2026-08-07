@@ -41,40 +41,20 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_type_atom(&mut self) -> ParseResult<TypeExpr> {
-        let result_allocation = if self.at_identifier_text("alloc")
-            && (self.token_at_offset_is_keyword(1, Keyword::Func)
-                || ((self.punctuation_at_offset(1, "&") || self.punctuation_at_offset(1, "&+"))
-                    && self.token_at_offset_is_keyword(2, Keyword::Func)))
-        {
-            self.parse_optional_result_allocation_modifier()
-        } else {
-            None
-        };
+        self.reject_removed_result_allocation_modifier()?;
 
         if self.at_keyword(Keyword::Func) {
-            return self.parse_callable_type(
-                None,
-                CallableCapability::Consuming,
-                result_allocation,
-            );
+            return self.parse_callable_type(None, CallableCapability::Consuming);
         }
 
         if self.at_punctuation("&+") && self.next_is_keyword(Keyword::Func) {
             let prefix = self.bump();
-            return self.parse_callable_type(
-                Some(prefix.span),
-                CallableCapability::Readwrite,
-                result_allocation,
-            );
+            return self.parse_callable_type(Some(prefix.span), CallableCapability::Readwrite);
         }
 
         if self.at_punctuation("&") && self.next_is_keyword(Keyword::Func) {
             let prefix = self.bump();
-            return self.parse_callable_type(
-                Some(prefix.span),
-                CallableCapability::Readonly,
-                result_allocation,
-            );
+            return self.parse_callable_type(Some(prefix.span), CallableCapability::Readonly);
         }
 
         if let Some(star) = self.match_punctuation("*") {
@@ -186,7 +166,6 @@ impl Parser<'_> {
         &mut self,
         prefix_span: Option<ByteSpan>,
         capability: CallableCapability,
-        result_allocation: Option<crate::ast::ResultAllocationModifier>,
     ) -> ParseResult<TypeExpr> {
         let func = self.expect_keyword(Keyword::Func, "`func`")?;
         let open = self.expect_punctuation("(", "`(`")?;
@@ -224,17 +203,13 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let start = result_allocation.map_or_else(
-            || prefix_span.map_or(func.span.start, |span| span.start),
-            |modifier| modifier.span.start,
-        );
+        let start = prefix_span.map_or(func.span.start, |span| span.start);
         let end = result_provenance
             .as_ref()
             .map_or(return_type.span().end, |clause| clause.span.end);
         Ok(TypeExpr::Callable(CallableTypeExpr {
             span: self.span(start, end),
             func_span: func.span,
-            result_allocation,
             capability,
             parameters_span: self.span(open.span.start, close.span.end),
             parameters,

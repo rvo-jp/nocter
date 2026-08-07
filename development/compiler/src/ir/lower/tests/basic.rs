@@ -101,9 +101,9 @@ func main(): i32 {
         &[(
             "std/process.nct",
             r#"#target: "arm64-darwin"
-pub(nocter) primitive arg_raw(index: usize): &str
+pub(nocter) primitive arg_raw(index: usize): &str from static
 
-pub func arg_probe(index: usize): &str {
+pub func arg_probe(index: usize): &str from static {
     return arg_raw(index)
 }
 "#,
@@ -144,13 +144,13 @@ func main(): i32 {
             r#"#target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 #target: "arm64-darwin"
-pub(nocter) primitive env_name_raw(index: usize): &str
+pub(nocter) primitive env_name_raw(index: usize): &str from static
 #target: "arm64-darwin"
-pub(nocter) primitive env_value_raw(index: usize): &str
+pub(nocter) primitive env_value_raw(index: usize): &str from static
 
 pub func env_count_probe(): usize { return env_count_raw() }
-pub func env_name_probe(index: usize): &str { return env_name_raw(index) }
-pub func env_value_probe(index: usize): &str { return env_value_raw(index) }
+pub func env_name_probe(index: usize): &str from static { return env_name_raw(index) }
+pub func env_value_probe(index: usize): &str from static { return env_value_raw(index) }
 "#,
         )],
     );

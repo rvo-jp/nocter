@@ -21,7 +21,6 @@ pub(crate) enum SemanticTokenKind {
     Type,
     Property,
     Namespace,
-    Keyword,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,57 +114,7 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_test_declarations();
         self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
-        self.collect_result_allocation_modifiers();
         self.collect_editor_targets();
-    }
-
-    fn collect_result_allocation_modifiers(&mut self) {
-        for item in &self.ast.items {
-            match item {
-                crate::ast::Item::Function(function) => {
-                    self.push_result_allocation(function.result_allocation.as_ref());
-                }
-                crate::ast::Item::Primitive(primitive) => {
-                    self.push_result_allocation(primitive.result_allocation.as_ref());
-                }
-                crate::ast::Item::Interface(interface) => {
-                    for method in &interface.methods {
-                        self.push_result_allocation(method.result_allocation.as_ref());
-                    }
-                }
-                crate::ast::Item::Impl(implementation) => {
-                    for member in &implementation.members {
-                        if let crate::ast::ImplMember::Method(method) = member {
-                            self.push_result_allocation(method.result_allocation.as_ref());
-                        }
-                    }
-                }
-                crate::ast::Item::Construct(construct) => {
-                    for member in &construct.members {
-                        match &member.declaration {
-                            crate::ast::ConstructMemberDecl::Function(function) => {
-                                self.push_result_allocation(function.result_allocation.as_ref());
-                            }
-                            crate::ast::ConstructMemberDecl::Literal(literal) => {
-                                self.push_result_allocation(literal.result_allocation.as_ref());
-                            }
-                        }
-                    }
-                }
-                crate::ast::Item::Import(_)
-                | crate::ast::Item::FromImport(_)
-                | crate::ast::Item::TypeAlias(_)
-                | crate::ast::Item::Struct(_)
-                | crate::ast::Item::Enum(_)
-                | crate::ast::Item::Test(_) => {}
-            }
-        }
-    }
-
-    fn push_result_allocation(&mut self, modifier: Option<&crate::ast::ResultAllocationModifier>) {
-        if let Some(modifier) = modifier {
-            self.push(modifier.span, SemanticTokenKind::Keyword, false, 0);
-        }
     }
 
     fn collect_test_declarations(&mut self) {
@@ -423,7 +372,6 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
         SemanticTokenKind::Parameter => 1,
         SemanticTokenKind::Variable => 0,
         SemanticTokenKind::Namespace => 6,
-        SemanticTokenKind::Keyword => 7,
     }
 }
 
@@ -858,35 +806,6 @@ func main(choice: Choice): i32 {
         assert!(
             identifiers_for_lexeme(text, &identifiers, "_").is_empty(),
             "payload discard should not be classified as an identifier"
-        );
-    }
-
-    #[test]
-    fn analysis_classifies_contextual_alloc_modifiers_as_keywords() {
-        let text = r#"struct Value { pointer: *u8 }
-alloc primitive make_raw(): Value
-alloc func make(): Value { return make_raw() }
-interface Factory { pub alloc method &self.create(): Value }
-struct FactoryImpl {}
-impl Factory for FactoryImpl {
-    alloc method &self.create(): Value { return make() }
-}
-construct Value {
-    pub alloc func new(): Self { return make() }
-    pub default alloc literal ""(text: &str): Self { return make() }
-}
-"#;
-        let (sources, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let source = sources.get(file.ast.span.source).expect("expected source");
-        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
-        let modifiers = identifiers_for_lexeme(text, &identifiers, "alloc");
-
-        assert_eq!(modifiers.len(), 6, "{identifiers:?}");
-        assert!(
-            modifiers
-                .iter()
-                .all(|modifier| modifier.kind == SemanticTokenKind::Keyword)
         );
     }
 

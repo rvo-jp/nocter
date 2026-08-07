@@ -303,7 +303,7 @@ func passthrough(success: &i32, choose: bool): &i32 {
 "#;
         let module_text = r#"primitive make_error(label: &str, value: &i32): error
 
-pub func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+pub func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! from success | failure {
     if choose {
         return success
     }

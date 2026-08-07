@@ -28,7 +28,6 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             MethodReceiverMode::ReadwriteBorrow,
             "T?",
             IterationResultContract {
-                may_allocate: true,
                 from_receiver: true,
             },
         )?,
@@ -50,7 +49,9 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "iter",
             MethodReceiverMode::ReadonlyBorrow,
             "I",
-            IterationResultContract::independent(),
+            IterationResultContract {
+                from_receiver: true,
+            },
         )?,
         owned_conversion: find_interface(
             module,
@@ -61,7 +62,6 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             MethodReceiverMode::Owned,
             "I",
             IterationResultContract {
-                may_allocate: false,
                 from_receiver: true,
             },
         )?,
@@ -127,21 +127,18 @@ fn interface_shape_matches(
         && method.receiver.mode == receiver_mode
         && method.parameters.parameters.is_empty()
         && crate::ast::canonical_type_expr(&method.return_type) == return_type
-        && method.result_allocation.is_some() == result_contract.may_allocate
         && result_provenance_matches(method, result_contract.from_receiver)
         && method.body.is_none()
 }
 
 #[derive(Debug, Clone, Copy)]
 struct IterationResultContract {
-    may_allocate: bool,
     from_receiver: bool,
 }
 
 impl IterationResultContract {
     const fn independent() -> Self {
         Self {
-            may_allocate: false,
             from_receiver: false,
         }
     }
@@ -182,13 +179,13 @@ mod tests {
         let iter = parse_text(
             &mut sources,
             r#"pub interface Iterator<T> {
-    pub alloc method &+self.next(): T? from self
+    pub method &+self.next(): T? from self
 }
 pub interface ExactSizeIterator<T> {
     pub method &self.remaining_len(): usize
 }
 pub interface Iterable<T, I> {
-    pub method &self.iter(): I
+    pub method &self.iter(): I from self
 }
 pub interface IntoIterator<T, I> {
     pub method self.into_iter(): I from self

@@ -94,12 +94,6 @@ impl TypecheckFacts {
         self.closure_plans.get(&expression_span)
     }
 
-    pub(in crate::typecheck) fn closure_plan_entries(
-        &self,
-    ) -> impl Iterator<Item = (ByteSpan, &TypecheckClosurePlan)> + '_ {
-        self.closure_plans.iter().map(|(span, plan)| (*span, plan))
-    }
-
     pub(crate) fn binding_scalar_view_kind(
         &self,
         name_span: ByteSpan,

@@ -5,67 +5,29 @@ use super::support::{
 use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
-fn parses_result_allocation_modifiers_on_callable_declarations() {
-    let output = parse_text(
-        r#"pub alloc func copy(): Text { return make() }
-pub(nocter) alloc primitive make_text(): Text
-interface Factory {
-    pub alloc method &self.make(): Text
-}
-impl Factory for Builder {
-    alloc method &self.make(): Text { return make() }
-}
-func alloc(): void { return }
-"#,
-    );
-
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function");
-    };
-    assert!(function.result_allocation.is_some());
-    let Item::Primitive(primitive) = &ast.items[1] else {
-        panic!("expected primitive");
-    };
-    assert!(primitive.result_allocation.is_some());
-    let Item::Interface(interface) = &ast.items[2] else {
-        panic!("expected interface");
-    };
-    assert!(interface.methods[0].result_allocation.is_some());
-    let Item::Impl(implementation) = &ast.items[3] else {
-        panic!("expected implementation");
-    };
-    assert!(matches!(
-        &implementation.members[0],
-        ImplMember::Method(method) if method.result_allocation.is_some()
-    ));
-    let Item::Function(named_alloc) = &ast.items[4] else {
-        panic!("expected function named alloc");
-    };
-    assert_eq!(named_alloc.name, "alloc");
-    assert!(named_alloc.result_allocation.is_none());
-}
-
-#[test]
-fn rejects_result_allocation_modifier_on_non_callable_declarations() {
-    for source in ["alloc struct Text {}\n", "pub alloc use std/io\n"] {
+fn rejects_removed_result_allocation_modifiers_without_reserving_alloc() {
+    for source in [
+        "pub alloc func copy(): Text { return make() }\n",
+        "pub(nocter) alloc primitive make_text(): Text\n",
+        "interface Factory { pub alloc method &self.make(): Text }\n",
+        "impl Factory for Builder { alloc method &self.make(): Text { return make() } }\n",
+    ] {
         let output = parse_text(source);
         assert!(output.ast.is_none(), "accepted `{source}`");
         assert!(output.diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("`alloc` applies only to callable declarations")
+                .contains("result `alloc` modifiers have been removed")
         }));
     }
 
-    let output = parse_text("copy alloc func make(): Text { return build() }\n");
-    assert!(output.ast.is_none());
-    assert!(output.diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("`copy` applies only to `struct` declarations")
-    }));
+    let output = parse_text("func alloc(): void { return }\n");
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert_eq!(function.name, "alloc");
 }
 
 #[test]
@@ -807,7 +769,7 @@ func greeting(): &str from static {
     return "hello"
 }
 
-alloc primitive allocated_text(): &str
+primitive allocated_text(): &str
 "#,
     );
 
@@ -840,7 +802,6 @@ alloc primitive allocated_text(): &str
     let Item::Primitive(primitive) = &ast.items[2] else {
         panic!("expected primitive");
     };
-    assert!(primitive.result_allocation.is_some());
     assert!(primitive.result_provenance.is_none());
 
     let json = ast.to_json(&sources);

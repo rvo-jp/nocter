@@ -141,7 +141,7 @@ pub(nocter) func region_alloc_pages(
     return payload_start + padding
 }
 
-pub alloc func try_alloc(
+pub func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
     align: usize,
@@ -150,7 +150,7 @@ pub alloc func try_alloc(
     return try_alloc_layout(allocator, requested)?
 }
 
-pub alloc func try_alloc_layout(
+pub func try_alloc_layout(
     allocator: &+TryAllocator,
     requested: Layout,
 ): RawBuffer! from allocator {
@@ -181,7 +181,7 @@ pub alloc func try_alloc_layout(
     }
 }
 
-pub alloc func alloc(
+pub func alloc(
     allocator: &+Allocator,
     size: usize,
     align: usize,
@@ -192,7 +192,7 @@ pub alloc func alloc(
     }
 }
 
-pub alloc func alloc_layout(
+pub func alloc_layout(
     allocator: &+Allocator,
     requested: Layout,
 ): RawBuffer from allocator {
@@ -286,22 +286,22 @@ pub(nocter) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
     return
 }
 
-pub func bytes(buffer: &RawBuffer): &[u8] {
+pub func bytes(buffer: &RawBuffer): &[u8] from buffer {
     return slice_from_raw_parts(buffer.ptr, buffer.len)
 }
 
-pub func bytes_mut(buffer: &+RawBuffer): &+[u8] {
+pub func bytes_mut(buffer: &+RawBuffer): &+[u8] from buffer {
     return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
-pub func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
+pub func prefix(buffer: &RawBuffer, len: usize): &[u8]! from buffer {
     if len > buffer.len {
         return invalid_argument()
     }
     return slice_from_raw_parts(buffer.ptr, len)
 }
 
-pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
+pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! from buffer {
     if len > buffer.len {
         return invalid_argument()
     }
@@ -309,7 +309,7 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 impl Allocator {
-    pub alloc method &+self.alloc(size: usize, align: usize): RawBuffer from self {
+    pub method &+self.alloc(size: usize, align: usize): RawBuffer from self {
         return alloc(self, size, align)
     }
 
@@ -325,7 +325,7 @@ impl Allocator {
 }
 
 impl TryAllocator {
-    pub alloc method &+self.try_alloc(size: usize, align: usize): RawBuffer! from self {
+    pub method &+self.try_alloc(size: usize, align: usize): RawBuffer! from self {
         return try_alloc(self, size, align)?
     }
 
@@ -342,19 +342,19 @@ impl TryAllocator {
 }
 
 impl RawBuffer {
-    pub method &self.bytes(): &[u8] {
+    pub method &self.bytes(): &[u8] from self {
         return bytes(self)
     }
 
-    pub method &+self.bytes_mut(): &+[u8] {
+    pub method &+self.bytes_mut(): &+[u8] from self {
         return bytes_mut(self)
     }
 
-    pub method &self.prefix(len: usize): &[u8]! {
+    pub method &self.prefix(len: usize): &[u8]! from self {
         return prefix(self, len)?
     }
 
-    pub method &+self.prefix_mut(len: usize): &+[u8]! {
+    pub method &+self.prefix_mut(len: usize): &+[u8]! from self {
         return prefix_mut(self, len)?
     }
 

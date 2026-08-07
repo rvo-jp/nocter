@@ -1,14 +1,12 @@
 use super::*;
-use crate::ast::ResultAllocationModifier;
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
 ) -> CallableProvenanceSummaries {
-    // Body-backed callables start at the semantic bottom. This makes a call
-    // inside a recursive SCC consume inferred evidence from the previous
-    // iteration instead of falling back to its written `alloc` upper bound.
-    // Bodyless declarations are intentionally absent and continue to use
-    // their written contract at call sites.
+    // Body-backed callables start at the semantic bottom so recursive SCCs
+    // consume only prior body evidence. Bodyless abstract declarations are
+    // seeded below from their external `from` contract or a type-directed
+    // conservative result-storage capability.
     let floor = body_backed_summary_floor(summary_sources);
     let mut summaries = floor.clone();
     for _ in 0..=borrow_return_callable_count(summary_sources) {
@@ -153,7 +151,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     let callable = CallableId::declared_at(function_summary_key(function));
                     summaries.insert_result(
                         callable,
-                        result_with_declared_origins(provenance, declared),
+                        result_with_declared_fallback(
+                            provenance,
+                            declared,
+                            &return_type,
+                            source.resolved,
+                        ),
                     );
                     collect_retained_input_mutations(
                         &function.body,
@@ -176,13 +179,18 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         )
                         .ok()
                     });
-                    if declared.is_none() && primitive.result_allocation.is_none() {
+                    let return_type = type_expr_to_type_with_substitutions(
+                        &primitive.return_type,
+                        source.resolved,
+                        None,
+                        &HashMap::new(),
+                    );
+                    if declared.is_none()
+                        && !type_may_retain_fresh_result_storage(&return_type, source.resolved)
+                    {
                         continue;
                     }
-                    let provenance = declared_result_allocation(
-                        declared.unwrap_or(ValueProvenance::Independent),
-                        primitive.result_allocation.as_ref(),
-                    );
+                    let provenance = abstract_bodyless_result_provenance(declared);
                     let callable = CallableId::declared_at(primitive.name_span);
                     summaries.insert_result(callable, provenance);
                 }
@@ -215,26 +223,40 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         });
                         let provenance = match inferred {
                             Some(inferred) => {
-                                Some(result_with_declared_origins(inferred, declared))
-                            }
-                            None => declared.or_else(|| {
-                                elided_result_provenance_contract(
-                                    Some(method),
-                                    &method.parameters.parameters,
+                                let return_type = type_expr_to_type_in_environment(
                                     &method.return_type,
                                     source.resolved,
-                                )
-                            }),
-                        };
-                        let provenance =
-                            if method.body.is_none() && method.result_allocation.is_some() {
-                                Some(declared_result_allocation(
-                                    provenance.unwrap_or(ValueProvenance::Independent),
-                                    method.result_allocation.as_ref(),
+                                    &environment,
+                                );
+                                Some(result_with_declared_fallback(
+                                    inferred,
+                                    declared,
+                                    &return_type,
+                                    source.resolved,
                                 ))
-                            } else {
-                                provenance
-                            };
+                            }
+                            None => declared,
+                        };
+                        let provenance = if method.body.is_none() {
+                            let return_type = type_expr_to_type_in_environment(
+                                &method.return_type,
+                                source.resolved,
+                                &environment,
+                            );
+                            match provenance {
+                                Some(provenance) => Some(provenance),
+                                None if type_may_retain_fresh_result_storage(
+                                    &return_type,
+                                    source.resolved,
+                                ) =>
+                                {
+                                    Some(abstract_bodyless_result_provenance(None))
+                                }
+                                None => None,
+                            }
+                        } else {
+                            provenance
+                        };
                         let Some(provenance) = provenance else {
                             continue;
                         };
@@ -288,7 +310,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let callable = CallableId::declared_at(method.name_span);
                         summaries.insert_result(
                             callable,
-                            result_with_declared_origins(provenance, declared),
+                            result_with_declared_fallback(
+                                provenance,
+                                declared,
+                                &return_type,
+                                source.resolved,
+                            ),
                         );
                         collect_retained_input_mutations(
                             body,
@@ -330,7 +357,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let callable = CallableId::declared_at(function_summary_key(function));
                         summaries.insert_result(
                             callable,
-                            result_with_declared_origins(provenance, declared),
+                            result_with_declared_fallback(
+                                provenance,
+                                declared,
+                                &return_type,
+                                source.resolved,
+                            ),
                         );
                         collect_retained_input_mutations(
                             &function.body,
@@ -370,7 +402,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let callable = CallableId::declared_at(literal.span);
                         summaries.insert_result(
                             callable,
-                            result_with_declared_origins(provenance, declared),
+                            result_with_declared_fallback(
+                                provenance,
+                                declared,
+                                &return_type,
+                                source.resolved,
+                            ),
                         );
                         collect_retained_input_mutations(
                             &literal.body,
@@ -391,26 +428,94 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
     summaries
 }
 
-fn result_with_declared_origins(
+fn result_with_declared_fallback(
     inferred: ValueProvenance,
     declared: Option<ValueProvenance>,
+    return_type: &Type,
+    resolved: &ResolveOutput,
 ) -> ValueProvenance {
-    let Some(mut declared) = declared else {
+    let Some(declared) = declared else {
         return inferred;
     };
-    declared.merge(&inferred.retain_only_result_allocations());
-    declared
+    match (inferred, return_type) {
+        (
+            ValueProvenance::Fallible { success, error },
+            Type::Fallible {
+                success: success_type,
+                error: error_type,
+            },
+        ) => {
+            let success = success.map(|value| {
+                Box::new(
+                    if type_may_carry_result_provenance(success_type, resolved) {
+                        result_with_declared_fallback(
+                            *value,
+                            Some(declared.clone()),
+                            success_type,
+                            resolved,
+                        )
+                    } else {
+                        *value
+                    },
+                )
+            });
+            let error = error.map(|value| {
+                Box::new(if type_may_carry_result_provenance(error_type, resolved) {
+                    result_with_declared_fallback(
+                        *value,
+                        Some(declared.clone()),
+                        error_type,
+                        resolved,
+                    )
+                } else {
+                    *value
+                })
+            });
+            ValueProvenance::Fallible { success, error }
+        }
+        (inferred, _) => {
+            if has_exact_external_origin(&inferred) {
+                return inferred;
+            }
+            let mut declared = declared;
+            declared.merge(&inferred.retain_only_result_allocations());
+            declared
+        }
+    }
 }
 
-fn declared_result_allocation(
-    provenance: ValueProvenance,
-    modifier: Option<&ResultAllocationModifier>,
-) -> ValueProvenance {
-    if modifier.is_some() {
-        provenance.with_returned_allocation_from(ValueProvenance::current_allocation_context())
-    } else {
-        provenance
+fn has_exact_external_origin(provenance: &ValueProvenance) -> bool {
+    match provenance {
+        ValueProvenance::Independent => false,
+        ValueProvenance::Origins(origins) => origins.iter().any(|origin| {
+            matches!(
+                origin,
+                StorageOrigin::Input(_)
+                    | StorageOrigin::InputWithCurrentFallback(_)
+                    | StorageOrigin::Static
+            )
+        }),
+        ValueProvenance::Aggregate {
+            fallback,
+            fields,
+            elements,
+        } => {
+            fallback.as_deref().is_some_and(has_exact_external_origin)
+                || fields.values().any(has_exact_external_origin)
+                || elements.values().any(has_exact_external_origin)
+        }
+        ValueProvenance::Fallible { success, error } => {
+            success.as_deref().is_some_and(has_exact_external_origin)
+                || error.as_deref().is_some_and(has_exact_external_origin)
+        }
     }
+}
+
+fn abstract_bodyless_result_provenance(declared: Option<ValueProvenance>) -> ValueProvenance {
+    declared.unwrap_or_else(|| {
+        ValueProvenance::Independent
+            .with_returned_allocation_from(ValueProvenance::current_allocation_context())
+    })
 }
 
 pub(in crate::typecheck) fn function_summary_key(function: &crate::ast::FunctionDecl) -> ByteSpan {

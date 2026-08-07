@@ -118,7 +118,7 @@ pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     return cwd_path_len(buffer)?
 }
 
-pub alloc func args(): Vec<&str>! from static {
+pub func args(): Vec<&str>! from static {
     let count: usize = arg_count_raw()
     var values: Vec<&str> = Vec.with_capacity(count)
     var index: usize = 0
@@ -178,7 +178,7 @@ pub func env(name: &str): &str?! from static {
     return none
 }
 
-pub alloc func cwd(): String! {
+pub func cwd(): String! {
     let fd = open_current_directory_aborting()?
     var allocator = page_allocator()
     var buffer = alloc(&+allocator, darwin_max_path_len(), 1)
@@ -194,7 +194,7 @@ pub alloc func cwd(): String! {
     return move value
 }
 
-pub alloc func try_cwd(allocator: &+TryAllocator): String! from allocator {
+pub func try_cwd(allocator: &+TryAllocator): String! from allocator {
     let fd = open_current_directory() catch error {
         return error
     }

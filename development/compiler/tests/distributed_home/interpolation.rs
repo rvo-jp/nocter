@@ -5,7 +5,7 @@ fn distributed_std_owned_interpolation_checks() {
     let project = TempProject::new("distributed-home-interpolation-check");
     let source = project.write_source(
         "interpolation_check.nct",
-        r#"alloc func render(value: usize): String {
+        r#"func render(value: usize): String {
     return "value ${value}"
 }
 
@@ -33,7 +33,7 @@ func marked(label: &str, value: i32): i32! {
     return value
 }
 
-alloc func temporary(): String {
+func temporary(): String {
     return "temporary ${7}"
 }
 
@@ -86,7 +86,7 @@ func consume(text: String): i32 {
     return 0
 }
 
-alloc func rendered(): String {
+func rendered(): String {
     return "return ${3}"
 }
 

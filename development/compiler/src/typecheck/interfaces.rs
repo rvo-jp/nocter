@@ -305,12 +305,7 @@ pub(super) fn method_shape_label(
         .collect::<Vec<_>>()
         .join(", ");
     let mut label = format!(
-        "{}method {}.{}({}): {}",
-        if method.signature.result_may_allocate {
-            "alloc "
-        } else {
-            ""
-        },
+        "method {}.{}({}): {}",
         method_receiver_shape_label(&shape.receiver),
         method.name,
         parameters,

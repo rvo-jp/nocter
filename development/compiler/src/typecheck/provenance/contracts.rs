@@ -1,7 +1,6 @@
 use super::{InputId, StorageOrigin, ValueProvenance};
 use crate::ast::{
-    MethodDecl, MethodReceiverMode, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind,
-    TypeExpr,
+    MethodDecl, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, TypeExpr,
 };
 use crate::resolve::ResolveOutput;
 use crate::typecheck::model::Type;
@@ -69,48 +68,6 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
     } else {
         Err(errors)
     }
-}
-
-pub(in crate::typecheck) fn elided_result_provenance_contract(
-    method: Option<&MethodDecl>,
-    parameters: &[Parameter],
-    return_type: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<ValueProvenance> {
-    if !type_expression_may_carry_result_provenance(return_type, resolved) {
-        return Some(ValueProvenance::Independent);
-    }
-    let mut origins = eligible_input_origins(method, parameters, resolved);
-    (origins.len() == 1).then(|| ValueProvenance::Origins(vec![origins.remove(0)]))
-}
-
-pub(in crate::typecheck) fn eligible_input_origin_count(
-    method: Option<&MethodDecl>,
-    parameters: &[Parameter],
-    resolved: &ResolveOutput,
-) -> usize {
-    eligible_input_origins(method, parameters, resolved).len()
-}
-
-fn eligible_input_origins(
-    method: Option<&MethodDecl>,
-    parameters: &[Parameter],
-    resolved: &ResolveOutput,
-) -> Vec<StorageOrigin> {
-    let receiver = method
-        .filter(|method| method.receiver.mode != MethodReceiverMode::Owned)
-        .map(|method| StorageOrigin::Input(InputId::declared_at(method.receiver.name_span)));
-    receiver
-        .into_iter()
-        .chain(
-            parameters
-                .iter()
-                .filter(|parameter| {
-                    type_expression_may_carry_result_provenance(&parameter.ty, resolved)
-                })
-                .map(|parameter| StorageOrigin::Input(InputId::declared_at(parameter.name_span))),
-        )
-        .collect()
 }
 
 fn type_expression_may_carry_result_provenance(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {

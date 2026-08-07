@@ -5,9 +5,6 @@ impl TypeExpr {
         match self {
             TypeExpr::Callable(ty) => {
                 let mut children = Vec::new();
-                if let Some(modifier) = &ty.result_allocation {
-                    children.push(modifier.to_json(sources));
-                }
                 children.extend(
                     ty.parameters
                         .iter()

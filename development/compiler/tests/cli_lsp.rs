@@ -1391,7 +1391,7 @@ fn lsp_inlay_hints_do_not_invent_result_contracts() {
 }
 
 #[test]
-fn lsp_code_action_inserts_alloc_at_the_callable_keyword() {
+fn lsp_does_not_offer_removed_result_allocation_contract_edits() {
     let project = TempProject::new("cli-lsp-result-allocation-quick-fix");
     project.write_source(
         "nocter.nct",
@@ -1399,7 +1399,7 @@ fn lsp_code_action_inserts_alloc_at_the_callable_keyword() {
 "#,
     );
     let source_text = r#"struct Buffer { ptr: *u8 }
-interface Factory { pub alloc method &self.make(): Buffer }
+interface Factory { pub method &self.make(): Buffer }
 
 func make<F: Factory>(factory: &F): Buffer { return factory.make() }
 "#;
@@ -1463,19 +1463,10 @@ func make<F: Factory>(factory: &F): Buffer { return factory.make() }
     let actions = response_with_id(&messages, 2)["result"]
         .as_array()
         .expect("code actions");
-    let action = actions
-        .iter()
-        .find(|action| action["title"] == "Mark the callable result as allocated")
-        .unwrap_or_else(|| {
-            panic!(
-                "result allocation quick fix: {actions:?}\n{messages:?}\nstderr: {}",
-                text(&output.stderr)
-            )
-        });
-    let edit = &action["edit"]["documentChanges"][0]["edits"][0];
-    assert_eq!(edit["newText"], "alloc ");
-    assert_eq!(edit["range"]["start"], json!({ "line": 3, "character": 0 }));
-    assert_eq!(edit["range"]["end"], json!({ "line": 3, "character": 0 }));
+    assert!(
+        actions.is_empty(),
+        "obsolete allocation actions: {actions:?}"
+    );
 }
 
 #[test]

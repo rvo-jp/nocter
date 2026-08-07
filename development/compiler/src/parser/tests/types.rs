@@ -168,25 +168,20 @@ fn parses_builtin_callable_capability_types() {
 }
 
 #[test]
-fn parses_result_allocating_callable_types_contextually() {
-    let output = parse_text(
-        r#"func apply<Factory: alloc &func(): Text>(factory: Factory): void {
-    return
-}
-func named(value: alloc): alloc { return value }
-"#,
-    );
+fn rejects_removed_result_allocation_on_callable_types_contextually() {
+    let output =
+        parse_text("func apply<Factory: alloc &func(): Text>(factory: Factory): void { return }\n");
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("result `alloc` modifiers have been removed")
+    }));
 
+    let output = parse_text("func named(value: alloc): alloc { return value }\n");
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Function(apply) = &ast.items[0] else {
-        panic!("expected apply function");
-    };
-    assert!(matches!(
-        &apply.generics.parameters[0].bounds[0],
-        TypeExpr::Callable(callable) if callable.result_allocation.is_some()
-    ));
-    let Item::Function(named) = &ast.items[1] else {
+    let Item::Function(named) = &ast.items[0] else {
         panic!("expected named function");
     };
     assert!(matches!(

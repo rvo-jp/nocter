@@ -51,7 +51,6 @@ pub(super) enum Type {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CallableType {
     pub(super) span: ByteSpan,
-    pub(super) result_may_allocate: bool,
     pub(super) capability: CallableCapability,
     pub(super) parameters: Vec<CallableParameterType>,
     pub(super) return_type: Box<Type>,
@@ -74,7 +73,6 @@ impl Type {
                 .unwrap_or_else(|| self.clone()),
             Type::Callable(callable) => Type::Callable(CallableType {
                 span: callable.span,
-                result_may_allocate: callable.result_may_allocate,
                 capability: callable.capability,
                 parameters: callable
                     .parameters
@@ -151,7 +149,6 @@ impl Type {
     ) -> TypeNotation {
         match self {
             Type::Callable(callable) => TypeNotation::Callable {
-                result_may_allocate: callable.result_may_allocate,
                 capability_prefix: callable.capability.source_prefix(),
                 parameters: callable
                     .parameters

@@ -1094,7 +1094,7 @@ func main(): void {
             (
                 "std/ptr.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
-pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
+pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str from static
 "#,
             ),
             (
@@ -1102,7 +1102,7 @@ pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
                 r#"use std/ptr.from_addr
 use std/ptr.str_from_raw_parts
 
-pub func view(address: usize, len: usize): &str {
+pub func view(address: usize, len: usize): &str from static {
     let text = str_from_raw_parts(from_addr(address), len)
     return text
 }

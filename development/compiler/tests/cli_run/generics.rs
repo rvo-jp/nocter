@@ -615,7 +615,7 @@ fn run_command_specializes_generic_interface_default_method() {
     let source = project.write_source(
         "generic_interface_default_method.nct",
         r#"interface Identity {
-    pub method &self.identity<T>(value: T): T {
+    pub method &self.identity<T>(value: T): T from value {
         return value
     }
 }
@@ -651,7 +651,7 @@ fn run_command_specializes_generic_interface_owner_default_method() {
     let source = project.write_source(
         "generic_interface_owner_default.nct",
         r#"interface Value<T> {
-    pub method &self.value(fallback: T): T {
+    pub method &self.value(fallback: T): T from fallback {
         return fallback
     }
 }
