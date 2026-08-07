@@ -2,9 +2,8 @@
 
 ## Current Task
 
-Complete v0.8.0 Phase 0 borrowed-view coercion. The accepted entry uses
-`pub &self as &Target from self { ... }` or `pub &+self as &+Target from self { ... }`; callers
-remain responsible for writing the source borrow.
+v0.8.0 Phase 0 borrowed-view coercion is complete. Stop at this boundary. Do not begin Phase 1
+without a separate plan accepted by the project owner.
 
 ## Completed Checkpoint
 
@@ -36,16 +35,20 @@ remain responsible for writing the source borrow.
 - a separate public download reproduced the qualified size and SHA-256 and passed version,
   installed-home, locked/offline package, native test, deterministic graph, run, build, direct
   execution, and framed LSP checks
+- v0.8.0 Phase 0 adds type-owned `coerce` declarations using `as`, coherent resolver identities,
+  one expected-type `CoercionPlan`, ownership/provenance/region/IR integration, standard-library
+  `String` and `Vec<T>` entries, and normalized editor presentation
+- typed bindings, simple assignment, callable arguments, struct fields, fixed-array elements, and
+  callable returns all record and lower through the same coercion-plan path
+- `development/compiler/scripts/verify.sh` passed all 3,310 tests, formatting, and warnings-denied
+  Clippy; documentation generation produced 121 pages
 
-The detailed design, non-goals, completion gate, and exact verification counts are recorded in the
-immutable [`releases/v0.7.0.md`](releases/v0.7.0.md) qualification record.
+The published v0.7.0 qualification remains in the immutable
+[`releases/v0.7.0.md`](releases/v0.7.0.md) record. The implemented v0.8.0 Phase 0 contract and
+completion evidence are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
 
 ## Next Work
 
-1. Add declaration syntax, AST JSON, formatting, and recovery in focused files.
-2. Add coherent resolver identities and body contract validation without nominal-name allowlists.
-3. Create one expected-type `CoercionPlan` path and make ownership, regions, buildability, IR, and
-   analysis consume it.
-4. Add `String` and `Vec<T>` entries, user-facing specification, packaged-home coverage, and editor
-   behavior.
-5. Run the complete Phase 0 gate, record completion in the v0.8.0 milestone, and stop before Phase 1.
+Define v0.8.0 Phase 1 scope before making further language changes. Phase 0 deliberately leaves
+owned, fallible, optional, allocation-backed, chained, inference-driven, member-lookup, and general
+explicit conversion behavior out of scope.
