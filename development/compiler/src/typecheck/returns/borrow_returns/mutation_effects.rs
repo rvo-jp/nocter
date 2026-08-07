@@ -16,6 +16,9 @@ pub(in crate::typecheck::returns) fn collect_retained_input_mutations(
     summaries: &mut CallableProvenanceSummaries,
     callable: CallableId,
 ) {
+    if collect_trusted_allocation_mutation(parameters, resolved, summaries, callable) {
+        return;
+    }
     let mut environment = environment.clone();
     let mut provenance = ProvenanceEnvironment::default();
     apply_borrow_return_statement_effects(
@@ -36,6 +39,49 @@ pub(in crate::typecheck::returns) fn collect_retained_input_mutations(
             retain_input_mutation(parameter.name_span, &provenance, summaries, callable);
         }
     }
+}
+
+fn collect_trusted_allocation_mutation(
+    parameters: &[crate::ast::Parameter],
+    resolved: &ResolveOutput,
+    summaries: &mut CallableProvenanceSummaries,
+    callable: CallableId,
+) -> bool {
+    let Some(crate::semantics::TrustedDeclarationRole::AllocationMutation {
+        target,
+        source,
+        fallback_to_current,
+    }) = resolved
+        .trusted_declarations
+        .role(callable.declaration_span())
+    else {
+        return false;
+    };
+    let Some(target) = parameters.get(target) else {
+        return true;
+    };
+    let source = match source {
+        crate::semantics::AllocationSource::CurrentContext => {
+            ValueProvenance::current_allocation_context()
+        }
+        crate::semantics::AllocationSource::Input(index) => {
+            let Some(source) = parameters.get(index) else {
+                return true;
+            };
+            let source = InputId::declared_at(source.name_span);
+            if fallback_to_current {
+                ValueProvenance::input_with_current_fallback(source)
+            } else {
+                ValueProvenance::input(source)
+            }
+        }
+    };
+    summaries.insert_input_mutation(
+        callable,
+        InputId::declared_at(target.name_span),
+        source.allocated(),
+    );
+    true
 }
 
 fn retain_input_mutation(
@@ -107,7 +153,7 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
         let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
             continue;
         };
-        let Some(instantiated) = borrow_return_provenance_for_call_summary(
+        let Some(instantiated) = instantiate_mutation_summary(
             effect,
             call,
             &signature,
@@ -131,6 +177,44 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
         next.merge(&instantiated);
         provenance.define_binding(symbol.name_span, true, Some(next));
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn instantiate_mutation_summary(
+    summary: &ValueProvenance,
+    call: &crate::ast::CallExpr,
+    signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
+    instantiate_provenance_summary(summary, &mut |origin| match origin {
+        StorageOrigin::Static => Some(ValueProvenance::static_storage()),
+        StorageOrigin::CurrentAllocationContext => {
+            Some(provenance.current_allocation_context_provenance())
+        }
+        StorageOrigin::Input(source) => {
+            call_input_expression(*source, call, signature, resolved, environment).and_then(
+                |expression| {
+                    value_provenance_for_call_input(
+                        unwrap_input_borrow(expression),
+                        resolved,
+                        environment,
+                        provenance,
+                        summaries,
+                    )
+                },
+            )
+        }
+        StorageOrigin::InputWithCurrentFallback(_) => {
+            unreachable!("conditional inputs are instantiated before origin mapping")
+        }
+        StorageOrigin::Allocated(_) => unreachable!("summary instantiation unwraps allocations"),
+        StorageOrigin::Scope { .. } | StorageOrigin::Region { .. } | StorageOrigin::Unknown => {
+            Some(ValueProvenance::unknown())
+        }
+    })
 }
 
 fn effect_call(expression: &Expr) -> Option<&crate::ast::CallExpr> {

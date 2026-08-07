@@ -439,6 +439,21 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         }
     };
     let return_type = call_return_type(call, &signature, resolved, environment);
+    // Compiler-owned trusted roles are authoritative even when the source
+    // declaration also has a `from` clause. A low-level body can reconstruct
+    // allocator state through integers, which is intentionally less precise
+    // than the validated trusted allocation-source metadata.
+    if let Some(provenance) = trusted_call_result_provenance(
+        call,
+        &signature,
+        &return_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    ) {
+        return apply_declared_result_allocation(Some(provenance), &signature, &return_type);
+    }
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
@@ -456,17 +471,6 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             &signature,
             &return_type,
         );
-    }
-    if let Some(provenance) = trusted_call_result_provenance(
-        call,
-        &signature,
-        &return_type,
-        resolved,
-        environment,
-        borrow_provenance,
-        summaries,
-    ) {
-        return apply_declared_result_allocation(Some(provenance), &signature, &return_type);
     }
     if let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
@@ -613,6 +617,7 @@ fn trusted_call_result_provenance(
             .allocated()
         }
         crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
+        | crate::semantics::TrustedDeclarationRole::AllocationMutation { .. }
         | crate::semantics::TrustedDeclarationRole::RegionEnter
         | crate::semantics::TrustedDeclarationRole::RegionRelease
         | crate::semantics::TrustedDeclarationRole::AllocationAbort => return None,
@@ -635,7 +640,7 @@ fn trusted_call_result_provenance(
     })
 }
 
-fn allocation_source_provenance_for_call_input(
+pub(in crate::typecheck::returns) fn allocation_source_provenance_for_call_input(
     source: InputId,
     call: &crate::ast::CallExpr,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
@@ -686,6 +691,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
             borrow_provenance,
             summaries,
         ),
+        StorageOrigin::InputWithCurrentFallback(_) => {
+            unreachable!("conditional inputs are instantiated before origin mapping")
+        }
         StorageOrigin::Allocated(_) => unreachable!("summary instantiation unwraps allocations"),
         StorageOrigin::Scope { .. } | StorageOrigin::Region { .. } | StorageOrigin::Unknown => {
             Some(ValueProvenance::unknown())

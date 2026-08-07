@@ -30,6 +30,7 @@ pub(super) fn allocator_capability_kind(
         TrustedDeclarationRole::AllocatorCapability(kind) => Some(kind),
         TrustedDeclarationRole::CurrentAllocationContext
         | TrustedDeclarationRole::AllocationOperation { .. }
+        | TrustedDeclarationRole::AllocationMutation { .. }
         | TrustedDeclarationRole::RegionEnter
         | TrustedDeclarationRole::RegionRelease
         | TrustedDeclarationRole::AllocationAbort
@@ -720,6 +721,7 @@ fn trusted_call_needs_current_context(
                 source: AllocationSource::Input(_),
                 ..
             }
+            | TrustedDeclarationRole::AllocationMutation { .. }
             | TrustedDeclarationRole::RegionEnter
             | TrustedDeclarationRole::RegionRelease
             | TrustedDeclarationRole::AllocationAbort

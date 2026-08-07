@@ -11,13 +11,13 @@ pub struct Utf8Path {
 }
 
 construct Utf8Path {
-    pub default func new(value: &str): Self! {
+    pub default alloc func new(value: &str): Self! {
         validate(value)?
         return Utf8Path { text: String.copy(value) }
     }
 }
 
-pub func from_str(value: &str): Utf8Path! {
+pub alloc func from_str(value: &str): Utf8Path! {
     return Utf8Path.new(value)?
 }
 
@@ -30,7 +30,7 @@ pub func is_absolute(path: &Utf8Path): bool {
     return value.len() != 0 && bytes(value)[0] == 47
 }
 
-pub func join(path: &Utf8Path, child: &str): Utf8Path! {
+pub alloc func join(path: &Utf8Path, child: &str): Utf8Path! {
     validate(child)?
     if child.len() != 0 && bytes(child)[0] == 47 {
         return Utf8Path.new(child)?
@@ -60,5 +60,5 @@ pub func invalid_path(): error {
 impl Utf8Path {
     pub method &self.view(): &str { return view(self) }
     pub method &self.is_absolute(): bool { return is_absolute(self) }
-    pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
+    pub alloc method &self.join(child: &str): Utf8Path! { return join(self, child)? }
 }

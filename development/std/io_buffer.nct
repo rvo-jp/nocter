@@ -15,11 +15,11 @@ pub struct BufReader {
 }
 
 construct BufReader {
-    pub default func new(source: File): Self {
+    pub default alloc func new(source: File): Self {
         return BufReader.with_capacity(move source, 8192)
     }
 
-    pub func with_capacity(source: File, requested_capacity: usize): Self {
+    pub alloc func with_capacity(source: File, requested_capacity: usize): Self {
         var storage: Vec<u8> = Vec.with_capacity(requested_capacity)
         return BufReader { source: move source, buffer: move storage, next: 0 }
     }
@@ -58,11 +58,11 @@ pub struct BufWriter {
 }
 
 construct BufWriter {
-    pub default func new(destination: File): Self {
+    pub default alloc func new(destination: File): Self {
         return BufWriter.with_capacity(move destination, 8192)
     }
 
-    pub func with_capacity(destination: File, requested_capacity: usize): Self {
+    pub alloc func with_capacity(destination: File, requested_capacity: usize): Self {
         let storage: Vec<u8> = Vec.with_capacity(requested_capacity)
         return BufWriter {
             destination: move destination,

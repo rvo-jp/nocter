@@ -707,6 +707,7 @@ fn distributed_std_vec_with_capacity_zero_runs() {
     let source = project.write_source(
         "vec_with_capacity_zero.nct",
         r#"use std/mem.page_allocator
+use std/vec.Vec
 use std/vec.{Vec, with_capacity}
 
 func main(): i32! {
@@ -3614,30 +3615,40 @@ fn distributed_std_rejects_indirect_region_string_escapes() {
     let source = project.write_source(
         "region_string_escape.nct",
         r#"use std/mem.page_allocator
+use std/vec.Vec
 
 struct Holder {
     text: String
 }
 
-func leak_struct(): Holder {
+alloc func leak_struct(): Holder {
     var arena = page_allocator()
     region temporary using arena {
         return Holder { text: String.from_str("struct") }
     }
 }
 
-func leak_optional(): String? {
+alloc func leak_optional(): String? {
     var arena = page_allocator()
     region temporary using arena {
         return String.from_str("optional")
     }
 }
 
-func leak_error_view(): i32! {
+alloc func leak_error_view(): i32! {
     var arena = page_allocator()
     region temporary using arena {
         let text = String.from_str("error")
         return Error.new("app.region", text.view())
+    }
+}
+
+alloc func leak_empty_growth(): Vec<u8> {
+    var arena = page_allocator()
+    region temporary using arena {
+        var values: Vec<u8> = Vec.empty()
+        values.push(1)
+        return move values
     }
 }
 
@@ -3660,7 +3671,7 @@ func main(): i32 {
     let stderr = text(&output.stderr);
     assert_eq!(
         stderr.matches("error[E0436]").count(),
-        3,
+        4,
         "expected one region escape diagnostic per wrapper shape:\n{stderr}"
     );
     assert!(

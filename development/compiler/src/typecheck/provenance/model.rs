@@ -10,6 +10,10 @@ impl CallableId {
     pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
         Self(span)
     }
+
+    pub(in crate::typecheck) const fn declaration_span(self) -> ByteSpan {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,6 +57,7 @@ pub(in crate::typecheck) enum StorageOrigin {
     Static,
     CurrentAllocationContext,
     Input(InputId),
+    InputWithCurrentFallback(InputId),
     Allocated(Box<StorageOrigin>),
     Scope {
         binding: ByteSpan,
@@ -115,6 +120,10 @@ impl ValueProvenance {
         Self::Origins(vec![StorageOrigin::Input(input)])
     }
 
+    pub(in crate::typecheck) fn input_with_current_fallback(input: InputId) -> Self {
+        Self::Origins(vec![StorageOrigin::InputWithCurrentFallback(input)])
+    }
+
     pub(in crate::typecheck) fn scope(binding: ByteSpan, description: String) -> Self {
         Self::Origins(vec![StorageOrigin::Scope {
             binding,
@@ -144,7 +153,8 @@ impl ValueProvenance {
                         StorageOrigin::Unknown => Some("unknown storage"),
                         StorageOrigin::Static
                         | StorageOrigin::CurrentAllocationContext
-                        | StorageOrigin::Input(_) => None,
+                        | StorageOrigin::Input(_)
+                        | StorageOrigin::InputWithCurrentFallback(_) => None,
                         StorageOrigin::Allocated(_) => {
                             unreachable!("allocation domains are unwrapped")
                         }
@@ -222,7 +232,8 @@ impl ValueProvenance {
         match self {
             Self::Origins(origins) => {
                 for origin in origins {
-                    if let StorageOrigin::Input(input) = origin.allocation_domain()
+                    if let StorageOrigin::Input(input)
+                    | StorageOrigin::InputWithCurrentFallback(input) = origin.allocation_domain()
                         && !inputs.contains(input)
                     {
                         inputs.push(*input);

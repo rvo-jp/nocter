@@ -8,8 +8,8 @@ use super::environments::{
 };
 use super::model::TypeEnvironment;
 use super::provenance::{
-    CallableProvenanceSummaries, eligible_input_origin_count, provenance_satisfies_contract,
-    result_provenance_contract, type_may_carry_result_provenance,
+    CallableProvenanceSummaries, InputId, ValueProvenance, eligible_input_origin_count,
+    provenance_satisfies_contract, result_provenance_contract, type_may_carry_result_provenance,
 };
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
@@ -44,6 +44,7 @@ pub(super) fn check_result_provenance_contracts(
                 if let Some(clause) = &function.result_provenance {
                     check_body_contract(
                         sources,
+                        super::returns::function_summary_key(function),
                         &function.body,
                         clause,
                         None,
@@ -84,6 +85,7 @@ pub(super) fn check_result_provenance_contracts(
                     {
                         check_body_contract(
                             sources,
+                            method.name_span,
                             body,
                             clause,
                             Some(method),
@@ -133,6 +135,7 @@ pub(super) fn check_result_provenance_contracts(
                     if let Some(clause) = &function.result_provenance {
                         check_body_contract(
                             sources,
+                            super::returns::function_summary_key(function),
                             &function.body,
                             clause,
                             None,
@@ -160,6 +163,7 @@ pub(super) fn check_result_provenance_contracts(
                     if let Some(clause) = &literal.result_provenance {
                         check_body_contract(
                             sources,
+                            literal.span,
                             &literal.body,
                             clause,
                             None,
@@ -205,6 +209,7 @@ fn check_impl_methods(
         let environment = environment_for_method(method, resolved, impl_);
         check_body_contract(
             sources,
+            method.name_span,
             body,
             clause,
             Some(method),
@@ -250,6 +255,7 @@ fn check_clause(
 #[allow(clippy::too_many_arguments)]
 fn check_body_contract(
     sources: &SourceMap,
+    declaration_span: crate::source::ByteSpan,
     body: &crate::ast::Block,
     clause: &ResultProvenanceClause,
     method: Option<&MethodDecl>,
@@ -264,21 +270,53 @@ fn check_body_contract(
         return;
     };
     let return_type = type_expr_to_type_in_environment(return_type, resolved, environment);
-    let actual = borrow_return_provenance_for_callable_body(
-        body,
-        &return_type,
-        resolved,
-        environment,
-        summaries,
-    );
-    if actual
-        .as_ref()
-        .is_some_and(|actual| !provenance_satisfies_contract(actual, &contract))
-    {
+    let actual = trusted_result_provenance(declaration_span, parameters, &return_type, resolved)
+        .or_else(|| {
+            borrow_return_provenance_for_callable_body(
+                body,
+                &return_type,
+                resolved,
+                environment,
+                summaries,
+            )
+        });
+    if actual.as_ref().is_some_and(|actual| {
+        !provenance_satisfies_contract(actual, &contract, &return_type, resolved)
+    }) {
         diagnostics.push(result_contract_violation_diagnostic(
             sources, body.span, clause,
         ));
     }
+}
+
+fn trusted_result_provenance(
+    declaration_span: crate::source::ByteSpan,
+    parameters: &[Parameter],
+    return_type: &super::model::Type,
+    resolved: &ResolveOutput,
+) -> Option<ValueProvenance> {
+    let crate::semantics::TrustedDeclarationRole::AllocationOperation { source, .. } =
+        resolved.trusted_declarations.role(declaration_span)?
+    else {
+        return None;
+    };
+    let provenance = match source {
+        crate::semantics::AllocationSource::CurrentContext => {
+            ValueProvenance::current_allocation_context()
+        }
+        crate::semantics::AllocationSource::Input(index) => {
+            let parameter = parameters.get(index)?;
+            ValueProvenance::input(InputId::declared_at(parameter.name_span))
+        }
+    }
+    .allocated();
+    Some(match return_type {
+        super::model::Type::Fallible { .. } => ValueProvenance::Fallible {
+            success: Some(Box::new(provenance)),
+            error: Some(Box::new(ValueProvenance::Independent)),
+        },
+        _ => provenance,
+    })
 }
 
 fn return_type_carries_storage(

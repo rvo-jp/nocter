@@ -123,10 +123,12 @@ fn type_expression_may_carry_result_provenance(ty: &TypeExpr, resolved: &Resolve
 pub(in crate::typecheck) fn provenance_satisfies_contract(
     actual: &ValueProvenance,
     contract: &ValueProvenance,
+    return_type: &Type,
+    resolved: &ResolveOutput,
 ) -> bool {
     let mut allowed = Vec::new();
     collect_origins(contract, &mut allowed);
-    actual_origins_satisfy(actual, &allowed)
+    super::storage_projection::external_origins_satisfy(actual, &allowed, return_type, resolved)
 }
 
 fn collect_origins(provenance: &ValueProvenance, origins: &mut Vec<StorageOrigin>) {
@@ -155,54 +157,6 @@ fn collect_origins(provenance: &ValueProvenance, origins: &mut Vec<StorageOrigin
             if let Some(error) = error {
                 collect_origins(error, origins);
             }
-        }
-    }
-}
-
-fn actual_origins_satisfy(actual: &ValueProvenance, allowed: &[StorageOrigin]) -> bool {
-    match actual {
-        ValueProvenance::Independent => true,
-        ValueProvenance::Origins(origins) => origins.iter().all(|origin| match origin {
-            StorageOrigin::Allocated(domain) => match domain.allocation_domain() {
-                StorageOrigin::Static => true,
-                StorageOrigin::CurrentAllocationContext | StorageOrigin::Input(_) => {
-                    allowed.contains(domain.allocation_domain())
-                }
-                StorageOrigin::Scope { .. }
-                | StorageOrigin::Region { .. }
-                | StorageOrigin::Unknown => false,
-                StorageOrigin::Allocated(_) => unreachable!("allocation domains are unwrapped"),
-            },
-            StorageOrigin::Static => true,
-            StorageOrigin::CurrentAllocationContext | StorageOrigin::Input(_) => {
-                allowed.contains(origin)
-            }
-            StorageOrigin::Scope { .. } | StorageOrigin::Region { .. } | StorageOrigin::Unknown => {
-                false
-            }
-        }),
-        ValueProvenance::Aggregate {
-            fallback,
-            fields,
-            elements,
-        } => {
-            fallback
-                .as_deref()
-                .is_none_or(|value| actual_origins_satisfy(value, allowed))
-                && fields
-                    .values()
-                    .all(|value| actual_origins_satisfy(value, allowed))
-                && elements
-                    .values()
-                    .all(|value| actual_origins_satisfy(value, allowed))
-        }
-        ValueProvenance::Fallible { success, error } => {
-            success
-                .as_deref()
-                .is_none_or(|value| actual_origins_satisfy(value, allowed))
-                && error
-                    .as_deref()
-                    .is_none_or(|value| actual_origins_satisfy(value, allowed))
         }
     }
 }

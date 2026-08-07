@@ -85,7 +85,7 @@ construct Vec<T> {
     pub alloc func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
-    ): Self! {
+    ): Self! from allocator {
         let empty_pointer: *T = from_addr(1)
         let element_size: usize = pointee_size(empty_pointer)
         if element_size == 0 {
@@ -139,7 +139,10 @@ construct Vec<T> {
         return move result
     }
 
-    pub alloc func try_from_slice(allocator: &+TryAllocator, values: &[T]): Self! {
+    pub alloc func try_from_slice(
+        allocator: &+TryAllocator,
+        values: &[T],
+    ): Self! from allocator | values {
         var result: Vec<T> = Vec.try_with_capacity(allocator, values.len())?
         var index: usize = 0
         while index < values.len() {
@@ -158,7 +161,10 @@ pub alloc func with_capacity<T>(requested_capacity: usize): Vec<T> {
     return Vec.with_capacity(requested_capacity)
 }
 
-pub alloc func try_with_capacity<T>(allocator: &+TryAllocator, requested_capacity: usize): Vec<T>! {
+pub alloc func try_with_capacity<T>(
+    allocator: &+TryAllocator,
+    requested_capacity: usize,
+): Vec<T>! from allocator {
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
@@ -166,7 +172,10 @@ pub alloc func from_slice<T>(values: &[T]): Vec<T> {
     return Vec.from_slice(values)
 }
 
-pub alloc func try_from_slice<T>(allocator: &+TryAllocator, values: &[T]): Vec<T>! {
+pub alloc func try_from_slice<T>(
+    allocator: &+TryAllocator,
+    values: &[T],
+): Vec<T>! from allocator | values {
     return Vec.try_from_slice(allocator, values)?
 }
 

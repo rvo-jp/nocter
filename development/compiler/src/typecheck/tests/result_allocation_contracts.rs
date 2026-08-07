@@ -7,6 +7,21 @@ use crate::semantics::{AllocationFailurePolicy, AllocationSource, TrustedDeclara
 use crate::source::SourceMap;
 
 fn check_text_with_trusted_allocation(text: &str) -> Vec<crate::diagnostics::Diagnostic> {
+    check_text_with_trusted_primitive(
+        text,
+        "allocate",
+        TrustedDeclarationRole::AllocationOperation {
+            source: AllocationSource::CurrentContext,
+            failure_policy: AllocationFailurePolicy::Abort,
+        },
+    )
+}
+
+fn check_text_with_trusted_primitive(
+    text: &str,
+    name: &str,
+    role: TrustedDeclarationRole,
+) -> Vec<crate::diagnostics::Diagnostic> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let lexed = lex(&sources, source);
@@ -17,27 +32,81 @@ fn check_text_with_trusted_allocation(text: &str) -> Vec<crate::diagnostics::Dia
         .items
         .iter()
         .find_map(|item| match item {
-            Item::Primitive(primitive) if primitive.name == "allocate" => Some(primitive.name_span),
+            Item::Primitive(primitive) if primitive.name == name => Some(primitive.name_span),
             _ => None,
         })
         .unwrap();
-    resolved.trusted_declarations.insert(
-        allocation,
-        TrustedDeclarationRole::AllocationOperation {
-            source: AllocationSource::CurrentContext,
-            failure_policy: AllocationFailurePolicy::Abort,
-        },
-    );
+    resolved.trusted_declarations.insert(allocation, role);
+    let mut diagnostics = resolved.diagnostics.clone();
+    diagnostics.extend(super::super::check(&sources, &ast, &resolved));
+    diagnostics
+}
+
+fn check_text_with_trusted_function(
+    text: &str,
+    name: &str,
+    role: TrustedDeclarationRole,
+) -> Vec<crate::diagnostics::Diagnostic> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("app.nct", None, text);
+    let lexed = lex(&sources, source);
+    let parsed = parse(&sources, source, &lexed.tokens);
+    let ast = parsed.ast.unwrap();
+    let declaration = ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == name => Some(function.name_span),
+            _ => None,
+        })
+        .unwrap();
+    let mut resolved = resolve(&sources, &ast);
+    resolved.trusted_declarations.insert(declaration, role);
     let mut diagnostics = resolved.diagnostics.clone();
     diagnostics.extend(super::super::check(&sources, &ast, &resolved));
     diagnostics
 }
 
 #[test]
+fn trusted_allocation_primitives_must_declare_alloc() {
+    let diagnostics = check_text_with_trusted_allocation("pub(nocter) primitive allocate(): *u8\n");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0462"),
+        "{diagnostics:?}"
+    );
+
+    let diagnostics =
+        check_text_with_trusted_allocation("pub(nocter) alloc primitive allocate(): *u8\n");
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "E0462"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn other_trusted_primitives_cannot_claim_result_allocation() {
+    let diagnostics = check_text_with_trusted_primitive(
+        "pub(nocter) alloc primitive current(): usize\n",
+        "current",
+        TrustedDeclarationRole::CurrentAllocationContext,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0463"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn requires_alloc_when_a_function_returns_allocated_storage() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer { pointer: *u8 }
-pub(nocter) primitive allocate(): Buffer
+pub(nocter) alloc primitive allocate(): Buffer
 func make(): Buffer {
     return allocate()
 }
@@ -55,7 +124,7 @@ func make(): Buffer {
 fn accepts_an_exact_result_allocation_contract() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer { pointer: *u8 }
-pub(nocter) primitive allocate(): Buffer
+pub(nocter) alloc primitive allocate(): Buffer
 alloc func make(): Buffer {
     return allocate()
 }
@@ -103,7 +172,7 @@ interface Factory {
 fn does_not_require_alloc_for_scratch_allocation() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer { pointer: *u8 }
-pub(nocter) primitive allocate(): Buffer
+pub(nocter) alloc primitive allocate(): Buffer
 func size(): usize {
     let temporary = allocate()
     return 1
@@ -141,7 +210,7 @@ func invoke<F: alloc &func(): Buffer>(callback: F): Buffer {
 fn propagates_alloc_retained_by_readwrite_input() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer { pointer: *u8 }
-pub(nocter) primitive allocate(): Buffer
+pub(nocter) alloc primitive allocate(): Buffer
 primitive empty_pointer(): *u8
 func grow(buffer: &+Buffer): void {
     let replacement = allocate()
@@ -165,10 +234,38 @@ func make(): Buffer {
 }
 
 #[test]
+fn trusted_growth_of_neutral_storage_uses_the_current_allocation_origin() {
+    let diagnostics = check_text_with_trusted_function(
+        r#"struct Buffer { pointer: *u8 }
+primitive empty_pointer(): *u8
+func grow(buffer: &+Buffer): void { return }
+func make(): Buffer {
+    var result = Buffer { pointer: empty_pointer() }
+    grow(&+result)
+    return move result
+}
+"#,
+        "grow",
+        TrustedDeclarationRole::AllocationMutation {
+            target: 0,
+            source: AllocationSource::Input(0),
+            fallback_to_current: true,
+        },
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0462"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn propagates_retained_mutations_through_methods_wrappers_and_loops() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer<T> { pointer: *T }
-pub(nocter) primitive allocate<T>(): Buffer<T>
+pub(nocter) alloc primitive allocate<T>(): Buffer<T>
 primitive empty_pointer(): *u8
 func grow<T>(buffer: &+Buffer<T>): void {
     let replacement = allocate()

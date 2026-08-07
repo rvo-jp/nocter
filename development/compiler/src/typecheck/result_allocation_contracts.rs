@@ -6,6 +6,7 @@
 //! consumed as contracts rather than checked against unavailable bodies.
 
 use super::diagnostics::{
+    incompatible_trusted_result_allocation_contract_diagnostic,
     missing_result_allocation_contract_diagnostic,
     unjustified_result_allocation_contract_diagnostic,
 };
@@ -96,14 +97,47 @@ pub(super) fn check_result_allocation_contracts(
                     );
                 }
             }
-            Item::Primitive(_)
-            | Item::Test(_)
+            Item::Primitive(primitive) => check_trusted_primitive_contract(
+                sources,
+                primitive.name_span,
+                primitive.result_allocation.as_ref(),
+                resolved,
+                diagnostics,
+            ),
+            Item::Test(_)
             | Item::Import(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_) => {}
         }
+    }
+}
+
+fn check_trusted_primitive_contract(
+    sources: &SourceMap,
+    declaration_span: ByteSpan,
+    modifier: Option<&ResultAllocationModifier>,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(role) = resolved.trusted_declarations.role(declaration_span) else {
+        // An ordinary bodyless primitive owns its declared upper-bound contract.
+        return;
+    };
+    match (role, modifier) {
+        (TrustedDeclarationRole::AllocationOperation { .. }, None) => diagnostics.push(
+            missing_result_allocation_contract_diagnostic(sources, declaration_span),
+        ),
+        (TrustedDeclarationRole::AllocationOperation { .. }, Some(_)) => {}
+        (_, Some(modifier)) => {
+            diagnostics.push(incompatible_trusted_result_allocation_contract_diagnostic(
+                sources,
+                modifier.span,
+                declaration_span,
+            ))
+        }
+        (_, None) => {}
     }
 }
 

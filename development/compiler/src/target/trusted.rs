@@ -113,6 +113,66 @@ pub(crate) fn trusted_declarations_for_module(
                             failure_policy: AllocationFailurePolicy::Recoverable,
                         }
                     }
+                    "try_grow"
+                        if function_shape_matches(
+                            function,
+                            &[
+                                ("allocator", "&+TryAllocator"),
+                                ("buffer", "&+RawBuffer"),
+                                ("new_size", "usize"),
+                            ],
+                            "void!",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationMutation {
+                            target: 1,
+                            source: AllocationSource::Input(0),
+                            fallback_to_current: false,
+                        }
+                    }
+                    "try_grow_owned"
+                        if function_shape_matches(
+                            function,
+                            &[("buffer", "&+RawBuffer"), ("new_size", "usize")],
+                            "void!",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationMutation {
+                            target: 0,
+                            source: AllocationSource::Input(0),
+                            fallback_to_current: true,
+                        }
+                    }
+                    "grow"
+                        if function_shape_matches(
+                            function,
+                            &[
+                                ("allocator", "&+Allocator"),
+                                ("buffer", "&+RawBuffer"),
+                                ("new_size", "usize"),
+                            ],
+                            "void",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationMutation {
+                            target: 1,
+                            source: AllocationSource::Input(0),
+                            fallback_to_current: false,
+                        }
+                    }
+                    "grow_owned"
+                        if function_shape_matches(
+                            function,
+                            &[("buffer", "&+RawBuffer"), ("new_size", "usize")],
+                            "void",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationMutation {
+                            target: 0,
+                            source: AllocationSource::Input(0),
+                            fallback_to_current: true,
+                        }
+                    }
                     _ => continue,
                 };
                 facts.insert(function.name_span, role);

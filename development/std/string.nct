@@ -50,7 +50,7 @@ construct String {
     pub alloc func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
-    ): Self! {
+    ): Self! from allocator {
         return String {
             storage: try_alloc(allocator, requested_capacity, 1)?,
             len: 0,
@@ -69,7 +69,10 @@ construct String {
         return String.from_str(value)
     }
 
-    pub alloc func try_from_str(allocator: &+TryAllocator, value: &str): Self! {
+    pub alloc func try_from_str(
+        allocator: &+TryAllocator,
+        value: &str,
+    ): Self! from allocator {
         let value_len: usize = value.len()
         var result = String.try_with_capacity(allocator, value_len)?
         copy_str_to_ptr(result.storage.ptr, 0, value)
@@ -77,7 +80,7 @@ construct String {
         return move result
     }
 
-    pub alloc func try_copy(allocator: &+TryAllocator, value: &str): Self! {
+    pub alloc func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
         return String.try_from_str(allocator, value)?
     }
 
@@ -93,7 +96,10 @@ construct String {
         return move result
     }
 
-    pub alloc func try_from_utf8(allocator: &+TryAllocator, candidate: &[u8]): Self! {
+    pub alloc func try_from_utf8(
+        allocator: &+TryAllocator,
+        candidate: &[u8],
+    ): Self! from allocator {
         if !is_valid_utf8(candidate) { return invalid_utf8() }
         var result = String.try_with_capacity(allocator, candidate.len())?
         var offset: usize = 0
@@ -117,7 +123,7 @@ pub alloc func with_capacity(requested_capacity: usize): String {
 pub alloc func try_with_capacity(
     allocator: &+TryAllocator,
     requested_capacity: usize,
-): String! {
+): String! from allocator {
     return String.try_with_capacity(allocator, requested_capacity)?
 }
 
@@ -125,7 +131,10 @@ pub alloc func from_str(value: &str): String {
     return String.from_str(value)
 }
 
-pub alloc func try_from_str(allocator: &+TryAllocator, value: &str): String! {
+pub alloc func try_from_str(
+    allocator: &+TryAllocator,
+    value: &str,
+): String! from allocator {
     return String.try_from_str(allocator, value)?
 }
 
@@ -133,7 +142,10 @@ pub alloc func from_utf8(candidate: &[u8]): String! {
     return String.from_utf8(candidate)?
 }
 
-pub alloc func try_from_utf8(allocator: &+TryAllocator, candidate: &[u8]): String! {
+pub alloc func try_from_utf8(
+    allocator: &+TryAllocator,
+    candidate: &[u8],
+): String! from allocator {
     return String.try_from_utf8(allocator, candidate)?
 }
 

@@ -13,9 +13,9 @@ pub(in crate::typecheck::returns) fn instantiate_provenance_summary(
             for origin in origins {
                 let mapped = match origin {
                     StorageOrigin::Allocated(domain) => {
-                        map_origin(domain).map(ValueProvenance::allocated)
+                        instantiate_origin(domain, map_origin).map(ValueProvenance::allocated)
                     }
-                    _ => map_origin(origin),
+                    _ => instantiate_origin(origin, map_origin),
                 };
                 merge_provenance(&mut provenance, mapped);
             }
@@ -60,5 +60,34 @@ pub(in crate::typecheck::returns) fn instantiate_provenance_summary(
                 })
             }
         }
+    }
+}
+
+fn instantiate_origin(
+    origin: &StorageOrigin,
+    map_origin: &mut impl FnMut(&StorageOrigin) -> Option<ValueProvenance>,
+) -> Option<ValueProvenance> {
+    let StorageOrigin::InputWithCurrentFallback(source) = origin else {
+        return map_origin(origin);
+    };
+    let mapped = map_origin(&StorageOrigin::Input(*source))?;
+    if !mapped.has_storage_dependency() {
+        return map_origin(&StorageOrigin::CurrentAllocationContext);
+    }
+    Some(preserve_current_fallback(mapped))
+}
+
+fn preserve_current_fallback(provenance: ValueProvenance) -> ValueProvenance {
+    match provenance {
+        ValueProvenance::Origins(origins) => ValueProvenance::Origins(
+            origins
+                .into_iter()
+                .map(|origin| match origin {
+                    StorageOrigin::Input(input) => StorageOrigin::InputWithCurrentFallback(input),
+                    origin => origin,
+                })
+                .collect(),
+        ),
+        provenance => provenance,
     }
 }

@@ -62,12 +62,15 @@ pub func page_try_allocator(): TryAllocator {
 }
 
 pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
+    // Kind 2 is an unbound empty sentinel. It owns no storage and therefore
+    // carries no allocator origin. The first growth operation binds it to the
+    // allocator selected at that operation.
     return RawBuffer {
         ptr: from_addr(1),
         len: 0,
         align: align,
-        allocator_state: current_allocator_state(),
-        allocator_kind: current_allocator_kind(),
+        allocator_state: 0,
+        allocator_kind: 2,
     }
 }
 
@@ -142,12 +145,15 @@ pub alloc func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
     align: usize,
-): RawBuffer! {
+): RawBuffer! from allocator {
     let requested = Layout.new(size, align)?
     return try_alloc_layout(allocator, requested)?
 }
 
-pub alloc func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuffer! {
+pub alloc func try_alloc_layout(
+    allocator: &+TryAllocator,
+    requested: Layout,
+): RawBuffer! from allocator {
     if requested.size == 0 {
         return RawBuffer {
             ptr: from_addr(1),
@@ -175,14 +181,21 @@ pub alloc func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): R
     }
 }
 
-pub alloc func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
+pub alloc func alloc(
+    allocator: &+Allocator,
+    size: usize,
+    align: usize,
+): RawBuffer from allocator {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc(&+fallible, size, align) catch allocation_error {
         return allocation_abort_raw()
     }
 }
 
-pub alloc func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer {
+pub alloc func alloc_layout(
+    allocator: &+Allocator,
+    requested: Layout,
+): RawBuffer from allocator {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc_layout(&+fallible, requested) catch allocation_error {
         return allocation_abort_raw()
@@ -212,11 +225,13 @@ pub func try_grow(
     if new_size == buffer.len {
         return
     }
-    if allocator.state != buffer.allocator_state {
-        return invalid_argument()
-    }
-    if allocator.kind != buffer.allocator_kind {
-        return invalid_argument()
+    if buffer.allocator_kind != 2 {
+        if allocator.state != buffer.allocator_state {
+            return invalid_argument()
+        }
+        if allocator.kind != buffer.allocator_kind {
+            return invalid_argument()
+        }
     }
 
     var replacement = try_alloc(allocator, new_size, buffer.align)?
@@ -247,6 +262,10 @@ pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
+    }
+    if buffer.allocator_kind == 2 {
+        allocator.state = current_allocator_state()
+        allocator.kind = current_allocator_kind()
     }
     try_grow(&+allocator, buffer, new_size)?
     return
@@ -290,7 +309,7 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 impl Allocator {
-    pub alloc method &+self.alloc(size: usize, align: usize): RawBuffer {
+    pub alloc method &+self.alloc(size: usize, align: usize): RawBuffer from self {
         return alloc(self, size, align)
     }
 
@@ -306,7 +325,7 @@ impl Allocator {
 }
 
 impl TryAllocator {
-    pub alloc method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
+    pub alloc method &+self.try_alloc(size: usize, align: usize): RawBuffer! from self {
         return try_alloc(self, size, align)?
     }
 

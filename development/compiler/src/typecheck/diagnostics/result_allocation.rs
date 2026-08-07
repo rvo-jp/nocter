@@ -33,3 +33,24 @@ pub(in crate::typecheck) fn unjustified_result_allocation_contract_diagnostic(
     diagnostic.help = Some("remove `alloc` from this callable".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn incompatible_trusted_result_allocation_contract_diagnostic(
+    sources: &SourceMap,
+    modifier_span: ByteSpan,
+    declaration_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0463",
+        "the `alloc` contract contradicts this trusted primitive's semantic role",
+    );
+    diagnostic.primary_span = sources.span_to_json(modifier_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(declaration_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the compiler-defined operation does not return newly allocated storage"
+                .to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("remove `alloc` from this primitive".to_string());
+    diagnostic
+}

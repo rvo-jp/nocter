@@ -29,6 +29,11 @@ pub(crate) enum TrustedDeclarationRole {
         source: AllocationSource,
         failure_policy: AllocationFailurePolicy,
     },
+    AllocationMutation {
+        target: usize,
+        source: AllocationSource,
+        fallback_to_current: bool,
+    },
     RegionEnter,
     RegionRelease,
     AllocationAbort,

@@ -187,6 +187,54 @@ func main(): i32 {
 }
 
 #[test]
+fn result_allocation_and_external_provenance_contracts_are_independent() {
+    let diagnostics = check_text(
+        r#"alloc primitive fresh(): &i32
+
+alloc func choose(existing: &i32, create: bool): &i32 from existing {
+    if create {
+        return fresh()
+    }
+    return existing
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "E0445"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn result_contract_ignores_scalar_fields_in_storage_carrying_aggregates() {
+    let diagnostics = check_text(
+        r#"struct Allocator { state: usize }
+struct Buffer { ptr: *u8, len: usize }
+
+alloc primitive allocate(allocator: &+Allocator): *u8 from allocator
+
+alloc func make(allocator: &+Allocator, len: usize): Buffer from allocator {
+    return Buffer { ptr: allocate(allocator), len: len }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "E0445"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn preserves_result_provenance_through_stored_outcome_bindings() {
     let diagnostics = check_text(
         r#"func forward(value: &i32?): &i32? from value {
