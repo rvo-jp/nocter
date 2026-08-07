@@ -2,9 +2,8 @@
 
 ## Current Task
 
-Publish the qualified v0.7.0 archive authorized on 2026-08-08. Update the public release pointer,
-tag the exact publication commit, upload only the qualified archive, and verify the public download
-before recording the external audit.
+No active release task. v0.7.0 was published and audited on 2026-08-08. The next milestone has not
+been defined.
 
 ## Completed Checkpoint
 
@@ -29,16 +28,18 @@ before recording the external audit.
 - the 3,285,691-byte `arm64-darwin` archive with SHA-256
   `080160481adbcb0b7f64ab87903b05814aad13fc16207dcc9602e655675f2d78` passed the complete fresh
   extraction smoke matrix
+- annotated tag `v0.7.0` resolves to publication commit
+  `966c4a3e398ae534ad84ca5c8a35ae5ff0fcfdc8`
+- the public GitHub Release contains exactly the qualified archive and is neither a draft nor a
+  prerelease
+- a separate public download reproduced the qualified size and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
 The detailed design, non-goals, completion gate, and exact verification counts are recorded in the
 immutable [`releases/v0.7.0.md`](releases/v0.7.0.md) qualification record.
 
 ## Next Work
 
-1. Commit and push the publication-status documentation without changing compiler or packaging
-   inputs.
-2. Create the annotated `v0.7.0` tag at that commit and publish the exact qualified archive.
-3. Download the public asset into a fresh directory, verify its size and SHA-256, and repeat the
-   installed-home smoke matrix.
-4. Record the external release evidence in this handoff and the release qualification record, then
-   stop without starting a new milestone.
+Define and review the next milestone before changing language, compiler, standard-library, package,
+or editor contracts. Do not reuse the completed v0.7.0 milestone as an active plan.
