@@ -476,6 +476,13 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 borrow_provenance,
                 summaries,
             );
+            apply_retained_call_mutations(
+                &statement.expression,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
         }
     }
 }

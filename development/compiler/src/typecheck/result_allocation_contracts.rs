@@ -10,9 +10,15 @@ use super::diagnostics::{
     missing_result_allocation_contract_diagnostic,
     unjustified_result_allocation_contract_diagnostic,
 };
-use super::provenance::{CallableId, CallableProvenanceSummaries, ValueProvenance};
+use super::environments::{
+    environment_for_function, environment_for_interface_method, environment_for_literal,
+    environment_for_method,
+};
+use super::model::TypeEnvironment;
+use super::provenance::{CallableId, CallableProvenanceSummaries, result_contains_allocation};
 use super::returns::function_summary_key;
-use crate::ast::{AstFile, Block, ImplMember, Item, ResultAllocationModifier};
+use super::type_expr::type_expr_to_type_in_environment;
+use crate::ast::{AstFile, Block, ImplMember, Item, ResultAllocationModifier, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::semantics::TrustedDeclarationRole;
@@ -27,26 +33,35 @@ pub(super) fn check_result_allocation_contracts(
 ) {
     for item in &ast.items {
         match item {
-            Item::Function(function) => check_body_contract(
-                sources,
-                function_summary_key(function),
-                function.member_name_span,
-                function.result_allocation.as_ref(),
-                &function.body,
-                resolved,
-                summaries,
-                diagnostics,
-            ),
+            Item::Function(function) => {
+                let environment = environment_for_function(function, resolved);
+                check_body_contract(
+                    sources,
+                    function_summary_key(function),
+                    function.member_name_span,
+                    function.result_allocation.as_ref(),
+                    &function.return_type,
+                    &function.body,
+                    resolved,
+                    &environment,
+                    summaries,
+                    diagnostics,
+                );
+            }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     if let Some(body) = &method.body {
+                        let environment =
+                            environment_for_interface_method(method, resolved, interface);
                         check_body_contract(
                             sources,
                             method.name_span,
                             method.name_span,
                             method.result_allocation.as_ref(),
+                            &method.return_type,
                             body,
                             resolved,
+                            &environment,
                             summaries,
                             diagnostics,
                         );
@@ -58,13 +73,16 @@ pub(super) fn check_result_allocation_contracts(
                     if let ImplMember::Method(method) = member
                         && let Some(body) = &method.body
                     {
+                        let environment = environment_for_method(method, resolved, implementation);
                         check_body_contract(
                             sources,
                             method.name_span,
                             method.name_span,
                             method.result_allocation.as_ref(),
+                            &method.return_type,
                             body,
                             resolved,
+                            &environment,
                             summaries,
                             diagnostics,
                         );
@@ -73,25 +91,31 @@ pub(super) fn check_result_allocation_contracts(
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
+                    let environment = environment_for_function(function, resolved);
                     check_body_contract(
                         sources,
                         function_summary_key(function),
                         function.member_name_span,
                         function.result_allocation.as_ref(),
+                        &function.return_type,
                         &function.body,
                         resolved,
+                        &environment,
                         summaries,
                         diagnostics,
                     );
                 }
                 for (_, literal) in construct.literals() {
+                    let environment = environment_for_literal(literal, resolved);
                     check_body_contract(
                         sources,
                         literal.span,
                         literal.keyword_span,
                         literal.result_allocation.as_ref(),
+                        &literal.return_type,
                         &literal.body,
                         resolved,
+                        &environment,
                         summaries,
                         diagnostics,
                     );
@@ -146,17 +170,20 @@ fn check_body_contract(
     summary_key: ByteSpan,
     declaration_span: ByteSpan,
     modifier: Option<&ResultAllocationModifier>,
+    return_type: &TypeExpr,
     body: &Block,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let return_type = type_expr_to_type_in_environment(return_type, resolved, environment);
     let inferred = matches!(
         resolved.trusted_declarations.role(summary_key),
         Some(TrustedDeclarationRole::AllocationOperation { .. })
     ) || summaries
         .result(CallableId::declared_at(summary_key))
-        .is_some_and(ValueProvenance::contains_result_allocation);
+        .is_some_and(|summary| result_contains_allocation(summary, &return_type, resolved));
     match (modifier, inferred) {
         (None, true) => diagnostics.push(missing_result_allocation_contract_diagnostic(
             sources,

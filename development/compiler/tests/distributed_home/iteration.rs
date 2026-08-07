@@ -796,7 +796,7 @@ fn semantic_data_contains(
 }
 
 #[test]
-fn distributed_lsp_propagates_implicit_iteration_allocation_effects() {
+fn distributed_lsp_keeps_implicit_iteration_effects_out_of_source_contracts() {
     let project = TempProject::new("distributed-home-collection-for-allocation-lsp");
     let source_text = r#"use std/iter.{IntoIterator, Iterator}
 use std/vec.Vec
@@ -873,12 +873,13 @@ func run(source: AllocatingCollection): void {
     let run_hover = iteration_response_with_id(&frames, 2)["result"]["contents"]["value"]
         .as_str()
         .expect("expected run hover");
-    assert!(run_hover.contains("Allocation effect"), "{run_hover}");
+    assert!(!run_hover.contains("Allocation effect"), "{run_hover}");
+    assert!(!run_hover.contains("alloc func run"), "{run_hover}");
     let iteration_hover = iteration_response_with_id(&frames, 3)["result"]["contents"]["value"]
         .as_str()
         .expect("expected iteration hover");
     assert!(
-        iteration_hover.contains("Allocation effect:** conversion uses"),
+        !iteration_hover.contains("Allocation effect"),
         "{iteration_hover}"
     );
 }

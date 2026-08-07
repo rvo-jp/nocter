@@ -1320,7 +1320,7 @@ fn lsp_inlay_hints_publish_inferred_types_from_snapshot_facts() {
 }
 
 #[test]
-fn lsp_inlay_hints_anchor_result_provenance_after_the_return_type() {
+fn lsp_inlay_hints_do_not_invent_result_contracts() {
     let project = TempProject::new("cli-lsp-provenance-inlay-anchor");
     let source_text = "func label(): &str {\n    return \"static\"\n}\n";
     let source = project.write_source("app.nct", source_text);
@@ -1382,16 +1382,100 @@ fn lsp_inlay_hints_anchor_result_provenance_after_the_return_type() {
     let hints = response_with_id(&messages, 2)["result"]
         .as_array()
         .expect("inlay hints");
-    let provenance = hints
-        .iter()
-        .find(|hint| hint["label"] == " from inferred storage")
-        .expect("provenance hint");
-    assert_eq!(provenance["position"]["line"], 0);
-    assert_eq!(provenance["position"]["character"], 18);
-    assert_eq!(
-        provenance["tooltip"]["value"],
-        "**Result provenance:** storage from static storage."
+    assert!(
+        hints.iter().all(|hint| {
+            hint["label"] != " from inferred storage" && hint["label"] != " allocates"
+        }),
+        "compiler-only result facts leaked into source hints: {hints:?}"
     );
+}
+
+#[test]
+fn lsp_code_action_inserts_alloc_at_the_callable_keyword() {
+    let project = TempProject::new("cli-lsp-result-allocation-quick-fix");
+    project.write_source(
+        "nocter.nct",
+        r#"#executable: { name: "app", entry: "./app" }
+"#,
+    );
+    let source_text = r#"struct Buffer { ptr: *u8 }
+interface Factory { pub alloc method &self.make(): Buffer }
+
+func make<F: Factory>(factory: &F): Buffer { return factory.make() }
+"#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "rootUri": file_uri(project.root()) }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 7,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/codeAction",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "range": {
+                        "start": { "line": 3, "character": 5 },
+                        "end": { "line": 3, "character": 9 }
+                    },
+                    "context": { "diagnostics": [] }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let actions = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("code actions");
+    let action = actions
+        .iter()
+        .find(|action| action["title"] == "Mark the callable result as allocated")
+        .unwrap_or_else(|| {
+            panic!(
+                "result allocation quick fix: {actions:?}\n{messages:?}\nstderr: {}",
+                text(&output.stderr)
+            )
+        });
+    let edit = &action["edit"]["documentChanges"][0]["edits"][0];
+    assert_eq!(edit["newText"], "alloc ");
+    assert_eq!(edit["range"]["start"], json!({ "line": 3, "character": 0 }));
+    assert_eq!(edit["range"]["end"], json!({ "line": 3, "character": 0 }));
 }
 
 #[test]
@@ -1612,7 +1696,7 @@ func main(): i32! {
     let hover_text = hover["contents"]["value"].as_str().unwrap();
     assert!(
         hover_text.contains("func lookup(name: &str): &str?! from static")
-            && hover_text.contains("Result provenance:** storage from static storage"),
+            && !hover_text.contains("Result provenance:"),
         "{hover_text}"
     );
     assert_eq!(hover["range"]["start"]["line"], json!(line));

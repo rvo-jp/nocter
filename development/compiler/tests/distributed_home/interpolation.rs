@@ -5,7 +5,7 @@ fn distributed_std_owned_interpolation_checks() {
     let project = TempProject::new("distributed-home-interpolation-check");
     let source = project.write_source(
         "interpolation_check.nct",
-        r#"func render(value: usize): String {
+        r#"alloc func render(value: usize): String {
     return "value ${value}"
 }
 
@@ -33,7 +33,7 @@ func marked(label: &str, value: i32): i32! {
     return value
 }
 
-func temporary(): String {
+alloc func temporary(): String {
     return "temporary ${7}"
 }
 
@@ -86,7 +86,7 @@ func consume(text: String): i32 {
     return 0
 }
 
-func rendered(): String {
+alloc func rendered(): String {
     return "return ${3}"
 }
 
@@ -166,6 +166,10 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
     var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
+    }
+    if buffer.allocator_kind == 2 {
+        allocator.state = current_allocator_state()
+        allocator.kind = current_allocator_kind()
     }
     try_grow(&+allocator, buffer, new_size)?
     return
@@ -320,8 +324,8 @@ func main(): i32 {
         .as_str()
         .expect("expected interpolation hover markdown");
     assert!(hover_markdown.contains("interpolated string: String"));
-    assert!(hover_markdown.contains("Allocation effect"));
-    assert!(hover_markdown.contains("Result provenance"));
+    assert!(!hover_markdown.contains("Allocation effect"));
+    assert!(!hover_markdown.contains("Result provenance"));
     assert!(hover_markdown.contains("Accepted interpolation input:** `&str`"));
 
     let nested_hover = response_with_id(&frames, 6);

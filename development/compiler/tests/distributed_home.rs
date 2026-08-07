@@ -443,7 +443,7 @@ func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
     return raw_prefix_mut(buffer, prefix_len)?
 }
 
-func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
+alloc func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer from allocator {
     return allocator.alloc(size, align)
 }
 
@@ -469,7 +469,7 @@ func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void {
     return
 }
 
-func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! {
+alloc func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! from allocator {
     return alloc_layout(allocator, Layout.new(8, 8)?)
 }
 
@@ -520,15 +520,15 @@ func file_write_text(file: &+File, text: &str): void! {
     return
 }
 
-func process_cwd(): String! {
+alloc func process_cwd(): String! {
     return cwd()?
 }
 
-func process_try_cwd(allocator: &+TryAllocator): String! {
+alloc func process_try_cwd(allocator: &+TryAllocator): String! from allocator {
     return try_cwd(allocator)?
 }
 
-func process_args_shape(): Vec<&str>! {
+alloc func process_args_shape(): Vec<&str>! {
     return args()?
 }
 "#,
@@ -707,7 +707,6 @@ fn distributed_std_vec_with_capacity_zero_runs() {
     let source = project.write_source(
         "vec_with_capacity_zero.nct",
         r#"use std/mem.page_allocator
-use std/vec.Vec
 use std/vec.{Vec, with_capacity}
 
 func main(): i32! {
@@ -2215,7 +2214,7 @@ fn distributed_std_vec_builds_cross_source_generic_copy_aggregate_with_capacity(
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub func make<T>(seed: T): Vec<T>! {
+pub alloc func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -2271,7 +2270,7 @@ fn distributed_std_vec_builds_cross_source_generic_non_copy_aggregate_with_capac
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub func make<T>(seed: T): Vec<T>! {
+pub alloc func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -2327,7 +2326,7 @@ pub copy struct Box<T> {
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-pub func make<T>(seed: T): Vec<T>! {
+pub alloc func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
     return Vec.with_capacity(1)
 }
@@ -3159,7 +3158,7 @@ fn distributed_std_allocator_methods_run() {
         r#"use std/io.File
 use std/mem.{Allocator, RawBuffer, page_allocator}
 
-func allocate(allocator: &+Allocator): RawBuffer! {
+alloc func allocate(allocator: &+Allocator): RawBuffer! from allocator {
     return allocator.alloc(2, 1)
 }
 
@@ -3496,7 +3495,7 @@ pub func buffer_address(buffer: &RawBuffer): usize {
     return addr(buffer.ptr)
 }
 
-pub func allocate_current(size: usize, align: usize): RawBuffer {
+pub alloc func allocate_current(size: usize, align: usize): RawBuffer {
     var allocator = current_allocator()
     return alloc(&+allocator, size, align)
 }
@@ -4527,7 +4526,7 @@ fn distributed_std_explicit_string_construction_builds_to_macho() {
 use std/mem.page_allocator
 use std/string.with_capacity
 
-func make(): String {
+alloc func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
     append_str(&+out, "hello")
@@ -4559,7 +4558,7 @@ use std/io.print
 use std/mem.page_allocator
 use std/string.{view, with_capacity}
 
-func make(): String {
+alloc func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
     append_str(&+out, "hello")
@@ -4707,7 +4706,7 @@ fn distributed_std_string_from_str_forward_return_runs() {
 use std/mem.page_allocator
 use std/string.{from_str, view}
 
-func make(): String! {
+alloc func make(): String! {
     var allocator = page_allocator()
     return from_str("Forwarded String")
 }

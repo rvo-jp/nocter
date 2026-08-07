@@ -86,6 +86,72 @@ pub(super) fn external_origins_satisfy(
     }
 }
 
+pub(in crate::typecheck) fn result_contains_allocation(
+    actual: &ValueProvenance,
+    ty: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    match actual {
+        ValueProvenance::Independent => false,
+        ValueProvenance::Origins(origins) => {
+            type_carries_storage(ty, resolved) && origins.iter().any(StorageOrigin::is_allocated)
+        }
+        ValueProvenance::Fallible { success, error } => match ty {
+            Type::Fallible {
+                success: success_ty,
+                error: error_ty,
+            } => {
+                success
+                    .as_deref()
+                    .is_some_and(|value| result_contains_allocation(value, success_ty, resolved))
+                    || error
+                        .as_deref()
+                        .is_some_and(|value| result_contains_allocation(value, error_ty, resolved))
+            }
+            _ => conservative_children_contain_allocation(actual, ty, resolved),
+        },
+        ValueProvenance::Aggregate {
+            fallback,
+            fields,
+            elements,
+        } => {
+            fallback
+                .as_deref()
+                .is_some_and(|value| result_contains_allocation(value, ty, resolved))
+                || fields.iter().any(|(name, value)| {
+                    aggregate_field_type(ty, name, resolved).map_or_else(
+                        || result_contains_allocation(value, ty, resolved),
+                        |field_ty| result_contains_allocation(value, &field_ty, resolved),
+                    )
+                })
+                || elements.values().any(|value| {
+                    aggregate_element_type(ty).map_or_else(
+                        || result_contains_allocation(value, ty, resolved),
+                        |element_ty| result_contains_allocation(value, element_ty, resolved),
+                    )
+                })
+        }
+    }
+}
+
+fn conservative_children_contain_allocation(
+    actual: &ValueProvenance,
+    ty: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    match actual {
+        ValueProvenance::Fallible { success, error } => {
+            success
+                .as_deref()
+                .is_some_and(|value| result_contains_allocation(value, ty, resolved))
+                || error
+                    .as_deref()
+                    .is_some_and(|value| result_contains_allocation(value, ty, resolved))
+        }
+        _ => unreachable!("only outcome provenance reaches the conservative fallback"),
+    }
+}
+
 fn conservative_children_satisfy(
     actual: &ValueProvenance,
     allowed: &[StorageOrigin],
@@ -191,5 +257,27 @@ mod tests {
             &Type::Named("Pair".to_string()),
             &resolved,
         ));
+    }
+
+    #[test]
+    fn ignores_allocations_in_scalar_outcome_projections() {
+        let text = "struct Error { message: &str }\n";
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, text);
+        let tokens = lex(&sources, source);
+        let ast = parse(&sources, source, &tokens.tokens).ast.unwrap();
+        let resolved = resolve(&sources, &ast);
+        let actual = ValueProvenance::Fallible {
+            success: Some(Box::new(
+                ValueProvenance::current_allocation_context().allocated(),
+            )),
+            error: Some(Box::new(ValueProvenance::static_storage())),
+        };
+        let ty = Type::Fallible {
+            success: Box::new(Type::Primitive("usize".into())),
+            error: Box::new(Type::Error),
+        };
+
+        assert!(!result_contains_allocation(&actual, &ty, &resolved));
     }
 }

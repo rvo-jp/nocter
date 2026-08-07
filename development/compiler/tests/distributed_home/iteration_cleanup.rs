@@ -348,7 +348,7 @@ impl Token {{
     }}
 }}
 
-func tokens(): Vec<Token> {{
+alloc func tokens(): Vec<Token> {{
     return Vec [
         Token {{ label: "A" }},
         Token {{ label: "B" }},

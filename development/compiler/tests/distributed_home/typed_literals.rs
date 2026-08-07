@@ -13,11 +13,11 @@ fn distributed_std_typed_literals_check_from_packaged_home() {
         "typed_literals.nct",
         r#"use std/vec.Vec
 
-func values(): Vec<i32> {
+alloc func values(): Vec<i32> {
     return Vec [1, 2, 3]
 }
 
-func text(): String {
+alloc func text(): String {
     return String "hello"
 }
 
@@ -273,7 +273,7 @@ func run(values: Vec<i32>): void {
 }
 
 #[test]
-fn distributed_lsp_propagates_implicit_sequence_spread_allocation_effects() {
+fn distributed_lsp_keeps_implicit_sequence_spread_effects_out_of_source_contracts() {
     let project = TempProject::new("distributed-home-sequence-spread-allocation-lsp");
     let source_text = r#"use std/iter.{ExactSizeIterator, IntoIterator, Iterator}
 use std/vec.Vec
@@ -354,12 +354,13 @@ func run(source: AllocatingCollection): void {
     let run_hover = response(2)["result"]["contents"]["value"]
         .as_str()
         .expect("expected run hover");
-    assert!(run_hover.contains("Allocation effect"), "{run_hover}");
+    assert!(!run_hover.contains("Allocation effect"), "{run_hover}");
+    assert!(!run_hover.contains("alloc func run"), "{run_hover}");
     let spread_hover = response(3)["result"]["contents"]["value"]
         .as_str()
         .expect("expected spread hover");
     assert!(
-        spread_hover.contains("Allocation effect:** conversion uses"),
+        !spread_hover.contains("Allocation effect"),
         "{spread_hover}"
     );
 }
@@ -609,7 +610,7 @@ fn explicit_literal_context_overrides_a_lexical_region() {
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
-func make_values(): Vec<i32> {
+alloc func make_values(): Vec<i32> {
     let root = page_allocator()
     let arena = page_allocator()
     region temp using arena {
@@ -617,7 +618,7 @@ func make_values(): Vec<i32> {
     }
 }
 
-func make_text(): String {
+alloc func make_text(): String {
     let root = page_allocator()
     let arena = page_allocator()
     region temp using arena {

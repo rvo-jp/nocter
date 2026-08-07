@@ -262,6 +262,34 @@ func make(): Buffer {
 }
 
 #[test]
+fn ignores_allocated_local_storage_outside_storage_bearing_result_projections() {
+    let diagnostics = check_text_with_trusted_function(
+        r#"struct Buffer { pointer: *u8 }
+primitive empty_pointer(): *u8
+func grow(buffer: &+Buffer): void { return }
+func use_buffer(): usize! {
+    var buffer = Buffer { pointer: empty_pointer() }
+    grow(&+buffer)
+    return 1
+}
+"#,
+        "grow",
+        TrustedDeclarationRole::AllocationMutation {
+            target: 0,
+            source: AllocationSource::Input(0),
+            fallback_to_current: true,
+        },
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "E0462"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn propagates_retained_mutations_through_methods_wrappers_and_loops() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer<T> { pointer: *T }

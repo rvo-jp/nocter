@@ -253,6 +253,10 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
     }
+    if buffer.allocator_kind == 2 {
+        allocator.state = current_allocator_state()
+        allocator.kind = current_allocator_kind()
+    }
     try_grow(&+allocator, buffer, new_size)?
     return
 }"#;

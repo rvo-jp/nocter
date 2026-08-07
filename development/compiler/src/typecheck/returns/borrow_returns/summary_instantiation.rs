@@ -71,10 +71,41 @@ fn instantiate_origin(
         return map_origin(origin);
     };
     let mapped = map_origin(&StorageOrigin::Input(*source))?;
-    if !mapped.has_storage_dependency() {
+    if !has_selected_allocation_domain(&mapped) {
         return map_origin(&StorageOrigin::CurrentAllocationContext);
     }
     Some(preserve_current_fallback(mapped))
+}
+
+fn has_selected_allocation_domain(provenance: &ValueProvenance) -> bool {
+    match provenance {
+        ValueProvenance::Independent => false,
+        ValueProvenance::Origins(origins) => origins.iter().any(|origin| {
+            matches!(
+                origin,
+                StorageOrigin::Allocated(_)
+                    | StorageOrigin::Input(_)
+                    | StorageOrigin::InputWithCurrentFallback(_)
+            )
+        }),
+        ValueProvenance::Aggregate {
+            fallback,
+            fields,
+            elements,
+        } => {
+            fallback
+                .as_deref()
+                .is_some_and(has_selected_allocation_domain)
+                || fields.values().any(has_selected_allocation_domain)
+                || elements.values().any(has_selected_allocation_domain)
+        }
+        ValueProvenance::Fallible { success, error } => {
+            success
+                .as_deref()
+                .is_some_and(has_selected_allocation_domain)
+                || error.as_deref().is_some_and(has_selected_allocation_domain)
+        }
+    }
 }
 
 fn preserve_current_fallback(provenance: ValueProvenance) -> ValueProvenance {
