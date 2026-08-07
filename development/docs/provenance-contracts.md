@@ -32,11 +32,19 @@ standard-library name.
 
 ## Source Contract Rules
 
-- A public body retaining receiver or parameter storage must declare every retained origin.
-- A bodyless interface method uses an explicit `from` clause when it promises an external origin.
-  Without one, it promises no caller-managed origin and receives conservative internal storage.
-- Absence of `from` means no caller-managed external origin. It does not promise allocation-free
-  execution or independence from the active lexical region.
+- An omitted clause expands to no caller-managed origin when the successful result is independent,
+  fresh, or static, and to one inferred origin when exactly one typed receiver, parameter,
+  allocator, or literal pack is eligible.
+- A public body with multiple eligible inputs may omit the clause only when exact body evidence
+  retains none of them. Retaining any candidate requires an explicit upper bound.
+- A bodyless or structural callable with multiple eligible inputs is ambiguous and invalid without
+  an explicit clause.
+- An explicit clause remains legal as a wider documented upper bound. It is never reconstructed in
+  formatter or editor output when source omitted it.
+- For a fallible return, the public contract constrains only the success branch. Error provenance
+  remains compiler-owned escape evidence.
+- Absence of `from` does not promise allocation-free execution or independence from the active
+  lexical region.
 - `static` is the only non-input public origin. `from current` is invalid because the current
   allocation context is a compiler capability.
 - Private body-backed callables may keep exact inferred origins without repeating an API contract.
@@ -48,6 +56,8 @@ standard-library name.
 - `ast/provenance` owns accepted source clauses and source spans.
 - `resolve/body` binds origin spans to receiver and parameter declarations.
 - `typecheck/provenance/contracts` converts clauses into semantic origins.
+- `typecheck/provenance/elision` is the sole zero/one/ambiguous candidate classifier and expands
+  source omission for every semantic consumer.
 - `typecheck/provenance/result_allocation` owns fresh-result projections independently of external
   contracts and the execution allocation requirement.
 - `typecheck/provenance/storage_capability` distinguishes general storage provenance from the
@@ -66,16 +76,17 @@ standard-library name.
 
 ## Abstract Callable Boundaries
 
-A bodyless or structural callable with an explicit `from` clause uses that external contract. With
-no clause, scalar and `error` branches remain independent, while an owned, borrowed, pointer, view,
-generic, or nested outcome result that may retain storage receives conservative compiler-owned
-fresh-result provenance. This rule is type-directed and does not contain a `String`, `Vec`, or
-standard-library allowlist.
+A bodyless or structural callable with an explicit clause uses that success-result contract. With
+no clause, the shared classifier expands zero or one eligible input and rejects an ambiguous
+storage-bearing result. Scalar branches remain independent. Owned fresh storage receives the
+current allocation context internally, and fallible error storage receives a separate shaped
+summary. These rules are type-directed and contain no `String`, `Vec`, or standard-library
+allowlist.
 
-Trusted allocation operations override the conservative fallback with their exact source: the
-active context or a resolved allocator input. Body-backed direct calls use their exact converged
-summary. Structural callable calls instantiate conservative fresh storage in the active context
-only when no external contract is available.
+Trusted allocation operations override the abstract summary with their exact source: the active
+context or a resolved allocator input. Body-backed direct calls use their exact converged summary.
+Structural callable calls instantiate the same expanded contract and type-shaped fresh/error
+storage summary used by declaration-backed calls.
 
 ## Generic and Interface Dispatch
 

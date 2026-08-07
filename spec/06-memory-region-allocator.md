@@ -66,21 +66,32 @@ Callers see only external storage relationships they must preserve:
 ```nct
 func len(text: &str): usize
 func copy(text: &str): String
-func view(text: &String): &str from text
+func view(text: &String): &str
 func copy_with(allocator: &+Allocator, text: &str): String from allocator
 ```
 
 `from X` reports a receiver, parameter, allocator capability, or `static` origin retained by a
-storage-bearing result projection. A public body that retains caller-managed storage must declare
-every such origin. Absence of `from` means that the result exposes no caller-managed external
-origin. It does not promise allocation-free execution or storage independence from the active
-lexical region; future `noalloc` and `realtime` guarantees are outside the current language.
+storage-bearing successful result projection. The clause is normally omitted. When exactly one
+receiver, parameter, allocator capability, or literal pack can supply the result storage, that
+origin is inferred. Fresh storage and static storage require no caller-managed source place and
+therefore require no clause.
+
+A callable with multiple eligible inputs may omit `from` only when its body proves that the result
+retains none of them. A bodyless declaration cannot supply that proof, so an ambiguous
+storage-bearing result must explicitly name its retained upper bound. `copy_with` above has both an
+allocator and text input, but its owned result retains only the allocator origin. Explicit clauses
+remain legal for unambiguous APIs, although canonical source omits them.
+
+For `T!`, the clause describes only the successful `T` value. Error storage remains part of
+compiler-owned escape analysis and does not force a `from` clause onto every fallible API. Omitting
+`from` does not promise allocation-free execution or storage independence from the active lexical
+region; future `noalloc` and `realtime` guarantees are outside the current language.
 
 Body-backed summaries infer fresh storage and exact path-sensitive origins from implementations.
-Bodyless abstract callables use their written `from` clause, or a conservative compiler-owned
-fresh-result capability when no external origin is declared. Trusted allocation primitives use
-semantic roles attached to declaration identity. None of these internal facts changes callable
-type compatibility or editor signature text.
+Bodyless abstract callables use their written clause or the shared zero/one-origin elision rule.
+Trusted allocation and process-lifetime primitives use semantic roles attached to declaration
+identity. None of these internal facts causes formatter or editor signatures to synthesize source
+syntax that the author did not write.
 
 ## Allocation Failure Policies
 
@@ -258,8 +269,8 @@ Elision and inference rules:
 
 - A borrow-like result with one borrow-like input is tied to that input.
 - A method result may be tied to its borrowed receiver when that is its only declared origin.
-- A concrete body can establish that a result comes from a particular parameter, receiver, static
-  storage, or multiple possible inputs.
+- A concrete body can establish that a result is fresh or static, or retains none of several
+  otherwise eligible inputs.
 - A result with multiple possible inputs is constrained by all of them at the caller.
 - A trusted bodyless declaration must provide compiler-owned origin metadata.
 - An untrusted bodyless declaration with an ambiguous borrow-like result is invalid.
@@ -274,7 +285,8 @@ higher-order functions, or separately compiled region-parameterized types.
 
 ### Explicit result provenance
 
-An identity-based `from` clause expresses public result provenance without adding lifetime names:
+An identity-based `from` clause expresses an otherwise ambiguous public result provenance without
+adding lifetime names:
 
 ```nct
 pub method &self.get(key: &K): &V? from self
@@ -287,8 +299,10 @@ values, and allocator capabilities. A pack origin represents the storage carried
 the ephemeral pack container itself still cannot escape the literal body.
 `static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
 result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
-are checked against the declared origin set; bodyless interface methods use the clause as their
-external provenance summary.
+are checked against the explicit or elided origin set; bodyless interface methods use the same
+shared classifier. Candidate collection uses resolved types and declaration identities rather than
+formatted names. `static` remains accepted in explicit source, but canonical APIs omit it because
+callers preserve no source place for program-lifetime storage.
 
 Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined

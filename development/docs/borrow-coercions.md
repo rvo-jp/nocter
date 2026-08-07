@@ -53,7 +53,8 @@ A borrow-coercion kind additionally records:
 - concrete source, receiver, and target types
 - generic arguments substituted from the source nominal type
 - receiver capability and any built-in capability weakening
-- result provenance instantiated from `self`
+- result provenance instantiated from `self`, plus whether `from self` was authored for exact
+  source presentation
 - source and expectation spans
 - concrete callable target used by lowering
 
@@ -106,7 +107,8 @@ not own special evaluation rules for those expression shapes.
 ## Editor Boundary
 
 AST source ranges feed semantic occurrences for `coerce`, the source type, `self`, `as`, the target
-type, and `from self`. Hover and completion render normalized notation from the declaration model.
+type, and an optional authored `from self`. Hover and completion render normalized notation from
+the declaration model without synthesizing the inferred receiver clause.
 Definition, references, and rename use resolver identities. LSP transport only converts positions
 and presentation blocks.
 

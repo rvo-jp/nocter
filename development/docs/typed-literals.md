@@ -90,14 +90,14 @@ is compiler-owned stack/runtime state and never causes an implicit heap allocati
 - Sequence capture is final and unique. Phase 1 does not implement required leading parameters.
 - External result provenance, fresh result storage, and the internal execution allocation
   requirement use the ordinary callable-summary model while remaining separate facts.
-- A literal declaration accepts the same `from` result-provenance clause after its return type as
-  functions and methods. The clause is checked against the body, drives typed-literal call-site
-  provenance, and appears in formatter and editor signatures.
-- A string literal parameter may be an input origin, such as `from text`. A sequence element pack
-  may be an input origin, such as `from items`, when returned elements retain caller-managed
-  storage. The contract maps the pack declaration identity to the supplied fixed and spread
-  elements; it does not make the ephemeral pack a runtime value. Fresh storage retained by a
-  collection literal remains compiler-owned and does not expose the ambient allocation context.
+- A literal declaration accepts the same optional `from` result-provenance clause after its return
+  type as functions and methods. The shared callable elision classifier expands an omitted clause;
+  formatter and editor signatures preserve only authored syntax.
+- A string literal parameter or sequence element pack is inferred when it is the only eligible
+  input. An explicit `from text` or `from items` remains available when another eligible input makes
+  the retained set ambiguous. Pack provenance maps declaration identity to supplied fixed and
+  spread elements; it does not make the ephemeral pack a runtime value. Fresh storage retained by
+  a collection literal remains compiler-owned and does not expose the ambient allocation context.
 
 ## Allocation Context
 

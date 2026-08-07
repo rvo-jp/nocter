@@ -22,7 +22,7 @@ Literal definitions are public members of the target's same-module `construct` d
 
 ```nct
 construct Vec<T> {
-    pub default literal [](...items: T): Self from items {
+    pub default literal [](...items: T): Self {
         var result = Self.with_capacity(items.len())
         for item in items {
             result.push(move item)
@@ -49,9 +49,10 @@ Rules:
 - A nominal type has at most one definition for each shape. Parameters, bounds, and result types do
   not form an overload set.
 - Different supported shapes may coexist on one type.
-- A result-provenance clause follows the ordinary callable rules. A sequence pack may be named as
-  an origin, such as `from items`, when storage carried by one or more elements may survive in the
-  result. This names the element origins, not the ephemeral pack container.
+- A result-provenance clause follows the ordinary callable elision rules. A sequence pack is the
+  inferred origin when it is the only eligible input. It may be named explicitly as `from items`
+  when another eligible input makes the retained set ambiguous. This names the element origins,
+  not the ephemeral pack container.
 - Fresh result storage and execution allocation are inferred from the literal body and trusted
   operations; they add no literal modifier.
 - Same-module attachment prevents orphan literal definitions for another module's type.

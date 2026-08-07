@@ -202,7 +202,7 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
         allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
         requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span> <span class="token-operator">{</span>
             storage<span class="token-operator">:</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> requested_capacity<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
@@ -266,7 +266,7 @@
 
 coerce <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized UTF-8 prefix without transferring ownership.</span>
-    <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
@@ -282,7 +282,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_with_capacity</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> requested_capacity<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
@@ -308,7 +308,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
     <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_from_utf8</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> candidate<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">str_from_raw_parts</span><span class="token-operator">(</span>text<span class="token-operator">.</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">,</span> text<span class="token-operator">.</span>len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
@@ -354,7 +354,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">bytes</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> from value <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">bytes</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
@@ -488,7 +488,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
     <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.string.empty_separator"</span><span class="token-operator">,</span> <span class="token-string">"string separator must not be empty"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">bytes_iter</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> from text <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">bytes_iter</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">ViewIter</span><span class="token-operator">.</span><span class="token-function">from_view</span><span class="token-operator">(</span><span class="token-function">bytes_from_str</span><span class="token-operator">(</span><span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
@@ -513,7 +513,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
 <span class="token-operator">}</span>
 
 <span class="token-keyword">impl</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
@@ -544,7 +544,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> from self <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span><span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
@@ -569,7 +569,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
     <span class="token-operator">}</span>
 
     <span class="token-comment">/// Iterates over the exact UTF-8 encoding bytes without allocation.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> from self <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">bytes_iter</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 

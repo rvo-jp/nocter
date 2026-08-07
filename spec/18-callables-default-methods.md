@@ -19,7 +19,7 @@ An interface may mix required and default methods:
 
 ```nct
 pub interface Iterator<T> {
-    pub method &+self.next(): T? from self
+    pub method &+self.next(): T?
 
     pub method self.count(): usize {
         var source = move self
@@ -124,9 +124,11 @@ func finish<F: func(value: i32): i32>(callback: F, value: i32): i32 {
   must be writable
 - `func(Input): Output` permits one consuming invocation; the called value is moved by the call
 
-Parameter names are optional. A named parameter may be referenced by a result provenance clause,
-for example `&func(text: &str): &str from text`. A generic parameter may have interface bounds and
-one callable contract, but multiple callable contracts are ambiguous and rejected.
+Parameter names are optional. A single eligible named parameter is inferred as the result origin,
+for example `&func(text: &str): &str`. When a result may retain one of several parameters, their
+names are required by an explicit clause such as
+`&func(left: &str, right: &str): &str from left | right`. A generic parameter may have interface
+bounds and one callable contract, but multiple callable contracts are ambiguous and rejected.
 
 Fresh result storage and execution allocation are inferred behind callable boundaries. They do not
 change callable capability or structural callable compatibility. A callable `from` clause remains
@@ -159,12 +161,13 @@ let output = values
 
 The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
 `fold`, `find`, `any`, `all`, and `to_vec`. Constructing an adapter is lazy and allocation-free.
-Advancing an adapter may return storage carried by its source or callback, so
-`Iterator<T>.next` retains `from self`. Adapter construction contracts name every retained input;
-for example, `map` returns `from source | transform`. Compiler summaries preserve fresh storage
-through callback calls without adding variance to `&+func(T): U`. Scalar-only operations such as
-`count`, `any`, and `all` discard result-storage provenance. `to_vec` allocates in the current
-context and retains element provenance from its source internally.
+Advancing an adapter may return storage carried by its source or callback.
+`Iterator<T>.next` has only its receiver as an eligible origin, so the source clause is elided.
+Adapter construction contracts name every retained input when several are eligible; for example,
+`map` returns `from source | transform`. Compiler summaries preserve fresh storage through callback
+calls without adding variance to `&+func(T): U`. Scalar-only operations such as `count`, `any`, and
+`all` discard result-storage provenance. `to_vec` allocates in the current context and retains
+element provenance from its source internally.
 
 `map` preserves exact size when the mapped source is exact. `filter` does not, because its
 predicate determines how many elements remain. Callback evaluation occurs once per visited item

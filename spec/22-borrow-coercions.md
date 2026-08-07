@@ -12,7 +12,7 @@ A `coerce` declaration belongs to the nominal type named after the keyword:
 
 ```nct
 coerce String {
-    pub &self as &str from self {
+    pub &self as &str {
         return self.view()
     }
 }
@@ -21,14 +21,15 @@ coerce String {
 An entry has this grammar:
 
 ```text
-visibility? receiver `as` target `from` `self` block
+visibility? receiver `as` target (`from` `self`)? block
 ```
 
 The following rules apply:
 
 - the receiver is exactly `&self` or `&+self`; an owned `self` receiver is invalid
 - the target is a borrowed type, `&str`, or a slice view
-- `from self` is mandatory because the result remains tied to the source loan
+- the result origin is always the receiver and is normally elided; an explicit clause, when
+  written, must be exactly `from self`
 - `pub` makes an entry available outside its defining module; an entry without `pub` is private
 - `pub(nocter)` is not accepted on an entry
 - the enclosing `coerce` declaration has no visibility modifier
@@ -43,11 +44,11 @@ Generic source parameters follow the source type's declaration order:
 
 ```nct
 coerce Vec<T> {
-    pub &self as &[T] from self {
+    pub &self as &[T] {
         return self.view()
     }
 
-    pub &+self as &+[T] from self {
+    pub &+self as &+[T] {
         return self.view_mut()
     }
 }
@@ -98,7 +99,7 @@ struct Box<T> {
 }
 
 coerce Box<T> {
-    pub &self as &T from self {
+    pub &self as &T {
         return &self.value
     }
 }
@@ -111,7 +112,7 @@ func accept(value: &i32): void {
     return
 }
 
-func project(source: &Box<i32>): &i32 from source {
+func project(source: &Box<i32>): &i32 {
     let binding: &i32 = source
     var assigned: &i32 = binding
     assigned = source
@@ -170,8 +171,9 @@ packages from creating a transitive or order-dependent conversion graph.
 Selection records one concrete conversion plan before ownership and lowering. Its stable kind is
 lossless integer conversion, capability weakening, or borrow coercion. A borrow-coercion plan also
 contains the declaration identity, concrete source and target types, receiver capability, generic
-substitution, and `from self` provenance. Ownership, regions, analysis, and native lowering consume
-that same plan; they do not repeat declaration lookup.
+substitution, inferred receiver provenance, and whether the author wrote an explicit clause.
+Ownership, regions, analysis, and native lowering consume that same plan; they do not repeat
+declaration lookup.
 
 The source expression is evaluated once. Native lowering invokes the selected body as an ordinary
 statically resolved borrow-returning call. The resulting value carries the original source loan,
@@ -179,16 +181,16 @@ so it cannot outlive the value borrowed by the caller.
 
 ## Standard Library Surface
 
-The v0.8.0 standard library provides these public entries:
+The current standard library provides these public entries:
 
 ```nct
 coerce String {
-    pub &self as &str from self { ... }
+    pub &self as &str { ... }
 }
 
 coerce Vec<T> {
-    pub &self as &[T] from self { ... }
-    pub &+self as &+[T] from self { ... }
+    pub &self as &[T] { ... }
+    pub &+self as &+[T] { ... }
 }
 ```
 
@@ -199,7 +201,8 @@ break its UTF-8 invariant. Existing explicit `view` and `view_mut` methods remai
 
 Editor tooling presents a normalized coercion entry on the declaration's exact `as` token. The
 implicit `self` name is a readonly or readwrite parameter according to its receiver. Hovering a
-nominal type lists its accessible coercion surface alongside its construction surface.
+nominal type lists its accessible coercion surface alongside its construction surface. Presentation
+preserves whether `from self` was actually written and never synthesizes the elided clause.
 
 On an explicit expression, hover covers only the exact `as` token and describes the selected
 conversion kind and concrete source and target. Definition on that token navigates to the selected

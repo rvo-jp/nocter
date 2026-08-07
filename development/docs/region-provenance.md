@@ -93,11 +93,18 @@ Summary construction must:
 Return checking rejects local, owned-parameter, temporary, region, and unknown escapes. NLL maps
 returned origins back to source places and keeps those loans active through the result's last use.
 
-Phase 4 exposes the inferred relationship as an optional identity-resolved `from` contract at API
-boundaries. A concrete body is still inferred and then checked against that upper bound. A
-bodyless interface method seeds its callable summary from the contract. Call sites substitute
-receiver and parameter identities exactly as they do for inferred summaries; source syntax never
+Phase 4 introduced an optional identity-resolved `from` contract at API boundaries. v0.9.0 Phase 1
+makes the clause exceptional: `typecheck/provenance/elision.rs` classifies the resolved successful
+result and eligible typed inputs as independent, uniquely inferred, or ambiguous. A concrete body
+is checked against that expanded upper bound. A bodyless callable seeds its summary from the same
+classifier and requires source syntax only for an ambiguous retained set. Call sites substitute
+receiver and parameter identities exactly as they do for explicit summaries; source syntax never
 introduces lifetime arithmetic or a parallel provenance graph.
+
+Fallible summaries keep success and error provenance as separate shaped branches. `from` constrains
+only the success branch. The error branch remains compiler-owned lifetime evidence so propagation
+can reject local or region escapes without incorrectly making scratch inputs part of every public
+fallible signature.
 
 Phase 10 closure environments enter this model as compiler-generated aggregates. Each explicit
 capture field retains the captured place's exact provenance and loan. Generated closure call
@@ -194,7 +201,8 @@ LSP converts these facts to hover, semantic tokens, completion, and diagnostics 
 a second provenance graph. The retained aggregate fact is an internal compiler value, not a public
 description of nominal representation. Analysis derives a bounded storage summary that omits
 storage-independent and scalar-only branches, coalesces equivalent origins, and does not reveal
-private field names.
+private field names. Presentation reads authored AST clauses only; inferred contracts never become
+synthetic `from` text. Semantic consumers use the expanded classifier result directly.
 
 ## Completed Migration Boundary
 

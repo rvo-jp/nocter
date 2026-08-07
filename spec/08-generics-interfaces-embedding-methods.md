@@ -148,7 +148,7 @@ target only when every specialized bound is satisfied:
 
 ```nct
 impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }

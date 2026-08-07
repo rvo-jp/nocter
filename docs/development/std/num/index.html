@@ -234,7 +234,7 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_usize_to_string</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-number">20</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -243,7 +243,7 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_i32_to_string</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-number">11</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">try_append_i32</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
@@ -252,7 +252,7 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_u8_to_string</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">try_append_u8</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>result<span class="token-operator">,</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result

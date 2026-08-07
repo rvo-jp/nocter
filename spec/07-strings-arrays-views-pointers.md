@@ -313,8 +313,8 @@ Collection operations are ordinary standard-library methods.
 Representative collection operations:
 
 - `len(): usize`
-- `Vec<T>.get(index: usize): &T? from self`
-- `Vec<T>.get_mut(index: usize): &+T? from self`
+- `Vec<T>.get(index: usize): &T?`
+- `Vec<T>.get_mut(index: usize): &+T?`
 - `ptr(): *T` for contiguous views
 - `view(): &[T]` for owning collections that can expose readonly contiguous storage
 - `view_mut(): &+[T]` for owning collections that can expose readwrite contiguous storage
@@ -332,7 +332,7 @@ pub struct ViewIter<T> {
 }
 
 impl<T> ViewIter<T> {
-    pub method &+self.next(): &T? from self
+    pub method &+self.next(): &T?
 }
 ```
 
