@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.8.0 Milestone - Nocter</title>
-    <meta name="description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
+    <meta name="description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08. Phase 2 release stabilization is active.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.8.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.8.0 Milestone - Nocter">
-    <meta property="og:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
+    <meta property="og:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08. Phase 2 release stabilization is active.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.8.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.8.0 Milestone - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
+    <meta name="twitter:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08. Phase 2 release stabilization is active.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.8.0 Milestone - Nocter","description":"Status: Phase 0 and Phase 1 completed on 2026-08-08.","url":"https://nocter.dev/development/milestones/v0.8.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.8.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.8.0","item":"https://nocter.dev/development/milestones/v0.8.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.8.0 Milestone - Nocter","description":"Status: Phase 0 and Phase 1 completed on 2026-08-08. Phase 2 release stabilization is active.","url":"https://nocter.dev/development/milestones/v0.8.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.8.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.8.0","item":"https://nocter.dev/development/milestones/v0.8.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -128,7 +128,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.8.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-8-0-milestone">Nocter v0.8.0 Milestone</h1><p><strong>Status:</strong> Phase 0 and Phase 1 completed on 2026-08-08.</p><h2 id="purpose">Purpose</h2><p>v0.8.0 introduces type-owned borrow coercions for APIs that expose a safe borrowed view of a nominal value. The feature removes repetitive calls such as <code>text.view()</code> without hiding whether a caller borrows, readwrite-borrows, or moves a value.</p><p>The accepted declaration shape is:</p><pre><code class="language-nct">coerce <span class="token-type">String</span> <span class="token-operator">{</span>
+                <h1 id="nocter-v0-8-0-milestone">Nocter v0.8.0 Milestone</h1><p><strong>Status:</strong> Phase 0 and Phase 1 completed on 2026-08-08. Phase 2 release stabilization is active.</p><h2 id="purpose">Purpose</h2><p>v0.8.0 introduces type-owned borrow coercions for APIs that expose a safe borrowed view of a nominal value. The feature removes repetitive calls such as <code>text.view()</code> without hiding whether a caller borrows, readwrite-borrows, or moves a value.</p><p>The accepted declaration shape is:</p><pre><code class="language-nct">coerce <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
         <span class="token-keyword">return</span> self<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -193,7 +193,23 @@
   calls, and outcome projection while preserving the separate readonly temporary-borrow path</li><li>diagnostics distinguish missing source borrow, insufficient readwrite capability, inaccessible
   declarations, and unsupported conversions</li><li>expression hover focuses the exact <code>as</code> token and uses the shared plan; definition follows a
   selected local or imported coercion identity, while numeric conversion invents no target</li><li>explicit and contextual <code>String</code> and <code>Vec&lt;T&gt;</code> views pass packaged check and native execution;
-  explicit coercion evaluates its source once and region checking rejects a local loan escape</li></ul><p>On 2026-08-08, <code>development/compiler/scripts/verify.sh</code> passed <code>cargo check</code>, all 3,334 tests, <code>cargo fmt --check</code>, and <code>cargo clippy --all-targets -- -D warnings</code>. The total includes 2,310 compiler unit tests, CLI build/run/LSP/package/native-test suites, 210 distributed-home cases, public examples, and the source corpus. <code>node docs/build-docs.js</code> generated 121 pages, and <code>git diff --check</code> passed.</p>
+  explicit coercion evaluates its source once and region checking rejects a local loan escape</li></ul><p>On 2026-08-08, <code>development/compiler/scripts/verify.sh</code> passed <code>cargo check</code>, all 3,334 tests, <code>cargo fmt --check</code>, and <code>cargo clippy --all-targets -- -D warnings</code>. The total includes 2,310 compiler unit tests, CLI build/run/LSP/package/native-test suites, 210 distributed-home cases, public examples, and the source corpus. <code>node docs/build-docs.js</code> generated 121 pages, and <code>git diff --check</code> passed.</p><h2 id="phase-2-contract-freeze-and-release-qualification">Phase 2: Contract Freeze and Release Qualification</h2><p>Phase 2 stabilizes the completed borrow-coercion feature and prepares the exact v0.8.0 release candidate. It adds no new conversion category and does not broaden selection beyond the Phase 1 contract.</p><h3 id="stability-audit">Stability Audit</h3><ul><li>audit every <code>ConversionPlan</code> producer and consumer so typecheck is the only conversion selector</li><li>require ownership, provenance, region checking, specialization, analysis, and lowering to use
+  recorded declaration identity and concrete types rather than repeat lookup or compare display text</li><li>verify contextual and explicit conversions have one precedence model, one capability model, and
+  one source-evaluation rule across compound expressions</li><li>review diagnostics and normalized notation against the public specification; internal names,
+  inferred implementation storage, and repository paths must not leak into user-facing output</li><li>reject malformed and incomplete coercion syntax without panics or unstable editor ranges</li></ul><h3 id="regression-matrix">Regression Matrix</h3><ul><li>direct CLI LSP protocol tests cover local, imported, publicly re-exported, private, numeric, and
+  incomplete-source <code>as</code> hover and definition behavior</li><li>ownership and region tests cover readonly and readwrite loans, branch joins, outcome projection,
+  local escape rejection, and use after an explicit conversion</li><li>native tests cover exact body selection, generic substitution, source evaluation once, compound
+  values, packaged <code>String</code>, and packaged <code>Vec&lt;T&gt;</code></li><li>clean and incremental verification must both pass so cached artifacts cannot conceal missing
+  generated or packaged inputs</li></ul><h3 id="release-candidate">Release Candidate</h3><ul><li>compiler, Cargo lockfile, installed <code>VERSION</code>, distribution manifest, CLI version, and LSP server
+  version identify v0.8.0 as one candidate</li><li>public release notes describe borrow coercions, explicit <code>as</code>, migration impact, limits, and the
+  supported target in English</li><li>the root README and public release index continue to identify v0.7.0 as the latest published
+  release until publication is separately authorized</li><li>the generated archive contains one <code>.nocter/</code> root and is tested from a fresh extraction without
+  repository source, target artifacts, or an inherited <code>NOCTER_HOME</code></li><li>archive qualification covers version, <code>doctor</code>, installed-home checks, locked/offline dependency
+  resolution, native run and build, direct executable launch, native tests, deterministic package
+  graph output, and a framed LSP initialize/shutdown/exit lifecycle</li><li>the release record captures the exact archive name, byte size, SHA-256 digest, test count, and
+  candidate commit; tagging, pushing, and GitHub publication remain outside Phase 2</li></ul><h3 id="completion-gate-3">Completion Gate</h3><ul><li>the stability audit finds no duplicate semantic selection or display-text-dependent behavior</li><li>focused regression tests cover every listed LSP, ownership, region, and native execution boundary</li><li>the public specification and development architecture agree with the implemented frozen contract</li><li>candidate version metadata, release notes, generated website, and qualification record are
+  internally consistent while published-download pages remain on v0.7.0</li><li>documentation generation, diff checking, formatting, warnings-denied Clippy, clean and incremental
+  complete repository verification pass</li><li>the exact candidate archive passes the complete fresh-extraction smoke matrix</li><li>the worktree is clean and remote publication is the only remaining release action</li></ul><h3 id="phase-2-non-goals">Phase 2 Non-goals</h3><p>Phase 2 does not add owned, fallible, optional, allocation-backed, or transitive coercion; implicit borrowing or moving; coercion-driven member lookup, generic inference, or overload ranking; public lifetime parameters; runtime dispatch; or removal of explicit view methods. Those changes require a later milestone with their own source and semantic contracts.</p>
             </div>
         </main>
     </div>

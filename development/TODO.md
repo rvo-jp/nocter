@@ -2,8 +2,9 @@
 
 ## Current Task
 
-No implementation phase is active. v0.8.0 Phase 1 is complete; stop before defining or starting a
-later phase.
+v0.8.0 Phase 2 is active. Freeze and audit the completed conversion contract, close LSP and
+ownership/runtime regression gaps, prepare the v0.8.0 candidate identity and English release
+records, and qualify the exact archive from a fresh extraction. Do not tag, push, or publish.
 
 ## Completed Checkpoint
 
@@ -54,9 +55,10 @@ later phase.
 
 The published v0.7.0 qualification remains in the immutable
 [`releases/v0.7.0.md`](releases/v0.7.0.md) record. The implemented v0.8.0 Phase 0 and Phase 1
-contracts and completion evidence are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
+contracts and active Phase 2 gate are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
 
 ## Next Work
 
-Define the next phase in a separate planning turn. Do not infer Phase 2 scope from Phase 1
-non-goals or begin implementation automatically.
+Execute the Phase 2 gate in [`milestones/v0.8.0.md`](milestones/v0.8.0.md). Stop when the exact
+v0.8.0 candidate is locally qualified and the worktree is clean; publication requires separate
+authorization.
