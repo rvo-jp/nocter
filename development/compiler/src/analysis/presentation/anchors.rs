@@ -11,6 +11,7 @@ use std::collections::HashMap;
 pub(crate) struct CallableAnchors {
     pub(crate) declaration: ByteSpan,
     pub(crate) name: ByteSpan,
+    pub(crate) result_allocation_insertion: Option<usize>,
     pub(crate) return_type: Option<ByteSpan>,
     pub(crate) explicit_result_provenance: Option<ByteSpan>,
     pub(crate) signature_end: usize,
@@ -20,12 +21,14 @@ impl CallableAnchors {
     fn with_return_type(
         declaration: ByteSpan,
         name: ByteSpan,
+        result_allocation_insertion: usize,
         return_type: ByteSpan,
         explicit_result_provenance: Option<ByteSpan>,
     ) -> Self {
         Self {
             declaration,
             name,
+            result_allocation_insertion: Some(result_allocation_insertion),
             return_type: Some(return_type),
             explicit_result_provenance,
             signature_end: explicit_result_provenance
@@ -37,6 +40,7 @@ impl CallableAnchors {
         Self {
             declaration: test.name_span,
             name: test.name_span,
+            result_allocation_insertion: None,
             return_type: None,
             explicit_result_provenance: None,
             signature_end: test.name_span.end,
@@ -89,8 +93,15 @@ impl CallableDeclarationIndex {
         index
     }
 
+    #[cfg(test)]
     pub(crate) fn get(&self, declaration: ByteSpan) -> Option<&CallableAnchors> {
         self.entries.get(&declaration)
+    }
+
+    pub(crate) fn at_declaration_offset(&self, offset: usize) -> Option<&CallableAnchors> {
+        self.entries.values().find(|anchors| {
+            anchors.declaration.start <= offset && offset <= anchors.declaration.end
+        })
     }
 
     fn insert(&mut self, anchors: CallableAnchors) {
@@ -106,6 +117,7 @@ impl CallableDeclarationIndex {
         self.insert(CallableAnchors::with_return_type(
             declaration,
             function.member_name_span,
+            function.keyword_span.start,
             function.return_type.span(),
             function
                 .result_provenance
@@ -118,6 +130,7 @@ impl CallableDeclarationIndex {
         self.insert(CallableAnchors::with_return_type(
             primitive.name_span,
             primitive.name_span,
+            primitive.keyword_span.start,
             primitive.return_type.span(),
             primitive
                 .result_provenance
@@ -130,6 +143,7 @@ impl CallableDeclarationIndex {
         self.insert(CallableAnchors::with_return_type(
             method.name_span,
             method.name_span,
+            method.keyword_span.start,
             method.return_type.span(),
             method
                 .result_provenance
@@ -142,6 +156,7 @@ impl CallableDeclarationIndex {
         self.insert(CallableAnchors::with_return_type(
             literal.span,
             literal.shape_span,
+            literal.keyword_span.start,
             literal.return_type.span(),
             literal
                 .result_provenance

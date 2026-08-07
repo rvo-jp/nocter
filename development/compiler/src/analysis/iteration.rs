@@ -8,7 +8,7 @@ use crate::typecheck::{TypecheckCollectionForPlan, TypecheckCollectionForSourceM
 use crate::typecheck::{TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan};
 
 pub(crate) fn iteration_markdown_at_offset(
-    analysis: &CompileUnitAnalysis,
+    _analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<String> {
@@ -21,7 +21,7 @@ pub(crate) fn iteration_markdown_at_offset(
         })
         .min_by_key(|plan| (plan.spread_span.len(), plan.spread_span.start))
     {
-        return Some(sequence_spread_markdown(analysis, plan));
+        return Some(sequence_spread_markdown(plan));
     }
     let plan = file
         .typecheck_facts
@@ -47,11 +47,11 @@ pub(crate) fn iteration_markdown_at_offset(
         return None;
     }
 
-    Some(iteration_markdown(analysis, plan))
+    Some(iteration_markdown(plan))
 }
 
 pub(crate) fn sequence_spread_operator_hover(
-    analysis: &CompileUnitAnalysis,
+    _analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<(ByteSpan, String)> {
@@ -65,13 +65,10 @@ pub(crate) fn sequence_spread_operator_hover(
                 .then_some((operator_span, plan))
         })
         .min_by_key(|(_, plan)| (plan.spread_span.len(), plan.spread_span.start))?;
-    Some((plan.0, sequence_spread_markdown(analysis, plan.1)))
+    Some((plan.0, sequence_spread_markdown(plan.1)))
 }
 
-fn sequence_spread_markdown(
-    analysis: &CompileUnitAnalysis,
-    plan: &TypecheckSequenceSpreadPlan,
-) -> String {
+fn sequence_spread_markdown(plan: &TypecheckSequenceSpreadPlan) -> String {
     let mode = match plan.mode {
         TypecheckSequenceSpreadMode::Copy => "copy from readonly iteration",
         TypecheckSequenceSpreadMode::Readonly => "readonly reference spread",
@@ -99,31 +96,10 @@ fn sequence_spread_markdown(
         "**Exact-count target:** `{}`; **step target:** `{}`.",
         plan.exact_size.target_name, plan.step.target_name
     ));
-    let allocation_roles = [
-        plan.conversion
-            .as_ref()
-            .map(|method| ("conversion", method)),
-        Some(("exact count", &plan.exact_size)),
-        Some(("step", &plan.step)),
-    ]
-    .into_iter()
-    .flatten()
-    .filter_map(|(label, method)| {
-        callable_uses_current_allocation_context(analysis, method.declaration_span).then_some(label)
-    })
-    .collect::<Vec<_>>();
-    if !allocation_roles.is_empty() {
-        lines.push(
-            crate::analysis::presentation::AllocationEffectPresentation::current_context_for(
-                allocation_roles.join(", "),
-            )
-            .render_markdown(),
-        );
-    }
     lines.join("\n\n")
 }
 
-fn iteration_markdown(analysis: &CompileUnitAnalysis, plan: &TypecheckCollectionForPlan) -> String {
+fn iteration_markdown(plan: &TypecheckCollectionForPlan) -> String {
     let mode = match plan.source_mode {
         TypecheckCollectionForSourceMode::Direct => "direct iterator transfer",
         TypecheckCollectionForSourceMode::ReadonlyConversion => "readonly source borrow",
@@ -151,35 +127,7 @@ fn iteration_markdown(analysis: &CompileUnitAnalysis, plan: &TypecheckCollection
         plan.step.target_name
     ));
 
-    let mut allocation_roles = Vec::new();
-    if plan.conversion.as_ref().is_some_and(|method| {
-        callable_uses_current_allocation_context(analysis, method.declaration_span)
-    }) {
-        allocation_roles.push("conversion");
-    }
-    if callable_uses_current_allocation_context(analysis, plan.step.declaration_span) {
-        allocation_roles.push("step");
-    }
-    if !allocation_roles.is_empty() {
-        lines.push(
-            crate::analysis::presentation::AllocationEffectPresentation::current_context_for(
-                allocation_roles.join(" and "),
-            )
-            .render_markdown(),
-        );
-    }
-
     lines.join("\n\n")
-}
-
-fn callable_uses_current_allocation_context(
-    analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
-) -> bool {
-    analysis
-        .callable_semantic_facts
-        .get(declaration_span)
-        .is_some_and(|facts| facts.needs_current_allocation_context)
 }
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {

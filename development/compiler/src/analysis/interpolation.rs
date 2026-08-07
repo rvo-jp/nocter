@@ -54,12 +54,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
             .find(|symbol| symbol.declaration_span == plan.string_type_declaration)
             .map(|symbol| symbol.name.as_str())
             .unwrap_or("String");
-        let mut documentation = vec![
-            crate::analysis::presentation::AllocationEffectPresentation::current_context()
-                .render_markdown(),
-            crate::analysis::presentation::ResultProvenancePresentation::from_current_allocation_context()
-                .render_markdown(),
-        ];
+        let mut documentation = Vec::new();
         if let Some(input) = accepted {
             documentation.push(format!(
                 "**Accepted interpolation input:** `{}`.",

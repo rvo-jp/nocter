@@ -734,7 +734,8 @@ fn initializes_with_semantic_token_legend() {
             "parameter",
             "type",
             "property",
-            "namespace"
+            "namespace",
+            "keyword"
         ])
     );
     assert_eq!(legend["tokenModifiers"], json!(["declaration", "readonly"]));

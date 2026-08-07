@@ -108,6 +108,7 @@ pub struct FunctionDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub target: Option<TargetDirective>,
+    pub keyword_span: ByteSpan,
     pub result_allocation: Option<ResultAllocationModifier>,
     pub owner: Option<FunctionOwner>,
     pub name: String,
@@ -132,6 +133,7 @@ pub struct PrimitiveDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub target: Option<TargetDirective>,
+    pub keyword_span: ByteSpan,
     pub result_allocation: Option<ResultAllocationModifier>,
     pub name: String,
     pub name_span: ByteSpan,
@@ -237,6 +239,7 @@ pub struct DropDecl {
 pub struct MethodDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub keyword_span: ByteSpan,
     pub result_allocation: Option<ResultAllocationModifier>,
     pub receiver: MethodReceiver,
     pub name: String,

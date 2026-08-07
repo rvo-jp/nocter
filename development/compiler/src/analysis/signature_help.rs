@@ -146,45 +146,57 @@ fn signature_info_for_call(
         CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
     }
 
-    let (kind, name, parameters, return_type, result_provenance, mut generic_parameters, receiver) =
-        match declaration {
-            CallableDeclaration::Function(function) => (
-                "func",
-                function.name.as_str(),
-                function.parameters.parameters.as_slice(),
-                &function.return_type,
-                function.result_provenance.as_ref(),
-                function.generics.parameters.iter().collect::<Vec<_>>(),
-                None,
-            ),
-            CallableDeclaration::Primitive(primitive) => (
-                "primitive",
-                primitive.name.as_str(),
-                primitive.parameters.parameters.as_slice(),
-                &primitive.return_type,
-                primitive.result_provenance.as_ref(),
-                primitive.generics.parameters.iter().collect::<Vec<_>>(),
-                None,
-            ),
-            CallableDeclaration::Method { method, .. } => (
-                "method",
-                method.name.as_str(),
-                method.parameters.parameters.as_slice(),
-                &method.return_type,
-                method.result_provenance.as_ref(),
-                method.generics.parameters.iter().collect::<Vec<_>>(),
-                Some(&method.receiver),
-            ),
-            CallableDeclaration::InterfaceMethod(method) => (
-                "method",
-                method.name.as_str(),
-                method.parameters.parameters.as_slice(),
-                &method.return_type,
-                method.result_provenance.as_ref(),
-                method.generics.parameters.iter().collect::<Vec<_>>(),
-                Some(&method.receiver),
-            ),
-        };
+    let (
+        kind,
+        name,
+        parameters,
+        return_type,
+        result_may_allocate,
+        result_provenance,
+        mut generic_parameters,
+        receiver,
+    ) = match declaration {
+        CallableDeclaration::Function(function) => (
+            "func",
+            function.name.as_str(),
+            function.parameters.parameters.as_slice(),
+            &function.return_type,
+            function.result_allocation.is_some(),
+            function.result_provenance.as_ref(),
+            function.generics.parameters.iter().collect::<Vec<_>>(),
+            None,
+        ),
+        CallableDeclaration::Primitive(primitive) => (
+            "primitive",
+            primitive.name.as_str(),
+            primitive.parameters.parameters.as_slice(),
+            &primitive.return_type,
+            primitive.result_allocation.is_some(),
+            primitive.result_provenance.as_ref(),
+            primitive.generics.parameters.iter().collect::<Vec<_>>(),
+            None,
+        ),
+        CallableDeclaration::Method { method, .. } => (
+            "method",
+            method.name.as_str(),
+            method.parameters.parameters.as_slice(),
+            &method.return_type,
+            method.result_allocation.is_some(),
+            method.result_provenance.as_ref(),
+            method.generics.parameters.iter().collect::<Vec<_>>(),
+            Some(&method.receiver),
+        ),
+        CallableDeclaration::InterfaceMethod(method) => (
+            "method",
+            method.name.as_str(),
+            method.parameters.parameters.as_slice(),
+            &method.return_type,
+            method.result_allocation.is_some(),
+            method.result_provenance.as_ref(),
+            method.generics.parameters.iter().collect::<Vec<_>>(),
+            Some(&method.receiver),
+        ),
+    };
 
     let specialized_parameters = parameters
         .iter()
@@ -238,6 +250,7 @@ fn signature_info_for_call(
             .map(|(label, _)| label.clone())
             .collect(),
         return_label,
+        result_may_allocate,
         crate::analysis::presentation::result_origin_labels(result_provenance),
     )
     .render();
@@ -300,6 +313,7 @@ fn callable_value_signature_info(
             .map(|parameter| parameter.label.clone())
             .collect(),
         return_label,
+        signature.result_may_allocate,
         crate::analysis::presentation::result_origin_labels(signature.result_provenance.as_ref()),
     )
     .render();

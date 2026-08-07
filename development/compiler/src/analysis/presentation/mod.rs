@@ -4,7 +4,6 @@ mod anchors;
 mod ast_declarations;
 mod callables;
 mod locals;
-mod semantic_details;
 mod symbols;
 mod types;
 
@@ -22,10 +21,6 @@ pub(crate) use callables::{
     owner_type_expr, result_origin_labels,
 };
 pub(crate) use locals::local_presentation;
-pub(crate) use semantic_details::{
-    AllocationEffectPresentation, ResultProvenancePresentation, SemanticDetail,
-    semantic_details_for_callable, semantic_details_for_callable_result,
-};
 pub(crate) use symbols::symbol_presentation_without_resolution;
 pub(crate) use types::{
     generic_parameter_presentation, type_declaration_presentation, type_owner_presentation_label,

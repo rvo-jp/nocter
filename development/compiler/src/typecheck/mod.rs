@@ -35,7 +35,6 @@ mod provenance_contracts;
 mod regions;
 mod result_allocation_contracts;
 mod returns;
-mod semantic_facts;
 mod sized;
 mod strings;
 mod structs;
@@ -73,10 +72,6 @@ pub(crate) use interface_methods::implementation_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name,
-};
-pub(crate) use semantic_facts::{
-    CallableSemanticFact, CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact,
-    collect_callable_semantic_facts, type_expr_carries_storage,
 };
 
 pub(crate) fn type_expr_is_assignable(

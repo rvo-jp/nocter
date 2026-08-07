@@ -142,10 +142,9 @@ func inspect_readonly(iterator: &ViewIter<i32>): void {
         "hover:\n{hover_text}"
     );
     assert!(
-        hover_text.contains("Result provenance:"),
+        !hover_text.contains("Result provenance:"),
         "hover:\n{hover_text}"
     );
-    assert!(hover_text.contains("input `self`"), "hover:\n{hover_text}");
 
     let call_offset = text.find("next()").unwrap() + "next(".len();
     let signature = server.signature_help_response(

@@ -211,6 +211,7 @@ impl Parser<'_> {
                 end,
             ),
             visibility,
+            keyword_span: start.span,
             result_allocation,
             receiver,
             name: name.value,

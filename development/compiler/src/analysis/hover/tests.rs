@@ -186,9 +186,7 @@ func main(): i32 {
     assert_eq!(hover.label, "literal Text \"\"(text: &str): Text from text");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some(
-            "Copies text into owned storage.\n\n**Result provenance:** storage from input `text`."
-        )
+        Some("Copies text into owned storage.")
     );
 }
 
@@ -300,15 +298,7 @@ func inspect(storage: Storage): Values {
     let file = analysis.root_file().expect("root file");
     let offset = text.rfind("into_values").expect("call");
     let hover = hover_for_file_analysis(&sources, &analysis, file, offset).expect("call hover");
-    let documentation = hover.documentation.expect("semantic documentation");
-
-    assert_eq!(
-        documentation,
-        "**Result provenance:** storage from input `storage`."
-    );
-    assert!(!documentation.contains("allocator_state"));
-    assert!(!documentation.contains("end_index"));
-    assert!(!documentation.contains("input `len`"));
+    assert!(hover.documentation.is_none());
 }
 
 #[test]
@@ -621,10 +611,7 @@ func main(): i32 {
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
     assert_eq!(hover.label, "func build(): usize");
-    assert_eq!(
-        hover.documentation.as_deref(),
-        Some("Builds a value.\n\n**Allocation effect:** uses the current allocation context.")
-    );
+    assert_eq!(hover.documentation.as_deref(), Some("Builds a value."));
 }
 
 #[test]
@@ -681,13 +668,7 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
         .expect("expected bound method hover");
 
     assert_eq!(hover.label, "method &M.get(): &i32 from self");
-    assert!(
-        hover.documentation.as_deref().is_some_and(|documentation| {
-            documentation.contains("Result provenance") && documentation.contains("input `self`")
-        }),
-        "{:?}",
-        hover.documentation
-    );
+    assert!(hover.documentation.is_none());
 }
 
 #[test]
