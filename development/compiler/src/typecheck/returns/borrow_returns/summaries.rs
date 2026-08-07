@@ -4,9 +4,16 @@ use crate::ast::ResultAllocationModifier;
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
 ) -> CallableProvenanceSummaries {
-    let mut summaries = CallableProvenanceSummaries::default();
+    // Body-backed callables start at the semantic bottom. This makes a call
+    // inside a recursive SCC consume inferred evidence from the previous
+    // iteration instead of falling back to its written `alloc` upper bound.
+    // Bodyless declarations are intentionally absent and continue to use
+    // their written contract at call sites.
+    let floor = body_backed_summary_floor(summary_sources);
+    let mut summaries = floor.clone();
     for _ in 0..=borrow_return_callable_count(summary_sources) {
-        let next = collect_callable_provenance_summaries(summary_sources, &summaries);
+        let mut next = collect_callable_provenance_summaries(summary_sources, &summaries);
+        next.merge_missing_from(&floor);
         if next == summaries {
             summaries = next;
             break;
@@ -17,6 +24,66 @@ pub(in crate::typecheck) fn callable_provenance_summaries(
         summary_sources,
         &mut summaries,
     );
+    summaries
+}
+
+fn body_backed_summary_floor(
+    summary_sources: &[TypecheckSource<'_>],
+) -> CallableProvenanceSummaries {
+    let mut summaries = CallableProvenanceSummaries::default();
+    for source in summary_sources {
+        for item in &source.ast.items {
+            match item {
+                Item::Function(function) => summaries.insert_result(
+                    CallableId::declared_at(function_summary_key(function)),
+                    ValueProvenance::Independent,
+                ),
+                Item::Interface(interface) => {
+                    for method in &interface.methods {
+                        if method.body.is_some() {
+                            summaries.insert_result(
+                                CallableId::declared_at(method.name_span),
+                                ValueProvenance::Independent,
+                            );
+                        }
+                    }
+                }
+                Item::Impl(impl_) => {
+                    for member in &impl_.members {
+                        if let ImplMember::Method(method) = member
+                            && method.body.is_some()
+                        {
+                            summaries.insert_result(
+                                CallableId::declared_at(method.name_span),
+                                ValueProvenance::Independent,
+                            );
+                        }
+                    }
+                }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        summaries.insert_result(
+                            CallableId::declared_at(function_summary_key(function)),
+                            ValueProvenance::Independent,
+                        );
+                    }
+                    for (_, literal) in construct.literals() {
+                        summaries.insert_result(
+                            CallableId::declared_at(literal.span),
+                            ValueProvenance::Independent,
+                        );
+                    }
+                }
+                Item::Primitive(_)
+                | Item::Test(_)
+                | Item::Import(_)
+                | Item::FromImport(_)
+                | Item::TypeAlias(_)
+                | Item::Struct(_)
+                | Item::Enum(_) => {}
+            }
+        }
+    }
     summaries
 }
 

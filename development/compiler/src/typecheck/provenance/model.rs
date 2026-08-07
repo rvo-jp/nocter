@@ -540,6 +540,14 @@ pub(in crate::typecheck) struct CallableProvenanceSummaries {
 }
 
 impl CallableProvenanceSummaries {
+    pub(in crate::typecheck) fn merge_missing_from(&mut self, floor: &Self) {
+        for (callable, summary) in &floor.entries {
+            self.entries
+                .entry(*callable)
+                .or_insert_with(|| summary.clone());
+        }
+    }
+
     pub(in crate::typecheck) fn insert_result(
         &mut self,
         callable: CallableId,

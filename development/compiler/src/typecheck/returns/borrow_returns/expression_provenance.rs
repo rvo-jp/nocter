@@ -458,35 +458,27 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         && let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
-        return apply_declared_result_allocation(
-            borrow_return_provenance_for_call_summary(
-                summary,
-                call,
-                &signature,
-                resolved,
-                environment,
-                borrow_provenance,
-                summaries,
-            ),
+        return borrow_return_provenance_for_call_summary(
+            summary,
+            call,
             &signature,
-            &return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
         );
     }
     if let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
-        return apply_declared_result_allocation(
-            borrow_return_provenance_for_call_summary(
-                summary,
-                call,
-                &signature,
-                resolved,
-                environment,
-                borrow_provenance,
-                summaries,
-            ),
+        return borrow_return_provenance_for_call_summary(
+            summary,
+            call,
             &signature,
-            &return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
         );
     }
 

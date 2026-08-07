@@ -364,3 +364,73 @@ impl Factory for FactoryImpl {
         "{rejected:?}"
     );
 }
+
+#[test]
+fn written_alloc_does_not_justify_a_recursive_cycle_without_an_allocation() {
+    let diagnostics = check_text(
+        r#"struct Buffer { pointer: *u8 }
+func main(): i32 { return 0 }
+alloc func cycle(): Buffer {
+    return cycle()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0463"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn written_alloc_does_not_justify_a_mutually_recursive_cycle() {
+    let diagnostics = check_text(
+        r#"struct Buffer { pointer: *u8 }
+func main(): i32 { return 0 }
+alloc func first(): Buffer {
+    return second()
+}
+alloc func second(): Buffer {
+    return first()
+}
+"#,
+    );
+
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "E0463")
+            .count(),
+        2,
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn mutually_recursive_summaries_converge_from_a_concrete_allocation() {
+    let diagnostics = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+pub(nocter) alloc primitive allocate(): Buffer
+func first(flag: bool): Buffer {
+    if flag {
+        return allocate()
+    }
+    return second(true)
+}
+func second(flag: bool): Buffer {
+    return first(flag)
+}
+"#,
+    );
+
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "E0462")
+            .count(),
+        2,
+        "{diagnostics:?}"
+    );
+}
