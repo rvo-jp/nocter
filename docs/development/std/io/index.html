@@ -157,6 +157,7 @@
 <span class="token-comment">//! results and errno wrappers stay behind `#target`-gated std internals.</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-type">Error</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>core<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">,</span> invalid_read_count<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>alloc_pages
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>free_pages
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
@@ -284,15 +285,6 @@
     close_on_drop<span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Reader</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> from static
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> from static
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
 <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">from_os_error</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">if</span> error<span class="token-operator">.</span>kind is <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.interrupted"</span><span class="token-operator">,</span> <span class="token-string">"operation interrupted"</span><span class="token-operator">)</span>
@@ -386,11 +378,6 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">impl</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-function">write_text</span><span class="token-operator">(</span>self<span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
-
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
         <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>

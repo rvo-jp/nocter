@@ -175,15 +175,14 @@ Postfix `?` propagates the original failure.
 
 ```nct
 func read_all(
-    allocator: &+Allocator,
     path: &str,
 ): String! {
     var file = File.open(path) catch error {
-        return Error.new("std.io.open_failed", error.message)
+        return Error.new("app.open_failed", "failed to open input")
     }
 
-    var text = file.read_to_string(allocator) catch error {
-        return Error.new("std.io.read_failed", error.message)
+    let text = file.read_to_string() catch error {
+        return Error.new("app.read_failed", "failed to read UTF-8 input")
     }
 
     return move text

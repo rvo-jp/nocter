@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-06">
+    <meta property="article:modified_time" content="2026-08-07">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="examples/file-summary/nocter.nct - Nocter">
@@ -138,15 +138,11 @@
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span>open_path<span class="token-operator">,</span> print<span class="token-operator">}</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io_buffer<span class="token-operator">.</span><span class="token-type">BufReader</span>
-
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>num<span class="token-operator">.</span>usize_to_string
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Utf8Path</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span>arg
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> requested<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
@@ -154,22 +150,16 @@
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> path <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> file <span class="token-operator">=</span> <span class="token-function">open_path</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">var</span> reader <span class="token-operator">=</span> <span class="token-type">BufReader</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-keyword">move</span> file<span class="token-operator">)</span>
-    <span class="token-keyword">var</span> buffer<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">]</span>
+    <span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-function">open_path</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> text <span class="token-operator">=</span> file<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> bytes <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> lines<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    while true <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> received<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> reader<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">view_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">if</span> received <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-            break
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    while offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> bytes<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
+            lines <span class="token-operator">=</span> lines <span class="token-operator">+</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
-        <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        while offset <span class="token-operator">&lt;</span> received <span class="token-operator">{</span>
-            <span class="token-keyword">if</span> buffer<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
-                lines <span class="token-operator">=</span> lines <span class="token-operator">+</span> <span class="token-number">1</span>
-            <span class="token-operator">}</span>
-            offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
+        offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>lines<span class="token-operator">)</span>
     <span class="token-function">print</span><span class="token-operator">(</span>result<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>

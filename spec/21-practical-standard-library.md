@@ -35,10 +35,18 @@ does not perform filesystem normalization or canonicalization.
 open a file for append. The `open_path`, `create_path`, and `append_path` functions accept
 `Utf8Path`. File handles close once when explicitly closed or dropped.
 
-`Reader` and `Writer` define the shared byte-I/O contracts. `BufReader` and `BufWriter` in
-`std/io_buffer` own their buffering storage. A buffered writer reports I/O failure only through an
-explicit `flush` or `close`; dropping it discards unflushed bytes because destruction cannot return
-an error. Successful flush clears the buffer only after the underlying write succeeds.
+`Reader` and `Writer` define the shared byte-I/O contracts. `Reader.read` initializes no more than
+the supplied buffer length and returns zero at end of stream. The `read_to_end` default method
+collects bytes into independently owned `Vec<u8>` storage. A reader that reports an impossible byte
+count fails with `std.io.invalid_read_count`. The `read_to_string` default method uses the same
+collector and validates the complete result as UTF-8 before returning an independently owned
+`String`.
+
+`Writer.write_text` is a default adapter from UTF-8 text to the complete-byte `write` contract.
+`BufReader` and `BufWriter` in `std/io_buffer` own their buffering storage and receive these common
+operations through static interface dispatch. A buffered writer reports I/O failure only through
+an explicit `flush` or `close`; dropping it discards unflushed bytes because destruction cannot
+return an error. Successful flush clears the buffer only after the underlying write succeeds.
 
 ## Numeric Text and Process State
 

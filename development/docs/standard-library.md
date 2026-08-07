@@ -15,6 +15,7 @@ defined by the responsibility-specific chapters indexed by
 | generic initialized-prefix storage | `std/vec` |
 | iterator protocols and stateless operations | `std/iter/core`, `std/iter/ops` |
 | stateful iterator adapters | focused modules under `std/iter/` |
+| portable byte-stream protocols and derived operations | `std/io/core` |
 | OS-independent file ownership | `std/io` |
 | buffered byte state | `std/io_buffer` |
 | path validation and lexical operations | `std/path` |
@@ -91,6 +92,11 @@ releases owned state according to ordinary destruction rules.
 Reader and writer dispatch uses resolved interface identities and static specialization. The
 standard library does not retain duplicate inherent forwarding methods, and the compiler contains
 no I/O type-name table.
+
+Whole-stream reads reuse one initialized scratch buffer. Each successful count is validated against
+that buffer before its prefix is copied into owned result storage. Byte collection finishes only on
+a zero count; text collection validates UTF-8 after the complete stream is available. This keeps
+EOF, I/O failure, protocol violation, allocation, and text validation as separate boundaries.
 
 ## Iterator Architecture
 

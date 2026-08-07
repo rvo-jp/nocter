@@ -22,7 +22,7 @@ nocter run
 
 [file-summary/nocter.nct](file-summary/nocter.nct) reads a UTF-8 path from the first command-line
 argument and reports the number of newline bytes. It demonstrates process arguments, owned paths,
-file input, buffering, `Vec<u8>`, and numeric formatting.
+whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.
 
 ```sh
 cd examples/file-summary
