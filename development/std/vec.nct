@@ -537,7 +537,7 @@ impl<T> Iterable<&T, ViewIter<T>> for Vec<T> {
 
 impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T> {
     /// Transfers the allocation and every element into an owning iterator.
-    method self.into_iter(): VecIntoIter<T> {
+    method self.into_iter(): VecIntoIter<T> from self {
         return into_iter(move self)
     }
 }

@@ -15,6 +15,10 @@ pub(in crate::typecheck) fn type_may_carry_result_provenance(
     ty: &Type,
     resolved: &ResolveOutput,
 ) -> bool {
+    // An unconstrained type parameter is an abstraction boundary, not proof
+    // that a value is storage-independent. Concrete substitutions may later
+    // narrow it to a scalar, but generic summaries must retain provenance so
+    // `T = String` and aggregates containing `T` remain sound.
     type_contains_borrow_like(ty, resolved)
         || type_contains_pointer(ty, resolved, &mut HashSet::new())
 }
@@ -67,10 +71,8 @@ fn type_contains_pointer(
         | Type::Void
         | Type::Never
         | Type::None
-        | Type::Error
-        | Type::Parameter(_)
-        | Type::Unresolved(_)
-        | Type::Unknown => false,
+        | Type::Error => false,
+        Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => true,
     }
 }
 

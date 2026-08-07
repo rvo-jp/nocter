@@ -254,15 +254,23 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
             borrow_provenance.join_reachable(&[initial, body_provenance]);
         }
         Stmt::CollectionFor(statement) => {
-            let item_type = crate::typecheck::iteration::resolve_collection_iteration(
+            let (item_type, item_provenance) = collection_iteration_item_flow(
                 statement,
                 resolved,
                 environment,
-            )
-            .map_or(Type::Unknown, |plan| plan.item_type);
+                borrow_provenance,
+                summaries,
+            );
             let mut body_environment =
-                environment_for_collection_for_binding(statement, item_type, environment);
+                environment_for_collection_for_binding(statement, item_type.clone(), environment);
             let mut body_provenance = borrow_provenance.clone();
+            define_collection_iteration_item_provenance(
+                statement,
+                &item_type,
+                item_provenance,
+                resolved,
+                &mut body_provenance,
+            );
             apply_borrow_return_statement_effects(
                 &statement.body,
                 resolved,

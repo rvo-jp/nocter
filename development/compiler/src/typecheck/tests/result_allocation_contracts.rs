@@ -173,6 +173,40 @@ alloc func make(): Buffer {
 }
 
 #[test]
+fn generic_results_retain_allocating_callable_provenance() {
+    let diagnostics = check_text(
+        r#"alloc func forward<T, F: alloc &func(): T>(callback: F): T {
+    return callback()
+}
+"#,
+    );
+
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0462" || diagnostic.code == "E0463"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn generic_results_require_an_allocation_contract() {
+    let diagnostics = check_text(
+        r#"func forward<T, F: alloc &func(): T>(callback: F): T {
+    return callback()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0462"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn rejects_alloc_when_no_returned_storage_is_allocated() {
     let diagnostics = check_text("alloc func value(): usize { return 1 }\n");
 

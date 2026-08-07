@@ -164,7 +164,7 @@ func main(): i32 {{
 fn accepts_statically_resolved_method_local_generics_through_an_interface_bound() {
     let diagnostics = check_text(
         r#"interface Identity {
-    pub method &self.apply<T>(value: T): T
+    pub method &self.apply<T>(value: T): T from value
 }
 
 struct IdentityValue {
@@ -172,7 +172,7 @@ struct IdentityValue {
 }
 
 impl Identity for IdentityValue {
-    method &self.apply<U>(value: U): U {
+    method &self.apply<U>(value: U): U from value {
         return value
     }
 }

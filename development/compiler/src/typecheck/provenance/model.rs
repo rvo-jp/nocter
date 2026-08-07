@@ -23,6 +23,10 @@ impl InputId {
     pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
         Self(span)
     }
+
+    pub(in crate::typecheck) const fn declaration_span(self) -> ByteSpan {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -2,6 +2,7 @@ use super::terminal::statement_guarantees_return_or_never;
 use super::*;
 
 mod block_effects;
+mod collection_iteration_provenance;
 mod expression_provenance;
 mod input_sources;
 mod literal_provenance;
@@ -13,6 +14,7 @@ mod summary_instantiation;
 mod type_predicates;
 
 pub(super) use block_effects::*;
+pub(super) use collection_iteration_provenance::*;
 pub(super) use expression_provenance::*;
 pub(super) use input_sources::*;
 pub(super) use literal_provenance::*;

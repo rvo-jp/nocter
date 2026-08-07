@@ -885,18 +885,26 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                 );
             }
             Stmt::CollectionFor(collection_statement) => {
-                let item_type = super::super::super::iteration::resolve_collection_iteration(
+                let (item_type, item_provenance) = collection_iteration_item_flow(
                     collection_statement,
                     resolved,
                     environment,
-                )
-                .map_or(Type::Unknown, |plan| plan.item_type);
+                    borrow_provenance,
+                    summaries,
+                );
                 let mut body_environment = environment_for_collection_for_binding(
                     collection_statement,
-                    item_type,
+                    item_type.clone(),
                     environment,
                 );
                 let mut body_borrow_provenance = borrow_provenance.clone();
+                define_collection_iteration_item_provenance(
+                    collection_statement,
+                    &item_type,
+                    item_provenance,
+                    resolved,
+                    &mut body_borrow_provenance,
+                );
                 collect_return_statement_provenance(
                     &collection_statement.body,
                     return_type,

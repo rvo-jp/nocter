@@ -87,7 +87,7 @@ impl<T> ExactSizeIterator<T> for VecIntoIter<T> {
 
 impl<T> Iterator<T> for VecIntoIter<T> {
     /// Transfers the next element, or returns `none` at exhaustion.
-    method &+self.next(): T? {
+    method &+self.next(): T? from self {
         return next(self)?
     }
 }

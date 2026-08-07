@@ -9,6 +9,7 @@ use super::interfaces::{
     result_provenance_contract_is_compatible, type_symbol_generic_substitutions,
 };
 use super::model::Type;
+use super::provenance::type_may_carry_result_provenance;
 use crate::ast::ImplDecl;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{InterfaceConformance, ResolveOutput, TypeSymbol};
@@ -70,7 +71,11 @@ pub(super) fn check_interface_impl_members(
             required.signature.result_may_allocate || !actual.signature.result_may_allocate;
         if expected != found
             || !allocation_contract_is_compatible
-            || !result_provenance_contract_is_compatible(required, actual)
+            || !result_provenance_contract_is_compatible(
+                required,
+                actual,
+                type_may_carry_result_provenance(found.return_type(), resolved),
+            )
         {
             diagnostics.push(interface_method_signature_mismatch_diagnostic(
                 sources,

@@ -452,7 +452,12 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         borrow_provenance,
         summaries,
     ) {
-        return apply_declared_result_allocation(Some(provenance), &signature, &return_type);
+        return apply_declared_result_allocation(
+            Some(provenance),
+            &signature,
+            &return_type,
+            borrow_provenance,
+        );
     }
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
@@ -487,6 +492,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             Some(ValueProvenance::Independent),
             &signature,
             &return_type,
+            borrow_provenance,
         );
     }
 
@@ -547,13 +553,14 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         }
         _ => provenance,
     };
-    apply_declared_result_allocation(provenance, &signature, &return_type)
+    apply_declared_result_allocation(provenance, &signature, &return_type, borrow_provenance)
 }
 
 fn apply_declared_result_allocation(
     provenance: Option<ValueProvenance>,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     return_type: &Type,
+    borrow_provenance: &ProvenanceEnvironment,
 ) -> Option<ValueProvenance> {
     if signature.signature.result_may_allocate {
         let provenance = provenance.unwrap_or(match return_type {
@@ -563,7 +570,13 @@ fn apply_declared_result_allocation(
             },
             _ => ValueProvenance::Independent,
         });
-        Some(provenance.returned_allocation())
+        if provenance.contains_result_allocation() {
+            Some(provenance)
+        } else {
+            Some(provenance.with_returned_allocation_from(
+                borrow_provenance.current_allocation_context_provenance(),
+            ))
+        }
     } else {
         provenance
     }
@@ -607,6 +620,19 @@ fn trusted_call_result_provenance(
                     .unwrap_or_else(ValueProvenance::unknown),
             }
             .allocated()
+        }
+        crate::semantics::TrustedDeclarationRole::OwnedValueTransfer { source } => {
+            let parameter = signature.signature.parameters.get(source)?;
+            borrow_return_provenance_for_call_input(
+                InputId::declared_at(parameter.name_span),
+                call,
+                signature,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            )?
+            .without_input_container_scopes()
         }
         crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
         | crate::semantics::TrustedDeclarationRole::AllocationMutation { .. }
@@ -707,7 +733,8 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
         && InputId::declared_at(method.receiver.name_span) == source
         && let Some(member) = method_member_for_call(call)
     {
-        if method_receiver_is_borrow(method) {
+        let return_type = call_return_type(call, signature, resolved, environment);
+        if method_receiver_is_borrow(method) && type_contains_borrow_like(&return_type, resolved) {
             return borrow_return_provenance_for_borrowed_input(
                 &member.object,
                 resolved,

@@ -13,6 +13,9 @@ pub(crate) fn trusted_declarations_for_module(
     if module_path == "std/io" {
         return super::trusted_io::trusted_io_declarations(ast);
     }
+    if module_path == "std/ptr" {
+        return super::trusted_pointer::trusted_pointer_declarations(ast);
+    }
     let mut facts = TrustedDeclarationFacts::default();
     if module_path != "std/mem" {
         return facts;

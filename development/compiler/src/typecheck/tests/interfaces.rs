@@ -247,7 +247,7 @@ func main(): i32 {
 fn accepts_generic_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method self.get(): T
+    pub method self.get(): T from self
 }
 
 struct Box<T> {
@@ -255,7 +255,33 @@ struct Box<T> {
 }
 
 impl<T> Source<T> for Box<T> {
-    method self.get(): T {
+    method self.get(): T from self {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn storage_independent_result_narrows_interface_provenance_contract() {
+    let diagnostics = check_text(
+        r#"interface Source<T> {
+    pub method self.get(): T from self
+}
+
+struct Constant {
+    value: i32
+}
+
+impl Source<i32> for Constant {
+    method self.get(): i32 {
         return self.value
     }
 }
@@ -485,7 +511,7 @@ func main(): i32 {
 fn diagnoses_generic_interface_method_signature_mismatch() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method self.get(): T
+    pub method self.get(): T from self
 }
 
 struct Box<T> {
@@ -545,7 +571,7 @@ func main(): i32 {
 fn diagnoses_duplicate_generic_interface_conformance_with_renamed_parameters() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method self.get(): T
+    pub method self.get(): T from self
 }
 
 struct Box<T> {
@@ -553,12 +579,12 @@ struct Box<T> {
 }
 
 impl<T> Source<T> for Box<T> {
-    method self.get(): T {
+    method self.get(): T from self {
         return self.value
     }
 }
 impl<U> Source<U> for Box<U> {
-    method self.get(): U {
+    method self.get(): U from self {
         return self.value
     }
 }

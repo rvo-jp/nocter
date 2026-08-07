@@ -301,12 +301,12 @@ fn distributed_std_callback_borrow_results_preserve_argument_and_capture_origins
         r#"use std/iter.Iterator
 use std/iter/sources.once
 
-func from_argument(value: &i32): &i32 from value {
+alloc func from_argument(value: &i32): &i32 from value {
     let result = once(value).map((item) { item }).last() otherwise { return value }
     return result
 }
 
-func from_capture(value: &i32): &i32 from value {
+alloc func from_capture(value: &i32): &i32 from value {
     let result = once(0).map((move value; item) { value }).last() otherwise { return value }
     return result
 }

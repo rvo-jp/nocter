@@ -1,6 +1,8 @@
 //! Validated standard-library interface roles used by collection iteration.
 
-use crate::ast::{AstFile, InterfaceDecl, Item, MethodReceiverMode, Visibility};
+use crate::ast::{
+    AstFile, InterfaceDecl, Item, MethodReceiverMode, ResultProvenanceOriginKind, Visibility,
+};
 use crate::semantics::{IterationProtocol, IterationRuntime, TrustedDeclarationFacts};
 use std::collections::HashMap;
 
@@ -25,6 +27,10 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "next",
             MethodReceiverMode::ReadwriteBorrow,
             "T?",
+            IterationResultContract {
+                may_allocate: true,
+                from_receiver: true,
+            },
         )?,
         exact_size: find_interface(
             module,
@@ -34,6 +40,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "remaining_len",
             MethodReceiverMode::ReadonlyBorrow,
             "usize",
+            IterationResultContract::independent(),
         )?,
         readonly_conversion: find_interface(
             module,
@@ -43,6 +50,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "iter",
             MethodReceiverMode::ReadonlyBorrow,
             "I",
+            IterationResultContract::independent(),
         )?,
         owned_conversion: find_interface(
             module,
@@ -52,6 +60,10 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "into_iter",
             MethodReceiverMode::Owned,
             "I",
+            IterationResultContract {
+                may_allocate: false,
+                from_receiver: true,
+            },
         )?,
     })
 }
@@ -64,6 +76,7 @@ fn find_interface(
     method_name: &str,
     receiver_mode: MethodReceiverMode,
     return_type: &str,
+    result_contract: IterationResultContract,
 ) -> Option<IterationProtocol> {
     let declaration = module.items.iter().find_map(|item| match item {
         Item::Interface(declaration) if declaration.name == name => Some(declaration),
@@ -79,6 +92,7 @@ fn find_interface(
         generic_parameters,
         receiver_mode,
         return_type,
+        result_contract,
     )
     .then(|| IterationProtocol {
         interface_declaration: declaration.name_span,
@@ -94,6 +108,7 @@ fn interface_shape_matches(
     generic_parameters: &[&str],
     receiver_mode: MethodReceiverMode,
     return_type: &str,
+    result_contract: IterationResultContract,
 ) -> bool {
     declaration.visibility == Visibility::Public
         && declaration.target.is_none()
@@ -112,8 +127,37 @@ fn interface_shape_matches(
         && method.receiver.mode == receiver_mode
         && method.parameters.parameters.is_empty()
         && crate::ast::canonical_type_expr(&method.return_type) == return_type
-        && method.result_provenance.is_none()
+        && method.result_allocation.is_some() == result_contract.may_allocate
+        && result_provenance_matches(method, result_contract.from_receiver)
         && method.body.is_none()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct IterationResultContract {
+    may_allocate: bool,
+    from_receiver: bool,
+}
+
+impl IterationResultContract {
+    const fn independent() -> Self {
+        Self {
+            may_allocate: false,
+            from_receiver: false,
+        }
+    }
+}
+
+fn result_provenance_matches(method: &crate::ast::MethodDecl, from_receiver: bool) -> bool {
+    match (&method.result_provenance, from_receiver) {
+        (None, false) => true,
+        (Some(clause), true) => {
+            matches!(
+                clause.origins.as_slice(),
+                [origin] if origin.kind == ResultProvenanceOriginKind::Receiver
+            )
+        }
+        (None, true) | (Some(_), false) => false,
+    }
 }
 
 #[cfg(test)]
@@ -138,7 +182,7 @@ mod tests {
         let iter = parse_text(
             &mut sources,
             r#"pub interface Iterator<T> {
-    pub method &+self.next(): T?
+    pub alloc method &+self.next(): T? from self
 }
 pub interface ExactSizeIterator<T> {
     pub method &self.remaining_len(): usize
@@ -147,7 +191,7 @@ pub interface Iterable<T, I> {
     pub method &self.iter(): I
 }
 pub interface IntoIterator<T, I> {
-    pub method self.into_iter(): I
+    pub method self.into_iter(): I from self
 }
 "#,
         );

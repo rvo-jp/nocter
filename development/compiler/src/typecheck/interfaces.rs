@@ -340,12 +340,13 @@ enum ProvenanceSlot {
 pub(super) fn result_provenance_contract_is_compatible(
     required: &MethodSignature,
     actual: &MethodSignature,
+    actual_return_may_carry_storage: bool,
 ) -> bool {
     let Some(required_clause) = &required.signature.result_provenance else {
         return true;
     };
     let Some(actual_clause) = &actual.signature.result_provenance else {
-        return false;
+        return !actual_return_may_carry_storage;
     };
     let required_slots = provenance_slots(required, required_clause);
     provenance_slots(actual, actual_clause)
@@ -392,6 +393,10 @@ pub(super) struct MethodShape {
 }
 
 impl MethodShape {
+    pub(super) fn return_type(&self) -> &Type {
+        &self.return_type
+    }
+
     pub(super) fn has_unknown_or_unresolved(&self) -> bool {
         self.receiver.is_unknown_or_unresolved()
             || self.parameters.iter().any(Type::is_unknown_or_unresolved)

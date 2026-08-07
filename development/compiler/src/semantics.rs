@@ -38,6 +38,9 @@ pub(crate) enum TrustedDeclarationRole {
     RegionRelease,
     AllocationAbort,
     IndependentFallibleError,
+    OwnedValueTransfer {
+        source: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

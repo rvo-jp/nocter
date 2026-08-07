@@ -34,7 +34,8 @@ pub(super) fn allocator_capability_kind(
         | TrustedDeclarationRole::RegionEnter
         | TrustedDeclarationRole::RegionRelease
         | TrustedDeclarationRole::AllocationAbort
-        | TrustedDeclarationRole::IndependentFallibleError => None,
+        | TrustedDeclarationRole::IndependentFallibleError
+        | TrustedDeclarationRole::OwnedValueTransfer { .. } => None,
     }
 }
 
@@ -725,7 +726,8 @@ fn trusted_call_needs_current_context(
             | TrustedDeclarationRole::RegionEnter
             | TrustedDeclarationRole::RegionRelease
             | TrustedDeclarationRole::AllocationAbort
-            | TrustedDeclarationRole::IndependentFallibleError,
+            | TrustedDeclarationRole::IndependentFallibleError
+            | TrustedDeclarationRole::OwnedValueTransfer { .. },
         )
         | None => false,
     }

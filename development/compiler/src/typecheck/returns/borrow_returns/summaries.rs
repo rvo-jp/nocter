@@ -407,7 +407,7 @@ fn declared_result_allocation(
     modifier: Option<&ResultAllocationModifier>,
 ) -> ValueProvenance {
     if modifier.is_some() {
-        provenance.returned_allocation()
+        provenance.with_returned_allocation_from(ValueProvenance::current_allocation_context())
     } else {
         provenance
     }

@@ -22,7 +22,7 @@ impl<T> ExactSizeIterator<T> for EmptyIter<T> {
 
 impl<T> Iterator<T> for EmptyIter<T> {
     /// Returns `none` for every call.
-    method &+self.next(): T? {
+    method &+self.next(): T? from self {
         return none
     }
 }
@@ -50,7 +50,7 @@ impl<T> ExactSizeIterator<T> for OnceIter<T> {
 
 impl<T> Iterator<T> for OnceIter<T> {
     /// Transfers the owned item once, then returns `none`.
-    method &+self.next(): T? {
+    method &+self.next(): T? from self {
         if self.remaining == 0 {
             return none
         }

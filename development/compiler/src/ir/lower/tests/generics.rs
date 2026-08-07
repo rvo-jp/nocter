@@ -446,7 +446,7 @@ func main(): i32 {
 fn lowers_interface_bound_method_call_to_concrete_static_target() {
     let ir = lower_text(
         r#"interface Extract<T> {
-    pub method self.into_value(): T
+    pub method self.into_value(): T from self
 }
 
 struct Box<T> {
@@ -454,7 +454,7 @@ struct Box<T> {
 }
 
 impl<T> Extract<T> for Box<T> {
-    method self.into_value(): T {
+    method self.into_value(): T from self {
         return self.value
     }
 }

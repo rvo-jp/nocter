@@ -9,20 +9,29 @@ use std::collections::BTreeMap;
 /// and an explicit allocator may produce a result without using the ambient
 /// context.
 impl ValueProvenance {
-    /// Marks the successful returned value as allocated while leaving a
-    /// fallible error branch independent from the success storage effect.
-    pub(in crate::typecheck) fn returned_allocation(self) -> Self {
+    /// Adds a declared allocation possibility without rewriting independent
+    /// external origins into allocation domains. `alloc` and `from` are
+    /// orthogonal contracts; a result may borrow one input while another
+    /// projection is newly allocated in `allocation_domain`.
+    pub(in crate::typecheck) fn with_returned_allocation_from(
+        self,
+        allocation_domain: Self,
+    ) -> Self {
+        let allocation = allocation_domain.allocated();
         match self {
-            Self::Fallible { success, error } => Self::Fallible {
-                success: Some(Box::new(
-                    success
-                        .map(|value| *value)
-                        .unwrap_or(Self::Independent)
-                        .allocated(),
-                )),
-                error,
-            },
-            value => value.allocated(),
+            Self::Fallible { success, error } => {
+                let mut success = success.map(|value| *value);
+                super::merge_provenance(&mut success, Some(allocation));
+                Self::Fallible {
+                    success: success.map(Box::new),
+                    error,
+                }
+            }
+            value => {
+                let mut result = Some(value);
+                super::merge_provenance(&mut result, Some(allocation));
+                result.expect("declared allocation always produces provenance")
+            }
         }
     }
 
@@ -276,6 +285,21 @@ mod tests {
             ValueProvenance::Origins(vec![StorageOrigin::Allocated(Box::new(
                 StorageOrigin::CurrentAllocationContext
             ))])
+        );
+    }
+
+    #[test]
+    fn declared_allocation_preserves_external_peer_origins() {
+        let input = InputId::declared_at(span(4));
+        let provenance = ValueProvenance::input(input)
+            .with_returned_allocation_from(ValueProvenance::current_allocation_context());
+
+        assert_eq!(
+            provenance,
+            ValueProvenance::Origins(vec![
+                StorageOrigin::Input(input),
+                StorageOrigin::Allocated(Box::new(StorageOrigin::CurrentAllocationContext)),
+            ])
         );
     }
 }
