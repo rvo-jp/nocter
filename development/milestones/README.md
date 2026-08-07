@@ -4,8 +4,8 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.8.0](v0.8.0.md). Phase 0 completed contextual type-owned borrow
-coercion. Phase 1 unifies conversion plans and adds explicit borrowed-view selection through the
-existing `as` expression.
+The current milestone record is [v0.8.0](v0.8.0.md). Phase 0 completed contextual type-owned borrow
+coercion. Phase 1 completed unified conversion plans and explicit borrowed-view selection through
+the existing `as` expression. No later phase is active.
 
 Do not reuse or reopen a completed release qualification record as an active plan.

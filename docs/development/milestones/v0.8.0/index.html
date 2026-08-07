@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.8.0 Milestone - Nocter</title>
-    <meta name="description" content="Status: Phase 0 completed on 2026-08-08. Phase 1 active from 2026-08-08.">
+    <meta name="description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.8.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.8.0 Milestone - Nocter">
-    <meta property="og:description" content="Status: Phase 0 completed on 2026-08-08. Phase 1 active from 2026-08-08.">
+    <meta property="og:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.8.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.8.0 Milestone - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0 completed on 2026-08-08. Phase 1 active from 2026-08-08.">
+    <meta name="twitter:description" content="Status: Phase 0 and Phase 1 completed on 2026-08-08.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.8.0 Milestone - Nocter","description":"Status: Phase 0 completed on 2026-08-08. Phase 1 active from 2026-08-08.","url":"https://nocter.dev/development/milestones/v0.8.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.8.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.8.0","item":"https://nocter.dev/development/milestones/v0.8.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.8.0 Milestone - Nocter","description":"Status: Phase 0 and Phase 1 completed on 2026-08-08.","url":"https://nocter.dev/development/milestones/v0.8.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.8.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.8.0","item":"https://nocter.dev/development/milestones/v0.8.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -128,7 +128,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.8.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-8-0-milestone">Nocter v0.8.0 Milestone</h1><p><strong>Status:</strong> Phase 0 completed on 2026-08-08. Phase 1 active from 2026-08-08.</p><h2 id="purpose">Purpose</h2><p>v0.8.0 introduces type-owned borrow coercions for APIs that expose a safe borrowed view of a nominal value. The feature removes repetitive calls such as <code>text.view()</code> without hiding whether a caller borrows, readwrite-borrows, or moves a value.</p><p>The accepted declaration shape is:</p><pre><code class="language-nct">coerce <span class="token-type">String</span> <span class="token-operator">{</span>
+                <h1 id="nocter-v0-8-0-milestone">Nocter v0.8.0 Milestone</h1><p><strong>Status:</strong> Phase 0 and Phase 1 completed on 2026-08-08.</p><h2 id="purpose">Purpose</h2><p>v0.8.0 introduces type-owned borrow coercions for APIs that expose a safe borrowed view of a nominal value. The feature removes repetitive calls such as <code>text.view()</code> without hiding whether a caller borrows, readwrite-borrows, or moves a value.</p><p>The accepted declaration shape is:</p><pre><code class="language-nct">coerce <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
         <span class="token-keyword">return</span> self<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -185,7 +185,15 @@
   targets, visibility, missing borrows, no chaining, and numeric compatibility</li><li>conversion facts cover every expected-type boundary and explicit <code>as</code> without duplicate plans</li><li>ownership and provenance tests prove explicit results retain the source loan and cannot escape it</li><li>IR and native tests prove explicit conversion evaluates its source once and invokes the selected
   concrete body</li><li>LSP tests cover exact hover and definition ranges for explicit coercion and numeric conversion</li><li>public specification and compiler design documentation describe the implemented contract and
   retain the published v0.7.0 record</li><li>documentation generation, diff checking, formatting, warnings-denied Clippy, focused tests, and
-  the complete repository verification pass</li></ul><h3 id="phase-1-non-goals">Phase 1 Non-goals</h3><p>Phase 1 does not add implicit borrowing or moves, owned/fallible/optional/allocation-backed coercions, user-defined numeric conversion, transitive conversion, coercion-driven method lookup, coercion-driven generic inference, overload ranking, runtime dispatch, removal of explicit view methods, or a public lifetime-parameter syntax.</p>
+  the complete repository verification pass</li></ul><h3 id="phase-1-non-goals">Phase 1 Non-goals</h3><p>Phase 1 does not add implicit borrowing or moves, owned/fallible/optional/allocation-backed coercions, user-defined numeric conversion, transitive conversion, coercion-driven method lookup, coercion-driven generic inference, overload ranking, runtime dispatch, removal of explicit view methods, or a public lifetime-parameter syntax.</p><h3 id="phase-1-completion-record">Phase 1 Completion Record</h3><p>Phase 1 completed explicit selection without creating a second coercion system:</p><ul><li>one semantic selector classifies contextual compatibility and explicit <code>as</code> as exact,
+  lossless-integer, capability-weakening, or borrow-coercion selection</li><li>one immutable <code>ConversionPlan</code> owns concrete types and spans and nests the selected coercion call
+  plan; ownership, provenance, analysis, specialization, and lowering do not repeat lookup</li><li>prefix borrowing binds before <code>as</code>, so <code>&amp;value as &amp;View</code> is canonical while
+  <code>&amp;(value as WiderInteger)</code> remains available when the converted value is borrowed</li><li>concrete expectations reach grouped and branch results, optional/fallible projection,
+  typed-sequence captures, and generic enum payload arguments without duplicate plans</li><li>native borrow destinations cover value-producing <code>if</code>, <code>if is</code>, and <code>match</code>, borrow-returning
+  calls, and outcome projection while preserving the separate readonly temporary-borrow path</li><li>diagnostics distinguish missing source borrow, insufficient readwrite capability, inaccessible
+  declarations, and unsupported conversions</li><li>expression hover focuses the exact <code>as</code> token and uses the shared plan; definition follows a
+  selected local or imported coercion identity, while numeric conversion invents no target</li><li>explicit and contextual <code>String</code> and <code>Vec&lt;T&gt;</code> views pass packaged check and native execution;
+  explicit coercion evaluates its source once and region checking rejects a local loan escape</li></ul><p>On 2026-08-08, <code>development/compiler/scripts/verify.sh</code> passed <code>cargo check</code>, all 3,334 tests, <code>cargo fmt --check</code>, and <code>cargo clippy --all-targets -- -D warnings</code>. The total includes 2,310 compiler unit tests, CLI build/run/LSP/package/native-test suites, 210 distributed-home cases, public examples, and the source corpus. <code>node docs/build-docs.js</code> generated 121 pages, and <code>git diff --check</code> passed.</p>
             </div>
         </main>
     </div>

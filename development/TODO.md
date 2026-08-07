@@ -2,8 +2,8 @@
 
 ## Current Task
 
-Complete v0.8.0 Phase 1 explicit borrow coercion and unified conversion plans. The source borrow
-must remain explicit, and lossless integer conversion must preserve its existing contract.
+No implementation phase is active. v0.8.0 Phase 1 is complete; stop before defining or starting a
+later phase.
 
 ## Completed Checkpoint
 
@@ -42,17 +42,21 @@ must remain explicit, and lossless integer conversion must preserve its existing
   callable returns all record and lower through the same coercion-plan path
 - `development/compiler/scripts/verify.sh` passed all 3,310 tests, formatting, and warnings-denied
   Clippy; documentation generation produced 121 pages
+- v0.8.0 Phase 1 introduces one conversion selector and immutable `ConversionPlan` for existing
+  numeric conversion, capability weakening, contextual coercion, and explicit borrowed-view `as`
+- compound expected-type propagation covers branches, outcome projection, typed sequence captures,
+  and generic enum payloads; native borrow lowering consumes the same selected plans
+- exact `as` hover and definition work through local and imported coercion identities, with precise
+  missing-borrow, capability, visibility, and unsupported-pair diagnostics
+- packaged `String` and `Vec<T>` explicit/contextual views pass check and native execution
+- `development/compiler/scripts/verify.sh` passed all 3,334 tests, formatting, and warnings-denied
+  Clippy; documentation generation produced 121 pages
 
 The published v0.7.0 qualification remains in the immutable
-[`releases/v0.7.0.md`](releases/v0.7.0.md) record. The implemented v0.8.0 Phase 0 contract and
-completion evidence are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
+[`releases/v0.7.0.md`](releases/v0.7.0.md) record. The implemented v0.8.0 Phase 0 and Phase 1
+contracts and completion evidence are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.md).
 
 ## Next Work
 
-1. Introduce one semantic conversion selector and immutable plan without coupling it to standard
-   library names.
-2. Make explicit borrow `as` produce the same coercion call plan as contextual selection.
-3. Audit compound expected-type propagation and close any checker/fact/lowering divergence.
-4. Add precise diagnostics and identity-based editor targets for the expression `as` token.
-5. Qualify packaged `String` and `Vec<T>` behavior, update the public specification, run the full
-   gate, record Phase 1 completion, and stop before Phase 2.
+Define the next phase in a separate planning turn. Do not infer Phase 2 scope from Phase 1
+non-goals or begin implementation automatically.
