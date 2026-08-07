@@ -184,7 +184,7 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             context,
             temporaries,
         ),
-        Expr::Call(call) => {
+        Expr::Call(call) if call_returns_borrow(call, context) => {
             let destination = temporaries.next_usize()?;
             let instructions = lower_borrow_normal_call(call, destination, context, temporaries)?;
             Ok((instructions, BorrowSource::BorrowLocal(destination)))
@@ -247,6 +247,13 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             parameter_type,
         )),
     }
+}
+
+fn call_returns_borrow(call: &CallExpr, context: &LoweringContext) -> bool {
+    context
+        .direct_call_target_and_name(call)
+        .and_then(|(target, _)| context.call_return_type(&target))
+        .is_some_and(|return_type| matches!(return_type, Type::Borrow { .. }))
 }
 
 fn lower_outcome_borrow_call_source(
