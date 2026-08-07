@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::MethodDecl;
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
@@ -160,12 +161,19 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         )
                         .ok()
                     });
+                    let contract = expanded_body_result_contract(
+                        declared,
+                        None,
+                        ResultProvenanceInputs::parameters(&function.parameters.parameters),
+                        &return_type,
+                        source.resolved,
+                    );
                     let callable = CallableId::declared_at(function_summary_key(function));
                     summaries.insert_result(
                         callable,
-                        result_with_declared_fallback(
+                        result_with_contract_fallback(
                             provenance,
-                            declared,
+                            contract,
                             &return_type,
                             source.resolved,
                         ),
@@ -249,9 +257,17 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 previous,
                             )
                             .map(|inferred| {
-                                result_with_declared_fallback(
+                                result_with_contract_fallback(
                                     inferred,
-                                    declared,
+                                    expanded_body_result_contract(
+                                        declared,
+                                        Some(method),
+                                        ResultProvenanceInputs::parameters(
+                                            &method.parameters.parameters,
+                                        ),
+                                        &return_type,
+                                        source.resolved,
+                                    ),
                                     &return_type,
                                     source.resolved,
                                 )
@@ -336,12 +352,19 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
+                        let contract = expanded_body_result_contract(
+                            declared,
+                            None,
+                            ResultProvenanceInputs::parameters(&function.parameters.parameters),
+                            &return_type,
+                            source.resolved,
+                        );
                         let callable = CallableId::declared_at(function_summary_key(function));
                         summaries.insert_result(
                             callable,
-                            result_with_declared_fallback(
+                            result_with_contract_fallback(
                                 provenance,
-                                declared,
+                                contract,
                                 &return_type,
                                 source.resolved,
                             ),
@@ -381,12 +404,19 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
+                        let contract = expanded_body_result_contract(
+                            declared,
+                            None,
+                            ResultProvenanceInputs::literal(literal),
+                            &return_type,
+                            source.resolved,
+                        );
                         let callable = CallableId::declared_at(literal.span);
                         summaries.insert_result(
                             callable,
-                            result_with_declared_fallback(
+                            result_with_contract_fallback(
                                 provenance,
-                                declared,
+                                contract,
                                 &return_type,
                                 source.resolved,
                             ),
@@ -443,10 +473,17 @@ fn collect_impl_provenance_summaries(
             )
             .ok()
         });
+        let contract = expanded_body_result_contract(
+            declared,
+            Some(method),
+            ResultProvenanceInputs::parameters(&method.parameters.parameters),
+            &return_type,
+            resolved,
+        );
         let callable = CallableId::declared_at(method.name_span);
         summaries.insert_result(
             callable,
-            result_with_declared_fallback(provenance, declared, &return_type, resolved),
+            result_with_contract_fallback(provenance, contract, &return_type, resolved),
         );
         collect_retained_input_mutations(
             body,
@@ -461,13 +498,32 @@ fn collect_impl_provenance_summaries(
     }
 }
 
-fn result_with_declared_fallback(
-    inferred: ValueProvenance,
+/// Expands an omitted, unambiguous source contract before body evidence is
+/// summarized. Exact body origins still win; the contract only supplies the
+/// public boundary when aggregate or pack lowering cannot retain an exact
+/// external input. Ambiguous omissions deliberately have no fallback because
+/// a union would invent dependencies that the body may not return.
+fn expanded_body_result_contract(
     declared: Option<ValueProvenance>,
+    method: Option<&MethodDecl>,
+    inputs: ResultProvenanceInputs<'_>,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+) -> Option<ValueProvenance> {
+    declared.or_else(|| {
+        elided_declaration_result_contract(method, inputs, return_type, resolved)
+            .allowed_contract()
+            .cloned()
+    })
+}
+
+fn result_with_contract_fallback(
+    inferred: ValueProvenance,
+    contract: Option<ValueProvenance>,
     return_type: &Type,
     resolved: &ResolveOutput,
 ) -> ValueProvenance {
-    let Some(declared) = declared else {
+    let Some(contract) = contract else {
         return inferred;
     };
     match (inferred, return_type) {
@@ -481,9 +537,9 @@ fn result_with_declared_fallback(
             let success = success.map(|value| {
                 Box::new(
                     if type_may_carry_result_provenance(success_type, resolved) {
-                        result_with_declared_fallback(
+                        result_with_contract_fallback(
                             *value,
-                            Some(declared.clone()),
+                            Some(contract.clone()),
                             success_type,
                             resolved,
                         )
@@ -502,9 +558,9 @@ fn result_with_declared_fallback(
             if has_exact_external_origin(&inferred) {
                 return inferred;
             }
-            let mut declared = declared;
-            declared.merge(&inferred.retain_only_result_allocations());
-            declared
+            let mut contract = contract;
+            contract.merge(&inferred.retain_only_result_allocations());
+            contract
         }
     }
 }

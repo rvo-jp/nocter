@@ -89,10 +89,7 @@ pub(in crate::typecheck) fn missing_external_result_contract_diagnostic(
     } else {
         "the result origin cannot be safely elided"
     };
-    let mut diagnostic = Diagnostic::error(
-        "E0444",
-        message,
-    );
+    let mut diagnostic = Diagnostic::error("E0444", message);
     diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
     diagnostic.notes.push(DiagnosticNote {
         message: match candidates {
