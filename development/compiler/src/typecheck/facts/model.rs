@@ -9,6 +9,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
+    pub(super) coercion_plans: HashMap<ByteSpan, TypecheckCoercionPlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -92,6 +93,19 @@ impl TypecheckFacts {
 
     pub(crate) fn closure_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckClosurePlan> {
         self.closure_plans.get(&expression_span)
+    }
+
+    pub(crate) fn coercion_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<&TypecheckCoercionPlan> {
+        self.coercion_plans.get(&expression_span)
+    }
+
+    pub(crate) fn coercion_plans(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &TypecheckCoercionPlan)> + '_ {
+        self.coercion_plans.iter().map(|(span, plan)| (*span, plan))
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -510,6 +524,62 @@ pub(crate) enum TypecheckMethodReceiverKind {
     Owned,
     ReadonlyBorrow,
     ReadwriteBorrow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckCoercionPlan {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) focus_span: ByteSpan,
+    pub(crate) receiver_mode: crate::ast::MethodReceiverMode,
+    pub(crate) source_is_readwrite: bool,
+    pub(crate) target_name: String,
+    pub(crate) self_ty: TypeExpr,
+    pub(crate) target_ty: TypeExpr,
+    pub(crate) substitutions: HashMap<String, TypeExpr>,
+    pub(super) free_type_parameters: HashSet<String>,
+}
+
+impl TypecheckCoercionPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let self_ty = substitute_type_expr_parameters(&self.self_ty, context_substitutions);
+        let target_ty = substitute_type_expr_parameters(&self.target_ty, context_substitutions);
+        let substitutions = self
+            .substitutions
+            .iter()
+            .map(|(name, ty)| {
+                (
+                    name.clone(),
+                    substitute_type_expr_parameters(ty, context_substitutions),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        if type_expr_contains_free_parameters(&self_ty, &self.free_type_parameters)
+            || type_expr_contains_free_parameters(&target_ty, &self.free_type_parameters)
+            || substitutions
+                .values()
+                .any(|ty| type_expr_contains_free_parameters(ty, &self.free_type_parameters))
+        {
+            return None;
+        }
+        Some(Self {
+            declaration_span: self.declaration_span,
+            focus_span: self.focus_span,
+            receiver_mode: self.receiver_mode,
+            source_is_readwrite: self.source_is_readwrite,
+            target_name: format!(
+                "{}.__nocter$coerce${}",
+                canonical_type_expr(&self_ty),
+                self.focus_span.start
+            ),
+            self_ty,
+            target_ty,
+            substitutions,
+            free_type_parameters: HashSet::new(),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

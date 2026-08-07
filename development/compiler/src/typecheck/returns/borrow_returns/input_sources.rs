@@ -129,10 +129,19 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
                 summaries,
             );
             if let Some(identifier) = expression_root_identifier(&member.object) {
-                merge_provenance(
-                    &mut provenance,
-                    borrow_return_provenance_for_local_storage(identifier, resolved),
-                );
+                let root_type = environment.get(&identifier.name);
+                let root_provenance =
+                    if root_type.is_some_and(|ty| type_contains_borrow_like(ty, resolved)) {
+                        borrow_return_provenance_for_identifier(
+                            identifier,
+                            resolved,
+                            environment,
+                            borrow_provenance,
+                        )
+                    } else {
+                        borrow_return_provenance_for_local_storage(identifier, resolved)
+                    };
+                merge_provenance(&mut provenance, root_provenance);
             } else {
                 merge_provenance(
                     &mut provenance,

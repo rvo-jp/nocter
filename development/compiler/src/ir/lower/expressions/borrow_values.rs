@@ -8,6 +8,9 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
     borrow_type: &Type,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_borrow_coercion_to_location(expression, destination, context) {
+        return lowered;
+    }
     let Type::Borrow {
         is_readwrite,
         inner,

@@ -19,6 +19,15 @@ impl TypecheckFactCollector<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
+        if let Some(selected) = crate::typecheck::coercions::select_expression_coercion(
+            expected,
+            expression,
+            self.resolved,
+            environment,
+        ) {
+            self.record_coercion_plan(expression.span(), selected);
+            return;
+        }
         match expression {
             Expr::Closure(closure) => {
                 let Type::Closure(closure_type) = expected else {

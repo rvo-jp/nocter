@@ -42,6 +42,7 @@ mod byte_view_values;
 mod call_arguments;
 mod calls;
 mod closure_captures;
+mod coercions;
 mod control_flow_values;
 mod diagnostics;
 mod fallible;
@@ -65,6 +66,7 @@ use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
 pub(super) use closure_captures::*;
+use coercions::*;
 use control_flow_values::*;
 use diagnostics::*;
 use fallible::*;
@@ -94,6 +96,7 @@ use crate::ir::{
     UsizeValue,
 };
 use crate::literals::decode_integer_literal_value;
+use calls::lower_borrow_source_from_expression_without_coercion;
 pub(in crate::ir::lower) use calls::lower_call_arguments_with_explicit_types;
 pub(in crate::ir::lower) use calls::lower_fallible_borrow_normal_call;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;

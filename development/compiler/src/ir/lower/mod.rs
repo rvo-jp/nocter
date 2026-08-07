@@ -52,6 +52,7 @@ use context::{
 };
 use imported_calls::{imported_call_diagnostics, imported_call_diagnostics_for_block};
 use reachability::reachable_call_targets;
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use types::{
     parameter_type_from_type_expr_with_resolver, return_type_from_type_expr_with_resolver,
@@ -290,7 +291,7 @@ enum IndexedDeclaration<'a> {
         name: String,
     },
     Method {
-        declaration: &'a MethodDecl,
+        declaration: Cow<'a, MethodDecl>,
         self_ty: TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         name: String,
@@ -549,6 +550,26 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
+                    Item::Coerce(coerce) => {
+                        for entry in &coerce.entries {
+                            for plan in call_specializations
+                                .coercions
+                                .get(&entry.span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    plan.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_coercion(entry, plan, file),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -698,10 +719,27 @@ impl<'a> IndexedCallable<'a> {
     ) -> Self {
         Self {
             declaration: IndexedDeclaration::Method {
-                declaration,
+                declaration: Cow::Borrowed(declaration),
                 self_ty,
                 substitutions,
                 name,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
+    fn new_coercion(
+        declaration: &crate::ast::CoercionEntry,
+        plan: &crate::typecheck::TypecheckCoercionPlan,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Method {
+                declaration: Cow::Owned(declaration.callable_method()),
+                self_ty: plan.self_ty.clone(),
+                substitutions: plan.substitutions.clone(),
+                name: plan.target_name.clone(),
             },
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,

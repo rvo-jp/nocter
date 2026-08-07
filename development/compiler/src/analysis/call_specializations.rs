@@ -7,7 +7,7 @@ use crate::ast::{
 use crate::source::ByteSpan;
 use crate::typecheck::{
     CallableCallSpecialization, DropTypeSpecialization, FunctionCallSpecialization,
-    MethodCallSpecialization,
+    MethodCallSpecialization, TypecheckCoercionPlan,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -15,6 +15,7 @@ pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
     pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
+    pub(crate) coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
 }
@@ -31,6 +32,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
     let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
+    let mut coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut queue = VecDeque::new();
     let literals = collect_literal_specializations(analysis);
@@ -46,6 +48,11 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
             {
                 queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+        for (_, plan) in file.typecheck_facts.coercion_plans() {
+            if let Some(plan) = plan.with_context_substitutions(&HashMap::new()) {
+                queue.push_back(PendingCallSpecialization::Coercion(plan));
             }
         }
         for (_, fact) in file.typecheck_facts.callable_call_entries() {
@@ -162,6 +169,21 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             PendingCallSpecialization::Callable(specialization) => {
                 insert_callable_specialization(&mut callables, specialization);
             }
+            PendingCallSpecialization::Coercion(plan) => {
+                if !insert_coercion_specialization(&mut coercions, plan.clone()) {
+                    continue;
+                }
+                let Some(file) = analysis.file_by_source(plan.declaration_span.source) else {
+                    continue;
+                };
+                enqueue_call_specializations_from_span(
+                    analysis,
+                    file,
+                    plan.declaration_span,
+                    &plan.substitutions,
+                    &mut queue,
+                );
+            }
             PendingCallSpecialization::Drop(specialization) => {
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
                     continue;
@@ -186,6 +208,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         functions,
         callables,
         methods,
+        coercions,
         drops,
         literals,
     }
@@ -253,7 +276,23 @@ enum PendingCallSpecialization {
     Function(FunctionCallSpecialization),
     Callable(CallableCallSpecialization),
     Method(MethodCallSpecialization),
+    Coercion(TypecheckCoercionPlan),
     Drop(DropSpecialization),
+}
+
+fn insert_coercion_specialization(
+    specializations: &mut HashMap<ByteSpan, Vec<TypecheckCoercionPlan>>,
+    plan: TypecheckCoercionPlan,
+) -> bool {
+    let entries = specializations.entry(plan.declaration_span).or_default();
+    if entries
+        .iter()
+        .any(|entry| entry.target_name == plan.target_name)
+    {
+        return false;
+    }
+    entries.push(plan);
+    true
 }
 
 fn insert_callable_specialization(
@@ -359,6 +398,14 @@ fn enqueue_call_specializations_from_span(
             specialization.with_context_substitutions(context_substitutions)
         {
             queue.push_back(PendingCallSpecialization::Method(specialization));
+        }
+    }
+    for (expression_span, plan) in file.typecheck_facts.coercion_plans() {
+        if !span_contains(span, expression_span) {
+            continue;
+        }
+        if let Some(plan) = plan.with_context_substitutions(context_substitutions) {
+            queue.push_back(PendingCallSpecialization::Coercion(plan));
         }
     }
     for (call_span, fact) in file.typecheck_facts.callable_call_entries() {

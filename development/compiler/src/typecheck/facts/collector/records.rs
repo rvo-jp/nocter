@@ -1,6 +1,61 @@
 use super::*;
 
 impl TypecheckFactCollector<'_> {
+    pub(in crate::typecheck::facts::collector) fn record_coercion_plan(
+        &mut self,
+        expression_span: ByteSpan,
+        selected: crate::typecheck::coercions::SelectedCoercion,
+    ) {
+        let mut free_type_parameters = HashSet::new();
+        let Some(self_ty) = type_to_type_expr_allowing_parameters(
+            &selected.source_type,
+            expression_span,
+            &mut free_type_parameters,
+        ) else {
+            return;
+        };
+        let Some(target_ty) = type_to_type_expr_allowing_parameters(
+            &selected.target_type,
+            expression_span,
+            &mut free_type_parameters,
+        ) else {
+            return;
+        };
+        let substitutions = selected
+            .substitutions
+            .iter()
+            .filter_map(|(name, ty)| {
+                type_to_type_expr_allowing_parameters(
+                    ty,
+                    expression_span,
+                    &mut free_type_parameters,
+                )
+                .map(|ty| (name.clone(), ty))
+            })
+            .collect::<HashMap<_, _>>();
+        if substitutions.len() != selected.substitutions.len() {
+            return;
+        }
+        self.facts.coercion_plans.insert(
+            expression_span,
+            TypecheckCoercionPlan {
+                declaration_span: selected.declaration_span,
+                focus_span: selected.focus_span,
+                receiver_mode: selected.receiver_mode,
+                source_is_readwrite: selected.source_is_readwrite,
+                target_name: format!(
+                    "{}.__nocter$coerce${}",
+                    canonical_type_expr(&self_ty),
+                    selected.focus_span.start
+                ),
+                self_ty,
+                target_ty,
+                substitutions,
+                free_type_parameters,
+            },
+        );
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_interpolation_plan(
         &mut self,
         expression: &crate::ast::InterpolatedStringExpr,

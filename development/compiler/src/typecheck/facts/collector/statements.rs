@@ -32,11 +32,21 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
-                self.collect_expression_facts_in_context(
-                    &statement.value,
-                    environment,
-                    return_type,
-                );
+                if statement.operator == crate::ast::AssignmentOperator::Assign {
+                    let expected = expression_type(&statement.target, self.resolved, environment);
+                    self.collect_expression_facts_with_expected(
+                        &statement.value,
+                        &expected,
+                        environment,
+                        return_type,
+                    );
+                } else {
+                    self.collect_expression_facts_in_context(
+                        &statement.value,
+                        environment,
+                        return_type,
+                    );
+                }
             }
             Stmt::If(statement) => {
                 self.collect_expression_facts_in_context(

@@ -344,6 +344,7 @@ pub(super) fn is_expression_assignable(
                 .unwrap_or_else(|| {
                     let actual = expression_type(expression, resolved, environment);
                     is_assignable(expected, &actual)
+                        || super::coercions::select_coercion(expected, &actual, resolved).is_some()
                 })
         }
     }

@@ -5,6 +5,12 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut coercion_temporaries = TemporaryAllocator::new(context)?;
+    if let Some(lowered) =
+        lower_str_coercion_to_location(expression, destination, context, &mut coercion_temporaries)
+    {
+        return lowered;
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -85,6 +91,15 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
     destination: SliceLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut coercion_temporaries = TemporaryAllocator::new(context)?;
+    if let Some(lowered) = lower_slice_coercion_to_location(
+        expression,
+        destination,
+        context,
+        &mut coercion_temporaries,
+    ) {
+        return lowered;
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -165,6 +180,19 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    if context.coercion_plan(expression.span()).is_some() {
+        let temporary = temporaries.next_str()?;
+        return Ok(LoweredStrValue {
+            instructions: lower_str_coercion_to_location(
+                expression,
+                temporary,
+                context,
+                temporaries,
+            )
+            .expect("checked coercion plan must lower")?,
+            value: StrValue::Location(temporary),
+        });
+    }
     match expression {
         Expr::Call(call) => {
             if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
@@ -274,6 +302,19 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    if context.coercion_plan(expression.span()).is_some() {
+        let temporary = temporaries.next_slice()?;
+        return Ok(LoweredSliceValue {
+            instructions: lower_slice_coercion_to_location(
+                expression,
+                temporary,
+                context,
+                temporaries,
+            )
+            .expect("checked coercion plan must lower")?,
+            value: SliceValue::Location(temporary),
+        });
+    }
     match expression {
         Expr::Call(call) => {
             if primitive_slice_from_raw_parts_call(call, context) {

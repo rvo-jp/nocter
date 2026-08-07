@@ -505,6 +505,36 @@ impl<'a> LoweringContext<'a> {
             .method_call_receiver_kind(member_span)
     }
 
+    pub(in crate::ir::lower) fn coercion_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckCoercionPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .coercion_plan(expression_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
+    pub(in crate::ir::lower) fn coercion_call_target(
+        &self,
+        plan: &crate::typecheck::TypecheckCoercionPlan,
+    ) -> Option<CallTarget> {
+        let resolution = self.call_resolution.as_ref()?;
+        Some(
+            self.function_names
+                .unique_target_for_name(&plan.target_name)
+                .cloned()
+                .unwrap_or_else(|| {
+                    call_target_for_source(
+                        plan.declaration_span.source,
+                        resolution.root_source,
+                        plan.target_name.clone(),
+                    )
+                }),
+        )
+    }
+
     fn method_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
         let resolution = self.call_resolution.as_ref()?;
         let Expr::Member(member) = call.callee.as_ref() else {

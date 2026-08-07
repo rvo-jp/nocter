@@ -7,6 +7,22 @@ pub(super) fn lower_borrow_argument(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, BorrowArgument), Vec<Diagnostic>> {
+    if context.coercion_plan(argument.span()).is_some() {
+        let destination = temporaries.next_usize()?;
+        let instructions = super::super::lower_borrow_coercion_to_location_with_temporaries(
+            argument,
+            destination,
+            context,
+            temporaries,
+        )
+        .expect("checked coercion plan must lower")?;
+        return Ok((
+            instructions,
+            BorrowArgument {
+                source: BorrowSource::BorrowLocal(destination),
+            },
+        ));
+    }
     let Type::Borrow {
         is_readwrite,
         inner,
@@ -100,6 +116,37 @@ pub(super) fn lower_implicit_receiver_borrow_argument(
 }
 
 pub(in crate::ir::lower) fn lower_borrow_source_from_expression(
+    expression: &Expr,
+    inner: &Type,
+    is_readwrite: bool,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    if context.coercion_plan(expression.span()).is_some() {
+        let destination = temporaries.next_usize()?;
+        let instructions = super::super::lower_borrow_coercion_to_location_with_temporaries(
+            expression,
+            destination,
+            context,
+            temporaries,
+        )
+        .expect("checked coercion plan must lower")?;
+        return Ok((instructions, BorrowSource::BorrowLocal(destination)));
+    }
+    lower_borrow_source_from_expression_without_coercion(
+        expression,
+        inner,
+        is_readwrite,
+        parameter_type,
+        callee_name,
+        context,
+        temporaries,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion(
     expression: &Expr,
     inner: &Type,
     is_readwrite: bool,

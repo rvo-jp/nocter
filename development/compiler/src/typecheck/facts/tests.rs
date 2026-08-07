@@ -66,6 +66,31 @@ func main(): i32 {
 }
 
 #[test]
+fn records_a_concrete_coercion_plan_at_the_expected_type_boundary() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> {
+    pub &self as &T from self { return &self.value }
+}
+func accept(value: &i32): void { return }
+func demo(value: &Box<i32>): void { accept(value) return }
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let argument_start = text.rfind("value)").expect("expected call argument");
+    let argument_span = ByteSpan::new(ast.span.source, argument_start, argument_start + 5);
+    let plan = facts
+        .coercion_plan(argument_span)
+        .expect("expected coercion plan");
+
+    assert_eq!(canonical_type_expr(&plan.self_ty), "Box<i32>");
+    assert_eq!(canonical_type_expr(&plan.target_ty), "&i32");
+    assert_eq!(plan.receiver_mode, MethodReceiverMode::ReadonlyBorrow);
+    assert!(!plan.source_is_readwrite);
+    assert!(plan.target_name.starts_with("Box<i32>.__nocter$coerce$"));
+}
+
+#[test]
 fn records_binding_type_expr_facts_for_generic_parameters() {
     let text = r#"func keep<T>(value: T): T {
     let inferred = value

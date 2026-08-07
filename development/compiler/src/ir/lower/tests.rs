@@ -25,6 +25,7 @@ mod arrays;
 mod basic;
 mod call_evaluation;
 mod calls;
+mod coercions;
 mod control_flow;
 mod diagnostics;
 mod drops;

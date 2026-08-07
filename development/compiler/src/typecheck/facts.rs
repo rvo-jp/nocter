@@ -55,10 +55,11 @@ pub(crate) use collector::collect_typecheck_facts;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
-    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
-    TypecheckInterpolationPart, TypecheckInterpolationPlan, TypecheckIterationMethod,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
+    TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
+    TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 

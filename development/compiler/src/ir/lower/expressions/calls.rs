@@ -66,6 +66,7 @@ use aggregate_arguments::{
 pub(in crate::ir::lower) use arguments::lower_call_arguments_with_explicit_types;
 pub(super) use arguments::{call_arguments_require_stack, lower_call_arguments};
 pub(in crate::ir::lower) use borrow_arguments::lower_borrow_source_from_expression;
+pub(in crate::ir::lower) use borrow_arguments::lower_borrow_source_from_expression_without_coercion;
 use borrow_arguments::{
     lower_borrow_argument, lower_implicit_receiver_borrow_argument, materialize_slice_borrow_index,
 };

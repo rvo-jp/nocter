@@ -7,6 +7,7 @@ mod body;
 mod callables;
 mod calls;
 mod closures;
+mod coercions;
 mod conformance;
 mod controls;
 mod copyability;
@@ -59,7 +60,7 @@ use sized::*;
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
-    TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCollectionForPlan,
+    TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckFacts, TypecheckInterpolationPlan,
     TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
     TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
