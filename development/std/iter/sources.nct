@@ -22,7 +22,7 @@ impl<T> ExactSizeIterator<T> for EmptyIter<T> {
 
 impl<T> Iterator<T> for EmptyIter<T> {
     /// Returns `none` for every call.
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         return none
     }
 }
@@ -34,7 +34,7 @@ pub struct OnceIter<T> {
 }
 
 /// Constructs an iterator that yields `item` once.
-pub func once<T>(item: T): OnceIter<T> from item {
+pub func once<T>(item: T): OnceIter<T> {
     return OnceIter<T> {
         item: move item,
         remaining: 1,
@@ -50,7 +50,7 @@ impl<T> ExactSizeIterator<T> for OnceIter<T> {
 
 impl<T> Iterator<T> for OnceIter<T> {
     /// Transfers the owned item once, then returns `none`.
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }

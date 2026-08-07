@@ -82,7 +82,7 @@ pub func u8_to_string(value: u8): String {
 pub func try_usize_to_string(
     allocator: &+TryAllocator,
     value: usize,
-): String! from allocator {
+): String! {
     var result = String.try_with_capacity(allocator, 20)?
     try_append_usize(&+result, value)?
     return move result
@@ -91,7 +91,7 @@ pub func try_usize_to_string(
 pub func try_i32_to_string(
     allocator: &+TryAllocator,
     value: i32,
-): String! from allocator {
+): String! {
     var result = String.try_with_capacity(allocator, 11)?
     try_append_i32(&+result, value)?
     return move result
@@ -100,7 +100,7 @@ pub func try_i32_to_string(
 pub func try_u8_to_string(
     allocator: &+TryAllocator,
     value: u8,
-): String! from allocator {
+): String! {
     var result = String.try_with_capacity(allocator, 3)?
     try_append_u8(&+result, value)?
     return move result

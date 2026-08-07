@@ -13,7 +13,7 @@ use std/vec.Vec
 /// A zero count means end of stream. Returning a larger count violates the
 /// protocol and is rejected by the common collection operations.
 pub interface Reader {
-    pub method &+self.read(buffer: &+[u8]): usize! from static
+    pub method &+self.read(buffer: &+[u8]): usize!
 
     /// Reads until end of stream into independently owned byte storage.
     pub method &+self.read_to_end(): Vec<u8>! {
@@ -29,7 +29,7 @@ pub interface Reader {
 
 /// A destination that accepts the complete byte view or returns an error.
 pub interface Writer {
-    pub method &+self.write(value: &[u8]): void! from static
+    pub method &+self.write(value: &[u8]): void!
     pub method &+self.flush(): void! { return }
 
     /// Writes the UTF-8 encoding bytes through the shared byte contract.

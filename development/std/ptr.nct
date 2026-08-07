@@ -7,9 +7,9 @@
 
 pub primitive addr<T>(pointer: *T): usize
 
-pub primitive from_ref<T>(value: &T): *T from value
+pub primitive from_ref<T>(value: &T): *T
 
-pub primitive from_ref_mut<T>(value: &+T): *T from value
+pub primitive from_ref_mut<T>(value: &+T): *T
 
 // Restricted API: callable only from modules inside the active Nocter home std/.
 // User project modules must not call these functions.

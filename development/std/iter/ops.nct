@@ -12,7 +12,7 @@ pub func count<T, I: Iterator<T>>(source: I): usize {
 }
 
 /// Consumes `source` and returns its last item, or `none` when empty.
-pub func last<T, I: Iterator<T>>(source: I): T? from source {
+pub func last<T, I: Iterator<T>>(source: I): T? {
     var result: T? = none
     for item in source {
         result = move item

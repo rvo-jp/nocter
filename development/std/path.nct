@@ -21,7 +21,7 @@ pub func from_str(value: &str): Utf8Path! {
     return Utf8Path.new(value)?
 }
 
-pub func view(path: &Utf8Path): &str from path {
+pub func view(path: &Utf8Path): &str {
     return path.text.view()
 }
 
@@ -58,7 +58,7 @@ pub func invalid_path(): error {
 }
 
 impl Utf8Path {
-    pub method &self.view(): &str from self { return view(self) }
+    pub method &self.view(): &str { return view(self) }
     pub method &self.is_absolute(): bool { return is_absolute(self) }
     pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
 }

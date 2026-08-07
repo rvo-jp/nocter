@@ -50,7 +50,7 @@ construct String {
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
-    ): Self! from allocator {
+    ): Self! {
         return String {
             storage: try_alloc(allocator, requested_capacity, 1)?,
             len: 0,
@@ -114,7 +114,7 @@ construct String {
 
 coerce String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub &self as &str from self {
+    pub &self as &str {
         return view(self)
     }
 }
@@ -130,7 +130,7 @@ pub func with_capacity(requested_capacity: usize): String {
 pub func try_with_capacity(
     allocator: &+TryAllocator,
     requested_capacity: usize,
-): String! from allocator {
+): String! {
     return String.try_with_capacity(allocator, requested_capacity)?
 }
 
@@ -156,7 +156,7 @@ pub func try_from_utf8(
     return String.try_from_utf8(allocator, candidate)?
 }
 
-pub func view(text: &String): &str from text {
+pub func view(text: &String): &str {
     return str_from_raw_parts(text.storage.ptr, text.len)
 }
 
@@ -202,7 +202,7 @@ pub func clear(text: &+String): void {
     return
 }
 
-pub func bytes(value: &str): &[u8] from value {
+pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
 
@@ -336,7 +336,7 @@ pub func empty_separator(): error {
     return Error.new("std.string.empty_separator", "string separator must not be empty")
 }
 
-pub func bytes_iter(text: &String): ViewIter<u8> from text {
+pub func bytes_iter(text: &String): ViewIter<u8> {
     return ViewIter.from_view(bytes_from_str(view(text)))
 }
 
@@ -361,7 +361,7 @@ pub func capacity_overflow(): error {
 }
 
 impl String {
-    pub method &self.view(): &str from self {
+    pub method &self.view(): &str {
         return view(self)
     }
 
@@ -392,7 +392,7 @@ impl String {
         return
     }
 
-    pub method &self.bytes(): &[u8] from self {
+    pub method &self.bytes(): &[u8] {
         return bytes_from_str(view(self))
     }
 
@@ -417,7 +417,7 @@ impl String {
     }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.
-    pub method &self.bytes_iter(): ViewIter<u8> from self {
+    pub method &self.bytes_iter(): ViewIter<u8> {
         return bytes_iter(self)
     }
 

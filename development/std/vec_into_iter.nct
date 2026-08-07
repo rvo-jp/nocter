@@ -51,7 +51,7 @@ pub func remaining<T>(iterator: &VecIntoIter<T>): usize {
     return iterator.end_index - iterator.next_index
 }
 
-pub func next<T>(iterator: &+VecIntoIter<T>): T? from iterator {
+pub func next<T>(iterator: &+VecIntoIter<T>): T? {
     if iterator.next_index >= iterator.end_index {
         return none
     }
@@ -87,7 +87,7 @@ impl<T> ExactSizeIterator<T> for VecIntoIter<T> {
 
 impl<T> Iterator<T> for VecIntoIter<T> {
     /// Transfers the next element, or returns `none` at exhaustion.
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         return next(self)?
     }
 }

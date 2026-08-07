@@ -57,7 +57,7 @@ pub struct FoldStep<T, U> {
 
 /// Advances a mutable iterator and returns one item, or `none` at exhaustion.
 pub interface Iterator<T> {
-    pub method &+self.next(): T? from self
+    pub method &+self.next(): T?
 
     /// Lazily transforms every yielded item.
     pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> from self | transform {
@@ -76,7 +76,7 @@ pub interface Iterator<T> {
     }
 
     /// Lazily yields at most `limit` items.
-    pub method self.take(limit: usize): TakeIter<T, Self> from self {
+    pub method self.take(limit: usize): TakeIter<T, Self> {
         return TakeIter<T, Self> {
             source: move self,
             remaining: limit,
@@ -84,7 +84,7 @@ pub interface Iterator<T> {
     }
 
     /// Lazily discards at most `count` items before yielding.
-    pub method self.skip(count: usize): SkipIter<T, Self> from self {
+    pub method self.skip(count: usize): SkipIter<T, Self> {
         return SkipIter<T, Self> {
             source: move self,
             remaining_to_skip: count,
@@ -101,7 +101,7 @@ pub interface Iterator<T> {
     }
 
     /// Lazily pairs every yielded item with its zero-based index.
-    pub method self.enumerate(): EnumerateIter<T, Self> from self {
+    pub method self.enumerate(): EnumerateIter<T, Self> {
         return EnumerateIter<T, Self> {
             source: move self,
             next_index: 0,
@@ -120,7 +120,7 @@ pub interface Iterator<T> {
     }
 
     /// Consumes the iterator and returns its last item, or `none`.
-    pub method self.last(): T? from self {
+    pub method self.last(): T? {
         var source = move self
         var result: T? = none
         while true {
@@ -188,7 +188,7 @@ pub interface Iterator<T> {
     }
 
     /// Consumes the iterator into a newly allocated Vec.
-    pub method self.to_vec(): Vec<T> from self {
+    pub method self.to_vec(): Vec<T> {
         var source = move self
         var result: Vec<T> = Vec.empty()
         while true {
@@ -206,12 +206,12 @@ pub interface ExactSizeIterator<T> {
 
 /// Creates a readonly iterator whose yielded values retain the collection origin.
 pub interface Iterable<T, I> {
-    pub method &self.iter(): I from self
+    pub method &self.iter(): I
 }
 
 /// Transfers a collection into an owning iterator.
 pub interface IntoIterator<T, I> {
-    pub method self.into_iter(): I from self
+    pub method self.into_iter(): I
 }
 
 /// Constructs a lazy mapping adapter without allocating.
@@ -227,7 +227,7 @@ pub func map<T, U, I: Iterator<T>, F: &+func(T): U>(
 
 impl<T, U, I: Iterator<T>, F: &+func(T): U> Iterator<U> for MapIter<T, U, I, F> {
     /// Advances the source once and transforms the yielded item once.
-    method &+self.next(): U? from self {
+    method &+self.next(): U? {
         let item = self.source.next()?
         return self.transform(move item)
     }
@@ -253,7 +253,7 @@ pub func filter<T, I: Iterator<T>, F: &+func(&T): bool>(
 
 impl<T, I: Iterator<T>, F: &+func(&T): bool> Iterator<T> for FilterIter<T, I, F> {
     /// Advances until the predicate accepts an item or the source is exhausted.
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         while true {
             let item = self.source.next()?
             if self.predicate(&item) {
@@ -265,7 +265,7 @@ impl<T, I: Iterator<T>, F: &+func(&T): bool> Iterator<T> for FilterIter<T, I, F>
 }
 
 /// Constructs an owning prefix-limiting adapter.
-pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> from source {
+pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> {
     return TakeIter<T, I> {
         source: move source,
         remaining: limit,
@@ -273,7 +273,7 @@ pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> from s
 }
 
 impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }
@@ -297,7 +297,7 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I> {
 }
 
 /// Constructs an owning prefix-skipping adapter.
-pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> from source {
+pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> {
     return SkipIter<T, I> {
         source: move source,
         remaining_to_skip: count,
@@ -305,7 +305,7 @@ pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> from s
 }
 
 impl<T, I: Iterator<T>> Iterator<T> for SkipIter<T, I> {
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         while self.remaining_to_skip != 0 {
             let skipped = self.source.next() otherwise {
                 self.remaining_to_skip = 0
@@ -340,7 +340,7 @@ pub func chain<T, L: Iterator<T>, R: Iterator<T>>(
 }
 
 impl<T, L: Iterator<T>, R: Iterator<T>> Iterator<T> for ChainIter<T, L, R> {
-    method &+self.next(): T? from self {
+    method &+self.next(): T? {
         while self.in_left {
             let item = self.left.next() otherwise {
                 self.in_left = false
@@ -359,7 +359,7 @@ impl<T, L: ExactSizeIterator<T>, R: ExactSizeIterator<T>> ExactSizeIterator<T> f
 }
 
 /// Constructs an indexed owning adapter.
-pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> from source {
+pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> {
     return EnumerateIter<T, I> {
         source: move source,
         next_index: 0,
@@ -367,7 +367,7 @@ pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> from sourc
 }
 
 impl<T, I: Iterator<T>> Iterator<Indexed<T>> for EnumerateIter<T, I> {
-    method &+self.next(): Indexed<T>? from self {
+    method &+self.next(): Indexed<T>? {
         let item = self.source.next()?
         let index: usize = self.next_index
         self.next_index = index + 1

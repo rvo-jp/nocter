@@ -48,7 +48,7 @@ pub func read(reader: &+BufReader, destination: &+[u8]): usize! {
 }
 
 impl Reader for BufReader {
-    method &+self.read(destination: &+[u8]): usize! from static { return read(self, destination)? }
+    method &+self.read(destination: &+[u8]): usize! { return read(self, destination)? }
 }
 
 pub struct BufWriter {
@@ -101,6 +101,6 @@ impl BufWriter {
 }
 
 impl Writer for BufWriter {
-    method &+self.write(bytes: &[u8]): void! from static { write(self, bytes)? return }
+    method &+self.write(bytes: &[u8]): void! { write(self, bytes)? return }
     method &+self.flush(): void! { flush(self)? return }
 }

@@ -35,7 +35,7 @@ pub struct Vec<T> {
 
 construct Vec<T> {
     /// Constructs a Vec from owned elements evaluated from left to right.
-    pub default literal [](...items: T): Self from items {
+    pub default literal [](...items: T): Self {
         let item_count: usize = items.len()
         if item_count == 0 {
             return Vec.empty()
@@ -85,7 +85,7 @@ construct Vec<T> {
     pub func try_with_capacity(
         allocator: &+TryAllocator,
         requested_capacity: usize,
-    ): Self! from allocator {
+    ): Self! {
         let empty_pointer: *T = from_addr(1)
         let element_size: usize = pointee_size(empty_pointer)
         if element_size == 0 {
@@ -106,7 +106,7 @@ construct Vec<T> {
         }
     }
 
-    pub func from_slice(values: &[T]): Self from values {
+    pub func from_slice(values: &[T]): Self {
         var result: Vec<T> = Vec.with_capacity(values.len())
         var index: usize = 0
         while index < values.len() {
@@ -117,7 +117,7 @@ construct Vec<T> {
     }
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
-    pub func from_iter<I: Iterator<T>>(iterator: I): Self from iterator {
+    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
         var result: Vec<T> = Vec.empty()
         for item in iterator {
             result.push(move item)
@@ -128,7 +128,7 @@ construct Vec<T> {
     /// Consumes an exact iterator after reserving its initial reported remainder.
     pub func from_exact_iter<I: Iterator<T> + ExactSizeIterator<T>>(
         iterator: I,
-    ): Self from iterator {
+    ): Self {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()
@@ -155,12 +155,12 @@ construct Vec<T> {
 
 coerce Vec<T> {
     /// Exposes the initialized element prefix as a readonly view.
-    pub &self as &[T] from self {
+    pub &self as &[T] {
         return view(self)
     }
 
     /// Exposes the initialized element prefix as a readwrite view.
-    pub &+self as &+[T] from self {
+    pub &+self as &+[T] {
         return view_mut(self)
     }
 }
@@ -176,11 +176,11 @@ pub func with_capacity<T>(requested_capacity: usize): Vec<T> {
 pub func try_with_capacity<T>(
     allocator: &+TryAllocator,
     requested_capacity: usize,
-): Vec<T>! from allocator {
+): Vec<T>! {
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func from_slice<T>(values: &[T]): Vec<T> from values {
+pub func from_slice<T>(values: &[T]): Vec<T> {
     return Vec.from_slice(values)
 }
 
@@ -206,33 +206,33 @@ pub func is_empty<T>(values: &Vec<T>): bool {
     return values_len == 0
 }
 
-pub func view<T>(values: &Vec<T>): &[T] from values {
+pub func view<T>(values: &Vec<T>): &[T] {
     return slice_from_raw_parts_value(values.ptr, values.len)
 }
 
-pub func view_mut<T>(values: &+Vec<T>): &+[T] from values {
+pub func view_mut<T>(values: &+Vec<T>): &+[T] {
     return slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
-pub func iter<T>(values: &Vec<T>): ViewIter<T> from values {
+pub func iter<T>(values: &Vec<T>): ViewIter<T> {
     return ViewIter.from_view(view(values))
 }
 
-pub func get<T>(values: &Vec<T>, index: usize): &T? from values {
+pub func get<T>(values: &Vec<T>, index: usize): &T? {
     if index >= values.len {
         return none
     }
     return &view(values)[index]
 }
 
-pub func get_mut<T>(values: &+Vec<T>, index: usize): &+T? from values {
+pub func get_mut<T>(values: &+Vec<T>, index: usize): &+T? {
     if index >= values.len {
         return none
     }
     return &+view_mut(values)[index]
 }
 
-pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> from values {
+pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
     var source = move values
     let pointer: *T = source.ptr
     let source_len: usize = source.len
@@ -328,7 +328,7 @@ pub func retain<T, F: &+func(&T): bool>(values: &+Vec<T>, predicate: F): void {
     return
 }
 
-pub func pop<T>(values: &+Vec<T>): T? from values {
+pub func pop<T>(values: &+Vec<T>): T? {
     if values.len == 0 {
         return none
     }
@@ -384,7 +384,7 @@ pub func insert<T>(values: &+Vec<T>, index: usize, value: T): void {
     return
 }
 
-pub func remove<T>(values: &+Vec<T>, index: usize): T? from values {
+pub func remove<T>(values: &+Vec<T>, index: usize): T? {
     let old_len: usize = values.len
     if index >= old_len {
         return none
@@ -424,16 +424,16 @@ impl<T> Vec<T> {
         return is_empty(self)
     }
 
-    pub method &self.view(): &[T] from self {
+    pub method &self.view(): &[T] {
         return view(self)
     }
 
-    pub method &+self.view_mut(): &+[T] from self {
+    pub method &+self.view_mut(): &+[T] {
         return view_mut(self)
     }
 
     /// Returns a readwrite element borrow when `index` is in bounds.
-    pub method &+self.get_mut(index: usize): &+T? from self {
+    pub method &+self.get_mut(index: usize): &+T? {
         if index >= self.len {
             return none
         }
@@ -509,12 +509,12 @@ impl<T> Vec<T> {
     }
 
     /// Removes and transfers an element, or returns `none` out of bounds.
-    pub method &+self.remove(index: usize): T? from self {
+    pub method &+self.remove(index: usize): T? {
         return remove(self, index)?
     }
 
     /// Transfers and returns the last initialized element, or `none` when empty.
-    pub method &+self.pop(): T? from self {
+    pub method &+self.pop(): T? {
         return pop(self)?
     }
 
@@ -532,7 +532,7 @@ impl<T> Sequence<T> for Vec<T> {
     }
 
     /// Returns a readonly element borrow when `index` is in bounds.
-    method &self.get(index: usize): &T? from self {
+    method &self.get(index: usize): &T? {
         if index >= self.len {
             return none
         }
@@ -542,14 +542,14 @@ impl<T> Sequence<T> for Vec<T> {
 
 impl<T> Iterable<&T, ViewIter<T>> for Vec<T> {
     /// Returns an allocation-free iterator over readonly element borrows.
-    method &self.iter(): ViewIter<T> from self {
+    method &self.iter(): ViewIter<T> {
         return iter(self)
     }
 }
 
 impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T> {
     /// Transfers the allocation and every element into an owning iterator.
-    method self.into_iter(): VecIntoIter<T> from self {
+    method self.into_iter(): VecIntoIter<T> {
         return into_iter(move self)
     }
 }
