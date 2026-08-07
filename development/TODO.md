@@ -1,9 +1,9 @@
 # Nocter Development Handoff
 
-## Current State
+## Current Task
 
-v0.7.0 Phase 0 was completed on 2026-08-07. No later v0.7.0 phase is active. The released baseline
-remains v0.6.0; Phase 0 has not been packaged or published as a v0.7.0 release.
+v0.7.0 Phase 1 is active. Stabilize the Phase 0 `from`-only contract and qualify one exact v0.7.0
+archive without publishing it. The released baseline remains v0.6.0.
 
 ## Completed Checkpoint
 
@@ -27,6 +27,7 @@ The detailed design, non-goals, completion gate, and exact verification counts a
 
 ## Next Work
 
-Define and adopt the next v0.7.0 phase before changing language behavior. Do not reintroduce an
-allocation result modifier or infer an external `from` origin from a callable's parameter count.
-Treat v0.6.0 release records, tags, and assets as immutable.
+Execute the Phase 1 work order in `milestones/v0.7.0.md`. Begin by applying missing-`from`
+validation uniformly to public inherent methods, public literals, and interface conformance bodies,
+then correct no-origin interface substitution. Do not add source syntax. Treat v0.6.0 release
+records, tags, and assets as immutable.
