@@ -82,6 +82,13 @@ reborrow `&+Source` as readonly, but it never creates a borrow from an owned sou
 view carries the original source loan and uses the same non-lexical lifetime and region escape
 machinery as an explicit method call.
 
+Borrow-source collection follows every borrow-valued result expression, including explicit type
+conversion, optional and fallible projection, `if`, `if is`, and `match`. A binding records every
+possible source place from its executed result path. Later move, drop, assignment, and conflicting
+borrow checks therefore use the binding's last use without treating coercion as a lifetime boundary.
+Pattern branches are analyzed in their branch-specific type environments so payload-derived borrows
+retain their actual source instead of becoming unknown.
+
 A readwrite result requires a readwrite receiver. Returning mutable access to invariant-bearing
 storage remains the defining type's responsibility; `String` therefore exposes only `&str`, while
 `Vec<T>` may expose `&+[T]`.

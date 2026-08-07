@@ -6,6 +6,9 @@ v0.8.0 Phase 2 is active. Freeze and audit the completed conversion contract, cl
 ownership/runtime regression gaps, prepare the v0.8.0 candidate identity and English release
 records, and qualify the exact archive from a fresh extraction. Do not tag, push, or publish.
 
+The compiler, installed-home metadata, and specification now identify the v0.8.0 candidate. The
+root README and release index intentionally remain on the published v0.7.0 release.
+
 ## Completed Checkpoint
 
 - source-level result allocation modifiers and callable allocation variance were removed

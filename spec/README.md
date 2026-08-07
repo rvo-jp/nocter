@@ -38,7 +38,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Construction Surfaces](19-construction-surfaces.md)
 - [Native Testing](20-native-testing.md)
 - [Practical Standard Library](21-practical-standard-library.md)
-- [Borrow Coercions (v0.8.0 development contract)](22-borrow-coercions.md)
+- [Borrow Coercions](22-borrow-coercions.md)
 
 ## Supporting Material
 
@@ -47,10 +47,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-Unqualified chapters describe the published v0.7.0 language. A chapter carrying an explicit
-availability notice may record behavior implemented for the next release without changing the
-v0.7.0 contract. The
-[release index](../releases/README.md) identifies published distributions, and repository tags
+This working tree specifies the v0.8.0 release candidate. The latest published release remains
+v0.7.0 until the [release index](../releases/README.md) records publication. Repository tags
 preserve the exact specification for every published release.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or

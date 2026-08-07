@@ -1,7 +1,7 @@
 # Borrow Coercions
 
-**Availability:** This chapter specifies behavior implemented through v0.8.0 Phase 1. It is not
-part of the published v0.7.0 language contract.
+**Availability:** This chapter specifies the v0.8.0 release-candidate contract. The latest
+published release remains v0.7.0 until publication is recorded in the release index.
 
 A borrow coercion lets a nominal type expose one of its borrowed views at a concrete expected-type
 boundary. It is a type-owned, statically selected call. It is not type equality, a representation
@@ -151,7 +151,7 @@ consumes an owned value, or changes the selected entry based on later generic in
 
 ## Selection Limits
 
-Borrow coercions are deliberately one-step in v0.8.0 Phase 1:
+Borrow coercions are deliberately one-step in v0.8.0:
 
 - user-defined coercions never chain
 - coercion does not choose or infer an otherwise unconstrained generic argument
