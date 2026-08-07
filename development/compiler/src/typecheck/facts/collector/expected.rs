@@ -19,14 +19,28 @@ impl TypecheckFactCollector<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
-        if let Some(selected) = crate::typecheck::coercions::select_expression_coercion(
-            expected,
-            expression,
-            self.resolved,
-            environment,
-        ) {
-            self.record_coercion_plan(expression.span(), selected);
-            return;
+        if !expression_propagates_expected_type(expression) {
+            if let Ok(selected) = crate::typecheck::conversions::select_expression_conversion(
+                crate::typecheck::conversions::ConversionMode::Contextual,
+                expected,
+                expression,
+                self.resolved,
+                environment,
+            ) {
+                let selected_boundary = !matches!(
+                    selected.kind,
+                    crate::typecheck::conversions::SelectedConversionKind::Exact
+                );
+                if selected_boundary {
+                    self.record_conversion_plan(
+                        expression.span(),
+                        expression.span(),
+                        None,
+                        selected,
+                    );
+                    return;
+                }
+            }
         }
         match expression {
             Expr::ArrayLiteral(literal) => {
@@ -93,7 +107,35 @@ impl TypecheckFactCollector<'_> {
                     Some(&result_type),
                 );
             }
-            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+            Expr::TypedSequenceLiteral(literal) => {
+                let ty = crate::typecheck::literals::literal_expression_type_with_expected(
+                    expression,
+                    Some(expected),
+                    self.resolved,
+                    environment,
+                );
+                self.record_expression_type(expression.span(), &ty);
+                if let Some(expected_element) =
+                    crate::typecheck::literals::typed_sequence_literal_element_type(
+                        literal,
+                        Some(expected),
+                        self.resolved,
+                        environment,
+                    )
+                {
+                    for element in &literal.elements {
+                        if crate::typecheck::literals::sequence_spread(element).is_none() {
+                            self.collect_expression_facts_with_expected(
+                                element,
+                                &expected_element,
+                                environment,
+                                return_type,
+                            );
+                        }
+                    }
+                }
+            }
+            Expr::TypedStringLiteral(_) => {
                 let ty = crate::typecheck::literals::literal_expression_type_with_expected(
                     expression,
                     Some(expected),
@@ -240,4 +282,11 @@ impl TypecheckFactCollector<'_> {
             self.collect_expression_facts_with_expected(result, expected, environment, return_type);
         }
     }
+}
+
+fn expression_propagates_expected_type(expression: &Expr) -> bool {
+    matches!(
+        expression,
+        Expr::Group(_) | Expr::If(_) | Expr::IfIs(_) | Expr::Match(_)
+    )
 }

@@ -75,6 +75,68 @@ coerce Text {
 }
 
 #[test]
+fn explicit_coercion_hover_uses_the_exact_as_operator_and_selected_plan() {
+    let text = r#"struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+func project(value: &Text): &str from value { return value as &str }
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("as &str").expect("expected expression as");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected conversion hover");
+
+    assert_eq!(&text[hover.span.start..hover.span.end], "as");
+    assert_eq!(hover.label, "&Text as &str");
+    let documentation = hover.documentation.expect("expected plan details");
+    assert!(documentation.contains("type-owned borrow coercion"));
+    assert!(documentation.contains("`&Text as &str from self`"));
+}
+
+#[test]
+fn numeric_conversion_hover_uses_the_same_plan_presentation_boundary() {
+    let text = "func widen(): i64 { return 1 as i64 }\n";
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("as i64").expect("expected expression as");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected conversion hover");
+
+    assert_eq!(&text[hover.span.start..hover.span.end], "as");
+    assert_eq!(hover.label, "i32 as i64");
+    assert!(
+        hover
+            .documentation
+            .unwrap()
+            .contains("lossless integer conversion")
+    );
+}
+
+#[test]
+fn imported_explicit_coercion_hover_uses_the_selected_module_surface() {
+    let root_text = r#"use lib/math.Text
+func project(value: &Text): &str from value { return value as &str }
+"#;
+    let module_text = r#"pub struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+"#;
+    let (sources, analysis) = analyze_import_text(root_text, module_text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = root_text.rfind("as &str").expect("expected expression as");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected conversion hover");
+
+    assert_eq!(&root_text[hover.span.start..hover.span.end], "as");
+    assert_eq!(hover.label, "&Text as &str");
+    assert!(
+        hover
+            .documentation
+            .unwrap()
+            .contains("`&Text as &str from self`")
+    );
+}
+
+#[test]
 fn construct_function_declaration_has_separate_owner_and_member_hover_targets() {
     let text = r#"struct File { fd: i32 }
 

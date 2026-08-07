@@ -90,8 +90,12 @@ fn lower_coercion_receiver(
         return Some(Err(unavailable_call_target_diagnostic()));
     };
     let source_expression = match unwrap_group(expression) {
+        Expr::TypeConversion(conversion) => unwrap_group(&conversion.expression),
+        expression => expression,
+    };
+    let source_expression = match source_expression {
         Expr::Borrow(borrow) => &borrow.expression,
-        _ => expression,
+        expression => expression,
     };
     Some(
         lower_borrow_source_from_expression_without_coercion(

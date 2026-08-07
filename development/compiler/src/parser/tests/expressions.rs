@@ -874,6 +874,29 @@ fn parses_type_conversion_expression_precedence() {
 }
 
 #[test]
+fn parses_borrow_before_type_conversion() {
+    let output = parse_text(
+        r#"func project(value: Text): &str {
+    return &value as &str
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Return(statement) = &function.body.statements[0] else {
+        panic!("expected return statement");
+    };
+    let Expr::TypeConversion(conversion) = statement.expression.as_ref().unwrap() else {
+        panic!("expected top-level conversion");
+    };
+    assert!(matches!(conversion.expression.as_ref(), Expr::Borrow(_)));
+}
+
+#[test]
 fn parses_shift_expression_precedence() {
     let output = parse_text(
         r#"func main(): i32 {

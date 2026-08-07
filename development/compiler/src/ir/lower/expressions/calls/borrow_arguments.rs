@@ -184,6 +184,56 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             context,
             temporaries,
         ),
+        Expr::Call(call) => {
+            let destination = temporaries.next_usize()?;
+            let instructions = lower_borrow_normal_call(call, destination, context, temporaries)?;
+            Ok((instructions, BorrowSource::BorrowLocal(destination)))
+        }
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_outcome_borrow_call_source(
+                call,
+                propagating_outcome_mode(&propagation.expression, context)?,
+                context,
+                temporaries,
+            )
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_outcome_borrow_call_source(call, OutcomeFailureMode::Trap, context, temporaries)
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            let destination = temporaries.next_usize()?;
+            let failure_mode = lower_catch_failure_mode(
+                catch,
+                context,
+                usize_destination_reserved_abi_words(destination),
+            )?;
+            let instructions = lower_fallible_borrow_normal_call(
+                call,
+                destination,
+                context,
+                temporaries,
+                failure_mode,
+            )?;
+            Ok((instructions, BorrowSource::BorrowLocal(destination)))
+        }
         _ if !is_readwrite => lower_readonly_temporary_borrow_source(
             expression,
             inner,
@@ -197,6 +247,18 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             parameter_type,
         )),
     }
+}
+
+fn lower_outcome_borrow_call_source(
+    call: &CallExpr,
+    failure_mode: OutcomeFailureMode,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    let destination = temporaries.next_usize()?;
+    let instructions =
+        lower_fallible_borrow_normal_call(call, destination, context, temporaries, failure_mode)?;
+    Ok((instructions, BorrowSource::BorrowLocal(destination)))
 }
 
 fn lower_borrow_source_from_slice_index_expression(

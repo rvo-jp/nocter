@@ -132,6 +132,22 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 self.collect_type_expr_references(&expression.ty);
+                let target =
+                    type_expr_to_type_in_environment(&expression.ty, self.resolved, environment);
+                if let Ok(selected) = crate::typecheck::conversions::select_expression_conversion(
+                    crate::typecheck::conversions::ConversionMode::Explicit,
+                    &target,
+                    &expression.expression,
+                    self.resolved,
+                    environment,
+                ) {
+                    self.record_conversion_plan(
+                        expression.span,
+                        expression.expression.span(),
+                        Some(expression.as_span),
+                        selected,
+                    );
+                }
             }
             Expr::Call(expression) => {
                 if let Some(method) = method_member_for_call(expression)
@@ -299,8 +315,26 @@ impl TypecheckFactCollector<'_> {
             }
             Expr::TypedSequenceLiteral(expression) => {
                 self.collect_type_expr_references(&expression.target);
+                let expected_element =
+                    crate::typecheck::literals::typed_sequence_literal_element_type(
+                        expression,
+                        None,
+                        self.resolved,
+                        environment,
+                    );
                 for element in &expression.elements {
-                    self.collect_expression_facts_in_context(element, environment, return_type);
+                    if let Some(expected) = &expected_element
+                        && crate::typecheck::literals::sequence_spread(element).is_none()
+                    {
+                        self.collect_expression_facts_with_expected(
+                            element,
+                            expected,
+                            environment,
+                            return_type,
+                        );
+                    } else {
+                        self.collect_expression_facts_in_context(element, environment, return_type);
+                    }
                     if let Some(spread) = crate::typecheck::literals::sequence_spread(element)
                         && let Ok(resolution) = crate::typecheck::iteration::resolve_sequence_spread(
                             spread,
@@ -481,6 +515,41 @@ impl TypecheckFactCollector<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
+        if let Some((owner, variant)) = resolved_enum_variant_for_call(call, self.resolved) {
+            if call.arguments.len() != variant.payload.len() {
+                for argument in &call.arguments {
+                    self.collect_expression_facts_in_context(argument, environment, return_type);
+                }
+                return;
+            }
+            let substitutions = enum_variant_call_substitutions(
+                owner,
+                variant,
+                &call.arguments,
+                expected_return_type,
+                self.resolved,
+                environment,
+            );
+            for (argument, parameter) in call.arguments.iter().zip(&variant.payload) {
+                let expected = type_expr_to_type_with_substitutions(
+                    &parameter.ty,
+                    self.resolved,
+                    environment.self_type(),
+                    &substitutions,
+                );
+                if expected.is_unknown_or_unresolved() || expected.first_unsized_part().is_some() {
+                    self.collect_expression_facts_in_context(argument, environment, return_type);
+                } else {
+                    self.collect_expression_facts_with_expected(
+                        argument,
+                        &expected,
+                        environment,
+                        return_type,
+                    );
+                }
+            }
+            return;
+        }
         let Some(checked) = resolved_call_signature(self.resolved, call, environment) else {
             for argument in &call.arguments {
                 self.collect_expression_facts_in_context(argument, environment, return_type);

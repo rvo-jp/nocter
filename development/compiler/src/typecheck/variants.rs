@@ -621,6 +621,34 @@ pub(super) fn resolved_enum_variant_for_member<'a>(
     Some((enum_symbol, variant))
 }
 
+pub(super) fn resolved_enum_variant_for_call<'a>(
+    call: &CallExpr,
+    resolved: &'a ResolveOutput,
+) -> Option<(&'a TypeSymbol, &'a EnumVariantSignature)> {
+    if resolved.associated_function_for_call(call).is_some() {
+        return None;
+    }
+    let member = enum_member_for_call(call)?;
+    resolved_enum_variant_for_member(member, resolved)
+}
+
+pub(super) fn enum_variant_call_substitutions(
+    owner: &TypeSymbol,
+    variant: &EnumVariantSignature,
+    arguments: &[Expr],
+    expected_return_type: Option<&Type>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> HashMap<String, Type> {
+    if let Some(expected) = expected_return_type
+        && enum_type_symbol_for_type(expected, resolved)
+            .is_some_and(|expected_owner| expected_owner.canonical_name == owner.canonical_name)
+    {
+        return generic_substitutions_for_enum_owner(owner, expected);
+    }
+    infer_enum_variant_substitutions(owner, variant, arguments, resolved, environment)
+}
+
 pub(super) fn enum_variant_call_type(
     call: &CallExpr,
     resolved: &ResolveOutput,

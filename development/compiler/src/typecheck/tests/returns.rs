@@ -184,6 +184,27 @@ func leak(): &i32 {
 }
 
 #[test]
+fn diagnoses_explicit_coercion_returning_a_borrow_of_a_local_binding() {
+    let diagnostics = check_text(
+        r#"struct Box { value: i32 }
+coerce Box { pub &self as &i32 from self { return &self.value } }
+
+func leak(): &i32 {
+    let box = Box { value: 1 }
+    return &box as &i32
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("box"));
+}
+
+#[test]
 fn diagnoses_return_readwrite_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

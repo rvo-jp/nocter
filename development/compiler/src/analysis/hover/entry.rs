@@ -59,6 +59,16 @@ pub(crate) fn hover_for_file_analysis(
         });
     }
 
+    if let Some(conversion) =
+        crate::analysis::conversions::conversion_editor_info_at_offset(file, offset)
+    {
+        return Some(HoverInfo {
+            span: conversion.focus_span,
+            label: conversion.label,
+            documentation: Some(conversion.documentation),
+        });
+    }
+
     if let Some(hover) =
         literal_declaration_hover_for_file_analysis(sources, analysis, file, offset)
     {

@@ -31,6 +31,12 @@ pub(crate) fn definition_target_for_file_analysis(
     crate::analysis::editor_targets::editor_target_at_offset(file, offset)
         .and_then(|target| target.source_target(analysis))
         .or_else(|| {
+            crate::analysis::conversions::conversion_definition_target_at_offset(
+                &file.typecheck_facts,
+                offset,
+            )
+        })
+        .or_else(|| {
             crate::analysis::literals::literal_definition_target_at_offset(analysis, file, offset)
         })
         .or_else(|| {
@@ -51,6 +57,11 @@ pub(crate) fn definition_target_for_ast(
     offset: usize,
 ) -> Option<SourceTarget> {
     let facts = collect_typecheck_facts(ast, resolved);
+    if let Some(target) =
+        crate::analysis::conversions::conversion_definition_target_at_offset(&facts, offset)
+    {
+        return Some(target);
+    }
     if let Some((origin, target)) = facts.field_target_at_offset(offset) {
         return Some(SourceTarget::new(origin, target));
     }
@@ -197,6 +208,84 @@ func main(): i32 {
 
         assert_eq!(&text[span.start..span.end], "\"\"");
         assert_eq!(span.start, text.find("\"\"(text").unwrap());
+    }
+
+    #[test]
+    fn definition_query_resolves_explicit_as_to_the_selected_coercion_entry() {
+        let text = r#"struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+func project(value: &Text): &str from value { return value as &str }
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let expression_as = text.rfind("as &str").expect("expected expression as");
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, expression_as)
+            .expect("expected coercion definition");
+
+        assert_eq!(&text[target.focus_span.start..target.focus_span.end], "as");
+        assert_eq!(
+            &text[target.declaration_span.start..target.declaration_span.end],
+            "as"
+        );
+        assert_eq!(target.declaration_span.start, text.find("as &str").unwrap());
+    }
+
+    #[test]
+    fn numeric_as_has_no_conversion_declaration_target() {
+        let text = "func widen(): i64 { return 1 as i64 }\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let expression_as = text.find("as i64").expect("expected expression as");
+
+        assert!(
+            definition_target_for_file_analysis(&sources, &analysis, file, expression_as).is_none()
+        );
+    }
+
+    #[test]
+    fn imported_explicit_coercion_navigates_to_its_defining_module() {
+        let root_text = r#"use lib/math.Text
+func project(value: &Text): &str from value { return value as &str }
+"#;
+        let module_text = r#"pub struct Text { value: &str }
+coerce Text { pub &self as &str from self { return self.value } }
+"#;
+        let (sources, analysis) = analyze_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let expression_as = root_text.rfind("as &str").expect("expected expression as");
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, expression_as)
+            .expect("expected imported coercion definition");
+        let declaration_source = sources
+            .get(target.declaration_span.source)
+            .expect("expected declaration source");
+
+        assert_eq!(
+            &root_text[target.focus_span.start..target.focus_span.end],
+            "as"
+        );
+        assert_eq!(
+            &declaration_source.text()[target.declaration_span.start..target.declaration_span.end],
+            "as"
+        );
+        assert_ne!(target.declaration_span.source, file.ast.span.source);
+    }
+
+    #[test]
+    fn imported_private_coercion_is_diagnosed_at_explicit_as() {
+        let root_text = r#"use lib/math.Text
+func project(value: &Text): &str from value { return value as &str }
+"#;
+        let module_text = r#"pub struct Text { value: &str }
+coerce Text { &self as &str from self { return self.value } }
+"#;
+        let (_sources, analysis) = analyze_import_text(root_text, module_text);
+        let diagnostics = analysis.diagnostics();
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("selects a coercion that is not accessible here")
+        }));
     }
 
     #[test]

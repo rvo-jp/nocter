@@ -105,3 +105,102 @@ func main(): i32 { return 0 }
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
 }
+
+#[test]
+fn explicit_as_selects_a_generic_borrow_coercion() {
+    let diagnostics = check_text(&format!(
+        "{SURFACE}\nfunc project(value: &Box<i32>): &i32 from value {{\n    return value as &i32\n}}\n"
+    ));
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn explicit_as_requires_the_source_borrow_to_be_written() {
+    let diagnostics = check_text(&format!(
+        "{SURFACE}\nfunc project(value: Box<i32>): &i32 {{\n    return value as &i32\n}}\n"
+    ));
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires an explicit source borrow")
+    }));
+}
+
+#[test]
+fn explicit_as_reports_insufficient_readwrite_capability() {
+    let diagnostics = check_text(
+        r#"struct Cell { value: i32 }
+coerce Cell { pub &+self as &+i32 from self { return &+self.value } }
+func project(value: &Cell): &+i32 from value { return value as &+i32 }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires a readwrite source borrow")
+    }));
+}
+
+#[test]
+fn explicit_as_supports_readwrite_to_readonly_capability_weakening() {
+    let diagnostics = check_text(
+        r#"struct Cell { value: i32 }
+func project(value: &+Cell): &Cell from value { return value as &Cell }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn explicit_as_does_not_implicitly_chain_coercions() {
+    let diagnostics = check_text(
+        r#"struct First { value: Second }
+struct Second { value: i32 }
+coerce First { pub &self as &Second from self { return &self.value } }
+coerce Second { pub &self as &i32 from self { return &self.value } }
+func project(value: &First): &i32 from value { return value as &i32 }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("neither lossless integer conversion nor an accessible borrow coercion")
+    }));
+}
+
+#[test]
+fn explicit_as_does_not_accept_redundant_non_integer_conversions() {
+    let diagnostics = check_text(
+        r#"func identity(value: bool): bool { return value as bool }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("neither lossless integer conversion nor an accessible borrow coercion")
+    }));
+}
+
+#[test]
+fn contextual_coercion_applies_to_enum_payload_arguments() {
+    let diagnostics = check_text(
+        r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+enum View<T> { one(value: &T) }
+func project(value: &Box<i32>): View<i32> from value { return View.one(value) }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}

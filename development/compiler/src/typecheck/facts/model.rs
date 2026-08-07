@@ -9,7 +9,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
-    pub(super) coercion_plans: HashMap<ByteSpan, TypecheckCoercionPlan>,
+    pub(super) conversion_plans: HashMap<ByteSpan, TypecheckConversionPlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -99,13 +99,38 @@ impl TypecheckFacts {
         &self,
         expression_span: ByteSpan,
     ) -> Option<&TypecheckCoercionPlan> {
-        self.coercion_plans.get(&expression_span)
+        let TypecheckConversionKind::BorrowCoercion(plan) =
+            &self.conversion_plans.get(&expression_span)?.kind
+        else {
+            return None;
+        };
+        Some(plan)
     }
 
     pub(crate) fn coercion_plans(
         &self,
     ) -> impl Iterator<Item = (ByteSpan, &TypecheckCoercionPlan)> + '_ {
-        self.coercion_plans.iter().map(|(span, plan)| (*span, plan))
+        self.conversion_plans.iter().filter_map(|(span, plan)| {
+            let TypecheckConversionKind::BorrowCoercion(coercion) = &plan.kind else {
+                return None;
+            };
+            Some((*span, coercion))
+        })
+    }
+
+    pub(crate) fn conversion_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<&TypecheckConversionPlan> {
+        self.conversion_plans.get(&expression_span)
+    }
+
+    pub(crate) fn conversion_plans(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &TypecheckConversionPlan)> + '_ {
+        self.conversion_plans
+            .iter()
+            .map(|(span, plan)| (*span, plan))
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -537,6 +562,50 @@ pub(crate) struct TypecheckCoercionPlan {
     pub(crate) target_ty: TypeExpr,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
     pub(super) free_type_parameters: HashSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckConversionPlan {
+    pub(crate) expression_span: ByteSpan,
+    pub(crate) source_span: ByteSpan,
+    pub(crate) operator_span: Option<ByteSpan>,
+    pub(crate) source_ty: TypeExpr,
+    pub(crate) target_ty: TypeExpr,
+    pub(crate) kind: TypecheckConversionKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TypecheckConversionKind {
+    LosslessInteger,
+    CapabilityWeakening,
+    BorrowCoercion(TypecheckCoercionPlan),
+}
+
+impl TypecheckConversionPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let kind = match &self.kind {
+            TypecheckConversionKind::LosslessInteger => TypecheckConversionKind::LosslessInteger,
+            TypecheckConversionKind::CapabilityWeakening => {
+                TypecheckConversionKind::CapabilityWeakening
+            }
+            TypecheckConversionKind::BorrowCoercion(plan) => {
+                TypecheckConversionKind::BorrowCoercion(
+                    plan.with_context_substitutions(context_substitutions)?,
+                )
+            }
+        };
+        Some(Self {
+            expression_span: self.expression_span,
+            source_span: self.source_span,
+            operator_span: self.operator_span,
+            source_ty: substitute_type_expr_parameters(&self.source_ty, context_substitutions),
+            target_ty: substitute_type_expr_parameters(&self.target_ty, context_substitutions),
+            kind,
+        })
+    }
 }
 
 impl TypecheckCoercionPlan {

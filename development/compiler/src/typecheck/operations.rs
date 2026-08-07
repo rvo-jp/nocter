@@ -8,7 +8,7 @@ use super::diagnostics::{
     negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
     ordered_comparison_operand_type_mismatch_diagnostic,
     otherwise_fallback_type_mismatch_diagnostic, otherwise_non_optional_diagnostic,
-    shift_operand_type_mismatch_diagnostic, type_conversion_not_lossless_diagnostic,
+    shift_operand_type_mismatch_diagnostic, type_conversion_not_supported_diagnostic,
 };
 use super::environments::{environment_for_if_is_binding, environment_for_switch_arm};
 use super::expressions::{block_result_environment, block_result_type, expression_type};
@@ -203,18 +203,19 @@ pub(super) fn check_type_conversion_expression(
         return;
     }
 
-    if !is_lossless_integer_conversion(
-        &source_type,
-        &expression.expression,
+    if let Err(rejection) = super::conversions::select_expression_conversion(
+        super::conversions::ConversionMode::Explicit,
         &target_type,
+        &expression.expression,
         resolved,
         environment,
     ) {
-        diagnostics.push(type_conversion_not_lossless_diagnostic(
+        diagnostics.push(type_conversion_not_supported_diagnostic(
             sources,
             expression,
             &source_type,
             &target_type,
+            rejection,
         ));
     }
 }
@@ -344,7 +345,14 @@ pub(super) fn is_expression_assignable(
                 .unwrap_or_else(|| {
                     let actual = expression_type(expression, resolved, environment);
                     is_assignable(expected, &actual)
-                        || super::coercions::select_coercion(expected, &actual, resolved).is_some()
+                        || super::conversions::select_expression_conversion(
+                            super::conversions::ConversionMode::Contextual,
+                            expected,
+                            expression,
+                            resolved,
+                            environment,
+                        )
+                        .is_ok()
                 })
         }
     }
@@ -570,7 +578,7 @@ fn shift_operands_match(
                 && is_expression_assignable(left_type, right, resolved, environment)))
 }
 
-fn is_lossless_integer_conversion(
+pub(super) fn is_lossless_integer_conversion(
     source_type: &Type,
     source: &Expr,
     target_type: &Type,

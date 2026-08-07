@@ -24,6 +24,18 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
         }
         expression => expression,
     };
+    if let Expr::TypeConversion(conversion) = expression {
+        let source_type = context
+            .conversion_plan(conversion.span)
+            .and_then(|plan| context.ir_type_for_type_expr(&plan.source_ty))
+            .unwrap_or_else(|| borrow_type.clone());
+        return lower_borrow_expression_to_location(
+            &conversion.expression,
+            destination,
+            &source_type,
+            context,
+        );
+    }
     if let Expr::Propagate(propagation) = expression {
         return lower_outcome_borrow_expression(
             &propagation.expression,
@@ -50,6 +62,30 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
                 context,
                 usize_destination_reserved_abi_words(destination),
             )?,
+        );
+    }
+    if let Expr::If(statement) = expression {
+        return lower_borrow_if_expression_to_location(
+            statement,
+            destination,
+            borrow_type,
+            context,
+        );
+    }
+    if let Expr::IfIs(statement) = expression {
+        return lower_borrow_if_is_expression_to_location(
+            statement,
+            destination,
+            borrow_type,
+            context,
+        );
+    }
+    if let Expr::Match(statement) = expression {
+        return lower_borrow_match_expression_to_location(
+            statement,
+            destination,
+            borrow_type,
+            context,
         );
     }
     if let Expr::Call(call) = expression {

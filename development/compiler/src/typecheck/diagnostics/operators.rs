@@ -91,24 +91,50 @@ pub(in crate::typecheck) fn negative_shift_count_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn type_conversion_not_lossless_diagnostic(
+pub(in crate::typecheck) fn type_conversion_not_supported_diagnostic(
     sources: &SourceMap,
     expression: &TypeConversionExpr,
     source: &Type,
     target: &Type,
+    rejection: crate::typecheck::conversions::ConversionRejection,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error(
-        "E0355",
-        format!(
-            "`as` conversion from `{}` to `{}` is not a lossless integer conversion",
-            source.display(),
-            target.display()
+    let (message, help) = match rejection {
+        crate::typecheck::conversions::ConversionRejection::MissingSourceBorrow => (
+            format!(
+                "`as` conversion from `{}` to `{}` requires an explicit source borrow",
+                source.display(),
+                target.display()
+            ),
+            "borrow the source with `&` or `&+` before applying `as`",
         ),
-    );
+        crate::typecheck::conversions::ConversionRejection::RequiresReadwriteBorrow => (
+            format!(
+                "`as` conversion from `{}` to `{}` requires a readwrite source borrow",
+                source.display(),
+                target.display()
+            ),
+            "borrow a writable place with `&+` before applying `as`",
+        ),
+        crate::typecheck::conversions::ConversionRejection::InaccessibleCoercion => (
+            format!(
+                "`as` conversion from `{}` to `{}` selects a coercion that is not accessible here",
+                source.display(),
+                target.display()
+            ),
+            "make the coercion entry `pub` in the source type's defining module",
+        ),
+        crate::typecheck::conversions::ConversionRejection::Unsupported => (
+            format!(
+                "`as` conversion from `{}` to `{}` is neither lossless integer conversion nor an accessible borrow coercion",
+                source.display(),
+                target.display()
+            ),
+            "use a lossless integer target or declare an exact type-owned borrow coercion",
+        ),
+    };
+    let mut diagnostic = Diagnostic::error("E0355", message);
     diagnostic.primary_span = sources.span_to_json(expression.as_span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "use `as` only when every source value can be represented by the target type".to_string(),
-    );
+    diagnostic.help = Some(help.to_string());
     diagnostic
 }
 

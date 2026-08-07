@@ -5,10 +5,9 @@
 //! a borrow of the nominal source type and only when its declared target is
 //! the concrete expected type.
 
-use super::expressions::expression_type;
-use super::model::{Type, TypeEnvironment};
+use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
-use crate::ast::{Expr, MethodReceiverMode};
+use crate::ast::MethodReceiverMode;
 use crate::resolve::{CoercionSignature, ResolveOutput, TypeSymbol};
 use std::collections::HashMap;
 
@@ -23,14 +22,11 @@ pub(super) struct SelectedCoercion {
     pub(super) substitutions: HashMap<String, Type>,
 }
 
-pub(super) fn select_expression_coercion(
-    expected: &Type,
-    expression: &Expr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Option<SelectedCoercion> {
-    let actual = expression_type(expression, resolved, environment);
-    select_coercion(expected, &actual, resolved)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CoercionRejection {
+    MissingSourceBorrow,
+    RequiresReadwriteBorrow,
+    Inaccessible,
 }
 
 pub(super) fn select_coercion(
@@ -81,6 +77,49 @@ pub(super) fn select_coercion(
     candidates.into_iter().next()
 }
 
+pub(super) fn coercion_rejection(
+    expected: &Type,
+    actual: &Type,
+    resolved: &ResolveOutput,
+) -> Option<CoercionRejection> {
+    let (source_type, source_is_readwrite, source_is_borrowed) = match actual {
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => (inner.as_ref(), *is_readwrite, true),
+        actual if actual.nominal_name().is_some() => (actual, false, false),
+        _ => return None,
+    };
+    let source_name = source_type.nominal_name()?;
+    let symbol = resolved.type_symbol_by_reference_name(source_name)?;
+    let substitutions = source_substitutions(symbol, source_type)?;
+    let matching = symbol
+        .coercions
+        .iter()
+        .filter(|coercion| {
+            coercion_target_matches(coercion, source_type, expected, resolved, &substitutions)
+        })
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return None;
+    }
+    if !source_is_borrowed {
+        return Some(CoercionRejection::MissingSourceBorrow);
+    }
+    if matching.iter().all(|coercion| !coercion.is_accessible) {
+        return Some(CoercionRejection::Inaccessible);
+    }
+    if !source_is_readwrite
+        && matching
+            .iter()
+            .filter(|coercion| coercion.is_accessible)
+            .all(|coercion| coercion.receiver.mode == MethodReceiverMode::ReadwriteBorrow)
+    {
+        return Some(CoercionRejection::RequiresReadwriteBorrow);
+    }
+    None
+}
+
 fn selected_candidate(
     coercion: &CoercionSignature,
     source_type: &Type,
@@ -104,6 +143,21 @@ fn selected_candidate(
         target_type,
         substitutions: substitutions.clone(),
     })
+}
+
+fn coercion_target_matches(
+    coercion: &CoercionSignature,
+    source_type: &Type,
+    expected: &Type,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+) -> bool {
+    type_expr_to_type_with_substitutions(
+        &coercion.target,
+        resolved,
+        Some(source_type),
+        substitutions,
+    ) == *expected
 }
 
 fn receiver_accepts(receiver: MethodReceiverMode, actual_is_readwrite: bool) -> bool {

@@ -516,6 +516,17 @@ impl<'a> LoweringContext<'a> {
             .with_context_substitutions(&self.generic_substitutions)
     }
 
+    pub(in crate::ir::lower) fn conversion_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckConversionPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .conversion_plan(expression_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
     pub(in crate::ir::lower) fn coercion_call_target(
         &self,
         plan: &crate::typecheck::TypecheckCoercionPlan,

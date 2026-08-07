@@ -73,6 +73,9 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
+        Expr::TypeConversion(conversion) => {
+            lower_str_expression_to_location(&conversion.expression, destination, context)
+        }
         _ => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let value = lower_str_expression_to_value(expression, context, &mut temporaries)?;
@@ -161,6 +164,9 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
         ),
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
+        }
+        Expr::TypeConversion(conversion) => {
+            lower_slice_expression_to_location(&conversion.expression, destination, context)
         }
         _ => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -290,6 +296,9 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
         Expr::Group(group) => {
             lower_str_expression_to_value(&group.expression, context, temporaries)
         }
+        Expr::TypeConversion(conversion) => {
+            lower_str_expression_to_value(&conversion.expression, context, temporaries)
+        }
         _ => Ok(LoweredStrValue {
             instructions: Vec::new(),
             value: lower_str_value(expression, context)?,
@@ -408,6 +417,9 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
         Expr::Member(_) => lower_aggregate_slice_field_to_value(expression, context, temporaries),
         Expr::Group(group) => {
             lower_slice_expression_to_value(&group.expression, context, temporaries)
+        }
+        Expr::TypeConversion(conversion) => {
+            lower_slice_expression_to_value(&conversion.expression, context, temporaries)
         }
         _ => Ok(LoweredSliceValue {
             instructions: Vec::new(),

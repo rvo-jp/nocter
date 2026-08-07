@@ -119,6 +119,139 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn records_explicit_borrow_coercion_on_the_as_expression_boundary() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+func project(value: &Box<i32>): &i32 from value { return value as &i32 }
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let as_start = text.rfind("as &i32").expect("expected explicit as");
+    let expression_start = text.rfind("value as").expect("expected source");
+    let expression_span = ByteSpan::new(
+        ast.span.source,
+        expression_start,
+        as_start + "as &i32".len(),
+    );
+    let plan = facts
+        .conversion_plan(expression_span)
+        .expect("expected explicit conversion plan");
+
+    assert_eq!(plan.operator_span.unwrap().start, as_start);
+    assert_eq!(plan.source_span.start, expression_start);
+    assert_eq!(canonical_type_expr(&plan.source_ty), "&Box<i32>");
+    assert_eq!(canonical_type_expr(&plan.target_ty), "&i32");
+    assert!(matches!(
+        plan.kind,
+        TypecheckConversionKind::BorrowCoercion(_)
+    ));
+}
+
+#[test]
+fn records_lossless_integer_and_capability_conversion_kinds() {
+    let text = r#"struct Cell { value: i32 }
+func project(value: &+Cell): &Cell from value {
+    let widened = 1 as i64
+    return value as &Cell
+}
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let kinds = facts
+        .conversion_plans()
+        .map(|(_, plan)| &plan.kind)
+        .collect::<Vec<_>>();
+
+    assert!(
+        kinds
+            .iter()
+            .any(|kind| matches!(kind, TypecheckConversionKind::LosslessInteger))
+    );
+    assert!(
+        kinds
+            .iter()
+            .any(|kind| matches!(kind, TypecheckConversionKind::CapabilityWeakening))
+    );
+}
+
+#[test]
+fn records_contextual_coercions_inside_typed_sequence_literals() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+struct Vec<T> { marker: i32 }
+construct Vec<T> {
+    pub default literal [](...items: T): Self { return Self { marker: 0 } }
+}
+func collect(value: &Box<i32>): void {
+    let views: Vec<&i32> = Vec [value]
+    return
+}
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let value_start = text.rfind("value]").expect("expected literal element");
+    let value_span = ByteSpan::new(ast.span.source, value_start, value_start + "value".len());
+    let plan = facts
+        .coercion_plan(value_span)
+        .expect("expected element coercion plan");
+
+    assert_eq!(canonical_type_expr(&plan.self_ty), "Box<i32>");
+    assert_eq!(canonical_type_expr(&plan.target_ty), "&i32");
+}
+
+#[test]
+fn records_contextual_coercions_on_compound_expression_results() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+enum Choice { first second }
+func maybe(value: &Box<i32>): &Box<i32>? from value { return value }
+func project(choice: Choice, value: &Box<i32>): &i32 from value {
+    let grouped: &i32 = (value)
+    let selected: &i32 = if true { value } else { value }
+    let matched: &i32 = match choice {
+        Choice.first { value }
+        Choice.second { value }
+    }
+    let forced: &i32 = maybe(value)!
+    return grouped
+}
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let plans = facts.coercion_plans().collect::<Vec<_>>();
+
+    assert_eq!(
+        plans.len(),
+        6,
+        "expected one coercion per compound result leaf: {plans:#?}"
+    );
+    assert!(plans.iter().all(|(_, plan)| {
+        canonical_type_expr(&plan.self_ty) == "Box<i32>"
+            && canonical_type_expr(&plan.target_ty) == "&i32"
+    }));
+}
+
+#[test]
+fn records_contextual_coercion_for_an_enum_payload_argument() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+enum View<T> { one(value: &T) }
+func project(value: &Box<i32>): View<i32> from value { return View.one(value) }
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let argument_start = text.rfind("value)").expect("expected payload argument");
+    let argument_span = ByteSpan::new(ast.span.source, argument_start, argument_start + 5);
+
+    assert!(facts.coercion_plan(argument_span).is_some());
+}
+
+#[test]
 fn records_binding_type_expr_facts_for_generic_parameters() {
     let text = r#"func keep<T>(value: T): T {
     let inferred = value

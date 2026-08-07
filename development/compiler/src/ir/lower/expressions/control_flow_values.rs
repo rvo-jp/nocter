@@ -1,5 +1,90 @@
 use super::*;
 
+pub(super) fn lower_borrow_if_expression_to_location(
+    statement: &IfStmt,
+    destination: UsizeLocation,
+    borrow_type: &Type,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_borrow_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        borrow_type,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+pub(super) fn lower_borrow_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: UsizeLocation,
+    borrow_type: &Type,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_borrow_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                borrow_type,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_borrow_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: UsizeLocation,
+    borrow_type: &Type,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_borrow_expression_to_location(
+                expression,
+                destination,
+                borrow_type,
+                branch_context,
+            )
+        },
+    )
+}
+
+pub(super) fn lower_borrow_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: UsizeLocation,
+    borrow_type: &Type,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        usize_destination_reserved_abi_words(destination),
+        "E8008",
+        |expression, switch_context| {
+            lower_borrow_expression_to_location(
+                expression,
+                destination,
+                borrow_type,
+                switch_context,
+            )
+        },
+    )
+}
+
 pub(super) fn lower_i32_if_expression_to_location(
     statement: &IfStmt,
     destination: I32Location,

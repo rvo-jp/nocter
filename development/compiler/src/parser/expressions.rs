@@ -146,10 +146,10 @@ impl Parser<'_> {
     }
 
     fn parse_multiplicative_expression(&mut self) -> ParseResult<Expr> {
-        let mut expression = self.parse_prefix_expression()?;
+        let mut expression = self.parse_conversion_expression()?;
 
         while let Some(operator) = self.match_multiplicative_operator() {
-            let right = self.parse_prefix_expression()?;
+            let right = self.parse_conversion_expression()?;
             expression = Expr::Binary(BinaryExpr {
                 span: self.span(expression.span().start, right.span().end),
                 left: Box::new(expression),
@@ -159,6 +159,20 @@ impl Parser<'_> {
             });
         }
 
+        Ok(expression)
+    }
+
+    fn parse_conversion_expression(&mut self) -> ParseResult<Expr> {
+        let mut expression = self.parse_prefix_expression()?;
+        while let Some(as_token) = self.match_keyword(Keyword::As) {
+            let ty = self.parse_type()?;
+            expression = Expr::TypeConversion(TypeConversionExpr {
+                span: self.span(expression.span().start, ty.span().end),
+                expression: Box::new(expression),
+                as_span: as_token.span,
+                ty,
+            });
+        }
         Ok(expression)
     }
 
@@ -254,17 +268,6 @@ impl Parser<'_> {
                     error_name: error.value,
                     error_span: error.span,
                     catch_block,
-                });
-                continue;
-            }
-
-            if let Some(as_token) = self.match_keyword(Keyword::As) {
-                let ty = self.parse_type()?;
-                expression = Expr::TypeConversion(TypeConversionExpr {
-                    span: self.span(expression.span().start, ty.span().end),
-                    expression: Box::new(expression),
-                    as_span: as_token.span,
-                    ty,
                 });
                 continue;
             }

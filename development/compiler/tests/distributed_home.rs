@@ -716,6 +716,12 @@ func inspect(text: &String, values: &Vec<usize>, values_mut: &+Vec<usize>): void
     accept_values(values)
     accept_values(values_mut)
     accept_values_mut(values_mut)
+    let explicit_text = text as &str
+    let explicit_values = values as &[usize]
+    let explicit_values_mut = values_mut as &+[usize]
+    accept_text(explicit_text)
+    accept_values(explicit_values)
+    accept_values_mut(explicit_values_mut)
     return
 }
 
@@ -742,10 +748,12 @@ func values_len_mut(value: &+[usize]): usize { return value.len() }
 func main(): i32 {
     let text = String "abc"
     var values: Vec<usize> = Vec [7, 11]
+    let text_view = &text as &str
+    let values_view = &values as &[usize]
 
-    if text_len(&text) != 3 { return 1 }
-    if values_len(&values) != 2 { return 2 }
-    if values_len_mut(&+values) != 2 { return 3 }
+    if text_len(text_view) != 3 { return 1 }
+    if values_len(values_view) != 2 { return 2 }
+    if values_len_mut(&+values as &+[usize]) != 2 { return 3 }
     return 0
 }
 "#,

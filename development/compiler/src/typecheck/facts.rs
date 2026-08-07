@@ -25,7 +25,10 @@ use super::type_expr::{
     canonical_type_expr, infer_type_expr_substitutions, type_expr_to_type_in_environment,
     type_expr_to_type_with_self_type, type_expr_to_type_with_substitutions,
 };
-use super::variants::resolved_enum_variant_for_member;
+use super::variants::{
+    enum_variant_call_substitutions, resolved_enum_variant_for_call,
+    resolved_enum_variant_for_member,
+};
 use crate::ast::{
     ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, Expr, FallibleType,
     GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
@@ -56,10 +59,10 @@ pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
     TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
-    TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
-    TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
-    TypecheckSliceElementKind,
+    TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts, TypecheckInterpolationPart,
+    TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
+    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
+    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 

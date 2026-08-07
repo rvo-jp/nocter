@@ -10,6 +10,7 @@ mod closures;
 mod coercions;
 mod conformance;
 mod controls;
+mod conversions;
 mod copyability;
 mod diagnostics;
 mod drop_members;
@@ -61,11 +62,12 @@ pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
-    TypecheckCollectionForSourceMode, TypecheckFacts, TypecheckInterpolationPlan,
-    TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
-    TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
-    type_expr_presentation_label, type_symbol_presentation_label,
+    TypecheckCollectionForSourceMode, TypecheckConversionKind, TypecheckConversionPlan,
+    TypecheckFacts, TypecheckInterpolationPlan, TypecheckIterationMethod,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
+    collect_typecheck_facts, drop_type_specialization_from_self_ty, type_expr_presentation_label,
+    type_symbol_presentation_label,
 };
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::implementation_for_interface_type_expr;

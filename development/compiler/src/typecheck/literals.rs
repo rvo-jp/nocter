@@ -50,6 +50,29 @@ pub(super) fn literal_expression_type_with_expected(
     }
 }
 
+pub(super) fn typed_sequence_literal_element_type(
+    literal: &TypedSequenceLiteralExpr,
+    expected: Option<&Type>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    let (signature, parameters, result_type) = literal_signature_and_parameters(
+        literal.span,
+        &literal.target,
+        &literal.elements,
+        expected,
+        resolved,
+        environment,
+    )?;
+    let capture = signature.capture.as_ref()?;
+    Some(type_expr_to_type_with_substitutions(
+        &capture.element_type,
+        resolved,
+        Some(&result_type),
+        &parameters,
+    ))
+}
+
 pub(super) fn check_literal_declarations(
     sources: &SourceMap,
     ast: &AstFile,
