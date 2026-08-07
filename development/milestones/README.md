@@ -4,10 +4,8 @@ This directory owns the scope, acceptance criteria, qualification, and publicati
 active release candidate. Public language behavior belongs in `spec/`; compiler architecture
 belongs in `development/docs/`.
 
-The active candidate is [v0.6.0](v0.6.0.md). All three phases are complete and the exact local
-arm64-darwin archive has passed qualification. Publication remains a separate explicitly
-authorized action.
+No development milestone is active. The completed v0.6.0 plan and qualification evidence have
+moved to [Release Qualification Records](../releases/README.md) for publication. Start a new file
+here only after the next release objective and completion boundary are adopted.
 
-v0.5.0 is published, and its frozen engineering evidence lives in
-[Release Qualification Records](../releases/README.md). Do not reuse or reopen a published
-qualification record as an active plan.
+Do not reuse or reopen a completed release qualification record as an active plan.

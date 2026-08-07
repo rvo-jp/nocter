@@ -1,8 +1,9 @@
 # Public Provenance Contracts and Generic Interface Bounds
 
 This document owns the compiler implementation boundary for source-visible result allocation and
-external provenance contracts. Public language semantics belong in the specification. The active
-completion gate belongs to the [v0.6.0 Milestone](../milestones/v0.6.0.md).
+external provenance contracts. Public language semantics belong in the specification. The
+implementation completion evidence belongs to the
+[v0.6.0 Release Qualification Record](../releases/v0.6.0.md).
 
 ## Design Boundary
 

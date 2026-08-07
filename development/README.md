@@ -5,9 +5,9 @@ compiler, distributed standard-library source, release packaging inputs, impleme
 milestone records, and release qualification evidence. See the [repository README](../README.md)
 for the product overview and the [specification](../spec/README.md) for public language behavior.
 
-The [current handoff](TODO.md) owns the next concrete task. The [active milestone
-record](milestones/README.md) owns candidate scope and qualification. Do not copy either state into
-this entry point.
+The [current handoff](TODO.md) owns the next concrete task. The
+[milestone index](milestones/README.md) identifies an active candidate when one exists. Do not copy
+either state into this entry point.
 
 ## Quick Start
 

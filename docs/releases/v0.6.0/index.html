@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/iter/enumerate.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/iter/enumerate.nct.">
+    <title>Nocter v0.6.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.6.0 makes callable allocation and storage-origin contracts explicit, checkable, and consistent across source, generic APIs, the standard library,">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/iter/enumerate/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.6.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/iter/enumerate.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/iter/enumerate.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/iter/enumerate/">
+    <meta property="og:title" content="Nocter v0.6.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.6.0 makes callable allocation and storage-origin contracts explicit, checkable, and consistent across source, generic APIs, the standard library,">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.6.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-05">
+    <meta property="article:modified_time" content="2026-08-07">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/iter/enumerate.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/iter/enumerate.nct.">
+    <meta name="twitter:title" content="Nocter v0.6.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.6.0 makes callable allocation and storage-origin contracts explicit, checkable, and consistent across source, generic APIs, the standard library,">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/iter/enumerate.nct - Nocter","description":"Nocter source code for development/std/iter/enumerate.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/iter/enumerate/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Iter","item":"https://nocter.dev/development/std/iter/"},{"@type":"ListItem","position":5,"name":"Enumerate","item":"https://nocter.dev/development/std/iter/enumerate/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.6.0 Release Notes - Nocter","description":"Nocter v0.6.0 makes callable allocation and storage-origin contracts explicit, checkable, and consistent across source, generic APIs, the standard library,","url":"https://nocter.dev/releases/v0.6.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.6.0/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.6.0","item":"https://nocter.dev/releases/v0.6.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -118,41 +118,29 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../index.html#content">repository README</a></li>
-                <li><a href="../../../../spec/index.html#content">specification</a></li>
-                <li><a href="../../../milestones/index.html#content">milestone index</a></li>
-                <li><a href="../../../docs/index.html#content">Implementation Documentation</a></li>
-                <li><a href="../../../milestones/index.html#content">Active Milestones</a></li>
-                <li><a href="../../../releases/index.html#content">Release Qualification Records</a></li>
-                <li><a href="../../../docs/packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="../../../docs/lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
-                <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="../../../docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="../../../docs/iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="../../../docs/callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="../../../docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="../../../docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="../../../docs/standard-library/index.html#content">Standard Library Runtime</a></li>
-                <li><a href="../../../docs/lsp/index.html#content">Language Server</a></li>
-                <li><a href="../../../docs/site-generation/index.html#content">Documentation Site Generation</a></li>
-                <li><a href="../../../docs/maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="./index.html#content" aria-current="page">Read the v0.6.0 release notes</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/iter/enumerate.nct</span>
+                <span class="markdown-path-text">/releases/v0.6.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1>enumerate.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Stable zero-based indexing of an owning iterator.</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">/</span>core<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">EnumerateIter</span><span class="token-operator">,</span> <span class="token-type">Indexed</span><span class="token-operator">,</span> enumerate<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="nocter-v0-6-0-release-notes">Nocter v0.6.0 Release Notes</h1><p>Nocter v0.6.0 makes callable allocation and storage-origin contracts explicit, checkable, and consistent across source, generic APIs, the standard library, and editor tooling. It distinguishes storage newly allocated into a result from storage retained from an existing value without exposing the compiler's ambient allocation context as source syntax.</p><p><a href="https://github.com/rvo-jp/nocter/releases/download/v0.6.0/nocter-v0.6.0-arm64-darwin.tar.gz">Download nocter-v0.6.0-arm64-darwin.tar.gz</a></p><h2 id="result-contracts">Result Contracts</h2><p><code>alloc</code> describes newly allocated storage retained by a result. <code>from</code> independently describes an existing receiver, parameter, allocator, or static origin retained by that result:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">len</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+alloc <span class="token-keyword">func</span> <span class="token-function">copy</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+<span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text
+alloc <span class="token-keyword">func</span> <span class="token-function">copy_with</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> from allocator
+</code></pre><p>Temporary allocation does not require <code>alloc</code> when no allocated storage survives in the result. Conversely, absence of <code>alloc</code> is not an execution-time allocation guarantee. <code>noalloc</code> and <code>realtime</code> are reserved for future independent contracts.</p><p>The compiler validates body-backed contracts from returned values rather than trusting their written modifiers. Recursive calls, optional and fallible branches, aggregate fields, closures, generic specialization, interface defaults, mutable owners, and ownership transfer preserve the same allocation and origin facts.</p><h2 id="standard-library-and-iteration">Standard Library and Iteration</h2><ul><li>Every callable in all 23 distributed standard-library modules participates in one automated
+  contract audit.</li><li><code>String</code>, <code>Vec&lt;T&gt;</code>, process, I/O, typed-literal, iterator, and allocator APIs use canonical
+  <code>alloc</code> and <code>from</code> contracts.</li><li>Generic iterator advancement retains allocation and source-origin upper bounds through adapters,
+  callbacks, collection <code>for</code>, and consuming ownership transfer.</li><li>Empty collection storage remains neutral until first growth selects an allocation domain.</li></ul><h2 id="editor-and-diagnostics">Editor and Diagnostics</h2><p>Hover, completion, signature help, construction surfaces, diagnostics, and code actions render one normalized source declaration. They no longer display compiler-only phrases such as inferred storage origins or execution allocation effects. A missing <code>alloc</code> contract identifies a concrete returned expression or call and edits only its owning declaration.</p><h2 id="source-changes">Source Changes</h2><p>The removed <code>from current</code> spelling has no compatibility parser. Use <code>alloc</code> when a result may retain newly allocated storage, and add <code>from name</code> only when it also retains storage from a named receiver, parameter, allocator, or static origin.</p><h2 id="qualification">Qualification</h2><p>The release passes 2,277 compiler-library tests, 296 build tests, 449 run tests, 24 framed LSP tests, 18 package tests, 11 native-test tests, 208 distributed-home tests, public examples, the source corpus, formatting, and warnings-denied Clippy. The optimized archive passes <code>doctor</code> and a fresh package's locked/offline check, native test, graph, run, explicit build, and direct Mach-O execution without repository configuration.</p><h2 id="explicit-limits">Explicit Limits</h2><p>The supported host and target remain <code>arm64-darwin</code>. <code>noalloc</code>, <code>realtime</code>, source-level lifetime parameters, runtime interface dispatch, async, concurrency, registries, workspace membership, and a stable cross-version ABI are not part of v0.6.0.</p>
             </div>
         </main>
     </div>
@@ -168,6 +156,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

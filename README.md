@@ -72,7 +72,7 @@ The normative language definition lives in
 
 ## One Directory Install
 
-[Download nocter-v0.5.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.5.0/nocter-v0.5.0-arm64-darwin.tar.gz)
+[Download nocter-v0.6.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.6.0/nocter-v0.6.0-arm64-darwin.tar.gz)
 
 Nocter release archives are designed to unpack to a single `.nocter/`
 directory:
@@ -91,7 +91,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.5.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.6.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -176,13 +176,13 @@ nocter check --file app.nct
 
 ## Current Status
 
-The v0.5.0 compiler parses, checks, builds, and runs the supported language on
+The v0.6.0 compiler parses, checks, builds, and runs the supported language on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
 machine code is emitted. The [language specification](spec/README.md) describes
-the current v0.5.0 language; the `v0.5.0` repository tag preserves the exact
+the current v0.6.0 language; the `v0.6.0` repository tag preserves the exact
 published compiler, standard library, specification, and packaging inputs.
 
 ## Learn More

@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-06">
+    <meta property="article:modified_time" content="2026-08-07">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Contributor Documentation">
     <meta name="twitter:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Contributor Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Contributor Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-07","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
 
     <link rel="stylesheet" href="../style.css">
 </head>
@@ -122,8 +122,7 @@
             <ul class="directory-toc-list">
                 <li><a href="../index.html#content">repository README</a></li>
                 <li><a href="../spec/index.html#content">specification</a></li>
-                <li><a href="./milestones/index.html#content">active milestone
-record</a></li>
+                <li><a href="./milestones/index.html#content">milestone index</a></li>
                 <li><a href="./docs/index.html#content">Implementation Documentation</a></li>
                 <li><a href="./milestones/index.html#content">Active Milestones</a></li>
                 <li><a href="./releases/index.html#content">Release Qualification Records</a></li>
@@ -150,7 +149,7 @@ record</a></li>
                 <span class="markdown-path-text">/development/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="contributor-documentation">Contributor Documentation</h1><p>This directory is the entry point for compiler contributors. It contains the Rust bootstrap compiler, distributed standard-library source, release packaging inputs, implementation design, milestone records, and release qualification evidence. See the <a href="../index.html#content">repository README</a> for the product overview and the <a href="../spec/index.html#content">specification</a> for public language behavior.</p><p>The <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">current handoff</a> owns the next concrete task. The <a href="./milestones/index.html#content">active milestone record</a> owns candidate scope and qualification. Do not copy either state into this entry point.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
+                <h1 id="contributor-documentation">Contributor Documentation</h1><p>This directory is the entry point for compiler contributors. It contains the Rust bootstrap compiler, distributed standard-library source, release packaging inputs, implementation design, milestone records, and release qualification evidence. See the <a href="../index.html#content">repository README</a> for the product overview and the <a href="../spec/index.html#content">specification</a> for public language behavior.</p><p>The <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">current handoff</a> owns the next concrete task. The <a href="./milestones/index.html#content">milestone index</a> identifies an active candidate when one exists. Do not copy either state into this entry point.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
 </code></pre><p>To verify only the compiler:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml
 </code></pre><p>The development and test profiles retain source line tables but disable incremental compilation and macOS split debug objects. This is intentional: the compiler's large test crate otherwise leaves hundreds of thousands of unpacked object files and can grow <code>development/compiler/target/</code> by tens of gigabytes. To discard local compiler artifacts manually, run:</p><pre><code class="language-sh"><span class="token-function">cargo</span> clean <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">-p</span> nocter
 </code></pre><p>To build and run a repository-local distribution:</p><pre><code class="language-sh">./development/compiler/scripts/package-local-release.sh

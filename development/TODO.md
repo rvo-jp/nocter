@@ -2,8 +2,9 @@
 
 ## Current Task
 
-v0.6.0 Phase 2 is complete. The candidate is qualified locally; publication requires a separate
-explicit user authorization.
+v0.6.0 publication is authorized. Publish only the qualified archive recorded in
+`releases/v0.6.0.md`, then verify the downloaded public asset in an isolated environment before
+closing the release.
 
 ## Completed Checkpoint
 
@@ -38,7 +39,7 @@ explicit user authorization.
 - result provenance no longer exposes private aggregate layout or copy-only dataflow, semantic hints
   attach after the complete callable signature, and normalized recovery never slices a signature
   from raw source
-- the v0.6.0 Phase 0 full verification record is owned by `milestones/v0.6.0.md`
+- the v0.6.0 Phase 0 full verification record is owned by `releases/v0.6.0.md`
 - result allocation provenance, external result provenance, and the execution allocation
   requirement have separate compiler owners
 - contextual `alloc` is parsed, formatted, serialized, resolved, typechecked, presented, and
@@ -51,7 +52,7 @@ explicit user authorization.
   retained-input mutation summaries preserve allocator and lexical-region origins through wrappers
 - neutral empty buffers select an allocation domain only on first growth; return checking and
   summary inference share the same mutation effects
-- the v0.6.0 Phase 1 completion record is owned by `milestones/v0.6.0.md`
+- the v0.6.0 Phase 1 completion record is owned by `releases/v0.6.0.md`
 - recursive allocation summaries start from body evidence rather than written contracts
 - E0462 retains a deterministic returned-expression witness while edits remain declaration-owned
 - closure callable bounds enforce allocation variance across methods and imported modules
@@ -59,10 +60,11 @@ explicit user authorization.
 - generic type parameters retain storage capability, protocol `for` bindings instantiate resolved
   conversion and step provenance, and ownership-transfer primitives preserve element origins
 - the exact v0.6.0 candidate archive and Phase 2 verification record are owned by
-  `milestones/v0.6.0.md`
+  `releases/v0.6.0.md`
 
 ## Next Work
 
-Do not publish, tag, or rewrite the v0.5.0 release records without explicit authorization. The next
-development milestone should be planned independently after publication status is decided; do not
-reopen the completed v0.6.0 contract boundary for unrelated syntax or execution effects.
+Commit and push the English public release notes and generated site, create the annotated v0.6.0
+tag, publish the exact qualified archive, and redownload it from GitHub. Record the public URL,
+tagged commit, reported asset identity, and isolated smoke result in `releases/v0.6.0.md`. Do not
+rewrite older release records or begin the next development milestone during publication.
