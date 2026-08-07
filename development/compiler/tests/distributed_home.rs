@@ -5418,6 +5418,8 @@ fn distributed_std_all_modules_pass_callable_contract_audit() {
         }
         source_text.push_str("use ");
         source_text.push_str(&module);
+        source_text.push_str(" as ");
+        source_text.push_str(&module.replace('/', "_"));
         source_text.push('\n');
     }
     source_text.push_str("\nfunc main(): i32 { return 0 }\n");
