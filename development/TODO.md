@@ -2,8 +2,10 @@
 
 ## Current Task
 
-v0.6.0 Phase 0 is complete. The next task is to define one coherent Phase 1 purpose, non-goals, and
-completion gate before beginning additional language or standard-library work.
+v0.6.0 Phase 0 is complete. Phase 1 is now defined as explicit result-allocation contracts. Begin
+with the semantic split between result allocation provenance and the existing inferred execution
+allocation/current-context requirement; do not add `alloc` syntax before those facts have separate
+owners and tests.
 
 ## Completed Checkpoint
 
@@ -42,6 +44,7 @@ completion gate before beginning additional language or standard-library work.
 
 ## Next Work
 
-Define v0.6.0 Phase 1 in [the active milestone](milestones/v0.6.0.md) before implementation. Keep
-v0.5.0 behavior and qualification frozen under `development/releases/`; do not append new design
-work to that release record.
+Execute the ordered v0.6.0 Phase 1 plan in [the active milestone](milestones/v0.6.0.md). The first
+change creates the focused implementation-design boundary and lossless result-allocation fact while
+preserving current source behavior. Keep v0.5.0 behavior and qualification frozen under
+`development/releases/`; do not append new design work to that release record.
