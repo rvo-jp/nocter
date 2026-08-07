@@ -338,11 +338,22 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&expression.ty);
                 for field in &expression.fields {
                     self.record_struct_literal_field_reference(expression, field, environment);
-                    self.collect_expression_facts_in_context(
-                        &field.value,
-                        environment,
-                        return_type,
-                    );
+                    if let Some(expected) =
+                        struct_literal_field_type(expression, field, self.resolved, environment)
+                    {
+                        self.collect_expression_facts_with_expected(
+                            &field.value,
+                            &expected,
+                            environment,
+                            return_type,
+                        );
+                    } else {
+                        self.collect_expression_facts_in_context(
+                            &field.value,
+                            environment,
+                            return_type,
+                        );
+                    }
                 }
             }
             Expr::Group(expression) => {

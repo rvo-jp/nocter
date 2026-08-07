@@ -91,6 +91,34 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn records_coercion_plans_at_all_concrete_expected_type_boundaries() {
+    let text = r#"struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+struct Holder { value: &i32 }
+func accept(value: &i32): void { return }
+func project(value: &Box<i32>): &i32 from value {
+    let bound: &i32 = value
+    var assigned: &i32 = bound
+    assigned = value
+    let holder = Holder { value: value }
+    let elements: [&i32; 1] = [value]
+    accept(value)
+    return value
+}
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let plans = facts.coercion_plans().collect::<Vec<_>>();
+
+    assert_eq!(plans.len(), 6, "expected one plan per contextual boundary");
+    assert!(plans.iter().all(|(_, plan)| {
+        canonical_type_expr(&plan.self_ty) == "Box<i32>"
+            && canonical_type_expr(&plan.target_ty) == "&i32"
+    }));
+}
+
+#[test]
 fn records_binding_type_expr_facts_for_generic_parameters() {
     let text = r#"func keep<T>(value: T): T {
     let inferred = value

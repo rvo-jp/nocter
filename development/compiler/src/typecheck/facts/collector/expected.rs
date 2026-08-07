@@ -29,6 +29,19 @@ impl TypecheckFactCollector<'_> {
             return;
         }
         match expression {
+            Expr::ArrayLiteral(literal) => {
+                let Type::Array { element, .. } = expected else {
+                    return;
+                };
+                for element_expression in &literal.elements {
+                    self.collect_expression_facts_with_expected(
+                        element_expression,
+                        element,
+                        environment,
+                        return_type,
+                    );
+                }
+            }
             Expr::Closure(closure) => {
                 let Type::Closure(closure_type) = expected else {
                     return;

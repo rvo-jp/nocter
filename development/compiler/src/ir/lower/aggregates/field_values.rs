@@ -213,6 +213,22 @@ pub(super) fn lower_aggregate_field_to_location(
             Ok(instructions)
         }
         AbiType::Borrow => {
+            if context.coercion_plan(expression.span()).is_some() {
+                let pointer = temporaries.next_usize()?;
+                let mut instructions = lower_borrow_coercion_to_location_with_temporaries(
+                    expression,
+                    pointer,
+                    context,
+                    temporaries,
+                )
+                .expect("checked coercion plan must lower")?;
+                instructions.push(Instruction::StoreAggregateUsize {
+                    destination,
+                    offset,
+                    value: UsizeValue::Location(pointer),
+                });
+                return Ok(instructions);
+            }
             let moved_value = match unwrap_field_value_group(expression) {
                 Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
                     unwrap_field_value_group(&unary.operand)

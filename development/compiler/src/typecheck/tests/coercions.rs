@@ -81,3 +81,27 @@ func main(): i32 { return 0 }
             .any(|diagnostic| diagnostic.message.contains("argument 1"))
     );
 }
+
+#[test]
+fn coercions_apply_at_every_concrete_expected_type_boundary() {
+    let diagnostics = check_text(
+        r#"
+struct Box<T> { value: T }
+coerce Box<T> { pub &self as &T from self { return &self.value } }
+struct Holder { value: &i32 }
+func accept(value: &i32): void { return }
+func project(value: &Box<i32>): &i32 from value {
+    let bound: &i32 = value
+    var assigned: &i32 = bound
+    assigned = value
+    let holder = Holder { value: value }
+    let elements: [&i32; 1] = [value]
+    accept(value)
+    return value
+}
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}

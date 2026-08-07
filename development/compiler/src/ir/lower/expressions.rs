@@ -66,7 +66,7 @@ use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
 pub(super) use closure_captures::*;
-use coercions::*;
+pub(in crate::ir::lower) use coercions::*;
 use control_flow_values::*;
 use diagnostics::*;
 use fallible::*;

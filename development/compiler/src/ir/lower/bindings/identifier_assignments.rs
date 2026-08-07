@@ -19,6 +19,14 @@ pub(super) fn lower_identifier_assignment(
         return Ok(instructions);
     }
 
+    if let Some((destination, is_readwrite, inner)) = context.borrow_local(&identifier.name) {
+        let borrow_type = Type::Borrow {
+            is_readwrite,
+            inner: Box::new(inner.clone()),
+        };
+        return lower_borrow_expression_to_location(value, destination, &borrow_type, context);
+    }
+
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
