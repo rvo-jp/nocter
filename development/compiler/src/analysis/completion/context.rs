@@ -37,6 +37,10 @@ fn completion_context_in_item_at_offset(
                     completion_context_in_block_at_offset(&literal.body, offset)
                 })
             }),
+        Item::Coerce(coerce) => coerce
+            .entries
+            .iter()
+            .find_map(|entry| completion_context_in_block_at_offset(&entry.body, offset)),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

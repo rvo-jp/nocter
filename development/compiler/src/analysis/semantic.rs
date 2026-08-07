@@ -253,6 +253,14 @@ impl SemanticIdentifierCollector<'_> {
                         );
                     }
                 }
+                crate::ast::Item::Coerce(coerce) => {
+                    for entry in &coerce.entries {
+                        collect_provenance_parameter_spans(
+                            entry.result_provenance.as_ref(),
+                            &mut spans,
+                        );
+                    }
+                }
                 crate::ast::Item::Import(_)
                 | crate::ast::Item::Test(_)
                 | crate::ast::Item::FromImport(_)

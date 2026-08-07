@@ -48,6 +48,10 @@ fn call_in_item_at_offset(
                     .literals()
                     .find_map(|(_, literal)| call_in_block_at_offset(&literal.body, offset, region))
             }),
+        Item::Coerce(coerce) => coerce
+            .entries
+            .iter()
+            .find_map(|entry| call_in_block_at_offset(&entry.body, offset, region)),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

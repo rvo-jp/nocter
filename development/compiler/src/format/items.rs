@@ -1,10 +1,10 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant,
-    FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
-    ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
-    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
-    StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
+    AstFile, CoerceDecl, CoercionEntry, ConstructDecl, ConstructMember, ConstructMemberDecl,
+    DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList,
+    ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape,
+    MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
+    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -50,7 +50,41 @@ impl Formatter {
             Item::Interface(item) => self.format_interface_decl(item),
             Item::Impl(item) => self.format_impl_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
+            Item::Coerce(item) => self.format_coerce_decl(item),
         }
+    }
+
+    fn format_coerce_decl(&mut self, item: &CoerceDecl) {
+        self.write("coerce ");
+        self.format_type(&item.target);
+        if item.entries.is_empty() {
+            self.write(" {}");
+            return;
+        }
+        self.write(" {");
+        self.newline();
+        self.indented(|formatter| {
+            for (index, entry) in item.entries.iter().enumerate() {
+                if index > 0 {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                formatter.format_coercion_entry(entry);
+                formatter.newline();
+            }
+        });
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn format_coercion_entry(&mut self, entry: &CoercionEntry) {
+        self.format_visibility(entry.visibility);
+        self.format_method_receiver(&entry.receiver);
+        self.write(" as ");
+        self.format_type(&entry.target);
+        self.format_result_provenance(entry.result_provenance.as_ref());
+        self.write(" ");
+        self.format_block(&entry.body);
     }
 
     fn format_test_decl(&mut self, item: &TestDecl) {

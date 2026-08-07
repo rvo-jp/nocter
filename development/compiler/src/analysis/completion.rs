@@ -287,6 +287,13 @@ fn result_provenance_completion_items(
                     }
                 }
             }
+            Item::Coerce(coerce) => {
+                for entry in &coerce.entries {
+                    if clause_contains_offset(entry.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(Some(entry.receiver.mode), &[]));
+                    }
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)

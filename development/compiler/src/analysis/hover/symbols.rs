@@ -113,6 +113,11 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 collect_literal_hover_symbols(text, literal, symbols);
             }
         }
+        Item::Coerce(coerce) => {
+            for entry in &coerce.entries {
+                collect_block_hover_symbols(text, &entry.body, symbols);
+            }
+        }
     }
 }
 

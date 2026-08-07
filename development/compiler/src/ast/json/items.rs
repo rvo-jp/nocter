@@ -218,6 +218,34 @@ impl Item {
                 }));
                 JsonAstNode::new("construct_decl", json_span(sources, item.span), children)
             }
+            Item::Coerce(item) => {
+                let mut children = vec![JsonAstNode::new(
+                    "coerce_source_type",
+                    json_span(sources, item.target.span()),
+                    vec![item.target.to_json(sources)],
+                )];
+                children.extend(item.entries.iter().map(|entry| {
+                    let mut entry_children = vec![
+                        visibility_json(entry.visibility),
+                        entry.receiver.to_json(sources),
+                        JsonAstNode::new(
+                            "coerce_target_type",
+                            json_span(sources, entry.target.span()),
+                            vec![entry.target.to_json(sources)],
+                        ),
+                    ];
+                    if let Some(provenance) = &entry.result_provenance {
+                        entry_children.push(provenance.to_json(sources));
+                    }
+                    entry_children.push(entry.body.to_json(sources));
+                    JsonAstNode::new(
+                        "coercion_entry",
+                        json_span(sources, entry.span),
+                        entry_children,
+                    )
+                }));
+                JsonAstNode::new("coerce_decl", json_span(sources, item.span), children)
+            }
         }
     }
 }
@@ -340,17 +368,7 @@ impl MethodDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let mut children = vec![
             visibility_json(self.visibility),
-            JsonAstNode::with_value(
-                "method_receiver",
-                self.receiver.mode.label(),
-                json_span(sources, self.receiver.span),
-                vec![JsonAstNode::with_value(
-                    "parameter",
-                    self.receiver.name.clone(),
-                    json_span(sources, self.receiver.name_span),
-                    Vec::new(),
-                )],
-            ),
+            self.receiver.to_json(sources),
             self.generics.to_json(sources),
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),
@@ -371,6 +389,22 @@ impl MethodDecl {
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl MethodReceiver {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::with_value(
+            "method_receiver",
+            self.mode.label(),
+            json_span(sources, self.span),
+            vec![JsonAstNode::with_value(
+                "parameter",
+                self.name.clone(),
+                json_span(sources, self.name_span),
+                Vec::new(),
+            )],
         )
     }
 }

@@ -12,6 +12,7 @@ use crate::literals::decode_string_literal_bytes;
 use crate::source::ByteSpan;
 
 mod aggregates;
+mod coercions;
 mod entry;
 mod functions;
 mod implementations;

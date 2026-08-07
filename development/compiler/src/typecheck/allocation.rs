@@ -67,6 +67,7 @@ pub(super) fn infer_callable_allocation_effects(
                     Item::Construct(construct) => {
                         construct.functions().count() + construct.literals().count()
                     }
+                    Item::Coerce(_) => 0,
                     _ => 0,
                 }
                 })
@@ -186,6 +187,7 @@ pub(super) fn infer_callable_allocation_effects(
                             }
                         }
                     }
+                    Item::Coerce(_) => {}
                     Item::Import(_)
                     | Item::FromImport(_)
                     | Item::Primitive(_)

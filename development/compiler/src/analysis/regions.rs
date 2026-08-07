@@ -57,6 +57,11 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
                     collect_block(file, &literal.body, None, &mut facts);
                 }
             }
+            Item::Coerce(coerce) => {
+                for entry in &coerce.entries {
+                    collect_block(file, &entry.body, None, &mut facts);
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

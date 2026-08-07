@@ -156,6 +156,22 @@ impl Parser<'_> {
             return self.parse_construct_decl();
         }
 
+        if self.at_keyword(Keyword::Coerce) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to coerce declarations");
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            if visibility != Visibility::Private {
+                self.error_current("`coerce` declarations do not use visibility modifiers");
+                return Err(());
+            }
+            return self.parse_coerce_decl();
+        }
+
         if self.at_keyword(Keyword::Type) {
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations");

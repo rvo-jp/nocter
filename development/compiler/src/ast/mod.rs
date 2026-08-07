@@ -2,6 +2,7 @@
 
 mod callables;
 mod closures;
+mod coercions;
 mod collection_for;
 mod constructs;
 mod documentation;
@@ -17,6 +18,7 @@ mod visit;
 
 pub use callables::*;
 pub use closures::*;
+pub use coercions::*;
 pub use collection_for::*;
 pub use constructs::*;
 pub use json::{AstEnvelope, JsonAstNode};
@@ -53,6 +55,7 @@ pub enum Item {
     Interface(InterfaceDecl),
     Impl(ImplDecl),
     Construct(ConstructDecl),
+    Coerce(CoerceDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -800,6 +803,7 @@ impl Item {
             Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
             Item::Construct(item) => item.span,
+            Item::Coerce(item) => item.span,
         }
     }
 }

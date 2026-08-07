@@ -86,7 +86,8 @@ fn root_access(
             | Item::Enum(_)
             | Item::Interface(_)
             | Item::Impl(_)
-            | Item::Construct(_) => continue,
+            | Item::Construct(_)
+            | Item::Coerce(_) => continue,
         };
         if let Some(import_source) = import_sources.get(&path_span) {
             return import_source.access;

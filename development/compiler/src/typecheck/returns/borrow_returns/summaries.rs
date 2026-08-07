@@ -72,6 +72,7 @@ fn body_backed_summary_floor(
                         );
                     }
                 }
+                Item::Coerce(_) => {}
                 Item::Primitive(_)
                 | Item::Test(_)
                 | Item::Import(_)

@@ -1,3 +1,4 @@
+mod coercions;
 mod constructs;
 mod expressions;
 mod items;

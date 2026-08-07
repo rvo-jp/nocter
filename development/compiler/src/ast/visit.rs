@@ -56,6 +56,11 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                     }
                 }
             }
+            Item::Coerce(coerce) => {
+                for entry in &coerce.entries {
+                    visit_block_expressions(&entry.body, visitor);
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

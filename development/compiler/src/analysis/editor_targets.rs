@@ -185,6 +185,11 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                     collect_block_import_sites(&literal.body, sites);
                 }
             }
+            Item::Coerce(coerce) => {
+                for entry in &coerce.entries {
+                    collect_block_import_sites(&entry.body, sites);
+                }
+            }
             Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
         }
     }

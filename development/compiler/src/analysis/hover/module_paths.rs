@@ -36,6 +36,10 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
                     .literals()
                     .find_map(|(_, literal)| module_path_in_block_at_offset(&literal.body, offset))
             }),
+        Item::Coerce(coerce) => coerce
+            .entries
+            .iter()
+            .find_map(|entry| module_path_in_block_at_offset(&entry.body, offset)),
         Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => None,
     }
 }

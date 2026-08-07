@@ -87,6 +87,7 @@ pub(super) fn check_sized_value_types(
                     check_literal(sources, literal, resolved, diagnostics);
                 }
             }
+            Item::Coerce(_) => {}
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
     }

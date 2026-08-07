@@ -212,6 +212,7 @@ impl Resolver<'_> {
                             ));
                     }
                 }
+                Item::Coerce(_) => {}
             }
         }
 
@@ -225,6 +226,7 @@ impl Resolver<'_> {
                         self.collect_top_level_associated_function(function);
                     }
                 }
+                Item::Coerce(_) => {}
                 _ => {}
             }
         }

@@ -164,6 +164,29 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 })
                 .collect(),
         )),
+        Item::Coerce(coerce) => Some(document_symbol(
+            format!("coerce {}", source_fragment(text, coerce.target.span())),
+            DocumentSymbolKind::Class,
+            coerce.span,
+            coerce.target.span(),
+            coerce
+                .entries
+                .iter()
+                .map(|entry| {
+                    document_symbol(
+                        format!(
+                            "{}self as {}",
+                            entry.receiver.mode.source_prefix(),
+                            source_fragment(text, entry.target.span())
+                        ),
+                        DocumentSymbolKind::Method,
+                        entry.span,
+                        entry.target.span(),
+                        Vec::new(),
+                    )
+                })
+                .collect(),
+        )),
     }
 }
 

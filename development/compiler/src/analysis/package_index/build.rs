@@ -175,7 +175,8 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 | Item::Enum(_)
                 | Item::Interface(_)
                 | Item::Impl(_)
-                | Item::Construct(_) => None,
+                | Item::Construct(_)
+                | Item::Coerce(_) => None,
             };
             if let Some((name, kind)) = export {
                 self.exports.push(IndexedExport {

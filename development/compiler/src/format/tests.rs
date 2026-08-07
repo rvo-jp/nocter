@@ -55,6 +55,25 @@ if x>3{return x}else{return 0}
 }
 
 #[test]
+fn formats_borrow_coercions_stably() {
+    assert_formats_stably(
+        r#"coerce Vec<T>{pub &self as &[T] from self{return self.view()}
+&+self as &+[T] from self{return self.view_mut()}}
+"#,
+        r#"coerce Vec<T> {
+    pub &self as &[T] from self {
+        return self.view()
+    }
+
+    &+self as &+[T] from self {
+        return self.view_mut()
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn formats_native_test_declarations_stably() {
     assert_formats_stably(
         "test   pushes{let value:i32=1 return}\n",

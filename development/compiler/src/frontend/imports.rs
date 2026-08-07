@@ -56,6 +56,11 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
                 collect_block_import_paths(&literal.body, paths);
             }
         }
+        Item::Coerce(coerce) => {
+            for entry in &coerce.entries {
+                collect_block_import_paths(&entry.body, paths);
+            }
+        }
         Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
     }
 }

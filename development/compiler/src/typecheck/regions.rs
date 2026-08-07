@@ -69,6 +69,11 @@ pub(super) fn check_region_statements(
                     check_block(sources, &literal.body, None, &mut tree, diagnostics);
                 }
             }
+            Item::Coerce(coerce) => {
+                for entry in &coerce.entries {
+                    check_block(sources, &entry.body, None, &mut tree, diagnostics);
+                }
+            }
         }
     }
 }

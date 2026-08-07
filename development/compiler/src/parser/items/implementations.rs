@@ -228,7 +228,10 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<MethodReceiver> {
+    pub(super) fn parse_self_receiver(
+        &mut self,
+        message: &'static str,
+    ) -> ParseResult<MethodReceiver> {
         let borrow = self
             .match_punctuation("&+")
             .map(|token| (token, true))

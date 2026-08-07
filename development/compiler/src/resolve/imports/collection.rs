@@ -483,7 +483,8 @@ impl Resolver<'_> {
                 | Item::Import(_)
                 | Item::FromImport(_)
                 | Item::Impl(_)
-                | Item::Construct(_) => {}
+                | Item::Construct(_)
+                | Item::Coerce(_) => {}
             }
         }
     }

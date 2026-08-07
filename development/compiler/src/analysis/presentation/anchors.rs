@@ -79,6 +79,7 @@ impl CallableDeclarationIndex {
                         }
                     }
                 }
+                Item::Coerce(_) => {}
                 Item::Import(_)
                 | Item::FromImport(_)
                 | Item::TypeAlias(_)

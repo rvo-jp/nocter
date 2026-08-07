@@ -187,7 +187,8 @@ pub(crate) fn trusted_declarations_for_module(
             | Item::Enum(_)
             | Item::Interface(_)
             | Item::Impl(_)
-            | Item::Construct(_) => {}
+            | Item::Construct(_)
+            | Item::Coerce(_) => {}
         }
     }
 

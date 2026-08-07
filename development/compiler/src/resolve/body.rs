@@ -43,6 +43,7 @@ impl Resolver<'_> {
                         self.resolve_literal_body(literal);
                     }
                 }
+                Item::Coerce(_) => {}
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
                 | Item::FromImport(_)

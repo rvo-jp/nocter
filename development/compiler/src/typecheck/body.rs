@@ -116,6 +116,7 @@ pub(super) fn check_body_expressions(
                     check_literal_body_expressions(sources, literal, resolved, diagnostics);
                 }
             }
+            Item::Coerce(_) => {}
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

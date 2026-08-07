@@ -74,6 +74,13 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 }
             }
         }
+        Item::Coerce(coerce) => {
+            push_target(text, coerce.span, targets);
+            for entry in &coerce.entries {
+                push_target(text, entry.span, targets);
+                collect_block_targets(text, &entry.body, targets);
+            }
+        }
     }
 }
 
