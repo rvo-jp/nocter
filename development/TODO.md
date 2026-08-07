@@ -2,9 +2,7 @@
 
 ## Current Task
 
-v0.6.0 publication is authorized. Publish only the qualified archive recorded in
-`releases/v0.6.0.md`, then verify the downloaded public asset in an isolated environment before
-closing the release.
+v0.6.0 publication is complete. No development milestone is active.
 
 ## Completed Checkpoint
 
@@ -61,10 +59,14 @@ closing the release.
   conversion and step provenance, and ownership-transfer primitives preserve element origins
 - the exact v0.6.0 candidate archive and Phase 2 verification record are owned by
   `releases/v0.6.0.md`
+- annotated tag `v0.6.0` identifies `c1e7eeb76cca668935207d0267e01e469a5edc7b`
+- the public GitHub Release contains the one qualified 3,301,773-byte archive with SHA-256
+  `ccb53525eb931b743a80a8c73af206cad794e1b3d8753c55dd0afb30c1a65c07`
+- a fresh public download passes installed-home discovery, `doctor`, `init`, locked/offline check
+  and native test, graph JSON, run, explicit build, and direct Mach-O execution
 
 ## Next Work
 
-Commit and push the English public release notes and generated site, create the annotated v0.6.0
-tag, publish the exact qualified archive, and redownload it from GitHub. Record the public URL,
-tagged commit, reported asset identity, and isolated smoke result in `releases/v0.6.0.md`. Do not
-rewrite older release records or begin the next development milestone during publication.
+Treat the v0.6.0 tag, public Release, asset, notes, and qualification record as immutable. Plan the
+next release independently under `milestones/`; do not append unrelated design work to the v0.6.0
+record.
