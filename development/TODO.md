@@ -2,8 +2,8 @@
 
 ## Current Task
 
-v0.8.0 Phase 0 borrowed-view coercion is complete. Stop at this boundary. Do not begin Phase 1
-without a separate plan accepted by the project owner.
+Complete v0.8.0 Phase 1 explicit borrow coercion and unified conversion plans. The source borrow
+must remain explicit, and lossless integer conversion must preserve its existing contract.
 
 ## Completed Checkpoint
 
@@ -49,6 +49,10 @@ completion evidence are recorded in [`milestones/v0.8.0.md`](milestones/v0.8.0.m
 
 ## Next Work
 
-Define v0.8.0 Phase 1 scope before making further language changes. Phase 0 deliberately leaves
-owned, fallible, optional, allocation-backed, chained, inference-driven, member-lookup, and general
-explicit conversion behavior out of scope.
+1. Introduce one semantic conversion selector and immutable plan without coupling it to standard
+   library names.
+2. Make explicit borrow `as` produce the same coercion call plan as contextual selection.
+3. Audit compound expected-type propagation and close any checker/fact/lowering divergence.
+4. Add precise diagnostics and identity-based editor targets for the expression `as` token.
+5. Qualify packaged `String` and `Vec<T>` behavior, update the public specification, run the full
+   gate, record Phase 1 completion, and stop before Phase 2.
