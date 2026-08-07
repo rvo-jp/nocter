@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::MethodDecl;
+use crate::ast::LiteralDecl;
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
@@ -161,19 +161,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         )
                         .ok()
                     });
-                    let contract = expanded_body_result_contract(
-                        declared,
-                        None,
-                        ResultProvenanceInputs::parameters(&function.parameters.parameters),
-                        &return_type,
-                        source.resolved,
-                    );
                     let callable = CallableId::declared_at(function_summary_key(function));
                     summaries.insert_result(
                         callable,
                         result_with_contract_fallback(
                             provenance,
-                            contract,
+                            declared,
                             &return_type,
                             source.resolved,
                         ),
@@ -259,15 +252,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             .map(|inferred| {
                                 result_with_contract_fallback(
                                     inferred,
-                                    expanded_body_result_contract(
-                                        declared,
-                                        Some(method),
-                                        ResultProvenanceInputs::parameters(
-                                            &method.parameters.parameters,
-                                        ),
-                                        &return_type,
-                                        source.resolved,
-                                    ),
+                                    declared,
                                     &return_type,
                                     source.resolved,
                                 )
@@ -352,19 +337,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
-                        let contract = expanded_body_result_contract(
-                            declared,
-                            None,
-                            ResultProvenanceInputs::parameters(&function.parameters.parameters),
-                            &return_type,
-                            source.resolved,
-                        );
                         let callable = CallableId::declared_at(function_summary_key(function));
                         summaries.insert_result(
                             callable,
                             result_with_contract_fallback(
                                 provenance,
-                                contract,
+                                declared,
                                 &return_type,
                                 source.resolved,
                             ),
@@ -404,10 +382,9 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
-                        let contract = expanded_body_result_contract(
+                        let contract = literal_body_result_contract(
                             declared,
-                            None,
-                            ResultProvenanceInputs::literal(literal),
+                            literal,
                             &return_type,
                             source.resolved,
                         );
@@ -473,17 +450,10 @@ fn collect_impl_provenance_summaries(
             )
             .ok()
         });
-        let contract = expanded_body_result_contract(
-            declared,
-            Some(method),
-            ResultProvenanceInputs::parameters(&method.parameters.parameters),
-            &return_type,
-            resolved,
-        );
         let callable = CallableId::declared_at(method.name_span);
         summaries.insert_result(
             callable,
-            result_with_contract_fallback(provenance, contract, &return_type, resolved),
+            result_with_contract_fallback(provenance, declared, &return_type, resolved),
         );
         collect_retained_input_mutations(
             body,
@@ -498,22 +468,27 @@ fn collect_impl_provenance_summaries(
     }
 }
 
-/// Expands an omitted, unambiguous source contract before body evidence is
-/// summarized. Exact body origins still win; the contract only supplies the
-/// public boundary when aggregate or pack lowering cannot retain an exact
-/// external input. Ambiguous omissions deliberately have no fallback because
-/// a union would invent dependencies that the body may not return.
-fn expanded_body_result_contract(
+/// A sequence capture is a semantic callable input, but element transfers into
+/// an opaque collection are represented by the literal boundary rather than
+/// ordinary parameter dataflow. Preserve an omitted unique capture contract
+/// as that boundary fallback. Ordinary callable inputs and string-literal text
+/// remain body-inferred so elision never invents a dependency for a fresh copy.
+fn literal_body_result_contract(
     declared: Option<ValueProvenance>,
-    method: Option<&MethodDecl>,
-    inputs: ResultProvenanceInputs<'_>,
+    literal: &LiteralDecl,
     return_type: &Type,
     resolved: &ResolveOutput,
 ) -> Option<ValueProvenance> {
     declared.or_else(|| {
-        elided_declaration_result_contract(method, inputs, return_type, resolved)
-            .allowed_contract()
-            .cloned()
+        literal.capture.as_ref()?;
+        elided_declaration_result_contract(
+            None,
+            ResultProvenanceInputs::literal(literal),
+            return_type,
+            resolved,
+        )
+        .allowed_contract()
+        .cloned()
     })
 }
 

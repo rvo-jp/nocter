@@ -175,6 +175,22 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn accepts_public_fallible_method_with_elided_receiver_origin() {
+    let diagnostics = check_text(
+        r#"struct Holder { value: &i32 }
+
+impl Holder {
+    pub method &self.view(): &i32! { return self.value }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn private_inherent_method_may_infer_an_external_result_origin() {
     let diagnostics = check_text(
         r#"struct Holder { value: &i32 }
