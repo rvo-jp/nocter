@@ -2,9 +2,8 @@
 
 ## Current Task
 
-Implement v0.9.0 Phase 0: Whole-Stream I/O. Move portable reader and writer contracts into their own
-source module, add common default operations, simplify the file-summary example, and close the
-native, package, specification, and LSP acceptance matrix.
+No phase is active. v0.9.0 Phase 0: Whole-Stream I/O completed on 2026-08-08. Define and review a
+later phase before changing its scope or implementation.
 
 ## Completed Checkpoint
 
@@ -36,6 +35,18 @@ native, package, specification, and LSP acceptance matrix.
 - a separate public download reproduced the qualified size and SHA-256 and passed version,
   installed-home, locked/offline package, native test, deterministic graph, run, build, direct
   execution, and framed LSP checks
+- v0.9.0 Phase 0 moved portable `Reader` and `Writer` contracts into `std/io/core.nct`, added shared
+  `read_to_end`, `read_to_string`, and `write_text` defaults, retained stable `std/io` re-exports,
+  and simplified the public file-summary package
+- imported interface-default specialization now aliases the requested concrete method target to
+  its resolved implementation declaration, closing generic default dispatch across source modules
+  without protocol-specific forwarding methods
+- whole-stream native coverage includes empty and multi-chunk input, partial reads, split UTF-8,
+  invalid UTF-8, propagated reader failure, impossible counts, `File`, `BufReader`, user readers,
+  and `BufWriter`; LSP coverage verifies concrete hover, completion, and shared definition identity
+- the final `development/compiler/scripts/verify.sh` run passed all 3,351 tests, formatting,
+  warnings-denied Clippy, documentation tests, public examples, source corpus, and the distributed
+  installed-home suite
 - v0.8.0 Phase 0 adds type-owned `coerce` declarations using `as`, coherent resolver identities,
   one expected-type `CoercionPlan`, ownership/provenance/region/IR integration, standard-library
   `String` and `Vec<T>` entries, and normalized editor presentation
@@ -76,6 +87,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 0 is fully verified and its
-completion record is committed. Do not bump the release version, prepare an archive, tag, push, or
-publish v0.9.0.
+Stop at the completed v0.9.0 Phase 0 boundary. Do not infer Phase 1, bump the release version,
+prepare an archive, tag, push, or publish v0.9.0 without a reviewed milestone plan.
