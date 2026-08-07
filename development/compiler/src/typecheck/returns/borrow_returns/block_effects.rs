@@ -46,6 +46,9 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effects(
             summaries,
         );
     }
+    if let Some(result) = &block.result {
+        apply_retained_call_mutations(result, resolved, environment, borrow_provenance, summaries);
+    }
 }
 
 pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
@@ -103,6 +106,33 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                                 .is_some_and(ValueProvenance::has_storage_dependency),
                         provenance,
                     );
+                }
+            } else if let Some(identifier) = expression_root_identifier(&statement.target) {
+                let value_type = expression_type(&statement.value, resolved, environment);
+                let value_provenance = borrow_return_provenance_for_expression(
+                    &statement.value,
+                    &value_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+                if let (Some(symbol), Some(value_provenance)) = (
+                    resolved.local_symbol_for_identifier(identifier),
+                    value_provenance,
+                ) {
+                    let mut next = borrow_provenance
+                        .get(symbol.name_span)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            if matches!(symbol.kind, LocalSymbolKind::Parameter) {
+                                ValueProvenance::input(InputId::declared_at(symbol.name_span))
+                            } else {
+                                ValueProvenance::Independent
+                            }
+                        });
+                    next.merge(&value_provenance);
+                    borrow_provenance.define_binding(symbol.name_span, true, Some(next));
                 }
             }
         }
@@ -209,6 +239,78 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
             }
             borrow_provenance.join_reachable(&incoming);
         }
+        Stmt::ForRange(statement) => {
+            let mut body_environment =
+                environment_for_for_range_binding(statement, resolved, environment);
+            let mut body_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            let initial = borrow_provenance.clone();
+            borrow_provenance.join_reachable(&[initial, body_provenance]);
+        }
+        Stmt::CollectionFor(statement) => {
+            let item_type = crate::typecheck::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .map_or(Type::Unknown, |plan| plan.item_type);
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            let mut body_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            let initial = borrow_provenance.clone();
+            borrow_provenance.join_reachable(&[initial, body_provenance]);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            let mut body_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            let initial = borrow_provenance.clone();
+            borrow_provenance.join_reachable(&[initial, body_provenance]);
+        }
+        Stmt::While(statement) => {
+            let mut body_environment = environment.clone();
+            let mut body_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            let initial = borrow_provenance.clone();
+            borrow_provenance.join_reachable(&[initial, body_provenance]);
+        }
+        Stmt::Loop(statement) => {
+            let mut body_environment = environment.clone();
+            let mut body_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            borrow_provenance.update_existing_from(&body_provenance);
+        }
         Stmt::Region(statement) => {
             let mut body_environment = environment.clone();
             body_environment.define(
@@ -237,6 +339,13 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
             );
             borrow_provenance.update_existing_from(&body_provenance);
         }
+        Stmt::Expression(statement) => apply_retained_call_mutations(
+            &statement.expression,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         _ => {}
     }
 }

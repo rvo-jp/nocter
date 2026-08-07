@@ -33,6 +33,7 @@ mod places;
 mod provenance;
 mod provenance_contracts;
 mod regions;
+mod result_allocation_contracts;
 mod returns;
 mod semantic_facts;
 mod sized;
@@ -162,6 +163,13 @@ pub(crate) fn check_module_with_summary_sources(
     check_region_statements(sources, ast, &mut diagnostics);
     let provenance_summaries = callable_provenance_summaries(summary_sources);
     provenance_contracts::check_result_provenance_contracts(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
+    result_allocation_contracts::check_result_allocation_contracts(
         sources,
         ast,
         resolved,

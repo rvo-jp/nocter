@@ -834,11 +834,11 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                 );
             }
-            Stmt::While(statement) => {
+            Stmt::While(while_statement) => {
                 let mut body_environment = environment.clone();
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
-                    &statement.body,
+                    &while_statement.body,
                     return_type,
                     resolved,
                     &mut body_environment,
@@ -846,13 +846,20 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                     flow,
                 );
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
             }
-            Stmt::ForRange(statement) => {
+            Stmt::ForRange(for_range_statement) => {
                 let mut body_environment =
-                    environment_for_for_range_binding(statement, resolved, environment);
+                    environment_for_for_range_binding(for_range_statement, resolved, environment);
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
-                    &statement.body,
+                    &for_range_statement.body,
                     return_type,
                     resolved,
                     &mut body_environment,
@@ -860,19 +867,29 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                     flow,
                 );
-            }
-            Stmt::CollectionFor(statement) => {
-                let item_type = super::super::super::iteration::resolve_collection_iteration(
+                apply_borrow_return_statement_effect(
                     statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            Stmt::CollectionFor(collection_statement) => {
+                let item_type = super::super::super::iteration::resolve_collection_iteration(
+                    collection_statement,
                     resolved,
                     environment,
                 )
                 .map_or(Type::Unknown, |plan| plan.item_type);
-                let mut body_environment =
-                    environment_for_collection_for_binding(statement, item_type, environment);
+                let mut body_environment = environment_for_collection_for_binding(
+                    collection_statement,
+                    item_type,
+                    environment,
+                );
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
-                    &statement.body,
+                    &collection_statement.body,
                     return_type,
                     resolved,
                     &mut body_environment,
@@ -880,13 +897,20 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                     flow,
                 );
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
             }
-            Stmt::LiteralPackFor(statement) => {
+            Stmt::LiteralPackFor(pack_statement) => {
                 let mut body_environment =
-                    environment_for_literal_pack_binding(statement, environment);
+                    environment_for_literal_pack_binding(pack_statement, environment);
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
-                    &statement.body,
+                    &pack_statement.body,
                     return_type,
                     resolved,
                     &mut body_environment,
@@ -894,18 +918,32 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                     flow,
                 );
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
             }
-            Stmt::Loop(statement) => {
+            Stmt::Loop(loop_statement) => {
                 let mut body_environment = environment.clone();
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
-                    &statement.body,
+                    &loop_statement.body,
                     return_type,
                     resolved,
                     &mut body_environment,
                     &mut body_borrow_provenance,
                     summaries,
                     flow,
+                );
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
                 );
             }
             Stmt::Region(statement) => {

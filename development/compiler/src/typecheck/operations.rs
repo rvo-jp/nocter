@@ -261,6 +261,13 @@ pub(super) fn is_assignable(expected: &Type, actual: &Type) -> bool {
     }
 
     match (expected, actual) {
+        (Type::Callable(expected), Type::Callable(actual)) => {
+            expected.capability == actual.capability
+                && expected.parameters == actual.parameters
+                && expected.return_type == actual.return_type
+                && expected.result_provenance == actual.result_provenance
+                && (expected.result_may_allocate || !actual.result_may_allocate)
+        }
         (Type::Optional(_), Type::None) => true,
         (Type::Optional(expected_inner), Type::Optional(actual_inner)) => {
             is_assignable(expected_inner, actual_inner)

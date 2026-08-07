@@ -9,6 +9,23 @@ use std::collections::BTreeMap;
 /// and an explicit allocator may produce a result without using the ambient
 /// context.
 impl ValueProvenance {
+    /// Marks the successful returned value as allocated while leaving a
+    /// fallible error branch independent from the success storage effect.
+    pub(in crate::typecheck) fn returned_allocation(self) -> Self {
+        match self {
+            Self::Fallible { success, error } => Self::Fallible {
+                success: Some(Box::new(
+                    success
+                        .map(|value| *value)
+                        .unwrap_or(Self::Independent)
+                        .allocated(),
+                )),
+                error,
+            },
+            value => value.allocated(),
+        }
+    }
+
     pub(in crate::typecheck) fn allocated(self) -> Self {
         match self {
             Self::Independent => {

@@ -138,7 +138,7 @@ pub(nocter) func region_alloc_pages(
     return payload_start + padding
 }
 
-pub func try_alloc(
+pub alloc func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
     align: usize,
@@ -147,7 +147,7 @@ pub func try_alloc(
     return try_alloc_layout(allocator, requested)?
 }
 
-pub func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuffer! {
+pub alloc func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuffer! {
     if requested.size == 0 {
         return RawBuffer {
             ptr: from_addr(1),
@@ -175,14 +175,14 @@ pub func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuff
     }
 }
 
-pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
+pub alloc func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc(&+fallible, size, align) catch allocation_error {
         return allocation_abort_raw()
     }
 }
 
-pub func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer {
+pub alloc func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc_layout(&+fallible, requested) catch allocation_error {
         return allocation_abort_raw()
@@ -290,7 +290,7 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 impl Allocator {
-    pub method &+self.alloc(size: usize, align: usize): RawBuffer {
+    pub alloc method &+self.alloc(size: usize, align: usize): RawBuffer {
         return alloc(self, size, align)
     }
 
@@ -306,7 +306,7 @@ impl Allocator {
 }
 
 impl TryAllocator {
-    pub method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
+    pub alloc method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
         return try_alloc(self, size, align)?
     }
 

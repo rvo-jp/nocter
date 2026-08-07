@@ -216,6 +216,7 @@ pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
         &function.generics,
         &function.parameters.parameters,
         function.return_type.clone(),
+        function.result_allocation.is_some(),
         function.result_provenance.clone(),
     )
 }
@@ -225,6 +226,7 @@ pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignatur
         &primitive.generics,
         &primitive.parameters.parameters,
         primitive.return_type.clone(),
+        primitive.result_allocation.is_some(),
         primitive.result_provenance.clone(),
     )
 }
@@ -421,6 +423,7 @@ fn method_signature_inner(
             &method.generics,
             &method.parameters.parameters,
             method.return_type.clone(),
+            method.result_allocation.is_some(),
             method.result_provenance.clone(),
         ),
     }
@@ -431,9 +434,11 @@ fn method_callable_signature(
     method_generics: &GenericParamList,
     parameters: &[Parameter],
     return_type: TypeExpr,
+    result_may_allocate: bool,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
 ) -> FunctionSignature {
     FunctionSignature {
+        result_may_allocate,
         generic_parameters: owner_generics
             .parameters
             .iter()
@@ -456,9 +461,11 @@ fn callable_signature(
     generics: &GenericParamList,
     parameters: &[Parameter],
     return_type: TypeExpr,
+    result_may_allocate: bool,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
 ) -> FunctionSignature {
     FunctionSignature {
+        result_may_allocate,
         generic_parameters: generics
             .parameters
             .iter()

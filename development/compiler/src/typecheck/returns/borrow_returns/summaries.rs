@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{ResultProvenanceClause, ResultProvenanceOriginKind};
+use crate::ast::{ResultAllocationModifier, ResultProvenanceClause, ResultProvenanceOriginKind};
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
@@ -88,6 +88,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         callable,
                         result_with_declared_origins(provenance, declared),
                     );
+                    collect_retained_input_mutations(
+                        &function.body,
+                        None,
+                        &function.parameters.parameters,
+                        source.resolved,
+                        &environment,
+                        previous,
+                        &mut summaries,
+                        callable,
+                    );
                     seed_declared_allocation_effect(
                         &mut summaries,
                         callable,
@@ -95,19 +105,22 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     );
                 }
                 Item::Primitive(primitive) => {
-                    let Some(provenance) =
-                        primitive.result_provenance.as_ref().and_then(|clause| {
-                            result_provenance_contract(
-                                clause,
-                                None,
-                                &primitive.parameters.parameters,
-                                source.resolved,
-                            )
-                            .ok()
-                        })
-                    else {
+                    let declared = primitive.result_provenance.as_ref().and_then(|clause| {
+                        result_provenance_contract(
+                            clause,
+                            None,
+                            &primitive.parameters.parameters,
+                            source.resolved,
+                        )
+                        .ok()
+                    });
+                    if declared.is_none() && primitive.result_allocation.is_none() {
                         continue;
-                    };
+                    }
+                    let provenance = declared_result_allocation(
+                        declared.unwrap_or(ValueProvenance::Independent),
+                        primitive.result_allocation.as_ref(),
+                    );
                     let callable = CallableId::declared_at(primitive.name_span);
                     summaries.insert_result(callable, provenance);
                     seed_declared_allocation_effect(
@@ -156,11 +169,32 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 )
                             }),
                         };
+                        let provenance =
+                            if method.body.is_none() && method.result_allocation.is_some() {
+                                Some(declared_result_allocation(
+                                    provenance.unwrap_or(ValueProvenance::Independent),
+                                    method.result_allocation.as_ref(),
+                                ))
+                            } else {
+                                provenance
+                            };
                         let Some(provenance) = provenance else {
                             continue;
                         };
                         let callable = CallableId::declared_at(method.name_span);
                         summaries.insert_result(callable, provenance);
+                        if let Some(body) = &method.body {
+                            collect_retained_input_mutations(
+                                body,
+                                Some(&method.receiver),
+                                &method.parameters.parameters,
+                                source.resolved,
+                                &environment,
+                                previous,
+                                &mut summaries,
+                                callable,
+                            );
+                        }
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -204,6 +238,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             callable,
                             result_with_declared_origins(provenance, declared),
                         );
+                        collect_retained_input_mutations(
+                            body,
+                            Some(&method.receiver),
+                            &method.parameters.parameters,
+                            source.resolved,
+                            &environment,
+                            previous,
+                            &mut summaries,
+                            callable,
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -241,6 +285,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             callable,
                             result_with_declared_origins(provenance, declared),
                         );
+                        collect_retained_input_mutations(
+                            &function.body,
+                            None,
+                            &function.parameters.parameters,
+                            source.resolved,
+                            &environment,
+                            previous,
+                            &mut summaries,
+                            callable,
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -276,6 +330,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             callable,
                             result_with_declared_origins(provenance, declared),
                         );
+                        collect_retained_input_mutations(
+                            &literal.body,
+                            None,
+                            &literal.parameters.parameters,
+                            source.resolved,
+                            &environment,
+                            previous,
+                            &mut summaries,
+                            callable,
+                        );
                         seed_declared_allocation_effect(
                             &mut summaries,
                             callable,
@@ -299,6 +363,17 @@ fn result_with_declared_origins(
     };
     declared.merge(&inferred.retain_only_result_allocations());
     declared
+}
+
+fn declared_result_allocation(
+    provenance: ValueProvenance,
+    modifier: Option<&ResultAllocationModifier>,
+) -> ValueProvenance {
+    if modifier.is_some() {
+        provenance.returned_allocation()
+    } else {
+        provenance
+    }
 }
 
 fn seed_declared_allocation_effect(
@@ -354,5 +429,10 @@ pub(in crate::typecheck) fn borrow_return_provenance_for_callable_body(
         summaries,
         &mut flow,
     );
-    flow.into_return_provenance(return_type)
+    let provenance = flow.into_return_provenance(return_type);
+    if type_may_carry_result_provenance(return_type, resolved) {
+        provenance
+    } else {
+        provenance.map(ValueProvenance::without_result_allocation)
+    }
 }

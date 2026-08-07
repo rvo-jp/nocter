@@ -505,6 +505,7 @@ impl ProvenanceEnvironment {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::typecheck) struct CallableProvenanceSummary {
     result: Option<ValueProvenance>,
+    mutated_inputs: BTreeMap<InputId, ValueProvenance>,
     needs_current_allocation_context: bool,
 }
 
@@ -515,6 +516,14 @@ impl CallableProvenanceSummary {
 
     pub(in crate::typecheck) fn needs_current_allocation_context(&self) -> bool {
         self.needs_current_allocation_context
+    }
+
+    pub(in crate::typecheck) fn mutated_inputs(
+        &self,
+    ) -> impl Iterator<Item = (InputId, &ValueProvenance)> {
+        self.mutated_inputs
+            .iter()
+            .map(|(input, provenance)| (*input, provenance))
     }
 }
 
@@ -542,6 +551,19 @@ impl CallableProvenanceSummaries {
     pub(in crate::typecheck) fn result(&self, callable: CallableId) -> Option<&ValueProvenance> {
         self.get(callable)
             .and_then(CallableProvenanceSummary::result)
+    }
+
+    pub(in crate::typecheck) fn insert_input_mutation(
+        &mut self,
+        callable: CallableId,
+        input: InputId,
+        provenance: ValueProvenance,
+    ) {
+        self.entries
+            .entry(callable)
+            .or_default()
+            .mutated_inputs
+            .insert(input, provenance);
     }
 
     pub(in crate::typecheck) fn set_needs_current_allocation_context(

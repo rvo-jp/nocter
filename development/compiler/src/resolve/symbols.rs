@@ -449,6 +449,7 @@ pub enum SymbolKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
+    pub result_may_allocate: bool,
     pub generic_parameters: Vec<String>,
     pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
     pub parameters: Vec<ParameterSignature>,
@@ -518,6 +519,7 @@ pub struct LiteralSignature {
     pub capture: Option<LiteralCaptureSignature>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
+    pub result_may_allocate: bool,
     pub result_provenance: Option<ResultProvenanceClause>,
 }
 

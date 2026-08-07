@@ -2,24 +2,19 @@ use super::*;
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
     expression: &Expr,
-    ty: &Type,
+    _ty: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &ProvenanceEnvironment,
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
-    let provenance = borrow_return_provenance_for_expression_unfiltered(
+    borrow_return_provenance_for_expression_unfiltered(
         expression,
         resolved,
         environment,
         borrow_provenance,
         summaries,
-    );
-    if type_may_carry_result_provenance(ty, resolved) {
-        provenance
-    } else {
-        provenance.map(ValueProvenance::without_result_allocation)
-    }
+    )
 }
 
 fn borrow_return_provenance_for_expression_unfiltered(
@@ -106,6 +101,36 @@ fn borrow_return_provenance_for_expression_unfiltered(
             )
         }
         Expr::Unary(_) => Some(ValueProvenance::Independent),
+        Expr::Binary(binary) => {
+            let mut provenance = borrow_return_provenance_for_expression(
+                &binary.left,
+                &expression_type(&binary.left, resolved, environment),
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            merge_provenance(
+                &mut provenance,
+                borrow_return_provenance_for_expression(
+                    &binary.right,
+                    &expression_type(&binary.right, resolved, environment),
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ),
+            );
+            provenance
+        }
+        Expr::TypeConversion(conversion) => borrow_return_provenance_for_expression(
+            &conversion.expression,
+            &expression_type(&conversion.expression, resolved, environment),
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::StructLiteral(literal) => {
             let mut fields = BTreeMap::new();
             for field in &literal.fields {
@@ -398,20 +423,38 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     borrow_provenance: &ProvenanceEnvironment,
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
-    let signature = resolved_call_signature(resolved, call, environment)?;
+    let callable_contract;
+    let signature = if let Some(signature) = resolved_call_signature(resolved, call, environment) {
+        signature
+    } else {
+        callable_contract =
+            crate::typecheck::callables::callable_contract_for_call(call, resolved, environment)?;
+        crate::typecheck::calls::CheckedCallSignature {
+            signature: &callable_contract.signature,
+            self_type: None,
+            impl_target_ty: None,
+            name: callable_contract.callee_type.display(),
+            kind: crate::typecheck::calls::CheckedCallKind::Function,
+            declaration_span: None,
+        }
+    };
     let return_type = call_return_type(call, &signature, resolved, environment);
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
-        return borrow_return_provenance_for_call_summary(
-            summary,
-            call,
+        return apply_declared_result_allocation(
+            borrow_return_provenance_for_call_summary(
+                summary,
+                call,
+                &signature,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            ),
             &signature,
-            resolved,
-            environment,
-            borrow_provenance,
-            summaries,
+            &return_type,
         );
     }
     if let Some(provenance) = trusted_call_result_provenance(
@@ -423,24 +466,32 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         borrow_provenance,
         summaries,
     ) {
-        return Some(provenance);
+        return apply_declared_result_allocation(Some(provenance), &signature, &return_type);
     }
     if let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
-        return borrow_return_provenance_for_call_summary(
-            summary,
-            call,
+        return apply_declared_result_allocation(
+            borrow_return_provenance_for_call_summary(
+                summary,
+                call,
+                &signature,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            ),
             &signature,
-            resolved,
-            environment,
-            borrow_provenance,
-            summaries,
+            &return_type,
         );
     }
 
-    if !type_contains_borrow_like(&return_type, resolved) {
-        return Some(ValueProvenance::Independent);
+    if !type_may_carry_result_provenance(&return_type, resolved) {
+        return apply_declared_result_allocation(
+            Some(ValueProvenance::Independent),
+            &signature,
+            &return_type,
+        );
     }
 
     let mut provenance = None;
@@ -488,7 +539,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         merge_provenance(&mut provenance, argument_provenance);
     }
 
-    match return_type {
+    let provenance = match &return_type {
         Type::Fallible { success, error } => {
             let success_provenance = type_contains_borrow_like(&success, resolved)
                 .then(|| provenance.clone())
@@ -499,6 +550,26 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             fallible_provenance(success_provenance, error_provenance)
         }
         _ => provenance,
+    };
+    apply_declared_result_allocation(provenance, &signature, &return_type)
+}
+
+fn apply_declared_result_allocation(
+    provenance: Option<ValueProvenance>,
+    signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
+    return_type: &Type,
+) -> Option<ValueProvenance> {
+    if signature.signature.result_may_allocate {
+        let provenance = provenance.unwrap_or_else(|| match return_type {
+            Type::Fallible { .. } => ValueProvenance::Fallible {
+                success: None,
+                error: None,
+            },
+            _ => ValueProvenance::Independent,
+        });
+        Some(provenance.returned_allocation())
+    } else {
+        provenance
     }
 }
 

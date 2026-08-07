@@ -147,7 +147,7 @@ struct String {
     bytes: &[u8]
 }
 
-func leak(parent: Arena): String {
+alloc func leak(parent: Arena): String {
     region temp using parent {
         return "value ${42}"
     }
@@ -354,34 +354,34 @@ func main(): i32 {
 fn diagnoses_owned_storage_from_transitive_current_allocation_context() {
     let diagnostics = check_text(
         r#"copy struct Arena {
-    id: usize
+    state: *u8
 }
 
 struct Buffer {
-    id: usize
+    ptr: *u8
 }
 
 struct Text {
     buffer: Buffer
 }
 
-primitive current_allocator_state(): usize
+primitive current_allocator_state(): *u8
 
 func current_allocator(): Arena {
-    return Arena { id: current_allocator_state() }
+    return Arena { state: current_allocator_state() }
 }
 
-func allocate(allocator: &+Arena): Buffer {
-    return Buffer { id: allocator.id }
+alloc func allocate(allocator: &+Arena): Buffer {
+    return Buffer { ptr: allocator.state }
 }
 
-func make_text(): Text {
+alloc func make_text(): Text {
     var allocator = current_allocator()
     var text = Text { buffer: allocate(&+allocator) }
     return move text
 }
 
-func leak(parent: Arena): Text {
+alloc func leak(parent: Arena): Text {
     region temp using parent {
         return make_text()
     }

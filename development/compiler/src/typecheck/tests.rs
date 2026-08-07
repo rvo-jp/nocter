@@ -15,6 +15,7 @@ mod optional;
 mod ownership;
 mod provenance_contracts;
 mod regions;
+mod result_allocation_contracts;
 mod returns;
 mod strings;
 mod structs;

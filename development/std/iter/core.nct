@@ -187,8 +187,8 @@ pub interface Iterator<T> {
         return move accumulator
     }
 
-    /// Consumes the iterator into a Vec in the current allocation context.
-    pub method self.to_vec(): Vec<T> from current {
+    /// Consumes the iterator into a newly allocated Vec.
+    pub alloc method self.to_vec(): Vec<T> {
         var source = move self
         var result: Vec<T> = Vec.empty()
         while true {

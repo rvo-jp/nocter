@@ -71,6 +71,7 @@ fn callable_contract_for_type(
                 })
                 .collect(),
             (*closure.return_type).clone(),
+            false,
             None,
         ),
         Type::Parameter(name) | Type::Named(name) => {
@@ -121,6 +122,7 @@ fn callable_contract_for_type(
                 return_type,
                 parameters,
                 return_type_expr,
+                callable.result_allocation.is_some(),
                 callable.result_provenance.clone(),
             )
         }
@@ -134,6 +136,7 @@ fn callable_contract(
     return_type: Type,
     parameters: Vec<ParameterSignature>,
     return_type_expr: TypeExpr,
+    result_may_allocate: bool,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
 ) -> Option<ResolvedCallableContract> {
     Some(ResolvedCallableContract {
@@ -141,6 +144,7 @@ fn callable_contract(
         callee_type,
         return_type,
         signature: FunctionSignature {
+            result_may_allocate,
             generic_parameters: Vec::new(),
             generic_parameter_bounds: Vec::new(),
             parameters,
