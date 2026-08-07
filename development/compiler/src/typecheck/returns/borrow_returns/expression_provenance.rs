@@ -545,10 +545,10 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
 
     let provenance = match &return_type {
         Type::Fallible { success, error } => {
-            let success_provenance = type_contains_borrow_like(&success, resolved)
+            let success_provenance = type_contains_borrow_like(success, resolved)
                 .then(|| provenance.clone())
                 .flatten();
-            let error_provenance = type_contains_borrow_like(&error, resolved)
+            let error_provenance = type_contains_borrow_like(error, resolved)
                 .then_some(provenance)
                 .flatten();
             fallible_provenance(success_provenance, error_provenance)
@@ -564,7 +564,7 @@ fn apply_declared_result_allocation(
     return_type: &Type,
 ) -> Option<ValueProvenance> {
     if signature.signature.result_may_allocate {
-        let provenance = provenance.unwrap_or_else(|| match return_type {
+        let provenance = provenance.unwrap_or(match return_type {
             Type::Fallible { .. } => ValueProvenance::Fallible {
                 success: None,
                 error: None,

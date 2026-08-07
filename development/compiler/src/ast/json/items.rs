@@ -391,7 +391,7 @@ impl MethodDecl {
 }
 
 impl ResultAllocationModifier {
-    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+    pub(super) fn to_json(self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::new(
             "result_allocation_modifier",
             json_span(sources, self.span),
