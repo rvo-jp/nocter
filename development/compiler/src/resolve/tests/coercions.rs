@@ -59,20 +59,15 @@ coerce Text {
 }
 
 #[test]
-fn requires_exact_self_provenance() {
-    let missing = resolve_text(
+fn accepts_elided_self_provenance_and_rejects_other_origins() {
+    let elided = resolve_text(
         r#"struct Text {}
 coerce Text {
     pub &self as &str { return self.view() }
 }
 "#,
     );
-    assert!(
-        missing
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("must declare `from self`"))
-    );
+    assert!(elided.diagnostics.is_empty(), "{:?}", elided.diagnostics);
 
     let wrong = resolve_text(
         r#"struct Text {}

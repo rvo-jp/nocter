@@ -484,7 +484,7 @@ pub struct CoercionSignature {
     pub is_accessible: bool,
     pub receiver: MethodReceiver,
     pub target: TypeExpr,
-    pub result_provenance: ResultProvenanceClause,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

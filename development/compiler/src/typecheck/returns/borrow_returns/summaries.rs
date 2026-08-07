@@ -197,12 +197,28 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         None,
                         &HashMap::new(),
                     );
-                    if declared.is_none()
-                        && !type_may_retain_fresh_result_storage(&return_type, source.resolved)
-                    {
+                    let elided = declared
+                        .is_none()
+                        .then(|| {
+                            elided_declaration_result_contract(
+                                None,
+                                ResultProvenanceInputs::parameters(
+                                    &primitive.parameters.parameters,
+                                ),
+                                &return_type,
+                                source.resolved,
+                            )
+                            .abstract_summary()
+                        })
+                        .flatten();
+                    let provenance = result_provenance_summary(
+                        declared.or(elided),
+                        &return_type,
+                        source.resolved,
+                    );
+                    let Some(provenance) = provenance else {
                         continue;
-                    }
-                    let provenance = abstract_bodyless_result_provenance(declared);
+                    };
                     let callable = CallableId::declared_at(primitive.name_span);
                     summaries.insert_result(callable, provenance);
                 }
@@ -219,12 +235,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
-                        let inferred = method.body.as_ref().and_then(|body| {
-                            let return_type = type_expr_to_type_in_environment(
-                                &method.return_type,
-                                source.resolved,
-                                &environment,
-                            );
+                        let return_type = type_expr_to_type_in_environment(
+                            &method.return_type,
+                            source.resolved,
+                            &environment,
+                        );
+                        let provenance = if let Some(body) = &method.body {
                             borrow_return_provenance_for_callable_body(
                                 body,
                                 &return_type,
@@ -232,42 +248,34 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 &environment,
                                 previous,
                             )
-                        });
-                        let provenance = match inferred {
-                            Some(inferred) => {
-                                let return_type = type_expr_to_type_in_environment(
-                                    &method.return_type,
-                                    source.resolved,
-                                    &environment,
-                                );
-                                Some(result_with_declared_fallback(
+                            .map(|inferred| {
+                                result_with_declared_fallback(
                                     inferred,
                                     declared,
                                     &return_type,
                                     source.resolved,
-                                ))
-                            }
-                            None => declared,
-                        };
-                        let provenance = if method.body.is_none() {
-                            let return_type = type_expr_to_type_in_environment(
-                                &method.return_type,
-                                source.resolved,
-                                &environment,
-                            );
-                            match provenance {
-                                Some(provenance) => Some(provenance),
-                                None if type_may_retain_fresh_result_storage(
-                                    &return_type,
-                                    source.resolved,
-                                ) =>
-                                {
-                                    Some(abstract_bodyless_result_provenance(None))
-                                }
-                                None => None,
-                            }
+                                )
+                            })
                         } else {
-                            provenance
+                            let elided = declared
+                                .is_none()
+                                .then(|| {
+                                    elided_declaration_result_contract(
+                                        Some(method),
+                                        ResultProvenanceInputs::parameters(
+                                            &method.parameters.parameters,
+                                        ),
+                                        &return_type,
+                                        source.resolved,
+                                    )
+                                    .abstract_summary()
+                                })
+                                .flatten();
+                            result_provenance_summary(
+                                declared.or(elided),
+                                &return_type,
+                                source.resolved,
+                            )
                         };
                         let Some(provenance) = provenance else {
                             continue;
@@ -467,7 +475,7 @@ fn result_with_declared_fallback(
             ValueProvenance::Fallible { success, error },
             Type::Fallible {
                 success: success_type,
-                error: error_type,
+                error: _,
             },
         ) => {
             let success = success.map(|value| {
@@ -484,18 +492,10 @@ fn result_with_declared_fallback(
                     },
                 )
             });
-            let error = error.map(|value| {
-                Box::new(if type_may_carry_result_provenance(error_type, resolved) {
-                    result_with_declared_fallback(
-                        *value,
-                        Some(declared.clone()),
-                        error_type,
-                        resolved,
-                    )
-                } else {
-                    *value
-                })
-            });
+            // `from` constrains only the successful result. Error storage is
+            // tracked for escape safety, but is not part of the surface origin
+            // contract.
+            let error = error.map(|value| Box::new(*value));
             ValueProvenance::Fallible { success, error }
         }
         (inferred, _) => {
@@ -534,13 +534,6 @@ fn has_exact_external_origin(provenance: &ValueProvenance) -> bool {
                 || error.as_deref().is_some_and(has_exact_external_origin)
         }
     }
-}
-
-fn abstract_bodyless_result_provenance(declared: Option<ValueProvenance>) -> ValueProvenance {
-    declared.unwrap_or_else(|| {
-        ValueProvenance::Independent
-            .with_returned_allocation_from(ValueProvenance::current_allocation_context())
-    })
 }
 
 pub(in crate::typecheck) fn function_summary_key(function: &crate::ast::FunctionDecl) -> ByteSpan {

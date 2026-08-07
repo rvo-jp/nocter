@@ -371,6 +371,42 @@ fn check_type_expr(
                         ));
                     }
                 }
+            } else {
+                let parameters = callable
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(index, parameter)| crate::resolve::ParameterSignature {
+                        name: parameter
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| format!("argument{index}")),
+                        name_span: parameter.name_span.unwrap_or(parameter.span),
+                        ty: parameter.ty.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                let return_type = crate::typecheck::type_expr::type_expr_to_type_with_substitutions(
+                    &callable.return_type,
+                    resolved,
+                    None,
+                    &HashMap::new(),
+                );
+                if let crate::typecheck::provenance::ElidedResultContract::Ambiguous {
+                    labels,
+                    ..
+                } = crate::typecheck::provenance::elided_signature_result_contract(
+                    &parameters,
+                    &return_type,
+                    resolved,
+                ) {
+                    diagnostics.push(
+                        crate::typecheck::diagnostics::ambiguous_bodyless_result_contract_diagnostic(
+                            sources,
+                            callable.return_type.span(),
+                            &labels,
+                        ),
+                    );
+                }
             }
         }
         TypeExpr::Closure(closure) => {

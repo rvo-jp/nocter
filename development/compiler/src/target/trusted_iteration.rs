@@ -146,14 +146,14 @@ impl IterationResultContract {
 
 fn result_provenance_matches(method: &crate::ast::MethodDecl, from_receiver: bool) -> bool {
     match (&method.result_provenance, from_receiver) {
-        (None, false) => true,
+        (None, _) => true,
         (Some(clause), true) => {
             matches!(
                 clause.origins.as_slice(),
                 [origin] if origin.kind == ResultProvenanceOriginKind::Receiver
             )
         }
-        (None, true) | (Some(_), false) => false,
+        (Some(_), false) => false,
     }
 }
 
@@ -179,16 +179,16 @@ mod tests {
         let iter = parse_text(
             &mut sources,
             r#"pub interface Iterator<T> {
-    pub method &+self.next(): T? from self
+    pub method &+self.next(): T?
 }
 pub interface ExactSizeIterator<T> {
     pub method &self.remaining_len(): usize
 }
 pub interface Iterable<T, I> {
-    pub method &self.iter(): I from self
+    pub method &self.iter(): I
 }
 pub interface IntoIterator<T, I> {
-    pub method self.into_iter(): I from self
+    pub method self.into_iter(): I
 }
 "#,
         );
@@ -209,7 +209,7 @@ pub interface IntoIterator<T, I> {
         let mut sources = SourceMap::new();
         let iter = parse_text(
             &mut sources,
-            "pub interface Iterator<T> { pub method &self.next(): T? }\n",
+            "pub interface Iterator<T> { pub method self.next(): usize }\n",
         );
         let modules = HashMap::from([("std/iter/core".to_string(), &iter)]);
 

@@ -82,15 +82,54 @@ pub(in crate::typecheck) fn result_contract_violation_diagnostic(
 pub(in crate::typecheck) fn missing_external_result_contract_diagnostic(
     sources: &SourceMap,
     return_span: ByteSpan,
+    candidates: &[String],
 ) -> Diagnostic {
+    let message = if candidates.len() > 1 {
+        "the result retains one of multiple possible caller-managed origins"
+    } else {
+        "the result origin cannot be safely elided"
+    };
     let mut diagnostic = Diagnostic::error(
         "E0444",
-        "a public callable returning caller-managed storage needs an explicit result provenance contract",
+        message,
     );
     diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "add a `from` clause naming every receiver or parameter origin retained by the result"
-            .to_string(),
+    diagnostic.notes.push(DiagnosticNote {
+        message: match candidates {
+            [] => "no caller-managed input origin is inferable".to_string(),
+            [candidate] => format!("the only inferred origin is {candidate}"),
+            _ => format!("eligible origins are {}", candidates.join(", ")),
+        },
+        span: None,
+    });
+    diagnostic.help = Some(if candidates.is_empty() {
+        "return only fresh, static, or otherwise storage-independent data".to_string()
+    } else {
+        format!(
+            "add `from {}` with only the origins that the result may retain",
+            candidates.join(" | ")
+        )
+    });
+    diagnostic
+}
+
+pub(in crate::typecheck) fn ambiguous_bodyless_result_contract_diagnostic(
+    sources: &SourceMap,
+    return_span: ByteSpan,
+    candidates: &[String],
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0446",
+        "a bodyless result origin cannot be inferred from multiple inputs",
     );
+    diagnostic.primary_span = sources.span_to_json(return_span).ok().map(Box::new);
+    diagnostic.notes.push(DiagnosticNote {
+        message: format!("eligible origins are {}", candidates.join(", ")),
+        span: None,
+    });
+    diagnostic.help = Some(format!(
+        "add `from {}` and remove origins that the implementation cannot retain",
+        candidates.join(" | ")
+    ));
     diagnostic
 }

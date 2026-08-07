@@ -169,14 +169,9 @@ fn validate_entry(entry: &CoercionEntry) -> Result<(), (String, ByteSpan)> {
             entry.target.span(),
         ));
     }
-    let Some(provenance) = &entry.result_provenance else {
-        return Err((
-            "borrow coercions must declare `from self`".to_string(),
-            entry.target.span(),
-        ));
-    };
-    if provenance.origins.len() != 1
-        || provenance.origins[0].kind != ResultProvenanceOriginKind::Receiver
+    if let Some(provenance) = &entry.result_provenance
+        && (provenance.origins.len() != 1
+            || provenance.origins[0].kind != ResultProvenanceOriginKind::Receiver)
     {
         return Err((
             "borrow coercion result provenance must be exactly `from self`".to_string(),
@@ -214,10 +209,7 @@ fn coercion_signature(entry: &CoercionEntry) -> CoercionSignature {
         is_accessible: true,
         receiver: entry.receiver.clone(),
         target: entry.target.clone(),
-        result_provenance: entry
-            .result_provenance
-            .clone()
-            .expect("validated coercion has `from self`"),
+        result_provenance: entry.result_provenance.clone(),
     }
 }
 

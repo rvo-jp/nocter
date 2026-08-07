@@ -1,6 +1,7 @@
 use super::diagnostics::{
-    independent_result_contract_diagnostic, invalid_provenance_origin_diagnostic,
-    missing_external_result_contract_diagnostic, result_contract_violation_diagnostic,
+    ambiguous_bodyless_result_contract_diagnostic, independent_result_contract_diagnostic,
+    invalid_provenance_origin_diagnostic, missing_external_result_contract_diagnostic,
+    result_contract_violation_diagnostic,
 };
 use super::environments::{
     environment_for_function, environment_for_interface_method, environment_for_literal,
@@ -8,8 +9,9 @@ use super::environments::{
 };
 use super::model::TypeEnvironment;
 use super::provenance::{
-    CallableProvenanceSummaries, InputId, ResultProvenanceInputs, ValueProvenance,
-    provenance_satisfies_contract, result_provenance_contract, type_may_carry_result_provenance,
+    CallableProvenanceSummaries, ElidedResultContract, InputId, ResultProvenanceInputs,
+    ValueProvenance, elided_declaration_result_contract, provenance_satisfies_contract,
+    result_provenance_contract, type_may_carry_result_provenance,
 };
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
@@ -103,6 +105,17 @@ pub(super) fn check_result_provenance_contracts(
                             },
                             resolved,
                             summaries,
+                            diagnostics,
+                        );
+                    } else if method.result_provenance.is_none() {
+                        check_bodyless_elision(
+                            sources,
+                            method.return_type.span(),
+                            Some(method),
+                            ResultProvenanceInputs::parameters(&method.parameters.parameters),
+                            &method.return_type,
+                            Some(&environment),
+                            resolved,
                             diagnostics,
                         );
                     }
@@ -273,6 +286,8 @@ fn check_body_result_contract(
             sources,
             subject.declaration_span,
             subject.body,
+            subject.method,
+            subject.contract_inputs,
             subject.parameters,
             subject.return_type,
             resolved,
@@ -355,6 +370,8 @@ fn check_public_body_without_contract(
     sources: &SourceMap,
     declaration_span: crate::source::ByteSpan,
     body: &crate::ast::Block,
+    method: Option<&MethodDecl>,
+    inputs: ResultProvenanceInputs<'_>,
     parameters: &[Parameter],
     return_type: &TypeExpr,
     resolved: &ResolveOutput,
@@ -377,13 +394,49 @@ fn check_public_body_without_contract(
                     summaries,
                 )
             });
-    let no_external_origins = ValueProvenance::Independent;
+    let elided = elided_declaration_result_contract(method, inputs, &return_type_value, resolved);
+    let allowed = elided
+        .allowed_contract()
+        .cloned()
+        .unwrap_or(ValueProvenance::Independent);
     if actual.as_ref().is_some_and(|actual| {
-        !provenance_satisfies_contract(actual, &no_external_origins, &return_type_value, resolved)
+        !provenance_satisfies_contract(actual, &allowed, &return_type_value, resolved)
     }) {
+        let candidates = match &elided {
+            ElidedResultContract::Ambiguous { labels, .. } => labels.clone(),
+            ElidedResultContract::Unique { label, .. } => vec![label.clone()],
+            ElidedResultContract::Independent => Vec::new(),
+        };
         diagnostics.push(missing_external_result_contract_diagnostic(
             sources,
             return_type.span(),
+            &candidates,
+        ));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_bodyless_elision(
+    sources: &SourceMap,
+    return_span: crate::source::ByteSpan,
+    method: Option<&MethodDecl>,
+    inputs: ResultProvenanceInputs<'_>,
+    return_type: &TypeExpr,
+    environment: Option<&TypeEnvironment>,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let return_type = environment.map_or_else(
+        || type_expr_to_type_in_environment(return_type, resolved, &TypeEnvironment::default()),
+        |environment| type_expr_to_type_in_environment(return_type, resolved, environment),
+    );
+    if let ElidedResultContract::Ambiguous { labels, .. } =
+        elided_declaration_result_contract(method, inputs, &return_type, resolved)
+    {
+        diagnostics.push(ambiguous_bodyless_result_contract_diagnostic(
+            sources,
+            return_span,
+            &labels,
         ));
     }
 }

@@ -67,7 +67,7 @@ func main(): i32 {
 }
 
 #[test]
-fn bodyless_interface_without_from_declares_no_external_origin() {
+fn diagnoses_ambiguous_bodyless_interface_without_from() {
     let diagnostics = check_text(
         r#"interface Choose {
     pub method &self.choose(other: &Self): &Self
@@ -79,7 +79,12 @@ func main(): i32 {
 "#,
     );
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0446"),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -113,9 +118,21 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_elided_public_body_external_result_origin() {
+fn accepts_elided_public_body_with_one_result_origin() {
     let diagnostics = check_text(
         r#"pub func view(value: &i32): &i32 { return value }
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_elided_public_body_with_multiple_possible_origins() {
+    let diagnostics = check_text(
+        r#"pub func choose(left: &i32, right: &i32): &i32 { return left }
 
 func main(): i32 { return 0 }
 "#,
@@ -124,7 +141,8 @@ func main(): i32 { return 0 }
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "E0444")
+            .any(|diagnostic| diagnostic.code == "E0444"),
+        "{diagnostics:?}"
     );
 }
 
@@ -141,7 +159,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_public_inherent_method_without_external_result_contract() {
+fn accepts_public_inherent_method_with_elided_receiver_origin() {
     let diagnostics = check_text(
         r#"struct Holder { value: &i32 }
 
@@ -153,12 +171,7 @@ func main(): i32 { return 0 }
 "#,
     );
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0444"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -178,7 +191,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_public_literal_without_external_result_contract() {
+fn accepts_public_literal_with_one_elided_parameter_origin() {
     let diagnostics = check_text(
         r#"struct Text { value: &str }
 
@@ -192,12 +205,7 @@ func main(): i32 { return 0 }
 "#,
     );
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0444"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -223,7 +231,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_sequence_literal_that_hides_its_element_pack_origin() {
+fn accepts_sequence_literal_with_elided_element_pack_origin() {
     let diagnostics = check_text(
         r#"struct Holder<T> { value: T }
 primitive stop(): never
@@ -241,12 +249,44 @@ func main(): i32 { return 0 }
 "#,
     );
 
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_ambiguous_callable_type_without_from() {
+    let diagnostics = check_text(
+        r#"func apply(
+    callback: &func(left: &i32, right: &i32): &i32,
+    left: &i32,
+    right: &i32,
+): &i32 from left | right {
+    return callback(left, right)
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "E0444"),
+            .any(|diagnostic| diagnostic.code == "E0446"),
         "{diagnostics:?}"
     );
+}
+
+#[test]
+fn accepts_callable_type_with_one_elided_origin() {
+    let diagnostics = check_text(
+        r#"func apply<F: &func(value: &i32): &i32>(callback: F, value: &i32): &i32 from value {
+    return callback(value)
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

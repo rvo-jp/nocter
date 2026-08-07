@@ -38,6 +38,7 @@ pub(crate) enum TrustedDeclarationRole {
     RegionRelease,
     AllocationAbort,
     IndependentFallibleError,
+    StaticResult,
     OwnedValueTransfer {
         source: usize,
     },

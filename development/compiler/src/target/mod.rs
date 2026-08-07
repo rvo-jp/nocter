@@ -6,6 +6,7 @@ pub(crate) mod trusted_interpolation;
 mod trusted_io;
 pub(crate) mod trusted_iteration;
 mod trusted_pointer;
+mod trusted_process;
 
 pub const HOST: &str = "arm64-darwin";
 pub const DEFAULT_TARGET: &str = HOST;

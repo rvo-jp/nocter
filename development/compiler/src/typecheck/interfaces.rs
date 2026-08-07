@@ -335,19 +335,62 @@ enum ProvenanceSlot {
 pub(super) fn result_provenance_contract_is_compatible(
     required: &MethodSignature,
     actual: &MethodSignature,
+    required_shape: &MethodShape,
+    resolved: &ResolveOutput,
 ) -> bool {
     let required_slots = required
         .signature
         .result_provenance
         .as_ref()
         .map(|clause| provenance_slots(required, clause))
-        .unwrap_or_default();
+        .unwrap_or_else(|| elided_provenance_slots(required, required_shape, resolved));
     let Some(actual_clause) = &actual.signature.result_provenance else {
         return true;
     };
     provenance_slots(actual, actual_clause)
         .into_iter()
         .all(|slot| slot == ProvenanceSlot::Static || required_slots.contains(&slot))
+}
+
+fn elided_provenance_slots(
+    method: &MethodSignature,
+    shape: &MethodShape,
+    resolved: &ResolveOutput,
+) -> Vec<ProvenanceSlot> {
+    let receiver = super::provenance::InputId::declared_at(method.receiver.name_span);
+    let inputs = std::iter::once(("self".to_string(), receiver, shape.receiver.clone())).chain(
+        method
+            .signature
+            .parameters
+            .iter()
+            .zip(&shape.parameters)
+            .map(|(parameter, ty)| {
+                (
+                    parameter.name.clone(),
+                    super::provenance::InputId::declared_at(parameter.name_span),
+                    ty.clone(),
+                )
+            }),
+    );
+    let Some(unique) =
+        super::provenance::elided_typed_result_contract(inputs, &shape.return_type, resolved)
+            .unique_input()
+    else {
+        return Vec::new();
+    };
+    if unique == receiver {
+        return vec![ProvenanceSlot::Receiver];
+    }
+    method
+        .signature
+        .parameters
+        .iter()
+        .position(|parameter| {
+            super::provenance::InputId::declared_at(parameter.name_span) == unique
+        })
+        .map(ProvenanceSlot::Parameter)
+        .into_iter()
+        .collect()
 }
 
 fn provenance_slots(

@@ -320,7 +320,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_interface_implementation_origin_absent_from_required_contract() {
+fn accepts_explicit_implementation_of_elided_interface_origin() {
     let diagnostics = check_text(
         r#"interface Source {
     pub method &self.get(): &i32
@@ -338,16 +338,11 @@ func main(): i32 { return 0 }
 "#,
     );
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0426"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn diagnoses_interface_implementation_body_that_hides_external_origin() {
+fn accepts_elided_interface_origin_in_implementation_body() {
     let diagnostics = check_text(
         r#"interface Source {
     pub method &self.get(): &i32
@@ -358,6 +353,28 @@ struct Holder { value: &i32 }
 impl Source for Holder {
     method &self.get(): &i32 {
         return self.value
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_elided_implementation_that_selects_an_ambiguous_origin() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub method &self.get(other: &Self): &Self from self
+}
+
+struct Holder { value: &i32 }
+
+impl Source for Holder {
+    method &self.get(other: &Self): &Self {
+        return other
     }
 }
 

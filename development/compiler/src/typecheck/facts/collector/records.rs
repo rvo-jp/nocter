@@ -67,6 +67,7 @@ impl TypecheckFactCollector<'_> {
                     self_ty,
                     target_ty: target_ty.clone(),
                     substitutions,
+                    has_explicit_result_provenance: coercion.has_explicit_result_provenance,
                     free_type_parameters: free_type_parameters.clone(),
                 })
             }

@@ -454,6 +454,45 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     ) {
         return Some(provenance);
     }
+    if signature.declaration_span.is_none() {
+        let explicit_contract = signature
+            .signature
+            .result_provenance
+            .as_ref()
+            .and_then(|clause| {
+                crate::typecheck::provenance::result_provenance_contract_for_signature(
+                    clause,
+                    &signature.signature.parameters,
+                )
+            });
+        let elided_contract = explicit_contract
+            .is_none()
+            .then(|| {
+                crate::typecheck::provenance::elided_signature_result_contract(
+                    &signature.signature.parameters,
+                    &return_type,
+                    resolved,
+                )
+                .abstract_summary()
+            })
+            .flatten();
+        let abstract_summary = crate::typecheck::provenance::result_provenance_summary(
+            explicit_contract.or(elided_contract),
+            &return_type,
+            resolved,
+        );
+        if let Some(summary) = abstract_summary {
+            return borrow_return_provenance_for_call_summary(
+                &summary,
+                call,
+                &signature,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+        }
+    }
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
@@ -633,6 +672,7 @@ fn trusted_call_result_provenance(
             )?
             .without_input_container_scopes()
         }
+        crate::semantics::TrustedDeclarationRole::StaticResult => ValueProvenance::static_storage(),
         crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
         | crate::semantics::TrustedDeclarationRole::AllocationMutation { .. }
         | crate::semantics::TrustedDeclarationRole::RegionEnter

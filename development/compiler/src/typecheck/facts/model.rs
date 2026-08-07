@@ -561,6 +561,7 @@ pub(crate) struct TypecheckCoercionPlan {
     pub(crate) self_ty: TypeExpr,
     pub(crate) target_ty: TypeExpr,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
+    pub(crate) has_explicit_result_provenance: bool,
     pub(super) free_type_parameters: HashSet<String>,
 }
 
@@ -646,6 +647,7 @@ impl TypecheckCoercionPlan {
             self_ty,
             target_ty,
             substitutions,
+            has_explicit_result_provenance: self.has_explicit_result_provenance,
             free_type_parameters: HashSet::new(),
         })
     }

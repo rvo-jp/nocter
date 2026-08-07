@@ -13,8 +13,13 @@ pub(crate) fn coercion_surface_markdown(
         .iter()
         .filter(|coercion| coercion.is_accessible)
         .map(|coercion| {
+            let provenance = coercion
+                .result_provenance
+                .is_some()
+                .then_some(" from self")
+                .unwrap_or_default();
             format!(
-                "- `{}{} as {} from self`",
+                "- `{}{} as {}{provenance}`",
                 coercion.receiver.mode.source_prefix(),
                 owner_label,
                 crate::typecheck::type_expr_presentation_label(&coercion.target, resolved),

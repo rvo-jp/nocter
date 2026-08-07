@@ -20,6 +20,7 @@ pub(super) struct SelectedCoercion {
     pub(super) source_type: Type,
     pub(super) target_type: Type,
     pub(super) substitutions: HashMap<String, Type>,
+    pub(super) has_explicit_result_provenance: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,6 +143,7 @@ fn selected_candidate(
         source_type: source_type.clone(),
         target_type,
         substitutions: substitutions.clone(),
+        has_explicit_result_provenance: coercion.result_provenance.is_some(),
     })
 }
 

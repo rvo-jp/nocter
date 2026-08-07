@@ -75,6 +75,36 @@ coerce Text {
 }
 
 #[test]
+fn coercion_hover_preserves_an_elided_result_origin() {
+    let text = r#"pub struct Text { value: &str }
+coerce Text {
+    pub &self as &str { return self.value }
+}
+func project(value: &Text): &str { return value as &str }
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let type_offset = text.find("struct Text").unwrap() + "struct ".len();
+    let type_hover = hover_for_file_analysis(&sources, &analysis, file, type_offset)
+        .expect("expected type hover");
+    let type_documentation = type_hover
+        .documentation
+        .expect("expected type documentation");
+    assert!(type_documentation.contains("`&Text as &str`"));
+    assert!(!type_documentation.contains("from self"));
+
+    let conversion_offset = text.rfind("as &str").expect("expected expression as");
+    let conversion_hover = hover_for_file_analysis(&sources, &analysis, file, conversion_offset)
+        .expect("expected conversion hover");
+    let conversion_documentation = conversion_hover
+        .documentation
+        .expect("expected conversion documentation");
+    assert!(conversion_documentation.contains("Selected `&Text as &str`"));
+    assert!(!conversion_documentation.contains("from self"));
+}
+
+#[test]
 fn explicit_coercion_hover_uses_the_exact_as_operator_and_selected_plan() {
     let text = r#"struct Text { value: &str }
 coerce Text { pub &self as &str from self { return self.value } }
@@ -353,7 +383,8 @@ fn workspace_hover_uses_typecheck_facts_for_namespace_imported_function_member_c
 #[test]
 fn workspace_hover_presents_imported_generic_call_specialization() {
     let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.identity(42)\n}\n";
-    let module_text = "/// Returns its input.\npub func identity<T>(value: T): T from value {\n    return value\n}\n";
+    let module_text =
+        "/// Returns its input.\npub func identity<T>(value: T): T {\n    return value\n}\n";
     let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
     let file = analysis.root_file().expect("expected root file");
     let offset = root_text
@@ -363,10 +394,7 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(
-        hover.label,
-        "func identity<i32>(value: i32): i32 from value"
-    );
+    assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
     assert_eq!(hover.documentation.as_deref(), Some("Returns its input."));
 }
 
