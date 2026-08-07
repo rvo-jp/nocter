@@ -323,6 +323,63 @@ func use_buffer(): usize! {
 }
 
 #[test]
+fn allocation_contract_projects_through_optional_and_fallible_success() {
+    let optional = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+pub(nocter) alloc primitive allocate(): Buffer
+func make(): Buffer? {
+    return allocate()
+}
+"#,
+    );
+    assert!(
+        optional.iter().any(|diagnostic| diagnostic.code == "E0462"),
+        "{optional:?}"
+    );
+
+    let fallible = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+pub(nocter) alloc primitive allocate(): Buffer
+func make(): Buffer! {
+    return allocate()
+}
+"#,
+    );
+    assert!(
+        fallible.iter().any(|diagnostic| diagnostic.code == "E0462"),
+        "{fallible:?}"
+    );
+}
+
+#[test]
+fn allocation_mutated_through_a_field_is_retained_by_the_owner() {
+    let diagnostics = check_text_with_trusted_allocation(
+        r#"struct Buffer { pointer: *u8 }
+struct Holder { buffer: Buffer }
+pub(nocter) alloc primitive allocate(): Buffer
+primitive empty_pointer(): *u8
+func grow(buffer: &+Buffer): void {
+    let replacement = allocate()
+    buffer.pointer = replacement.pointer
+    return
+}
+func make(): Holder {
+    var result = Holder { buffer: Buffer { pointer: empty_pointer() } }
+    grow(&+result.buffer)
+    return move result
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0462"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn propagates_retained_mutations_through_methods_wrappers_and_loops() {
     let diagnostics = check_text_with_trusted_allocation(
         r#"struct Buffer<T> { pointer: *T }
