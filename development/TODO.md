@@ -2,11 +2,24 @@
 
 ## Current Task
 
-Implement v0.9.0 Phase 1: Result Origin Elision. Add one shared semantic classifier, migrate every
-compiler and editor consumer, remove redundant standard-library clauses, and stop after the full
-acceptance gate and completion record pass.
+No development phase is active. v0.9.0 Phases 0 and 1 are complete; preserve this verified
+checkpoint until a subsequent phase is explicitly planned.
 
 ## Completed Checkpoint
+
+- v0.9.0 Phase 1 makes omitted result origins declaration-stable through one resolved
+  zero/one/ambiguous classifier shared by validation, summaries, calls, interface conformance,
+  coercions, diagnostics, and editor analysis
+- AST, JSON, formatter, hover, completion, signature help, and inlay hints preserve authored
+  `from` syntax only; the standard library retains clauses only for genuinely ambiguous inputs
+- body summaries remain exact for ordinary callables and fresh owned copies, while the typed
+  sequence-literal boundary preserves borrowed element origins from an omitted unique pack
+- fallible success origins, trusted static results, callable values, generics, aggregates,
+  callbacks, iterators, allocators, imports, and interface implementations share the same elision
+  semantics and region-escape checks
+- the final verification passed all 3,359 tests, formatting, warnings-denied Clippy, documentation
+  tests, generated documentation, public examples, source corpus, and the distributed installed-home
+  suite
 
 - source-level result allocation modifiers and callable allocation variance were removed
 - `from` is the sole public result-storage relationship and names only caller-managed external
@@ -88,6 +101,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 1 is fully verified and its
-completion record is committed. Do not start borrowed text views, bump the release version, prepare
-an archive, tag, push, or publish v0.9.0.
+Stop at the completed v0.9.0 Phase 1 boundary. A subsequent phase requires an explicit plan and
+acceptance gate. Do not start borrowed text views, bump the release version, prepare an archive,
+tag, push, or publish v0.9.0 without that direction.

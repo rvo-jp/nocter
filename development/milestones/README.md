@@ -4,9 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The current milestone record is [v0.9.0](v0.9.0.md). Phase 0 completed portable whole-stream I/O.
-Phase 1 is implementing declaration-stable result-origin elision so source writes `from` only when
-multiple caller-managed origins must remain visible. The published baseline remains v0.8.0.
+The current milestone record is [v0.9.0](v0.9.0.md). Phase 0 completed portable whole-stream I/O,
+and Phase 1 completed declaration-stable result-origin elision so source writes `from` only when
+multiple caller-managed origins must remain visible. No phase is active. The published baseline
+remains v0.8.0.
 
 [v0.8.0](v0.8.0.md) is complete and historical. Its qualified archive was published and audited on
 2026-08-08.
