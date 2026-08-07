@@ -138,8 +138,9 @@ Conformance rules are:
 - receiver capability, generic parameters, parameter and result types, outcome layers, allocation
   effect, and result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
-- a result provenance implementation may promise a narrower, longer-lived origin set but cannot
-  omit a relationship required by the interface
+- a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
+  storage-independent result may omit an interface origin that cannot apply to that result, while
+  a storage-carrying result cannot introduce an undeclared origin
 - matching members without an explicit conformance declaration do not conform
 
 Generic conformance parameters may carry bounds. A conditional conformance exists for a concrete
@@ -147,7 +148,7 @@ target only when every specialized bound is satisfied:
 
 ```nct
 impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    method &+self.next(): T? {
+    alloc method &+self.next(): T? from self {
         if self.remaining == 0 {
             return none
         }

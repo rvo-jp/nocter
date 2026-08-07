@@ -332,7 +332,7 @@ pub struct ViewIter<T> {
 }
 
 impl<T> ViewIter<T> {
-    pub method &+self.next(): &T?
+    pub method &+self.next(): &T? from self
 }
 ```
 

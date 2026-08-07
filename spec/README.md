@@ -46,8 +46,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the qualified v0.5.0 candidate. The latest published release is
-v0.4.0. The [release index](../releases/README.md) owns publication and download status; repository
+This working tree specifies the qualified v0.6.0 candidate. The latest published release is
+v0.5.0. The [release index](../releases/README.md) owns publication and download status; repository
 tags preserve the exact specification for older releases.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or

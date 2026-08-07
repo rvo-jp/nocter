@@ -19,7 +19,7 @@ An interface may mix required and default methods:
 
 ```nct
 pub interface Iterator<T> {
-    pub method &+self.next(): T?
+    pub alloc method &+self.next(): T? from self
 
     pub method self.count(): usize {
         var source = move self
@@ -39,7 +39,7 @@ the interface's required methods, other unambiguous default methods, and ordinar
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> {
+pub method self.map<U, F: alloc &+func(T): U>(transform: F): MapIter<T, U, Self, F> {
     return MapIter<T, U, Self, F> {
         source: move self,
         transform: move transform,
@@ -166,8 +166,18 @@ let output = values
 ```
 
 The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
-`fold`, `find`, `any`, `all`, and `to_vec`. Adapters are lazy and allocation-free. `to_vec` is an
-explicit consuming allocation in the current allocation context.
+`fold`, `find`, `any`, `all`, and `to_vec`. Constructing an adapter is lazy and allocation-free.
+Advancing an adapter may return storage allocated by its source or callback, so the generic
+`Iterator<T>.next` contract is an `alloc` upper bound and retains `from self`. A concrete iterator
+implementation may provide the narrower non-`alloc` result contract permitted by interface
+variance.
+
+`map` accepts an `alloc &+func(T): U` upper bound. This accepts both allocating and non-allocating
+closures while preventing an allocating closure from crossing an unrelated non-`alloc` callable
+boundary. Terminal operations that can return yielded or callback-produced storage propagate that
+upper bound; scalar-only operations such as `count`, `any`, and `all` do not. `to_vec` performs an
+explicit consuming allocation in the current allocation context and retains element provenance
+from its source.
 
 `map` preserves exact size when the mapped source is exact. `filter` does not, because its
 predicate determines how many elements remain. Callback evaluation occurs once per visited item

@@ -284,7 +284,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/milestones/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -368,7 +368,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -392,7 +392,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/ops/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -404,7 +404,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/sources/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -470,7 +470,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/vec_into_iter/</loc>
-    <lastmod>2026-08-05</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -584,13 +584,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/07-strings-arrays-views-pointers/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/08-generics-interfaces-embedding-methods/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -680,7 +680,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

@@ -2,9 +2,8 @@
 
 ## Current Task
 
-v0.6.0 Phase 2 is active. Stabilize the completed result-allocation contract across recursive
-analysis, substitution boundaries, diagnostics, editor presentation, the distributed standard
-library, and packaged execution without adding source syntax.
+v0.6.0 Phase 2 is complete. The candidate is qualified locally; publication requires a separate
+explicit user authorization.
 
 ## Completed Checkpoint
 
@@ -53,11 +52,17 @@ library, and packaged execution without adding source syntax.
 - neutral empty buffers select an allocation domain only on first growth; return checking and
   summary inference share the same mutation effects
 - the v0.6.0 Phase 1 completion record is owned by `milestones/v0.6.0.md`
+- recursive allocation summaries start from body evidence rather than written contracts
+- E0462 retains a deterministic returned-expression witness while edits remain declaration-owned
+- closure callable bounds enforce allocation variance across methods and imported modules
+- every distributed standard-library module participates in one automated contract audit
+- generic type parameters retain storage capability, protocol `for` bindings instantiate resolved
+  conversion and step provenance, and ownership-transfer primitives preserve element origins
+- the exact v0.6.0 candidate archive and Phase 2 verification record are owned by
+  `milestones/v0.6.0.md`
 
 ## Next Work
 
-Execute the ordered Phase 2 audit in [the active milestone](milestones/v0.6.0.md). Begin with focused
-tests for recursion, outcome branches, retained mutations, callable variance, and interface
-boundaries, then preserve a concrete returned-expression witness for E0462. Keep v0.5.0 behavior
-and qualification frozen under `development/releases/`; do not append new design work to that
-release record.
+Do not publish, tag, or rewrite the v0.5.0 release records without explicit authorization. The next
+development milestone should be planned independently after publication status is decided; do not
+reopen the completed v0.6.0 contract boundary for unrelated syntax or execution effects.

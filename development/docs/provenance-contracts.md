@@ -52,12 +52,19 @@ participate in loan checking.
 - `typecheck/provenance/contracts` converts eligible declarations into semantic storage origins.
 - `typecheck/provenance/result_allocation` owns newly allocated result projections independently
   from external origins and the execution allocation requirement.
+- `typecheck/provenance/storage_capability` treats an unresolved type parameter as a storage
+  capability boundary; only a concrete scalar substitution proves storage independence.
+- `typecheck/provenance/container_transfer` removes the lexical scope of a transferred container
+  without removing region or scope origins carried by the transferred element.
 - `typecheck/provenance/storage_projection` projects lossless aggregate dataflow onto
   storage-bearing fields and outcome branches when validating public `from` and `alloc` contracts.
 - `typecheck/returns/borrow_returns/mutation_effects` preserves allocation retained through
   readwrite inputs, including allocator-origin inheritance and neutral-storage fallback.
 - return checking and summary inference consume the same retained-input mutation effects, so a
   mutation performed before `return` cannot disappear from region escape validation.
+- `typecheck/returns/borrow_returns/collection_iteration_provenance` instantiates the resolved
+  conversion and step summaries for protocol `for`; loop bindings are not synthetic independent
+  locals.
 - `resolve/signatures` and `resolve/imports/qualification` preserve bound and conformance identities
   across module boundaries.
 - `typecheck/interface_bounds` owns generic-receiver lookup and conformance substitution.
@@ -65,6 +72,9 @@ participate in loan checking.
   redirects reachable concrete calls to conformance implementation members.
 - `analysis/presentation` renders only declared source contracts; protocol code converts source
   ranges, Markdown, and edits without reconstructing semantic prose.
+- `target/trusted_iteration` validates the complete iterator method result contract, and
+  `target/trusted_pointer` attaches ownership-transfer behavior only to an exact compiler-owned
+  primitive shape.
 
 Contract validation is covariant in safety: an implementation may return storage that outlives the
 declared source, but never storage that may die earlier or comes from an undeclared peer source.
@@ -95,6 +105,13 @@ exactly after result summaries converge; trusted bodyless allocation operations 
 their compiler metadata. Interface declarations and structural callable types use `alloc` as an
 upper bound.
 
+Generic result types remain storage-capable until specialization proves otherwise. This prevents
+`T = String`, `T = &U`, optional results, aggregate fields containing `T`, and protocol-yielded
+values from losing allocation or external provenance. Iterator construction is allocation-free,
+but `Iterator<T>.next` is an `alloc ... from self` upper bound because a source or stored callback
+may produce allocated storage. Scalar terminal results discard that possibility through the
+semantic return type.
+
 `from X` remains a separate external-origin contract. A named allocator is eligible because its
 capability carries storage provenance. The ambient allocation context remains an internal origin;
 source `from current` is rejected. Result-independent temporary allocation and the need to pass a
@@ -105,4 +122,7 @@ hidden current context remain inferred implementation facts and are not presente
 v0.3.0 Phase 4 established identity-resolved `from` contracts and generic-interface substitution.
 v0.6.0 Phase 1 extends that foundation with result allocation, type-directed public-contract
 projection, allocator-backed mutation provenance, canonical editor presentation, and shared source
-edits. Historical release qualification remains in the versioned release records.
+edits. v0.6.0 Phase 2 adds recursive bottom-seeded summaries, returned-expression evidence,
+closure-bound variance, conservative generic storage capabilities, protocol-loop provenance, and
+identity-validated container ownership transfer. Historical release qualification remains in the
+versioned release records.
