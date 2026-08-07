@@ -19,27 +19,22 @@ impl TypecheckFactCollector<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
-        if !expression_propagates_expected_type(expression) {
-            if let Ok(selected) = crate::typecheck::conversions::select_expression_conversion(
+        if !expression_propagates_expected_type(expression)
+            && let Ok(selected) = crate::typecheck::conversions::select_expression_conversion(
                 crate::typecheck::conversions::ConversionMode::Contextual,
                 expected,
                 expression,
                 self.resolved,
                 environment,
-            ) {
-                let selected_boundary = !matches!(
-                    selected.kind,
-                    crate::typecheck::conversions::SelectedConversionKind::Exact
-                );
-                if selected_boundary {
-                    self.record_conversion_plan(
-                        expression.span(),
-                        expression.span(),
-                        None,
-                        selected,
-                    );
-                    return;
-                }
+            )
+        {
+            let selected_boundary = !matches!(
+                selected.kind,
+                crate::typecheck::conversions::SelectedConversionKind::Exact
+            );
+            if selected_boundary {
+                self.record_conversion_plan(expression.span(), expression.span(), None, selected);
+                return;
             }
         }
         match expression {
