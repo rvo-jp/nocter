@@ -5,9 +5,10 @@ state. Public language behavior belongs in `spec/`; compiler architecture belong
 `development/docs/`.
 
 The current milestone record is [v0.9.0](v0.9.0.md). Phase 0 completed portable whole-stream I/O,
-and Phase 1 completed declaration-stable result-origin elision. Phase 2 is implementing safe
-allocation-free borrowed text ranges, split iteration, and line iteration. The published baseline
-remains v0.8.0.
+Phase 1 completed declaration-stable result-origin elision, and Phase 2 completed safe
+allocation-free borrowed text ranges, split iteration, and line iteration. The feature milestone
+is complete and inactive; release stabilization and qualification require a separate plan. The
+published baseline remains v0.8.0.
 
 [v0.8.0](v0.8.0.md) is complete and historical. Its qualified archive was published and audited on
 2026-08-08.

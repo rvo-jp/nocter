@@ -266,7 +266,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/region-provenance/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -278,7 +278,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/standard-library/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -499,8 +499,20 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/string_search/</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/string_views/</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/string/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -644,7 +656,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/07-strings-arrays-views-pointers/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -728,7 +740,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/21-practical-standard-library/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

@@ -12,6 +12,8 @@ defined by the responsibility-specific chapters indexed by
 |---|---|
 | allocation layout, raw storage, allocator policy | `std/mem` |
 | owned UTF-8 storage | `std/string` |
+| shared UTF-8 byte search | `std/string_search` |
+| validated borrowed text ranges and cursors | `std/string_views` |
 | generic initialized-prefix storage | `std/vec` |
 | iterator protocols and stateless operations | `std/iter/core`, `std/iter/ops` |
 | stateful iterator adapters | focused modules under `std/iter/` |
@@ -49,6 +51,30 @@ publishes a sparse vector state.
 
 `String` applies the same storage rules to UTF-8 bytes. Encoding validation belongs to source
 operations before publication; buffer machinery does not acquire text semantics.
+
+## Borrowed Text Views
+
+`std/string_views` owns UTF-8 boundary validation, borrowed range operations, and the `SplitIter`
+and `LinesIter` state machines. `std/string` re-exports their public declarations as the stable
+facade. Shared byte search lives in `std/string_search`; owned and borrowed algorithms do not carry
+divergent copies of the same loop.
+
+Ordinary source validates every public range before calling
+`std/string_views.str_subview_unchecked`. That declaration is a closed `pub(nocter)` primitive and
+has one compiler-owned `BorrowedProjection { source: 0 }` role. The role is attached only when the
+owning module, visibility, declaration kind, generic arity, parameter names and types, return type,
+target, and `from text` clause match exactly. Typecheck instantiates the source argument's resolved
+provenance; it never derives an origin from pointer arithmetic or a helper name.
+
+IR carries `SetStrSubview { source, start, len }` as a typed operation. The backend adds the already
+validated byte offset to the source pointer and preserves the requested length. It does not expose
+raw-pointer reconstruction to ordinary standard-library code. Frame, spill, process-argument,
+reachability, and code-generation passes handle the instruction exhaustively.
+
+Both borrowed iterators store only view pairs, indices, and state flags. Their constructors,
+steps, and lazy iterator adapters allocate nothing. Distributed execution replaces the normal
+allocator with an aborting sentinel and exercises both state machines and adapter dispatch, so a
+future accidental allocation fails the gate at runtime.
 
 ## Allocation Policy and Regions
 

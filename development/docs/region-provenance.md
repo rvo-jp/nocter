@@ -106,6 +106,19 @@ only the success branch. The error branch remains compiler-owned lifetime eviden
 can reject local or region escapes without incorrectly making scratch inputs part of every public
 fallible signature.
 
+v0.9.0 Phase 2 adds one typed borrowed-projection role for validated string subviews. The exact
+restricted declaration in `std/string_views` records its source parameter by resolved index.
+Expression provenance substitutes the call argument's existing shaped provenance directly. It
+does not inspect pointer values, search for the primitive spelling, or manufacture a static origin.
+Allocation analysis classifies the projection as allocation-free.
+
+This boundary lets `get_range`, affix removal, split iteration, and line iteration return derived
+`&str` values while preserving source loans and region constraints. A view keeps an owned source
+loan active through its last use, cannot survive moving or dropping that source, and cannot escape
+the source region. Static input remains eligible to escape. Explicit multi-input `from` clauses on
+iterator constructors remain authored API contracts; uniquely inferred clauses stay absent from
+source and editor presentation.
+
 Phase 10 closure environments enter this model as compiler-generated aggregates. Each explicit
 capture field retains the captured place's exact provenance and loan. Generated closure call
 targets use receiver and parameter identities in the same callable-summary fixed point as source

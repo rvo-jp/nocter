@@ -449,6 +449,46 @@ Normal `copy`, `reserve`, and `push_str` operations use the current aborting all
 same buffer implementation and preserve the same UTF-8 and publication
 invariants.
 
+### Borrowed String Ranges and Iteration
+
+`std/string` exposes allocation-free borrowed text operations:
+
+```nct
+pub func is_char_boundary(text: &str, index: usize): bool
+pub func get_range(text: &str, start: usize, end: usize): &str?
+pub func strip_prefix(text: &str, prefix: &str): &str? from text
+pub func strip_suffix(text: &str, suffix: &str): &str? from text
+
+pub func split_views(
+    text: &str,
+    separator: &str,
+): SplitIter! from text | separator
+
+pub func lines(text: &str): LinesIter
+```
+
+Range indices are UTF-8 byte offsets. `get_range` returns `none` when `start > end`, an endpoint is
+outside the input, or an endpoint divides a UTF-8 encoding. Empty ranges and the full input range
+are valid. The result borrows `text`; it never reconstructs provenance from an integer address.
+
+`strip_prefix` and `strip_suffix` compare exact UTF-8 bytes and return a view into `text`. The
+affix is an input to the comparison, not a storage origin of the returned view. An empty affix
+matches and returns the complete input.
+
+`split_views` rejects an empty separator with `std.string.empty_separator`. Otherwise it yields the
+same component boundaries as the owned `split` operation, including empty components for empty
+input, adjacent separators, a leading separator, and a trailing separator. `SplitIter` retains
+both `text` and `separator` while it can still advance. Each yielded item is a borrowed `&str`
+component in source order. The iterator and ordinary `Iterator<&str>` adapters allocate no
+storage.
+
+`lines` recognizes LF and CRLF terminators. It omits each terminator, removes CR only when it is
+immediately before LF, preserves every other CR, yields no item for empty input, and does not add
+an empty item after a final terminator. `LinesIter` retains its input text and allocates no storage.
+
+These operations are byte-oriented. They do not define Unicode scalar, grapheme, normalization,
+or range-syntax behavior.
+
 `&[u8]` represents arbitrary borrowed bytes and is not necessarily valid UTF-8. Converting `&str` to `&[u8]` is allowed. Converting `&[u8]` to `&str` requires UTF-8 validation.
 
 There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `&str`; creating an owned `String` from it requires an explicit copy.

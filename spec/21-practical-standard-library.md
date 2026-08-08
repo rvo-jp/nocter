@@ -11,11 +11,16 @@ descriptor are compiler-owned primitives.
 - `find` and `find_from` return byte offsets;
 - `contains`, `starts_with`, and `ends_with` do not allocate;
 - `split` rejects an empty separator and returns independently owned `String` values;
+- `get_range`, `strip_prefix`, and `strip_suffix` return validated borrowed views;
+- `split_views` and `lines` return allocation-free borrowed iterators;
 - `String.from_utf8` validates a byte slice before copying it into owned storage.
 
-Search never splits or reinterprets Unicode scalar values. Returning owned split components keeps
-their lifetime independent of the input. A future borrowed substring API requires an explicit
-source-provenance-preserving view operation; raw-pointer reconstruction is not a substitute.
+Search and range indices are UTF-8 byte offsets. `get_range` rejects endpoints that divide an
+encoding. `split_views` retains both its text and separator while iteration remains live and
+matches the component boundaries of owned `split`. `lines` recognizes LF and CRLF, preserves bare
+CR, and does not synthesize a final empty line. Borrowed operations preserve source provenance
+through a compiler-validated typed projection; raw-pointer reconstruction is not a substitute.
+Returning owned `split` components keeps their lifetime independent of the input.
 
 `Vec<T>.retain` preserves relative order. Rejected elements are dropped exactly once, retained
 elements move at most once, and the initialized prefix is updated only after compaction.

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-07">
+    <meta property="article:modified_time" content="2026-08-08">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string.nct - Nocter">
@@ -169,7 +169,18 @@
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>copy_str_to_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>str_from_raw_parts
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>store_u8_to_ptr
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string_search<span class="token-operator">.</span>find_from_bytes
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>string_views<span class="token-operator">.</span><span class="token-operator">{</span>
+    <span class="token-type">LinesIter</span><span class="token-operator">,</span>
+    <span class="token-type">SplitIter</span><span class="token-operator">,</span>
+    get_range<span class="token-operator">,</span>
+    is_char_boundary<span class="token-operator">,</span>
+    lines<span class="token-operator">,</span>
+    split_views<span class="token-operator">,</span>
+    strip_prefix<span class="token-operator">,</span>
+    strip_suffix<span class="token-operator">,</span>
+<span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
 
@@ -405,26 +416,7 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
 
 <span class="token-comment">/// Returns the first byte offset of `needle` at or after `start`.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">find_from</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> haystack<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> sought<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>needle<span class="token-operator">)</span>
-    <span class="token-keyword">if</span> start <span class="token-operator">&gt;</span> haystack<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> none <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> sought<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> start <span class="token-operator">}</span>
-    <span class="token-keyword">var</span> candidate<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> start
-    while candidate <span class="token-operator">+</span> sought<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span><span class="token-operator">=</span> haystack<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> matched<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">var</span> equal<span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">=</span> true
-        while matched <span class="token-operator">&lt;</span> sought<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> actual<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> haystack<span class="token-operator">[</span>candidate <span class="token-operator">+</span> matched<span class="token-operator">]</span>
-            <span class="token-keyword">let</span> expected<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> sought<span class="token-operator">[</span>matched<span class="token-operator">]</span>
-            <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-                equal <span class="token-operator">=</span> false
-            <span class="token-operator">}</span>
-            matched <span class="token-operator">=</span> matched <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> equal <span class="token-operator">{</span> <span class="token-keyword">return</span> candidate <span class="token-operator">}</span>
-        candidate <span class="token-operator">=</span> candidate <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> none
+    <span class="token-keyword">return</span> <span class="token-function">find_from_bytes</span><span class="token-operator">(</span>value<span class="token-operator">,</span> needle<span class="token-operator">,</span> start<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">find</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>

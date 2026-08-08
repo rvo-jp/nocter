@@ -2,12 +2,29 @@
 
 ## Current Task
 
-Implement v0.9.0 Phase 2: Borrowed Text Views. Add one typed borrowed-projection boundary, safe
-UTF-8 range operations, allocation-free split and line iterators, standard-library re-exports, and
-complete ownership, region, LSP, native, specification, and distributed-home coverage. Stop after
-the full acceptance gate and completion record pass.
+No implementation phase is active. v0.9.0 Phase 2 completed the planned feature milestone. Define
+a separate stabilization and release-qualification plan before changing versions, packaging an
+archive, tagging, pushing, or publishing v0.9.0.
 
 ## Completed Checkpoint
+
+- v0.9.0 Phase 2 adds validated UTF-8 `get_range`, `strip_prefix`, and `strip_suffix` views plus
+  allocation-free `SplitIter` and `LinesIter` state machines behind the stable `std/string` facade
+- one exact trusted `BorrowedProjection` role and typed `SetStrSubview` IR instruction preserve
+  source provenance without raw-pointer origin reconstruction
+- shared byte search now lives in `std/string_search`, so owned and borrowed string algorithms use
+  one implementation
+- native coverage proves UTF-8 boundaries, owned-split parity, LF/CRLF behavior, iterator adapter
+  dispatch, and allocator non-reachability; ownership coverage rejects mutation, move, drop, and
+  region escape while allowing static and exact text-only origins
+- comparison lowering now materializes scratch-using operands before codegen, preventing one
+  indexed operand from overwriting another; specialized borrowed-view adapters transparently lower
+  generic `move` markers
+- LSP coverage verifies normalized hover, completion, signature help, definition, and semantic
+  tokens through the public re-export
+- the final `development/compiler/scripts/verify.sh` run passed all 3,370 tests, formatting,
+  warnings-denied Clippy, documentation tests, public examples, source corpus, and the distributed
+  installed-home suite; documentation generation produced 127 pages
 
 - v0.9.0 Phase 1 makes omitted result origins declaration-stable through one resolved
   zero/one/ambiguous classifier shared by validation, summaries, calls, interface conformance,
@@ -103,6 +120,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 2 is fully verified and its
-completion record is committed. Do not add Unicode scalar semantics, range syntax, standard input,
-bump the release version, prepare an archive, tag, push, or publish v0.9.0.
+Stop after the v0.9.0 Phase 2 completion record is committed. Do not add Unicode scalar semantics,
+range syntax, standard input, bump the release version, prepare an archive, tag, push, or publish
+v0.9.0 without a new stabilization and release-qualification plan.
