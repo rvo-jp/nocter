@@ -2,9 +2,11 @@
 
 ## Current Task
 
-No implementation task is active. v0.9.0 Phase 3 is complete, and the milestone has returned to an
-inactive feature state. Begin no stabilization, version change, archive preparation, tag, push, or
-publication work until a separate release-qualification plan defines its scope and evidence.
+v0.9.0 stabilization and release qualification are active under
+[`releases/v0.9.0.md`](releases/v0.9.0.md). Audit the frozen Phase 0-3 contract, close only
+stabilization defects, unify candidate identity, pass clean and incremental verification, and
+qualify one fresh local archive. Stop with a clean committed worktree before tagging, pushing,
+changing published-download pages, or publishing an asset.
 
 ## Completed Checkpoint
 
@@ -134,7 +136,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Define a separate v0.9.0 stabilization and release-qualification plan before changing code or
-release identity. That plan must audit the completed Phase 0-3 public surface, freeze explicit
-release criteria, and keep archive preparation, tagging, pushing, and publication outside its scope
-until the candidate passes the complete qualification matrix.
+Follow the ordered v0.9.0 stabilization and qualification record. Do not add another public
+feature. Publication remains a separately authorized operation after the exact local candidate
+archive and all evidence are committed.
