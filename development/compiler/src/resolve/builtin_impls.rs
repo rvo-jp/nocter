@@ -27,7 +27,7 @@ impl Resolver<'_> {
             .flat_map(|ast| {
                 ast.items.iter().filter_map(move |item| match item {
                     Item::Impl(impl_) => {
-                        builtin_impl_owner(&impl_).map(|owner| (ast, owner, impl_.clone()))
+                        builtin_impl_owner(impl_).map(|owner| (ast, owner, impl_.clone()))
                     }
                     _ => None,
                 })

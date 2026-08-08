@@ -521,7 +521,7 @@ fn source_paths_share_module(sources: &SourceMap, source: SourceId, imported: &P
 
 fn module_root_source(sources: &SourceMap, source: &Path) -> Option<PathBuf> {
     if crate::source_layout::is_module_root_source(source) {
-        return Some(known_or_existing_source_path(sources, source)?);
+        return known_or_existing_source_path(sources, source);
     }
     source
         .parent()?
