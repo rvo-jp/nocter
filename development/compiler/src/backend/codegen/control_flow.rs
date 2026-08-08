@@ -468,6 +468,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetStrSubview { .. }
             | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
             | Instruction::SetSliceRawParts { .. }

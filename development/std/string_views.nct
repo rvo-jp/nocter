@@ -1,0 +1,177 @@
+//! Allocation-free borrowed UTF-8 ranges and text iterators.
+//!
+//! Public operations validate byte ranges before crossing the restricted
+//! projection boundary. Returned views retain their source text storage.
+
+use std/error.Error
+use std/iter.Iterator
+use std/string_search.find_from_bytes
+
+/// Reconstructs a previously validated subview while preserving `text` origin.
+///
+/// This boundary is restricted to the distributed standard library. Callers
+/// must prove `start + len <= text.len()` and both endpoints are UTF-8
+/// boundaries before calling it.
+pub(nocter) primitive str_subview_unchecked(
+    text: &str,
+    start: usize,
+    len: usize,
+): &str from text
+
+/// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
+pub func is_char_boundary(text: &str, index: usize): bool {
+    if index > text.len() { return false }
+    if index == 0 || index == text.len() { return true }
+    let byte: u8 = text[index]
+    return byte < 128 || byte >= 192
+}
+
+/// Returns a borrowed UTF-8 range, or `none` for invalid endpoints.
+pub func get_range(text: &str, start: usize, end: usize): &str? {
+    if start > end { return none }
+    if !is_char_boundary(text, start) || !is_char_boundary(text, end) {
+        return none
+    }
+    return str_subview_unchecked(text, start, end - start)
+}
+
+/// Removes `prefix` without allocation when it exactly matches.
+pub func strip_prefix(text: &str, prefix: &str): &str? from text {
+    if prefix.len() > text.len() { return none }
+    var index: usize = 0
+    while index < prefix.len() {
+        if text[index] != prefix[index] { return none }
+        index = index + 1
+    }
+    return str_subview_unchecked(text, prefix.len(), text.len() - prefix.len())
+}
+
+/// Removes `suffix` without allocation when it exactly matches.
+pub func strip_suffix(text: &str, suffix: &str): &str? from text {
+    if suffix.len() > text.len() { return none }
+    let start: usize = text.len() - suffix.len()
+    var index: usize = 0
+    while index < suffix.len() {
+        if text[start + index] != suffix[index] { return none }
+        index = index + 1
+    }
+    return str_subview_unchecked(text, 0, start)
+}
+
+/// Allocation-free iterator over separator-delimited borrowed components.
+pub struct SplitIter {
+    text: &str
+    separator: &str
+    next_start: usize
+    finished: bool
+}
+
+construct SplitIter {
+    pub default func new(
+        text: &str,
+        separator: &str,
+    ): Self! from text | separator {
+        if separator.len() == 0 { return empty_separator_error() }
+        return SplitIter {
+            text: text,
+            separator: separator,
+            next_start: 0,
+            finished: false,
+        }
+    }
+}
+
+/// Creates an allocation-free separator iterator.
+pub func split_views(
+    text: &str,
+    separator: &str,
+): SplitIter! from text | separator {
+    return SplitIter.new(text, separator)?
+}
+
+impl Iterator<&str> for SplitIter {
+    method &+self.next(): &str? {
+        if self.finished { return none }
+        let part_start: usize = self.next_start
+        let separator_start: usize = find_from_bytes(self.text, self.separator, part_start) otherwise {
+            self.finished = true
+            return str_subview_unchecked(
+                self.text,
+                part_start,
+                self.text.len() - part_start,
+            )
+        }
+        self.next_start = separator_start + self.separator.len()
+        return str_subview_unchecked(
+            self.text,
+            part_start,
+            separator_start - part_start,
+        )
+    }
+}
+
+/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
+pub struct LinesIter {
+    text: &str
+    next_start: usize
+    finished: bool
+}
+
+construct LinesIter {
+    pub default func new(text: &str): Self {
+        return LinesIter {
+            text: text,
+            next_start: 0,
+            finished: text.len() == 0,
+        }
+    }
+}
+
+/// Creates an allocation-free iterator over borrowed lines.
+pub func lines(text: &str): LinesIter {
+    return LinesIter.new(text)
+}
+
+impl Iterator<&str> for LinesIter {
+    method &+self.next(): &str? {
+        if self.finished { return none }
+        let line_start: usize = self.next_start
+        let newline: usize = find_byte(self.text, 10, line_start) otherwise {
+            self.finished = true
+            return str_subview_unchecked(
+                self.text,
+                line_start,
+                self.text.len() - line_start,
+            )
+        }
+        var line_end: usize = newline
+        if line_end > line_start && self.text[line_end - 1] == 13 {
+            line_end = line_end - 1
+        }
+        self.next_start = newline + 1
+        if self.next_start == self.text.len() {
+            self.finished = true
+        }
+        return str_subview_unchecked(
+            self.text,
+            line_start,
+            line_end - line_start,
+        )
+    }
+}
+
+func find_byte(text: &str, needle: u8, start: usize): usize? {
+    var index: usize = start
+    while index < text.len() {
+        if text[index] == needle { return index }
+        index = index + 1
+    }
+    return none
+}
+
+func empty_separator_error(): error {
+    return Error.new(
+        "std.string.empty_separator",
+        "string separator must not be empty",
+    )
+}

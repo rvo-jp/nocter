@@ -292,6 +292,20 @@ const STRING_BYTES_FROM_STR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveP
     name: "value",
     ty: "&str",
 }];
+const STRING_SUBVIEW_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "text",
+        ty: "&str",
+    },
+    PrimitiveParameterSpec {
+        name: "start",
+        ty: "usize",
+    },
+    PrimitiveParameterSpec {
+        name: "len",
+        ty: "usize",
+    },
+];
 const SYSCALL0_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
     name: "number",
     ty: "usize",
@@ -635,6 +649,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: STRING_BYTES_FROM_STR_PARAMETERS,
             return_type: "&[u8]",
+        },
+        PrimitiveSpec {
+            module_path: "std/string_views",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "str_subview_unchecked",
+            generics: &[],
+            parameters: STRING_SUBVIEW_PARAMETERS,
+            return_type: "&str",
         },
         PrimitiveSpec {
             module_path: "std/mem",

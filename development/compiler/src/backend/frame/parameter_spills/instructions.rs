@@ -813,6 +813,15 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_str_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::SetStrSubview {
+            source, start, len, ..
+        } => {
+            if include_value_parameters {
+                record_str_value_parameter_spill_requests(source, requests);
+                record_usize_value_parameter_spill_requests(start, requests);
+                record_usize_value_parameter_spill_requests(len, requests);
+            }
+        }
         Instruction::SetStrRawParts { pointer, len, .. } => {
             if include_value_parameters {
                 record_usize_value_parameter_spill_requests(pointer, requests);

@@ -1,0 +1,30 @@
+//! Shared allocation-free byte search for UTF-8 string modules.
+//!
+//! Matching operates on bytes, but every successful match of a non-empty,
+//! well-formed UTF-8 needle begins at a UTF-8 boundary in the haystack.
+
+/// Returns the first byte offset of `needle` at or after `start`.
+pub(nocter) func find_from_bytes(
+    text: &str,
+    needle: &str,
+    start: usize,
+): usize? {
+    if start > text.len() { return none }
+    if needle.len() == 0 { return start }
+    var candidate: usize = start
+    while candidate + needle.len() <= text.len() {
+        var matched: usize = 0
+        var equal: bool = true
+        while matched < needle.len() {
+            let actual: u8 = text[candidate + matched]
+            let expected: u8 = needle[matched]
+            if actual != expected {
+                equal = false
+            }
+            matched = matched + 1
+        }
+        if equal { return candidate }
+        candidate = candidate + 1
+    }
+    return none
+}

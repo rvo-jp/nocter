@@ -32,6 +32,14 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
                     &mut temporaries,
                 );
             }
+            if primitive_str_subview_call(call, context) {
+                return lower_str_subview_primitive_call_to_location(
+                    call,
+                    destination,
+                    context,
+                    &mut temporaries,
+                );
+            }
             lower_str_normal_call(call, destination, context, &mut temporaries)
         }
         Expr::Propagate(propagation) => lower_str_fallible_expression_to_location(
@@ -225,6 +233,17 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     value: StrValue::Location(temporary),
                 });
             }
+            if primitive_str_subview_call(call, context) {
+                return Ok(LoweredStrValue {
+                    instructions: lower_str_subview_primitive_call_to_location(
+                        call,
+                        temporary,
+                        context,
+                        temporaries,
+                    )?,
+                    value: StrValue::Location(temporary),
+                });
+            }
             Ok(LoweredStrValue {
                 instructions: lower_str_normal_call(call, temporary, context, temporaries)?,
                 value: StrValue::Location(temporary),
@@ -298,6 +317,9 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
         }
         Expr::TypeConversion(conversion) => {
             lower_str_expression_to_value(&conversion.expression, context, temporaries)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            lower_str_expression_to_value(&unary.operand, context, temporaries)
         }
         _ => Ok(LoweredStrValue {
             instructions: Vec::new(),
@@ -420,6 +442,9 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
         }
         Expr::TypeConversion(conversion) => {
             lower_slice_expression_to_value(&conversion.expression, context, temporaries)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            lower_slice_expression_to_value(&unary.operand, context, temporaries)
         }
         _ => Ok(LoweredSliceValue {
             instructions: Vec::new(),

@@ -114,6 +114,12 @@ pub(crate) enum Instruction {
         pointer: UsizeValue,
         len: UsizeValue,
     },
+    SetStrSubview {
+        destination: StrLocation,
+        source: StrValue,
+        start: UsizeValue,
+        len: UsizeValue,
+    },
     SetSlice {
         destination: SliceLocation,
         value: SliceValue,

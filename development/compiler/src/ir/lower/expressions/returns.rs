@@ -279,6 +279,16 @@ pub(in crate::ir::lower) fn lower_str_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
+            if primitive_str_subview_call(call, context) {
+                let mut instructions = lower_str_subview_primitive_call_to_location(
+                    call,
+                    StrLocation::Return,
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             lower_direct_tail_call(call, context)
         }
         Expr::Group(group) => lower_str_return_expression(&group.expression, context),

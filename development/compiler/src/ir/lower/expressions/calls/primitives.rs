@@ -267,6 +267,16 @@ pub(in crate::ir::lower::expressions) fn primitive_str_from_raw_parts_call(
     )
 }
 
+pub(in crate::ir::lower::expressions) fn primitive_str_subview_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("str_subview_unchecked")
+    )
+}
+
 pub(in crate::ir::lower::expressions) fn primitive_slice_from_raw_parts_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -839,6 +849,33 @@ pub(in crate::ir::lower::expressions) fn lower_str_from_raw_parts_primitive_call
     instructions.push(Instruction::SetStrRawParts {
         destination,
         pointer,
+        len: len.value,
+    });
+    Ok(instructions)
+}
+
+pub(in crate::ir::lower::expressions) fn lower_str_subview_primitive_call_to_location(
+    call: &CallExpr,
+    destination: StrLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 3 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`str_subview_unchecked` requires arguments `(text: &str, start: usize, len: usize)`",
+        ));
+    }
+
+    let source = lower_str_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let start = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    let len = lower_usize_expression_to_value(&call.arguments[2], context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(start.instructions);
+    instructions.extend(len.instructions);
+    instructions.push(Instruction::SetStrSubview {
+        destination,
+        source: source.value,
+        start: start.value,
         len: len.value,
     });
     Ok(instructions)

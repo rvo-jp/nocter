@@ -672,6 +672,18 @@ fn trusted_call_result_provenance(
             )?
             .without_input_container_scopes()
         }
+        crate::semantics::TrustedDeclarationRole::BorrowedProjection { source } => {
+            let parameter = signature.signature.parameters.get(source)?;
+            borrow_return_provenance_for_call_input(
+                InputId::declared_at(parameter.name_span),
+                call,
+                signature,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            )?
+        }
         crate::semantics::TrustedDeclarationRole::StaticResult => ValueProvenance::static_storage(),
         crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
         | crate::semantics::TrustedDeclarationRole::AllocationMutation { .. }

@@ -83,12 +83,14 @@ pub(in crate::ir::lower::expressions) fn lower_bool_comparison_to_value_with_tem
         diagnostic_code,
         temporaries,
     )?;
+    let left = stabilize_bool_comparison_operand(left, temporaries)?;
     let right = lower_bool_comparison_operand_to_value_with_temporaries(
         &binary.right,
         context,
         diagnostic_code,
         temporaries,
     )?;
+    let right = stabilize_bool_comparison_operand(right, temporaries)?;
 
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
@@ -124,7 +126,9 @@ pub(in crate::ir::lower::expressions) fn lower_i32_comparison_to_value_with_temp
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
     let left = lower_i32_expression_to_value(&binary.left, context, temporaries)?;
+    let left = stabilize_i32_comparison_operand(left, temporaries)?;
     let right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
+    let right = stabilize_i32_comparison_operand(right, temporaries)?;
 
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
@@ -146,7 +150,9 @@ pub(in crate::ir::lower::expressions) fn lower_usize_comparison_to_value_with_te
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
     let left = lower_usize_expression_to_value(&binary.left, context, temporaries)?;
+    let left = stabilize_usize_comparison_operand(left, temporaries)?;
     let right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
+    let right = stabilize_usize_comparison_operand(right, temporaries)?;
 
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
@@ -168,7 +174,9 @@ pub(in crate::ir::lower::expressions) fn lower_u8_comparison_to_value_with_tempo
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
     let left = lower_u8_expression_to_value(&binary.left, context, temporaries)?;
+    let left = stabilize_u8_comparison_operand(left, temporaries)?;
     let right = lower_u8_expression_to_value(&binary.right, context, temporaries)?;
+    let right = stabilize_u8_comparison_operand(right, temporaries)?;
 
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
@@ -180,6 +188,79 @@ pub(in crate::ir::lower::expressions) fn lower_u8_comparison_to_value_with_tempo
             right: I32Value::U8ZeroExtend(Box::new(right.value)),
         },
     })
+}
+
+fn stabilize_i32_comparison_operand(
+    mut operand: LoweredI32Value,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if matches!(operand.value, I32Value::Const(_) | I32Value::Location(_)) {
+        return Ok(operand);
+    }
+    let destination = temporaries.next_i32()?;
+    operand.instructions.push(Instruction::SetI32 {
+        destination,
+        value: operand.value,
+    });
+    operand.value = I32Value::Location(destination);
+    Ok(operand)
+}
+
+fn stabilize_usize_comparison_operand(
+    mut operand: LoweredUsizeValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if matches!(
+        operand.value,
+        UsizeValue::Const(_)
+            | UsizeValue::Location(_)
+            | UsizeValue::ProcessArgCount
+            | UsizeValue::CurrentAllocationState
+            | UsizeValue::CurrentAllocationKind
+            | UsizeValue::StrLen(_)
+            | UsizeValue::SliceLen(_)
+    ) {
+        return Ok(operand);
+    }
+    let destination = temporaries.next_usize()?;
+    operand.instructions.push(Instruction::SetUsize {
+        destination,
+        value: operand.value,
+    });
+    operand.value = UsizeValue::Location(destination);
+    Ok(operand)
+}
+
+fn stabilize_u8_comparison_operand(
+    mut operand: LoweredU8Value,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    if matches!(operand.value, U8Value::Const(_) | U8Value::Location(_)) {
+        return Ok(operand);
+    }
+    let destination = temporaries.next_u8()?;
+    operand.instructions.push(Instruction::SetU8 {
+        destination,
+        value: operand.value,
+    });
+    operand.value = U8Value::Location(destination);
+    Ok(operand)
+}
+
+fn stabilize_bool_comparison_operand(
+    mut operand: LoweredBoolValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    if matches!(operand.value, BoolValue::Const(_) | BoolValue::Location(_)) {
+        return Ok(operand);
+    }
+    let destination = temporaries.next_bool()?;
+    operand.instructions.push(Instruction::SetBool {
+        destination,
+        value: operand.value,
+    });
+    operand.value = BoolValue::Location(destination);
+    Ok(operand)
 }
 
 pub(in crate::ir::lower::expressions) fn lower_u8_comparison_condition(

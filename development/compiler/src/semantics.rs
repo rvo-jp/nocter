@@ -39,6 +39,9 @@ pub(crate) enum TrustedDeclarationRole {
     AllocationAbort,
     IndependentFallibleError,
     StaticResult,
+    BorrowedProjection {
+        source: usize,
+    },
     OwnedValueTransfer {
         source: usize,
     },

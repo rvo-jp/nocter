@@ -36,6 +36,7 @@ pub(super) fn allocator_capability_kind(
         | TrustedDeclarationRole::AllocationAbort
         | TrustedDeclarationRole::IndependentFallibleError
         | TrustedDeclarationRole::StaticResult
+        | TrustedDeclarationRole::BorrowedProjection { .. }
         | TrustedDeclarationRole::OwnedValueTransfer { .. } => None,
     }
 }
@@ -753,6 +754,7 @@ fn trusted_call_needs_current_context(
             | TrustedDeclarationRole::AllocationAbort
             | TrustedDeclarationRole::IndependentFallibleError
             | TrustedDeclarationRole::StaticResult
+            | TrustedDeclarationRole::BorrowedProjection { .. }
             | TrustedDeclarationRole::OwnedValueTransfer { .. },
         )
         | None => false,

@@ -373,6 +373,17 @@ pub(super) fn record_instruction_scalar_locals(
             record_str_location(*destination, highest_local_index);
             record_str_value(value, highest_local_index);
         }
+        Instruction::SetStrSubview {
+            destination,
+            source,
+            start,
+            len,
+        } => {
+            record_str_location(*destination, highest_local_index);
+            record_str_value(source, highest_local_index);
+            record_usize_value(start, highest_local_index);
+            record_usize_value(len, highest_local_index);
+        }
         Instruction::SetStrRawParts {
             destination,
             pointer,

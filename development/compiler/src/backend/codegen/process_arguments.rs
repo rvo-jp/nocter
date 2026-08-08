@@ -63,6 +63,13 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         Instruction::SetUsizeFromBorrow { .. } => false,
         Instruction::SetBool { value, .. } => bool_value_uses_process_arguments(value),
         Instruction::SetStr { value, .. } => str_value_uses_process_arguments(value),
+        Instruction::SetStrSubview {
+            source, start, len, ..
+        } => {
+            str_value_uses_process_arguments(source)
+                || usize_value_uses_process_arguments(start)
+                || usize_value_uses_process_arguments(len)
+        }
         Instruction::SetStrRawParts { pointer, len, .. }
         | Instruction::SetSliceRawParts { pointer, len, .. } => {
             usize_value_uses_process_arguments(pointer) || usize_value_uses_process_arguments(len)

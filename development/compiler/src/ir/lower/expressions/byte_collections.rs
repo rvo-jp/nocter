@@ -58,6 +58,9 @@ pub(super) fn byte_collection_expression_kind(
         Expr::Force(force) => outcome_byte_collection_expression_kind(&force.expression, context),
         Expr::Catch(catch) => outcome_byte_collection_expression_kind(&catch.expression, context),
         Expr::Group(group) => byte_collection_expression_kind(&group.expression, context),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            byte_collection_expression_kind(&unary.operand, context)
+        }
         _ => None,
     }
 }
@@ -69,7 +72,8 @@ pub(super) fn byte_collection_call_kind(
     if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context) {
         return Some(ByteCollectionKind::Str);
     }
-    if primitive_str_from_raw_parts_call(call, context) {
+    if primitive_str_from_raw_parts_call(call, context) || primitive_str_subview_call(call, context)
+    {
         return Some(ByteCollectionKind::Str);
     }
     if primitive_bytes_from_str_call(call, context)

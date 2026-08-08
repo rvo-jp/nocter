@@ -41,6 +41,20 @@ impl EntryEmitter {
         self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
     }
 
+    pub(in crate::backend::codegen) fn emit_set_str_subview(
+        &mut self,
+        destination: StrLocation,
+        source: &StrValue,
+        start: &UsizeValue,
+        len: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_str_value_to_x_pair(source, XReg::X16, XReg::X17)?;
+        self.emit_usize_value_to_x(start, XReg::X8)?;
+        self.emit_usize_value_to_x(len, XReg::X17)?;
+        self.encoder.emit_adds_x(XReg::X16, XReg::X16, XReg::X8);
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
+    }
+
     pub(in crate::backend::codegen) fn emit_set_slice(
         &mut self,
         destination: SliceLocation,

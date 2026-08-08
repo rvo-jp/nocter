@@ -290,7 +290,7 @@ pub(super) fn primitive_call_scalar_binding_kind(
         "addr" | "from_addr" | "from_ref" | "from_ref_mut" | "pointee_size" => {
             Some(ScalarBindingKind::Usize)
         }
-        "str_from_raw_parts" => Some(ScalarBindingKind::Str),
+        "str_from_raw_parts" | "str_subview_unchecked" => Some(ScalarBindingKind::Str),
         "bytes_from_str" => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
             TypecheckSliceElementKind::U8,
         ))),

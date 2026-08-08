@@ -434,14 +434,20 @@ func is_elf(bytes: &[u8]): bool {
             target: crate::ir::CallTarget::same_file("is_elf".to_string()),
             return_type: Type::Bool,
             instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(0),
+                    },
+                },
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
                     value: BoolValue::I32Comparison {
                         operator: I32ComparisonOperator::Equal,
-                        left: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
-                            source: SliceLocation::Parameter(0),
-                            index: usize_const(0),
-                        })),
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                            U8Location::Local(0),
+                        ))),
                         right: I32Value::U8ZeroExtend(Box::new(u8_const(0x7F))),
                     },
                 },

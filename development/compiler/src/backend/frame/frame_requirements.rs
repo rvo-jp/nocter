@@ -133,6 +133,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrSubview { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
@@ -305,6 +306,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetCurrentAllocationContext { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrSubview { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }

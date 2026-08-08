@@ -26,6 +26,8 @@ mod outcome_values;
 mod practical_std;
 #[path = "distributed_home/provenance_bounds.rs"]
 mod provenance_bounds;
+#[path = "distributed_home/string_views.rs"]
+mod string_views;
 #[path = "distributed_home/typed_literals.rs"]
 mod typed_literals;
 

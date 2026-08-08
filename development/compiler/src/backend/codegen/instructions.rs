@@ -83,6 +83,14 @@ impl EntryEmitter {
             } => {
                 self.emit_set_str_raw_parts(*destination, pointer, len)?;
             }
+            Instruction::SetStrSubview {
+                destination,
+                source,
+                start,
+                len,
+            } => {
+                self.emit_set_str_subview(*destination, source, start, len)?;
+            }
             Instruction::SetSlice { destination, value } => {
                 self.emit_set_slice(*destination, value)?;
             }

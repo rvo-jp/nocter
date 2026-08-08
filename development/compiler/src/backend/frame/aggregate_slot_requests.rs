@@ -197,6 +197,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrSubview { .. }
         | Instruction::SetSlice { .. }
         | Instruction::AddU8 { .. }
         | Instruction::SubtractU8 { .. }

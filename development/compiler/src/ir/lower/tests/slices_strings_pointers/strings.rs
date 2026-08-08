@@ -630,14 +630,18 @@ func empty(text: &str): bool {
             return_type: Type::Bool,
             instructions: vec![
                 Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: UsizeValue::StrLen(StrLocation::Parameter(0)),
+                        right: usize_const(0),
+                    },
+                },
+                Instruction::SetBool {
                     destination: BoolLocation::Return,
                     value: BoolValue::BoolComparison {
                         operator: BoolComparisonOperator::Equal,
-                        left: Box::new(BoolValue::UsizeComparison {
-                            operator: I32ComparisonOperator::Equal,
-                            left: UsizeValue::StrLen(StrLocation::Parameter(0)),
-                            right: usize_const(0),
-                        }),
+                        left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
                         right: Box::new(BoolValue::Const(false)),
                     },
                 },
@@ -781,18 +785,26 @@ fn lowers_u8_str_index_terminal_if_comparison() {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::I32Comparison {
-                    operator: I32ComparisonOperator::Equal,
-                    left: I32Value::U8ZeroExtend(Box::new(U8Value::StaticStrIndex {
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::StaticStrIndex {
                         bytes: b"Nocter".to_vec(),
                         index: usize_const(0),
-                    })),
-                    right: I32Value::U8ZeroExtend(Box::new(u8_const(78))),
+                    },
                 },
-                then_instructions: vec![set_return_i32(0), Instruction::Return],
-                else_instructions: vec![set_return_i32(1), Instruction::Return],
-            }],
+                Instruction::If {
+                    condition: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                            U8Location::Local(0),
+                        ))),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(78))),
+                    },
+                    then_instructions: vec![set_return_i32(0), Instruction::Return],
+                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                },
+            ],
         }])
     );
 }
@@ -938,6 +950,7 @@ fn lowers_bytes_from_str_call_index_return() {
 func main(): void {
     return
 }
+
 "#,
         "first",
         &[(
@@ -960,6 +973,50 @@ pub func first(value: &str): u8 {
                     source: StrLocation::Parameter(0),
                     index: usize_const(1),
                 },
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_trusted_str_subview_projection_without_raw_pointer_ir() {
+    let middle = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/string_views.middle
+
+func main(): void {
+    return
+}
+"#,
+        "middle",
+        &[(
+            "std/string_views.nct",
+            r#"pub(nocter) primitive str_subview_unchecked(
+    text: &str,
+    start: usize,
+    len: usize,
+): &str from text
+
+pub func middle(text: &str, start: usize, end: usize): &str {
+    return str_subview_unchecked(text, start, end - start)
+}
+"#,
+        )],
+    );
+
+    assert_eq!(
+        middle.instructions,
+        vec![
+            Instruction::SubtractUsize {
+                destination: UsizeLocation::Local(0),
+                left: UsizeValue::Location(UsizeLocation::Parameter(3)),
+                right: UsizeValue::Location(UsizeLocation::Parameter(2)),
+            },
+            Instruction::SetStrSubview {
+                destination: StrLocation::Return,
+                source: StrValue::Location(StrLocation::Parameter(0)),
+                start: UsizeValue::Location(UsizeLocation::Parameter(2)),
+                len: UsizeValue::Location(UsizeLocation::Local(0)),
             },
             Instruction::Return,
         ]

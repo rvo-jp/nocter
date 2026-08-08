@@ -17,7 +17,18 @@ use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
+use std/string_search.find_from_bytes
 use std/vec.Vec
+pub use std/string_views.{
+    LinesIter,
+    SplitIter,
+    get_range,
+    is_char_boundary,
+    lines,
+    split_views,
+    strip_prefix,
+    strip_suffix,
+}
 
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
@@ -253,26 +264,7 @@ func is_continuation(byte: u8): bool {
 
 /// Returns the first byte offset of `needle` at or after `start`.
 pub func find_from(value: &str, needle: &str, start: usize): usize? {
-    let haystack: &[u8] = bytes_from_str(value)
-    let sought: &[u8] = bytes_from_str(needle)
-    if start > haystack.len() { return none }
-    if sought.len() == 0 { return start }
-    var candidate: usize = start
-    while candidate + sought.len() <= haystack.len() {
-        var matched: usize = 0
-        var equal: bool = true
-        while matched < sought.len() {
-            let actual: u8 = haystack[candidate + matched]
-            let expected: u8 = sought[matched]
-            if actual != expected {
-                equal = false
-            }
-            matched = matched + 1
-        }
-        if equal { return candidate }
-        candidate = candidate + 1
-    }
-    return none
+    return find_from_bytes(value, needle, start)?
 }
 
 pub func find(value: &str, needle: &str): usize? {

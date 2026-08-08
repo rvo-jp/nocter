@@ -185,6 +185,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrSubview { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }

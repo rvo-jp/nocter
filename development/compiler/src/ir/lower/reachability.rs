@@ -194,6 +194,7 @@ fn collect_reachable_call_targets(
             | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetStrSubview { .. }
             | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
             | Instruction::SetSliceRawParts { .. }
