@@ -475,6 +475,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/releases/v0.9.0/</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/spec/00-design-principles/</loc>
     <lastmod>2026-08-06</lastmod>
     <changefreq>weekly</changefreq>
@@ -626,7 +632,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

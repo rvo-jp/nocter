@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Language Specification</title>
-    <meta name="description" content="The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
+    <title>Nocter v0.9.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.9.0 makes borrowed text and collection behavior source-owned, adds practical whole-stream I/O and borrowed text operations, and removes inferred ">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/spec/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.9.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Language Specification">
-    <meta property="og:description" content="The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
-    <meta property="og:url" content="https://nocter.dev/spec/">
+    <meta property="og:title" content="Nocter v0.9.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.9.0 makes borrowed text and collection behavior source-owned, adds practical whole-stream I/O and borrowed text operations, and removes inferred ">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.9.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-08">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Language Specification">
-    <meta name="twitter:description" content="The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.">
+    <meta name="twitter:title" content="Nocter v0.9.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.9.0 makes borrowed text and collection behavior source-owned, adds practical whole-stream I/O and borrowed text operations, and removes inferred ">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Language Specification","description":"The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling.","url":"https://nocter.dev/spec/","mainEntityOfPage":"https://nocter.dev/spec/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.9.0 Release Notes - Nocter","description":"Nocter v0.9.0 makes borrowed text and collection behavior source-owned, adds practical whole-stream I/O and borrowed text operations, and removes inferred ","url":"https://nocter.dev/releases/v0.9.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.9.0/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.9.0","item":"https://nocter.dev/releases/v0.9.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="./index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -118,46 +118,31 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">spec/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="./00-design-principles/index.html#content">Design Principles</a></li>
-                <li><a href="./00-overview/index.html#content">Overview</a></li>
-                <li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li>
-                <li><a href="./02-values-types/index.html#content">Values and Types</a></li>
-                <li><a href="./03-control-flow/index.html#content">Control Flow</a></li>
-                <li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li>
-                <li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
-                <li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
-                <li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
-                <li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li>
-                <li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li>
-                <li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
-                <li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li>
-                <li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
-                <li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
-                <li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li>
-                <li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
-                <li><a href="./17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li>
-                <li><a href="./18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="./19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="./20-native-testing/index.html#content">Native Testing</a></li>
-                <li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
-                <li><a href="./22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
-                <li><a href="./guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../examples/index.html#content">Runnable Examples</a></li>
-                <li><a href="../releases/index.html#content">release index</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.8.0/index.html#content">Read the v0.8.0 release notes</a></li>
+                <li><a href="../v0.7.0/index.html#content">Nocter v0.7.0</a></li>
+                <li><a href="../v0.6.0/index.html#content">Nocter v0.6.0</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/spec/README.md</span>
+                <span class="markdown-path-text">/releases/v0.9.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-language-specification">Nocter Language Specification</h1><p>This directory is the sole normative source for Nocter language behavior, public standard-library APIs, command-line behavior, and editor-facing contracts. It is written for Nocter users, standard-library authors, editor/tool authors, and AI assistants that generate or analyze Nocter source.</p><p>The detailed specification is split by topic so each design area can evolve without turning this file into a monolith.</p><p>Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language. Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users. Nocter values simplicity, encapsulation, and foolproof design. It also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.</p><h2 id="chapters">Chapters</h2><ul><li><a href="./00-design-principles/index.html#content">Design Principles</a></li><li><a href="./00-overview/index.html#content">Overview</a></li><li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li><li><a href="./02-values-types/index.html#content">Values and Types</a></li><li><a href="./03-control-flow/index.html#content">Control Flow</a></li><li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li><li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li><li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li><li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li><li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li><li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li><li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li><li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li><li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li><li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li><li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li><li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li><li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li><li><a href="./17-literal-definitions-sequence-spread/index.html#content">Literal Definitions and Sequence Spread</a></li><li><a href="./18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li><li><a href="./19-construction-surfaces/index.html#content">Construction Surfaces</a></li><li><a href="./20-native-testing/index.html#content">Native Testing</a></li><li><a href="./21-practical-standard-library/index.html#content">Practical Standard Library</a></li><li><a href="./22-borrow-coercions/index.html#content">Borrow Coercions</a></li></ul><h2 id="supporting-material">Supporting Material</h2><ul><li><a href="./guides/ai/index.html#content">AI Guide</a></li><li><a href="../examples/index.html#content">Runnable Examples</a></li></ul><h2 id="contract-status">Contract Status</h2><p>This working tree specifies the v0.9.0 language candidate. The <a href="../releases/index.html#content">release index</a> owns current publication and download status; v0.8.0 remains the latest published release until v0.9.0 is separately authorized and published. Repository tags preserve the exact specification for every published release.</p><p>A chapter states current behavior unless a section is explicitly labeled <strong>Future Direction</strong> or <strong>Non-goal</strong>. Development phases and compiler work order do not change the meaning of an otherwise unqualified rule.</p><p>Compiler architecture, backend boundaries, qualification evidence, and repository workflows are non-normative and live under <code>development/</code>.</p><h2 id="editing-policy">Editing Policy</h2><ul><li>Keep this file as the table of contents and high-level specification entry point.</li><li>Put normative language and public standard-library rules in the relevant
-  <code>spec/*.md</code> chapter.</li><li>Keep examples close to the rule they explain.</li><li>Keep <code>guides/ai.md</code> compact and example-oriented; do not let it replace normative specification chapters.</li><li>Mark proposed behavior under an explicit <strong>Future Direction</strong> heading. Do not mix implementation
-  phases or work plans into current rules.</li><li>Keep compiler implementation status, backend work plans, and handoff notes in
-  <code>../development/</code>.</li></ul>
+                <h1 id="nocter-v0-9-0-release-notes">Nocter v0.9.0 Release Notes</h1><p>Nocter v0.9.0 makes borrowed text and collection behavior source-owned, adds practical whole-stream I/O and borrowed text operations, and removes inferred result-origin noise from ordinary APIs.</p><h2 id="practical-stream-i-o">Practical Stream I/O</h2><p>Every <code>Reader</code> now shares source-defined <code>read_to_end</code> and <code>read_to_string</code> methods. They preserve partial reads, reject impossible byte counts, propagate the first read failure, and validate UTF-8 only after the complete stream has been collected. <code>Writer.write_text</code> shares the corresponding UTF-8 byte adapter. <code>File</code>, buffered I/O, and user-defined implementations use the same interface defaults without concrete forwarding methods.</p><h2 id="result-origin-elision">Result-Origin Elision</h2><p>An unambiguous result origin no longer needs a written <code>from</code> clause. The compiler derives zero or one caller-managed origin from the resolved declaration and validates function bodies against that contract. A declaration whose storage-bearing result could retain more than one external input still names the choice explicitly:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+<span class="token-keyword">func</span> <span class="token-function">choose</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> first<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from left | right
+</code></pre><p>The formatter and language server preserve authored notation. They do not insert inferred clauses into hover, completion, or signature help.</p><h2 id="borrowed-text-operations">Borrowed Text Operations</h2><p>Borrowed <code>str</code> values support validated range projection, prefix and suffix removal, lazy splitting, and line iteration. <code>split_views</code> yields borrowed components without allocation and retains both the source text and separator. <code>lines</code> handles LF and CRLF terminators without synthesizing a trailing empty line. Source provenance remains attached through optional results, iterators, adapters, and receiver coercion.</p><h2 id="source-owned-view-methods">Source-Owned View Methods</h2><p><code>str</code> and <code>[T]</code> now own their observation methods in <code>std/str</code> and <code>std/slice</code>. <code>String</code> and <code>Vec&lt;T&gt;</code> reach those methods through their declared one-step borrow coercions:</p><pre><code class="language-nct"><span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"Nocter"</span>
+<span class="token-keyword">let</span> text_length <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+<span class="token-keyword">let</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-keyword">let</span> first <span class="token-operator">=</span> values<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
+</code></pre><p>The old public <code>String</code> and <code>Vec&lt;T&gt;</code> forwarding helpers for <code>view</code>, <code>view_mut</code>, <code>len</code>, <code>is_empty</code>, iteration, and element projection are removed. Explicit borrowed views use <code>as</code>, such as <code>(&amp;text) as &amp;str</code> or <code>(&amp;values) as &amp;[i32]</code>.</p><p>The compiler recognizes only four private representation primitives by resolved identity. Method typing, ownership, lowering, hover, completion, signature help, definition, references, rename, and semantic tokens use the selected source declaration rather than a public member name or a synthetic owning-type method.</p><h2 id="compatibility-and-limits">Compatibility and Limits</h2><p>Code importing a removed owning-view forwarding function must use a method, expected-type coercion, or explicit <code>as</code> expression. Construction, mutation, capacity management, ownership transfer, and stable <code>std/string</code> text-operation imports remain available.</p><p>This release does not add Unicode scalar or grapheme APIs, lifetime parameters, transitive or owned coercions, async I/O, recoverable collection allocation, dynamic dispatch, another target, or a stable cross-version ABI. The supported host and target remain <code>arm64-darwin</code>.</p>
             </div>
         </main>
     </div>
@@ -173,6 +158,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>
