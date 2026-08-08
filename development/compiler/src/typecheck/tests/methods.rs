@@ -76,12 +76,12 @@ coerce Buffer {
 }
 
 impl<T> [T] {
-    pub method &self.len(): usize { return 1 }
+    pub method &self.count(): usize { return 1 }
     pub method &+self.clear(): void { return }
 }
 
 func inspect(buffer: &Buffer): usize {
-    return buffer.len()
+    return buffer.count()
 }
 
 func mutate(buffer: &+Buffer): void {

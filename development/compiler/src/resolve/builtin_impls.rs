@@ -42,7 +42,7 @@ pub(crate) struct BuiltinTypeSurface {
 
 impl Resolver<'_> {
     pub(super) fn collect_builtin_impl_surfaces(&mut self, root: &AstFile) {
-        let impls = self
+        let mut impls = self
             .module_index
             .asts()
             .flat_map(|ast| {
@@ -54,6 +54,13 @@ impl Resolver<'_> {
                 })
             })
             .collect::<Vec<_>>();
+        impls.sort_by_key(|(_, _, impl_)| {
+            (
+                impl_.span.source == root.span.source,
+                impl_.span.source.raw(),
+                impl_.span.start,
+            )
+        });
 
         for (ast, owner, impl_) in impls {
             if let Err(message) = builtin_impl_shape(owner, &impl_) {
