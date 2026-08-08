@@ -321,23 +321,13 @@ coerce <span class="token-type">String</span> <span class="token-operator">{</sp
     <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_from_utf8</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> candidate<span class="token-operator">)</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">view</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">str_from_raw_parts</span><span class="token-operator">(</span>text<span class="token-operator">.</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">,</span> text<span class="token-operator">.</span>len<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">len</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> text_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>len
-    <span class="token-keyword">return</span> text_len
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> text_capacity<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>storage<span class="token-operator">.</span>len
     <span class="token-keyword">return</span> text_capacity
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">is_empty</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> text_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> text<span class="token-operator">.</span>len
-    <span class="token-keyword">return</span> text_len <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_reserve</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> additional<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>

@@ -7,9 +7,14 @@ types. Public method behavior belongs in the [string and view specification](../
 ## Ownership Model
 
 `str` and `[T]` are compiler type identities, not nominal declarations injected into the prelude.
+One compiler-level `BuiltinTypeOwner` registry owns each identity's canonical spelling and
+implementation module. Frontend loading, authority validation, resolver collection, trusted
+primitive validation, type checking, and editor analysis consume that registry instead of
+repeating owner or path tables.
+
 Their inherent methods nevertheless require ordinary source identities for type checking,
 lowering, diagnostics, and editor navigation. The resolver therefore stores a
-`BuiltinTypeSurface` beside the nominal symbol table. A surface records its built-in owner,
+`BuiltinTypeSurface` beside the nominal symbol table. A surface records its registry owner,
 implementation span, generic shape, and source-derived method signatures; it does not create a
 constructible struct, fields, coercions, `drop`, or a source-visible type name.
 
@@ -94,3 +99,8 @@ valid built-in surfaces. Distributed-home tests use the packaged sources and cov
 owning-type receiver coercion, pointer identity, capability selection, ownership conflicts, and
 editor declaration identity. A missing implementation unit is an invalid installation rather than
 a signal to restore compiler-invented methods.
+
+`std/string` and `std/vec` retain private raw-view helpers because their coercion and interface
+implementations must expose initialized private representation. Those helpers are not public
+compatibility aliases. User code reaches borrowed behavior through source-declared `str` and slice
+methods, expected-type coercion, or explicit `as`.

@@ -22,6 +22,11 @@ CR, and does not synthesize a final empty line. Borrowed operations preserve sou
 through a compiler-validated typed projection; raw-pointer reconstruction is not a substitute.
 Returning owned `split` components keeps their lifetime independent of the input.
 
+Text and collection observation are type-owned. `str` declares text methods and `[T]` declares
+slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. Their internal
+raw-view helpers are not importable APIs. Explicit view construction uses `as`, for example
+`(&text) as &str` and `(&values) as &[T]`.
+
 `Vec<T>.retain` preserves relative order. Rejected elements are dropped exactly once, retained
 elements move at most once, and the initialized prefix is updated only after compaction.
 `Vec<T>.truncate` drops the removed suffix.

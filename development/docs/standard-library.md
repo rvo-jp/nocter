@@ -12,9 +12,11 @@ defined by the responsibility-specific chapters indexed by
 |---|---|
 | allocation layout, raw storage, allocator policy | `std/mem` |
 | owned UTF-8 storage | `std/string` |
+| built-in UTF-8 view methods and representation queries | `std/str` |
 | shared UTF-8 byte search | `std/string_search` |
 | validated borrowed text ranges and cursors | `std/string_views` |
 | generic initialized-prefix storage | `std/vec` |
+| built-in slice methods and representation queries | `std/slice` |
 | iterator protocols and stateless operations | `std/iter/core`, `std/iter/ops` |
 | stateful iterator adapters | focused modules under `std/iter/` |
 | portable byte-stream protocols and derived operations | `std/io/core` |
@@ -51,6 +53,11 @@ publishes a sparse vector state.
 
 `String` applies the same storage rules to UTF-8 bytes. Encoding validation belongs to source
 operations before publication; buffer machinery does not acquire text semantics.
+
+Owned containers expose construction, mutation, capacity management, and ownership transfer.
+Borrowed observation belongs to the built-in `str` and `[T]` surfaces. Private `String` and
+`Vec<T>` raw-view helpers bridge initialized representation into coercion and interface
+implementations; they are not public forwarding APIs.
 
 ## Borrowed Text Views
 

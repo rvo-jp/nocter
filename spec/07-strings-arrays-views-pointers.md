@@ -510,6 +510,14 @@ one-step method-receiver lookup. It does not change literal types or insert a so
 method receiver preparation. See
 [Borrow Coercions](22-borrow-coercions.md).
 
+Borrowed observation has one public surface. `String` reaches text observation, search,
+projection, and iteration through its readonly coercion to `str`; `Vec<T>` reaches slice
+observation through its readonly or readwrite coercion to `[T]`. The raw `view`, `view_mut`,
+owning-type `len`, `is_empty`, `iter`, and element-projection helpers in the implementation modules
+are private. Callers use methods such as `text.len()` and `values.get(index)`, expected-type
+coercion, or an explicit expression such as `(&text) as &str`. The standard library does not keep
+public forwarding functions for these borrowed operations.
+
 The `char` type is not supported. String APIs operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
 
 ## String and Byte Literals
