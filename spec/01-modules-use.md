@@ -1,233 +1,169 @@
 # Modules and Use Declarations
 
-This file is part of the Nocter language specification.
-The specification entry point is [README.md](README.md).
+This file is part of the Nocter language specification. The specification entry point is
+[README.md](README.md).
 
-## Modules
+## Directory Modules
 
-Nocter modules are derived from file paths. The language does not have a `module` declaration.
-
-A module identity is derived from the canonical source file path. One `.nct` file defines one module.
-
-Import paths use `/` as the path separator:
+Nocter has no `module` declaration. A directory containing `index.nct` defines one module, and the
+directory path defines that module's identity.
 
 ```text
-examples/word_count.nct                                  => examples/word_count
-~/.nocter/std/io.nct                                     => std/io
-~/.nocter/std/os.nct                                     => std/os
+project/
+    nocter.nct             package declarations
+    index.nct              root module root source
+    string.nct             root module source
+    parser/
+        index.nct          child module `parser`
+        lexer.nct          source of module `parser`
+    internal/
+        scanner.nct        source folder; not a module
 ```
 
-The file path is the source of truth. There is no separate module name inside the file.
+`index.nct` is the module root source file. It defines the module's public surface. Other `.nct`
+files may contribute private declarations when reached through source imports. Their basenames do
+not create namespaces. A directory without `index.nct` is a source folder.
 
-`use` declarations make names from another module available. A `use`
-declaration is lexical compile-time syntax, not a runtime statement.
+Import paths use `/` and omit `.nct`:
 
-```nct
-use std/io.{File, stdout}
-use std/mem.Allocator
+```text
+/work/project/index.nct                    => /
+/work/project/parser/index.nct             => /parser
+~/.nocter/std/io/index.nct                  => std/io
 ```
 
-Supported `use` forms:
+## Module Imports
+
+`use` is lexical compile-time syntax, not a runtime statement. Module imports may introduce a
+namespace, selected public names, or public re-exports:
 
 ```nct
-use std/mem.Allocator
+use std/io
 use std/io.{File, stdout, stderr}
 use std/io.File as StdFile
-use std/io
-use ./config.AppConfig
-use ./config
+use ./parser.Parser
 use ../shared/path.Path
+pub use ./parser.Parser
 pub use std/string.String
-
-use std/io as console
 ```
 
-Top-level `use` declarations must appear at the start of the source file before
-non-`use` declarations. Block-scope `use` declarations must appear at the start
-of a `{ ... }` block before executable statements, bindings, or result
-expressions:
+Meaning:
+
+- `use path` introduces the module namespace under the path's final segment.
+- `use path.Name` introduces one exported name.
+- `use path.Name as Alias` introduces one exported name under an alias.
+- `use path.{A, B}` introduces several exported names; each may use `as`.
+- `pub use path` re-exports a module namespace under its final segment.
+- `pub use path.Name` and `pub use path.{...}` re-export selected public names.
+
+The default namespace name is the final path segment. `use std/io` introduces `io` and
+`use ./path/to/parser` introduces `parser`.
+
+Top-level imports precede non-import declarations. Block-scope module imports precede executable
+statements in their block:
 
 ```nct
-func greet(): void {
-    use std/io.print
-
-    print("hello")
-}
-```
-
-The scope of a block-scope `use` starts after the declaration and ends at the
-end of that block. Nested blocks may use their own block-scope imports:
-
-```nct
-func process(debug: bool): void {
+func greet(debug: bool): void {
     if debug {
         use std/io.print
 
         print("debug mode")
     }
-
-    print("done")
-    // error: print is not visible outside the if block
 }
 ```
 
-`pub use` is allowed only at the top level. A block-scope `use` cannot re-export
-anything.
+A block import is a compile-time dependency even when its block is not executed. It cannot use
+`pub`. Imports cannot shadow or collide with another visible name; aliases resolve collisions.
 
-Even inside `if`, `match`, `while`, or `loop`, a block-scope `use` is not a
-conditional dependency. The imported module is loaded as part of the compile
-unit whenever the containing file is compiled.
-
-Meaning:
-
-- `use path` imports the module namespace under its default name.
-- `use path.Name` imports one exported name into the current file.
-- `use path.Name as Alias` imports one exported name under an alias.
-- `use path.{Name}` is accepted as the braced single-name spelling.
-- `use path.{NameA, NameB}` imports multiple exported names from one file.
-- Each imported item in a braced `use` list may independently use `as Alias`.
-- `pub use path.Name` or `pub use path.{Name}` imports and re-exports one public name.
-- `use path as alias` imports the module namespace under an alias.
-- The default namespace name is the final non-relative segment of the module path. `use std/io` introduces `io`; `use ./path/to/dir` introduces `dir`, even when the path resolves to `./path/to/dir/index.nct`.
-
-Examples:
+Unsupported forms include wildcard imports, dotted module paths, explicit `.nct` suffixes,
+namespace alias re-exports, and textual inclusion:
 
 ```nct
-use std/io
-use std/io as console
-use std/io.File as StdFile
-
-var out = io.stdout()
-var err = console.stderr()
-let file: StdFile = StdFile.open(path)?
-```
-
-Relative and absolute module path prefixes are valid only inside `use`
-declarations. Code must not call a module by writing a relative or absolute
-path-like expression:
-
-```nct
-./path/to/file.something()
-../shared/file.something()
-/absolute/path/file.something()
-// invalid: import the module namespace first, then call file.something()
-```
-
-This rule does not give special expression meaning to non-relative module paths.
-Outside `use`, text such as `std/io.print("hello")` is parsed as ordinary
-expression tokens, the same as `std / io.print("hello")`. If `std` and `io` are
-not ordinary visible values, normal name resolution fails.
-
-`use std/prelude` is not a source-level import form. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
-
-```nct
-use std/prelude
-// invalid: the prelude is compiler-managed
-```
-
-Name collisions are compile errors.
-
-```nct
-use std/io.File
-use ./my/fs.File
-// error: File is imported twice
-```
-
-Use aliases to resolve collisions.
-
-```nct
-use std/io.File as StdFile
-use ./my/fs.File as MyFile
-```
-
-Block-scope imports follow the same collision rule. They must not shadow an
-outer visible name, a parameter, a local binding, another import, a top-level
-declaration, a prelude name, or a built-in type name:
-
-```nct
-use std/io.print
-
-func debug(): void {
-    use debug/console.print
-    // error: print is already visible; write `as debug_print`
-}
-```
-
-Invalid forms:
-
-```nct
-import std/io
 use std/io.*
-pub use std/io.*
-import std/io.File
-pub use std/io as io
-pub use std/io
-use std/prelude
-use std/prelude.Error
+use std.io.File
 use ./config.nct.Config
-include std/prelude
-./path/to/file.something()
+pub use std/io as console
+include ./search
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and relative or absolute path-like module expressions are not supported.
+Paths are valid only in `use`. An expression cannot call `std/io.print()` or
+`./parser.parse()` directly.
+
+## Same-Module Source Imports
+
+A private top-level bare relative import may compose another physical source file into the current
+module:
+
+```nct
+// index.nct
+use ./search
+
+pub func contains(text: &str, needle: &str): bool {
+    return find(text, needle)
+}
+```
+
+```nct
+// search.nct
+func find(text: &str, needle: &str): bool {
+    ...
+}
+```
+
+Here `search.nct` does not introduce `search`, and `find` is visible throughout the composed
+module. Source import rules are deliberately narrower than module imports:
+
+- the path must resolve a `.nct` file whose nearest enclosing module root is the same `index.nct`
+- the declaration must be exactly a private top-level `use ./path` or `use ../path`
+- selected names, aliases, block scope, and `pub use` are invalid for source imports
+- imported sources may import other sources in the same module
+- source cycles are allowed and idempotent; declarations are collected before bodies are resolved
+- a source file not reachable from the module root source is not compiled
+- a source file and child directory module cannot occupy the same logical path
+
+For example, if both `search.nct` and `search/index.nct` exist, `use ./search` is ambiguous. Rename
+one side; the compiler does not choose by precedence.
+
+Only a module root source may contain `pub` or `pub(nocter)` declarations, public fields, public
+interface members, public construction or coercion entries, or `pub use`. Implementation sources
+are private parts of the module. This keeps the complete external surface readable in
+`index.nct`.
 
 ## Re-exports
 
-Public re-export may expose a module namespace or selected public names.
+A public re-export can expose a child module namespace or selected public names:
 
 ```nct
-pub use ./src/json
-pub use std/string.String
+pub use ./parser
+pub use ./parser.Parser
 pub use std/io.File as StdFile
 ```
 
-`pub use path.Name` and `pub use path.{Name}` mean:
-
-- load the module at `path`
-- import the public name `Name` into the current module
-- expose that imported name as part of the current module's public API
-
 Rules:
 
-- `pub use path` re-exports the resolved module namespace under the final path segment.
-- A namespace re-export does not flatten declarations from the target module.
-- `pub use path.Name` and `pub use path.{...}` are allowed only at top level.
-- `pub use path.Name` and `pub use path.{...}` can re-export only public names from the source module.
-- `pub(nocter)` names are not public names for `pub use path.Name` or `pub use path.{...}`.
-- Each item in a `pub use` list may independently use `as Alias`.
-- Re-exported names participate in the same name collision checks as other imports and top-level declarations.
-- `pub use path.*` is invalid.
-- `pub use path as alias` remains invalid; namespace re-exports use their final path segment.
-- `pub use path.Name` and `pub use path.{...}` do not make private names public.
-- Selected-name re-exports do not create a namespace alias.
-- Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors.
+- re-exports are allowed only in a module root source
+- a namespace re-export does not flatten the target module
+- selected re-exports can expose only `pub` names, never private or `pub(nocter)` names
+- re-exported names participate in ordinary collision checks
+- wildcard and namespace-alias re-exports are invalid
+- selected-name re-exports do not also create a namespace alias
 
 ## Synthetic Standard Prelude
 
-User project modules receive a compiler-managed synthetic standard prelude loaded from `std/prelude.nct` in the active Nocter home.
-
-The compiler does not rewrite source text and does not model the prelude as a source-level `use std/prelude` item. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
-
-The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for ordinary standard-library names. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
+Every eligible user module receives a compiler-managed prelude from
+`<Nocter-home>/std/prelude/index.nct`. The compiler does not rewrite source text or synthesize a
+visible source-level import.
 
 Rules:
 
-- Every user project module receives a synthetic file-local prelude import from `std/prelude.nct`.
-- The synthetic prelude is applied independently to each user project module.
-- The synthetic prelude does not propagate from one file to another; each user project file gets its own synthetic prelude.
-- The synthetic prelude is not applied to files inside the active Nocter home.
-- The synthetic prelude is not applied to common standard-library files under `std/`.
-- The synthetic prelude is not applied to `std/prelude.nct` itself.
-- The synthetic prelude path is resolved directly under the active Nocter home;
-  a user project file such as `std/prelude.nct` does not shadow it.
-- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid.
-- The prelude imports all public exported names from `std/prelude.nct` into the current file.
-- Source-level `use path` does not import every public exported name from `path`; it imports only the module namespace.
-- `include std/prelude` is invalid.
-- Names introduced by the synthetic prelude participate in the same collision checks as explicit imports.
-- If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.
-- Diagnostics should identify collisions with the synthetic prelude as prelude collisions, not as hidden compiler built-ins.
-- Project-wide prelude configuration is not supported.
+- the prelude is applied to every user directory module
+- all physical sources in one module share the same module namespace and prelude surface
+- files inside the active Nocter home do not receive the synthetic prelude
+- `std/prelude` itself does not receive the prelude
+- a project path cannot shadow the compiler-selected prelude
+- source-level `use std/prelude` and selected prelude imports are invalid
+- prelude names participate in ordinary collision checks
+- project-wide prelude configuration is not supported
 
 The standard prelude exports:
 
@@ -236,20 +172,29 @@ pub use std/error.{Error, ErrorCode}
 pub use std/string.String
 ```
 
-The prelude remains deliberately small. There is no built-in `Int` alias; write `i32` or define a project-local alias. `Vec` is not re-exported because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` must be imported explicitly from their domain modules.
+Built-in forms such as `str`, `[T]`, and primitive numeric types are language types, not prelude
+exports. `Vec`, file APIs, allocation APIs, process APIs, and I/O functions require explicit
+imports from their domain modules.
 
 ## Package Layout
 
-A package root is a directory that directly contains `nocter.nct`.
-There is no source-root concept. `index.nct` remains only a directory module.
+A package root is a directory that directly contains `nocter.nct`. There is no source-root
+concept.
 
 ```text
 project/
     nocter.nct
-    src/
-        app.nct
-        config.nct
+    index.nct
+    search.nct
+    parser/
+        index.nct
+        lexer.nct
+    tests/
+        unit/
+            index.nct
 ```
+
+`nocter.nct` contains package documentation and directives only:
 
 ```nct
 //! Example application package.
@@ -258,240 +203,141 @@ project/
 #version: "0.1.0"
 #executable: {
     name: "example",
-    entry: "./src/app",
 }
-
-pub use ./src/config
+#test: {
+    name: "unit",
+    module: "./tests/unit",
+}
 ```
 
-Package-file rules:
-
-- File documentation precedes package directives; ordinary imports and declarations follow them.
-- `#name` and `#version` accept one string and may occur at most once.
-- `#name` defaults to the root directory basename for display only. That display name is not
-  package identity.
-- An omitted `#version` remains absent.
-- `#executable` is repeatable, requires a `name` string, and accepts an optional `entry` string.
-- Omitting `entry` selects the package-root module in `nocter.nct`.
-- `#test` is repeatable and requires both a `name` string and an `entry` string. Test names are
-  unique among tests; executable and test names occupy separate typed target namespaces.
-- Test entries use the same exact logical-module resolution and package-containment rules as
-  executable entries. The compiler never discovers tests by scanning a directory.
-- A test target selects declarations directly contained in its entry module. Imported modules are
-  not searched recursively. Tests in the entry module use normal module privacy; tests in a
-  separate entry module can import only public API.
-- `entry: "."` selects the root directory module at `index.nct`.
-- `entry: "./src/app"` resolves `src/app.nct` or `src/app/index.nct`.
-- Logical module paths omit `.nct`, cannot escape the package root lexically or through symbolic
-  links, and are ambiguous when both file and directory-module forms exist.
-- Neither the package-root `nocter.nct` nor an explicit target entry may escape its package or
-  cross into a nested package through a symbolic link or path.
-- Package directives are invalid outside `nocter.nct`. A nested `nocter.nct` defines another
-  package; a nested `index.nct` remains an ordinary directory module.
-- Omitting a source from `build`, `run`, or `check` selects `./nocter.nct`; it never probes for
-  `main.nct`.
-- Explicit positional source files and `--file` retain single-file operation without changing the
-  package command's default.
-- Relative imports are resolved from the directory containing the importing file and cannot leave
-  its package.
-- Leading `/` is package-absolute, not filesystem-absolute.
-- A non-relative first segment names a declared dependency or `std`.
-- `#dependencies` declares path, Git, and archive sources. Generated format-1 `#lock` data fixes
-  Git commits and archive SHA-256 content in the same `nocter.nct`.
-
-Example:
+The root `index.nct` contains ordinary Nocter code:
 
 ```nct
-// app.nct
 use std/io.print
-use /src/config.Config
+use ./parser.Parser
 
 func main(): i32! {
-    let config = Config.default()
-    print(config.name)?
-
+    let parser = Parser.new()
+    print("ready\n")?
     return 0
 }
 ```
 
-```nct
-// src/config.nct
-pub struct Config {
-    pub name: &str
-}
+Package-file rules:
 
-construct Config {
-    pub default func default(): Self {
-        return Config {
-            name: "Nocter",
-        }
-    }
-}
-```
+- file documentation precedes package directives; ordinary code is rejected in `nocter.nct`
+- `#name` defaults to the package-directory basename for display only
+- `#version` remains absent when omitted
+- `#executable` is repeatable, requires `name`, and accepts an optional `module`
+- an omitted executable `module` selects `.`
+- `#test` is repeatable and requires both `name` and `module`
+- target module paths are `.` or package-relative directory paths beginning with `./`
+- `module: "."` selects the package root `index.nct`
+- `module: "./tools/app"` selects `tools/app/index.nct`
+- targets never select ordinary implementation sources
+- module paths omit `.nct` and cannot escape the package or cross a nested package
+- package directives are invalid outside `nocter.nct`
+- a nested `nocter.nct` starts another package; a nested `index.nct` starts a child module
+- dependency declarations and generated exact locks remain in `nocter.nct`
 
-## Compile Unit
+The compiler does not discover a package target by probing `main.nct` or another conventional
+filename.
 
-`nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
+## Compile Units
 
-The compile unit is the root file plus every `.nct` file reached by following
-top-level `use`, block-scope `use`, public re-export, and eligible synthetic
-prelude loads recursively.
+Package `build`, `run`, and `check` begin with resolved target modules. Explicit file mode remains
+available for isolated scripts and diagnostics as specified by
+[Command Line Interface](15-command-line-interface.md).
 
-Rules:
-
-- Top-level `use` and `pub use` declarations are allowed only at the start of a
-  source file. Block-scope `use` declarations are allowed only at the start of
-  a block.
-- `pub use` is allowed only at top level.
-- The synthetic prelude load is compiler-internal and behaves as if its names are introduced before source-level imports for eligible user project modules.
-- Top-level executable statements are not allowed.
-- A root executable must define top-level `main` in the root file.
-- Entry lookup does not select imported functions.
-- Imported files may define ordinary functions named `main`, subject to normal name visibility and duplicate-name rules.
-- The same canonical file path is loaded at most once, even if reached through different relative paths.
-- Import cycles are errors.
-- The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.
-- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not supported.
-
-## Source File Identity
-
-Compiler-internal source file identity is the canonical absolute path.
+A compile unit contains each selected module and every module or source reached recursively through
+imports and the synthetic prelude. Physical sources are loaded by canonical path at most once.
 
 Rules:
 
-- Every loaded source file has a canonical absolute path.
-- Canonicalization resolves `.` and `..` path components.
-- Canonicalization resolves symlinks when the host filesystem can report the real path.
-- The import graph uses canonical absolute paths for duplicate detection.
-- The same canonical absolute path is one source file, even if reached through multiple relative import paths.
-- A symlink path and its real path refer to the same source file when canonicalization resolves them to the same path.
-- Import cycles are detected using canonical absolute paths.
-- Filesystem errors during canonicalization are reported as command-line, filesystem, or import diagnostics depending on which path triggered the failure.
-- The language does not expose canonical file paths to Nocter source code.
+- source-import cycles within one module are valid
+- module import and re-export cycles are errors
+- executable entry lookup selects top-level `main` in the selected directory module, not an
+  imported module
+- the complete unit is resolved, type-checked, ownership-checked, and lowered as one program
+- separate compilation, cached module artifacts, and link-time composition are not supported
 
-Diagnostic display path rules:
+## Source and Module Identity
 
-- Diagnostics keep both a display path and a canonical absolute path.
-- The display path is intended for humans.
-- The canonical absolute path is intended for editor integrations, LSP document mapping, and compiler de-duplication.
-- If a file is under the command working directory, the display path is relative to that working directory.
-- If a file is under the common Nocter home `std/`, the display path starts with `std/`.
-- Otherwise, the display path is the canonical absolute path.
-- Display paths use `/` as the separator in diagnostics, even on future non-macOS hosts.
+Module identity is the exact package identity plus normalized module-directory path. Physical
+source identity is a canonical absolute path.
 
-Examples:
+Canonical source paths are used for loading, duplicate suppression, dependency invalidation, and
+editor document mapping. Diagnostics retain a human display path and an optional canonical absolute
+path. A declaration's definition location remains its physical source even though lookup uses the
+shared directory-module namespace.
+
+Example diagnostic paths:
 
 ```text
 cwd:          /Users/me/project
-source file:  /Users/me/project/src/parser.nct
-display:      src/parser.nct
-absolute:     /Users/me/project/src/parser.nct
+source:       /Users/me/project/parser/lexer.nct
+display:      parser/lexer.nct
+absolute:     /Users/me/project/parser/lexer.nct
 ```
 
 ```text
 Nocter home:  /Users/me/.nocter
-source file:  /Users/me/.nocter/std/io.nct
-display:      std/io.nct
-absolute:     /Users/me/.nocter/std/io.nct
+source:       /Users/me/.nocter/std/io/index.nct
+display:      std/io/index.nct
+absolute:     /Users/me/.nocter/std/io/index.nct
 ```
 
 ## Import Path Resolution
 
-Import paths select module-relative, package, dependency, or standard-library namespaces. The
-`.nct` extension is omitted.
+Relative imports begin with `./` or `../` and resolve from the importing source's directory.
+Relative resolution considers both a same-module source (`path.nct`) and a child module
+(`path/index.nct`); finding both is an ambiguity error.
 
-Relative import paths start with `./` or `../`.
-
-```nct
-use ./config.AppConfig
-use ../shared/path.Path
-```
-
-Relative paths are resolved from the directory containing the current file:
-
-```text
-current file: app/main.nct
-import path:  ./config
-resolved:     app/config.nct
-```
-
-Package-absolute paths start with `/`.
+Package-absolute paths begin with `/` and resolve directory modules from the owning package root:
 
 ```nct
-use /src/config.Config
+use /parser.Parser
 ```
 
-Non-relative paths start with a dependency alias or `std`.
+Non-relative paths begin with a declared dependency alias or `std` and resolve directory modules
+only:
 
 ```nct
 use json/value.Value
 use std/io.print
 ```
 
-For a package at `/work/app` with dependency alias `json`, the namespaces are:
-
-```text
-/work/app/.nocter/packages/<json-PackageId>/nocter.nct
-/work/app/.nocter/packages/<json-PackageId>/value.nct
-/opt/nocter/std/io.nct
-/opt/nocter/std/io/index.nct
-```
-
-Each module path first tries `path.nct`, then `path/index.nct`. If both exist in the same import root, the import is ambiguous and must be reported as an error.
-
-```text
-use /src/json.Parser
-/work/app/src/json.nct
-/work/app/src/json/index.nct
-```
-
 Rules:
 
-- Package modules use `./`, `../`, or a leading `/`; relative paths cannot escape the package.
-- `use config.Config` requires a dependency named `config`; it never searches project directories.
-- `use std/io` resolves only through the compiler-matched Nocter home and cannot be shadowed by a
-  project directory.
-- `/src/path` is resolved from the owning package root. Filesystem-absolute imports are invalid.
-- `.` is not a module separator in import paths.
-- `.nct` is not written in import declarations.
-- Directory modules use `index.nct`; `mod.nct` is not a directory-module convention.
-- The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory. This supports normal installs where a `PATH` directory contains a symlink to `~/.nocter/nocter`.
-- The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
-- The repository local release image `dist/.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
+- relative paths cannot leave their package or enter another module's implementation source
+- a leading `/` is package-absolute, never filesystem-absolute
+- `use config.Config` requires a dependency alias named `config`; it does not search project files
+- `std/io` resolves only through the compiler-matched Nocter home
+- `.nct` is omitted from imports
+- `index.nct` is the only directory-module root convention
+- Nocter home comes from `NOCTER_HOME` when set, otherwise from the real running compiler path
 
 ## Name Resolution
 
-Unqualified names are resolved inside one file after imports are loaded and visibility is checked.
+Unqualified lookup uses the shared module namespace plus lexical scopes:
 
-Lookup order:
+1. current and enclosing lexical bindings
+2. function parameters
+3. declarations in any composed source of the current module
+4. explicit imported names and synthetic prelude names
+5. built-in types and syntax forms
 
-1. Current lexical block bindings.
-2. Outer lexical block bindings.
-3. Function parameters.
-4. Same-file top-level declarations.
-5. Explicitly imported names and names introduced by the synthetic prelude.
-6. Built-in types and reserved syntax forms.
-
-Rules:
-
-- Shadowing is not allowed.
-- Function parameter names must be unique within the parameter list.
-- A function parameter must not reuse a visible local, parameter, top-level, imported, prelude, or built-in type name.
-- A local binding must not reuse a visible local, parameter, top-level, imported, or built-in type name.
-- Two imports, a re-export, or a prelude name introducing the same local name are errors.
-- A same-file top-level declaration and an imported name must not have the same local name.
-- `use path` introduces only the default namespace name.
-- `use path as alias` introduces only the explicit namespace alias name.
-- Names inside an imported namespace are accessed with member syntax, such as `io.stdout()`.
-- There is no wildcard import.
-- There is no implicit import of every name from `std`.
-- The synthetic prelude is limited to `std/prelude`; it is not a general implicit import facility.
+Shadowing is not supported. Parameters, locals, module declarations, imports, prelude names, and
+built-in type names must not introduce the same visible name. Duplicate top-level declarations are
+diagnosed across every source in the module, independent of source traversal order.
 
 ## Visibility
 
-Definitions are private by default. Public API is marked with `pub`. Nocter-distribution-internal API is marked with `pub(nocter)`.
+Definitions are private by default. `pub` exposes API to other modules. `pub(nocter)` exposes
+distribution-internal API only to modules inside the active Nocter home.
 
 ```nct
+// std/io/index.nct
 pub struct File {
     fd: i32
 }
@@ -499,12 +345,6 @@ pub struct File {
 construct File {
     pub default func open(path: &str): Self! {
         ...
-    }
-}
-
-impl File {
-    method &self.raw_fd(): i32 {
-        return self.fd
     }
 }
 
@@ -519,73 +359,14 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 
 Rules:
 
-- Top-level definitions are private to their module by default.
-- `pub` on a top-level definition makes it importable from other modules.
-- `pub(nocter)` on a top-level definition makes it importable only from modules inside the active Nocter home.
-- The active Nocter home includes the common `std/` tree.
-- `pub(nocter)` is intended for distributed standard-library internals such as restricted pointer APIs and target primitive boundaries.
-- `pub(nocter)` may be written only in modules inside the active Nocter home.
-- `pub(nocter)` is not user-project package visibility.
-- `nocter` is contextual inside the `pub(nocter)` modifier. It is not a globally reserved keyword.
-- Type aliases are top-level definitions. `type Name = Target` is private by default, `pub type Name = Target` makes the alias importable and re-exportable, and `pub(nocter) type Name = Target` makes the alias importable only inside the active Nocter home.
-- Interfaces are top-level definitions. `interface Name { ... }` is private by
-  default, `pub interface Name { ... }` makes the contract importable and
-  re-exportable, and `pub(nocter) interface Name { ... }` makes the contract
-  importable only inside the active Nocter home.
-- `use` can import `pub` names from any module.
-- `use` can import `pub(nocter)` names only when the importing module is inside the active Nocter home.
-- User project modules cannot import `pub(nocter)` names.
-- `pub use path.Name` and `pub use path.{...}` can re-export only `pub` names from the source module as part of the current module's public API.
-- `pub use path.Name` and `pub use path.{...}` cannot re-export `pub(nocter)` names as public API.
-- `pub use path.Name` and `pub use path.{...}` re-export the imported name as part of the current module's public API.
-- Struct fields are private by default.
-- Public struct fields must be marked with `pub`.
-- `pub(nocter)` struct fields are visible only to modules inside the active Nocter home.
-- Functions and methods are private by default.
-- Public associated functions declared as `func Type.name` and public methods inside `impl` blocks must be marked with `pub`.
-- Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
-- `impl` blocks themselves are not marked `pub`.
-- Enum variants follow the visibility of their enum.
-- Interface members must be explicitly marked `pub`.
-- There is no `private` keyword or standalone `export` declaration.
-- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not supported visibility forms.
-
-Example:
-
-```nct
-pub struct Point {
-    pub x: i32
-    pub y: i32
-}
-
-pub enum Direction {
-    north
-    south
-    east
-    west
-}
-```
-
-Rules:
-
-- One `.nct` file defines one module.
-- The `.nct` extension is removed.
-- File and directory names used for modules must be snake_case identifiers as defined by [Lexical Grammar](13-lexical-grammar.md#identifiers).
-- `module` is not a keyword.
-- Directory modules use `index.nct`.
-- Standard library modules live under `std`.
-- `/work/app/src/io.nct` is written `/src/io`; `std/io` always selects the standard library.
-- Target-dependent standard-library declarations are selected by `#target: "..."` inside stable module files such as `~/.nocter/std/os.nct`; target names are not required in import paths.
-
-Import namespaces:
-
-1. The current file directory for `./` and `../` paths.
-2. The owning package root for `/...` paths.
-3. The dependency bound by the first path segment in `#dependencies`.
-4. The active Nocter home only for `std/...`.
-
-The compiler locates Nocter home in this order:
-
-1. `NOCTER_HOME`, if set.
-2. The directory containing the running `nocter` executable.
-3. Otherwise, report a clear configuration error.
+- public declarations may be written only in `index.nct`
+- top-level types, aliases, interfaces, functions, primitives, fields, associated functions,
+  methods, interface members, construction entries, coercion entries, and re-exports follow this
+  rule
+- private declarations in every composed source are visible throughout their module
+- `pub` names are importable from other modules
+- `pub(nocter)` may be declared and imported only inside the active Nocter home
+- `pub(nocter)` cannot be publicly re-exported
+- enum variants follow their enum's visibility
+- `impl` blocks are not themselves marked public
+- there is no `private` keyword or package-level friend visibility

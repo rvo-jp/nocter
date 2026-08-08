@@ -117,9 +117,10 @@ rm -rf "$HOME/.nocter"
 
 ## First Program
 
-Create a directory containing `nocter.nct`:
+Create a directory containing a package file:
 
 ```nct
+// nocter.nct
 //! Hello executable.
 
 #name: "hello"
@@ -127,6 +128,12 @@ Create a directory containing `nocter.nct`:
 #executable: {
     name: "hello",
 }
+```
+
+Define the package root module in `index.nct`:
+
+```nct
+// index.nct
 
 use std/io.print
 
@@ -161,11 +168,12 @@ Format the package file:
 nocter fmt nocter.nct
 ```
 
-`nocter.nct` is both the package manifest and its root module. Omitting an
-executable `entry` selects the code in `nocter.nct`; an explicit path such as
-`entry: "./src/app"` selects another module. Dependencies and generated exact
-locks also live in this file, so dependency changes appear in ordinary source
-review. The compiler does not guess an implicit `main.nct`.
+`nocter.nct` contains package documentation and directives only. `index.nct`
+defines the root module and its public surface. An executable without a
+`module` field selects that root module; `module: "./tools/app"` selects the
+module rooted at `tools/app/index.nct`. Dependencies and generated exact locks
+remain in `nocter.nct`, so dependency changes appear in ordinary source review.
+The compiler does not guess an implicit `main.nct`.
 
 For an isolated script or experiment, select single-file mode explicitly:
 

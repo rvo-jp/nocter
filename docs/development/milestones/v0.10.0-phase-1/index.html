@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.10.0 Phase 1 - Nocter</title>
-    <meta name="description" content="Status: In progress.">
+    <meta name="description" content="Status: Complete.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.10.0-phase-1/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.10.0 Phase 1 - Nocter">
-    <meta property="og:description" content="Status: In progress.">
+    <meta property="og:description" content="Status: Complete.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.10.0-phase-1/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.10.0 Phase 1 - Nocter">
-    <meta name="twitter:description" content="Status: In progress.">
+    <meta name="twitter:description" content="Status: Complete.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 1 - Nocter","description":"Status: In progress.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 1","item":"https://nocter.dev/development/milestones/v0.10.0-phase-1/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 1 - Nocter","description":"Status: Complete.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-1/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 1","item":"https://nocter.dev/development/milestones/v0.10.0-phase-1/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -129,7 +129,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.10.0-phase-1.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-10-0-phase-1">Nocter v0.10.0 Phase 1</h1><p><strong>Status:</strong> In progress.</p><h2 id="purpose">Purpose</h2><p>Phase 1 replaces file-defined modules with directory-defined modules. It separates package metadata, module identity, and physical source composition so large libraries can split private implementation across files without creating public namespaces or scattering their API surface.</p><h2 id="source-model">Source Model</h2><ul><li><code>nocter.nct</code> is the package file. It contains package documentation and package directives only.</li><li>A directory containing <code>index.nct</code> defines one module. The <code>index.nct</code> file is that module's
+                <h1 id="nocter-v0-10-0-phase-1">Nocter v0.10.0 Phase 1</h1><p><strong>Status:</strong> Complete.</p><h2 id="purpose">Purpose</h2><p>Phase 1 replaces file-defined modules with directory-defined modules. It separates package metadata, module identity, and physical source composition so large libraries can split private implementation across files without creating public namespaces or scattering their API surface.</p><h2 id="source-model">Source Model</h2><ul><li><code>nocter.nct</code> is the package file. It contains package documentation and package directives only.</li><li>A directory containing <code>index.nct</code> defines one module. The <code>index.nct</code> file is that module's
   module root source file.</li><li>Other imported <code>.nct</code> files are source files of the nearest enclosing module. Their file names do
   not create namespaces or externally visible identities.</li><li>A directory without <code>index.nct</code> is a source folder, not a module.</li><li><code>use ./search</code> resolves <code>search.nct</code> as a same-module source import when that file exists.</li><li><code>use ./parser.Parser</code> resolves <code>parser/index.nct</code> as a child-module import.</li><li>A source file and a child module may not use the same logical path. The compiler reports the
   conflict instead of selecting one by precedence.</li><li>Same-module source imports are idempotent and may form cycles because declarations are collected
@@ -142,7 +142,15 @@
 <span class="token-operator">}</span>
 </code></pre><h2 id="completion-gate">Completion Gate</h2><ul><li>package loading rejects ordinary Nocter declarations in <code>nocter.nct</code></li><li>build, check, run, test, graph, formatting, AST JSON, and package initialization use directory
   modules and <code>module</code> target fields</li><li>source imports compose one module namespace without producing import aliases</li><li>module imports expose only the root source file's public surface</li><li>resolver, type checker, native lowering, trusted declaration lookup, and LSP queries preserve
-  source-backed locations while sharing directory module identity</li><li>the standard library, public examples, fixtures, and tests use the new layout</li><li>documentation contains no active one-file-one-module, package-source, or target-<code>entry</code> contract</li><li><code>development/compiler/scripts/verify.sh</code>, documentation generation, and <code>git diff --check</code> pass</li></ul><p>Phase 1 does not introduce wildcard source discovery, textual inclusion order, partial declarations, or an additional manifest file.</p>
+  source-backed locations while sharing directory module identity</li><li>the standard library, public examples, fixtures, and tests use the new layout</li><li>documentation contains no active one-file-one-module, package-source, or target-<code>entry</code> contract</li><li><code>development/compiler/scripts/verify.sh</code>, documentation generation, and <code>git diff --check</code> pass</li></ul><p>Phase 1 does not introduce wildcard source discovery, textual inclusion order, partial declarations, or an additional manifest file.</p><h2 id="completion-record">Completion Record</h2><ul><li>Package parsing now keeps <code>nocter.nct</code> outside the ordinary AST and rejects source declarations
+  there. Package targets resolve directory modules through <code>module</code>; the removed <code>entry</code> field is
+  diagnosed rather than retained as a compatibility alias.</li><li>One shared source-layout model defines module roots, source membership, normalized module
+  identity, ambiguity detection, and missing-file canonicalization for open editor buffers.</li><li>The resolver joins reachable physical sources into one declaration namespace while preserving
+  per-source spans and analysis results. Source cycles are idempotent; module cycles remain errors.</li><li>Visibility validation makes <code>index.nct</code> the sole public-surface authority. Package, dependency,
+  standard-library, and re-export paths cannot address implementation sources.</li><li>CLI commands, package initialization, the LSP, the standard library, compiler fixtures, and
+  public examples use the directory-module layout. Cross-source LSP navigation is covered for
+  unsaved implementation buffers.</li><li>The complete 3,405-test compiler verification suite, generated documentation, public example
+  checks, and whitespace validation passed for the migrated tree.</li></ul>
             </div>
         </main>
     </div>

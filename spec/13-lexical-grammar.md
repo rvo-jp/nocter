@@ -141,7 +141,7 @@ special `error` type spelling is contextual as described above.
 Package metadata uses the same `test` token in `#test`; package parsing treats it as that
 directive's exact name rather than as a general identifier.
 
-Module file and directory names use snake_case identifiers:
+Module-directory segments and imported source-file stems use snake_case identifiers:
 
 ```text
 file_name

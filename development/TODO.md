@@ -2,13 +2,24 @@
 
 ## Current Task
 
-v0.10.0 Phase 1 is active under
-[`milestones/v0.10.0-phase-1.md`](milestones/v0.10.0-phase-1.md). It replaces file-defined modules
-with directory-defined modules, separates `nocter.nct` from source code, and makes explicit source
-imports compose one private module namespace. v0.9.0 remains published and audited under
-[`releases/v0.9.0.md`](releases/v0.9.0.md).
+v0.10.0 Phase 1 is complete under
+[`milestones/v0.10.0-phase-1.md`](milestones/v0.10.0-phase-1.md). Directory modules now separate
+package metadata, public module roots, and private physical sources. v0.9.0 remains published and
+audited under [`releases/v0.9.0.md`](releases/v0.9.0.md). Define the next v0.10.0 standard-library
+phase before beginning another implementation area.
 
 ## Completed Checkpoint
+
+- v0.10.0 Phase 1 replaces file-defined modules with directory-defined modules rooted at
+  `index.nct`; `nocter.nct` now contains package documentation and directives only
+- explicit same-module source imports compose one private namespace with idempotent cycles, while
+  external paths address directory modules and their root-defined public surfaces only
+- one source-layout layer supplies canonical module identity, source membership, ambiguity rules,
+  target resolution, and unsaved-buffer matching to the compiler and LSP
+- package targets use `module`, public declarations are confined to module roots, and the standard
+  library, examples, fixtures, initialization output, and documentation use the new layout
+- all 3,405 compiler tests, documentation generation, public example checks, formatting, and
+  warnings-denied Clippy passed on the migrated tree
 
 - v0.10.0 Phase 0 centralizes integer width, signedness, range, and ABI-word semantics in one
   descriptor consumed by ABI classification, IR lowering, and arm64 code generation

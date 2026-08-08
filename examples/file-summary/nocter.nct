@@ -3,34 +3,3 @@
 #executable: {
     name: "file-summary",
 }
-
-use std/io.{open_path, print}
-
-use std/num.usize_to_string
-
-use std/path.Utf8Path
-
-use std/process.arg
-
-func main(): i32! {
-    let requested: &str = arg(1)? otherwise {
-        print("usage: file-summary PATH\n")?
-        return 2
-    }
-    let path = Utf8Path.new(requested)?
-    var file = open_path(&path)?
-    let text = file.read_to_string()?
-    let bytes = text.bytes()
-    var lines: usize = 0
-    var offset: usize = 0
-    while offset < bytes.len() {
-        if bytes[offset] == 10 {
-            lines = lines + 1
-        }
-        offset = offset + 1
-    }
-    let result = usize_to_string(lines)
-    print((&result) as &str)?
-    print("\n")?
-    return 0
-}

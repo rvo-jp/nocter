@@ -1,0 +1,24 @@
+use std/io.{open_path, print}
+
+use std/num.usize_to_string
+
+use std/path.Utf8Path
+
+use std/process.arg
+
+use ./summary
+
+func main(): i32! {
+    let requested: &str = arg(1)? otherwise {
+        print("usage: file-summary PATH\n")?
+        return 2
+    }
+    let path = Utf8Path.new(requested)?
+    var file = open_path(&path)?
+    let text = file.read_to_string()?
+    let lines = count_lines(&text)
+    let result = usize_to_string(lines)
+    print((&result) as &str)?
+    print("\n")?
+    return 0
+}

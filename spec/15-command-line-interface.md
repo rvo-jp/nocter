@@ -5,8 +5,8 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Package Initialization and Graph Inspection
 
-`nocter init [DIR]` creates a source-owned package without overwriting
-an existing `nocter.nct` or generated `tests/unit.nct`. The directory name supplies `#name` unless
+`nocter init [DIR]` creates a source-owned package without overwriting an existing `nocter.nct`,
+root `index.nct`, or generated `tests/unit/index.nct`. The directory name supplies `#name` unless
 `--name` is explicit. The default template is executable; `--library` selects a library template.
 Both templates declare a separate package test target and must pass `nocter check` and
 `nocter test` immediately after creation.
@@ -21,9 +21,9 @@ intentionally updates dependency locks.
 
 ## Command Model
 
-Package commands operate on a source-owned `nocter.nct`. Omitting a
-source selects a package; it never guesses that `main.nct` is an executable. Explicit single-file
-operation remains available for scripts and isolated experiments.
+Package commands operate on a source-owned `nocter.nct`. Omitting a source selects a package; it
+never guesses that `main.nct` is an executable. Explicit single-file operation remains available
+for scripts and isolated experiments.
 
 ```sh
 nocter --version
@@ -69,7 +69,7 @@ nocter check --root ./tools/json
 - The default root is the current directory.
 - `--root path` selects another package directory.
 - The selected directory must contain `nocter.nct`.
-- The package manifest declares zero or more executable and test targets.
+- The package file declares zero or more executable and test targets.
 - The compiler never searches for `main.nct`, walks upward for another package, or invents an
   executable target.
 
@@ -84,7 +84,7 @@ nocter check --file app.nct
 - The file must have the `.nct` extension.
 - `--root` and file mode cannot be combined.
 - `--executable` cannot be used in file mode.
-- Package directives are rejected in file mode because they belong to a selected package-root
+- Package directives are rejected in file mode because they belong to a selected package
   `nocter.nct`.
 
 The compiler follows imports from each selected root module to form a compile unit. Import and
@@ -92,7 +92,7 @@ source identity rules are specified in [Modules and Use Declarations](01-modules
 
 ## Package File
 
-The leading package manifest uses declarative directives:
+The package file uses declarative directives:
 
 ```nct
 //! JSON command-line tool.
@@ -101,27 +101,25 @@ The leading package manifest uses declarative directives:
 #version: "0.1.0"
 #executable: {
     name: "json-tool",
-    entry: "./src/app",
+    module: "./src/app",
 }
 #test: {
     name: "unit",
-    entry: "./tests/unit",
+    module: "./tests/unit",
 }
-
-pub use ./src/json
 ```
 
 `#name` is presentation metadata. If absent, the package root directory basename is used as the
 display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
-unique package-local name and may select an explicit logical entry path without a `.nct` suffix.
-When `entry` is absent, the package-root module in `nocter.nct` is the entry.
+unique package-local name and may select an explicit logical directory-module path. When `module`
+is absent, the package root module at `index.nct` is selected.
 
-Each repeatable `#test` contains a unique test name and a required logical `entry`. Test and
+Each repeatable `#test` contains a unique test name and a required logical `module`. Test and
 executable names occupy different target namespaces. Test modules are never discovered from
 directory names or filenames.
 
-Ordinary imports and declarations after the leading directives form the package root module.
-`index.nct` remains a directory module and has no package metadata responsibility.
+`nocter.nct` accepts package documentation and directives only. Ordinary imports and declarations
+belong in `index.nct` or another module source.
 
 Dependencies and their generated exact locks share `nocter.nct`:
 
@@ -160,17 +158,16 @@ main` with no type or value parameters and a supported process result type.
 ```nct
 #executable: {
     name: "server",
-    entry: "./src/server",
+    module: "./src/server",
 }
 ```
 
 Rules:
 
-- Omitting `entry` selects `nocter.nct`.
-- `entry: "."` selects `index.nct` in the package root.
-- `entry: "./src/server"` selects `src/server.nct` or `src/server/index.nct`.
-- If both module forms exist, selection is an error.
-- A module path cannot contain `.nct` or escape the package root.
+- Omitting `module` selects `.`.
+- `module: "."` selects `index.nct` in the package root.
+- `module: "./src/server"` selects `src/server/index.nct`.
+- A module path names a directory, cannot contain `.nct`, and cannot escape the package root.
 - `--executable name` selects one declared executable.
 - Package `build` builds every declared executable when no name is selected.
 - Package `run` selects the sole executable. Multiple declarations require `--executable`.
@@ -251,7 +248,7 @@ and `--format json`; it does not accept a positional source, `--file`, `--execut
 `--case` requires `--test` because target and declaration names are separate typed namespaces.
 
 Without `--test`, targets run in declaration order. Each target selects native `test name { ... }`
-declarations directly contained in its entry module. Cases run in source order, or `--case` selects
+declarations directly contained in its selected module. Cases run in source order, or `--case` selects
 one exact declaration. Every case is compiled through normal semantic, ownership, buildability,
 and native-emission stages, written to a unique temporary location, and launched in its own
 process. The temporary executable is removed after every outcome. A nonzero exit, signal, compile

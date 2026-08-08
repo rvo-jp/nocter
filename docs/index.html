@@ -140,13 +140,15 @@
 </code></pre><p>If <code>/usr/local/bin</code> requires elevated permissions, use <code>sudo ln -s ...</code> or choose a user-owned directory that is already on <code>PATH</code>, such as <code>~/.local/bin</code> when your shell already includes it.</p><p>Do not copy the <code>nocter</code> binary out of <code>.nocter/</code>; the compiler locates its standard library from the real installed binary path. If symlinks are not available in your environment, set <code>NOCTER_HOME</code> explicitly:</p><pre><code class="language-sh"><span class="token-function">export</span> NOCTER_HOME=<span class="token-string">"$HOME/.nocter"</span>
 </code></pre><p>Uninstalling a <code>.nocter/</code> installation is intentionally plain:</p><pre><code class="language-sh"><span class="token-function">rm</span> /usr/<span class="token-function">local</span>/bin/nocter
 <span class="token-function">rm</span> <span class="token-option">-rf</span> <span class="token-string">"$HOME/.nocter"</span>
-</code></pre><h2 id="first-program">First Program</h2><p>Create a directory containing <code>nocter.nct</code>:</p><pre><code class="language-nct"><span class="token-comment">//! Hello executable.</span>
+</code></pre><h2 id="first-program">First Program</h2><p>Create a directory containing a package file:</p><pre><code class="language-nct"><span class="token-comment">// nocter.nct</span>
+<span class="token-comment">//! Hello executable.</span>
 
 #name<span class="token-operator">:</span> <span class="token-string">"hello"</span>
 #version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span>
 #executable<span class="token-operator">:</span> <span class="token-operator">{</span>
     name<span class="token-operator">:</span> <span class="token-string">"hello"</span><span class="token-operator">,</span>
 <span class="token-operator">}</span>
+</code></pre><p>Define the package root module in <code>index.nct</code>:</p><pre><code class="language-nct"><span class="token-comment">// index.nct</span>
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
 
@@ -159,7 +161,7 @@
 ./hello
 </code></pre><p>Check without building:</p><pre><code class="language-sh"><span class="token-function">nocter</span> check
 </code></pre><p>Format the package file:</p><pre><code class="language-sh"><span class="token-function">nocter</span> fmt nocter.nct
-</code></pre><p><code>nocter.nct</code> is both the package manifest and its root module. Omitting an executable <code>entry</code> selects the code in <code>nocter.nct</code>; an explicit path such as <code>entry: "./src/app"</code> selects another module. Dependencies and generated exact locks also live in this file, so dependency changes appear in ordinary source review. The compiler does not guess an implicit <code>main.nct</code>.</p><p>For an isolated script or experiment, select single-file mode explicitly:</p><pre><code class="language-sh"><span class="token-function">nocter</span> run app.nct
+</code></pre><p><code>nocter.nct</code> contains package documentation and directives only. <code>index.nct</code> defines the root module and its public surface. An executable without a <code>module</code> field selects that root module; <code>module: "./tools/app"</code> selects the module rooted at <code>tools/app/index.nct</code>. Dependencies and generated exact locks remain in <code>nocter.nct</code>, so dependency changes appear in ordinary source review. The compiler does not guess an implicit <code>main.nct</code>.</p><p>For an isolated script or experiment, select single-file mode explicitly:</p><pre><code class="language-sh"><span class="token-function">nocter</span> run app.nct
 <span class="token-function">nocter</span> check <span class="token-option">--file</span> app.nct
 </code></pre><h2 id="current-status">Current Status</h2><p>The v0.9.0 compiler parses, checks, builds, and runs the supported language on <code>arm64-darwin</code>. It emits ARM64 Mach-O executables directly.</p><p>The buildable subset is intentionally narrower than the checkable language. Unsupported runtime forms must reject with source-backed diagnostics before machine code is emitted. The <a href="./spec/index.html#content">language specification</a> describes the current v0.9.0 language; the <code>v0.9.0</code> repository tag preserves the exact published compiler, standard library, specification, and packaging inputs.</p><h2 id="learn-more">Learn More</h2><ul><li><a href="./examples/index.html#content">Examples</a>: complete packages that can be checked and run locally.</li><li><a href="./spec/index.html#content">Language Specification</a>: Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.</li><li><a href="./spec/00-design-principles/index.html#content">Design Principles</a>: the simplicity,

@@ -120,9 +120,12 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../hello/nocter/index.html#content">hello/nocter.nct</a></li>
-                <li><a href="./index.html#content" aria-current="page">file-summary/nocter.nct</a></li>
+                <li><a href="../../hello/index/index.html#content">hello/index.nct</a></li>
+                <li><a href="../index/index.html#content">file-summary/index.nct</a></li>
+                <li><a href="../summary/index.html#content">summary.nct</a></li>
                 <li><a href="../../../spec/index.html#content">language specification</a></li>
+                <li><a href="./index.html#content" aria-current="page">file-summary/nocter.nct</a></li>
+                <li><a href="../../hello/nocter/index.html#content">hello/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -134,37 +137,6 @@
 #version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span>
 #executable<span class="token-operator">:</span> <span class="token-operator">{</span>
     name<span class="token-operator">:</span> <span class="token-string">"file-summary"</span><span class="token-operator">,</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span>open_path<span class="token-operator">,</span> print<span class="token-operator">}</span>
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>num<span class="token-operator">.</span>usize_to_string
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Utf8Path</span>
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span>arg
-
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> requested<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"usage: file-summary PATH\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-number">2</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> path <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-function">open_path</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> text <span class="token-operator">=</span> file<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">let</span> bytes <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> lines<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-    while offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> bytes<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">10</span> <span class="token-operator">{</span>
-            lines <span class="token-operator">=</span> lines <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>lines<span class="token-operator">)</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>
