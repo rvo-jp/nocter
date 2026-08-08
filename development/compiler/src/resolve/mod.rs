@@ -1,6 +1,7 @@
 //! Import resolution, visibility, and name lookup.
 
 mod body;
+mod builtin_impls;
 mod builtins;
 mod closures;
 mod coercions;
@@ -19,6 +20,7 @@ mod type_surfaces;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use builtin_impls::BuiltinTypeOwner;
 pub use symbols::{
     AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
     ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
@@ -67,6 +69,7 @@ pub fn resolve_compile_unit(
     };
 
     resolver.collect_top_level_symbols(root);
+    resolver.collect_builtin_impl_surfaces(root);
     resolver.resolve_callable_bodies(root);
     resolver.output
 }

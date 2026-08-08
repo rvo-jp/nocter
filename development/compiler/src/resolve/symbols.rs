@@ -7,6 +7,8 @@ use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
+use super::builtin_impls::{BuiltinTypeOwner, BuiltinTypeSurface};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
 
@@ -30,6 +32,7 @@ pub struct ResolveOutput {
     pub(super) typed_literal_targets: HashMap<ByteSpan, LiteralResolution>,
     pub(super) local_symbols: Vec<LocalSymbol>,
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
+    pub(super) builtin_type_surfaces: HashMap<BuiltinTypeOwner, BuiltinTypeSurface>,
     pub(crate) trusted_declarations: TrustedDeclarationFacts,
 }
 
@@ -172,6 +175,19 @@ impl ResolveOutput {
                     None
                 }
             })
+            .or_else(|| {
+                self.builtin_type_surfaces
+                    .values()
+                    .flat_map(|surface| &surface.symbol.methods)
+                    .find(|method| method.name_span == name_span)
+            })
+    }
+
+    pub(crate) fn builtin_type_surface(
+        &self,
+        owner: BuiltinTypeOwner,
+    ) -> Option<&BuiltinTypeSurface> {
+        self.builtin_type_surfaces.get(&owner)
     }
 
     pub fn call_name_for_diagnostic(&self, call: &CallExpr) -> String {
@@ -260,6 +276,7 @@ impl ResolveOutput {
             typed_literal_targets: HashMap::new(),
             local_symbols: Vec::new(),
             local_identifier_targets: HashMap::new(),
+            builtin_type_surfaces: HashMap::new(),
             trusted_declarations: TrustedDeclarationFacts::default(),
         }
     }

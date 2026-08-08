@@ -41,6 +41,10 @@ impl<'a> ModuleIndex<'a> {
     pub(super) fn ast_for_source(&self, source: SourceId) -> Option<&'a AstFile> {
         self.by_source.get(&source).copied()
     }
+
+    pub(super) fn asts(&self) -> impl Iterator<Item = &'a AstFile> + '_ {
+        self.by_source.values().copied()
+    }
 }
 
 pub(super) fn is_relative_module_path(path: &str) -> bool {

@@ -3,6 +3,36 @@ use crate::ast::Visibility;
 use crate::resolve::{SymbolKind, TypeSymbol, TypeSymbolKind};
 
 #[test]
+fn collects_source_declared_builtin_method_surfaces_outside_the_symbol_table() {
+    let output = resolve_text(
+        r#"impl str {
+    pub method &self.count(): usize {
+        return 1
+    }
+}
+
+impl<T> [T] {
+    pub method &self.count(): usize {
+        return 2
+    }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    assert!(output.symbols.symbol_by_name("str").is_none());
+    let text = output
+        .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Str)
+        .expect("str method surface");
+    let slice = output
+        .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Slice)
+        .expect("slice method surface");
+    assert_eq!(text.symbol.methods[0].name, "count");
+    assert_eq!(slice.symbol.generic_parameters, ["T"]);
+    assert_eq!(slice.symbol.methods[0].name, "count");
+}
+
+#[test]
 fn collects_function_symbols() {
     let output = resolve_text(
         r#"func main(): i32 {

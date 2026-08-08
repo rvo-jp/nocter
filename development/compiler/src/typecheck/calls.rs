@@ -785,6 +785,16 @@ fn inherent_method_owner_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
+    let builtin = match ty {
+        Type::StrData => Some(crate::resolve::BuiltinTypeOwner::Str),
+        Type::ArrayData { .. } => Some(crate::resolve::BuiltinTypeOwner::Slice),
+        _ => None,
+    };
+    if let Some(owner) = builtin {
+        return resolved
+            .builtin_type_surface(owner)
+            .map(|surface| &surface.symbol);
+    }
     let canonical_name = ty.nominal_name()?;
 
     resolved
@@ -817,6 +827,10 @@ fn field_is_accessible(
 
 pub(super) fn method_self_type_for_receiver(receiver_type: &Type) -> Type {
     match receiver_type {
+        Type::Str => Type::StrData,
+        Type::View { element, .. } => Type::ArrayData {
+            element: element.clone(),
+        },
         Type::Borrow { inner, .. } => inner.as_ref().clone(),
         _ => receiver_type.clone(),
     }
