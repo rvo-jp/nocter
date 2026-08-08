@@ -162,7 +162,7 @@
         offset <span class="token-operator">=</span> offset <span class="token-operator">+</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>lines<span class="token-operator">)</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>result<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>

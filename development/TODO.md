@@ -2,13 +2,25 @@
 
 ## Current Task
 
-v0.9.0 Phase 3 is planned and implementation has not started. Follow the ordered plan and
-verification gate in [`milestones/v0.9.0.md`](milestones/v0.9.0.md): introduce source-owned
-`str`/slice method declarations and one-step receiver coercion, then remove duplicated owning-type
-observation methods and compiler recognition of public member spellings. Do not change versions,
-package an archive, tag, push, or publish v0.9.0 during this phase.
+No implementation task is active. v0.9.0 Phase 3 is complete, and the milestone has returned to an
+inactive feature state. Begin no stabilization, version change, archive preparation, tag, push, or
+publication work until a separate release-qualification plan defines its scope and evidence.
 
 ## Completed Checkpoint
+
+- v0.9.0 Phase 3 makes `std/str` and `std/slice` the exclusive source authorities for built-in
+  view methods and restricts compiler roles to four exact representation primitives
+- one ordinary receiver-conversion plan gives `String` and `Vec<T>` their borrowed view APIs
+  without duplicate inherent methods; original methods and explicit conformances keep priority
+- semantic expression type facts drive string and slice indexing, byte collection, assignment, and
+  native lowering, including explicitly converted views and compound mutable access
+- built-in method signatures retain canonical hidden imported dependencies; editor features use
+  the selected source identity and canonical concrete receiver instead of synthetic owning methods
+- deterministic surface collection, authority diagnostics, ownership and region tests, public
+  examples, and the installed-home matrix close source-order, migration, and distribution gaps
+- the final verification matrix passed all 3,389 tests, formatting, warnings-denied Clippy,
+  documentation tests, generated documentation, public examples, source corpus, and the
+  distributed installed-home suite
 
 - v0.9.0 Phase 2 adds validated UTF-8 `get_range`, `strip_prefix`, and `strip_suffix` views plus
   allocation-free `SplitIter` and `LinesIter` state machines behind the stable `std/string` facade
@@ -122,7 +134,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Implement only the ordered v0.9.0 Phase 3 scope. Stop after its completion record is committed. Do
-not add Unicode scalar semantics, range syntax, standard input, bump the release version, prepare
-an archive, tag, push, or publish v0.9.0 without a later stabilization and release-qualification
-plan.
+Define a separate v0.9.0 stabilization and release-qualification plan before changing code or
+release identity. That plan must audit the completed Phase 0-3 public surface, freeze explicit
+release criteria, and keep archive preparation, tagging, pushing, and publication outside its scope
+until the candidate passes the complete qualification matrix.
