@@ -429,7 +429,10 @@ pub(super) fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
         | UsizeValue::CurrentAllocationState
         | UsizeValue::CurrentAllocationKind => false,
         UsizeValue::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
-        UsizeValue::StrLen(_) | UsizeValue::SliceLen(_) => false,
+        UsizeValue::StrPointer(_)
+        | UsizeValue::SlicePointer(_)
+        | UsizeValue::StrLen(_)
+        | UsizeValue::SliceLen(_) => false,
         UsizeValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }
 }

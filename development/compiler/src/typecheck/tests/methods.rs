@@ -66,6 +66,37 @@ func main(): i32 {
 }
 
 #[test]
+fn receiver_coercion_selects_the_minimum_capability_for_one_method_identity() {
+    let diagnostics = check_text(
+        r#"struct Buffer { read: &[u8], write: &+[u8] }
+
+coerce Buffer {
+    pub &self as &[u8] { return self.read }
+    pub &+self as &+[u8] { return self.write }
+}
+
+impl<T> [T] {
+    pub method &self.len(): usize { return 1 }
+    pub method &+self.clear(): void { return }
+}
+
+func inspect(buffer: &Buffer): usize {
+    return buffer.len()
+}
+
+func mutate(buffer: &+Buffer): void {
+    buffer.clear()
+    return
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_method_body_receiver_self_type() {
     let diagnostics = check_text(
         r#"struct Point {

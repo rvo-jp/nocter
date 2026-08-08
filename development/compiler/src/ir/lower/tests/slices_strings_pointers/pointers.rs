@@ -190,6 +190,53 @@ pub primitive from_ref<T>(value: &T): *T
 }
 
 #[test]
+fn lowers_pointer_returning_normal_call_as_an_address_word() {
+    let function = lower_imported_named_function_with_nocter_home_files(
+        "use std/pointer_calls.address\nfunc main(): i32 { return 0 }\n",
+        "address",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub primitive addr<T>(pointer: *T): usize
+pub(nocter) primitive from_addr<T>(address: usize): *T
+"#,
+            ),
+            (
+                "std/pointer_calls.nct",
+                r#"use std/ptr.{addr, from_addr}
+
+func pointer(): *u8 {
+    return from_addr(7)
+}
+
+pub func address(): usize {
+    return addr(pointer())
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(function.name, "address");
+    assert_eq!(function.return_type, Type::Usize);
+    assert!(matches!(
+        function.instructions.as_slice(),
+        [
+            Instruction::CallUsize {
+                destination: UsizeLocation::Local(0),
+                target,
+                arguments,
+            },
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::Location(UsizeLocation::Local(0)),
+            },
+            Instruction::Return,
+        ] if call_target_name_is(target, "pointer") && arguments.is_empty()
+    ));
+}
+
+#[test]
 fn lowers_pointer_from_ref_local_borrow_binding() {
     let function = lower_named_function_with_nocter_home_files(
         r#"use std/ptr.{addr, from_ref}

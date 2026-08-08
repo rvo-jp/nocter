@@ -217,6 +217,8 @@ fn stabilize_usize_comparison_operand(
             | UsizeValue::ProcessArgCount
             | UsizeValue::CurrentAllocationState
             | UsizeValue::CurrentAllocationKind
+            | UsizeValue::StrPointer(_)
+            | UsizeValue::SlicePointer(_)
             | UsizeValue::StrLen(_)
             | UsizeValue::SliceLen(_)
     ) {

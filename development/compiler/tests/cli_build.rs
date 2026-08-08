@@ -5,6 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "support/builtin_std.rs"]
+mod builtin_std;
+
 #[path = "cli_build/aggregates.rs"]
 mod aggregates;
 #[path = "cli_build/arrays.rs"]
@@ -165,6 +168,7 @@ impl TempProject {
         let home = self.nocter_home();
         fs::create_dir_all(home.join("std")).unwrap();
         fs::write(home.join("std/prelude.nct"), "").unwrap();
+        builtin_std::write_builtin_type_surfaces(&home);
     }
 }
 

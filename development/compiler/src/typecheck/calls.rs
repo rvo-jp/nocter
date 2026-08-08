@@ -339,6 +339,9 @@ fn receiver_coerced_method_candidates<'a>(
         );
         let target_candidates = inherent.into_iter().chain(interfaces);
         for (owner, method) in target_candidates {
+            if !method_accepts_coerced_receiver(method, &coercion.target_type) {
+                continue;
+            }
             candidates.push(ResolvedMethodCall {
                 owner,
                 method,
@@ -347,7 +350,74 @@ fn receiver_coerced_method_candidates<'a>(
             });
         }
     }
-    candidates
+    collapse_equivalent_receiver_coercion_candidates(candidates)
+}
+
+fn method_accepts_coerced_receiver(method: &MethodSignature, target: &Type) -> bool {
+    match method.receiver.mode {
+        MethodReceiverMode::Owned => false,
+        MethodReceiverMode::ReadonlyBorrow => true,
+        MethodReceiverMode::ReadwriteBorrow => receiver_type_is_readwrite(target),
+    }
+}
+
+fn receiver_type_is_readwrite(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Borrow {
+            is_readwrite: true,
+            ..
+        } | Type::View {
+            is_readwrite: true,
+            ..
+        }
+    )
+}
+
+fn collapse_equivalent_receiver_coercion_candidates<'a>(
+    candidates: Vec<ResolvedMethodCall<'a>>,
+) -> Vec<ResolvedMethodCall<'a>> {
+    let mut collapsed: Vec<ResolvedMethodCall<'a>> = Vec::new();
+    for candidate in candidates {
+        let Some(coercion) = candidate.receiver_coercion.as_ref() else {
+            collapsed.push(candidate);
+            continue;
+        };
+        let Some(existing_index) = collapsed.iter().position(|existing| {
+            existing.method.name_span == candidate.method.name_span
+                && existing.owner.canonical_name == candidate.owner.canonical_name
+        }) else {
+            collapsed.push(candidate);
+            continue;
+        };
+        let existing = &collapsed[existing_index];
+        let Some(existing_coercion) = existing.receiver_coercion.as_ref() else {
+            collapsed.push(candidate);
+            continue;
+        };
+        let existing_rank = receiver_coercion_capability_rank(existing.method, existing_coercion);
+        let candidate_rank = receiver_coercion_capability_rank(candidate.method, coercion);
+        if candidate_rank < existing_rank {
+            collapsed[existing_index] = candidate;
+        } else if candidate_rank == existing_rank {
+            collapsed.push(candidate);
+        }
+    }
+    collapsed
+}
+
+fn receiver_coercion_capability_rank(
+    method: &MethodSignature,
+    coercion: &SelectedCoercion,
+) -> (u8, u8) {
+    let target_rank = match method.receiver.mode {
+        MethodReceiverMode::ReadonlyBorrow => {
+            u8::from(receiver_type_is_readwrite(&coercion.target_type))
+        }
+        MethodReceiverMode::ReadwriteBorrow | MethodReceiverMode::Owned => 0,
+    };
+    let source_rank = u8::from(coercion.receiver_mode == MethodReceiverMode::ReadwriteBorrow);
+    (target_rank, source_rank)
 }
 
 pub(super) fn infer_generic_substitutions(

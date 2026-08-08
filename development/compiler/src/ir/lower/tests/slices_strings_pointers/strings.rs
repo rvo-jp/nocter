@@ -937,6 +937,31 @@ pub func size(value: &str): usize {
 }
 
 #[test]
+fn lowers_typed_str_pointer_primitive_to_the_view_data_word() {
+    let address = lower_imported_named_function_with_nocter_home_files(
+        "use std/str.address\nfunc main(): void { return }\n",
+        "address",
+        &[(
+            "std/str.nct",
+            r#"pub(nocter) primitive str_ptr_addr_raw(value: &str): usize
+pub func address(value: &str): usize { return str_ptr_addr_raw(value) }
+"#,
+        )],
+    );
+
+    assert_eq!(
+        address.instructions,
+        vec![
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::StrPointer(StrLocation::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_bytes_from_str_call_index_return() {
     let first = lower_imported_named_function_with_nocter_home_files(
         r#"use std/string.first

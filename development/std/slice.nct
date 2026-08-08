@@ -3,7 +3,10 @@
 //! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary
 //! source built on the narrow representation query below.
 
+use std/ptr.from_addr
+
 pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
+pub(nocter) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 
 impl<T> [T] {
     pub method &self.len(): usize {
@@ -12,5 +15,9 @@ impl<T> [T] {
 
     pub method &self.is_empty(): bool {
         return slice_len_raw(self) == 0
+    }
+
+    pub method &self.ptr(): *T {
+        return from_addr(slice_ptr_addr_raw(self))
     }
 }

@@ -6,6 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "support/builtin_std.rs"]
+mod builtin_std;
+
 #[test]
 fn runs_all_test_targets_in_declaration_order_and_continues_after_failure() {
     let project = TempPackage::new("ordered");
@@ -342,6 +345,7 @@ impl TempPackage {
         let home = root.join(".nocter");
         fs::create_dir_all(home.join("std")).unwrap();
         fs::write(home.join("std/prelude.nct"), "pub use std/error.Error\n").unwrap();
+        builtin_std::write_builtin_type_surfaces(&home);
         fs::write(
             home.join("std/error.nct"),
             r#"pub type ErrorCode = &str

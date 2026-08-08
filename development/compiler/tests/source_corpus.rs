@@ -6,6 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "support/builtin_std.rs"]
+mod builtin_std;
+
 const VALID_FIXTURES: &[ValidFixture] = &[
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/hello.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/doc-comments.nct"),
@@ -510,6 +513,7 @@ impl TempProject {
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
         fs::create_dir_all(home.join("std")).unwrap();
+        builtin_std::write_builtin_type_surfaces(&home);
 
         fs::write(
             home.join("std/prelude.nct"),

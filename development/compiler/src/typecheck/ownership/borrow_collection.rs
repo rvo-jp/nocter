@@ -674,10 +674,7 @@ fn borrow_sources_for_input(
     }
 
     if input_is_borrowed
-        && !type_contains_borrow_like(
-            &expression_type(expression, resolved, environment),
-            resolved,
-        )
+        && !expression_is_borrow_value(expression, resolved, environment)
         && let Some(source) = expression_place(expression)
     {
         return vec![DirectBorrowSource {
@@ -688,6 +685,17 @@ fn borrow_sources_for_input(
     }
 
     returned_borrow_sources(expression, resolved, environment, summaries, active_borrows)
+}
+
+fn expression_is_borrow_value(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    matches!(
+        expression_type(expression, resolved, environment),
+        Type::Borrow { .. } | Type::Str | Type::View { .. }
+    )
 }
 
 fn method_borrow_receiver_source(

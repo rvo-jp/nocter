@@ -3049,6 +3049,82 @@ fn returns_definition_for_method_call() {
 }
 
 #[test]
+fn coerced_builtin_method_editor_features_share_the_source_declaration() {
+    let project = TempProject::new("lsp-coerced-builtin-method");
+    let home = project.write_nocter_home();
+    std::fs::write(
+        home.join("std/string.nct"),
+        r#"pub struct String { value: &str }
+coerce String { pub &self as &str { return self.value } }
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/string.String
+
+func size(text: &String): usize {
+    return text.len()
+}
+
+func main(): i32 { return 0 }
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+    let offset = text.find("text.len").unwrap() + "text.".len();
+    let params = json!({
+        "textDocument": { "uri": uri },
+        "position": byte_offset_to_lsp_position(text, offset),
+        "context": { "includeDeclaration": true }
+    });
+
+    let hover = server.hover_response(json!(90), Some(&params));
+    assert_eq!(
+        hover["result"]["contents"]["value"],
+        json!("```nocter\nmethod &str.len(): usize\n```")
+    );
+
+    let completion = server.completion_response(json!(93), Some(&params));
+    let items = completion["result"]["items"].as_array().unwrap();
+    let len = completion_item_with_label(items, "len")
+        .unwrap_or_else(|| panic!("expected direct str completion: {items:#?}"));
+    assert_eq!(len["detail"], json!("method &str.len(): usize"));
+
+    let signature_params = json!({
+        "textDocument": { "uri": uri },
+        "position": byte_offset_to_lsp_position(
+            text,
+            text.find("text.len()").unwrap() + "text.len(".len()
+        )
+    });
+    let signature = server.signature_help_response(json!(94), Some(&signature_params));
+    assert_eq!(
+        signature["result"]["signatures"][0]["label"],
+        json!("method &str.len(): usize")
+    );
+
+    let definition = server.definition_response(json!(91), Some(&params));
+    let link = definition_link(&definition);
+    assert_eq!(
+        link["targetUri"],
+        json!(file_uri(&home.join("std/str.nct").canonicalize().unwrap()))
+    );
+
+    let references = server.references_response(json!(92), Some(&params));
+    assert_eq!(references["result"].as_array().map(Vec::len), Some(1));
+}
+
+#[test]
 fn returns_document_symbols_for_top_level_declarations() {
     let uri = "file:///tmp/nocter-document-symbols.nct".to_string();
     let document = open_document(
@@ -4271,16 +4347,17 @@ fn vec_string_completion_specializes_methods_and_includes_std_documentation() {
         home.join("std/vec.nct"),
         r#"pub struct Vec<T> {
     len: usize
+    data: &[T]
+}
+
+coerce Vec<T> {
+    pub &self as &[T] { return self.data }
 }
 
 impl<T> Vec<T> {
     /// Transfers `value` into the end of the initialized prefix.
     pub method &+self.push(value: T): void! {
         return
-    }
-
-    pub method &self.len(): usize {
-        return self.len
     }
 }
 "#,
@@ -4326,6 +4403,8 @@ func edit(values: &+Vec<String>): void {
     let items = response["result"]["items"].as_array().unwrap();
     let push = completion_item_with_label(items, "push")
         .unwrap_or_else(|| panic!("expected Vec.push completion, got {items:#?}"));
+    let len = completion_item_with_label(items, "len")
+        .unwrap_or_else(|| panic!("expected coerced slice len completion, got {items:#?}"));
 
     assert_eq!(
         push["detail"],
@@ -4336,6 +4415,7 @@ func edit(values: &+Vec<String>): void {
         push["documentation"]["value"],
         json!("Transfers `value` into the end of the initialized prefix.")
     );
+    assert_eq!(len["detail"], json!("method &[String].len(): usize"));
 }
 
 #[test]

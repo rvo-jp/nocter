@@ -8,6 +8,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "support/builtin_std.rs"]
+mod builtin_std;
+
 #[path = "distributed_home/authoring.rs"]
 mod authoring;
 #[path = "distributed_home/collection_access.rs"]
@@ -741,7 +744,8 @@ fn distributed_string_and_vec_borrow_coercions_run() {
     let project = TempProject::new("distributed-home-borrow-coercions-run");
     let source = project.write_source(
         "borrow_coercions_run.nct",
-        r#"use std/vec.Vec
+        r#"use std/ptr.addr
+use std/vec.Vec
 
 func text_len(value: &str): usize { return value.len() }
 func values_len(value: &[usize]): usize { return value.len() }
@@ -751,11 +755,17 @@ func main(): i32 {
     let text = String "abc"
     var values: Vec<usize> = Vec [7, 11]
     let text_view = &text as &str
+    if values_len_mut(&+values as &+[usize]) != 2 { return 3 }
     let values_view = &values as &[usize]
 
     if text_len(text_view) != 3 { return 1 }
     if values_len(values_view) != 2 { return 2 }
-    if values_len_mut(&+values as &+[usize]) != 2 { return 3 }
+    let text_pointer = addr(text.ptr())
+    let text_view_pointer = addr(text_view.ptr())
+    let values_pointer = addr(values.ptr())
+    let values_view_pointer = addr(values_view.ptr())
+    if text_pointer == 0 || text_pointer != text_view_pointer { return 4 }
+    if values_pointer == 0 || values_pointer != values_view_pointer { return 5 }
     return 0
 }
 "#,
@@ -5532,6 +5542,7 @@ fn file_uri(path: &Path) -> String {
 
 fn write_minimal_nocter_home(home: &Path) {
     fs::create_dir_all(home.join("std")).unwrap();
+    builtin_std::write_builtin_type_surfaces(home);
     fs::write(
         home.join("VERSION"),
         fs::read_to_string(distributed_home().join("VERSION")).unwrap(),

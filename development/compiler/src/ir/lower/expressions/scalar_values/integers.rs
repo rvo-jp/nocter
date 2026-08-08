@@ -523,6 +523,9 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
             if primitive_view_len_call(call, context) {
                 return lower_view_len_primitive_call_to_value(call, context, temporaries);
             }
+            if primitive_view_pointer_call(call, context) {
+                return lower_view_pointer_primitive_call_to_value(call, context, temporaries);
+            }
             if primitive_addr_call(call, context) {
                 let (instructions, value) =
                     lower_addr_primitive_call_to_word(call, context, temporaries)?;

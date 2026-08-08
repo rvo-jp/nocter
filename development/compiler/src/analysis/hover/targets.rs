@@ -101,6 +101,34 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
                 });
             }
         }
+        for surface in [
+            crate::resolve::BuiltinTypeOwner::Str,
+            crate::resolve::BuiltinTypeOwner::Slice,
+        ]
+        .into_iter()
+        .filter_map(|owner| target_file.resolved.builtin_type_surface(owner))
+        {
+            if let Some(method) = surface
+                .symbol
+                .methods
+                .iter()
+                .find(|method| method.name_span == target)
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::method_presentation(
+                        &surface.symbol,
+                        method,
+                        &file.resolved,
+                    )
+                    .render(),
+                    documentation: combine_documentation(
+                        target_documentation(sources, analysis, target),
+                        semantic_documentation(sources, analysis, target),
+                    ),
+                });
+            }
+        }
     }
     None
 }

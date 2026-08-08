@@ -1,4 +1,7 @@
-use super::super::{LoweredUsizeValue, lower_byte_collection_len_expression_to_value};
+use super::super::{
+    LoweredUsizeValue, lower_byte_collection_len_expression_to_value,
+    lower_byte_collection_pointer_expression_to_value,
+};
 use super::*;
 
 pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
@@ -148,6 +151,29 @@ pub(in crate::ir::lower::expressions) fn primitive_view_len_call(
         context.primitive_name_for_call(call),
         Some("str_len_raw" | "slice_len_raw")
     )
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_view_pointer_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("str_ptr_addr_raw" | "slice_ptr_addr_raw")
+    )
+}
+
+pub(in crate::ir::lower::expressions) fn lower_view_pointer_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "view pointer primitives require exactly one view argument",
+        ));
+    }
+    lower_byte_collection_pointer_expression_to_value(&call.arguments[0], context, temporaries)
 }
 
 pub(in crate::ir::lower::expressions) fn lower_view_len_primitive_call_to_value(
@@ -1128,6 +1154,11 @@ pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
         Expr::Call(call) if primitive_from_ref_call(call, context) => {
             lower_from_ref_primitive_call_to_word(call, context, temporaries)
         }
+        Expr::Call(call) => {
+            let destination = temporaries.next_usize()?;
+            let instructions = lower_usize_normal_call(call, destination, context, temporaries)?;
+            Ok((instructions, UsizeValue::Location(destination)))
+        }
         Expr::Identifier(identifier) => context
             .usize_location(&identifier.name)
             .map(|location| (Vec::new(), UsizeValue::Location(location)))
@@ -1155,7 +1186,7 @@ pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
             lower_pointer_address_expression_to_word(&group.expression, context, temporaries)
         }
         _ => Err(unsupported_pointer_primitive_diagnostic(
-            "pointer argument must come from a pointer value, `from_addr(...)`, `from_ref(...)`, `from_ref_mut(...)`, or a pointer aggregate field",
+            "pointer argument must come from a pointer value, pointer-returning call, `from_addr(...)`, `from_ref(...)`, `from_ref_mut(...)`, or a pointer aggregate field",
         )),
     }
 }

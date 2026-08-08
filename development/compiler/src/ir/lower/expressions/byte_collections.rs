@@ -205,3 +205,48 @@ pub(super) fn lower_byte_collection_len_expression_to_value(
         }
     }
 }
+
+pub(super) fn lower_byte_collection_pointer_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    match lower_byte_collection_expression_to_value(expression, context, temporaries)? {
+        LoweredByteCollectionValue::Str(source) => {
+            let mut instructions = source.instructions;
+            let location = match source.value {
+                StrValue::Location(location) => location,
+                value => {
+                    let temporary = temporaries.next_str()?;
+                    instructions.push(Instruction::SetStr {
+                        destination: temporary,
+                        value,
+                    });
+                    temporary
+                }
+            };
+            Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::StrPointer(location),
+            })
+        }
+        LoweredByteCollectionValue::Slice(source) => {
+            let mut instructions = source.instructions;
+            let location = match source.value {
+                SliceValue::Location(location) => location,
+                value => {
+                    let temporary = temporaries.next_slice()?;
+                    instructions.push(Instruction::SetSlice {
+                        destination: temporary,
+                        value,
+                    });
+                    temporary
+                }
+            };
+            Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::SlicePointer(location),
+            })
+        }
+    }
+}

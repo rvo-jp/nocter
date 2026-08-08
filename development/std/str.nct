@@ -5,12 +5,14 @@
 //! trusted primitive.
 
 use std/iter.ViewIter
+use std/ptr.from_addr
 use std/string.{String, bytes_from_str, contains, ends_with, find, find_from, split, starts_with}
 use std/string_views.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
 use std/string_views.{strip_prefix, strip_suffix}
 use std/vec.Vec
 
 pub(nocter) primitive str_len_raw(value: &str): usize
+pub(nocter) primitive str_ptr_addr_raw(value: &str): usize
 
 impl str {
     pub method &self.len(): usize {
@@ -19,6 +21,10 @@ impl str {
 
     pub method &self.is_empty(): bool {
         return str_len_raw(self) == 0
+    }
+
+    pub method &self.ptr(): *u8 {
+        return from_addr(str_ptr_addr_raw(self))
     }
 
     pub method &self.bytes(): &[u8] {

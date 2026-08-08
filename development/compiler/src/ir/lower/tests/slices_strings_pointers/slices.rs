@@ -757,6 +757,31 @@ func size(bytes: &[u8]): usize {
 }
 
 #[test]
+fn lowers_typed_slice_pointer_primitive_to_the_view_data_word() {
+    let address = lower_imported_named_function_with_nocter_home_files(
+        "use std/slice.address\nfunc main(): void { return }\n",
+        "address",
+        &[(
+            "std/slice.nct",
+            r#"pub(nocter) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+pub func address(value: &[u8]): usize { return slice_ptr_addr_raw(value) }
+"#,
+        )],
+    );
+
+    assert_eq!(
+        address.instructions,
+        vec![
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::SlicePointer(SliceLocation::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_readwrite_u8_slice_len_return() {
     let function = lower_named_function(
         r#"func main(): i32 {

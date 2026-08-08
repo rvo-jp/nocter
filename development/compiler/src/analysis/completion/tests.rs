@@ -1068,6 +1068,97 @@ func inspect<T: Left + Right>(value: &T): i32 {
 }
 
 #[test]
+fn member_completion_omits_methods_ambiguous_across_receiver_coercions() {
+    let text = r#"struct Source { left: Left, right: Right }
+struct Left { value: usize }
+struct Right { value: usize }
+
+coerce Source {
+    pub &self as &Left { return &self.left }
+    pub &self as &Right { return &self.right }
+}
+
+impl Left {
+    pub method &self.inspect(): usize { return self.value }
+}
+
+impl Right {
+    pub method &self.inspect(): usize { return self.value }
+}
+
+func read(source: &Source): usize {
+    return source.inspect()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("source.inspect").unwrap() + "source.".len();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
+}
+
+#[test]
+fn unavailable_original_method_still_shadows_receiver_coercion_completion() {
+    let text = r#"struct Text { value: &str }
+
+coerce Text {
+    pub &self as &str { return self.value }
+}
+
+impl Text {
+    pub method &+self.inspect(): usize { return 1 }
+}
+
+impl str {
+    pub method &self.inspect(): usize { return 2 }
+}
+
+func read(text: &Text): usize {
+    return text.inspect()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("text.inspect").unwrap() + "text.".len();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
+}
+
+#[test]
+fn readwrite_receiver_coercion_completion_keeps_target_capability() {
+    let text = r#"struct Buffer { read: &[u8], write: &+[u8] }
+
+coerce Buffer {
+    pub &self as &[u8] { return self.read }
+    pub &+self as &+[u8] { return self.write }
+}
+
+impl<T> [T] {
+    pub method &self.len(): usize { return 1 }
+    pub method &+self.clear(): void { return }
+}
+
+func clear(buffer: &+Buffer): void {
+    buffer.clear()
+    return
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("buffer.clear").unwrap() + "buffer.".len();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(items.iter().any(|item| {
+        item.label == "clear" && item.detail.as_deref() == Some("method &+[u8].clear(): void")
+    }));
+    assert!(items.iter().any(|item| {
+        item.label == "len" && item.detail.as_deref() == Some("method &[u8].len(): usize")
+    }));
+}
+
+#[test]
 fn completion_recovers_incomplete_result_provenance_clause() {
     let text = r#"func choose(left: &i32, right: &i32): &i32 from {
     return left

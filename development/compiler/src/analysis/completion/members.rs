@@ -20,13 +20,54 @@ pub(super) fn member_completion_items(
             && !facts.binding_is_readonly(owner_span).unwrap_or(true));
     let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
     if let Some(owner) = value_member_owner(resolved, owner_ty) {
-        return value_member_completion_items(
+        let mut items = value_member_completion_items(
             &owner,
             resolved,
             can_readwrite,
             can_move,
             owner_span.source,
         );
+        let mut original_method_names = owner
+            .symbol
+            .methods
+            .iter()
+            .filter(|method| method.is_accessible)
+            .map(|method| method.name.clone())
+            .collect::<HashSet<_>>();
+        if let Some(self_ty) = owner.substitutions.get("Self") {
+            original_method_names.extend(
+                interface_method_completion_candidates(self_ty, owner_span.source, resolved)
+                    .into_iter()
+                    .map(|candidate| candidate.method.name.clone()),
+            );
+        }
+        let mut coerced_by_name: HashMap<String, Vec<CompletionItemInfo>> = HashMap::new();
+        for (coerced, coerced_can_readwrite) in
+            receiver_coercion_member_owners(&owner, resolved, can_readwrite, owner_span.source)
+        {
+            for item in value_member_completion_items(
+                &coerced,
+                resolved,
+                coerced_can_readwrite,
+                false,
+                owner_span.source,
+            )
+            .into_iter()
+            .filter(|item| item.kind == CompletionItemKind::Method)
+            .filter(|item| !original_method_names.contains(&item.label))
+            {
+                coerced_by_name
+                    .entry(item.label.clone())
+                    .or_default()
+                    .push(item);
+            }
+        }
+        items.extend(coerced_by_name.into_values().filter_map(|mut candidates| {
+            let mut declarations = HashSet::new();
+            candidates.retain(|candidate| declarations.insert(candidate.declaration_span));
+            (candidates.len() == 1).then(|| candidates.remove(0))
+        }));
+        return items;
     }
     let owners = generic_bound_member_owners(ast, resolved, owner_ty, offset);
     unambiguous_capability_member_items(
@@ -366,7 +407,13 @@ fn value_member_owner<'a>(
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = if reference.name == "str" {
+                resolved
+                    .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Str)
+                    .map(|surface| &surface.symbol)?
+            } else {
+                resolved.type_symbol_by_reference_name(&reference.name)?
+            };
             Some(ValueMemberOwner {
                 symbol,
                 substitutions: HashMap::from([("Self".to_string(), ty.clone())]),
@@ -387,12 +434,48 @@ fn value_member_owner<'a>(
             })
         }
         TypeExpr::Borrow(borrow) => value_member_owner(resolved, &borrow.inner),
-        TypeExpr::View(view) => value_member_owner(resolved, &view.element),
+        TypeExpr::View(view) => {
+            let symbol = resolved
+                .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Slice)
+                .map(|surface| &surface.symbol)?;
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions: HashMap::from([
+                    ("T".to_string(), view.element.as_ref().clone()),
+                    ("Self".to_string(), ty.clone()),
+                ]),
+            })
+        }
         TypeExpr::Pointer(_)
         | TypeExpr::Array(_)
         | TypeExpr::Optional(_)
         | TypeExpr::Fallible(_) => None,
     }
+}
+
+fn receiver_coercion_member_owners<'a>(
+    source: &ValueMemberOwner<'a>,
+    resolved: &'a ResolveOutput,
+    can_readwrite: bool,
+    _use_source: crate::source::SourceId,
+) -> Vec<(ValueMemberOwner<'a>, bool)> {
+    source
+        .symbol
+        .coercions
+        .iter()
+        .filter(|coercion| coercion.is_accessible)
+        .filter(|coercion| {
+            coercion.receiver.mode != crate::ast::MethodReceiverMode::Owned
+                && (can_readwrite
+                    || coercion.receiver.mode != crate::ast::MethodReceiverMode::ReadwriteBorrow)
+        })
+        .filter_map(|coercion| {
+            let target = substitute_type_expr_parameters(&coercion.target, &source.substitutions);
+            let target_is_readwrite = owner_type_is_readwrite(&target)
+                || matches!(target, TypeExpr::View(ref view) if view.is_readwrite);
+            value_member_owner(resolved, &target).map(|owner| (owner, target_is_readwrite))
+        })
+        .collect()
 }
 
 fn owner_type_is_readwrite(ty: &TypeExpr) -> bool {

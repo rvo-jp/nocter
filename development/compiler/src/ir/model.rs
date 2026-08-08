@@ -784,6 +784,8 @@ pub(crate) enum UsizeValue {
     CurrentAllocationState,
     CurrentAllocationKind,
     U8ZeroExtend(Box<U8Value>),
+    StrPointer(StrLocation),
+    SlicePointer(SliceLocation),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
     SliceIndex {

@@ -168,6 +168,17 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
+            if primitive_view_pointer_call(call, context) {
+                let lowered =
+                    lower_view_pointer_primitive_call_to_value(call, context, &mut temporaries)?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: lowered.value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if primitive_take_value_at_ptr_call(call, context) {
                 let mut instructions = lower_take_value_at_ptr_primitive_call(
                     call,

@@ -65,13 +65,19 @@ pub(super) fn record_usize_value_parameter_spill_requests(
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
         }
+        UsizeValue::StrPointer(StrLocation::Parameter(index))
+        | UsizeValue::SlicePointer(SliceLocation::Parameter(index)) => {
+            requests.insert(*index);
+        }
         UsizeValue::StrLen(StrLocation::Parameter(index))
         | UsizeValue::SliceLen(SliceLocation::Parameter(index)) => {
             if let Some(len_index) = index.checked_add(1) {
                 requests.insert(len_index);
             }
         }
-        UsizeValue::StrLen(StrLocation::Return | StrLocation::Local(_))
+        UsizeValue::StrPointer(StrLocation::Return | StrLocation::Local(_))
+        | UsizeValue::SlicePointer(SliceLocation::Return | SliceLocation::Local(_))
+        | UsizeValue::StrLen(StrLocation::Return | StrLocation::Local(_))
         | UsizeValue::SliceLen(SliceLocation::Return | SliceLocation::Local(_)) => {}
     }
 }

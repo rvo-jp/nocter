@@ -952,6 +952,8 @@ pub(super) fn record_usize_value(value: &UsizeValue, highest_local_index: &mut O
         | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
+        UsizeValue::StrPointer(location) => record_str_location(*location, highest_local_index),
+        UsizeValue::SlicePointer(location) => record_slice_location(*location, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
         UsizeValue::SliceLen(location) => record_slice_location(*location, highest_local_index),
         UsizeValue::SliceIndex { source, index } => {

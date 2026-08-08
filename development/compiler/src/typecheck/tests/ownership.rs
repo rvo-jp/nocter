@@ -518,6 +518,65 @@ func main(): i32 {
 }
 
 #[test]
+fn receiver_coercion_method_result_keeps_the_original_source_loan() {
+    let diagnostics = check_text(
+        r#"struct View { value: &str }
+struct Text { view: View }
+
+coerce Text {
+    pub &self as &View { return &self.view }
+}
+
+impl View {
+    pub method &self.project(): &str { return self.value }
+}
+
+func inspect(value: &str): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let text = Text { view: View { value: "hello" } }
+    let projected = text.project()
+    take(move text)
+    inspect(projected)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("projected"));
+}
+
+#[test]
+fn receiver_coercion_method_loan_ends_after_its_last_use() {
+    let diagnostics = check_text(
+        r#"struct View { value: &str }
+struct Text { view: View }
+
+coerce Text { pub &self as &View { return &self.view } }
+impl View { pub method &self.project(): &str { return self.value } }
+
+func inspect(value: &str): void { return }
+func take(value: Text): void { return }
+
+func main(): i32 {
+    let text = Text { view: View { value: "hello" } }
+    let projected = text.project()
+    inspect(projected)
+    take(move text)
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn explicit_coercion_of_a_branch_result_keeps_every_possible_source_loan() {
     let diagnostics = check_text(
         r#"struct Text {

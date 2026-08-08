@@ -85,6 +85,34 @@ impl EntryEmitter {
                     self.encoder.emit_mov_x(destination, XReg::X16);
                 }
             }
+            UsizeValue::StrPointer(location) => {
+                if let StrLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index, destination)?;
+                    return Ok(());
+                }
+                if let StrLocation::Local(index) = *location {
+                    self.emit_local_word_to_x(index, destination)?;
+                } else {
+                    let (source, _) = self.str_location_registers(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_x(destination, source);
+                    }
+                }
+            }
+            UsizeValue::SlicePointer(location) => {
+                if let SliceLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index, destination)?;
+                    return Ok(());
+                }
+                if let SliceLocation::Local(index) = *location {
+                    self.emit_local_word_to_x(index, destination)?;
+                } else {
+                    let (source, _) = self.slice_location_registers(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_x(destination, source);
+                    }
+                }
+            }
             UsizeValue::StrLen(location) => {
                 if let StrLocation::Parameter(index) = *location {
                     let len_index = pair_len_index(index, "parameter str")?;
