@@ -80,7 +80,7 @@ write_frame() {
 } | env -u NOCTER_HOME "$compiler" lsp >"$lsp_output"
 
 grep -F "\"version\":\"$version\"" "$lsp_output" >/dev/null
-grep -F '"id":2,"result":null' "$lsp_output" >/dev/null
+grep -E '"id":2,.*"result":null|"result":null,.*"id":2' "$lsp_output" >/dev/null
 
 archive_size=$(wc -c <"$archive_path" | tr -d ' ')
 archive_sha=$(shasum -a 256 "$archive_path" | awk '{ print $1 }')
