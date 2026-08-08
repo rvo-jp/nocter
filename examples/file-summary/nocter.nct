@@ -30,7 +30,7 @@ func main(): i32! {
         offset = offset + 1
     }
     let result = usize_to_string(lines)
-    print(&result as &str)?
+    print((&result) as &str)?
     print("\n")?
     return 0
 }
