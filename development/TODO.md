@@ -2,9 +2,8 @@
 
 ## Current Task
 
-v0.9.0 is qualified locally under [`releases/v0.9.0.md`](releases/v0.9.0.md). The retained archive
-is immutable. Stop before tagging, pushing, changing published-download pages, creating a GitHub
-Release, or uploading the asset until publication is explicitly authorized.
+v0.9.0 is published and audited under [`releases/v0.9.0.md`](releases/v0.9.0.md). No release repair
+remains. The next implementation milestone requires a separate plan before feature work begins.
 
 ## Completed Checkpoint
 
@@ -17,6 +16,13 @@ Release, or uploading the asset until publication is explicitly authorized.
 - the 3,375,819-byte `arm64-darwin` archive with SHA-256
   `c11f7ea65f49a8061156e47af7621b46b2f86329d464a067a5efc036eecb0cf8` passed two-build content
   equivalence and the complete isolated fresh-install matrix
+- annotated tag `v0.9.0` resolves to publication commit
+  `8811508f1b3b19d30e5f768097c57e73ebe4bde6`
+- GitHub resolves v0.9.0 as the latest release with exactly the qualified archive and marks it
+  neither draft nor prerelease
+- a separate public download reproduced the qualified size and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
 - v0.9.0 Phase 3 makes `std/str` and `std/slice` the exclusive source authorities for built-in
   view methods and restricts compiler roles to four exact representation primitives
@@ -144,5 +150,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-No engineering work remains before v0.9.0 publication. Publication is a separately authorized
-operation and must use the exact qualified archive recorded above without rebuilding it.
+Plan the next milestone before implementation. The published v0.9.0 archive and its evidence are
+immutable.
