@@ -2,13 +2,21 @@
 
 ## Current Task
 
-v0.9.0 stabilization and release qualification are active under
-[`releases/v0.9.0.md`](releases/v0.9.0.md). Audit the frozen Phase 0-3 contract, close only
-stabilization defects, unify candidate identity, pass clean and incremental verification, and
-qualify one fresh local archive. Stop with a clean committed worktree before tagging, pushing,
-changing published-download pages, or publishing an asset.
+v0.9.0 is qualified locally under [`releases/v0.9.0.md`](releases/v0.9.0.md). The retained archive
+is immutable. Stop before tagging, pushing, changing published-download pages, creating a GitHub
+Release, or uploading the asset until publication is explicitly authorized.
 
 ## Completed Checkpoint
+
+- v0.9.0 stabilization centralized built-in type identity and implementation-module authority in
+  one registry and removed public `String`/`Vec<T>` borrowed-observation forwarding helpers
+- focused regression coverage proves registry uniqueness and rejects external access to private raw
+  view bridges while preserving source-owned `str` and `[T]` methods through receiver coercion
+- incremental and clean verification each passed all 3,391 tests, formatting, warnings-denied
+  Clippy, documentation, public examples, source corpus, and the distributed installed-home suite
+- the 3,375,819-byte `arm64-darwin` archive with SHA-256
+  `c11f7ea65f49a8061156e47af7621b46b2f86329d464a067a5efc036eecb0cf8` passed two-build content
+  equivalence and the complete isolated fresh-install matrix
 
 - v0.9.0 Phase 3 makes `std/str` and `std/slice` the exclusive source authorities for built-in
   view methods and restricts compiler roles to four exact representation primitives
@@ -136,6 +144,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Follow the ordered v0.9.0 stabilization and qualification record. Do not add another public
-feature. Publication remains a separately authorized operation after the exact local candidate
-archive and all evidence are committed.
+No engineering work remains before v0.9.0 publication. Publication is a separately authorized
+operation and must use the exact qualified archive recorded above without rebuilding it.
