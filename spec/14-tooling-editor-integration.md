@@ -162,7 +162,8 @@ tokens supersede guesses when compiler results are available.
 
 AI tools should prefer compiler formatting, diagnostics, tokens, AST output, and LSP queries over a
 separate Nocter parser. The compact generation guide is [AI Guide](guides/ai.md), and executable
-packages live under the repository-root [examples directory](../examples/README.md).
+single-file and package examples live under the repository-root
+[examples directory](../examples/README.md).
 
 ## Non-goals
 

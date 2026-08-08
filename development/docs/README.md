@@ -60,7 +60,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| Runnable user packages | `examples/` |
+| Runnable user programs and packages | `examples/` |
 | Compiler source-corpus fixtures | `../compiler/tests/fixtures/source_corpus/` |
 | Published downloads and public release status | `releases/README.md` |
 | Candidate scope, status, and qualification | `../milestones/<version>.md` |

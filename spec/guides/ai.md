@@ -260,6 +260,7 @@ Rules:
 
 ## Examples
 
-Use the complete packages under the repository-root [examples directory](../../examples/README.md)
-as generation references. They demonstrate canonical source that can be checked and run. Invalid
-compiler fixtures are development inputs, not user examples or an alternate language contract.
+Use the runnable programs under the repository-root
+[examples directory](../../examples/README.md) as generation references. They demonstrate
+canonical single-file and package source that can be checked and run. Invalid compiler fixtures
+are development inputs, not user examples or an alternate language contract.

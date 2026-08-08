@@ -36,8 +36,8 @@ To build and run a repository-local distribution:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter check --root examples/hello
-./dist/.nocter/nocter run --root examples/hello
+./dist/.nocter/nocter check examples/hello.nct
+./dist/.nocter/nocter run examples/hello.nct
 ```
 
 The canonical standard-library source is tracked in `development/std/`, and release metadata lives

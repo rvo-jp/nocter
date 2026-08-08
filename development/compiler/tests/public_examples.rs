@@ -4,21 +4,36 @@ use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
-const PACKAGES: &[(&str, &str)] = &[("hello", "hello"), ("file-summary", "file-summary")];
+const SINGLE_FILES: &[(&str, &str)] = &[("hello.nct", "Hello from Nocter\n")];
+const PACKAGES: &[(&str, &str)] = &[("file-summary", "file-summary")];
 
 #[test]
-fn public_example_packages_pass_check() {
+fn public_examples_pass_check() {
     let environment = ExampleEnvironment::new("check");
+    let examples = repo_root().join("examples");
 
-    for &(directory, _) in PACKAGES {
-        let package = repo_root().join("examples").join(directory);
-        let source = package.join("nocter.nct");
+    for source in example_sources(&examples) {
+        let name = source.strip_prefix(&examples).unwrap().to_string_lossy();
         let format = nocter(&environment)
             .args(["fmt", "--check", source.to_str().unwrap()])
             .output()
             .unwrap();
-        assert_success(directory, &format);
+        assert_success(&name, &format);
+    }
 
+    for &(file, _) in SINGLE_FILES {
+        let source = examples.join(file);
+        let output = nocter(&environment)
+            .args(["check", source.to_str().unwrap()])
+            .output()
+            .unwrap();
+
+        assert_success(file, &output);
+        assert!(output.stdout.is_empty(), "{file} wrote stdout");
+    }
+
+    for &(directory, _) in PACKAGES {
+        let package = examples.join(directory);
         let output = nocter(&environment)
             .args([
                 "check",
@@ -37,8 +52,27 @@ fn public_example_packages_pass_check() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn public_example_packages_build_and_run() {
+fn public_examples_build_and_run() {
     let environment = ExampleEnvironment::new("run");
+
+    for &(file, expected) in SINGLE_FILES {
+        let source = repo_root().join("examples").join(file);
+        let output_path = environment.root.join(file.trim_end_matches(".nct"));
+        let output = nocter(&environment)
+            .args([
+                "build",
+                source.to_str().unwrap(),
+                "-o",
+                output_path.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert_success(file, &output);
+
+        let run = Command::new(&output_path).output().unwrap();
+        assert_success(file, &run);
+        assert_eq!(text(&run.stdout), expected, "unexpected output from {file}");
+    }
 
     for &(directory, executable) in PACKAGES {
         let package = repo_root().join("examples").join(directory);
@@ -59,23 +93,14 @@ fn public_example_packages_build_and_run() {
             .unwrap();
         assert_success(directory, &output);
 
-        let run = if directory == "file-summary" {
-            let input = environment.root.join("input.txt");
-            fs::write(&input, "alpha\nbeta\n").unwrap();
-            Command::new(&output_path).arg(input).output().unwrap()
-        } else {
-            Command::new(&output_path).output().unwrap()
-        };
+        let input = environment.root.join("input.txt");
+        fs::write(&input, "alpha\nbeta\n").unwrap();
+        let run = Command::new(&output_path).arg(input).output().unwrap();
 
         assert_success(directory, &run);
-        let expected = if directory == "file-summary" {
-            "2\n"
-        } else {
-            "Hello from Nocter\n"
-        };
         assert_eq!(
             text(&run.stdout),
-            expected,
+            "2\n",
             "unexpected output from {directory}"
         );
     }
@@ -147,6 +172,25 @@ fn copy_tree(source: &Path, destination: &Path) {
             copy_tree(&entry.path(), &target);
         } else {
             fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+fn example_sources(root: &Path) -> Vec<PathBuf> {
+    let mut sources = Vec::new();
+    collect_example_sources(root, &mut sources);
+    sources.sort();
+    sources
+}
+
+fn collect_example_sources(directory: &Path, sources: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(directory).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            collect_example_sources(&path, sources);
+        } else if path.extension().is_some_and(|extension| extension == "nct") {
+            sources.push(path);
         }
     }
 }

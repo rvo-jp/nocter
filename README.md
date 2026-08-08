@@ -117,70 +117,46 @@ rm -rf "$HOME/.nocter"
 
 ## First Program
 
-Create a directory containing a package file:
+Create `hello.nct`:
 
 ```nct
-// nocter.nct
-//! Hello executable.
-
-#name: "hello"
-#version: "0.1.0"
-#executable: {
-    name: "hello",
-}
-```
-
-Define the package root module in `index.nct`:
-
-```nct
-// index.nct
-
 use std/io.print
 
 func main(): i32! {
     print("Hello from Nocter\n")?
-    0
+    return 0
 }
 ```
 
-Run the package from that directory:
+Run it directly:
 
 ```sh
-nocter run
+nocter run hello.nct
 ```
 
 Build an executable:
 
 ```sh
-nocter build
+nocter build hello.nct
 ./hello
 ```
 
 Check without building:
 
 ```sh
-nocter check
+nocter check hello.nct
 ```
 
-Format the package file:
+Format the source:
 
 ```sh
-nocter fmt nocter.nct
+nocter fmt hello.nct
 ```
 
-`nocter.nct` contains package documentation and directives only. `index.nct`
-defines the root module and its public surface. An executable without a
-`module` field selects that root module; `module: "./tools/app"` selects the
-module rooted at `tools/app/index.nct`. Dependencies and generated exact locks
-remain in `nocter.nct`, so dependency changes appear in ordinary source review.
-The compiler does not guess an implicit `main.nct`.
-
-For an isolated script or experiment, select single-file mode explicitly:
-
-```sh
-nocter run app.nct
-nocter check --file app.nct
-```
+Naming the file explicitly selects single-file mode; Nocter does not guess an implicit source
+filename. For dependencies, multiple executables, or source files that compose one directory
+module, use package mode as demonstrated by
+[file-summary](examples/file-summary/index.nct).
 
 ## Current Status
 
@@ -195,7 +171,7 @@ published compiler, standard library, specification, and packaging inputs.
 
 ## Learn More
 
-- [Examples](examples/README.md): complete packages that can be checked and run locally.
+- [Examples](examples/README.md): runnable single-file and package examples.
 - [Language Specification](spec/README.md): Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
 - [Design Principles](spec/00-design-principles.md): the simplicity,

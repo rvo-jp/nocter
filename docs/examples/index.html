@@ -120,12 +120,11 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
-                <li><a href="./hello/index/index.html#content">hello/index.nct</a></li>
+                <li><a href="./hello/index.html#content">hello.nct</a></li>
                 <li><a href="./file-summary/index/index.html#content">file-summary/index.nct</a></li>
                 <li><a href="./file-summary/summary/index.html#content">summary.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
                 <li><a href="./file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
-                <li><a href="./hello/nocter/index.html#content">hello/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -133,14 +132,14 @@
                 <span class="markdown-path-text">/examples/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-examples">Nocter Examples</h1><p>These complete packages demonstrate current Nocter source style and public standard-library use. Each directory contains a package file (<code>nocter.nct</code>) and a root module source (<code>index.nct</code>), so commands run in package mode without an inferred source filename.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="hello">Hello</h2><p><a href="./hello/index/index.html#content">hello/index.nct</a> is the smallest executable package's root source. Its package metadata and executable source have separate responsibilities.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/hello
-<span class="token-function">nocter</span> check
-<span class="token-function">nocter</span> run
-</code></pre><h2 id="file-summary">File Summary</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a same-module source import without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
+                <h1 id="nocter-examples">Nocter Examples</h1><p>These runnable programs demonstrate current Nocter source style and public standard-library use. The smallest example uses explicit single-file mode; the larger example uses package mode and a directory module split across physical sources.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="single-file-example">Single-File Example</h2><p><a href="./hello/index.html#content">hello.nct</a> is the smallest executable example. Passing its filename explicitly selects single-file mode without a package declaration or inferred entry filename.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/hello.nct
+<span class="token-function">nocter</span> run examples/hello.nct
+</code></pre><h2 id="package-example">Package Example</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a same-module source import without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./file-summary ../../README.md
-</code></pre><h2 id="contract">Contract</h2><ul><li>Examples are complete user packages, not compiler fixtures.</li><li>Every example must pass package-mode <code>nocter check</code> with the distributed standard library.</li><li>Runnable examples must remain buildable and executable on the implemented target.</li><li>Source uses the canonical formatter style.</li><li>Examples demonstrate behavior defined by the <a href="../spec/index.html#content">language specification</a>; they do
+</code></pre><h2 id="contract">Contract</h2><ul><li>Examples are complete user programs, not compiler fixtures.</li><li>Single-file examples must pass explicit file-mode <code>nocter check</code>; package examples must pass
+  package-mode <code>nocter check</code> with the distributed standard library.</li><li>Runnable examples must remain buildable and executable on the implemented target.</li><li>Source uses the canonical formatter style.</li><li>Examples demonstrate behavior defined by the <a href="../spec/index.html#content">language specification</a>; they do
   not define additional language rules.</li><li>Deliberately invalid compiler inputs belong under
   <code>development/compiler/tests/fixtures/source_corpus/</code>, not in this directory.</li></ul>
             </div>
