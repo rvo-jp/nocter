@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct.">
+    <title>Built-in Type Method Surfaces - Nocter</title>
+    <meta name="description" content="This document owns the compiler boundary that attaches source declarations to built-in unsized types. Public method behavior belongs in the string and view">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default/">
-    <link rel="icon" href="../../../../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/builtin-type-methods/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default/">
+    <meta property="og:title" content="Built-in Type Method Surfaces - Nocter">
+    <meta property="og:description" content="This document owns the compiler boundary that attaches source declarations to built-in unsized types. Public method behavior belongs in the string and view">
+    <meta property="og:url" content="https://nocter.dev/development/docs/builtin-type-methods/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-06">
+    <meta property="article:modified_time" content="2026-08-08">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct.">
+    <meta name="twitter:title" content="Built-in Type Method Surfaces - Nocter">
+    <meta name="twitter:description" content="This document owns the compiler boundary that attaches source declarations to built-in unsized types. Public method behavior belongs in the string and view">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct - Nocter","description":"Nocter source code for development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Tests","item":"https://nocter.dev/development/compiler/tests/"},{"@type":"ListItem","position":5,"name":"Fixtures","item":"https://nocter.dev/development/compiler/tests/fixtures/"},{"@type":"ListItem","position":6,"name":"Source_corpus","item":"https://nocter.dev/development/compiler/tests/fixtures/source_corpus/"},{"@type":"ListItem","position":7,"name":"Valid","item":"https://nocter.dev/development/compiler/tests/fixtures/source_corpus/valid/"},{"@type":"ListItem","position":8,"name":"Optional Otherwise Default","item":"https://nocter.dev/development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Built-in Type Method Surfaces - Nocter","description":"This document owns the compiler boundary that attaches source declarations to built-in unsized types. Public method behavior belongs in the string and view","url":"https://nocter.dev/development/docs/builtin-type-methods/","mainEntityOfPage":"https://nocter.dev/development/docs/builtin-type-methods/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Builtin Type Methods","item":"https://nocter.dev/development/docs/builtin-type-methods/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
-<body>
+<body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -97,7 +97,7 @@
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -117,26 +117,42 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
+                <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
+                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
+                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="./index.html#content" aria-current="page">Built-in Type Method Surfaces</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
+                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
+                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
+                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
+                <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
+            </ul>
+        </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct</span>
+                <span class="markdown-path-text">/development/docs/builtin-type-methods.md</span>
             </div>
             <div class="markdown-body">
-                <h1>optional-otherwise-default.nct</h1><pre><code class="language-nocter"><span class="token-comment">// Executable environment lookup with an absence fallback.</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span>env
-
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> user <span class="token-operator">=</span> <span class="token-function">env</span><span class="token-operator">(</span><span class="token-string">"USER"</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"unknown"</span> <span class="token-operator">}</span>
-
-    <span class="token-function">use_name</span><span class="token-operator">(</span>user<span class="token-operator">)</span>
-    <span class="token-keyword">return</span> <span class="token-number">0</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">use_name</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="built-in-type-method-surfaces">Built-in Type Method Surfaces</h1><p>This document owns the compiler boundary that attaches source declarations to built-in unsized types. Public method behavior belongs in the <a href="../../../spec/07-strings-arrays-views-pointers/index.html#content">string and view specification</a>, and receiver selection belongs in the <a href="../../../spec/22-borrow-coercions/index.html#content">borrow-coercion specification</a>.</p><h2 id="ownership-model">Ownership Model</h2><p><code>str</code> and <code>[T]</code> are compiler type identities, not nominal declarations injected into the prelude. Their inherent methods nevertheless require ordinary source identities for type checking, lowering, diagnostics, and editor navigation. The resolver therefore stores a <code>BuiltinTypeSurface</code> beside the nominal symbol table. A surface records its built-in owner, implementation span, generic shape, and source-derived method signatures; it does not create a constructible struct, fields, coercions, <code>drop</code>, or a source-visible type name.</p><p>The active Nocter home owns exactly one implementation unit per built-in owner:</p><table><thead><tr><th>Owner</th><th>Authority</th></tr></thead><tbody><tr><td><code>str</code></td><td><code>std/str</code></td></tr><tr><td><code>[T]</code></td><td><code>std/slice</code></td></tr></tbody></table><p>The frontend loads both units for every package analysis. Loading does not inject value imports. Project files and other standard modules cannot declare competing built-in implementations. Authority validation uses the canonical installed module path rather than a textual prefix or the current working directory.</p><h2 id="declaration-validation">Declaration Validation</h2><p>The resolver recognizes the built-in target syntax once and validates its complete shape before collecting methods. <code>impl str</code> has no generic parameters. <code>impl&lt;T&gt; [T]</code> has exactly one parameter, and its element reference must name that parameter. Built-in implementation blocks contain only public borrowed methods with bodies. They cannot implement interfaces, declare owned receivers, construct values, or attach unrelated members.</p><p>Duplicate method identities are diagnosed while surfaces are collected. Parser, type checker, IR, and LSP code do not repeat module-authority rules. Malformed source is omitted from the surface and reported through stable frontend or resolver diagnostics.</p><h2 id="trusted-representation-boundary">Trusted Representation Boundary</h2><p>Source methods implement public behavior. Operations that source cannot express use narrow, typed <code>pub(nocter)</code> primitives registered by module, visibility, generic shape, parameter types, and result type:</p><ul><li><code>std/str.str_len_raw</code></li><li><code>std/str.str_ptr_addr_raw</code></li><li><code>std/slice.slice_len_raw</code></li><li><code>std/slice.slice_ptr_addr_raw</code></li></ul><p>Lowering recognizes the resolved primitive role after registry validation. It never treats a public member named <code>len</code>, <code>is_empty</code>, <code>ptr</code>, or <code>bytes</code> as an intrinsic. Higher operations remain ordinary calls and source bodies.</p><p>Pointer extraction uses typed <code>StrPointer</code> and <code>SlicePointer</code> IR values so the backend selects the data word explicitly instead of reconstructing view layout from offsets. Pointer-returning normal calls share the scalar-word ABI path, allowing a source method result to flow into <code>std/ptr.addr</code> and other pointer consumers.</p><h2 id="receiver-plans">Receiver Plans</h2><p>Typecheck first performs ordinary inherent and interface lookup on the original receiver. If no candidate exists, it enumerates accessible one-step borrow coercions, applies the concrete source substitutions, and looks up the requested method on each exact target owner. An original candidate shadows coercion even when its receiver capability is unavailable.</p><p>Target capability participates in selection. A readwrite method requires a readwrite coercion target. When readonly and readwrite paths reach the same readonly declaration, selection retains the minimum-capability path instead of reporting a false ambiguity. Distinct declarations remain ambiguous. The resulting method-call fact owns the selected coercion, method declaration, substitution, and callable target; ownership, provenance, IR, and analysis consume that fact.</p><p>Receiver-coercion results borrow the original source place. Borrow collection records a whole-place loan for owned aggregates even when their fields contain borrow-like values. This prevents move, drop, mutation, and region escape until the coerced result's last use without treating every borrow-containing aggregate expression as an already borrowed value.</p><h2 id="editor-boundary">Editor Boundary</h2><p>Hover, completion, signature help, definition, references, and rename use the selected method's source span. Direct <code>str</code> and slice completion reads the built-in surfaces. Nominal completion may add method-only candidates from one-step coercion targets; original names shadow those candidates, identical declaration spans collapse across capability paths, and different declarations remain ambiguous.</p><p>Presentation renders the canonical concrete receiver (<code>&amp;str</code>, <code>&amp;[u8]</code>, or <code>&amp;+[u8]</code>) while navigation retains the declaration in <code>std/str</code> or <code>std/slice</code>. No synthetic <code>String</code> or <code>Vec&lt;T&gt;</code> member is created for editor convenience.</p><h2 id="verification-boundary">Verification Boundary</h2><p>Unit fixtures that deliberately construct a minimal Nocter home use one shared helper to install valid built-in surfaces. Distributed-home tests use the packaged sources and cover direct views, owning-type receiver coercion, pointer identity, capability selection, ownership conflicts, and editor declaration identity. A missing implementation unit is an invalid installation rather than a signal to restore compiler-invented methods.</p>
             </div>
         </main>
     </div>
@@ -152,6 +168,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

@@ -164,7 +164,7 @@ Parameters are immutable bindings inside the function body.
 
 ```nct
 func create(name: String, count: i32, out: &+File): User! {
-    out.write_text(name.view())?
+    out.write_text(&name as &str)?
 
     return User {
         name: move name,
@@ -555,12 +555,12 @@ func first_byte(bytes: &[u8]): u8? {
 ```nct
 func bad(): &str {
     var text = String.copy("hello")
-    return text.view() // error: view points to local owned value
+    return &text as &str // error: view points to local owned value
 }
 ```
 
 ```nct
 func also_bad(text: String): &str {
-    return text.view() // error: view points to an owned parameter dropped at return
+    return &text as &str // error: view points to an owned parameter dropped at return
 }
 ```

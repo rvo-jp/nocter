@@ -22,12 +22,14 @@ Run from the repository root:
 node docs/build-docs.js
 ```
 
-The build script recursively reads project `.md` and `.nct` files outside generated or transient
-directories, writes static HTML into `docs/`, refreshes `robots.txt` and `sitemap.xml`, and keeps the
-site source files listed above. Markdown becomes documentation pages; Nocter files become
-syntax-highlighted source pages. Links from Markdown to either source type stay within the website.
-The Examples directory navigation also discovers descendant `.nct` files, so a newly added public
-example remains reachable from the website even before its overview gains a dedicated section.
+The build script recursively reads project `.md` and `.nct` files outside generated, transient, and
+compiler-fixture directories, writes static HTML into `docs/`, refreshes `robots.txt` and
+`sitemap.xml`, and keeps the site source files listed above. Markdown becomes documentation pages;
+Nocter files become syntax-highlighted source pages. Links from Markdown to either source type stay
+within the website. Deliberately invalid compiler fixtures under
+`development/compiler/tests/fixtures/` never become public pages. The Examples directory
+navigation discovers descendant `.nct` files, so a newly added public example remains reachable
+from the website even before its overview gains a dedicated section.
 
 ## Editing Rule
 

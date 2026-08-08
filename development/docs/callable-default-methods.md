@@ -49,7 +49,7 @@ Captures precede a semicolon and are always explicit:
 ```nct
 (&threshold; value) { value > threshold }
 (&+count; value) { count += 1; value }
-(move prefix; value) { prefix.view() == value }
+(move prefix; value) { (&prefix as &str) == value }
 ```
 
 Readonly, readwrite, and owned captures become fields in source order. A reference to an outer

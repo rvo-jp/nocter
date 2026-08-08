@@ -180,8 +180,8 @@ Example:
 ```nct
 region scratch using arena {
     let source = read_file("main.nct")?
-    let tokens = lex(source.view())?
-    consume(tokens.view())
+    let tokens = lex(&source as &str)?
+    consume(&tokens as &[Token])
 }
 ```
 
@@ -243,7 +243,7 @@ struct ResultView {
 func load_view(allocator: &+Allocator): ResultView {
     region scratch using allocator {
         let text = String.copy("temporary")
-        return ResultView { text: text.view() }
+        return ResultView { text: &text as &str }
         // error: ResultView carries a view into scratch
     }
 }

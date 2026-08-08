@@ -1,6 +1,7 @@
 # Borrow Coercions
 
-**Availability:** Published in v0.8.0.
+**Availability:** Expected-type and explicit selection were published in v0.8.0. One-step method
+receiver selection is implemented for v0.9.0.
 
 A borrow coercion lets a nominal type expose one of its borrowed views at a concrete expected-type
 boundary. It is a type-owned, statically selected call. It is not type equality, a representation
@@ -13,7 +14,7 @@ A `coerce` declaration belongs to the nominal type named after the keyword:
 ```nct
 coerce String {
     pub &self as &str {
-        return self.view()
+        return view(self)
     }
 }
 ```
@@ -45,11 +46,11 @@ Generic source parameters follow the source type's declaration order:
 ```nct
 coerce Vec<T> {
     pub &self as &[T] {
-        return self.view()
+        return view(self)
     }
 
     pub &+self as &+[T] {
-        return self.view_mut()
+        return view_mut(self)
     }
 }
 ```
@@ -149,14 +150,39 @@ Explicit selection applies either the existing lossless integer rule, built-in b
 weakening, or one accessible exact borrow coercion. It never chains coercions, inserts a borrow,
 consumes an owned value, or changes the selected entry based on later generic inference.
 
+## Method Receiver Selection
+
+An ordinary method call first searches the original receiver's inherent methods, explicit
+interface conformances, and interface defaults. Only when that lookup has no candidate may the
+compiler prepare the normal receiver borrow and apply one declared borrow coercion:
+
+```nct
+let text = String "Nocter"
+let byte_count = text.len() // selects str.len through &String as &str
+```
+
+The selected method keeps its source declaration identity. Hover and completion show
+`method &str.len(): usize`; definition and references point to the declaration in `std/str`.
+
+An original method shadows a coerced method even when the original receiver capability is
+invalid. Coercions do not chain. Different target method declarations with the same name are
+ambiguous and require an explicit `as` conversion. When readonly and readwrite coercions both
+reach the same readonly method declaration, the compiler selects the minimum required capability;
+a readwrite target method remains available only through a readwrite target.
+
+Receiver preparation, coercion, and method invocation evaluate the receiver expression once. A
+borrow-like result preserves the original owning value's loan through optional, fallible,
+aggregate, iterator, and generic result shapes.
+
 ## Selection Limits
 
 Borrow coercions are deliberately one-step in v0.8.0:
 
 - user-defined coercions never chain
 - coercion does not choose or infer an otherwise unconstrained generic argument
-- coercion does not participate in member lookup, operator typing, overload ranking, construction,
-  or literal selection
+- method lookup may use one receiver coercion only after original-receiver lookup has no candidate
+- coercion does not participate in operator typing, overload ranking, construction, or literal
+  selection
 - coercion does not convert an owned value and does not consume a value
 - coercion cannot return an owned, optional, or fallible value
 - coercion cannot declare fresh, static, allocator, parameter, or aggregate result provenance
@@ -195,7 +221,8 @@ coerce Vec<T> {
 ```
 
 `String` intentionally does not expose a readwrite byte view because arbitrary byte mutation could
-break its UTF-8 invariant. Existing explicit `view` and `view_mut` methods remain available.
+break its UTF-8 invariant. `String` and `Vec<T>` expose explicit views through `as`; their borrowed
+observation methods are owned once by `str` and `[T]` rather than duplicated on the owning types.
 
 ## Editor Contract
 

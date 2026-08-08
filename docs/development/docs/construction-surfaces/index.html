@@ -97,7 +97,7 @@
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -126,6 +126,7 @@
                 <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
                 <li><a href="./index.html#content" aria-current="page">Construction Surfaces</a></li>
                 <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>

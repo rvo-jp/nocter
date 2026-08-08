@@ -10,6 +10,9 @@ const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 mod builtin_std;
 
 const VALID_FIXTURES: &[ValidFixture] = &[
+    ValidFixture::new(
+        "development/compiler/tests/fixtures/source_corpus/valid/builtin-view-methods.nct",
+    ),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/hello.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/doc-comments.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/fallible-catch.nct"),
@@ -69,6 +72,10 @@ const INVALID_FIXTURES: &[InvalidFixture] = &[
     InvalidFixture::new(
         "development/compiler/tests/fixtures/source_corpus/invalid/optional-otherwise-fallback-type.nct",
         "E0397",
+    ),
+    InvalidFixture::new(
+        "development/compiler/tests/fixtures/source_corpus/invalid/project-builtin-impl.nct",
+        "E0416",
     ),
     InvalidFixture::new(
         "development/compiler/tests/fixtures/source_corpus/invalid/return-type-mismatch.nct",

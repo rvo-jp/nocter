@@ -248,16 +248,18 @@ Evaluation order:
 This is invalid:
 
 ```nct
-let view = String.copy("abc").view()
+let view = &String.copy("abc") as &str
 ```
 
-`String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `&str` cannot be stored in `view`.
+`String.copy(...)` produces a temporary owned `String`. The explicit conversion borrows from that
+temporary. The temporary would be dropped at the end of the statement, so the `&str` cannot be
+stored in `view`.
 
 Write this instead:
 
 ```nct
 var text = String.copy("abc")
-let view = text.view()
+let view = &text as &str
 ```
 
 A method receiver borrow lasts only for the call unless the method returns a value whose type carries a borrow-like lifetime tracked by the compiler.

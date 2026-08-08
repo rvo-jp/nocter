@@ -97,23 +97,23 @@ func address_of(value: &u8): usize {
 `&[T]`, `&+[T]`, and `&str` expose pointer and length methods.
 
 ```nct
-impl &[T] {
-    pub method self.ptr(): *T
-    pub method self.len(): usize
+impl<T> [T] {
+    pub method &self.ptr(): *T
+    pub method &self.len(): usize
+    pub method &self.is_empty(): bool
 }
 
-impl &+[T] {
-    pub method self.ptr(): *T
-    pub method self.len(): usize
-}
-
-impl &str {
-    pub method self.ptr(): *u8
-    pub method self.len(): usize
+impl str {
+    pub method &self.ptr(): *u8
+    pub method &self.len(): usize
+    pub method &self.is_empty(): bool
 }
 ```
 
-`ptr()` returns a raw pointer. It does not grant dereference permission.
+The active Nocter home declares these methods in `std/slice` and `std/str`. The compiler built-in
+types own the method identities, while the declarations and ordinary method bodies remain
+standard-library source. A readwrite slice may call the readonly `[T]` methods by capability
+weakening. `ptr()` returns a raw pointer and does not grant dereference permission.
 
 Trusted standard-library implementation example:
 
@@ -184,8 +184,8 @@ bare `[1, 2, 3]` remains a fixed-size array literal. See
 var bytes = Vec<u8>.with_capacity(4096)
 bytes.push(10)
 
-let read: &[u8] = bytes.view()
-let write: &+[u8] = bytes.view_mut()
+let read: &[u8] = &bytes as &[u8]
+let write: &+[u8] = &+bytes as &+[u8]
 ```
 
 Nocter uses built-in `[T]` type syntax for unsized contiguous array data. Array data is normally used behind a borrow:
@@ -277,7 +277,7 @@ func ok(): &str {
 ```nct
 func bad(): &str {
     var text = String.copy("hello")
-    return text.view() // error: local
+    return &text as &str // error: local
 }
 ```
 
@@ -312,15 +312,17 @@ Collection operations are ordinary standard-library methods.
 
 Representative collection operations:
 
-- `len(): usize`
-- `Vec<T>.get(index: usize): &T?`
+- `[T].len(): usize`, `[T].is_empty(): bool`, and `[T].ptr(): *T`
+- `Sequence<T>.get(index: usize): &T?`, implemented by `Vec<T>`
 - `Vec<T>.get_mut(index: usize): &+T?`
-- `ptr(): *T` for contiguous views
-- `view(): &[T]` for owning collections that can expose readonly contiguous storage
-- `view_mut(): &+[T]` for owning collections that can expose readwrite contiguous storage
+- `&Vec<T> as &[T]` for readonly contiguous storage
+- `&+Vec<T> as &+[T]` for readwrite contiguous storage
 - readonly borrow iteration through ordinary `iter()` and `next()` methods
 
-The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and `&+[T]`. `Vec<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `view_mut`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
+The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and
+`&+[T]`. The active Nocter home exclusively owns inherent implementations for built-in `[T]`.
+`Vec<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `iter`, and `next` remain declaration-resolved API
+surface; the compiler does not infer their public behavior from member spelling.
 
 ### Iteration
 
@@ -337,9 +339,10 @@ impl<T> ViewIter<T> {
 ```
 
 `ViewIter.from_view(values)` returns an iterator over readonly borrows into the viewed storage.
-`Vec<T>.iter()` and `String.bytes_iter()` are forwarding conveniences. `ViewIter<T>.next()` advances
-the iterator and returns an optional readonly borrow. The result type is written as `&T?` to mean
-"optional borrow"; it is not a borrow of an optional value.
+`Vec<T>.iter()` is supplied by its explicit `Iterable` conformance. `String.bytes_iter()` reaches
+the source-declared `str.bytes_iter()` method through receiver coercion. `ViewIter<T>.next()`
+advances the iterator and returns an optional readonly borrow. The result type is written as `&T?`
+to mean "optional borrow"; it is not a borrow of an optional value.
 
 ```nct
 for i in 0..<bytes.len() {
@@ -414,7 +417,7 @@ let view: &str = "README.md"
 var owned = String.copy(view)
 
 open(view)
-open(owned.view())
+open(&owned as &str)
 
 func open(path: &str): File! {
     ...
@@ -424,12 +427,22 @@ func open(path: &str): File! {
 Representative current method surface:
 
 ```nct
-impl String {
-    pub method &self.view(): &str
+impl str {
     pub method &self.len(): usize
-    pub method &self.capacity(): usize
     pub method &self.is_empty(): bool
+    pub method &self.ptr(): *u8
     pub method &self.bytes(): &[u8]
+    pub method &self.is_char_boundary(index: usize): bool
+    pub method &self.get_range(start: usize, end: usize): &str?
+    pub method &self.find(needle: &str): usize?
+    pub method &self.contains(needle: &str): bool
+    pub method &self.split_views(separator: &str): SplitIter! from self | separator
+    pub method &self.lines(): LinesIter
+    pub method &self.bytes_iter(): ViewIter<u8>
+}
+
+impl String {
+    pub method &self.capacity(): usize
     pub method &+self.reserve(additional: usize): void
     pub method &+self.try_reserve(additional: usize): void!
     pub method &+self.clear(): void
@@ -437,12 +450,11 @@ impl String {
     pub method &+self.try_push_str(value: &str): void!
 }
 
-impl &str {
-    pub method self.ptr(): *u8
-    pub method self.len(): usize
-    pub method self.bytes(): &[u8]
-}
 ```
+
+`String` reaches the `str` observation surface through its declared `&String as &str` coercion.
+An original `String` method wins before coercion. The owning type therefore contains allocation,
+capacity, mutation, and construction behavior without duplicating borrowed observation methods.
 
 Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
 `try_copy`, `try_reserve`, and `try_push_str` operations use a `TryAllocator`. Both surfaces use the
@@ -493,9 +505,9 @@ or range-syntax behavior.
 
 There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `&str`; creating an owned `String` from it requires an explicit copy.
 
-The v0.8.0 development contract adds type-owned coercion from an explicit `&String` borrow to
-`&str`, and from explicit `&Vec<T>` or `&+Vec<T>` borrows to matching slice views. It does not
-change literal types or insert the source borrow. See
+The v0.9.0 contract uses the v0.8.0 type-owned coercions both at expected-type boundaries and for
+one-step method-receiver lookup. It does not change literal types or insert a source borrow outside
+method receiver preparation. See
 [Borrow Coercions](22-borrow-coercions.md).
 
 The `char` type is not supported. String APIs operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.

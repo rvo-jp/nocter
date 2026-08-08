@@ -97,7 +97,7 @@
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span>value<span class="token-operator">.</span><span class="token-function">view</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span></code></pre>
                     <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
@@ -132,6 +132,7 @@
                 <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../../docs/borrow-coercions/index.html#content">Borrow Coercion Compiler Boundary</a></li>
+                <li><a href="../../../docs/builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
                 <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../../docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
                 <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>

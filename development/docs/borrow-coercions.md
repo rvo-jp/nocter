@@ -1,8 +1,9 @@
 # Borrow Coercion Compiler Boundary
 
-This document owns the compiler design for v0.8.0 borrowed-view coercions. Public syntax and
-behavior belong in the specification; milestone scope and completion evidence belong in the
-[v0.8.0 milestone](../milestones/v0.8.0.md).
+This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and
+extended to method receivers in v0.9.0. Public syntax and behavior belong in the specification;
+milestone scope and completion evidence belong in the corresponding milestone records. Built-in
+method authority is documented separately in [Built-in Type Method Surfaces](builtin-type-methods.md).
 
 ## Responsibility Model
 
@@ -20,6 +21,11 @@ coerce declaration
 ```
 
 No consumer after typecheck searches declarations or recognizes source and target names.
+
+Method receiver selection is an additional producer of the same nested coercion plan. It runs only
+after original-receiver method lookup has no candidate, and records the selected target method in
+the ordinary method-call fact. Ownership and lowering consume that combined fact rather than
+performing a second lookup.
 
 ## Declaration Identity
 
@@ -82,6 +88,12 @@ site; explicit `as` requires it in the source expression or source value type. S
 reborrow `&+Source` as readonly, but it never creates a borrow from an owned source. The returned
 view carries the original source loan and uses the same non-lexical lifetime and region escape
 machinery as an explicit method call.
+
+Method syntax is the one boundary that already performs automatic receiver borrowing. A call on
+an owned nominal value may therefore prepare that borrow and immediately invoke one declared
+borrow coercion. The combined receiver is evaluated once. When two capability paths reach the same
+readonly target method, the selector keeps the minimum-capability path; different method
+declarations remain ambiguous.
 
 Borrow-source collection follows every borrow-valued result expression, including explicit type
 conversion, optional and fallible projection, `if`, `if is`, and `match`. A binding records every

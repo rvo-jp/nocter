@@ -1,0 +1,10 @@
+func measure(text: &str, values: &[u8], values_mut: &+[u8]): usize {
+    if text.is_empty() || values_mut.is_empty() {
+        return 0
+    }
+    return text.len() + values.len() + values_mut.len()
+}
+
+func main(): i32 {
+    return 0
+}

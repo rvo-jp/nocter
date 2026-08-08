@@ -11,6 +11,7 @@ const DOCS_DIR = __dirname;
 const OUTPUT_ROOT = DOCS_DIR;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
+const SKIP_SOURCE_PREFIXES = ["development/compiler/tests/fixtures/"];
 const AUTO_INDEX_SOURCE_DIRS = new Set(["examples"]);
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
@@ -76,7 +77,7 @@ pub func Session.start(user: User, clock: &Clock): Session {
 }`,
     ownership: `func consume(values: Vec<String>): void! {
     for value in move values {
-        print(value.view())?
+        print(&value as &str)?
     }
 }`,
     construction: `construct NonEmptyList<T> {
@@ -171,6 +172,7 @@ function collectSourceFiles(directory) {
             && entry.name !== "AGENTS.md"
             && !relative.startsWith("docs/")
             && !SKIP_SOURCE_PATHS.has(relative)
+            && !SKIP_SOURCE_PREFIXES.some(prefix => relative.startsWith(prefix))
         ) {
             files.push(fullPath);
         }
