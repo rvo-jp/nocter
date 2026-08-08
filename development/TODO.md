@@ -2,9 +2,10 @@
 
 ## Current Task
 
-v0.10.0 Phase 0 is complete under [`milestones/v0.10.0.md`](milestones/v0.10.0.md). It replaced
-module-path native-build exceptions with resolved runtime type capabilities and promoted every
-built-in integer type to ordinary native execution. v0.9.0 remains published and audited under
+v0.10.0 Phase 1 is active under
+[`milestones/v0.10.0-phase-1.md`](milestones/v0.10.0-phase-1.md). It replaces file-defined modules
+with directory-defined modules, separates `nocter.nct` from source code, and makes explicit source
+imports compose one private module namespace. v0.9.0 remains published and audited under
 [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
@@ -163,6 +164,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-v0.10.0 Phase 0 is complete. Do not broaden its scope retroactively; choose the next milestone from
-practical standard-library requirements. The published v0.9.0 archive and its evidence are
-immutable.
+Complete every v0.10.0 Phase 1 gate without retaining a file-module compatibility path. The
+published v0.9.0 archive and its evidence are immutable.
