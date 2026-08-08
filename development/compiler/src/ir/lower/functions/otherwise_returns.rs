@@ -59,7 +59,13 @@ pub(super) fn lower_otherwise_scalar_return_with_scope_drops(
 pub(super) fn otherwise_return_supports_success_type(success_type: &Type) -> bool {
     matches!(
         success_type,
-        Type::I32 | Type::U8 | Type::Usize | Type::Bool | Type::Str | Type::Slice { .. }
+        Type::I32
+            | Type::U8
+            | Type::Usize
+            | Type::Integer(_)
+            | Type::Bool
+            | Type::Str
+            | Type::Slice { .. }
     )
 }
 
@@ -86,6 +92,13 @@ pub(super) fn lower_otherwise_scalar_return_call_to_return(
             failure_mode,
         ),
         Type::Usize => lower_fallible_usize_normal_call(
+            call,
+            UsizeLocation::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Integer(_) => lower_fallible_usize_normal_call(
             call,
             UsizeLocation::Return,
             context,
@@ -171,6 +184,18 @@ pub(super) fn lower_otherwise_scalar_return_call_to_temporary(
                 failure_mode,
             )
         }
+        Type::Integer(_) => {
+            let destination = context.next_usize_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_usize_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
         Type::Bool => {
             let destination = context.next_bool_local_location()?;
             let expression_context = context.with_reserved_local_abi_words(1);
@@ -241,6 +266,10 @@ pub(super) fn append_scope_drops_then_restore_scalar_return(
             destination: UsizeLocation::Return,
             value: UsizeValue::Location(context.next_usize_local_location()?),
         }],
+        Type::Integer(_) => vec![Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::Location(context.next_usize_local_location()?),
+        }],
         Type::Bool => vec![Instruction::SetBool {
             destination: BoolLocation::Return,
             value: BoolValue::Location(context.next_bool_local_location()?),
@@ -281,7 +310,7 @@ pub(super) fn scalar_return_temporary_abi_words(
     success_type: &Type,
 ) -> Result<usize, Vec<Diagnostic>> {
     match success_type {
-        Type::I32 | Type::U8 | Type::Usize | Type::Bool => Ok(1),
+        Type::I32 | Type::U8 | Type::Usize | Type::Integer(_) | Type::Bool => Ok(1),
         Type::Str | Type::Slice { .. } => Ok(2),
         Type::Aggregate { .. }
         | Type::DirectAggregate { .. }

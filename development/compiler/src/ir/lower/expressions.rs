@@ -24,13 +24,13 @@ use super::functions::{
     tag_only_switch_as_control_flow,
 };
 use super::literals::{
-    lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
+    lower_i32_literal, lower_integer_literal_word, lower_str_literal, lower_u8_literal,
+    lower_usize_literal,
 };
 use super::outcome_propagation::propagating_outcome_mode;
 use super::outcome_values::lower_stored_outcome_expression;
 use super::types::{
-    return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
-    scalar_or_view_type_from_type_expr_with_resolver,
+    return_type_expr_is_top_level_optional_with_resolver,
     top_level_optional_success_abi_value_with_resolver,
 };
 mod aggregate_fields;
@@ -75,7 +75,7 @@ use fixed_arrays::*;
 pub(super) use integer_values::*;
 pub(super) use returns::*;
 use scalar_borrows::*;
-use scalar_values::*;
+pub(in crate::ir::lower) use scalar_values::*;
 use statement_effects::*;
 use utility::*;
 pub(super) use void_effects::*;
@@ -89,11 +89,12 @@ use crate::ast::{
     IndexExpr, Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
+use crate::integer::IntegerType;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IntegerBinaryOperator,
+    OutcomeFailureMode, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::literals::decode_integer_literal_value;
 use calls::lower_borrow_source_from_expression_without_coercion;

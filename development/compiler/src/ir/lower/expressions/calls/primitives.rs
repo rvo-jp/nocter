@@ -742,6 +742,17 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                     value: value.value,
                 });
             }
+            Type::Integer(kind) => {
+                let value =
+                    lower_integer_expression_to_value(stored_value, kind, context, temporaries)?;
+                instructions.extend(value.instructions);
+                instructions.push(Instruction::StoreIntegerToPointer {
+                    kind,
+                    pointer,
+                    offset: offset.value,
+                    value: value.value,
+                });
+            }
             Type::Bool => {
                 let value = lower_bool_expression_to_value_with_temporaries(
                     stored_value,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::integer::IntegerType;
 
 pub(super) fn function_parameters(
     function: &FunctionDecl,
@@ -82,6 +83,9 @@ pub(super) fn lower_scalar_parameters(
             }
             ScalarParameterKind::Usize => {
                 slots.push_usize_parameter(parameter.name.clone());
+            }
+            ScalarParameterKind::Integer(kind) => {
+                slots.push_integer_parameter(parameter.name.clone(), kind);
             }
             ScalarParameterKind::Bool => {
                 slots.push_bool_parameter(parameter.name.clone());
@@ -331,6 +335,7 @@ pub(super) enum ScalarParameterKind {
     I32,
     U8,
     Usize,
+    Integer(IntegerType),
     Bool,
     Str,
     Slice(SliceTypeInfo),
@@ -379,6 +384,7 @@ pub(super) fn lower_scalar_parameter_kind(
         Some(Type::I32) => return Ok(ScalarParameterKind::I32),
         Some(Type::U8) => return Ok(ScalarParameterKind::U8),
         Some(Type::Usize) => return Ok(ScalarParameterKind::Usize),
+        Some(Type::Integer(kind)) => return Ok(ScalarParameterKind::Integer(kind)),
         Some(Type::Bool) => return Ok(ScalarParameterKind::Bool),
         Some(Type::Str) => return Ok(ScalarParameterKind::Str),
         Some(Type::Slice { .. }) => {
@@ -420,6 +426,7 @@ pub(super) fn lower_scalar_parameter_kind(
                 Type::I32
                     | Type::U8
                     | Type::Usize
+                    | Type::Integer(_)
                     | Type::Bool
                     | Type::Str
                     | Type::Slice { .. }
@@ -475,6 +482,7 @@ where
         Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        Some(Type::Integer(kind)) => TypecheckSliceElementKind::Integer(kind),
         Some(Type::Bool) => TypecheckSliceElementKind::Bool,
         Some(Type::Str) => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,

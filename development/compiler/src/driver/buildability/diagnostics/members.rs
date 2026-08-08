@@ -23,7 +23,7 @@ pub(in crate::driver::buildability) fn unsupported_field_member_value_diagnostic
             sources,
             expression.member_span,
             "field member values outside supported scalar/view or aggregate types",
-            "keep `u16`, `u32`, and other storage-only fields encapsulated in aggregates, or expose an `i32`, `usize`, or `u8` value until broader scalar field lowering is promoted",
+            "expose a value with a concrete native ABI representation",
         )),
     }
 }
@@ -86,14 +86,8 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
-    nocter_home: Option<&Path>,
+    _nocter_home: Option<&Path>,
 ) -> Option<Diagnostic> {
-    // `std/vec` generic bodies keep parameter element facts as `Other`; user
-    // call sites are preflighted before those bodies are lowered.
-    if source_is_std_vec(sources, expression.span.source, nocter_home) {
-        return None;
-    }
-
     if let Some(is_buildable) = fixed_array_index_expression_is_buildable(
         expression,
         resolved,
@@ -108,7 +102,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
             sources,
             expression.span,
             "fixed array indexing outside scalar/view element local or aggregate-field reads",
-            "index a local or aggregate-field `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` value until broader fixed array indexing is promoted",
+            "index a local or aggregate-field fixed array with builtin integer, `bool`, or `&str` elements",
         ));
     }
 
@@ -126,7 +120,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
         sources,
         expression.span,
         "slice indexing outside scalar, `&str`, and copy aggregate elements",
-        "use `&[i32]`, `&[u8]`, `&[usize]`, `&[bool]`, `&[&str]`, or a non-empty `copy struct` element until broader slice element lowering is promoted",
+        "use a builtin integer, `bool`, `&str`, or a non-empty `copy struct` slice element",
     ))
 }
 
@@ -138,6 +132,7 @@ pub(in crate::driver::buildability) fn typecheck_slice_element_kind_is_buildable
         TypecheckSliceElementKind::I32
             | TypecheckSliceElementKind::U8
             | TypecheckSliceElementKind::Usize
+            | TypecheckSliceElementKind::Integer(_)
             | TypecheckSliceElementKind::Bool
             | TypecheckSliceElementKind::Str
     )

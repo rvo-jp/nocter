@@ -362,6 +362,14 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(offset, requests);
             }
         }
+        Instruction::LoadIntegerFromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
         Instruction::LoadBoolFromPointer {
             pointer, offset, ..
         } => {
@@ -445,6 +453,18 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::StoreIntegerToPointer {
+            pointer,
+            offset,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
         Instruction::StoreBoolToPointer {
             pointer,
             offset,
@@ -500,6 +520,18 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::StoreIntegerToSliceIndex {
+            destination,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_slice_location_parameter_pair_spill_requests(*destination, requests);
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
         Instruction::StoreBoolToSliceIndex {
             destination,
             index,
@@ -534,6 +566,41 @@ pub(super) fn record_instruction_parameter_spill_requests(
                     8,
                     requests,
                 );
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateInteger {
+            kind,
+            destination,
+            offset,
+            value,
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    u64::from(kind.bit_width() / 8),
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateIntegerIndexed {
+            kind,
+            destination,
+            base_offset,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *base_offset,
+                    u64::from(kind.bit_width() / 8),
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
@@ -688,6 +755,38 @@ pub(super) fn record_instruction_parameter_spill_requests(
         | Instruction::LoadAggregateBool { source, offset, .. } => {
             if include_value_parameters {
                 record_aggregate_location_parameter_spill_request(*source, *offset, 1, requests);
+            }
+        }
+        Instruction::LoadAggregateInteger {
+            kind,
+            source,
+            offset,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *source,
+                    *offset,
+                    u64::from(kind.bit_width() / 8),
+                    requests,
+                );
+            }
+        }
+        Instruction::LoadAggregateIntegerIndexed {
+            kind,
+            source,
+            base_offset,
+            index,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *source,
+                    *base_offset,
+                    u64::from(kind.bit_width() / 8),
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
             }
         }
         Instruction::LoadAggregateUsizeIndexed {
@@ -870,6 +969,12 @@ pub(super) fn record_instruction_parameter_spill_requests(
         | Instruction::RemainderUsize { left, right, .. }
         | Instruction::ShiftLeftUsize { left, right, .. }
         | Instruction::ShiftRightUsize { left, right, .. } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(left, requests);
+                record_usize_value_parameter_spill_requests(right, requests);
+            }
+        }
+        Instruction::IntegerBinary { left, right, .. } => {
             if include_value_parameters {
                 record_usize_value_parameter_spill_requests(left, requests);
                 record_usize_value_parameter_spill_requests(right, requests);

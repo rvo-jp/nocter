@@ -43,14 +43,33 @@ pub(super) fn lower_aggregate_usize_field_to_location(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let access = lower_aggregate_member_field_access(expression, context, temporaries)?
-        .filter(|access| access.kind == AggregateFieldKind::Usize)
+        .filter(|access| {
+            access.kind == AggregateFieldKind::Usize
+                || access
+                    .kind
+                    .integer_type()
+                    .is_some_and(|kind| !kind.legacy_ir_type())
+        })
         .ok_or_else(unsupported_usize_expression_diagnostic)?;
     let mut instructions = access.instructions;
-    instructions.push(Instruction::LoadAggregateUsize {
-        destination,
-        source: access.source,
-        offset: access.offset,
-    });
+    if let Some(kind) = access
+        .kind
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        instructions.push(Instruction::LoadAggregateInteger {
+            kind,
+            destination,
+            source: access.source,
+            offset: access.offset,
+        });
+    } else {
+        instructions.push(Instruction::LoadAggregateUsize {
+            destination,
+            source: access.source,
+            offset: access.offset,
+        });
+    }
     Ok(instructions)
 }
 

@@ -5,6 +5,7 @@ use super::{
 use crate::abi::ValueLayout;
 use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
+use crate::integer::IntegerType;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolValue, I32Location, I32Value,
     SliceElementAddressKind, SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue,
@@ -28,7 +29,9 @@ pub(super) enum LocalScalarWidth {
 
 mod aggregate_copy;
 mod aggregate_fields;
+use aggregate_fields::{emit_integer_load_from_base, emit_integer_store_to_base};
 mod arithmetic;
+mod integers;
 mod materialize;
 mod memory;
 mod registers;
@@ -345,6 +348,7 @@ fn slice_element_address_shift(element: SliceElementAddressKind) -> Option<u32> 
         SliceElementAddressKind::U8 | SliceElementAddressKind::Bool => None,
         SliceElementAddressKind::I32 => Some(2),
         SliceElementAddressKind::Usize => Some(3),
+        SliceElementAddressKind::Integer(kind) => Some(kind.bit_width().trailing_zeros() - 3),
         SliceElementAddressKind::Str => Some(4),
         SliceElementAddressKind::Aggregate { stride } if stride.is_power_of_two() => {
             Some(stride.trailing_zeros())

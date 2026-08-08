@@ -2558,8 +2558,9 @@ func main(): i32! {
     let stderr = text(&output.stderr);
     assert!(
         stderr.contains("error[E0435]")
-            && stderr.contains("`Vec.from_slice` with a non-copy element type"),
-        "expected Vec.from_slice copyability diagnostic, got:\n{stderr}"
+            && stderr
+                .contains("slice indexing outside scalar, `&str`, and copy aggregate elements"),
+        "expected capability-based slice element diagnostic, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -5214,7 +5215,7 @@ fn distributed_std_fmt_append_i32_runs() {
     let project = TempProject::new("distributed-home-fmt-append-i32-run");
     let source = project.write_source(
         "fmt_append_i32.nct",
-        r#"use std/fmt.{append_i32, append_str}
+        r#"use std/fmt.{append_i32, append_i64, append_str}
 use std/io.print
 use std/mem.page_allocator
 use std/string.with_capacity
@@ -5222,6 +5223,11 @@ use std/string.with_capacity
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(4)
+    append_i64(&+text, 0)
+    if (&text as &str) != "0" {
+        return 2
+    }
+    append_str(&+text, " ")
     append_i32(&+text, 0)
     append_str(&+text, " ")
     append_i32(&+text, 42)
@@ -5244,7 +5250,7 @@ func main(): i32! {
         text(&output.stdout),
         text(&output.stderr)
     );
-    assert_eq!(output.stdout, b"0 42 -17 -2147483648");
+    assert_eq!(output.stdout, b"0 0 42 -17 -2147483648");
     assert!(
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",

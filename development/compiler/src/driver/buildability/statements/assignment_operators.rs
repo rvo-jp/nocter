@@ -74,7 +74,8 @@ pub(in crate::driver::buildability) fn slice_index_compound_assignment_is_builda
         Some(
             TypecheckSliceElementKind::I32
                 | TypecheckSliceElementKind::U8
-                | TypecheckSliceElementKind::Usize,
+                | TypecheckSliceElementKind::Usize
+                | TypecheckSliceElementKind::Integer(_),
         )
     )
 }

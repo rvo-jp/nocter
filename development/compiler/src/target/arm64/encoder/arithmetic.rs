@@ -48,6 +48,10 @@ impl Encoder {
         self.emit_word(SDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_sdiv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(SDIV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_udiv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(UDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
@@ -84,6 +88,17 @@ impl Encoder {
         self.emit_word(ASRV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_asrv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(ASRV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_asr_x_imm(&mut self, rd: XReg, rn: XReg, shift: u32) {
+        debug_assert!(shift < 64);
+        let immr = shift;
+        let imms = 63;
+        self.emit_word(SBFM_X_BASE | (immr << 16) | (imms << 10) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_msub_w(&mut self, rd: WReg, rn: WReg, rm: WReg, ra: WReg) {
         self.emit_word(
             MSUB_W_BASE | (rm.bits() << 16) | (ra.bits() << 10) | (rn.bits() << 5) | rd.bits(),
@@ -104,6 +119,10 @@ impl Encoder {
 
     pub(crate) fn emit_umulh_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
         self.emit_word(UMULH_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_smulh_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(SMULH_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
     pub(crate) fn emit_sxtw_x_w(&mut self, rd: XReg, rn: WReg) {

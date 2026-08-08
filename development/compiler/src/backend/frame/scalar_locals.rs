@@ -44,6 +44,13 @@ pub(super) fn record_instruction_scalar_locals(
         Instruction::StoreAggregateUsize { value, .. } => {
             record_usize_value(value, highest_local_index);
         }
+        Instruction::StoreAggregateInteger { value, .. } => {
+            record_usize_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateIntegerIndexed { index, value, .. } => {
+            record_usize_value(index, highest_local_index);
+            record_usize_value(value, highest_local_index);
+        }
         Instruction::StoreAggregateUsizeIndexed { index, value, .. } => {
             record_usize_value(index, highest_local_index);
             record_usize_value(value, highest_local_index);
@@ -73,6 +80,15 @@ pub(super) fn record_instruction_scalar_locals(
         }
         Instruction::LoadAggregateUsize { destination, .. } => {
             record_usize_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateInteger { destination, .. } => {
+            record_usize_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateIntegerIndexed {
+            destination, index, ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
         }
         Instruction::LoadAggregateUsizeIndexed {
             destination, index, ..
@@ -207,6 +223,16 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_value(pointer, highest_local_index);
             record_usize_value(offset, highest_local_index);
         }
+        Instruction::LoadIntegerFromPointer {
+            destination,
+            pointer,
+            offset,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
         Instruction::LoadBoolFromPointer {
             destination,
             pointer,
@@ -262,6 +288,16 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_value(offset, highest_local_index);
             record_usize_value(value, highest_local_index);
         }
+        Instruction::StoreIntegerToPointer {
+            pointer,
+            offset,
+            value,
+            ..
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+            record_usize_value(value, highest_local_index);
+        }
         Instruction::StoreBoolToPointer {
             pointer,
             offset,
@@ -302,6 +338,16 @@ pub(super) fn record_instruction_scalar_locals(
             destination,
             index,
             value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+            record_usize_value(value, highest_local_index);
+        }
+        Instruction::StoreIntegerToSliceIndex {
+            destination,
+            index,
+            value,
+            ..
         } => {
             record_slice_location(*destination, highest_local_index);
             record_usize_value(index, highest_local_index);
@@ -523,6 +569,16 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_value(left, highest_local_index);
             record_usize_value(right, highest_local_index);
         }
+        Instruction::IntegerBinary {
+            destination,
+            left,
+            right,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(left, highest_local_index);
+            record_usize_value(right, highest_local_index);
+        }
         Instruction::CallI32 {
             destination,
             arguments,
@@ -736,6 +792,9 @@ pub(super) fn record_instruction_scalar_locals(
                 | crate::ir::ComposedOutcomeDestination::Borrow(location) => {
                     record_usize_location(*location, highest_local_index)
                 }
+                crate::ir::ComposedOutcomeDestination::Integer { destination, .. } => {
+                    record_usize_location(*destination, highest_local_index)
+                }
                 crate::ir::ComposedOutcomeDestination::Bool(location) => {
                     record_bool_location(*location, highest_local_index)
                 }
@@ -792,6 +851,9 @@ pub(super) fn record_instruction_scalar_locals(
             crate::ir::ComposedOutcomeDestination::Usize(location)
             | crate::ir::ComposedOutcomeDestination::Borrow(location) => {
                 record_usize_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Integer { destination, .. } => {
+                record_usize_location(*destination, highest_local_index)
             }
             crate::ir::ComposedOutcomeDestination::Bool(location) => {
                 record_bool_location(*location, highest_local_index)
@@ -854,6 +916,7 @@ pub(super) fn record_i32_value(value: &I32Value, highest_local_index: &mut Optio
         I32Value::Const(_) => {}
         I32Value::Location(location) => record_i32_location(*location, highest_local_index),
         I32Value::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
+        I32Value::IntegerWord(value) => record_usize_value(value, highest_local_index),
         I32Value::SliceIndex { source, index } => {
             record_slice_location(*source, highest_local_index);
             record_usize_value(index, highest_local_index);
@@ -952,11 +1015,13 @@ pub(super) fn record_usize_value(value: &UsizeValue, highest_local_index: &mut O
         | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
+        UsizeValue::I32SignExtend(value) => record_i32_value(value, highest_local_index),
         UsizeValue::StrPointer(location) => record_str_location(*location, highest_local_index),
         UsizeValue::SlicePointer(location) => record_slice_location(*location, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
         UsizeValue::SliceLen(location) => record_slice_location(*location, highest_local_index),
-        UsizeValue::SliceIndex { source, index } => {
+        UsizeValue::SliceIndex { source, index }
+        | UsizeValue::IntegerSliceIndex { source, index, .. } => {
             record_slice_location(*source, highest_local_index);
             record_usize_value(index, highest_local_index);
         }
@@ -990,6 +1055,10 @@ pub(super) fn record_bool_value(value: &BoolValue, highest_local_index: &mut Opt
             record_i32_value(right, highest_local_index);
         }
         BoolValue::UsizeComparison { left, right, .. } => {
+            record_usize_value(left, highest_local_index);
+            record_usize_value(right, highest_local_index);
+        }
+        BoolValue::IntegerComparison { left, right, .. } => {
             record_usize_value(left, highest_local_index);
             record_usize_value(right, highest_local_index);
         }

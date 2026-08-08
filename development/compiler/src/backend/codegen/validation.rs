@@ -55,7 +55,7 @@ impl ExpectedCallReturnShape {
         match (self, ty) {
             (Self::I32, Type::I32)
             | (Self::U8, Type::U8)
-            | (Self::Usize, Type::Usize)
+            | (Self::Usize, Type::Usize | Type::Integer(_))
             | (Self::Borrow, Type::Borrow { .. })
             | (Self::Bool, Type::Bool)
             | (Self::Str, Type::Str)
@@ -971,6 +971,7 @@ pub(super) fn validate_composed_outcome_call_return_shape(
         ComposedOutcomeDestination::I32(_) => ExpectedCallReturnShape::I32,
         ComposedOutcomeDestination::U8(_) => ExpectedCallReturnShape::U8,
         ComposedOutcomeDestination::Usize(_) => ExpectedCallReturnShape::Usize,
+        ComposedOutcomeDestination::Integer { .. } => ExpectedCallReturnShape::Usize,
         ComposedOutcomeDestination::Borrow(_) => ExpectedCallReturnShape::Borrow,
         ComposedOutcomeDestination::Bool(_) => ExpectedCallReturnShape::Bool,
         ComposedOutcomeDestination::Str(_) => ExpectedCallReturnShape::Str,

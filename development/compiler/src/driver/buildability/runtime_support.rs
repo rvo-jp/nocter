@@ -664,109 +664,6 @@ where
     }
 }
 
-pub(super) fn unsupported_std_vec_element_call_diagnostic(
-    sources: &SourceMap,
-    call: &CallExpr,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-    nocter_home: Option<&Path>,
-) -> Option<Diagnostic> {
-    let element_use = std_vec_element_use(
-        sources,
-        call,
-        typecheck_facts,
-        generic_substitutions,
-        nocter_home,
-    )?;
-    let is_supported = match element_use.operation {
-        StdVecElementOperation::OwnedStorage => type_expr_is_supported_std_vec_element_storage(
-            &element_use.ty,
-            resolved,
-            resolved_sources,
-        ),
-        StdVecElementOperation::CopyFromSlice => {
-            type_expr_is_supported_std_vec_copy_element_storage(
-                &element_use.ty,
-                resolved,
-                resolved_sources,
-            )
-        }
-    };
-    if is_supported {
-        return None;
-    }
-
-    let (feature, help) = match element_use.operation {
-        StdVecElementOperation::OwnedStorage => (
-            "`Vec` element storage without runtime-supported recursive drop glue",
-            "use a scalar, `&str`, fixed array, or struct element with a supported ABI layout",
-        ),
-        StdVecElementOperation::CopyFromSlice => (
-            "`Vec.from_slice` with a non-copy element type",
-            "move owned elements into a Vec with `push`; `from_slice` duplicates every source element",
-        ),
-    };
-    Some(unsupported_native_build_diagnostic(
-        sources, call.span, feature, help,
-    ))
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StdVecElementOperation {
-    OwnedStorage,
-    CopyFromSlice,
-}
-
-struct StdVecElementUse {
-    operation: StdVecElementOperation,
-    ty: TypeExpr,
-}
-
-fn std_vec_element_use(
-    sources: &SourceMap,
-    call: &CallExpr,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-    nocter_home: Option<&Path>,
-) -> Option<StdVecElementUse> {
-    if let Expr::Member(member) = call.callee.as_ref()
-        && let Some(specialization) =
-            concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
-        && source_is_std_vec(sources, specialization.declaration_span.source, nocter_home)
-        && matches!(
-            declaration_name(sources, specialization.declaration_span),
-            Some("push" | "reserve")
-        )
-    {
-        return specialization
-            .substitutions
-            .get("T")
-            .cloned()
-            .map(|ty| StdVecElementUse {
-                operation: StdVecElementOperation::OwnedStorage,
-                ty,
-            });
-    }
-
-    let specialization =
-        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)?;
-    if !source_is_std_vec(sources, specialization.declaration_span.source, nocter_home) {
-        return None;
-    }
-    let operation = match declaration_name(sources, specialization.declaration_span)? {
-        "from_slice" => StdVecElementOperation::CopyFromSlice,
-        "push" | "with_capacity" | "reserve" => StdVecElementOperation::OwnedStorage,
-        _ => return None,
-    };
-    specialization
-        .substitutions
-        .get("T")
-        .cloned()
-        .map(|ty| StdVecElementUse { operation, ty })
-}
-
 pub(super) fn unsupported_null_from_addr_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
@@ -816,14 +713,6 @@ pub(super) fn source_is_std_ptr(
     nocter_home: Option<&Path>,
 ) -> bool {
     source_is_std_module(sources, source, nocter_home, Path::new("std/ptr.nct"))
-}
-
-pub(super) fn source_is_std_vec(
-    sources: &SourceMap,
-    source: SourceId,
-    nocter_home: Option<&Path>,
-) -> bool {
-    source_is_std_module(sources, source, nocter_home, Path::new("std/vec.nct"))
 }
 
 pub(super) fn source_is_std_module(

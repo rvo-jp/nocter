@@ -539,6 +539,7 @@ pub(crate) enum TypecheckSliceElementKind {
     I32,
     U8,
     Usize,
+    Integer(IntegerType),
     Bool,
     Str,
     Other,

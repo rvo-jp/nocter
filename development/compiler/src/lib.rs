@@ -13,6 +13,7 @@ pub mod entry;
 pub mod format;
 pub mod frontend;
 pub mod home;
+mod integer;
 pub mod ir;
 pub mod lexer;
 mod literals;

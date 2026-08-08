@@ -291,19 +291,38 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 diagnostics,
             );
         }
-        Expr::Borrow(expression) => collect_expression_diagnostics(
-            &expression.expression,
-            sources,
-            resolved,
-            typecheck_facts,
-            generic_substitutions,
-            root_source,
-            names,
-            resolved_sources,
-            nocter_home,
-            queue,
-            diagnostics,
-        ),
+        Expr::Borrow(expression) => {
+            if let Expr::Index(index) = unwrap_group_expr(&expression.expression) {
+                collect_index_expression_diagnostics(
+                    index,
+                    IndexValueUse::Borrow,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else {
+                collect_expression_diagnostics(
+                    &expression.expression,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
         Expr::Unary(expression) => collect_expression_diagnostics(
             &expression.operand,
             sources,
@@ -318,20 +337,6 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Binary(expression) => {
-            if binary_uses_storage_only_scalar_value(
-                expression,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                resolved_sources,
-            ) {
-                diagnostics.push(unsupported_native_build_diagnostic(
-                    sources,
-                    expression.operator_span,
-                    "operations on storage-only scalar values",
-                    "use `i32`, `u8`, or `usize` for computed integer values; keep narrow and wide storage-only integers inside aggregate fields",
-                ));
-            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -360,33 +365,6 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             );
         }
         Expr::TypeConversion(expression) => {
-            if conversion_uses_computed_storage_only_scalar_value(
-                expression,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                resolved_sources,
-            ) {
-                diagnostics.push(unsupported_native_build_diagnostic(
-                    sources,
-                    expression.as_span,
-                    "conversions from computed storage-only scalar values",
-                    "use `i32`, `u8`, or `usize` before computation; storage-only integers are currently supported only as aggregate field values",
-                ));
-            }
-            if conversion_stores_computed_value_in_storage_only_scalar(
-                expression,
-                resolved,
-                generic_substitutions,
-                resolved_sources,
-            ) {
-                diagnostics.push(unsupported_native_build_diagnostic(
-                    sources,
-                    expression.as_span,
-                    "computed values converted to storage-only scalar types",
-                    "store an integer literal in the aggregate field, or keep computed values as `i32`, `u8`, or `usize` until broader storage-only scalar lowering is promoted",
-                ));
-            }
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -402,18 +380,6 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             );
         }
         Expr::Call(expression) => {
-            let unsupported_std_vec_element_call = unsupported_std_vec_element_call_diagnostic(
-                sources,
-                expression,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                nocter_home,
-            );
-            if let Some(diagnostic) = &unsupported_std_vec_element_call {
-                diagnostics.push(diagnostic.clone());
-            }
             if let Some(diagnostic) = unsupported_null_from_addr_call_diagnostic(
                 sources,
                 expression,
@@ -484,16 +450,14 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                     diagnostics,
                 );
             }
-            if unsupported_std_vec_element_call.is_none()
-                && let Some(target) = call_target_for_call(
-                    expression,
-                    resolved,
-                    typecheck_facts,
-                    generic_substitutions,
-                    root_source,
-                    names,
-                )
-            {
+            if let Some(target) = call_target_for_call(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+            ) {
                 queue.push_back(target);
             }
             for (index, argument) in expression.arguments.iter().enumerate() {
@@ -646,45 +610,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 );
             }
         }
-        Expr::Index(expression) => {
-            if let Some(diagnostic) = unsupported_slice_index_diagnostic(
-                sources,
-                expression,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                resolved_sources,
-                nocter_home,
-            ) {
-                diagnostics.push(diagnostic);
-            }
-            collect_expression_diagnostics(
-                &expression.object,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                resolved_sources,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-            collect_expression_diagnostics(
-                &expression.index,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                resolved_sources,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-        }
+        Expr::Index(expression) => collect_index_expression_diagnostics(
+            expression,
+            IndexValueUse::Load,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        ),
         Expr::Group(expression) => collect_expression_diagnostics(
             &expression.expression,
             sources,
@@ -921,75 +860,64 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
     }
 }
 
-fn binary_uses_storage_only_scalar_value(
-    expression: &crate::ast::BinaryExpr,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndexValueUse {
+    Load,
+    Borrow,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_index_expression_diagnostics(
+    expression: &crate::ast::IndexExpr,
+    value_use: IndexValueUse,
+    sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
     resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    [&expression.left, &expression.right]
-        .into_iter()
-        .filter_map(|operand| typecheck_facts.expression_type_expr(operand.span()))
-        .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
-        .any(|ty| {
-            type_expr_has_storage_only_scalar_abi_for_sources(&ty, resolved, resolved_sources)
-        })
-}
-
-fn conversion_uses_computed_storage_only_scalar_value(
-    expression: &crate::ast::TypeConversionExpr,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let target_ty = substitute_type_expr_parameters(&expression.ty, generic_substitutions);
-    if !type_expr_has_runtime_integer_abi_for_sources(&target_ty, resolved, resolved_sources) {
-        return false;
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if value_use == IndexValueUse::Load
+        && let Some(diagnostic) = unsupported_slice_index_diagnostic(
+            sources,
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            resolved_sources,
+            nocter_home,
+        )
+    {
+        diagnostics.push(diagnostic);
     }
-
-    if matches!(
-        unwrap_group_expr(&expression.expression),
-        Expr::Identifier(_)
-            | Expr::IntegerLiteral(_)
-            | Expr::ByteLiteral(_)
-            | Expr::Call(_)
-            | Expr::Member(_)
-            | Expr::Index(_)
-            | Expr::Binary(_)
-    ) {
-        return false;
-    }
-
-    let Some(source_ty) = typecheck_facts.expression_type_expr(expression.expression.span()) else {
-        return false;
-    };
-    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
-    type_expr_has_storage_only_scalar_abi_for_sources(&source_ty, resolved, resolved_sources)
-}
-
-fn conversion_stores_computed_value_in_storage_only_scalar(
-    expression: &crate::ast::TypeConversionExpr,
-    resolved: &ResolveOutput,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let target_ty = substitute_type_expr_parameters(&expression.ty, generic_substitutions);
-    type_expr_has_storage_only_scalar_abi_for_sources(&target_ty, resolved, resolved_sources)
-        && !expression_is_integer_literal_shape(&expression.expression)
-}
-
-fn expression_is_integer_literal_shape(expression: &Expr) -> bool {
-    match expression {
-        Expr::IntegerLiteral(_) => true,
-        Expr::Unary(unary) if unary.operator == UnaryOperator::Negate => {
-            expression_is_integer_literal_shape(&unary.operand)
-        }
-        Expr::Group(group) => expression_is_integer_literal_shape(&group.expression),
-        Expr::TypeConversion(conversion) => {
-            expression_is_integer_literal_shape(&conversion.expression)
-        }
-        _ => false,
-    }
+    collect_expression_diagnostics(
+        &expression.object,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_expression_diagnostics(
+        &expression.index,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
 }

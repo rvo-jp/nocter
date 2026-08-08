@@ -155,6 +155,22 @@ impl EntryEmitter {
                     branch_condition_for_false_unsigned_comparison(*operator),
                 )])
             }
+            BoolValue::IntegerComparison {
+                kind,
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_usize_value_to_x(left, XReg::X16)?;
+                self.emit_usize_value_to_x(right, XReg::X17)?;
+                self.encoder.emit_cmp_x(XReg::X16, XReg::X17);
+                let condition = if kind.is_signed() {
+                    branch_condition_for_false_comparison(*operator)
+                } else {
+                    branch_condition_for_false_unsigned_comparison(*operator)
+                };
+                Ok(vec![self.emit_cond_branch_placeholder(condition)])
+            }
             BoolValue::BoolComparison {
                 operator,
                 left,
@@ -228,6 +244,22 @@ impl EntryEmitter {
                 Ok(vec![self.emit_cond_branch_placeholder(
                     branch_condition_for_true_unsigned_comparison(*operator),
                 )])
+            }
+            BoolValue::IntegerComparison {
+                kind,
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_usize_value_to_x(left, XReg::X16)?;
+                self.emit_usize_value_to_x(right, XReg::X17)?;
+                self.encoder.emit_cmp_x(XReg::X16, XReg::X17);
+                let condition = if kind.is_signed() {
+                    branch_condition_for_true_comparison(*operator)
+                } else {
+                    branch_condition_for_true_unsigned_comparison(*operator)
+                };
+                Ok(vec![self.emit_cond_branch_placeholder(condition)])
             }
             BoolValue::BoolComparison {
                 operator,
@@ -421,6 +453,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::LoadU8FromPointer { .. }
             | Instruction::LoadI32FromPointer { .. }
             | Instruction::LoadUsizeFromPointer { .. }
+            | Instruction::LoadIntegerFromPointer { .. }
             | Instruction::LoadBoolFromPointer { .. }
             | Instruction::LoadStrFromPointer { .. }
             | Instruction::CopySliceElementToAggregate { .. }
@@ -428,15 +461,19 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::StoreU8ToPointer { .. }
             | Instruction::StoreI32ToPointer { .. }
             | Instruction::StoreUsizeToPointer { .. }
+            | Instruction::StoreIntegerToPointer { .. }
             | Instruction::StoreBoolToPointer { .. }
             | Instruction::StoreStrToPointer { .. }
             | Instruction::StoreU8ToSliceIndex { .. }
             | Instruction::StoreI32ToSliceIndex { .. }
             | Instruction::StoreUsizeToSliceIndex { .. }
+            | Instruction::StoreIntegerToSliceIndex { .. }
             | Instruction::StoreBoolToSliceIndex { .. }
             | Instruction::StoreStrToSliceIndex { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
+            | Instruction::StoreAggregateInteger { .. }
+            | Instruction::StoreAggregateIntegerIndexed { .. }
             | Instruction::StoreAggregateI32 { .. }
             | Instruction::StoreAggregateU16 { .. }
             | Instruction::StoreAggregateU32 { .. }
@@ -447,6 +484,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::StoreAggregateU8Indexed { .. }
             | Instruction::StoreAggregateBoolIndexed { .. }
             | Instruction::LoadAggregateUsize { .. }
+            | Instruction::LoadAggregateInteger { .. }
+            | Instruction::LoadAggregateIntegerIndexed { .. }
             | Instruction::LoadAggregateI32 { .. }
             | Instruction::LoadAggregateU8 { .. }
             | Instruction::LoadAggregateBool { .. }
@@ -493,6 +532,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::RemainderUsize { .. }
             | Instruction::ShiftLeftUsize { .. }
             | Instruction::ShiftRightUsize { .. }
+            | Instruction::IntegerBinary { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallOutcomeI32 { .. }
             | Instruction::CallU8 { .. }

@@ -143,6 +143,36 @@ impl EntryEmitter {
                 Some(frame),
             );
         }
+        if let Type::Integer(kind) = payload_type {
+            let register = XReg::argument(register_index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9002",
+                    "stored integer outcome payload exceeds return registers",
+                )]
+            })?;
+            let word_register = WReg::argument(register_index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9002",
+                    "stored integer outcome payload register is invalid",
+                )]
+            })?;
+            let width = kind.bit_width() / 8;
+            let offset =
+                self.aggregate_slot_load_offset(source, payload_offset, width, Some(frame))?;
+            match width {
+                1 => self.encoder.emit_ldrb_w_sp(word_register, offset),
+                2 => self.encoder.emit_ldrh_w_sp(word_register, offset),
+                4 => self.encoder.emit_ldr_w_sp(word_register, offset),
+                8 => self.encoder.emit_ldr_x_sp(register, offset),
+                _ => unreachable!("integer widths are 1, 2, 4, or 8 bytes"),
+            }
+            if width < 8 && kind.is_signed() {
+                let shift = 64 - kind.bit_width();
+                self.encoder.emit_lsl_x_imm(register, register, shift);
+                self.encoder.emit_asr_x_imm(register, register, shift);
+            }
+            return Ok(());
+        }
         let words = match payload_type {
             Type::Str | Type::Slice { .. } => 2,
             Type::DirectAggregate { words, .. } => *words,
@@ -358,6 +388,23 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_x_sp(XReg::X16, stack_offset);
                 self.emit_x_to_usize_location(XReg::X16, destination)
             }
+            ComposedOutcomeDestination::Integer { kind, destination } => {
+                let width = kind.bit_width() / 8;
+                let stack_offset = self.aggregate_slot_load_offset(source, offset, width, frame)?;
+                match width {
+                    1 => self.encoder.emit_ldrb_w_sp(WReg::W16, stack_offset),
+                    2 => self.encoder.emit_ldrh_w_sp(WReg::W16, stack_offset),
+                    4 => self.encoder.emit_ldr_w_sp(WReg::W16, stack_offset),
+                    8 => self.encoder.emit_ldr_x_sp(XReg::X16, stack_offset),
+                    _ => unreachable!("integer widths are 1, 2, 4, or 8 bytes"),
+                }
+                if width < 8 && kind.is_signed() {
+                    let shift = 64 - kind.bit_width();
+                    self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+                    self.encoder.emit_asr_x_imm(XReg::X16, XReg::X16, shift);
+                }
+                self.emit_x_to_usize_location(XReg::X16, destination)
+            }
             ComposedOutcomeDestination::Str(destination) => {
                 let pointer = self.aggregate_slot_load_offset(source, offset, 8, frame)?;
                 let len = self.aggregate_slot_load_offset(source, offset + 8, 8, frame)?;
@@ -491,6 +538,34 @@ impl EntryEmitter {
                     )]
                 })?;
                 self.encoder.emit_str_x_sp(register, offset);
+            }
+            Type::Integer(kind) => {
+                let width = kind.bit_width() / 8;
+                let offset = self.outcome_slot_offset(
+                    slot_index,
+                    storage.payload_offset,
+                    u64::from(width),
+                    frame,
+                )?;
+                let register = XReg::argument(register_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9002",
+                        "stored integer outcome payload register is invalid",
+                    )]
+                })?;
+                let word_register = WReg::argument(register_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9002",
+                        "stored integer outcome payload register is invalid",
+                    )]
+                })?;
+                match width {
+                    1 => self.encoder.emit_strb_w_sp(word_register, offset),
+                    2 => self.encoder.emit_strh_w_sp(word_register, offset),
+                    4 => self.encoder.emit_str_w_sp(word_register, offset),
+                    8 => self.encoder.emit_str_x_sp(register, offset),
+                    _ => unreachable!("integer widths are 1, 2, 4, or 8 bytes"),
+                }
             }
             Type::Str | Type::Slice { .. } => {
                 let offset =

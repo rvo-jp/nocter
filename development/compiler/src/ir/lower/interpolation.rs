@@ -10,7 +10,8 @@ use super::aggregates::{
 use super::context::LoweringContext;
 use super::expressions::{
     TemporaryAllocator, lower_bool_expression_to_value, lower_i32_expression_to_word,
-    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_integer_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
+    lower_usize_expression_to_word,
 };
 use super::functions::{
     lower_aggregate_drop_instructions_at_location, lower_aggregate_return_expression_to_location,
@@ -175,6 +176,17 @@ pub(in crate::ir::lower) fn lower_interpolated_string_to_slot(
                 let (lowered, value) = lower_usize_expression_to_word(&part.expression, context)?;
                 instructions.extend(lowered);
                 ScalarArgument::Usize(value)
+            }
+            (InterpolatedStringPart::Expression(part), InterpolationInputKind::Integer(kind)) => {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                let lowered = lower_integer_expression_to_value(
+                    &part.expression,
+                    kind,
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.extend(lowered.instructions);
+                ScalarArgument::Usize(lowered.value)
             }
             (InterpolatedStringPart::Expression(part), InterpolationInputKind::Bool) => {
                 let lowered = lower_bool_expression_to_value(&part.expression, context, "E8015")?;

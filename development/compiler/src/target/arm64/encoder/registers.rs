@@ -21,6 +21,29 @@ pub(crate) enum WReg {
 }
 
 impl WReg {
+    pub(crate) const fn to_x(self) -> XReg {
+        match self {
+            Self::W0 => XReg::X0,
+            Self::W1 => XReg::X1,
+            Self::W2 => XReg::X2,
+            Self::W3 => XReg::X3,
+            Self::W4 => XReg::X4,
+            Self::W5 => XReg::X5,
+            Self::W6 => XReg::X6,
+            Self::W7 => XReg::X7,
+            Self::W8 => XReg::X8,
+            Self::W9 => XReg::X9,
+            Self::W10 => XReg::X10,
+            Self::W11 => XReg::X11,
+            Self::W12 => XReg::X12,
+            Self::W13 => XReg::X13,
+            Self::W14 => XReg::X14,
+            Self::W15 => XReg::X15,
+            Self::W16 => XReg::X16,
+            Self::W17 => XReg::X17,
+        }
+    }
+
     pub(crate) fn argument(index: usize) -> Option<Self> {
         match index {
             0 => Some(Self::W0),

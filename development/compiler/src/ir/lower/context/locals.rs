@@ -65,6 +65,10 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Usize);
     }
 
+    pub(in crate::ir::lower) fn define_integer_local(&mut self, name: String, kind: IntegerType) {
+        self.define_local(name, LocalKind::Integer(kind));
+    }
+
     pub(in crate::ir::lower) fn define_borrow_local(
         &mut self,
         name: String,
@@ -195,13 +199,40 @@ impl<'a> LoweringContext<'a> {
     pub(in crate::ir::lower) fn usize_location(&self, name: &str) -> Option<UsizeLocation> {
         self.locals
             .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Usize)
+            .find(|local| {
+                local.name == name && matches!(local.kind, LocalKind::Usize | LocalKind::Integer(_))
+            })
             .map(|local| UsizeLocation::Local(local.index))
             .or_else(|| {
                 self.usize_parameters
                     .iter()
                     .position(|parameter| parameter.as_deref() == Some(name))
                     .map(UsizeLocation::Parameter)
+            })
+            .or_else(|| {
+                self.integer_parameters
+                    .iter()
+                    .position(|parameter| {
+                        parameter
+                            .as_ref()
+                            .is_some_and(|(parameter_name, _)| parameter_name == name)
+                    })
+                    .map(UsizeLocation::Parameter)
+            })
+    }
+
+    pub(in crate::ir::lower) fn integer_kind(&self, name: &str) -> Option<IntegerType> {
+        self.locals
+            .iter()
+            .find_map(|local| match &local.kind {
+                LocalKind::Integer(kind) if local.name == name => Some(*kind),
+                _ => None,
+            })
+            .or_else(|| {
+                self.integer_parameters.iter().find_map(|parameter| {
+                    let (parameter_name, kind) = parameter.as_ref()?;
+                    (parameter_name == name).then_some(*kind)
+                })
             })
     }
 

@@ -32,6 +32,27 @@ pub(super) fn lower_fixed_array_index_assignment(
     if !access.is_readwrite {
         return Err(unsupported_assignment_diagnostic());
     }
+    if let Some(kind) = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        let mut lowered =
+            lower_integer_expression_to_value(value, kind, context, &mut temporaries)?;
+        let mut instructions = access.instructions;
+        instructions.append(&mut lowered.instructions);
+        if access.out_of_bounds {
+            instructions.push(Instruction::Trap);
+        } else {
+            instructions.push(Instruction::StoreAggregateInteger {
+                kind,
+                destination: access.source,
+                offset: access.offset,
+                value: lowered.value,
+            });
+        }
+        return Ok(Some(instructions));
+    }
 
     match access.element {
         AbiType::I32 => {
@@ -148,6 +169,25 @@ pub(super) fn lower_fixed_array_indexed_assignment(
         access.index,
         &mut temporaries,
     )?;
+    if let Some(kind) = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        let mut lowered =
+            lower_integer_expression_to_value(value, kind, context, &mut temporaries)?;
+        instructions.append(&mut lowered.instructions);
+        instructions.push(Instruction::StoreAggregateIntegerIndexed {
+            kind,
+            destination: access.source,
+            base_offset: access.base_offset,
+            index,
+            length: access.length,
+            stride: access.stride,
+            value: lowered.value,
+        });
+        return Ok(Some(instructions));
+    }
 
     match access.element {
         AbiType::I32 => {
@@ -322,6 +362,18 @@ pub(super) fn lower_slice_index_assignment(
                 destination,
                 index,
                 value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Integer(kind) => {
+            let mut lowered =
+                lower_integer_expression_to_value(value, kind, context, &mut temporaries)?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreIntegerToSliceIndex {
+                kind,
+                destination,
+                index,
+                value: lowered.value,
             });
             Ok(instructions)
         }

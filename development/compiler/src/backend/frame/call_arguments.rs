@@ -139,6 +139,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::LoadU8FromPointer { .. }
         | Instruction::LoadI32FromPointer { .. }
         | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadIntegerFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. }
         | Instruction::CopySliceElementToAggregate { .. }
@@ -146,15 +147,19 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
+        | Instruction::StoreIntegerToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
         | Instruction::StoreU8ToSliceIndex { .. }
         | Instruction::StoreI32ToSliceIndex { .. }
         | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreIntegerToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateInteger { .. }
+        | Instruction::StoreAggregateIntegerIndexed { .. }
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU16 { .. }
         | Instruction::StoreAggregateU32 { .. }
@@ -165,6 +170,8 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::StoreAggregateU8Indexed { .. }
         | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateInteger { .. }
+        | Instruction::LoadAggregateIntegerIndexed { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
@@ -210,6 +217,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::RemainderUsize { .. }
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
+        | Instruction::IntegerBinary { .. }
         | Instruction::Trap
         | Instruction::Return => 0,
     }

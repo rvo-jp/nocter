@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::lower::expressions::lower_integer_expression_to_value;
 
 pub(in crate::ir::lower::expressions) fn lower_call_arguments(
     call: &CallExpr,
@@ -80,6 +81,16 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
             Type::Usize => {
                 let argument = lower_usize_expression_to_value(
                     unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::Usize(argument.value));
+            }
+            Type::Integer(kind) => {
+                let argument = lower_integer_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    *kind,
                     context,
                     temporaries,
                 )?;

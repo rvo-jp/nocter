@@ -136,6 +136,11 @@ impl EntryEmitter {
                 self.emit_scalar_reloads(frame)?;
                 self.emit_x_to_usize_location(XReg::X16, destination)
             }
+            ComposedOutcomeDestination::Integer { destination, .. } => {
+                self.encoder.emit_mov_x(XReg::X16, XReg::X2);
+                self.emit_scalar_reloads(frame)?;
+                self.emit_x_to_usize_location(XReg::X16, destination)
+            }
             ComposedOutcomeDestination::Bool(destination) => {
                 self.encoder.emit_mov_w(WReg::W16, WReg::W2);
                 self.emit_scalar_reloads(frame)?;

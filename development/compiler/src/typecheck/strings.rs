@@ -7,6 +7,7 @@ use super::model::{Type, TypeEnvironment};
 use super::operations::is_bool_type;
 use crate::ast::{InterpolatedStringExpr, InterpolatedStringPart};
 use crate::diagnostics::Diagnostic;
+use crate::integer::IntegerType;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 
@@ -72,6 +73,11 @@ pub(super) fn interpolation_input_kind(
     }
     if matches!(ty, Type::Primitive(name) if name == "usize") {
         return Some(InterpolationInputKind::Usize);
+    }
+    if let Type::Primitive(name) = ty
+        && let Some(kind) = IntegerType::from_name(name)
+    {
+        return Some(InterpolationInputKind::Integer(kind));
     }
     if is_bool_type(ty) {
         return Some(InterpolationInputKind::Bool);

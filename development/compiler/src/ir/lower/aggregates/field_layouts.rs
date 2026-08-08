@@ -442,6 +442,7 @@ fn typecheck_slice_element_kind_from_type(ty: Type) -> TypecheckSliceElementKind
         Type::I32 => TypecheckSliceElementKind::I32,
         Type::U8 => TypecheckSliceElementKind::U8,
         Type::Usize => TypecheckSliceElementKind::Usize,
+        Type::Integer(kind) => TypecheckSliceElementKind::Integer(kind),
         Type::Bool => TypecheckSliceElementKind::Bool,
         Type::Str => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,

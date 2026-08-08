@@ -2,6 +2,153 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_computes_narrow_and_wide_integer_values() {
+    let project = TempProject::new("cli-run-all-integer-values");
+    let source = project.write_source(
+        "all_integer_values.nct",
+        r#"copy struct IntegerPair {
+    narrow: i16
+    wide: u64
+}
+
+func add_u16(left: u16, right: u16): u16 {
+    return left + right
+}
+
+func add_i64(left: i64, right: i64): i64 {
+    return left + right
+}
+
+func negate_i64(value: i64): i64 {
+    return 0 - value
+}
+
+func add_i16(left: i16, right: i16): i16 {
+    return left + right
+}
+
+func compute_i8(value: i8): i8 {
+    return (value + 2) * 2
+}
+
+func compute_isize(value: isize): isize {
+    return value << 1
+}
+
+func compute_u32(value: u32): u32 {
+    return value / 2
+}
+
+func compute_u64(value: u64): u64 {
+    return value % 100
+}
+
+func shift_i64(value: i64): i64 {
+    return value >> 2
+}
+
+func negate_i16(value: i16): i16 {
+    return -value
+}
+
+func maybe_i16(value: i16): i16? {
+    return value
+}
+
+func fallible_i64(value: i64): i64! {
+    return value
+}
+
+func widen_u16(value: u16): u32 {
+    return value as u32
+}
+
+func widen_i16(value: i16): i64 {
+    return value as i64
+}
+
+func make_pair(value: i16): IntegerPair {
+    return IntegerPair { narrow: value, wide: 42 as u64 }
+}
+
+func main(): i32! {
+    let narrow: u16 = add_u16(20, 22)
+    let wide: i64 = add_i64(-2, 44)
+    var pair = make_pair(-2)
+    pair.narrow = add_i16(-3, 1)
+    let optional: i16 = maybe_i16(-4) otherwise { return 7 }
+    let fallible: i64 = fallible_i64(42)?
+    if narrow == 42 && wide == 42 && fallible == 42 && compute_i8(19) == 42 && compute_isize(21) == 42 && compute_u32(84) == 42 && compute_u64(142) == 42 && shift_i64(-8) == -2 && add_i64(-3, 0) < add_i64(-2, 0) && negate_i64(-17) == 17 && widen_u16(narrow) == 42 && widen_i16(-2) == -2 && negate_i16(-2) == 2 && optional == -4 && pair.narrow == -2 && pair.wide == 42 {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_propagates_fallible_calls_with_wide_integer_parameters() {
+    let project = TempProject::new("cli-run-fallible-wide-integer-parameter");
+    let source = project.write_source(
+        "fallible_wide_integer_parameter.nct",
+        r#"copy struct Cell {
+    value: i64
+}
+
+func digit(cell: &+Cell, value: i64): void! {
+    cell.value = value
+    return
+}
+
+func accept(cell: &+Cell, value: i64): void! {
+    if value >= 10 {
+        accept(cell, value / 10)?
+    }
+    digit(cell, value % 10)?
+    return
+}
+
+func forward(cell: &+Cell, value: i32): void! {
+    accept(cell, value as i64)?
+    return
+}
+
+func main(): i32! {
+    var cell = Cell { value: 0 as i64 }
+    forward(&+cell, 42)?
+    if cell.value == 2 {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_usize_entry_exit_code() {
     let project = TempProject::new("cli-run-usize-entry-return");
     let source = project.write_source(

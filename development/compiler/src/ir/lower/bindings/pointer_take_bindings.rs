@@ -68,6 +68,18 @@ pub(super) fn lower_pointer_take_binding(
             context.define_usize_local(statement.name.clone());
             Ok(Some(instructions))
         }
+        ty if ty.integer_type().is_some() => {
+            let destination = context.next_usize_local_location()?;
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let instructions = lower_take_value_at_ptr_primitive_call(
+                call,
+                PointerTakeDestination::Usize(destination),
+                context,
+                &mut temporaries,
+            )?;
+            context.define_usize_local(statement.name.clone());
+            Ok(Some(instructions))
+        }
         AbiType::Borrow => {
             let Type::Borrow {
                 is_readwrite,

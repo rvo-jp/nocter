@@ -95,6 +95,23 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Binary(binary)
+            if binary_integer_type(binary, context).is_some_and(|kind| !kind.legacy_ir_type()) =>
+        {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_integer_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Binary(binary) if i32_comparison_needs_temporaries(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let comparison = lower_i32_comparison_to_value_with_temporaries(
@@ -306,6 +323,16 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
         }
         Expr::Binary(binary) if u8_comparison_is_lowerable(binary, context) => {
             lower_u8_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
+        Expr::Binary(binary)
+            if binary_integer_type(binary, context).is_some_and(|kind| !kind.legacy_ir_type()) =>
+        {
+            lower_integer_comparison_to_value_with_temporaries(
                 binary,
                 context,
                 diagnostic_code,

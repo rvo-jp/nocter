@@ -1,6 +1,168 @@
 use super::*;
 
 impl EntryEmitter {
+    pub(in crate::backend::codegen) fn emit_store_aggregate_integer(
+        &mut self,
+        kind: IntegerType,
+        destination: AggregateLocation,
+        offset: u32,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_count = kind.bit_width() / 8;
+        validate_integer_field_offset(offset, byte_count)?;
+        self.emit_usize_value_to_x(value, XReg::X16)?;
+
+        match destination {
+            AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
+                emit_integer_store_to_base(&mut self.encoder, byte_count, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectReturn if byte_count == AGGREGATE_USIZE_STORE_BYTES => {
+                self.emit_x_to_direct_aggregate_return(offset)
+            }
+            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return integer field must occupy an 8-byte word",
+            )),
+            AggregateLocation::Parameter(index) => {
+                let base = self.aggregate_parameter_base_register(index)?;
+                emit_integer_store_to_base(&mut self.encoder, byte_count, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
+            AggregateLocation::Slot(slot_index) => {
+                let absolute_offset =
+                    self.aggregate_slot_field_offset(slot_index, offset, byte_count, frame)?;
+                emit_integer_store_to_stack(&mut self.encoder, byte_count, absolute_offset);
+                Ok(())
+            }
+        }
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_aggregate_integer(
+        &mut self,
+        kind: IntegerType,
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_count = kind.bit_width() / 8;
+        validate_integer_field_offset(offset, byte_count)?;
+        match source {
+            AggregateLocation::Slot(_) => {
+                let source_offset =
+                    self.aggregate_slot_load_offset(source, offset, byte_count, frame)?;
+                emit_integer_load_from_stack(&mut self.encoder, byte_count, source_offset);
+            }
+            AggregateLocation::Parameter(index) => {
+                let base = self.aggregate_parameter_base_register(index)?;
+                emit_integer_load_from_base(&mut self.encoder, byte_count, base, offset);
+            }
+            AggregateLocation::DirectParameter { start_index } => {
+                if byte_count == AGGREGATE_USIZE_STORE_BYTES {
+                    let word_index = direct_aggregate_parameter_word_index(
+                        start_index,
+                        offset,
+                        "integer field",
+                    )?;
+                    self.emit_parameter_word_to_x(word_index, XReg::X16)?;
+                } else {
+                    let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
+                        start_index,
+                        offset,
+                        byte_count,
+                        "integer field",
+                    )?;
+                    self.emit_direct_aggregate_parameter_chunk_to_w(
+                        word_index,
+                        byte_offset,
+                        byte_count,
+                        WReg::W16,
+                    )?;
+                }
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from return locations",
+                ));
+            }
+        }
+        if kind.is_signed() && byte_count < AGGREGATE_USIZE_STORE_BYTES {
+            let shift = (AGGREGATE_USIZE_STORE_BYTES - byte_count) * 8;
+            self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+            self.encoder.emit_asr_x_imm(XReg::X16, XReg::X16, shift);
+        }
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
+    pub(in crate::backend::codegen) fn emit_store_aggregate_integer_indexed(
+        &mut self,
+        kind: IntegerType,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_count = kind.bit_width() / 8;
+        self.emit_usize_value_to_x(value, XReg::X2)?;
+        self.emit_checked_aggregate_index_address_to_x(
+            destination,
+            base_offset,
+            index,
+            length,
+            stride,
+            byte_count,
+            XReg::X0,
+            frame,
+        )?;
+        match byte_count {
+            1 => self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0),
+            2 => self.encoder.emit_strh_w_imm(WReg::W2, XReg::X0, 0),
+            4 => self.encoder.emit_str_w_imm(WReg::W2, XReg::X0, 0),
+            8 => self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0),
+            _ => unreachable!("builtin integer width"),
+        }
+        Ok(())
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_aggregate_integer_indexed(
+        &mut self,
+        kind: IntegerType,
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_count = kind.bit_width() / 8;
+        self.emit_checked_aggregate_index_address_to_x(
+            source,
+            base_offset,
+            index,
+            length,
+            stride,
+            byte_count,
+            XReg::X8,
+            frame,
+        )?;
+        emit_integer_load_from_base(&mut self.encoder, byte_count, XReg::X8, 0);
+        if kind.is_signed() && kind.bit_width() < 64 {
+            let shift = 64 - kind.bit_width();
+            self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+            self.encoder.emit_asr_x_imm(XReg::X16, XReg::X16, shift);
+        }
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
     pub(in crate::backend::codegen) fn emit_store_aggregate_usize(
         &mut self,
         destination: AggregateLocation,
@@ -736,5 +898,75 @@ impl EntryEmitter {
         slot.offset()
             .checked_add(offset)
             .ok_or_else(|| aggregate_store_offset_diagnostic("stack offset overflows"))
+    }
+}
+
+fn validate_integer_field_offset(offset: u32, byte_count: u32) -> Result<(), Vec<Diagnostic>> {
+    match byte_count {
+        AGGREGATE_U8_STORE_BYTES => Ok(()),
+        AGGREGATE_U16_STORE_BYTES => validate_aggregate_u16_field_offset(offset),
+        AGGREGATE_I32_STORE_BYTES => validate_aggregate_i32_field_offset(offset),
+        AGGREGATE_USIZE_STORE_BYTES => validate_aggregate_usize_field_offset(offset),
+        _ => Err(aggregate_store_offset_diagnostic(
+            "integer field has an unsupported storage width",
+        )),
+    }
+}
+
+pub(super) fn emit_integer_store_to_base(
+    encoder: &mut crate::target::arm64::Encoder,
+    byte_count: u32,
+    base: XReg,
+    offset: u32,
+) {
+    match byte_count {
+        AGGREGATE_U8_STORE_BYTES => encoder.emit_strb_w_imm(WReg::W16, base, offset),
+        AGGREGATE_U16_STORE_BYTES => encoder.emit_strh_w_imm(WReg::W16, base, offset),
+        AGGREGATE_I32_STORE_BYTES => encoder.emit_str_w_imm(WReg::W16, base, offset),
+        AGGREGATE_USIZE_STORE_BYTES => encoder.emit_str_x_imm(XReg::X16, base, offset),
+        _ => unreachable!("validated integer storage width"),
+    }
+}
+
+fn emit_integer_store_to_stack(
+    encoder: &mut crate::target::arm64::Encoder,
+    byte_count: u32,
+    offset: u32,
+) {
+    match byte_count {
+        AGGREGATE_U8_STORE_BYTES => encoder.emit_strb_w_sp(WReg::W16, offset),
+        AGGREGATE_U16_STORE_BYTES => encoder.emit_strh_w_sp(WReg::W16, offset),
+        AGGREGATE_I32_STORE_BYTES => encoder.emit_str_w_sp(WReg::W16, offset),
+        AGGREGATE_USIZE_STORE_BYTES => encoder.emit_str_x_sp(XReg::X16, offset),
+        _ => unreachable!("validated integer storage width"),
+    }
+}
+
+pub(super) fn emit_integer_load_from_base(
+    encoder: &mut crate::target::arm64::Encoder,
+    byte_count: u32,
+    base: XReg,
+    offset: u32,
+) {
+    match byte_count {
+        AGGREGATE_U8_STORE_BYTES => encoder.emit_ldrb_w_imm(WReg::W16, base, offset),
+        AGGREGATE_U16_STORE_BYTES => encoder.emit_ldrh_w_imm(WReg::W16, base, offset),
+        AGGREGATE_I32_STORE_BYTES => encoder.emit_ldr_w_imm(WReg::W16, base, offset),
+        AGGREGATE_USIZE_STORE_BYTES => encoder.emit_ldr_x_imm(XReg::X16, base, offset),
+        _ => unreachable!("validated integer storage width"),
+    }
+}
+
+fn emit_integer_load_from_stack(
+    encoder: &mut crate::target::arm64::Encoder,
+    byte_count: u32,
+    offset: u32,
+) {
+    match byte_count {
+        AGGREGATE_U8_STORE_BYTES => encoder.emit_ldrb_w_sp(WReg::W16, offset),
+        AGGREGATE_U16_STORE_BYTES => encoder.emit_ldrh_w_sp(WReg::W16, offset),
+        AGGREGATE_I32_STORE_BYTES => encoder.emit_ldr_w_sp(WReg::W16, offset),
+        AGGREGATE_USIZE_STORE_BYTES => encoder.emit_ldr_x_sp(XReg::X16, offset),
+        _ => unreachable!("validated integer storage width"),
     }
 }

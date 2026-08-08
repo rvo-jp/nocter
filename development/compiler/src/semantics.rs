@@ -1,5 +1,6 @@
 //! Compiler-owned semantic roles attached to validated trusted declarations.
 
+use crate::integer::IntegerType;
 use crate::source::ByteSpan;
 use std::collections::HashMap;
 
@@ -54,6 +55,7 @@ pub(crate) enum InterpolationInputKind {
     I32,
     U8,
     Usize,
+    Integer(IntegerType),
     Bool,
 }
 

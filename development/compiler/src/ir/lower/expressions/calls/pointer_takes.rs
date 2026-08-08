@@ -31,7 +31,7 @@ pub(in crate::ir::lower) fn lower_take_value_at_ptr_primitive_call(
             "`take_value_at_ptr` requires arguments `(pointer: *T, offset: usize)`",
         ));
     }
-    let Some(_pointee_type) = context.function_call_type_substitution(call, "T") else {
+    let Some(pointee_type) = context.function_call_type_substitution(call, "T") else {
         return Err(pointer_take_diagnostic(
             "`take_value_at_ptr` requires a concrete pointer element type",
         ));
@@ -52,11 +52,26 @@ pub(in crate::ir::lower) fn lower_take_value_at_ptr_primitive_call(
             pointer,
             offset: offset.value,
         },
-        PointerTakeDestination::Usize(destination) => Instruction::LoadUsizeFromPointer {
-            destination,
-            pointer,
-            offset: offset.value,
-        },
+        PointerTakeDestination::Usize(destination) => {
+            let integer_type = context
+                .abi_value_for_type_expr(&pointee_type)
+                .and_then(|value| value.ty.integer_type())
+                .filter(|kind| !kind.legacy_ir_type());
+            if let Some(kind) = integer_type {
+                Instruction::LoadIntegerFromPointer {
+                    kind,
+                    destination,
+                    pointer,
+                    offset: offset.value,
+                }
+            } else {
+                Instruction::LoadUsizeFromPointer {
+                    destination,
+                    pointer,
+                    offset: offset.value,
+                }
+            }
+        }
         PointerTakeDestination::Bool(destination) => Instruction::LoadBoolFromPointer {
             destination,
             pointer,

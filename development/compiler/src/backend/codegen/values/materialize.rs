@@ -29,6 +29,9 @@ impl EntryEmitter {
             I32Value::U8ZeroExtend(value) => {
                 self.emit_u8_value_to_w(value, destination)?;
             }
+            I32Value::IntegerWord(value) => {
+                self.emit_usize_value_to_x(value, destination.to_x())?;
+            }
             I32Value::SliceIndex { source, index } => {
                 if let SliceLocation::Parameter(parameter_index) = *source {
                     self.emit_checked_parameter_i32_load(destination, parameter_index, index)?;
@@ -84,6 +87,10 @@ impl EntryEmitter {
                 if destination != XReg::X16 {
                     self.encoder.emit_mov_x(destination, XReg::X16);
                 }
+            }
+            UsizeValue::I32SignExtend(value) => {
+                self.emit_i32_value_to_w(value, WReg::W16)?;
+                self.encoder.emit_sxtw_x_w(destination, WReg::W16);
             }
             UsizeValue::StrPointer(location) => {
                 if let StrLocation::Parameter(index) = *location {
@@ -160,6 +167,13 @@ impl EntryEmitter {
                 }
                 let (ptr, len) = self.slice_location_registers(*source)?;
                 self.emit_checked_usize_load(destination, ptr, len, index.as_ref())?;
+            }
+            UsizeValue::IntegerSliceIndex {
+                kind,
+                source,
+                index,
+            } => {
+                self.emit_checked_integer_slice_load(*kind, *source, index, destination)?;
             }
         }
 
@@ -496,6 +510,7 @@ impl EntryEmitter {
             | BoolValue::Logical { .. }
             | BoolValue::I32Comparison { .. }
             | BoolValue::UsizeComparison { .. }
+            | BoolValue::IntegerComparison { .. }
             | BoolValue::BoolComparison { .. } => {
                 let branches_to_false = self.emit_bool_false_branch_placeholders(value)?;
                 emit_mov_i32_to_w(&mut self.encoder, destination, 1);

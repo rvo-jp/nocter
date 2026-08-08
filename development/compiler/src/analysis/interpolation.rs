@@ -335,6 +335,7 @@ fn input_label(input: InterpolationInputKind) -> &'static str {
         InterpolationInputKind::I32 => "i32",
         InterpolationInputKind::U8 => "u8",
         InterpolationInputKind::Usize => "usize",
+        InterpolationInputKind::Integer(kind) => kind.name(),
         InterpolationInputKind::Bool => "bool",
     }
 }

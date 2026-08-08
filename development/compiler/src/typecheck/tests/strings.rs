@@ -1,5 +1,6 @@
 use super::check;
 use crate::ast::Item;
+use crate::integer::IntegerType;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
@@ -35,6 +36,13 @@ fn check_text(text: &str) -> Vec<crate::diagnostics::Diagnostic> {
         InterpolationInputKind::I32,
         InterpolationInputKind::U8,
         InterpolationInputKind::Usize,
+        InterpolationInputKind::Integer(IntegerType::I8),
+        InterpolationInputKind::Integer(IntegerType::I16),
+        InterpolationInputKind::Integer(IntegerType::I64),
+        InterpolationInputKind::Integer(IntegerType::Isize),
+        InterpolationInputKind::Integer(IntegerType::U16),
+        InterpolationInputKind::Integer(IntegerType::U32),
+        InterpolationInputKind::Integer(IntegerType::U64),
         InterpolationInputKind::Bool,
     ]
     .into_iter()
@@ -89,8 +97,8 @@ func main(): i32 {
     return 0
 }
 
-func message(name: &str, count: i32, byte: u8, size: usize, ready: bool, owned: String): String {
-    return "name ${name} count ${count} byte ${byte} size ${size} ready ${ready} owned ${owned}"
+func message(name: &str, count: i32, byte: u8, size: usize, narrow: i16, wide: u64, ready: bool, owned: String): String {
+    return "name ${name} count ${count} byte ${byte} size ${size} narrow ${narrow} wide ${wide} ready ${ready} owned ${owned}"
 }
 "#,
     );
@@ -121,7 +129,7 @@ func message(values: &[i32]): String {
 }
 
 #[test]
-fn rejects_storage_only_integer_before_runtime_abi_promotion() {
+fn accepts_every_builtin_integer_interpolation_input() {
     let diagnostics = check_text(
         r#"struct String {
     bytes: &[u8]
@@ -131,13 +139,11 @@ func main(): i32 {
     return 0
 }
 
-func message(value: u16): String {
-    return "value ${value}"
+func message(first: i8, second: u16, third: i64, fourth: u64): String {
+    return "values ${first} ${second} ${third} ${fourth}"
 }
 "#,
     );
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0379");
-    assert!(diagnostics[0].message.contains("u16"));
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }

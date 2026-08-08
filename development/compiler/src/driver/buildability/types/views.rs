@@ -159,44 +159,6 @@ where
             resolver,
         )
 }
-pub(in crate::driver::buildability) fn type_expr_is_supported_std_vec_element_storage(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    if type_expr_slice_element_kind_with_resolver(ty, fallback_resolved, &source_resolver)
-        != TypecheckSliceElementKind::Other
-    {
-        return true;
-    }
-
-    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
-    else {
-        return false;
-    };
-    matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
-        && type_expr_is_supported_aggregate_value_with_resolver(
-            ty,
-            fallback_resolved,
-            &source_resolver,
-        )
-}
-
-pub(in crate::driver::buildability) fn type_expr_is_supported_std_vec_copy_element_storage(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_slice_element_kind_with_resolver(ty, fallback_resolved, &source_resolver)
-        != TypecheckSliceElementKind::Other
-        || type_expr_is_supported_copy_aggregate_vec_element_with_resolver(
-            ty,
-            fallback_resolved,
-            &source_resolver,
-        )
-}
 pub(in crate::driver::buildability) fn type_expr_slice_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -216,12 +178,17 @@ pub(in crate::driver::buildability) fn type_expr_slice_element_kind_inner<'a, F>
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    if let TypeExpr::Reference(reference) = ty
+        && let Some(kind) = IntegerType::from_name(&reference.name)
+    {
+        return match kind {
+            IntegerType::I32 => TypecheckSliceElementKind::I32,
+            IntegerType::U8 => TypecheckSliceElementKind::U8,
+            IntegerType::Usize => TypecheckSliceElementKind::Usize,
+            kind => TypecheckSliceElementKind::Integer(kind),
+        };
+    }
     match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => TypecheckSliceElementKind::I32,
-        TypeExpr::Reference(reference) if reference.name == "u8" => TypecheckSliceElementKind::U8,
-        TypeExpr::Reference(reference) if reference.name == "usize" => {
-            TypecheckSliceElementKind::Usize
-        }
         TypeExpr::Reference(reference) if reference.name == "bool" => {
             TypecheckSliceElementKind::Bool
         }

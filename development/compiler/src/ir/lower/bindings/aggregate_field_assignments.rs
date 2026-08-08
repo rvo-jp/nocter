@@ -18,6 +18,24 @@ pub(super) fn lower_aggregate_field_assignment(
     let offset = field.offset;
     let field_is_copy = field.is_copy;
     let field_drop_kind = field.drop_kind.clone();
+    if let Some(kind) = field
+        .kind
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let mut lowered =
+            lower_integer_expression_to_value(value, kind, context, &mut temporaries)?;
+        lowered
+            .instructions
+            .push(Instruction::StoreAggregateInteger {
+                kind,
+                destination,
+                offset,
+                value: lowered.value,
+            });
+        return Ok(lowered.instructions);
+    }
     match field.kind {
         AggregateFieldKind::I8 => Ok(vec![Instruction::StoreAggregateU8 {
             destination,

@@ -7,14 +7,10 @@ use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_borrow_coercion_to_location_with_temporaries, lower_borrow_expression_to_location,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_i32_expression_to_word, lower_macos_syscall_primitive_call_to_location,
-    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
-    lower_usize_expression_to_word, push_store_slice_view_to_aggregate_field,
-    push_store_str_view_to_aggregate_field,
-};
-use super::literals::{
-    lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
-    lower_u64_literal,
+    lower_i32_expression_to_word, lower_integer_expression_to_value,
+    lower_macos_syscall_primitive_call_to_location, lower_slice_expression_to_value,
+    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
 use super::outcome_propagation::propagating_outcome_mode;
 use super::types::{
@@ -69,7 +65,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "native lowering can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values, storage-only integer literals, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "native lowering can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

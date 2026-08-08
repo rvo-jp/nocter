@@ -5,5 +5,5 @@ mod integers;
 mod text_views;
 
 pub(super) use bools::*;
-pub(super) use integers::*;
+pub(in crate::ir::lower) use integers::*;
 pub(super) use text_views::*;

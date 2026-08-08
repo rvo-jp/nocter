@@ -117,6 +117,7 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
         (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
         (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
         (Type::Usize, Some(expression)) => lower_usize_return_expression(expression, context),
+        (Type::Integer(_), Some(expression)) => lower_usize_return_expression(expression, context),
         (Type::Bool, Some(expression)) => {
             lower_bool_return_expression(expression, context, diagnostic_code)
         }
@@ -177,6 +178,11 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             diagnostic_code,
             &function_name,
             "usize",
+        )),
+        (Type::Integer(kind), None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            kind.name(),
         )),
         (Type::Bool, None) => Err(unsupported_bare_return_diagnostic(
             diagnostic_code,
@@ -307,6 +313,23 @@ pub(in crate::ir::lower) fn lower_value_return_with_scope_drops(
             instructions
         }
         Type::Usize => {
+            let temporary = context.next_usize_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut instructions =
+                lower_usize_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::Location(temporary),
+                }],
+                1,
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Integer(_) => {
             let temporary = context.next_usize_local_location()?;
             let expression_context = context.with_reserved_local_abi_words(1);
             let mut instructions =

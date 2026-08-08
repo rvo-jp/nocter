@@ -14,6 +14,7 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
+use crate::integer::IntegerType;
 use crate::ir::CallTarget;
 use crate::literals::decode_integer_literal_value;
 use crate::outcomes::outcome_shape_with_resolver;

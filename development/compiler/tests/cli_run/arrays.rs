@@ -2,6 +2,39 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_nonlegacy_integer_fixed_array_elements() {
+    let project = TempProject::new("cli-run-nonlegacy-integer-fixed-array");
+    let source = project.write_source(
+        "nonlegacy_integer_fixed_array.nct",
+        r#"func add(left: i16, right: i16): i16 {
+    return left + right
+}
+
+func main(): i32 {
+    var values: [i16; 3] = [-3 as i16, -2 as i16, -1 as i16]
+    let index: usize = 1
+    values[index] = add(values[0], 0)
+    values[index] += 1
+    if values[index] == -2 && values[2] == -1 {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_generic_fixed_array_literal_value_argument_exit_code() {
     let project = TempProject::new("cli-run-generic-fixed-array-literal-value-argument");
     let source = project.write_source(

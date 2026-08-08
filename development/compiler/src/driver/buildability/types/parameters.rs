@@ -78,15 +78,11 @@ where
         resolver(source)
     })
     .is_ok_and(|value| {
-        matches!(
-            value.ty,
-            AbiType::I32
-                | AbiType::U8
-                | AbiType::Usize
-                | AbiType::Bool
-                | AbiType::Pointer
-                | AbiType::Struct(_)
-        )
+        value.ty.integer_type().is_some()
+            || matches!(
+                value.ty,
+                AbiType::Bool | AbiType::Pointer | AbiType::Struct(_)
+            )
     })
 }
 pub(in crate::driver::buildability) fn type_expr_resolves_to_borrow_with_resolver<'a, F>(

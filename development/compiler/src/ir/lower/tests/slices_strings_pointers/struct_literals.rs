@@ -1318,10 +1318,11 @@ func make(): Header {
                     offset: 0,
                     value: U8Value::Const(7),
                 },
-                Instruction::StoreAggregateU16 {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U16,
                     destination: AggregateLocation::Slot(0),
                     offset: 2,
-                    value: 42,
+                    value: usize_const(42),
                 },
                 Instruction::CopyAggregate {
                     destination: AggregateLocation::DirectReturn,
@@ -1360,11 +1361,13 @@ func consume(header: Header): void {
         .unwrap();
 
     assert!(
-        main.instructions.contains(&Instruction::StoreAggregateU32 {
-            destination: AggregateLocation::Slot(0),
-            offset: 4,
-            value: 42,
-        }),
+        main.instructions
+            .contains(&Instruction::StoreAggregateInteger {
+                kind: crate::integer::IntegerType::U32,
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: usize_const(42),
+            }),
         "{main:?}"
     );
     assert!(
@@ -1500,7 +1503,8 @@ func make(): Allocator {
                     offset: 0,
                     value: usize_const(1),
                 },
-                Instruction::StoreAggregateUsize {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U64,
                     destination: AggregateLocation::Slot(0),
                     offset: 8,
                     value: usize_const(2),

@@ -193,6 +193,40 @@ pub(super) fn lower_fixed_array_index_compound_assignment(
     if !access.is_readwrite {
         return Err(unsupported_assignment_diagnostic());
     }
+    if let Some(kind) = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        let mut right =
+            lower_integer_expression_to_value(&statement.value, kind, context, &mut temporaries)?;
+        let mut instructions = access.instructions;
+        instructions.append(&mut right.instructions);
+        if access.out_of_bounds {
+            instructions.push(Instruction::Trap);
+            return Ok(Some(instructions));
+        }
+        let current = temporaries.next_usize()?;
+        instructions.push(Instruction::LoadAggregateInteger {
+            kind,
+            destination: current,
+            source: access.source,
+            offset: access.offset,
+        });
+        instructions.push(integer_compound_assignment_instruction(
+            statement.operator,
+            kind,
+            current,
+            right.value,
+        )?);
+        instructions.push(Instruction::StoreAggregateInteger {
+            kind,
+            destination: access.source,
+            offset: access.offset,
+            value: UsizeValue::Location(current),
+        });
+        return Ok(Some(instructions));
+    }
 
     match access.element {
         AbiType::I32 => {
@@ -313,6 +347,41 @@ pub(super) fn lower_fixed_array_indexed_compound_assignment(
         access.index,
         &mut temporaries,
     )?;
+    if let Some(kind) = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type())
+    {
+        let mut right =
+            lower_integer_expression_to_value(&statement.value, kind, context, &mut temporaries)?;
+        instructions.append(&mut right.instructions);
+        let current = temporaries.next_usize()?;
+        instructions.push(Instruction::LoadAggregateIntegerIndexed {
+            kind,
+            destination: current,
+            source: access.source,
+            base_offset: access.base_offset,
+            index: index.clone(),
+            length: access.length,
+            stride: access.stride,
+        });
+        instructions.push(integer_compound_assignment_instruction(
+            statement.operator,
+            kind,
+            current,
+            right.value,
+        )?);
+        instructions.push(Instruction::StoreAggregateIntegerIndexed {
+            kind,
+            destination: access.source,
+            base_offset: access.base_offset,
+            index,
+            length: access.length,
+            stride: access.stride,
+            value: UsizeValue::Location(current),
+        });
+        return Ok(Some(instructions));
+    }
 
     match access.element {
         AbiType::I32 => {
@@ -485,6 +554,37 @@ pub(super) fn lower_compound_slice_index_assignment(
             });
             Ok(instructions)
         }
+        TypecheckSliceElementKind::Integer(kind) => {
+            let mut right = lower_integer_expression_to_value(
+                &statement.value,
+                kind,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.append(&mut right.instructions);
+            let current = temporaries.next_usize()?;
+            instructions.push(Instruction::SetUsize {
+                destination: current,
+                value: UsizeValue::IntegerSliceIndex {
+                    kind,
+                    source: destination,
+                    index: Box::new(index.clone()),
+                },
+            });
+            instructions.push(integer_compound_assignment_instruction(
+                statement.operator,
+                kind,
+                current,
+                right.value,
+            )?);
+            instructions.push(Instruction::StoreIntegerToSliceIndex {
+                kind,
+                destination,
+                index,
+                value: UsizeValue::Location(current),
+            });
+            Ok(instructions)
+        }
         TypecheckSliceElementKind::U8 => {
             let (value_instructions, right) = lower_u8_expression_to_word_with_temporaries(
                 &statement.value,
@@ -516,6 +616,29 @@ pub(super) fn lower_compound_slice_index_assignment(
         | TypecheckSliceElementKind::Str
         | TypecheckSliceElementKind::Other => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn integer_compound_assignment_instruction(
+    operator: AssignmentOperator,
+    kind: crate::integer::IntegerType,
+    destination: UsizeLocation,
+    right: UsizeValue,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let operator = match operator {
+        AssignmentOperator::AddAssign => IntegerBinaryOperator::Add,
+        AssignmentOperator::SubtractAssign => IntegerBinaryOperator::Subtract,
+        AssignmentOperator::MultiplyAssign => IntegerBinaryOperator::Multiply,
+        AssignmentOperator::DivideAssign => IntegerBinaryOperator::Divide,
+        AssignmentOperator::RemainderAssign => IntegerBinaryOperator::Remainder,
+        AssignmentOperator::Assign => return Err(unsupported_assignment_diagnostic()),
+    };
+    Ok(Instruction::IntegerBinary {
+        kind,
+        operator,
+        destination,
+        left: UsizeValue::Location(destination),
+        right,
+    })
 }
 
 pub(super) fn i32_compound_assignment_instruction(

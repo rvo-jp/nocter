@@ -13,6 +13,9 @@ pub(super) fn record_i32_value_parameter_spill_requests(
         I32Value::U8ZeroExtend(value) => {
             record_u8_value_parameter_spill_requests(value, requests);
         }
+        I32Value::IntegerWord(value) => {
+            record_usize_value_parameter_spill_requests(value, requests);
+        }
         I32Value::SliceIndex { source, index } => {
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
@@ -61,7 +64,11 @@ pub(super) fn record_usize_value_parameter_spill_requests(
         UsizeValue::U8ZeroExtend(value) => {
             record_u8_value_parameter_spill_requests(value, requests);
         }
-        UsizeValue::SliceIndex { source, index } => {
+        UsizeValue::I32SignExtend(value) => {
+            record_i32_value_parameter_spill_requests(value, requests);
+        }
+        UsizeValue::SliceIndex { source, index }
+        | UsizeValue::IntegerSliceIndex { source, index, .. } => {
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
         }
@@ -108,6 +115,10 @@ pub(super) fn record_bool_value_parameter_spill_requests(
             record_i32_value_parameter_spill_requests(right, requests);
         }
         BoolValue::UsizeComparison { left, right, .. } => {
+            record_usize_value_parameter_spill_requests(left, requests);
+            record_usize_value_parameter_spill_requests(right, requests);
+        }
+        BoolValue::IntegerComparison { left, right, .. } => {
             record_usize_value_parameter_spill_requests(left, requests);
             record_usize_value_parameter_spill_requests(right, requests);
         }

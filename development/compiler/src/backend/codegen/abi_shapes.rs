@@ -21,6 +21,7 @@ pub(super) fn type_return_description(ty: &Type) -> String {
         Type::I32 => "i32".to_string(),
         Type::U8 => "u8".to_string(),
         Type::Usize => "usize".to_string(),
+        Type::Integer(kind) => kind.name().to_string(),
         Type::Bool => "bool".to_string(),
         Type::Str => "&str".to_string(),
         Type::Slice { .. } => "slice".to_string(),

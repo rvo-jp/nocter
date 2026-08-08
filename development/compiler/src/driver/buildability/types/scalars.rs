@@ -108,46 +108,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok_and(|value| {
-        matches!(
-            value.ty,
-            AbiType::I32
-                | AbiType::U8
-                | AbiType::Usize
-                | AbiType::Bool
-                | AbiType::Pointer
-                | AbiType::Borrow
-        )
+        value.ty.integer_type().is_some()
+            || matches!(value.ty, AbiType::Bool | AbiType::Pointer | AbiType::Borrow)
     })
 }
 
-pub(in crate::driver::buildability) fn type_expr_has_storage_only_scalar_abi_for_sources(
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let source_resolver = |source| resolved_sources.get(&source).copied();
-    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver).is_ok_and(
-        |value| {
-            matches!(
-                value.ty,
-                AbiType::I8
-                    | AbiType::I16
-                    | AbiType::I64
-                    | AbiType::Isize
-                    | AbiType::U16
-                    | AbiType::U32
-                    | AbiType::U64
-            )
-        },
-    )
-}
-
-pub(in crate::driver::buildability) fn type_expr_has_runtime_integer_abi_for_sources(
+pub(in crate::driver::buildability) fn type_expr_has_native_integer_abi_for_sources(
     ty: &TypeExpr,
     fallback_resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
     let source_resolver = |source| resolved_sources.get(&source).copied();
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
-        .is_ok_and(|value| matches!(value.ty, AbiType::I32 | AbiType::U8 | AbiType::Usize))
+        .is_ok_and(|value| value.ty.integer_type().is_some())
 }

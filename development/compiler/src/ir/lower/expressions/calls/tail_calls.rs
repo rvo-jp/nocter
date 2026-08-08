@@ -87,6 +87,11 @@ fn lower_non_tail_return_call_instruction(
             target,
             arguments,
         }),
+        Type::Integer(_) => Ok(Instruction::CallUsize {
+            destination: UsizeLocation::Return,
+            target,
+            arguments,
+        }),
         Type::Bool => Ok(Instruction::CallBool {
             destination: BoolLocation::Return,
             target,

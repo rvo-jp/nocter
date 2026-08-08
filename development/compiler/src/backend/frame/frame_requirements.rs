@@ -51,17 +51,20 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
+        | Instruction::StoreIntegerToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
         | Instruction::StoreU8ToSliceIndex { .. }
         | Instruction::StoreI32ToSliceIndex { .. }
         | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreIntegerToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. } => true,
         Instruction::CopyPointerToAggregate { .. }
         | Instruction::LoadU8FromPointer { .. }
         | Instruction::LoadI32FromPointer { .. }
         | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadIntegerFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. } => false,
         Instruction::If {
@@ -109,6 +112,8 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateInteger { .. }
+        | Instruction::StoreAggregateIntegerIndexed { .. }
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU16 { .. }
         | Instruction::StoreAggregateU32 { .. }
@@ -119,6 +124,8 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::StoreAggregateU8Indexed { .. }
         | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateInteger { .. }
+        | Instruction::LoadAggregateIntegerIndexed { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
@@ -158,6 +165,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::RemainderUsize { .. }
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
+        | Instruction::IntegerBinary { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Trap
@@ -245,16 +253,19 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
+        | Instruction::StoreIntegerToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
         | Instruction::StoreU8ToSliceIndex { .. }
         | Instruction::StoreI32ToSliceIndex { .. }
         | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreIntegerToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. } => true,
         Instruction::LoadU8FromPointer { .. }
         | Instruction::LoadI32FromPointer { .. }
         | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadIntegerFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. } => false,
         Instruction::LoadStoredOutcomePayload { .. } | Instruction::ReturnStoredOutcome { .. } => {
@@ -270,6 +281,8 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         }
         Instruction::CopyAggregateRange { .. } => true,
         Instruction::StoreAggregateUsize { destination, .. }
+        | Instruction::StoreAggregateInteger { destination, .. }
+        | Instruction::StoreAggregateIntegerIndexed { destination, .. }
         | Instruction::StoreAggregateI32 { destination, .. }
         | Instruction::StoreAggregateU16 { destination, .. }
         | Instruction::StoreAggregateU32 { destination, .. }
@@ -282,6 +295,8 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
             matches!(destination, AggregateLocation::Slot(_))
         }
         Instruction::LoadAggregateUsize { source, .. }
+        | Instruction::LoadAggregateInteger { source, .. }
+        | Instruction::LoadAggregateIntegerIndexed { source, .. }
         | Instruction::LoadAggregateI32 { source, .. }
         | Instruction::LoadAggregateU8 { source, .. }
         | Instruction::LoadAggregateBool { source, .. }
@@ -331,6 +346,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::RemainderUsize { .. }
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
+        | Instruction::IntegerBinary { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue

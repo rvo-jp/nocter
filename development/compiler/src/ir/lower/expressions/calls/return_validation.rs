@@ -36,7 +36,7 @@ pub(super) fn validate_usize_normal_call_return_type(
         return Ok(());
     };
 
-    if callee_return_type == &Type::Usize {
+    if matches!(callee_return_type, Type::Usize | Type::Integer(_)) {
         return validate_call_success_return_passing(
             target,
             callee_name,
@@ -319,7 +319,7 @@ pub(super) fn validate_outcome_usize_normal_call_return_type(
     };
 
     if let Some((_, success)) = callee_return_type.single_outcome()
-        && success == &Type::Usize
+        && matches!(success, Type::Usize | Type::Integer(_))
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -504,6 +504,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
         Type::I32 => "i32",
         Type::U8 => "u8",
         Type::Usize => "usize",
+        Type::Integer(_) => "integer",
         Type::Bool => "bool",
         Type::Str => "&str",
         Type::Slice {
@@ -520,6 +521,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::I32 => "&i32",
             Type::U8 => "&u8",
             Type::Usize => "&usize",
+            Type::Integer(_) => "&integer",
             Type::Bool => "&bool",
             Type::Aggregate { .. } => "&aggregate",
             Type::DirectAggregate { .. } => "&aggregate",
@@ -532,6 +534,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::I32 => "&+i32",
             Type::U8 => "&+u8",
             Type::Usize => "&+usize",
+            Type::Integer(_) => "&+integer",
             Type::Bool => "&+bool",
             Type::Aggregate { .. } => "&+aggregate",
             Type::DirectAggregate { .. } => "&+aggregate",
@@ -543,6 +546,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::I32 => "i32?",
             Type::U8 => "u8?",
             Type::Usize => "usize?",
+            Type::Integer(_) => "integer?",
             Type::Bool => "bool?",
             Type::Str => "&str?",
             Type::Slice {
@@ -561,6 +565,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::I32 => "i32!",
             Type::U8 => "u8!",
             Type::Usize => "usize!",
+            Type::Integer(_) => "integer!",
             Type::Bool => "bool!",
             Type::Str => "&str!",
             Type::Slice {
@@ -576,6 +581,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
                 Type::I32 => "&i32!",
                 Type::U8 => "&u8!",
                 Type::Usize => "&usize!",
+                Type::Integer(_) => "&integer!",
                 Type::Bool => "&bool!",
                 Type::Aggregate { .. } => "&aggregate!",
                 Type::DirectAggregate { .. } => "&aggregate!",
@@ -588,6 +594,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
                 Type::I32 => "&+i32!",
                 Type::U8 => "&+u8!",
                 Type::Usize => "&+usize!",
+                Type::Integer(_) => "&+integer!",
                 Type::Bool => "&+bool!",
                 Type::Aggregate { .. } => "&+aggregate!",
                 Type::DirectAggregate { .. } => "&+aggregate!",

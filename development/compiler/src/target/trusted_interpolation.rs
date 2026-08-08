@@ -1,6 +1,7 @@
 //! Validated ordinary standard-library declarations used by interpolation lowering.
 
 use crate::ast::{AstFile, FunctionDecl, Item, StructDecl, canonical_type_expr};
+use crate::integer::IntegerType;
 use crate::semantics::{
     InterpolationInputKind, InterpolationRuntime, RuntimeCallable, TrustedDeclarationFacts,
 };
@@ -37,6 +38,41 @@ fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<Interpol
         (InterpolationInputKind::I32, "append_i32", "i32"),
         (InterpolationInputKind::U8, "append_u8", "u8"),
         (InterpolationInputKind::Usize, "append_usize", "usize"),
+        (
+            InterpolationInputKind::Integer(IntegerType::I8),
+            "append_i8",
+            "i8",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::I16),
+            "append_i16",
+            "i16",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::I64),
+            "append_i64",
+            "i64",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::Isize),
+            "append_isize",
+            "isize",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::U16),
+            "append_u16",
+            "u16",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::U32),
+            "append_u32",
+            "u32",
+        ),
+        (
+            InterpolationInputKind::Integer(IntegerType::U64),
+            "append_u64",
+            "u64",
+        ),
         (InterpolationInputKind::Bool, "append_bool", "bool"),
     ];
     let mut formatters = HashMap::new();
@@ -154,6 +190,13 @@ func append_string(out: &+String, value: &String): void {}
 func append_i32(out: &+String, value: i32): void {}
 func append_u8(out: &+String, value: u8): void {}
 func append_usize(out: &+String, value: usize): void {}
+func append_i8(out: &+String, value: i8): void {}
+func append_i16(out: &+String, value: i16): void {}
+func append_i64(out: &+String, value: i64): void {}
+func append_isize(out: &+String, value: isize): void {}
+func append_u16(out: &+String, value: u16): void {}
+func append_u32(out: &+String, value: u32): void {}
+func append_u64(out: &+String, value: u64): void {}
 func append_bool(out: &+String, value: bool): void {}
 "#,
         );

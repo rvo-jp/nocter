@@ -1,4 +1,5 @@
 use super::*;
+use crate::integer::IntegerType;
 
 pub(in crate::typecheck) fn type_to_type_expr_allowing_parameters(
     ty: &Type,
@@ -167,9 +168,13 @@ pub(super) fn type_reference(name: impl Into<String>, span: ByteSpan) -> TypeExp
 pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
     match ty {
         Type::I32 => Some(TypecheckScalarViewKind::I32),
-        Type::Primitive(name) if name == "u8" => Some(TypecheckScalarViewKind::U8),
-        Type::Primitive(name) if name == "usize" => Some(TypecheckScalarViewKind::Usize),
-        Type::Primitive(name) if name == "bool" => Some(TypecheckScalarViewKind::Bool),
+        Type::Primitive(name) => match IntegerType::from_name(name) {
+            Some(IntegerType::U8) => Some(TypecheckScalarViewKind::U8),
+            Some(IntegerType::Usize) => Some(TypecheckScalarViewKind::Usize),
+            Some(_) => Some(TypecheckScalarViewKind::Usize),
+            None if name == "bool" => Some(TypecheckScalarViewKind::Bool),
+            None => None,
+        },
         Type::Str => Some(TypecheckScalarViewKind::Str),
         Type::View { element, .. } => {
             Some(TypecheckScalarViewKind::Slice(slice_element_kind(element)))
@@ -181,9 +186,13 @@ pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
 pub(super) fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
     match element {
         Type::I32 => TypecheckSliceElementKind::I32,
-        Type::Primitive(name) if name == "u8" => TypecheckSliceElementKind::U8,
-        Type::Primitive(name) if name == "usize" => TypecheckSliceElementKind::Usize,
-        Type::Primitive(name) if name == "bool" => TypecheckSliceElementKind::Bool,
+        Type::Primitive(name) => match IntegerType::from_name(name) {
+            Some(IntegerType::U8) => TypecheckSliceElementKind::U8,
+            Some(IntegerType::Usize) => TypecheckSliceElementKind::Usize,
+            Some(kind) => TypecheckSliceElementKind::Integer(kind),
+            None if name == "bool" => TypecheckSliceElementKind::Bool,
+            None => TypecheckSliceElementKind::Other,
+        },
         Type::Str => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
     }

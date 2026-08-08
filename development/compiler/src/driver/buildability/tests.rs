@@ -1180,7 +1180,7 @@ func unused(): bool {
 }
 
 #[test]
-fn reports_computed_storage_only_scalar_values_before_ir_lowering() {
+fn accepts_computed_values_for_every_builtin_integer() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
     if (1 as u16) == (2 as u16) {
@@ -1193,22 +1193,7 @@ fn reports_computed_storage_only_scalar_values_before_ir_lowering() {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
-    assert!(
-        diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.code == "E0435")
-    );
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("operations on storage-only scalar values")
-    }));
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("conversions from computed storage-only scalar values")
-    }));
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

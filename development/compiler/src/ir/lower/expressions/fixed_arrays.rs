@@ -1,4 +1,5 @@
 use super::*;
+use crate::typecheck::TypecheckSliceElementKind;
 
 pub(super) struct FixedArrayAccessMetadata {
     pub(super) instructions: Vec<Instruction>,
@@ -374,7 +375,11 @@ pub(super) fn lower_fixed_array_usize_index_expression_to_value(
     else {
         return Ok(None);
     };
-    if access.element != AbiType::Usize {
+    let integer_kind = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type());
+    if access.element != AbiType::Usize && integer_kind.is_none() {
         return Ok(None);
     }
     let mut instructions = access.instructions;
@@ -387,11 +392,20 @@ pub(super) fn lower_fixed_array_usize_index_expression_to_value(
     }
 
     let temporary = temporaries.next_usize()?;
-    instructions.push(Instruction::LoadAggregateUsize {
-        destination: temporary,
-        source: access.source,
-        offset: access.offset,
-    });
+    if let Some(kind) = integer_kind {
+        instructions.push(Instruction::LoadAggregateInteger {
+            kind,
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        });
+    } else {
+        instructions.push(Instruction::LoadAggregateUsize {
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        });
+    }
     Ok(Some(LoweredUsizeValue {
         instructions,
         value: UsizeValue::Location(temporary),
@@ -412,20 +426,36 @@ pub(super) fn lower_fixed_array_usize_indexed_expression_to_value(
     else {
         return Ok(None);
     };
-    if access.element != AbiType::Usize {
+    let integer_kind = access
+        .element
+        .integer_type()
+        .filter(|kind| !kind.legacy_ir_type());
+    if access.element != AbiType::Usize && integer_kind.is_none() {
         return Ok(None);
     }
 
     let temporary = temporaries.next_usize()?;
     let mut instructions = access.index_instructions;
-    instructions.push(Instruction::LoadAggregateUsizeIndexed {
-        destination: temporary,
-        source: access.source,
-        base_offset: access.base_offset,
-        index: access.index,
-        length: access.length,
-        stride: access.stride,
-    });
+    if let Some(kind) = integer_kind {
+        instructions.push(Instruction::LoadAggregateIntegerIndexed {
+            kind,
+            destination: temporary,
+            source: access.source,
+            base_offset: access.base_offset,
+            index: access.index,
+            length: access.length,
+            stride: access.stride,
+        });
+    } else {
+        instructions.push(Instruction::LoadAggregateUsizeIndexed {
+            destination: temporary,
+            source: access.source,
+            base_offset: access.base_offset,
+            index: access.index,
+            length: access.length,
+            stride: access.stride,
+        });
+    }
     Ok(Some(LoweredUsizeValue {
         instructions,
         value: UsizeValue::Location(temporary),
@@ -446,12 +476,27 @@ pub(super) fn lower_usize_slice_index_expression_to_value(
         return Err(unsupported_usize_expression_diagnostic());
     };
 
-    Ok(LoweredUsizeValue {
-        instructions,
-        value: UsizeValue::SliceIndex {
+    let kind = context
+        .expression_slice_element_kind(&expression.object)
+        .and_then(|element| match element {
+            TypecheckSliceElementKind::Integer(kind) => Some(kind),
+            _ => None,
+        });
+    let value = if let Some(kind) = kind {
+        UsizeValue::IntegerSliceIndex {
+            kind,
             source,
             index: Box::new(index.value),
-        },
+        }
+    } else {
+        UsizeValue::SliceIndex {
+            source,
+            index: Box::new(index.value),
+        }
+    };
+    Ok(LoweredUsizeValue {
+        instructions,
+        value,
     })
 }
 

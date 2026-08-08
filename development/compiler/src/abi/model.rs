@@ -1,4 +1,5 @@
 use super::layout::{classify_value, layout_of};
+use crate::integer::IntegerType;
 
 pub const ABI_WORD_SIZE: u64 = 8;
 pub const ARGUMENT_REGISTER_COUNT: usize = 8;
@@ -28,6 +29,22 @@ pub enum AbiType {
 }
 
 impl AbiType {
+    pub(crate) const fn integer_type(&self) -> Option<IntegerType> {
+        Some(match self {
+            Self::I8 => IntegerType::I8,
+            Self::I16 => IntegerType::I16,
+            Self::I32 => IntegerType::I32,
+            Self::I64 => IntegerType::I64,
+            Self::Isize => IntegerType::Isize,
+            Self::U8 => IntegerType::U8,
+            Self::U16 => IntegerType::U16,
+            Self::U32 => IntegerType::U32,
+            Self::U64 => IntegerType::U64,
+            Self::Usize => IntegerType::Usize,
+            _ => return None,
+        })
+    }
+
     /// Returns whether a value of this ABI type can carry an address whose
     /// validity depends on the caller's current stack frame.
     pub fn contains_borrow(&self) -> bool {

@@ -81,16 +81,24 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::CopySliceElementToAggregate { .. }
         | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateInteger { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. } => false,
         Instruction::LoadAggregateUsizeIndexed { index, .. }
+        | Instruction::LoadAggregateIntegerIndexed { index, .. }
         | Instruction::LoadAggregateI32Indexed { index, .. }
         | Instruction::LoadAggregateU8Indexed { index, .. }
         | Instruction::LoadAggregateBoolIndexed { index, .. } => {
             usize_value_uses_process_arguments(index)
         }
         Instruction::StoreAggregateUsize { value, .. } => usize_value_uses_process_arguments(value),
+        Instruction::StoreAggregateInteger { value, .. } => {
+            usize_value_uses_process_arguments(value)
+        }
+        Instruction::StoreAggregateIntegerIndexed { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || usize_value_uses_process_arguments(value)
+        }
         Instruction::StoreAggregateUsizeIndexed { index, value, .. } => {
             usize_value_uses_process_arguments(index) || usize_value_uses_process_arguments(value)
         }
@@ -146,6 +154,9 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::LoadUsizeFromPointer {
             pointer, offset, ..
         }
+        | Instruction::LoadIntegerFromPointer {
+            pointer, offset, ..
+        }
         | Instruction::LoadBoolFromPointer {
             pointer, offset, ..
         }
@@ -182,6 +193,16 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
                 || usize_value_uses_process_arguments(offset)
                 || usize_value_uses_process_arguments(value)
         }
+        Instruction::StoreIntegerToPointer {
+            pointer,
+            offset,
+            value,
+            ..
+        } => {
+            usize_value_uses_process_arguments(pointer)
+                || usize_value_uses_process_arguments(offset)
+                || usize_value_uses_process_arguments(value)
+        }
         Instruction::StoreBoolToPointer {
             pointer,
             offset,
@@ -207,6 +228,9 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
             usize_value_uses_process_arguments(index) || i32_value_uses_process_arguments(value)
         }
         Instruction::StoreUsizeToSliceIndex { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || usize_value_uses_process_arguments(value)
+        }
+        Instruction::StoreIntegerToSliceIndex { index, value, .. } => {
             usize_value_uses_process_arguments(index) || usize_value_uses_process_arguments(value)
         }
         Instruction::StoreBoolToSliceIndex { index, value, .. } => {
@@ -240,6 +264,9 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::RemainderUsize { left, right, .. }
         | Instruction::ShiftLeftUsize { left, right, .. }
         | Instruction::ShiftRightUsize { left, right, .. } => {
+            usize_value_uses_process_arguments(left) || usize_value_uses_process_arguments(right)
+        }
+        Instruction::IntegerBinary { left, right, .. } => {
             usize_value_uses_process_arguments(left) || usize_value_uses_process_arguments(right)
         }
         Instruction::CallI32 { arguments, .. }
@@ -408,6 +435,7 @@ pub(super) fn i32_value_uses_process_arguments(value: &I32Value) -> bool {
     match value {
         I32Value::Const(_) | I32Value::Location(_) => false,
         I32Value::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
+        I32Value::IntegerWord(value) => usize_value_uses_process_arguments(value),
         I32Value::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }
 }
@@ -429,11 +457,14 @@ pub(super) fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
         | UsizeValue::CurrentAllocationState
         | UsizeValue::CurrentAllocationKind => false,
         UsizeValue::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
+        UsizeValue::I32SignExtend(value) => i32_value_uses_process_arguments(value),
         UsizeValue::StrPointer(_)
         | UsizeValue::SlicePointer(_)
         | UsizeValue::StrLen(_)
         | UsizeValue::SliceLen(_) => false,
-        UsizeValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
+        UsizeValue::SliceIndex { index, .. } | UsizeValue::IntegerSliceIndex { index, .. } => {
+            usize_value_uses_process_arguments(index)
+        }
     }
 }
 
@@ -450,6 +481,9 @@ pub(super) fn bool_value_uses_process_arguments(value: &crate::ir::BoolValue) ->
             i32_value_uses_process_arguments(left) || i32_value_uses_process_arguments(right)
         }
         crate::ir::BoolValue::UsizeComparison { left, right, .. } => {
+            usize_value_uses_process_arguments(left) || usize_value_uses_process_arguments(right)
+        }
+        crate::ir::BoolValue::IntegerComparison { left, right, .. } => {
             usize_value_uses_process_arguments(left) || usize_value_uses_process_arguments(right)
         }
         crate::ir::BoolValue::StrComparison { left, right, .. } => {

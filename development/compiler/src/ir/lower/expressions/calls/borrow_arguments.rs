@@ -399,6 +399,7 @@ fn slice_element_kind_from_type(ty: Option<Type>) -> TypecheckSliceElementKind {
         Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        Some(Type::Integer(kind)) => TypecheckSliceElementKind::Integer(kind),
         Some(Type::Bool) => TypecheckSliceElementKind::Bool,
         Some(Type::Str) => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
@@ -413,6 +414,11 @@ fn slice_element_address_kind_for_borrow(
         (TypecheckSliceElementKind::U8, Type::U8) => Some(SliceElementAddressKind::U8),
         (TypecheckSliceElementKind::I32, Type::I32) => Some(SliceElementAddressKind::I32),
         (TypecheckSliceElementKind::Usize, Type::Usize) => Some(SliceElementAddressKind::Usize),
+        (TypecheckSliceElementKind::Integer(kind), Type::Integer(expected))
+            if kind == *expected =>
+        {
+            Some(SliceElementAddressKind::Integer(kind))
+        }
         (TypecheckSliceElementKind::Bool, Type::Bool) => Some(SliceElementAddressKind::Bool),
         (TypecheckSliceElementKind::Str, Type::Str) => Some(SliceElementAddressKind::Str),
         (

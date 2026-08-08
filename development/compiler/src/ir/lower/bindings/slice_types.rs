@@ -195,6 +195,7 @@ pub(super) fn slice_element_kind_from_type(ty: Option<Type>) -> TypecheckSliceEl
         Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        Some(Type::Integer(kind)) => TypecheckSliceElementKind::Integer(kind),
         Some(Type::Bool) => TypecheckSliceElementKind::Bool,
         Some(Type::Str) => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,

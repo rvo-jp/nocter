@@ -408,6 +408,7 @@ where
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
         AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
+        ty if ty.integer_type().is_some() => Some(Type::Integer(ty.integer_type()?)),
         AbiType::Bool => Some(Type::Bool),
         _ => None,
     }
@@ -524,6 +525,7 @@ where
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
         AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
+        ty if ty.integer_type().is_some() => Some(Type::Integer(ty.integer_type()?)),
         AbiType::Bool => Some(Type::Bool),
         AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. } => {
             aggregate_type_from_abi_value(&value)

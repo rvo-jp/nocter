@@ -35,15 +35,16 @@ use super::expressions::{
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_i32_closure_capture_assignment, lower_i32_expression_to_location,
     lower_i32_expression_to_word, lower_i32_expression_to_word_with_temporaries,
-    lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
-    lower_slice_expression_to_location, lower_slice_expression_to_value,
-    lower_str_expression_to_location, lower_str_expression_to_value,
-    lower_u8_closure_capture_assignment, lower_u8_expression_to_location,
-    lower_u8_expression_to_word, lower_u8_expression_to_word_with_temporaries,
-    lower_usize_closure_capture_assignment, lower_usize_expression_to_location,
-    lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
-    lower_void_expression_statement, primitive_take_value_at_ptr_call,
-    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
+    lower_integer_expression_to_value, lower_macos_syscall_primitive_call_to_location,
+    lower_pointer_address_expression_to_word, lower_slice_expression_to_location,
+    lower_slice_expression_to_value, lower_str_expression_to_location,
+    lower_str_expression_to_value, lower_u8_closure_capture_assignment,
+    lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_u8_expression_to_word_with_temporaries, lower_usize_closure_capture_assignment,
+    lower_usize_expression_to_location, lower_usize_expression_to_word,
+    lower_usize_expression_to_word_with_temporaries, lower_void_expression_statement,
+    primitive_take_value_at_ptr_call, push_store_slice_view_to_aggregate_field,
+    push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
@@ -76,8 +77,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BoolValue, ComposedOutcomeDestination, I32Location, I32Value,
-    Instruction, OutcomeFailureMode, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
-    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    Instruction, IntegerBinaryOperator, OutcomeFailureMode, SliceElementIndex, SliceLocation,
+    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
 use crate::resolve::ResolveOutput;

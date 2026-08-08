@@ -192,7 +192,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, read-write slice element, or local/aggregate-field fixed-array element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use a builtin integer whole binding, aggregate field, read-write slice element, or local/aggregate-field fixed-array element",
                 ));
             }
             if let Some(diagnostic) = unsupported_index_assignment_target_diagnostic(
@@ -220,7 +220,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     if field_type_expr_for_member(member, resolved, typecheck_facts)
                         .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
                         .is_some_and(|ty| {
-                            type_expr_has_storage_only_scalar_abi_for_sources(
+                            type_expr_has_native_integer_abi_for_sources(
                                 &ty,
                                 resolved,
                                 resolved_sources,

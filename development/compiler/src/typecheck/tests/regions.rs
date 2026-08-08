@@ -1,6 +1,7 @@
 use super::check;
 use crate::ast::Item;
 use crate::diagnostics::Diagnostic;
+use crate::integer::IntegerType;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
@@ -68,6 +69,13 @@ fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<D
             InterpolationInputKind::I32,
             InterpolationInputKind::U8,
             InterpolationInputKind::Usize,
+            InterpolationInputKind::Integer(IntegerType::I8),
+            InterpolationInputKind::Integer(IntegerType::I16),
+            InterpolationInputKind::Integer(IntegerType::I64),
+            InterpolationInputKind::Integer(IntegerType::Isize),
+            InterpolationInputKind::Integer(IntegerType::U16),
+            InterpolationInputKind::Integer(IntegerType::U32),
+            InterpolationInputKind::Integer(IntegerType::U64),
             InterpolationInputKind::Bool,
         ]
         .into_iter()

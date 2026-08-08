@@ -35,6 +35,7 @@ use crate::ast::{
     StructLiteralExpr, StructLiteralField, SwitchArm, SwitchPayloadBinding, TypeExpr,
     TypeReference, ViewType, substitute_type_expr_parameters,
 };
+use crate::integer::IntegerType;
 use crate::resolve::{
     FunctionSignature, MethodSignature, ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind,
 };

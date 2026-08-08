@@ -109,6 +109,32 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_usize(*destination, *offset, value, frame)?;
             }
+            Instruction::StoreAggregateInteger {
+                kind,
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_integer(*kind, *destination, *offset, value, frame)?;
+            }
+            Instruction::StoreAggregateIntegerIndexed {
+                kind,
+                destination,
+                base_offset,
+                index,
+                length,
+                stride,
+                value,
+            } => self.emit_store_aggregate_integer_indexed(
+                *kind,
+                *destination,
+                *base_offset,
+                index,
+                *length,
+                *stride,
+                value,
+                frame,
+            )?,
             Instruction::StoreAggregateUsizeIndexed {
                 destination,
                 base_offset,
@@ -223,6 +249,32 @@ impl EntryEmitter {
             } => {
                 self.emit_load_aggregate_usize(*destination, *source, *offset, frame)?;
             }
+            Instruction::LoadAggregateInteger {
+                kind,
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_aggregate_integer(*kind, *destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateIntegerIndexed {
+                kind,
+                destination,
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => self.emit_load_aggregate_integer_indexed(
+                *kind,
+                *destination,
+                *source,
+                *base_offset,
+                index,
+                *length,
+                *stride,
+                frame,
+            )?,
             Instruction::LoadAggregateUsizeIndexed {
                 destination,
                 source,
@@ -420,6 +472,12 @@ impl EntryEmitter {
                 pointer,
                 offset,
             } => self.emit_load_usize_from_pointer(*destination, pointer, offset)?,
+            Instruction::LoadIntegerFromPointer {
+                kind,
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_integer_from_pointer(*kind, *destination, pointer, offset)?,
             Instruction::LoadBoolFromPointer {
                 destination,
                 pointer,
@@ -450,6 +508,14 @@ impl EntryEmitter {
                 value,
             } => {
                 self.emit_store_usize_to_pointer(pointer, offset, value, frame)?;
+            }
+            Instruction::StoreIntegerToPointer {
+                kind,
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_integer_to_pointer(*kind, pointer, offset, value, frame)?;
             }
             Instruction::StoreBoolToPointer {
                 pointer,
@@ -485,6 +551,14 @@ impl EntryEmitter {
                 value,
             } => {
                 self.emit_store_usize_to_slice_index(*destination, index, value, frame)?;
+            }
+            Instruction::StoreIntegerToSliceIndex {
+                kind,
+                destination,
+                index,
+                value,
+            } => {
+                self.emit_store_integer_to_slice_index(*kind, *destination, index, value, frame)?
             }
             Instruction::StoreBoolToSliceIndex {
                 destination,
@@ -646,6 +720,15 @@ impl EntryEmitter {
                 right,
             } => {
                 self.emit_shift_right_usize(*destination, left, right)?;
+            }
+            Instruction::IntegerBinary {
+                kind,
+                operator,
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_integer_binary(*kind, *operator, *destination, left, right)?;
             }
             Instruction::CallI32 {
                 destination,

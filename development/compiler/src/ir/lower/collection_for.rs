@@ -255,6 +255,16 @@ fn define_copy_projection_binding(
                 offset,
             }]
         }
+        Type::Integer(kind) => {
+            let destination = context.next_usize_local_location()?;
+            context.define_integer_local(name, kind);
+            vec![Instruction::LoadIntegerFromPointer {
+                kind,
+                destination,
+                pointer,
+                offset,
+            }]
+        }
         Type::Bool => {
             let destination = context.next_bool_local_location()?;
             context.define_bool_local(name);
@@ -505,6 +515,14 @@ fn define_item_binding(
             let location = context.next_usize_local_location()?;
             context.define_usize_local(name);
             Some(ComposedOutcomeDestination::Usize(location))
+        }
+        Type::Integer(kind) => {
+            let location = context.next_usize_local_location()?;
+            context.define_integer_local(name, *kind);
+            Some(ComposedOutcomeDestination::Integer {
+                kind: *kind,
+                destination: location,
+            })
         }
         Type::Bool => {
             let location = context.next_bool_local_location()?;

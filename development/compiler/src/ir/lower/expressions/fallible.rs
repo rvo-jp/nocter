@@ -85,6 +85,9 @@ pub(super) fn lower_catch_block(
                 (Type::Usize, Some(expression)) => {
                     lower_usize_return_expression(expression, context)
                 }
+                (Type::Integer(_), Some(expression)) => {
+                    lower_usize_return_expression(expression, context)
+                }
                 (Type::Bool, Some(expression)) => {
                     lower_bool_return_expression(expression, context, "E8007")
                 }
@@ -111,6 +114,7 @@ pub(super) fn lower_catch_block(
                 (Type::I32, None)
                 | (Type::U8, None)
                 | (Type::Usize, None)
+                | (Type::Integer(_), None)
                 | (Type::Bool, None)
                 | (Type::Str, None)
                 | (Type::Slice { .. }, None)

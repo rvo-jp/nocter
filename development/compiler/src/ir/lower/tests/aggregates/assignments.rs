@@ -1441,20 +1441,22 @@ func update(): i32 {
                     offset: 1,
                     value: BoolValue::Const(true),
                 },
-                Instruction::StoreAggregateU16 {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U16,
                     destination: AggregateLocation::Slot(0),
                     offset: 2,
-                    value: 8,
+                    value: usize_const(8),
                 },
                 Instruction::StoreAggregateI32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 4,
                     value: i32_const(42),
                 },
-                Instruction::StoreAggregateU32 {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U32,
                     destination: AggregateLocation::Slot(0),
                     offset: 8,
-                    value: 10,
+                    value: usize_const(10),
                 },
                 Instruction::StoreAggregateUsize {
                     destination: AggregateLocation::Slot(0),
@@ -1471,20 +1473,22 @@ func update(): i32 {
                     offset: 1,
                     value: BoolValue::Const(false),
                 },
-                Instruction::StoreAggregateU16 {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U16,
                     destination: AggregateLocation::Slot(0),
                     offset: 2,
-                    value: 12,
+                    value: usize_const(12),
                 },
                 Instruction::StoreAggregateI32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 4,
                     value: i32_const(99),
                 },
-                Instruction::StoreAggregateU32 {
+                Instruction::StoreAggregateInteger {
+                    kind: crate::integer::IntegerType::U32,
                     destination: AggregateLocation::Slot(0),
                     offset: 8,
-                    value: 100,
+                    value: usize_const(100),
                 },
                 Instruction::StoreAggregateUsize {
                     destination: AggregateLocation::Slot(0),

@@ -154,22 +154,27 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadU8FromPointer { .. }
         | Instruction::LoadI32FromPointer { .. }
         | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadIntegerFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
+        | Instruction::StoreIntegerToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
         | Instruction::StoreU8ToSliceIndex { .. }
         | Instruction::StoreI32ToSliceIndex { .. }
         | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreIntegerToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSliceRawParts { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateInteger { .. }
+        | Instruction::StoreAggregateIntegerIndexed { .. }
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU16 { .. }
         | Instruction::StoreAggregateU32 { .. }
@@ -180,6 +185,8 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreAggregateU8Indexed { .. }
         | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateInteger { .. }
+        | Instruction::LoadAggregateIntegerIndexed { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
@@ -220,6 +227,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::RemainderUsize { .. }
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
+        | Instruction::IntegerBinary { .. }
         | Instruction::CallI32 { .. }
         | Instruction::CallU8 { .. }
         | Instruction::CallUsize { .. }

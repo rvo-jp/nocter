@@ -166,7 +166,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
             sources,
             index.span,
             "fixed array index assignment targets outside scalar/view element locals or aggregate fields",
-            "assign through an index into a local or aggregate-field `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until broader fixed array mutation is promoted",
+            "assign through an index into a local or aggregate-field fixed array with builtin integer, `bool`, or `&str` elements",
         ));
     }
     if matches!(

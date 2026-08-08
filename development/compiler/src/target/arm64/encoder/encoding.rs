@@ -18,8 +18,10 @@ pub(in crate::target::arm64::encoder) const MSUB_W_BASE: u32 = 0x1b00_8000;
 pub(in crate::target::arm64::encoder) const MSUB_X_BASE: u32 = 0x9b00_8000;
 pub(in crate::target::arm64::encoder) const SMADDL_X_BASE: u32 = 0x9b20_0000;
 pub(in crate::target::arm64::encoder) const UMULH_X_BASE: u32 = 0x9bc0_7c00;
+pub(in crate::target::arm64::encoder) const SMULH_X_BASE: u32 = 0x9b40_7c00;
 pub(in crate::target::arm64::encoder) const SXTW_X_BASE: u32 = 0x9340_7c00;
 pub(in crate::target::arm64::encoder) const SDIV_W_BASE: u32 = 0x1ac0_0c00;
+pub(in crate::target::arm64::encoder) const SDIV_X_BASE: u32 = 0x9ac0_0c00;
 pub(in crate::target::arm64::encoder) const UDIV_W_BASE: u32 = 0x1ac0_0800;
 pub(in crate::target::arm64::encoder) const UDIV_X_BASE: u32 = 0x9ac0_0800;
 pub(in crate::target::arm64::encoder) const LSLV_W_BASE: u32 = 0x1ac0_2000;
@@ -28,6 +30,8 @@ pub(in crate::target::arm64::encoder) const LSRV_W_BASE: u32 = 0x1ac0_2400;
 pub(in crate::target::arm64::encoder) const LSRV_X_BASE: u32 = 0x9ac0_2400;
 pub(in crate::target::arm64::encoder) const UBFM_X_BASE: u32 = 0xd340_0000;
 pub(in crate::target::arm64::encoder) const ASRV_W_BASE: u32 = 0x1ac0_2800;
+pub(in crate::target::arm64::encoder) const ASRV_X_BASE: u32 = 0x9ac0_2800;
+pub(in crate::target::arm64::encoder) const SBFM_X_BASE: u32 = 0x9340_0000;
 #[allow(dead_code)]
 pub(in crate::target::arm64::encoder) const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]

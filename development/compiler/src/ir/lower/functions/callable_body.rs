@@ -600,6 +600,16 @@ pub(super) fn lower_terminal_if_statement_body_for_success_type_with_branch_prol
             subject,
             sources,
         )?,
+        Type::Integer(_) => lower_terminal_usize_if_statement_with_branch_prologues(
+            statement,
+            context,
+            then_prologue,
+            else_prologue,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        )?,
         Type::Str => lower_terminal_str_if_statement_with_branch_prologues(
             statement,
             context,

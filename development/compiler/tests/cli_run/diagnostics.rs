@@ -28,6 +28,85 @@ func zero(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_traps_invalid_nonlegacy_integer_operations() {
+    let cases = [
+        (
+            "i8-overflow",
+            r#"func value(): i8 {
+    return maximum() + one()
+}
+
+func maximum(): i8 { return 127 }
+func one(): i8 { return 1 }
+
+func main(): i32 {
+    if value() == 0 { return 0 }
+    return 1
+}
+"#,
+        ),
+        (
+            "i64-division-overflow",
+            r#"func value(): i64 {
+    return minimum() / minus_one()
+}
+
+func minimum(): i64 { return -9223372036854775808 }
+func minus_one(): i64 { return -1 }
+
+func main(): i32 {
+    if value() == 0 { return 0 }
+    return 1
+}
+"#,
+        ),
+        (
+            "u64-division-zero",
+            r#"func value(): u64 {
+    return one() / zero()
+}
+
+func one(): u64 { return 1 }
+func zero(): u64 { return 0 }
+
+func main(): i32 {
+    if value() == 0 { return 0 }
+    return 1
+}
+"#,
+        ),
+        (
+            "isize-shift-width",
+            r#"func value(): isize {
+    return one() << width()
+}
+
+func one(): isize { return 1 }
+func width(): isize { return 64 }
+
+func main(): i32 {
+    if value() == 0 { return 0 }
+    return 1
+}
+"#,
+        ),
+    ];
+
+    for (name, program) in cases {
+        let project = TempProject::new(&format!("cli-run-{name}"));
+        let source = project.write_source("invalid_integer_operation.nct", program);
+        let output = nocter(&project, ["run", source.to_str().unwrap()]);
+        assert!(
+            !output.status.success(),
+            "case {name} unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+            text(&output.stdout),
+            text(&output.stderr)
+        );
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_stack_passed_never_call() {
     let project = TempProject::new("cli-run-stack-passed-never-call");
     let source = project.write_source(

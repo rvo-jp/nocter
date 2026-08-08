@@ -85,7 +85,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
                 sources,
                 statement.initializer.span(),
                 "fixed array local bindings outside supported literal values",
-                "match the fixed array length and use `i32`, `u8`, `usize`, `bool`, or `&str` elements until broader fixed array element storage is promoted",
+                "match the fixed array length and use builtin integer, `bool`, or `&str` elements",
             ),
             _ => unsupported_native_build_diagnostic(
                 sources,

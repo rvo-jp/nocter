@@ -7,6 +7,7 @@ use crate::ast::{
     substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
+use crate::integer::IntegerType;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation,
@@ -41,6 +42,7 @@ pub(super) struct LoweringContext<'a> {
     i32_parameters: Vec<Option<String>>,
     u8_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
+    integer_parameters: Vec<Option<(String, IntegerType)>>,
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
     slice_parameters: Vec<Option<SliceBinding>>,
@@ -75,6 +77,7 @@ impl<'a> Clone for LoweringContext<'a> {
             i32_parameters: self.i32_parameters.clone(),
             u8_parameters: self.u8_parameters.clone(),
             usize_parameters: self.usize_parameters.clone(),
+            integer_parameters: self.integer_parameters.clone(),
             bool_parameters: self.bool_parameters.clone(),
             str_parameters: self.str_parameters.clone(),
             slice_parameters: self.slice_parameters.clone(),
@@ -99,6 +102,7 @@ pub(super) struct LoweringParameterSlots {
     pub(super) i32: Vec<Option<String>>,
     pub(super) u8: Vec<Option<String>>,
     pub(super) usize: Vec<Option<String>>,
+    pub(super) integer: Vec<Option<(String, IntegerType)>>,
     pub(super) bool: Vec<Option<String>>,
     pub(super) str: Vec<Option<String>>,
     pub(super) slice: Vec<Option<SliceBinding>>,
@@ -152,6 +156,12 @@ impl LoweringParameterSlots {
         self.push_abi_word(None, None, Some(name), None, None, None, None);
     }
 
+    pub(super) fn push_integer_parameter(&mut self, name: String, kind: IntegerType) {
+        let index = self.next_parameter_index();
+        self.push_empty_abi_word();
+        self.integer[index] = Some((name, kind));
+    }
+
     pub(super) fn push_bool_parameter(&mut self, name: String) {
         self.push_abi_word(None, None, None, Some(name), None, None, None);
     }
@@ -203,6 +213,7 @@ impl LoweringParameterSlots {
     pub(super) fn parameter_abi_word_count(&self) -> usize {
         debug_assert_eq!(self.i32.len(), self.u8.len());
         debug_assert_eq!(self.i32.len(), self.usize.len());
+        debug_assert_eq!(self.i32.len(), self.integer.len());
         debug_assert_eq!(self.i32.len(), self.bool.len());
         debug_assert_eq!(self.i32.len(), self.str.len());
         debug_assert_eq!(self.i32.len(), self.slice.len());
@@ -227,6 +238,7 @@ impl LoweringParameterSlots {
         self.i32.push(i32_name);
         self.u8.push(u8_name);
         self.usize.push(usize_name);
+        self.integer.push(None);
         self.bool.push(bool_name);
         self.str.push(str_name);
         self.slice.push(slice_name);
@@ -588,6 +600,22 @@ pub(super) enum AggregateFieldKind {
 }
 
 impl AggregateFieldKind {
+    pub(super) fn integer_type(&self) -> Option<IntegerType> {
+        match self {
+            Self::I8 => Some(IntegerType::I8),
+            Self::I16 => Some(IntegerType::I16),
+            Self::I32 => Some(IntegerType::I32),
+            Self::I64 => Some(IntegerType::I64),
+            Self::Isize => Some(IntegerType::Isize),
+            Self::U8 => Some(IntegerType::U8),
+            Self::U16 => Some(IntegerType::U16),
+            Self::U32 => Some(IntegerType::U32),
+            Self::U64 => Some(IntegerType::U64),
+            Self::Usize => Some(IntegerType::Usize),
+            _ => None,
+        }
+    }
+
     pub(super) fn copy_aggregate_layout(&self) -> Option<ValueLayout> {
         match self {
             AggregateFieldKind::Array { layout, .. }
@@ -614,6 +642,7 @@ enum LocalKind {
     I32,
     U8,
     Usize,
+    Integer(IntegerType),
     Borrow {
         is_readwrite: bool,
         inner: Type,
@@ -635,7 +664,12 @@ enum LocalKind {
 impl LocalKind {
     fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
+            Self::I32
+            | Self::U8
+            | Self::Usize
+            | Self::Integer(_)
+            | Self::Borrow { .. }
+            | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
             Self::Aggregate { .. } | Self::Outcome(_) => 0,

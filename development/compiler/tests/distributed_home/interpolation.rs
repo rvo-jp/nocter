@@ -41,9 +41,17 @@ func main(): i32! {
     let existing = String "owned"
     let byte: u8 = 255
     let word: usize = 18446744073709551615
+    let i8_min: i8 = -128
+    let i16_min: i16 = -32768
+    let i64_min: i64 = -9223372036854775808
+    let signed_size: isize = -9
+    let u16_max: u16 = 65535
+    let u32_max: u32 = 4294967295
+    let u64_max: u64 = 18446744073709551615
     let text = """
         escaped \"line\"\n${marked("A", -2147483648)?}/${marked("B", 0)?}/${marked("C", 2147483647)?}
         ${byte}/${word}/${false}/${existing}/${temporary()}
+        ${i8_min}/${i16_min}/${i64_min}/${signed_size}/${u16_max}/${u32_max}/${u64_max}
         """
     print((&text as &str))?
     if (&existing as &str) != "owned" {
@@ -64,7 +72,7 @@ func main(): i32! {
     );
     assert_eq!(
         text(&output.stdout),
-        "ABCescaped \"line\"\n-2147483648/0/2147483647\n255/18446744073709551615/false/owned/temporary 7"
+        "ABCescaped \"line\"\n-2147483648/0/2147483647\n255/18446744073709551615/false/owned/temporary 7\n-128/-32768/-9223372036854775808/-9/65535/4294967295/18446744073709551615"
     );
     assert!(output.stderr.is_empty());
 }

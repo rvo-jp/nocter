@@ -408,6 +408,18 @@ pub(in crate::ir::lower::expressions) fn lower_i32_conversion_expression_to_valu
                 value: I32Value::U8ZeroExtend(Box::new(value.value)),
             })
         }
+        Some(Type::Integer(kind)) => {
+            let value = lower_integer_expression_to_value(
+                &conversion.expression,
+                kind,
+                context,
+                temporaries,
+            )?;
+            Ok(LoweredI32Value {
+                instructions: value.instructions,
+                value: I32Value::IntegerWord(Box::new(value.value)),
+            })
+        }
         _ => Err(unsupported_i32_expression_diagnostic()),
     }
 }
@@ -428,6 +440,9 @@ pub(in crate::ir::lower::expressions) fn lower_usize_conversion_expression_to_va
                 value: UsizeValue::U8ZeroExtend(Box::new(value.value)),
             })
         }
+        Some(Type::Integer(kind)) => {
+            lower_integer_expression_to_value(&conversion.expression, kind, context, temporaries)
+        }
         _ => Err(unsupported_usize_expression_diagnostic()),
     }
 }
@@ -436,11 +451,34 @@ fn conversion_source_type(
     conversion: &TypeConversionExpr,
     context: &LoweringContext,
 ) -> Option<Type> {
-    let source_ty = context.expression_type_expr(conversion.expression.span())?;
-    let (_root_source, resolved) = context.resolved_calls()?;
-    scalar_or_view_type_from_type_expr_with_resolver(&source_ty, resolved, |source| {
-        context.resolved_source(source)
-    })
+    let source_ty = context
+        .conversion_plan(conversion.span)
+        .map(|plan| plan.source_ty)
+        .or_else(|| context.expression_type_expr(conversion.expression.span()));
+    source_ty
+        .as_ref()
+        .and_then(|ty| context.ir_type_for_type_expr(ty))
+        .or_else(|| expression_integer_type(&conversion.expression, context).map(integer_ir_type))
+}
+
+fn integer_ir_type(kind: IntegerType) -> Type {
+    match kind {
+        IntegerType::I32 => Type::I32,
+        IntegerType::U8 => Type::U8,
+        IntegerType::Usize => Type::Usize,
+        kind => Type::Integer(kind),
+    }
+}
+
+fn conversion_target_type(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+) -> Option<Type> {
+    let target_ty = context
+        .conversion_plan(conversion.span)
+        .map(|plan| plan.target_ty)
+        .unwrap_or_else(|| conversion.ty.clone());
+    context.ir_type_for_type_expr(&target_ty)
 }
 
 pub(in crate::ir::lower::expressions) fn type_conversion_target_is(
@@ -448,10 +486,17 @@ pub(in crate::ir::lower::expressions) fn type_conversion_target_is(
     context: &LoweringContext,
     expected: Type,
 ) -> bool {
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return false;
-    };
-    scalar_or_view_type_from_type_expr(&conversion.ty, resolved) == Some(expected)
+    conversion_target_type(conversion, context) == Some(expected)
+}
+
+pub(in crate::ir::lower::expressions) fn type_conversion_target_integer_type(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+) -> Option<IntegerType> {
+    match conversion_target_type(conversion, context)? {
+        Type::Integer(kind) => Some(kind),
+        _ => None,
+    }
 }
 
 pub(in crate::ir::lower::expressions) fn lower_usize_binary_expression_to_location(
@@ -478,13 +523,49 @@ pub(in crate::ir::lower::expressions) fn lower_usize_binary_expression_to_locati
     let right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
-    instructions.push(usize_binary_instruction(
-        binary.operator,
-        destination,
-        left.value,
-        right.value,
-    )?);
+    if let Some(kind) = binary_integer_type(binary, context).filter(|kind| !kind.legacy_ir_type()) {
+        instructions.push(integer_binary_instruction(
+            kind,
+            binary.operator,
+            destination,
+            left.value,
+            right.value,
+        )?);
+    } else {
+        instructions.push(usize_binary_instruction(
+            binary.operator,
+            destination,
+            left.value,
+            right.value,
+        )?);
+    }
     Ok(instructions)
+}
+
+fn integer_binary_instruction(
+    kind: IntegerType,
+    operator: BinaryOperator,
+    destination: UsizeLocation,
+    left: UsizeValue,
+    right: UsizeValue,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let operator = match operator {
+        BinaryOperator::Add => IntegerBinaryOperator::Add,
+        BinaryOperator::Subtract => IntegerBinaryOperator::Subtract,
+        BinaryOperator::Multiply => IntegerBinaryOperator::Multiply,
+        BinaryOperator::Divide => IntegerBinaryOperator::Divide,
+        BinaryOperator::Remainder => IntegerBinaryOperator::Remainder,
+        BinaryOperator::ShiftLeft => IntegerBinaryOperator::ShiftLeft,
+        BinaryOperator::ShiftRight => IntegerBinaryOperator::ShiftRight,
+        _ => return Err(unsupported_usize_expression_diagnostic()),
+    };
+    Ok(Instruction::IntegerBinary {
+        kind,
+        operator,
+        destination,
+        left,
+        right,
+    })
 }
 
 pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
@@ -651,6 +732,28 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
         Expr::Match(statement) => {
             lower_usize_match_expression_to_value(statement, context, temporaries)
         }
+        Expr::Unary(unary)
+            if unary.operator == UnaryOperator::Negate
+                && expression_integer_type(expression, context)
+                    .is_some_and(|kind| !kind.legacy_ir_type()) =>
+        {
+            let kind = expression_integer_type(expression, context)
+                .ok_or_else(unsupported_usize_expression_diagnostic)?;
+            let mut operand =
+                lower_integer_expression_to_value(&unary.operand, kind, context, temporaries)?;
+            let destination = temporaries.next_usize()?;
+            operand.instructions.push(Instruction::IntegerBinary {
+                kind,
+                operator: IntegerBinaryOperator::Subtract,
+                destination,
+                left: UsizeValue::Const(0),
+                right: operand.value,
+            });
+            Ok(LoweredUsizeValue {
+                instructions: operand.instructions,
+                value: UsizeValue::Location(destination),
+            })
+        }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -668,6 +771,41 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
             if type_conversion_target_is(conversion, context, Type::Usize) =>
         {
             lower_usize_conversion_expression_to_value(conversion, context, temporaries)
+        }
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_integer_type(conversion, context).is_some() =>
+        {
+            match conversion_source_type(conversion, context) {
+                Some(Type::Integer(kind)) => lower_integer_expression_to_value(
+                    &conversion.expression,
+                    kind,
+                    context,
+                    temporaries,
+                ),
+                Some(Type::U8) => {
+                    let value =
+                        lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
+                    Ok(LoweredUsizeValue {
+                        instructions: value.instructions,
+                        value: UsizeValue::U8ZeroExtend(Box::new(value.value)),
+                    })
+                }
+                Some(Type::Usize) => {
+                    lower_usize_expression_to_value(&conversion.expression, context, temporaries)
+                }
+                Some(Type::I32) => {
+                    let value = lower_i32_expression_to_value(
+                        &conversion.expression,
+                        context,
+                        temporaries,
+                    )?;
+                    Ok(LoweredUsizeValue {
+                        instructions: value.instructions,
+                        value: UsizeValue::I32SignExtend(Box::new(value.value)),
+                    })
+                }
+                _ => Err(unsupported_usize_expression_diagnostic()),
+            }
         }
         Expr::Member(_) => {
             let temporary = temporaries.next_usize()?;
@@ -689,6 +827,30 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
             value: lower_usize_value(expression, context)?,
         }),
     }
+}
+
+pub(in crate::ir::lower) fn lower_integer_expression_to_value(
+    expression: &Expr,
+    kind: IntegerType,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    let is_literal = matches!(expression, Expr::IntegerLiteral(_) | Expr::ByteLiteral(_))
+        || matches!(
+            expression,
+            Expr::Unary(UnaryExpr {
+                operator: UnaryOperator::Negate,
+                operand,
+                ..
+            }) if expression_is_unsigned_integer_literal(operand)
+        );
+    if is_literal {
+        return lower_integer_literal_word(expression, kind).map(|value| LoweredUsizeValue {
+            instructions: Vec::new(),
+            value: UsizeValue::Const(value),
+        });
+    }
+    lower_usize_expression_to_value(expression, context, temporaries)
 }
 
 pub(in crate::ir::lower::expressions) fn i32_binary_instruction(

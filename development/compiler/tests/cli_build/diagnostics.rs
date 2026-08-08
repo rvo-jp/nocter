@@ -912,7 +912,7 @@ func unused(): i32 {
 }
 
 #[test]
-fn build_command_reports_unsupported_u64_range_for_before_ir_lowering() {
+fn build_command_supports_u64_range_for() {
     let project = TempProject::new("cli-build-u64-range-for-boundary");
     let source = project.write_source(
         "u64_range_for_boundary.nct",
@@ -933,32 +933,12 @@ func helper(limit: u64): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("range `for` loops outside i32/usize bounds"),
-        "expected range for diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     for value in 0..<limit {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_scalar_local_binding_before_ir_lowering() {
+fn build_command_supports_native_integer_local_bindings() {
     let project = TempProject::new("cli-build-unsupported-scalar-local-boundary");
     let source = project.write_source(
         "unsupported_scalar_local_boundary.nct",
@@ -972,37 +952,13 @@ fn build_command_reports_unsupported_scalar_local_binding_before_ir_lowering() {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("local bindings with unsupported value types"),
-        "expected local binding diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("2 |     let explicit: u16 = 1"),
-        "expected explicit binding source line, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("3 |     let inferred = 1 as u16"),
-        "expected inferred binding source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_imported_alias_storage_only_computation_before_ir_lowering() {
+fn build_command_supports_computation_through_imported_integer_aliases() {
     let project = TempProject::new("cli-build-storage-only-scalar-computation");
     project.write_source("stored.nct", "pub type Stored = u16\n");
     let source = project.write_source(
@@ -1020,30 +976,13 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(stderr.matches("error[E0435]").count(), 2, "{stderr}");
-    assert!(
-        stderr.contains("operations on storage-only scalar values"),
-        "expected operation diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("conversions from computed storage-only scalar values"),
-        "expected conversion diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_computed_value_converted_to_storage_only_field_before_ir_lowering() {
+fn build_command_supports_computed_native_integer_fields() {
     let project = TempProject::new("cli-build-computed-storage-only-field");
     let source = project.write_source(
         "computed_storage_only_field.nct",
@@ -1064,30 +1003,13 @@ func runtime_value(): usize {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("computed values converted to storage-only scalar types"),
-        "expected storage-only conversion diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     let stored = Stored { value: (runtime_value() + 1) as u64 }"),
-        "expected source-backed conversion diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_imported_nested_alias_unsupported_scalar_local_binding_before_ir_lowering()
-{
+fn build_command_supports_imported_nested_alias_integer_locals() {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-local");
     project.write_source(
         "scalar_aliases.nct",
@@ -1108,29 +1030,9 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("local bindings with unsupported value types"),
-        "expected local binding diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let explicit: Wide = 1"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -1275,7 +1177,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_unsupported_scalar_function_signature_before_ir_lowering() {
+fn build_command_supports_native_integer_function_signatures() {
     let project = TempProject::new("cli-build-unsupported-scalar-signature-boundary");
     let source = project.write_source(
         "unsupported_scalar_signature_boundary.nct",
@@ -1295,41 +1197,13 @@ func value(): u16 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("function or method parameters outside the supported runtime ABI"),
-        "expected parameter diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("function return types outside the supported runtime ABI"),
-        "expected return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 | func take(amount: u16): void {"),
-        "expected parameter source line, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("9 | func value(): u16 {"),
-        "expected return source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_scalar_field_member_before_ir_lowering() {
+fn build_command_supports_native_integer_field_members() {
     let project = TempProject::new("cli-build-unsupported-scalar-field-member-boundary");
     let source = project.write_source(
         "unsupported_scalar_field_member_boundary.nct",
@@ -1346,34 +1220,13 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("field member values outside supported scalar/view or aggregate types"),
-        "expected field member diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     return header.code as i32"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_imported_nested_alias_unsupported_scalar_field_member_before_ir_lowering()
-{
+fn build_command_supports_imported_nested_alias_integer_field_members() {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-field");
     project.write_source(
         "header_api.nct",
@@ -1398,29 +1251,9 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("field member values outside supported scalar/view or aggregate types"),
-        "expected field member diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 |     return header.code as i32"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

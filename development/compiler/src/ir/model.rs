@@ -1,4 +1,5 @@
 use crate::abi::{ReturnPassing, ValueLayout};
+use crate::integer::IntegerType;
 use crate::outcomes::OutcomeLayer;
 use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::source::SourceId;
@@ -140,6 +141,21 @@ pub(crate) enum Instruction {
         offset: u32,
         value: UsizeValue,
     },
+    StoreAggregateInteger {
+        kind: IntegerType,
+        destination: AggregateLocation,
+        offset: u32,
+        value: UsizeValue,
+    },
+    StoreAggregateIntegerIndexed {
+        kind: IntegerType,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+        value: UsizeValue,
+    },
     StoreAggregateUsizeIndexed {
         destination: AggregateLocation,
         base_offset: u32,
@@ -207,6 +223,21 @@ pub(crate) enum Instruction {
         destination: UsizeLocation,
         source: AggregateLocation,
         offset: u32,
+    },
+    LoadAggregateInteger {
+        kind: IntegerType,
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    LoadAggregateIntegerIndexed {
+        kind: IntegerType,
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
     },
     LoadAggregateUsizeIndexed {
         destination: UsizeLocation,
@@ -326,6 +357,12 @@ pub(crate) enum Instruction {
         pointer: UsizeValue,
         offset: UsizeValue,
     },
+    LoadIntegerFromPointer {
+        kind: IntegerType,
+        destination: UsizeLocation,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
     LoadBoolFromPointer {
         destination: BoolLocation,
         pointer: UsizeValue,
@@ -351,6 +388,12 @@ pub(crate) enum Instruction {
         offset: UsizeValue,
         value: UsizeValue,
     },
+    StoreIntegerToPointer {
+        kind: IntegerType,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: UsizeValue,
+    },
     StoreBoolToPointer {
         pointer: UsizeValue,
         offset: UsizeValue,
@@ -372,6 +415,12 @@ pub(crate) enum Instruction {
         value: I32Value,
     },
     StoreUsizeToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: UsizeValue,
+    },
+    StoreIntegerToSliceIndex {
+        kind: IntegerType,
         destination: SliceLocation,
         index: UsizeValue,
         value: UsizeValue,
@@ -487,6 +536,13 @@ pub(crate) enum Instruction {
         right: UsizeValue,
     },
     ShiftRightUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    IntegerBinary {
+        kind: IntegerType,
+        operator: IntegerBinaryOperator,
         destination: UsizeLocation,
         left: UsizeValue,
         right: UsizeValue,
@@ -709,6 +765,10 @@ pub(crate) enum ComposedOutcomeDestination {
     I32(I32Location),
     U8(U8Location),
     Usize(UsizeLocation),
+    Integer {
+        kind: IntegerType,
+        destination: UsizeLocation,
+    },
     Borrow(UsizeLocation),
     Bool(BoolLocation),
     Str(StrLocation),
@@ -737,6 +797,7 @@ pub(crate) enum I32Value {
     Const(i32),
     Location(I32Location),
     U8ZeroExtend(Box<U8Value>),
+    IntegerWord(Box<UsizeValue>),
     SliceIndex {
         source: SliceLocation,
         index: UsizeValue,
@@ -784,11 +845,17 @@ pub(crate) enum UsizeValue {
     CurrentAllocationState,
     CurrentAllocationKind,
     U8ZeroExtend(Box<U8Value>),
+    I32SignExtend(Box<I32Value>),
     StrPointer(StrLocation),
     SlicePointer(SliceLocation),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
     SliceIndex {
+        source: SliceLocation,
+        index: Box<UsizeValue>,
+    },
+    IntegerSliceIndex {
+        kind: IntegerType,
         source: SliceLocation,
         index: Box<UsizeValue>,
     },
@@ -879,6 +946,7 @@ pub(crate) enum SliceElementAddressKind {
     U8,
     I32,
     Usize,
+    Integer(IntegerType),
     Bool,
     Str,
     Aggregate { stride: u32 },
@@ -960,6 +1028,12 @@ pub(crate) enum BoolValue {
         left: UsizeValue,
         right: UsizeValue,
     },
+    IntegerComparison {
+        kind: IntegerType,
+        operator: I32ComparisonOperator,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
     StrComparison {
         operator: BoolComparisonOperator,
         left: StrValue,
@@ -989,6 +1063,17 @@ pub(crate) enum I32ComparisonOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IntegerBinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+    ShiftLeft,
+    ShiftRight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoolComparisonOperator {
     Equal,
     NotEqual,
@@ -999,6 +1084,7 @@ pub(crate) enum Type {
     I32,
     U8,
     Usize,
+    Integer(IntegerType),
     Bool,
     Str,
     Slice {
@@ -1062,6 +1148,7 @@ impl Type {
             Self::I32
             | Self::U8
             | Self::Usize
+            | Self::Integer(_)
             | Self::Bool
             | Self::Str
             | Self::Slice { .. }
@@ -1076,7 +1163,7 @@ impl Type {
 
     pub(crate) fn success_return_passing(&self) -> Option<ReturnPassing> {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => {
+            Self::I32 | Self::U8 | Self::Usize | Self::Integer(_) | Self::Bool => {
                 Some(ReturnPassing::Direct { words: 1 })
             }
             Self::Str | Self::Slice { .. } => Some(ReturnPassing::Direct { words: 2 }),

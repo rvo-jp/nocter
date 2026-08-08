@@ -32,6 +32,7 @@ impl LoweringContext<'_> {
             crate::ir::Type::I32 => TypecheckSliceElementKind::I32,
             crate::ir::Type::U8 => TypecheckSliceElementKind::U8,
             crate::ir::Type::Usize => TypecheckSliceElementKind::Usize,
+            crate::ir::Type::Integer(kind) => TypecheckSliceElementKind::Integer(kind),
             crate::ir::Type::Bool => TypecheckSliceElementKind::Bool,
             crate::ir::Type::Str => TypecheckSliceElementKind::Str,
             _ => TypecheckSliceElementKind::Other,

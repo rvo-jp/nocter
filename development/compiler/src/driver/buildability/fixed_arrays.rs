@@ -1149,10 +1149,7 @@ pub(super) fn fixed_array_type_abi_for_sources(
 }
 
 pub(super) fn fixed_array_element_abi_is_buildable(element: &AbiType) -> bool {
-    matches!(
-        element,
-        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
-    )
+    element.integer_type().is_some() || matches!(element, AbiType::Bool | AbiType::StrView)
 }
 
 pub(super) fn fixed_array_index_compound_assignment_is_buildable(
@@ -1171,7 +1168,7 @@ pub(super) fn fixed_array_index_compound_assignment_is_buildable(
     ) else {
         return false;
     };
-    layout.size > 0 && matches!(element, AbiType::I32 | AbiType::U8 | AbiType::Usize)
+    layout.size > 0 && element.integer_type().is_some()
 }
 
 pub(super) fn fixed_array_index_assignment_target_is_buildable(

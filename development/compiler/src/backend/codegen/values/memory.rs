@@ -195,6 +195,24 @@ impl EntryEmitter {
         self.emit_x_to_usize_location(register, destination)
     }
 
+    pub(in crate::backend::codegen) fn emit_load_integer_from_pointer(
+        &mut self,
+        kind: IntegerType,
+        destination: UsizeLocation,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X8)?;
+        let byte_count = kind.bit_width() / 8;
+        emit_integer_load_from_base(&mut self.encoder, byte_count, XReg::X8, 0);
+        if kind.is_signed() && byte_count < AGGREGATE_USIZE_STORE_BYTES {
+            let shift = (AGGREGATE_USIZE_STORE_BYTES - byte_count) * 8;
+            self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+            self.encoder.emit_asr_x_imm(XReg::X16, XReg::X16, shift);
+        }
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
     pub(in crate::backend::codegen) fn emit_load_bool_from_pointer(
         &mut self,
         destination: BoolLocation,
@@ -451,6 +469,30 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(in crate::backend::codegen) fn emit_store_integer_to_pointer(
+        &mut self,
+        kind: IntegerType,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer integer store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_usize_value_to_x(value, XReg::X16)?;
+        emit_integer_store_to_base(&mut self.encoder, kind.bit_width() / 8, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
     pub(in crate::backend::codegen) fn emit_store_bool_to_pointer(
         &mut self,
         pointer: &UsizeValue,
@@ -559,6 +601,61 @@ impl EntryEmitter {
         self.emit_checked_slice_store_address(destination, index, 3)?;
         self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0);
         self.emit_scalar_reloads(frame)
+    }
+
+    pub(in crate::backend::codegen) fn emit_store_integer_to_slice_index(
+        &mut self,
+        kind: IntegerType,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice integer index store emission requires a stack frame",
+            )]);
+        };
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(value, XReg::X2)?;
+        self.emit_checked_slice_store_address(
+            destination,
+            index,
+            kind.bit_width().trailing_zeros() - 3,
+        )?;
+        match kind.bit_width() / 8 {
+            1 => self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0),
+            2 => self.encoder.emit_strh_w_imm(WReg::W2, XReg::X0, 0),
+            4 => self.encoder.emit_str_w_imm(WReg::W2, XReg::X0, 0),
+            8 => self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0),
+            _ => unreachable!("builtin integer width"),
+        }
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(in crate::backend::codegen) fn emit_checked_integer_slice_load(
+        &mut self,
+        kind: IntegerType,
+        source: SliceLocation,
+        index: &UsizeValue,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_checked_slice_store_address(
+            source,
+            index,
+            kind.bit_width().trailing_zeros() - 3,
+        )?;
+        emit_integer_load_from_base(&mut self.encoder, kind.bit_width() / 8, XReg::X0, 0);
+        if kind.is_signed() && kind.bit_width() < 64 {
+            let shift = 64 - kind.bit_width();
+            self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+            self.encoder.emit_asr_x_imm(XReg::X16, XReg::X16, shift);
+        }
+        if destination != XReg::X16 {
+            self.encoder.emit_mov_x(destination, XReg::X16);
+        }
+        Ok(())
     }
 
     pub(in crate::backend::codegen) fn emit_store_bool_to_slice_index(

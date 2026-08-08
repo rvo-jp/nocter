@@ -363,6 +363,20 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
             context,
             usize_destination_reserved_abi_words(destination),
         ),
+        Expr::Unary(unary)
+            if unary.operator == UnaryOperator::Negate
+                && expression_integer_type(expression, context)
+                    .is_some_and(|kind| !kind.legacy_ir_type()) =>
+        {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered = lower_usize_expression_to_value(expression, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
         }
@@ -382,6 +396,18 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered =
                 lower_usize_conversion_expression_to_value(conversion, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_integer_type(conversion, context).is_some() =>
+        {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered = lower_usize_expression_to_value(expression, context, &mut temporaries)?;
             let mut instructions = lowered.instructions;
             instructions.push(Instruction::SetUsize {
                 destination,
@@ -494,8 +520,60 @@ pub(in crate::ir::lower) fn lower_usize_value(
             lower_usize_value(&unary.operand, context)
         }
         Expr::Group(group) => lower_usize_value(&group.expression, context),
-        _ => lower_usize_literal(expression).map(UsizeValue::Const),
+        _ => expression_integer_type(expression, context)
+            .filter(|kind| !kind.legacy_ir_type())
+            .map_or_else(
+                || lower_usize_literal(expression),
+                |kind| lower_integer_literal_word(expression, kind),
+            )
+            .map(UsizeValue::Const),
     }
+}
+
+pub(in crate::ir::lower::expressions) fn expression_integer_type(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<IntegerType> {
+    if let Some(kind) = context
+        .expression_type_expr(expression.span())
+        .and_then(|ty| {
+            let (_root_source, resolved) = context.resolved_calls()?;
+            abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            })
+            .ok()
+        })
+        .and_then(|value| value.ty.integer_type())
+    {
+        return Some(kind);
+    }
+
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => context.integer_kind(&identifier.name),
+        Expr::Member(member) => aggregate_member_field_kind_from_member(member, context)
+            .ok()
+            .flatten()
+            .and_then(|field| field.integer_type()),
+        _ => None,
+    }
+}
+
+/// Returns the common integer kind of a checked binary expression.
+///
+/// Integer literals may retain their default `i32` fact even when the other
+/// operand supplies a wider contextual type. Prefer a non-legacy operand kind
+/// so lowering does not accidentally select a legacy carrier operation.
+pub(in crate::ir::lower::expressions) fn binary_integer_type(
+    binary: &crate::ast::BinaryExpr,
+    context: &LoweringContext,
+) -> Option<IntegerType> {
+    let left = expression_integer_type(&binary.left, context);
+    let right = expression_integer_type(&binary.right, context);
+    left.into_iter()
+        .chain(right)
+        .find(|kind| !kind.legacy_ir_type())
+        .or(left)
+        .or(right)
 }
 
 pub(in crate::ir::lower) fn lower_usize_expression_to_word(

@@ -197,6 +197,59 @@ func read(value: &String): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_preserves_nonlegacy_integer_widths() {
+    let project = TempProject::new("distributed-home-vec-integer-widths-run");
+    let source = project.write_source(
+        "vec_integer_widths_run.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var unsigned: Vec<u16> = Vec [10 as u16, 20 as u16]
+    unsigned.push(12)
+    let first: u16 = unsigned.remove(0) otherwise { return 1 }
+    let second: u16 = unsigned.remove(0) otherwise { return 2 }
+    let third: u16 = unsigned.remove(0) otherwise { return 3 }
+    if first != 10 || second != 20 || third != 12 {
+        return 4
+    }
+
+    var signed: Vec<i16> = Vec [-3 as i16, -2 as i16]
+    let signed_view = &+signed as &+[i16]
+    signed_view[0] += 1
+    if signed_view[0] != -2 {
+        return 5
+    }
+    let negative: i16 = signed.remove(0) otherwise { return 5 }
+    if negative != -2 {
+        return 6
+    }
+    let iterated: Vec<i16> = Vec [20 as i16, 22 as i16]
+    var total: i16 = 0
+    for item in move iterated {
+        total += item
+    }
+    if total != 42 {
+        return 7
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_try_insert_bounds_failure_preserves_the_vector() {
     let project = TempProject::new("distributed-home-vec-insert-bounds-run");
     let source = project.write_source(

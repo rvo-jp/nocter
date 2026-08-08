@@ -17,9 +17,9 @@ pub(super) struct LoweredU8Value {
     pub(super) value: U8Value,
 }
 
-pub(super) struct LoweredUsizeValue {
-    pub(super) instructions: Vec<Instruction>,
-    pub(super) value: UsizeValue,
+pub(in crate::ir::lower) struct LoweredUsizeValue {
+    pub(in crate::ir::lower) instructions: Vec<Instruction>,
+    pub(in crate::ir::lower) value: UsizeValue,
 }
 
 pub(in crate::ir::lower) struct LoweredStrValue {

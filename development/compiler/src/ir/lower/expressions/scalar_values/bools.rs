@@ -166,6 +166,33 @@ pub(in crate::ir::lower::expressions) fn lower_usize_comparison_to_value_with_te
     })
 }
 
+pub(in crate::ir::lower::expressions) fn lower_integer_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let kind = binary_integer_type(binary, context)
+        .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code))?;
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
+    let left = lower_integer_expression_to_value(&binary.left, kind, context, temporaries)?;
+    let left = stabilize_usize_comparison_operand(left, temporaries)?;
+    let right = lower_integer_expression_to_value(&binary.right, kind, context, temporaries)?;
+    let right = stabilize_usize_comparison_operand(right, temporaries)?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::IntegerComparison {
+            kind,
+            operator,
+            left: left.value,
+            right: right.value,
+        },
+    })
+}
+
 pub(in crate::ir::lower::expressions) fn lower_u8_comparison_to_value_with_temporaries(
     binary: &BinaryExpr,
     context: &LoweringContext,

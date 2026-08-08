@@ -50,9 +50,34 @@ pub(super) fn lower_usize_local_binding(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let destination = context.next_usize_local_location()?;
-    let instructions =
-        lower_usize_expression_to_location(&statement.initializer, destination, context)?;
-    context.define_usize_local(statement.name.clone());
+    let integer_kind = context
+        .binding_type_expr(statement.name_span)
+        .and_then(|ty| context.ir_type_for_type_expr(&ty))
+        .and_then(|ty| match ty {
+            Type::Integer(kind) => Some(kind),
+            _ => None,
+        });
+    let instructions = if let Some(kind) = integer_kind {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let mut lowered = lower_integer_expression_to_value(
+            &statement.initializer,
+            kind,
+            context,
+            &mut temporaries,
+        )?;
+        lowered.instructions.push(Instruction::SetUsize {
+            destination,
+            value: lowered.value,
+        });
+        lowered.instructions
+    } else {
+        lower_usize_expression_to_location(&statement.initializer, destination, context)?
+    };
+    if let Some(kind) = integer_kind {
+        context.define_integer_local(statement.name.clone(), kind);
+    } else {
+        context.define_usize_local(statement.name.clone());
+    }
     Ok(instructions)
 }
 
@@ -129,16 +154,12 @@ pub(super) fn scalar_binding_kind(
 ) -> Result<ScalarBindingKind, Vec<Diagnostic>> {
     match &statement.ty {
         Some(ty) => {
-            let Some((_root_source, resolved)) = context.resolved_calls() else {
-                return Err(unsupported_binding_diagnostic(
-                    "native lowering cannot lower annotated local bindings without resolved type information",
-                ));
-            };
             let ty = context.specialize_type_expr(ty);
-            match parameter_type_from_type_expr_with_resolver(&ty, resolved, |_| Some(resolved)) {
+            match context.ir_type_for_type_expr(&ty) {
                 Some(Type::I32) => Ok(ScalarBindingKind::I32),
                 Some(Type::U8) => Ok(ScalarBindingKind::U8),
                 Some(Type::Usize) => Ok(ScalarBindingKind::Usize),
+                Some(Type::Integer(_)) => Ok(ScalarBindingKind::Usize),
                 Some(Type::Bool) => Ok(ScalarBindingKind::Bool),
                 Some(Type::Str) => Ok(ScalarBindingKind::Str),
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice(
@@ -325,6 +346,7 @@ pub(super) fn scalar_binding_kind_from_type(ty: &Type) -> Option<ScalarBindingKi
         Type::I32 => Some(ScalarBindingKind::I32),
         Type::U8 => Some(ScalarBindingKind::U8),
         Type::Usize => Some(ScalarBindingKind::Usize),
+        Type::Integer(_) => Some(ScalarBindingKind::Usize),
         Type::Bool => Some(ScalarBindingKind::Bool),
         Type::Str => Some(ScalarBindingKind::Str),
         Type::Slice { .. } => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
