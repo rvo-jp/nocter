@@ -279,7 +279,7 @@ func make_pair(): Pair {
     );
     let library_ast = parse_source(
         &mut sources,
-        "std/box.nct",
+        "std/box/index.nct",
         r#"struct Box<T> {
 value: T
 }
@@ -339,7 +339,7 @@ fn source_aware_abi_resolves_qualified_type_name_in_declaring_source() {
     let mut sources = SourceMap::new();
     let library_ast = parse_source(
         &mut sources,
-        "std/os.nct",
+        "std/os/index.nct",
         r#"copy struct SyscallResult {
 value: usize
 errno: i32

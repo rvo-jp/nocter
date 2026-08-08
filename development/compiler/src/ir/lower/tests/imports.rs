@@ -81,7 +81,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/math.nct",
+            "std/math/index.nct",
             r#"pub func answer(): i32 {
     return 42
 }
@@ -146,7 +146,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/point.nct",
+            "std/point/index.nct",
             r#"pub struct Point {
     x: i32
 }
@@ -218,7 +218,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/flags.nct",
+            "std/flags/index.nct",
             r#"pub func ready(): bool {
     return true
 }
@@ -286,7 +286,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/math.nct",
+            "std/math/index.nct",
             r#"pub func answer(): i32 {
     return 42
 }
@@ -338,7 +338,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/math.nct",
+            "std/math/index.nct",
             r#"pub func answer(): i32 {
     return 42
 }
@@ -384,7 +384,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/math.nct",
+            "std/math/index.nct",
             r#"pub func answer(): i32 {
     return 42
 }
@@ -424,7 +424,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/math.nct",
+            "std/math/index.nct",
             r#"pub func answer(): i32 {
     return 42
 }

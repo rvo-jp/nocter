@@ -452,7 +452,7 @@ func main(): i32 {
 fn sequence_spread_pack_length_is_cached_before_consumption() {
     let project = TempProject::new("distributed-home-sequence-spread-cached-length-run");
     let source = project.write_source(
-        "sequence_spread_cached_length.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 struct Count {
@@ -655,7 +655,7 @@ func main(): i32 {
 fn typed_literal_body_exit_drops_unconsumed_elements_in_reverse_order() {
     let project = TempProject::new("distributed-home-typed-literal-pack-drop-run");
     let source = project.write_source(
-        "typed_literal_pack_drop.nct",
+        "index.nct",
         r#"use std/io.print
 
 struct Token {
@@ -703,7 +703,7 @@ func main(): i32 {
 fn typed_literal_allocation_failure_uses_stable_aborting_status() {
     let project = TempProject::new("distributed-home-typed-literal-allocation-abort-run");
     let source = project.write_source(
-        "typed_literal_allocation_abort.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 struct Exhausted {
@@ -807,7 +807,7 @@ fn typed_literal_region_release_unmaps_literal_owned_storage() {
     let project = TempProject::new("distributed-home-typed-literal-region-unmap-run");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
-    let vec_module = home.join("std/vec.nct");
+    let vec_module = home.join("std/vec/index.nct");
     let vec_source = fs::read_to_string(&vec_module).unwrap();
     fs::write(
         &vec_module,
@@ -816,8 +816,9 @@ fn typed_literal_region_release_unmaps_literal_owned_storage() {
         ),
     )
     .unwrap();
+    fs::create_dir_all(home.join("std/literal_region_probe")).unwrap();
     fs::write(
-        home.join("std/literal_region_probe.nct"),
+        home.join("std/literal_region_probe/index.nct"),
         r#"use std/os.syscall3
 
 pub func is_mapped(address: usize): bool {
@@ -876,8 +877,9 @@ fn typed_literal_failure_restores_region_allocator_before_outer_drop() {
     let project = TempProject::new("distributed-home-literal-override-drop-context-run");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
+    fs::create_dir_all(home.join("std/allocation_context_probe")).unwrap();
     fs::write(
-        home.join("std/allocation_context_probe.nct"),
+        home.join("std/allocation_context_probe/index.nct"),
         r#"use std/mem.current_allocator_kind
 use std/process.exit_raw
 
@@ -891,7 +893,7 @@ pub func assert_region_allocator(): void {
     )
     .unwrap();
     let source = project.write_source(
-        "literal_override_drop_context.nct",
+        "index.nct",
         r#"use std/allocation_context_probe.assert_region_allocator
 use std/mem.page_allocator
 
@@ -956,7 +958,7 @@ func main(): i32 {
 fn sequence_spread_early_literal_exit_drops_owned_suffix_once() {
     let project = TempProject::new("distributed-home-sequence-spread-drop-run");
     let source = project.write_source(
-        "sequence_spread_drop.nct",
+        "index.nct",
         r#"use std/io.print
 use std/vec.Vec
 

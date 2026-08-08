@@ -4,7 +4,7 @@ use super::*;
 fn build_command_lowers_imported_usize_call_condition() {
     let project = TempProject::new("cli-build-imported-usize-condition");
     project.write_nocter_home_file(
-        "std/sizes.nct",
+        "std/sizes/index.nct",
         r#"pub func size(): usize {
     return 42
 }
@@ -36,7 +36,7 @@ func main(): i32 {
 fn build_command_lowers_imported_i32_call() {
     let project = TempProject::new("cli-build-imported-call");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func answer(): i32 {
     return 42
 }
@@ -66,7 +66,7 @@ func main(): i32 {
 fn build_command_lowers_imported_alias_i32_call() {
     let project = TempProject::new("cli-build-imported-alias-call");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func answer(): i32 {
     return 42
 }
@@ -152,7 +152,7 @@ func length(text: &Text): Exit {
 fn build_command_lowers_imported_bool_condition() {
     let project = TempProject::new("cli-build-imported-bool-condition");
     project.write_nocter_home_file(
-        "std/flags.nct",
+        "std/flags/index.nct",
         r#"pub func ready(): bool {
     return true
 }
@@ -185,7 +185,7 @@ func main(): i32 {
 fn build_command_lowers_imported_nested_argument() {
     let project = TempProject::new("cli-build-imported-nested-argument");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func base(): i32 {
     return 41
 }
@@ -219,7 +219,7 @@ func main(): i32 {
 fn build_command_lowers_value_control_with_imported_alias_context() {
     let project = TempProject::new("cli-build-imported-alias-value-control-context");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub type Count = i32
 
 pub func zero(): Count {
@@ -256,7 +256,7 @@ func main(): i32 {
 fn build_command_discards_imported_alias_scalar_call() {
     let project = TempProject::new("cli-build-discard-imported-alias-scalar-call");
     project.write_nocter_home_file(
-        "std/metrics.nct",
+        "std/metrics/index.nct",
         r#"pub type Count = i32
 
 pub func record(value: Count): Count {
@@ -288,7 +288,7 @@ func main(): i32 {
 fn build_command_lowers_loaded_imported_i32_range_for() {
     let project = TempProject::new("cli-build-imported-range-for");
     project.write_nocter_home_file(
-        "std/loops.nct",
+        "std/loops/index.nct",
         r#"pub func helper(): i32 {
     var total = 0
     for value in 0..<4 {

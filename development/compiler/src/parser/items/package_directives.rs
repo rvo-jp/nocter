@@ -22,11 +22,15 @@ impl Parser<'_> {
             span: self.span(start, manifest_end),
             directives,
         };
-        let root_module = self.parse_module_body()?;
+        if !self.at_eof() {
+            self.error_current(
+                "package files may contain package directives only; put Nocter code in `index.nct`",
+            );
+            return Err(());
+        }
         Ok(PackageFile {
-            span: self.span(start, root_module.span.end),
+            span: self.span(start, manifest_end),
             manifest,
-            root_module,
         })
     }
 

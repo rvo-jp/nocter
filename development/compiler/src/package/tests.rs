@@ -6,19 +6,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[test]
 fn loads_named_package_and_separate_executable_entry() {
     let root = temp_package("named");
-    fs::create_dir_all(root.join("src")).unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
         r#"#name: "json-tool"
 #version: "0.1.0"
 #executable: {
     name: "json-tool",
-    entry: "./src/app",
+    module: "./src/app",
 }
 "#,
     )
     .unwrap();
-    fs::write(root.join("src/app.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(root.join("src/app/index.nct"), "func main(): i32 { 0 }\n").unwrap();
 
     let load = load_package(&root);
     assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
@@ -29,28 +28,31 @@ fn loads_named_package_and_separate_executable_entry() {
     assert_eq!(package.executables()[0].name(), "json-tool");
     assert_eq!(package.executables()[0].id().package(), package.id());
     assert_eq!(package.executables()[0].id().name(), "json-tool");
-    let ModuleKey::Path(path) = package.executables()[0].entry().id().key() else {
+    let ModuleKey::Path(path) = package.executables()[0].module().id().key() else {
         panic!("separate executable entry must have a module path")
     };
     assert_eq!(path.as_str(), "./src/app");
     assert_eq!(
-        package.executables()[0].entry().source_path(),
-        package.root().join("src/app.nct")
+        package.executables()[0].module().source_path(),
+        package.root().join("src/app/index.nct")
     );
 }
 
 #[test]
 fn loads_explicit_test_targets_with_distinct_typed_identity() {
     let root = temp_package("test-target");
-    fs::create_dir_all(root.join("tests")).unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        r#"#executable: { name: "unit", entry: "./tests/unit" }
-#test: { name: "unit", entry: "./tests/unit" }
+        r#"#executable: { name: "unit", module: "./tests/unit" }
+#test: { name: "unit", module: "./tests/unit" }
 "#,
     )
     .unwrap();
-    fs::write(root.join("tests/unit.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(
+        root.join("tests/unit/index.nct"),
+        "func main(): i32 { 0 }\n",
+    )
+    .unwrap();
 
     let load = load_package(&root);
     assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
@@ -60,8 +62,8 @@ fn loads_explicit_test_targets_with_distinct_typed_identity() {
     assert_eq!(package.tests()[0].id().package(), package.id());
     assert_eq!(package.tests()[0].id().name(), "unit");
     assert_eq!(
-        package.tests()[0].entry().id(),
-        package.executables()[0].entry().id()
+        package.tests()[0].module().id(),
+        package.executables()[0].module().id()
     );
     assert_eq!(package.test("unit"), Some(&package.tests()[0]));
 }
@@ -69,11 +71,11 @@ fn loads_explicit_test_targets_with_distinct_typed_identity() {
 #[test]
 fn rejects_invalid_test_target_declarations() {
     let root = temp_package("invalid-test-targets");
-    fs::write(root.join("unit.nct"), "func main(): i32 { 0 }\n").unwrap();
-    fs::write(
+    crate::test_files::write(root.join("unit/index.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(
         root.join("nocter.nct"),
         r#"#test: { name: "missing-entry" }
-#test: { name: "unit", entry: "./unit", module: "legacy" }
+#test: { name: "unit", module: "./unit", entry: "legacy" }
 "#,
     )
     .unwrap();
@@ -83,13 +85,13 @@ fn rejects_invalid_test_target_declarations() {
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>();
-    assert!(messages.contains(&"missing required test field `entry`"));
-    assert!(messages.contains(&"unknown test field `module`"));
+    assert!(messages.contains(&"missing required test field `module`"));
+    assert!(messages.contains(&"unknown test field `entry`"));
 
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        r#"#test: { name: "unit", entry: "./unit" }
-#test: { name: "unit", entry: "./unit" }
+        r#"#test: { name: "unit", module: "./unit" }
+#test: { name: "unit", module: "./unit" }
 "#,
     )
     .unwrap();
@@ -104,7 +106,7 @@ fn rejects_invalid_test_target_declarations() {
 #[test]
 fn unnamed_package_uses_directory_only_as_display_name() {
     let root = temp_package("fallback-name");
-    fs::write(root.join("nocter.nct"), "").unwrap();
+    crate::test_files::write(root.join("nocter.nct"), "").unwrap();
     let package = load_package(&root).package.unwrap();
     assert_eq!(
         package.display_name(),
@@ -114,85 +116,84 @@ fn unnamed_package_uses_directory_only_as_display_name() {
 }
 
 #[test]
-fn omitted_entry_selects_the_package_root_module() {
+fn omitted_module_selects_the_package_root_module() {
     let root = temp_package("root-executable");
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
         r#"#executable: {
     name: "app",
 }
 
-func main(): i32 { 0 }
 "#,
     )
     .unwrap();
+    crate::test_files::write(root.join("index.nct"), "func main(): i32 { 0 }\n").unwrap();
     let package = load_package(&root).package.unwrap();
     assert_eq!(
-        package.executables()[0].entry().id().key(),
+        package.executables()[0].module().id().key(),
         &ModuleKey::PackageRoot
     );
     assert_eq!(
-        package.executables()[0].entry().source_path(),
-        package.package_file_path()
+        package.executables()[0].module().source_path(),
+        package.root_module().source_path()
     );
 }
 
 #[test]
-fn dot_entry_selects_the_root_index_module() {
+fn dot_module_selects_the_root_index_module() {
     let root = temp_package("root-index-entry");
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        "#executable: { name: \"app\", entry: \".\" }\n",
+        "#executable: { name: \"app\", module: \".\" }\n",
     )
     .unwrap();
-    fs::write(root.join("index.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(root.join("index.nct"), "func main(): i32 { 0 }\n").unwrap();
 
     let package = load_package(&root).package.unwrap();
-    let ModuleKey::Path(path) = package.executables()[0].entry().id().key() else {
+    let ModuleKey::Path(path) = package.executables()[0].module().id().key() else {
         panic!("index entry must have a module path")
     };
     assert_eq!(path.as_str(), ".");
     assert_eq!(
-        package.executables()[0].entry().source_path(),
+        package.executables()[0].module().source_path(),
         package.root().join("index.nct")
     );
 }
 
 #[test]
-fn equivalent_entry_spellings_share_one_module_identity() {
+fn equivalent_module_spellings_share_one_module_identity() {
     let root = temp_package("normalized-entry-identity");
-    fs::create_dir_all(root.join("src")).unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        r#"#executable: { name: "first", entry: "./src/app" }
-#executable: { name: "second", entry: "./src//app" }
+        r#"#executable: { name: "first", module: "./src/app" }
+#executable: { name: "second", module: "./src//app" }
 "#,
     )
     .unwrap();
-    fs::write(root.join("src/app.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(root.join("src/app/index.nct"), "func main(): i32 { 0 }\n").unwrap();
 
     let package = load_package(&root).package.unwrap();
     assert_eq!(
-        package.executables()[0].entry().id(),
-        package.executables()[1].entry().id()
+        package.executables()[0].module().id(),
+        package.executables()[1].module().id()
     );
-    let ModuleKey::Path(path) = package.executables()[1].entry().id().key() else {
+    let ModuleKey::Path(path) = package.executables()[1].module().id().key() else {
         panic!("explicit entry must have a module path")
     };
     assert_eq!(path.as_str(), "./src/app");
 }
 
 #[test]
-fn dot_entry_does_not_fall_back_to_the_package_file() {
+fn dot_module_does_not_fall_back_to_the_package_file() {
     let root = temp_package("missing-root-index-entry");
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        r#"#executable: { name: "app", entry: "." }
+        r#"#executable: { name: "app", module: "." }
 
-func main(): i32 { 0 }
 "#,
     )
     .unwrap();
+    fs::remove_file(root.join("index.nct")).unwrap();
 
     let load = load_package(&root);
     assert!(
@@ -207,11 +208,7 @@ func main(): i32 { 0 }
 #[test]
 fn resolved_executable_id_uses_the_loaded_package_identity() {
     let root = temp_package("resolved-package-id");
-    fs::write(
-        root.join("nocter.nct"),
-        "#executable: { name: \"app\" }\n\nfunc main(): i32 { 0 }\n",
-    )
-    .unwrap();
+    crate::test_files::write(root.join("nocter.nct"), "#executable: { name: \"app\" }\n").unwrap();
     let expected = PackageId::from_descriptor("resolved-package-id");
 
     let package = loader::load_package_with_id(&root, Some(expected.clone()))
@@ -219,23 +216,23 @@ fn resolved_executable_id_uses_the_loaded_package_identity() {
         .unwrap();
     assert_eq!(package.id(), &expected);
     assert_eq!(package.executables()[0].id().package(), &expected);
-    assert_eq!(package.executables()[0].entry().id().package(), &expected);
+    assert_eq!(package.executables()[0].module().id().package(), &expected);
 }
 
 #[test]
 fn rejects_duplicate_executable_names_and_unknown_fields() {
     let root = temp_package("invalid-fields");
-    fs::write(root.join("app.nct"), "func main(): i32 { 0 }\n").unwrap();
-    fs::write(
+    crate::test_files::write(root.join("app/index.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(
         root.join("nocter.nct"),
         r#"#executable: {
     name: "app",
-    entry: "./app",
+    module: "./app",
 }
 #executable: {
     name: "app",
-    entry: "./app",
-    module: "legacy",
+    module: "./app",
+    entry: "legacy",
 }
 "#,
     )
@@ -246,12 +243,12 @@ fn rejects_duplicate_executable_names_and_unknown_fields() {
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>();
-    assert!(messages.contains(&"unknown executable field `module`"));
+    assert!(messages.contains(&"unknown executable field `entry`"));
 
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        r#"#executable: { name: "app", entry: "./app" }
-#executable: { name: "app", entry: "./app" }
+        r#"#executable: { name: "app", module: "./app" }
+#executable: { name: "app", module: "./app" }
 "#,
     )
     .unwrap();
@@ -266,7 +263,7 @@ fn rejects_duplicate_executable_names_and_unknown_fields() {
 #[test]
 fn rejects_unknown_package_directives() {
     let root = temp_package("unknown-directive");
-    fs::write(root.join("nocter.nct"), "#edition: \"future\"\n").unwrap();
+    crate::test_files::write(root.join("nocter.nct"), "#edition: \"future\"\n").unwrap();
     let load = load_package(&root);
     assert!(
         load.diagnostics
@@ -276,16 +273,16 @@ fn rejects_unknown_package_directives() {
 }
 
 #[test]
-fn rejects_entry_suffix_escape_missing_and_ambiguity() {
-    for (name, entry, expected) in [
+fn rejects_module_suffix_escape_and_missing_paths() {
+    for (name, module, expected) in [
         ("suffix", "./app.nct", "without a `.nct` suffix"),
         ("escape", "../app", "beginning with `./`"),
         ("missing", "./missing", "does not exist"),
     ] {
         let root = temp_package(name);
-        fs::write(
+        crate::test_files::write(
             root.join("nocter.nct"),
-            format!("#executable: {{\n    name: \"app\",\n    entry: \"{entry}\",\n}}\n"),
+            format!("#executable: {{\n    name: \"app\",\n    module: \"{module}\",\n}}\n"),
         )
         .unwrap();
         let load = load_package(&root);
@@ -297,36 +294,21 @@ fn rejects_entry_suffix_escape_missing_and_ambiguity() {
             load.diagnostics
         );
     }
-
-    let root = temp_package("ambiguous");
-    fs::create_dir_all(root.join("app")).unwrap();
-    fs::write(root.join("app.nct"), "").unwrap();
-    fs::write(root.join("app/index.nct"), "").unwrap();
-    fs::write(
-        root.join("nocter.nct"),
-        "#executable: { name: \"app\", entry: \"./app\" }\n",
-    )
-    .unwrap();
-    let load = load_package(&root);
-    assert!(
-        load.diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("is ambiguous"))
-    );
 }
 
 #[cfg(unix)]
 #[test]
-fn rejects_executable_entry_symlinks_that_escape_the_package_root() {
+fn rejects_executable_module_symlinks_that_escape_the_package_root() {
     use std::os::unix::fs::symlink;
 
     let root = temp_package("symlink-escape");
-    let outside = temp_package("symlink-escape-target").join("app.nct");
-    fs::write(&outside, "func main(): i32 { 0 }\n").unwrap();
-    symlink(&outside, root.join("app.nct")).unwrap();
-    fs::write(
+    let outside = temp_package("symlink-escape-target").join("index.nct");
+    crate::test_files::write(&outside, "func main(): i32 { 0 }\n").unwrap();
+    fs::create_dir_all(root.join("app")).unwrap();
+    symlink(&outside, root.join("app/index.nct")).unwrap();
+    crate::test_files::write(
         root.join("nocter.nct"),
-        "#executable: { name: \"app\", entry: \"./app\" }\n",
+        "#executable: { name: \"app\", module: \"./app\" }\n",
     )
     .unwrap();
 
@@ -341,16 +323,20 @@ fn rejects_executable_entry_symlinks_that_escape_the_package_root() {
 }
 
 #[test]
-fn rejects_entries_that_cross_into_a_nested_package() {
+fn rejects_modules_that_cross_into_a_nested_package() {
     let root = temp_package("nested-package-entry");
     fs::create_dir_all(root.join("nested")).unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("nocter.nct"),
-        "#executable: { name: \"app\", entry: \"./nested/app\" }\n",
+        "#executable: { name: \"app\", module: \"./nested/app\" }\n",
     )
     .unwrap();
-    fs::write(root.join("nested/nocter.nct"), "").unwrap();
-    fs::write(root.join("nested/app.nct"), "func main(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(root.join("nested/nocter.nct"), "").unwrap();
+    crate::test_files::write(
+        root.join("nested/app/index.nct"),
+        "func main(): i32 { 0 }\n",
+    )
+    .unwrap();
 
     let load = load_package(&root);
     assert!(
@@ -369,7 +355,7 @@ fn rejects_package_file_symlinks_that_escape_the_root() {
 
     let root = temp_package("manifest-symlink-escape");
     let outside = temp_package("manifest-symlink-target").join("nocter.nct");
-    fs::write(&outside, "").unwrap();
+    crate::test_files::write(&outside, "").unwrap();
     symlink(&outside, root.join("nocter.nct")).unwrap();
 
     let load = load_package(&root);
@@ -394,5 +380,6 @@ fn temp_package(name: &str) -> PathBuf {
     );
     let root = std::env::temp_dir().join(unique);
     fs::create_dir_all(&root).unwrap();
+    crate::test_files::write(root.join("index.nct"), "").unwrap();
     root
 }

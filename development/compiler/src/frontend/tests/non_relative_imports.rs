@@ -8,8 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn check_loads_non_relative_std_imports_from_nocter_home() {
     let root = make_temp_project("std-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.answer
 
 func main(): i32 {
@@ -18,8 +18,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }
@@ -28,7 +28,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -39,8 +39,8 @@ func main(): i32 {
 fn check_loads_block_scope_non_relative_selected_imports() {
     let root = make_temp_project("block-std-selected-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func main(): i32 {
     use std/math.answer
     return answer()
@@ -48,8 +48,8 @@ fn check_loads_block_scope_non_relative_selected_imports() {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/math.nct"),
+    crate::test_files::write(
+        home.join("std/math/index.nct"),
         r#"pub func answer(): i32 {
     return 42
 }
@@ -58,7 +58,7 @@ fn check_loads_block_scope_non_relative_selected_imports() {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -69,8 +69,8 @@ fn check_loads_block_scope_non_relative_selected_imports() {
 fn check_loads_block_scope_non_relative_namespace_imports() {
     let root = make_temp_project("block-std-namespace-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func main(): i32 {
     use std/math
     return math.answer()
@@ -78,8 +78,8 @@ fn check_loads_block_scope_non_relative_namespace_imports() {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/math.nct"),
+    crate::test_files::write(
+        home.join("std/math/index.nct"),
         r#"pub func answer(): i32 {
     return 42
 }
@@ -88,7 +88,7 @@ fn check_loads_block_scope_non_relative_namespace_imports() {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -99,8 +99,8 @@ fn check_loads_block_scope_non_relative_namespace_imports() {
 fn check_bare_use_loads_non_relative_namespace_exports() {
     let root = make_temp_project("bare-std-use");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/math
 
 func main(): i32 {
@@ -109,8 +109,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/math.nct"),
+    crate::test_files::write(
+        home.join("std/math/index.nct"),
         r#"pub func answer(): i32 {
     return 42
 }
@@ -119,7 +119,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -130,8 +130,8 @@ func main(): i32 {
 fn check_bare_use_does_not_import_non_relative_exports_directly() {
     let root = make_temp_project("bare-std-use-no-direct-export");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/math
 
 func main(): i32 {
@@ -140,8 +140,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/math.nct"),
+    crate::test_files::write(
+        home.join("std/math/index.nct"),
         r#"pub func answer(): i32 {
     return 42
 }
@@ -150,7 +150,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -164,8 +164,8 @@ fn check_loads_relative_imports_without_an_implicit_project_search_root() {
     let root = make_temp_project("relative-import");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./lib/math.answer
 
 func main(): i32 {
@@ -174,8 +174,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("lib/math.nct"),
+    crate::test_files::write(
+        root.join("lib/math/index.nct"),
         r#"pub func answer(): i32 {
     return 7
 }
@@ -183,8 +183,8 @@ func main(): i32 {
     )
     .unwrap();
     fs::create_dir_all(home.join("lib")).unwrap();
-    fs::write(
-        home.join("lib/math.nct"),
+    crate::test_files::write(
+        home.join("lib/math/index.nct"),
         r#"pub func answer(): &str {
     return "wrong root"
 }
@@ -193,7 +193,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -205,8 +205,8 @@ fn check_standard_library_is_not_shadowed_by_project_directories() {
     let root = make_temp_project("std-no-shadow");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("std")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.answer
 
 func main(): i32 {
@@ -215,16 +215,16 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("std/io.nct"),
+    crate::test_files::write(
+        root.join("std/io/index.nct"),
         r#"pub func answer(): &str {
     return "project"
 }
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }
@@ -233,7 +233,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -245,8 +245,8 @@ fn check_nocter_home_imports_ignore_package_root_shadow() {
     let root = make_temp_project("nocter-home-import-shadow");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("std")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.answer
 
 func main(): i32 {
@@ -255,16 +255,16 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("std/internal.nct"),
+    crate::test_files::write(
+        root.join("std/internal/index.nct"),
         r#"pub func internal_answer(): &str {
     return "wrong project directory"
 }
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"use std/internal.internal_answer
 
 pub func answer(): i32 {
@@ -273,8 +273,8 @@ pub func answer(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/internal.nct"),
+    crate::test_files::write(
+        home.join("std/internal/index.nct"),
         r#"pub func internal_answer(): i32 {
     return 7
 }
@@ -283,7 +283,7 @@ pub func answer(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -295,8 +295,8 @@ fn check_loads_directory_index_module() {
     let root = make_temp_project("directory-index-import");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib/math")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./lib/math.answer
 
 func main(): i32 {
@@ -305,7 +305,7 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("lib/math/index.nct"),
         r#"pub func answer(): i32 {
     return 3
@@ -315,7 +315,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -327,8 +327,8 @@ fn check_reports_ambiguous_file_and_directory_index_module() {
     let root = make_temp_project("ambiguous-index-import");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib/math")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./lib/math.answer
 
 func main(): i32 {
@@ -337,16 +337,16 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("lib/math.nct"),
+    crate::test_files::write(
+        root.join("lib/math/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("lib/math/index.nct"),
+    crate::test_files::write(
+        root.join("lib/math.nct"),
         r#"pub func answer(): i32 {
     return 2
 }
@@ -355,7 +355,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -370,12 +370,12 @@ func main(): i32 {
 }
 
 #[test]
-fn check_prefers_file_module_when_directory_has_no_index() {
+fn check_does_not_treat_a_source_folder_file_as_a_child_module() {
     let root = make_temp_project("file-module-with-empty-directory");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib/math")).unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./lib/math.answer
 
 func main(): i32 {
@@ -384,9 +384,9 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
+    crate::test_files::write(
         root.join("lib/math.nct"),
-        r#"pub func answer(): i32 {
+        r#"func answer(): i32 {
     return 1
 }
 "#,
@@ -394,11 +394,16 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0410");
+    assert!(
+        diagnostics[0].message.contains("same-module source import"),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -409,8 +414,8 @@ fn check_rejects_filesystem_absolute_imports_outside_package_mode() {
     fs::create_dir_all(absolute_root.join("shared")).unwrap();
     let import_path = absolute_root.join("shared/answer");
     let import_path_text = import_path.to_string_lossy().into_owned();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         format!(
             r#"use {import_path_text}.answer
 
@@ -421,7 +426,7 @@ func main(): i32 {{
         ),
     )
     .unwrap();
-    fs::write(
+    crate::test_files::write(
         absolute_root.join("shared/answer.nct"),
         r#"pub func answer(): i32 {
     return 9
@@ -431,7 +436,7 @@ func main(): i32 {{
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
     fs::remove_dir_all(&absolute_root).unwrap();
@@ -449,8 +454,8 @@ func main(): i32 {{
 fn check_loads_namespace_imports_from_nocter_home() {
     let root = make_temp_project("std-namespace-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io as io
 
 func main(): i32 {
@@ -459,8 +464,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }
@@ -469,7 +474,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -480,8 +485,8 @@ func main(): i32 {
 fn check_loads_std_fmt_import_graph_from_nocter_home() {
     let root = make_temp_project("std-fmt-import-graph");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/fmt.append_i32
 
 func main(): i32 {
@@ -490,8 +495,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/error.nct"),
+    crate::test_files::write(
+        home.join("std/error/index.nct"),
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -503,16 +508,16 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Allocator {
     state: usize
 }
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/string.nct"),
+    crate::test_files::write(
+        home.join("std/string/index.nct"),
         r#"use std/mem.Allocator
 
 pub struct String {
@@ -523,8 +528,8 @@ pub struct String {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/fmt.nct"),
+    crate::test_files::write(
+        home.join("std/fmt/index.nct"),
         r#"use std/error.Error
 use std/string.String
 
@@ -540,7 +545,7 @@ pub func unsupported(): error {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -551,8 +556,8 @@ pub func unsupported(): error {
 fn check_uses_non_relative_imported_function_return_type() {
     let root = make_temp_project("std-import-return-type");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.title
 
 func main(): i32 {
@@ -561,8 +566,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"pub func title(): &str {
     return "Nocter"
 }
@@ -571,7 +576,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -584,8 +589,8 @@ func main(): i32 {
 fn check_uses_imported_function_return_type_with_imported_signature_type() {
     let root = make_temp_project("std-import-return-imported-type");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/process.args
 
 func main(): i32! {
@@ -596,11 +601,11 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    write_std_process_args_implementation(&home, "process.nct");
+    write_std_process_args_implementation(&home, "process/index.nct");
     write_std_vec_with_len_method(&home);
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -611,8 +616,8 @@ func main(): i32! {
 fn check_namespace_use_preserves_imported_signature_type_dependencies() {
     let root = make_temp_project("std-bare-use-return-imported-type");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/process
 
 func main(): i32! {
@@ -623,11 +628,11 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    write_std_process_args_implementation(&home, "process.nct");
+    write_std_process_args_implementation(&home, "process/index.nct");
     write_std_vec_with_len_method(&home);
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -638,8 +643,8 @@ func main(): i32! {
 fn check_reexport_preserves_imported_signature_type_dependencies() {
     let root = make_temp_project("std-reexport-return-imported-type");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/process.args
 
 func main(): i32! {
@@ -650,17 +655,17 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/process.nct"),
+    crate::test_files::write(
+        home.join("std/process/index.nct"),
         r#"pub use std/process_impl.args
 "#,
     )
     .unwrap();
-    write_std_process_args_implementation(&home, "process_impl.nct");
+    write_std_process_args_implementation(&home, "process_impl/index.nct");
     write_std_vec_with_len_method(&home);
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -671,8 +676,8 @@ func main(): i32! {
 fn check_chained_reexport_preserves_imported_signature_type_dependencies() {
     let root = make_temp_project("std-chained-reexport-return-imported-type");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/process.args
 
 func main(): i32! {
@@ -683,23 +688,23 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/process.nct"),
+    crate::test_files::write(
+        home.join("std/process/index.nct"),
         r#"pub use std/process_exports.args
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/process_exports.nct"),
+    crate::test_files::write(
+        home.join("std/process_exports/index.nct"),
         r#"pub use std/process_impl.args
 "#,
     )
     .unwrap();
-    write_std_process_args_implementation(&home, "process_impl.nct");
+    write_std_process_args_implementation(&home, "process_impl/index.nct");
     write_std_vec_with_len_method(&home);
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -710,8 +715,8 @@ func main(): i32! {
 fn check_reexport_cycle_reports_missing_export() {
     let root = make_temp_project("std-reexport-cycle");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/a.answer
 
 func main(): i32 {
@@ -720,21 +725,21 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/a.nct"),
+    crate::test_files::write(
+        home.join("std/a/index.nct"),
         r#"pub use std/b.answer
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/b.nct"),
+    crate::test_files::write(
+        home.join("std/b/index.nct"),
         r#"pub use std/a.answer
 "#,
     )
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -756,8 +761,8 @@ func main(): i32 {
 fn check_loads_std_imports_from_common_std() {
     let root = make_temp_project("std-import-common");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.answer
 
 func main(): i32 {
@@ -766,8 +771,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }
@@ -776,7 +781,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -787,8 +792,8 @@ func main(): i32 {
 fn check_ignores_inactive_target_items_in_common_std() {
     let root = make_temp_project("std-inactive-target-items");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/io.answer
 
 func main(): i32 {
@@ -797,8 +802,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"#target: "x64-linux"
 pub(nocter) primitive unknown_for_linux(): void
 
@@ -838,7 +843,7 @@ pub func answer(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -849,8 +854,8 @@ pub func answer(): i32 {
 fn check_reports_nocter_visibility_import_from_user_project() {
     let root = make_temp_project("nocter-visibility-user-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/ptr.internal
 
 func main(): i32 {
@@ -859,8 +864,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/ptr.nct"),
+    crate::test_files::write(
+        home.join("std/ptr/index.nct"),
         r#"pub(nocter) func internal(): i32 {
     return 1
 }
@@ -869,7 +874,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -882,8 +887,8 @@ func main(): i32 {
 fn check_allows_nocter_visibility_import_inside_nocter_home() {
     let root = make_temp_project("nocter-visibility-home-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"use std/ptr.internal
 
 func main(): i32 {
@@ -892,8 +897,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/ptr.nct"),
+    crate::test_files::write(
+        home.join("std/ptr/index.nct"),
         r#"pub(nocter) func internal(): i32 {
     return 1
 }
@@ -902,7 +907,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/io.nct")).unwrap();
+    let source = sources.load_file(home.join("std/io/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -913,8 +918,8 @@ func main(): i32 {
 fn check_reports_nocter_field_access_from_user_project() {
     let root = make_temp_project("nocter-field-user-access");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/mem.{Raw, make}
 
 func main(): i32 {
@@ -924,8 +929,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     pub(nocter) value: i32
 }
@@ -938,7 +943,7 @@ pub func make(): Raw {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -951,8 +956,8 @@ pub func make(): Raw {
 fn check_allows_nocter_field_access_inside_nocter_home() {
     let root = make_temp_project("nocter-field-home-access");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"use std/mem.{Raw, make}
 
 func main(): i32 {
@@ -962,8 +967,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     pub(nocter) value: i32
 }
@@ -976,7 +981,7 @@ pub func make(): Raw {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/io.nct")).unwrap();
+    let source = sources.load_file(home.join("std/io/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -987,8 +992,8 @@ pub func make(): Raw {
 fn check_reports_nocter_method_call_from_user_project() {
     let root = make_temp_project("nocter-method-user-call");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/mem.make
 
 func main(): i32 {
@@ -998,8 +1003,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     value: i32
 }
@@ -1018,7 +1023,7 @@ impl Raw {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1031,8 +1036,8 @@ impl Raw {
 fn check_allows_nocter_method_call_inside_nocter_home() {
     let root = make_temp_project("nocter-method-home-call");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"use std/mem.make
 
 func main(): i32 {
@@ -1042,8 +1047,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     value: i32
 }
@@ -1062,7 +1067,7 @@ impl Raw {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/io.nct")).unwrap();
+    let source = sources.load_file(home.join("std/io/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1073,8 +1078,8 @@ impl Raw {
 fn check_reports_nocter_associated_function_call_from_user_project() {
     let root = make_temp_project("nocter-associated-user-call");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/mem.Raw
 
 func main(): i32 {
@@ -1083,8 +1088,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     value: i32
 }
@@ -1097,7 +1102,7 @@ pub(nocter) func Raw.secret(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1114,8 +1119,8 @@ pub(nocter) func Raw.secret(): i32 {
 fn check_allows_nocter_associated_function_call_inside_nocter_home() {
     let root = make_temp_project("nocter-associated-home-call");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         r#"use std/mem.Raw
 
 func main(): i32 {
@@ -1124,8 +1129,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/mem.nct"),
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Raw {
     value: i32
 }
@@ -1138,7 +1143,7 @@ pub(nocter) func Raw.secret(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/io.nct")).unwrap();
+    let source = sources.load_file(home.join("std/io/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1149,8 +1154,8 @@ pub(nocter) func Raw.secret(): i32 {
 fn check_reports_nocter_visibility_declaration_outside_nocter_home() {
     let root = make_temp_project("nocter-visibility-user-declaration");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"pub(nocter) func hidden_func(): i32 {
     return 1
 }
@@ -1191,7 +1196,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1214,8 +1219,8 @@ func main(): i32 {
 fn check_allows_nocter_visibility_declaration_inside_nocter_home() {
     let root = make_temp_project("nocter-visibility-home-declaration");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/app.nct"),
+    crate::test_files::write(
+        home.join("std/app/index.nct"),
         r#"pub(nocter) func hidden_func(): i32 {
     return 1
 }
@@ -1256,7 +1261,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/app.nct")).unwrap();
+    let source = sources.load_file(home.join("std/app/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1267,8 +1272,8 @@ func main(): i32 {
 fn check_rejects_primitive_declaration_outside_nocter_home_std() {
     let root = make_temp_project("user-primitive");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"primitive new_error(code: &str, message: &str): error
 
 func main(): i32 {
@@ -1279,7 +1284,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1295,8 +1300,8 @@ func main(): i32 {
 fn check_reports_nocter_primitive_outside_nocter_home_as_primitive_boundary() {
     let root = make_temp_project("user-nocter-primitive");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"pub(nocter) primitive new_error(code: &str, message: &str): error
 
 func main(): i32 {
@@ -1307,7 +1312,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1323,15 +1328,15 @@ func main(): i32 {
 fn check_rejects_unregistered_primitive_declaration_inside_nocter_home_std() {
     let root = make_temp_project("unregistered-primitive");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/error.nct"),
+    crate::test_files::write(
+        home.join("std/error/index.nct"),
         r#"primitive not_registered(): error
 "#,
     )
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(home.join("std/error.nct")).unwrap();
+    let source = sources.load_file(home.join("std/error/index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1347,8 +1352,8 @@ fn check_rejects_unregistered_primitive_declaration_inside_nocter_home_std() {
 fn check_reports_missing_non_relative_imports() {
     let root = make_temp_project("missing-std-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/missing.answer
 
 func main(): i32 {
@@ -1359,7 +1364,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1371,8 +1376,8 @@ func main(): i32 {
 fn check_rejects_source_level_prelude_imports() {
     let root = make_temp_project("std-prelude-source-use");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/prelude
 
 func main(): i32 {
@@ -1383,7 +1388,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -1409,7 +1414,7 @@ fn absolute_import_root() -> PathBuf {
 }
 
 fn write_std_process_args_implementation(home: &Path, file_name: &str) {
-    fs::write(
+    crate::test_files::write(
         home.join("std").join(file_name),
         r#"use std/vec.Vec
 
@@ -1422,8 +1427,8 @@ pub func args(): Vec<&str>! {
 }
 
 fn write_std_vec_with_len_method(home: &Path) {
-    fs::write(
-        home.join("std/vec.nct"),
+    crate::test_files::write(
+        home.join("std/vec/index.nct"),
         r#"pub struct Vec<T> {
     pub len: usize
 }

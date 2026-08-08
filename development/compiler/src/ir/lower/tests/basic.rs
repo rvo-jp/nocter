@@ -61,7 +61,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/process.nct",
+            "std/process/index.nct",
             r#"#target: "arm64-darwin"
 pub(nocter) primitive arg_count_raw(): usize
 
@@ -99,7 +99,7 @@ func main(): i32 {
 
 "#,
         &[(
-            "std/process.nct",
+            "std/process/index.nct",
             r#"#target: "arm64-darwin"
 pub(nocter) primitive arg_raw(index: usize): &str from static
 
@@ -140,7 +140,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/process.nct",
+            "std/process/index.nct",
             r#"#target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 #target: "arm64-darwin"

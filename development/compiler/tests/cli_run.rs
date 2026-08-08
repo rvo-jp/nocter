@@ -60,7 +60,7 @@ fn text(bytes: &[u8]) -> String {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn write_process_exit_home(project: &TempProject) {
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
@@ -95,6 +95,9 @@ impl TempProject {
 
     fn write_source(&self, name: &str, text: &str) -> PathBuf {
         let path = self.root.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
         fs::write(&path, text).unwrap();
         path
     }
@@ -109,8 +112,8 @@ impl TempProject {
 
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
-        fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "").unwrap();
+        fs::create_dir_all(home.join("std/prelude")).unwrap();
+        fs::write(home.join("std/prelude/index.nct"), "").unwrap();
         builtin_std::write_builtin_type_surfaces(&home);
     }
 }

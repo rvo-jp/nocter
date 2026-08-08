@@ -190,6 +190,10 @@ fn analyze_compile_unit_with_root_policy(
                 &unit.prelude_sources,
             );
             resolved.trusted_declarations = unit.trusted_declarations.clone();
+            resolved.diagnostics.retain(|diagnostic| {
+                diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                    || (diagnostic.primary_span.is_none() && file.span.source == root_source)
+            });
             resolved
         })
         .collect::<Vec<_>>();
@@ -242,6 +246,24 @@ fn analyze_compile_unit_with_root_policy(
         files,
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
+    }
+}
+
+fn diagnostic_belongs_to_file(
+    sources: &SourceMap,
+    diagnostic: &Diagnostic,
+    source: crate::source::SourceId,
+) -> bool {
+    let Some(primary) = diagnostic.primary_span.as_deref() else {
+        return false;
+    };
+    let Some(file) = sources.get(source) else {
+        return false;
+    };
+
+    match (primary.absolute_path.as_deref(), file.absolute_path()) {
+        (Some(primary), Some(path)) => primary == path.to_string_lossy(),
+        _ => primary.file == file.display_path(),
     }
 }
 

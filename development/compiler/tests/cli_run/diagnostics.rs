@@ -477,7 +477,7 @@ func count(): usize {
 fn run_command_reports_caught_direct_aggregate_call_argument_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -525,7 +525,7 @@ func consume(pair: Pair): i32 {
 fn run_command_reports_caught_direct_aggregate_call_comparison_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-comparison-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -573,7 +573,7 @@ func make(): Pair! {
 fn run_command_reports_caught_direct_aggregate_call_return_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -622,7 +622,7 @@ func make(): Pair! {
 fn run_command_reports_caught_aggregate_struct_literal_field_failure() {
     let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -679,7 +679,7 @@ func source(): Header! {
 fn run_command_reports_caught_indirect_aggregate_call_return_failure() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-return-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -929,7 +929,7 @@ func maybe_triple(): Triple? {
 fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -962,7 +962,7 @@ func main(): i32! {
 fn run_command_reports_fallible_entry_failure_dynamic_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-message");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -999,7 +999,7 @@ func dynamic(): &str {
 fn run_command_reports_fallible_entry_failure_error_local_dynamic_message() {
     let project = TempProject::new("cli-run-fallible-failure-error-local-dynamic-message");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1037,7 +1037,7 @@ func dynamic(): &str {
 fn run_command_reports_fully_stack_backed_error_local_failure() {
     let project = TempProject::new("cli-run-fully-stack-backed-error-local");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1086,7 +1086,7 @@ func dynamic_message(): &str {
 fn run_command_reports_forwarded_error_parameter_failure() {
     let project = TempProject::new("cli-run-forwarded-error-parameter");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1123,7 +1123,7 @@ func forward(error: error): i32! {
 fn run_command_reports_stack_passed_error_parameter_failure() {
     let project = TempProject::new("cli-run-stack-passed-error-parameter");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1160,7 +1160,7 @@ func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, err
 fn run_command_reports_split_stack_error_parameter_failure() {
     let project = TempProject::new("cli-run-split-stack-error-parameter");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1205,7 +1205,7 @@ func dynamic_message(): &str {
 fn run_command_reports_fallible_entry_failure_dynamic_code_and_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-code-message");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1246,7 +1246,7 @@ func dynamic_message(): &str {
 fn run_command_reports_crossed_failure_payload_parameter_registers() {
     let project = TempProject::new("cli-run-crossed-failure-payload-parameter-registers");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1283,7 +1283,7 @@ func fail(message: &str, code: &str): i32! {
 fn run_command_reports_catch_direct_error_return_failure() {
     let project = TempProject::new("cli-run-catch-direct-error-return");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1323,7 +1323,7 @@ func answer(): i32! {
 fn run_command_reports_fallible_entry_failure_multi_line_message() {
     let project = TempProject::new("cli-run-fallible-failure-multi-line");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 

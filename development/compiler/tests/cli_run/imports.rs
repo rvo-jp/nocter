@@ -2,10 +2,42 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_lowers_a_function_from_a_same_module_source() {
+    let project = TempProject::new("cli-run-same-module-source");
+    let source = project.write_source(
+        "index.nct",
+        r#"use ./answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    );
+    project.write_source(
+        "answer.nct",
+        r#"func answer(): i32 {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_function_call_exit_code() {
     let project = TempProject::new("cli-run-imported-function-call");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func answer(): i32 {
     return 42
 }
@@ -37,7 +69,7 @@ func main(): i32 {
 fn run_command_returns_block_scoped_imported_function_call_exit_code() {
     let project = TempProject::new("cli-run-block-scoped-imported-function-call");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func answer(): i32 {
     return 42
 }
@@ -68,7 +100,7 @@ fn run_command_returns_block_scoped_imported_function_call_exit_code() {
 fn run_command_returns_imported_alias_function_call_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-function-call");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func answer(): i32 {
     return 42
 }
@@ -184,7 +216,7 @@ func length(text: &Text): Exit {
 fn run_command_returns_imported_bool_condition_exit_code() {
     let project = TempProject::new("cli-run-imported-bool-condition");
     project.write_nocter_home_file(
-        "std/flags.nct",
+        "std/flags/index.nct",
         r#"pub func ready(): bool {
     return true
 }
@@ -220,7 +252,7 @@ func main(): i32 {
 fn run_command_returns_imported_nested_argument_exit_code() {
     let project = TempProject::new("cli-run-imported-nested-argument");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub func base(): i32 {
     return 41
 }
@@ -257,7 +289,7 @@ func main(): i32 {
 fn run_command_returns_value_control_with_imported_alias_context_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-value-control-context");
     project.write_nocter_home_file(
-        "std/math.nct",
+        "std/math/index.nct",
         r#"pub type Count = i32
 
 pub func zero(): Count {
@@ -297,7 +329,7 @@ func main(): i32 {
 fn run_command_discards_imported_alias_scalar_call_exit_code() {
     let project = TempProject::new("cli-run-discard-imported-alias-scalar-call");
     project.write_nocter_home_file(
-        "std/metrics.nct",
+        "std/metrics/index.nct",
         r#"pub type Count = i32
 
 pub func record(value: Count): Count {
@@ -332,7 +364,7 @@ func main(): i32 {
 fn run_command_returns_imported_usize_condition_exit_code() {
     let project = TempProject::new("cli-run-imported-usize-condition");
     project.write_nocter_home_file(
-        "std/sizes.nct",
+        "std/sizes/index.nct",
         r#"pub func size(): usize {
     return 42
 }
@@ -394,7 +426,7 @@ func main(): i32 {
 fn run_command_invokes_imported_interface_default_method() {
     let project = TempProject::new("cli-run-imported-interface-default");
     project.write_nocter_home_file(
-        "std/values.nct",
+        "std/values/index.nct",
         r#"pub interface Value {
     pub method &self.value(): i32 {
         return 42

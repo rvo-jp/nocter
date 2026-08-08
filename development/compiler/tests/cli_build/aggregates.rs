@@ -746,7 +746,7 @@ func touch(value: &+Text): void! {
 fn build_command_lowers_imported_copy_aggregate_slot_assignment_and_borrow_argument() {
     let project = TempProject::new("cli-build-imported-copy-aggregate-slot-assignment-borrow");
     project.write_nocter_home_file(
-        "std/text.nct",
+        "std/text/index.nct",
         r#"pub copy struct Text {
     pub start: usize
     pub len: usize
@@ -856,7 +856,7 @@ func touch(value: &+Text): void {
 fn build_command_lowers_std_page_allocator_direct_aggregate_binding_and_borrow_argument() {
     let project = TempProject::new("cli-build-page-allocator-borrow");
     project.write_nocter_home_file(
-        "std/mem.nct",
+        "std/mem/index.nct",
         r#"pub struct Allocator {
     state: usize
     kind: u64

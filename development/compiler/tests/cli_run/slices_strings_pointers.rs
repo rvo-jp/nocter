@@ -5,7 +5,7 @@ use super::*;
 fn run_command_returns_nonzero_public_pointer_from_ref_address() {
     let project = TempProject::new("cli-run-pointer-from-ref-address");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 "#,
@@ -48,7 +48,7 @@ func address_of(value: &u8): usize {
 fn run_command_returns_nonzero_public_pointer_from_ref_mut_address() {
     let project = TempProject::new("cli-run-pointer-from-ref-mut-address");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref_mut<T>(value: &+T): *T
 "#,
@@ -174,7 +174,7 @@ fn run_command_returns_byte_literal_comparison_exit_code() {
 fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -342,7 +342,7 @@ func make_wrap(): Wrap {
 fn run_command_returns_caught_aggregate_struct_literal_field_exit_code() {
     let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -434,7 +434,7 @@ fn run_command_returns_stack_backed_u8_local_index_exit_code() {
 fn run_command_returns_stack_backed_slice_local_first_byte_exit_code() {
     let project = TempProject::new("cli-run-stack-backed-slice-local");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -572,7 +572,7 @@ fn run_command_returns_fully_stack_backed_str_local_equality_exit_code() {
 fn run_command_writes_str_parameter_when_len_register_aliases_destination() {
     let project = TempProject::new("cli-run-str-parameter-len-register-alias");
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -611,7 +611,7 @@ func main(): i32! {
 fn run_command_writes_slice_parameter_when_len_register_aliases_destination() {
     let project = TempProject::new("cli-run-slice-parameter-len-register-alias");
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
@@ -622,7 +622,7 @@ pub func write_after_two_words(first: usize, second: usize, bytes: &[u8]): void!
 "#,
     );
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -1044,7 +1044,7 @@ func main(): i32 {
 fn run_command_returns_slice_view_aggregate_field_exit_code() {
     let project = TempProject::new("cli-run-slice-view-aggregate-field");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {

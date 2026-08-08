@@ -57,7 +57,7 @@ use import_completion::module_completion_items;
 use inlay_hints::inlay_hints;
 use package_completion::package_manifest_completion_items;
 use package_index::{PackageReferenceQuery, package_references};
-use package_navigation::package_entry_definition;
+use package_navigation::package_module_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
 use protocol::{
@@ -511,7 +511,7 @@ impl LspServer {
                 .documents()
                 .get(&uri)
                 .and_then(|document| {
-                    package_entry_definition(document, snapshot.package_root(&uri), params)
+                    package_module_definition(document, snapshot.package_root(&uri), params)
                 })
                 .or_else(|| self.workspace_definition_for_uri(&snapshot, &uri, params))
                 .or_else(|| {

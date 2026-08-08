@@ -169,7 +169,7 @@ func touch(value: &+Text): void! {
 fn build_command_lowers_ignored_fallible_scalar_and_view_call_expression_statement() {
     let project = TempProject::new("cli-build-ignored-fallible-scalar-view-call-statement");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -213,7 +213,7 @@ func main(): void! {
 fn build_command_lowers_scalar_and_view_optional_otherwise_assignments() {
     let project = TempProject::new("cli-build-scalar-view-optional-otherwise-assignments");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -310,7 +310,7 @@ func maybe_data(flag: bool): &[u8]? {
 fn build_command_lowers_scalar_and_view_optional_otherwise_value_positions() {
     let project = TempProject::new("cli-build-scalar-view-optional-otherwise-values");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -909,7 +909,7 @@ func make_empty(): [u8; 0]! {
 fn build_command_lowers_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-dynamic-failure-payload");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -945,7 +945,7 @@ func dynamic(): &str {
 fn build_command_lowers_dynamic_failure_payload_code_and_message() {
     let project = TempProject::new("cli-build-dynamic-failure-payload-code-message");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -985,7 +985,7 @@ func dynamic_message(): &str {
 fn build_command_lowers_static_error_payload_helper() {
     let project = TempProject::new("cli-build-static-error-payload-helper");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 

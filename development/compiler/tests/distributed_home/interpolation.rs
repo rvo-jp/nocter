@@ -168,7 +168,7 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
     let project = TempProject::new("distributed-home-interpolation-allocation-abort");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
-    let mem_module = home.join("std/mem.nct");
+    let mem_module = home.join("std/mem/index.nct");
     let mem_source = fs::read_to_string(&mem_module).unwrap();
     let original = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {

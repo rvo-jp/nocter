@@ -37,6 +37,13 @@ impl Resolver<'_> {
             let Item::FromImport(item) = item else {
                 return None;
             };
+            if self
+                .import_sources
+                .get(&item.path.span)
+                .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+            {
+                return None;
+            }
             if item.visibility != Visibility::Public {
                 return None;
             }
@@ -170,6 +177,13 @@ impl Resolver<'_> {
             let Item::FromImport(import) = item else {
                 continue;
             };
+            if self
+                .import_sources
+                .get(&import.path.span)
+                .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+            {
+                continue;
+            }
             let Some((imported_ast, import_source)) =
                 self.module_index.import_ast(import, self.import_sources)
             else {

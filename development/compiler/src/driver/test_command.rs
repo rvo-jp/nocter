@@ -74,7 +74,7 @@ fn execute_target(
     target: &TestTarget,
 ) -> Vec<TestExecution> {
     let discovery =
-        discover_package_tests_with_target(target.entry().source_path(), graph, &command.target);
+        discover_package_tests_with_target(target.module().source_path(), graph, &command.target);
     if !discovery.diagnostics.is_empty() {
         return vec![TestExecution {
             report: TestRunReport {
@@ -117,7 +117,7 @@ fn execute_target(
                 command,
                 graph,
                 TestRunId::new(target.id().clone(), declaration),
-                target.entry().source_path(),
+                target.module().source_path(),
             )
         })
         .collect()

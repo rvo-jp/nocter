@@ -29,4 +29,4 @@ pub use model::{
 };
 pub(crate) use modules::resolve_explicit_module_path;
 pub(crate) use overlay::PackageSourceOverlay;
-pub(crate) use targets::target_entry_at_offset;
+pub(crate) use targets::target_module_at_offset;

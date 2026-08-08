@@ -140,12 +140,7 @@ fn module_path_inside_package(package: &SourcePackage, source: &Path) -> Option<
 }
 
 fn normalized_module_path(relative: &Path) -> Option<String> {
-    let mut path = PathBuf::from(relative);
-    if path.file_name().is_some_and(|name| name == "index.nct") {
-        path.pop();
-    } else {
-        path.set_extension("");
-    }
+    let path = crate::source_layout::logical_module_path(relative)?;
     let value = path
         .components()
         .map(|component| component.as_os_str().to_str())

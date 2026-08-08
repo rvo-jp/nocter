@@ -14,11 +14,11 @@ const DIRECTIVES: [(&str, &str); 6] = [
     ("lock", "#lock: {\n    version: 1,\n}"),
     (
         "executable",
-        "#executable: {\n    name: \"${1:app}\",\n    entry: \"${2:./src/app}\",\n}",
+        "#executable: {\n    name: \"${1:app}\",\n    module: \"${2:./src/app}\",\n}",
     ),
     (
         "test",
-        "#test: {\n    name: \"${1:unit}\",\n    entry: \"${2:./tests/unit}\",\n}",
+        "#test: {\n    name: \"${1:unit}\",\n    module: \"${2:./tests/unit}\",\n}",
     ),
 ];
 
@@ -99,7 +99,7 @@ mod tests {
         assert_eq!(items[0]["textEdit"]["range"]["end"]["character"], 5);
         assert_eq!(
             items[0]["textEdit"]["newText"],
-            "#test: {\n    name: \"${1:unit}\",\n    entry: \"${2:./tests/unit}\",\n}"
+            "#test: {\n    name: \"${1:unit}\",\n    module: \"${2:./tests/unit}\",\n}"
         );
     }
 

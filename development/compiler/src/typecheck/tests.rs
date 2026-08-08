@@ -33,12 +33,12 @@ fn check_text(text: &str) -> Vec<Diagnostic> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let str_source = sources.add_source(
-        "std/str.nct",
+        "std/str/index.nct",
         None,
         "impl str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let slice_source = sources.add_source(
-        "std/slice.nct",
+        "std/slice/index.nct",
         None,
         "impl<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );

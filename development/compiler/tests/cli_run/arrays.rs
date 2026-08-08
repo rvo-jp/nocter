@@ -850,7 +850,7 @@ func make_words(): [&str; 2] {
 fn run_command_drops_recursive_drop_fixed_array_literal_elements_in_reverse_order() {
     let project = TempProject::new("cli-run-recursive-drop-fixed-array-literal");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -860,7 +860,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -909,7 +909,7 @@ func main(): i32 {
 fn run_command_explicitly_drops_moved_fixed_array_elements_once() {
     let project = TempProject::new("cli-run-explicit-drop-moved-fixed-array-elements");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -919,7 +919,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -968,7 +968,7 @@ func main(): i32 {
 fn run_command_replaces_recursive_drop_fixed_array_literal_after_old_cleanup() {
     let project = TempProject::new("cli-run-replace-recursive-drop-fixed-array-literal");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -978,7 +978,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1024,7 +1024,7 @@ func main(): i32 {
 fn run_command_recursively_drops_fixed_array_call_initialized_elements() {
     let project = TempProject::new("cli-run-recursive-drop-fixed-array-call-elements");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1034,7 +1034,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1099,7 +1099,7 @@ func main(): i32 {
 fn run_command_transfers_and_reinitializes_move_only_fixed_array_locals() {
     let project = TempProject::new("cli-run-transfer-reinitialize-move-only-fixed-arrays");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1109,7 +1109,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1160,7 +1160,7 @@ func main(): i32 {
 fn run_command_keeps_move_only_fixed_array_cleanup_on_terminal_branch_owner() {
     let project = TempProject::new("cli-run-move-only-fixed-array-terminal-branch-owner");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1170,7 +1170,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1225,7 +1225,7 @@ func main(): i32 {
 fn run_command_transfers_move_only_fixed_arrays_across_return_boundaries() {
     let project = TempProject::new("cli-run-move-only-fixed-array-returns");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1235,7 +1235,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1286,7 +1286,7 @@ func main(): i32 {
 fn run_command_transfers_move_only_fixed_arrays_to_owned_parameters() {
     let project = TempProject::new("cli-run-move-only-fixed-array-owned-parameters");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1296,7 +1296,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1352,7 +1352,7 @@ func main(): i32 {
 fn run_command_transfers_direct_move_only_fixed_array_call_arguments() {
     let project = TempProject::new("cli-run-direct-move-only-fixed-array-call-argument");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1362,7 +1362,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1419,7 +1419,7 @@ func main(): i32 {
 fn run_command_drops_successful_fallible_move_only_fixed_array_results() {
     let project = TempProject::new("cli-run-fallible-move-only-fixed-array-success");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1429,7 +1429,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1480,7 +1480,7 @@ func main(): i32! {
 fn run_command_preserves_move_only_fixed_array_target_on_propagated_failure() {
     let project = TempProject::new("cli-run-fallible-move-only-fixed-array-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1492,7 +1492,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1502,7 +1502,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1556,7 +1556,7 @@ func main(): void! {
 fn run_command_forces_direct_fallible_move_only_fixed_array_argument() {
     let project = TempProject::new("cli-run-direct-fallible-move-only-fixed-array-force");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1566,7 +1566,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1623,7 +1623,7 @@ func main(): i32 {
 fn run_command_does_not_drop_uninitialized_move_only_fixed_array_catch_binding() {
     let project = TempProject::new("cli-run-move-only-fixed-array-catch-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1635,7 +1635,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1645,7 +1645,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1699,7 +1699,7 @@ func main(): i32! {
 fn run_command_owns_optional_move_only_fixed_array_success_and_fallback_values() {
     let project = TempProject::new("cli-run-optional-move-only-fixed-array-values");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1709,7 +1709,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1766,7 +1766,7 @@ func main(): i32 {
 fn run_command_recursively_drops_move_only_fixed_array_struct_fields() {
     let project = TempProject::new("cli-run-move-only-fixed-array-struct-field-drop");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1776,7 +1776,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1842,7 +1842,7 @@ func main(): i32 {
 fn run_command_replaces_move_only_fixed_array_struct_fields() {
     let project = TempProject::new("cli-run-replace-move-only-fixed-array-struct-fields");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1852,7 +1852,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1917,7 +1917,7 @@ func main(): i32 {
 fn run_command_replaces_borrowed_move_only_fixed_array_struct_fields() {
     let project = TempProject::new("cli-run-replace-borrowed-move-only-array-field");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1927,7 +1927,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -2004,7 +2004,7 @@ func main(): i32! {
 fn run_command_preserves_move_only_fixed_array_field_on_call_failure() {
     let project = TempProject::new("cli-run-preserve-move-only-array-field-on-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2016,7 +2016,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2026,7 +2026,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -2095,7 +2095,7 @@ func main(): void! {
 fn run_command_replaces_direct_move_only_fixed_array_borrowed_fields() {
     let project = TempProject::new("cli-run-replace-direct-move-only-array-field");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2105,7 +2105,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -2183,7 +2183,7 @@ func main(): i32 {
 fn run_command_recursively_drops_replaced_structs_with_move_only_array_fields() {
     let project = TempProject::new("cli-run-replace-struct-with-move-only-array-field");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2193,7 +2193,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -2258,7 +2258,7 @@ func main(): i32 {
 fn run_command_drops_partial_payload_in_current_fixed_array_element() {
     let project = TempProject::new("cli-run-current-array-element-payload-drop");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2270,7 +2270,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2280,7 +2280,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,

@@ -36,15 +36,15 @@ pub(super) fn import_load_diagnostic(
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(match kind {
         ImportPathKind::Relative => {
-            "relative imports are resolved from the importing file directory; module paths try `.nct` and then `index.nct`"
+            "relative imports are resolved from the importing file directory; a path may name a same-module `.nct` source file or a directory module's `index.nct`"
                 .to_string()
         }
         ImportPathKind::PackageAbsolute => {
-            "package-absolute imports are resolved from the package root; module paths try `.nct` and then `index.nct`"
+            "package-absolute imports name directory modules and resolve `index.nct` from the package root"
                 .to_string()
         }
         ImportPathKind::NonRelative => {
-            "non-relative imports name a declared dependency or the standard library; module paths try `.nct` and then `index.nct`"
+            "non-relative imports name a declared dependency or standard-library directory module and resolve its `index.nct`"
                 .to_string()
         }
     });
@@ -110,14 +110,63 @@ pub(super) fn ambiguous_import_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0410",
         format!(
-            "ambiguous import `{import_path}`; both module file `{}` and module directory `{}` exist",
+            "ambiguous import `{import_path}`; both source file `{}` and child module directory `{}` exist",
             file.display(),
             directory.display()
         ),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(
-        "remove either the module file or the directory so the import has exactly one target"
+        "remove either the source file or the child module so the import has exactly one target"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(super) fn source_import_outside_module_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    path: &str,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!("source import `{path}` does not belong to the importing directory module"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "import a child module through its `index.nct` public surface, or move the source file under the current module without an intervening `index.nct`"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(super) fn invalid_source_import_declaration_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        "a same-module source import must be a private top-level `use ./path` declaration without an alias",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "source imports compose the current module and do not introduce a namespace; move the declaration to module scope and remove `pub`, imported names, and explicit aliases"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(super) fn public_declaration_outside_module_root_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0421",
+        "`pub` declarations are allowed only in a module root source file (`index.nct`)",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "keep this declaration module-private or define the module's public surface in `index.nct`"
             .to_string(),
     );
     diagnostic

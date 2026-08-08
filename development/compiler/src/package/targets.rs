@@ -11,7 +11,7 @@ use std::path::Path;
 pub(super) struct TargetDeclaration {
     pub(super) name: String,
     pub(super) name_span: ByteSpan,
-    pub(super) entry: Option<(String, ByteSpan)>,
+    pub(super) module: Option<(String, ByteSpan)>,
 }
 
 pub(super) fn parse_executable_declaration(
@@ -25,7 +25,7 @@ pub(super) fn parse_target_declaration(
     sources: &SourceMap,
     value: &DirectiveValue,
     kind: &str,
-    entry_required: bool,
+    module_required: bool,
 ) -> Result<TargetDeclaration, Vec<Diagnostic>> {
     let DirectiveValue::Record { fields, .. } = value else {
         return Err(vec![package_diagnostic(
@@ -44,7 +44,7 @@ pub(super) fn parse_target_declaration(
                 format!("duplicate {kind} field `{}`", field.name),
             ));
         }
-        if !matches!(field.name.as_str(), "name" | "entry") {
+        if !matches!(field.name.as_str(), "name" | "module") {
             diagnostics.push(package_diagnostic(
                 sources,
                 field.name_span,
@@ -61,11 +61,11 @@ pub(super) fn parse_target_declaration(
         value.span(),
         &mut diagnostics,
     );
-    let entry = string_field(
+    let module = string_field(
         sources,
         &by_name,
-        "entry",
-        entry_required,
+        "module",
+        module_required,
         kind,
         value.span(),
         &mut diagnostics,
@@ -77,7 +77,7 @@ pub(super) fn parse_target_declaration(
     Ok(TargetDeclaration {
         name,
         name_span,
-        entry,
+        module,
     })
 }
 
@@ -108,11 +108,11 @@ pub(super) fn resolve_executable_targets(
             ));
             continue;
         }
-        let entry = match declaration.entry {
+        let module = match declaration.module {
             None => root_module.clone(),
             Some((logical, span)) => match resolve_explicit_module(root, package.clone(), &logical)
             {
-                Ok(entry) => entry,
+                Ok(module) => module,
                 Err(message) => {
                     diagnostics.push(package_diagnostic(sources, span, message));
                     continue;
@@ -121,7 +121,7 @@ pub(super) fn resolve_executable_targets(
         };
         targets.push(ExecutableTarget::new(
             ExecutableId::new(package.clone(), declaration.name),
-            entry,
+            module,
         ));
     }
     if diagnostics.is_empty() {
@@ -131,7 +131,7 @@ pub(super) fn resolve_executable_targets(
     }
 }
 
-pub(crate) fn target_entry_at_offset(
+pub(crate) fn target_module_at_offset(
     manifest: &PackageManifest,
     offset: usize,
 ) -> Option<(&str, ByteSpan)> {
@@ -144,7 +144,7 @@ pub(crate) fn target_entry_at_offset(
             _ => None,
         })
         .flatten()
-        .filter(|field| field.name == "entry")
+        .filter(|field| field.name == "module")
         .filter_map(|field| field.value.string_value())
         .find(|(_, span)| span.start <= offset && offset <= span.end)
 }

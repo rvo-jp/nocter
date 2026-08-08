@@ -75,6 +75,7 @@ pub(crate) fn analyze_import_text(
         ImportSource {
             source: module_source,
             access: ImportAccess::Public,
+            kind: crate::resolve::ImportKind::Module,
         },
     );
     let unit = CompileUnit::new(

@@ -6,8 +6,8 @@ use std::fs;
 fn check_accepts_builtin_str_return_type() {
     let root = make_temp_project("builtin-str-return");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func main(): i32 {
     return 0
 }
@@ -20,7 +20,7 @@ func title(): &str {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -31,8 +31,8 @@ func title(): &str {
 fn check_diagnoses_mismatched_builtin_str_return_type() {
     let root = make_temp_project("builtin-str-return-mismatch");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func main(): i32 {
     return 0
 }
@@ -45,7 +45,7 @@ func title(): &str {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -58,8 +58,8 @@ func title(): &str {
 fn check_rejects_project_owned_builtin_implementation() {
     let root = make_temp_project("project-builtin-impl");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"impl str {
     pub method &self.project_method(): usize { return 0 }
 }
@@ -70,7 +70,7 @@ func main(): i32 { return 0 }
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -82,18 +82,18 @@ func main(): i32 { return 0 }
 fn check_rejects_malformed_standard_builtin_implementation() {
     let root = make_temp_project("malformed-standard-builtin-impl");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/str.nct"),
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         r#"impl<T> str {
     pub method self.consume(): usize { return 0 }
 }
 "#,
     )
     .unwrap();
-    fs::write(root.join("app.nct"), "func main(): i32 { return 0 }\n").unwrap();
+    crate::test_files::write(root.join("index.nct"), "func main(): i32 { return 0 }\n").unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
@@ -109,8 +109,8 @@ fn check_rejects_malformed_standard_builtin_implementation() {
 fn check_resolves_types_imported_by_builtin_method_signatures() {
     let root = make_temp_project("builtin-method-imported-return");
     let home = make_nocter_home(&root);
-    fs::write(
-        home.join("std/iter.nct"),
+    crate::test_files::write(
+        home.join("std/iter/index.nct"),
         r#"pub struct Iter<T> {
     pub marker: usize
 }
@@ -121,8 +121,8 @@ impl<T> Iter<T> {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/str.nct"),
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         r#"use std/iter.Iter
 
 impl str {
@@ -133,8 +133,8 @@ impl str {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func inspect(): usize {
     let iterator = "".bytes_iter()
     return iterator.value()
@@ -146,7 +146,7 @@ func main(): i32 { return 0 }
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 

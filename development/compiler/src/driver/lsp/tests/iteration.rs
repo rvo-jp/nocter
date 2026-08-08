@@ -1,8 +1,8 @@
 use super::*;
 
 fn write_iteration_std(home: &Path) {
-    std::fs::write(
-        home.join("std/iter.nct"),
+    crate::test_files::write(
+        home.join("std/iter/index.nct"),
         r#"pub struct ViewIter<T> {
     view: &[T]
     next_index: usize
@@ -32,8 +32,8 @@ impl<T> ViewIter<T> {
 "#,
     )
     .unwrap();
-    std::fs::write(
-        home.join("std/vec_into_iter.nct"),
+    crate::test_files::write(
+        home.join("std/vec_into_iter/index.nct"),
         r#"pub struct VecIntoIter<T> {
     remaining_count: usize
 }
@@ -47,8 +47,8 @@ impl<T> VecIntoIter<T> {
 "#,
     )
     .unwrap();
-    std::fs::write(
-        home.join("std/vec.nct"),
+    crate::test_files::write(
+        home.join("std/vec/index.nct"),
         r#"use std/iter.ViewIter
 
 pub struct Vec<T> {

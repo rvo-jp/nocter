@@ -46,17 +46,18 @@ fn build_command_uses_package_declared_executable_when_source_is_omitted() {
         "nocter.nct",
         r#"#executable: {
     name: "app",
-    entry: "./main",
+    module: "./main",
 }
 "#,
     );
     project.write_source(
-        "main.nct",
+        "main/index.nct",
         r#"func main(): i32 {
     return 0
 }
 "#,
     );
+    project.write_source("index.nct", "");
 
     let output = nocter(&project, ["build"]);
     let executable = project.root().join("app");

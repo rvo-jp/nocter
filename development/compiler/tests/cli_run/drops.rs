@@ -177,7 +177,7 @@ func main(): i32 {
 fn run_command_runs_concrete_generic_scope_end_drop() {
     let project = TempProject::new("cli-run-concrete-generic-scope-end-drop");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -187,7 +187,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -232,7 +232,7 @@ func main(): i32! {
 fn run_command_runs_replacement_and_scope_end_drops() {
     let project = TempProject::new("cli-run-replacement-drop");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -242,7 +242,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -288,7 +288,7 @@ func main(): i32! {
 fn run_command_runs_reinitialization_after_explicit_drop() {
     let project = TempProject::new("cli-run-reinitialize-after-explicit-drop");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -298,7 +298,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -345,7 +345,7 @@ func main(): i32! {
 fn run_command_preserves_terminal_if_return_value_after_scope_drop() {
     let project = TempProject::new("cli-run-terminal-if-return-drop");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -355,7 +355,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -404,7 +404,7 @@ func main(): i32! {
 fn run_command_runs_outer_explicit_drop_before_nonterminal_if_return_once() {
     let project = TempProject::new("cli-run-nonterminal-if-outer-drop-return");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -414,7 +414,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,

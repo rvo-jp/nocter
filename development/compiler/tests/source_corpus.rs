@@ -285,7 +285,7 @@ fn ast_json_preserves_explicit_package_test_target_shape() {
     let source = project.root().join("nocter.nct");
     fs::write(
         &source,
-        "#test: { name: \"unit\", entry: \"./tests/unit\" }\n",
+        "#test: { name: \"unit\", module: \"./tests/unit\" }\n",
     )
     .unwrap();
 
@@ -302,7 +302,7 @@ fn ast_json_preserves_explicit_package_test_target_shape() {
     assert_eq!(json["ok"], Value::Bool(true));
     assert!(contains_ast_node(&json, "package_directive", Some("test")));
     assert!(contains_ast_node(&json, "directive_field", Some("name")));
-    assert!(contains_ast_node(&json, "directive_field", Some("entry")));
+    assert!(contains_ast_node(&json, "directive_field", Some("module")));
     assert!(contains_ast_node(
         &json,
         "directive_string",
@@ -519,11 +519,13 @@ impl TempProject {
 
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
-        fs::create_dir_all(home.join("std")).unwrap();
+        for module in ["prelude", "error", "string", "io", "process"] {
+            fs::create_dir_all(home.join("std").join(module)).unwrap();
+        }
         builtin_std::write_builtin_type_surfaces(&home);
 
         fs::write(
-            home.join("std/prelude.nct"),
+            home.join("std/prelude/index.nct"),
             concat!(
                 "pub use std/error.{Error, ErrorCode}\n",
                 "pub use std/string.String\n",
@@ -531,7 +533,7 @@ impl TempProject {
         )
         .unwrap();
         fs::write(
-            home.join("std/error.nct"),
+            home.join("std/error/index.nct"),
             concat!(
                 "pub type ErrorCode = &str\n",
                 "pub type Error = error\n",
@@ -544,12 +546,12 @@ impl TempProject {
         )
         .unwrap();
         fs::write(
-            home.join("std/string.nct"),
+            home.join("std/string/index.nct"),
             concat!("pub struct String {\n", "    bytes: &[u8]\n", "}\n",),
         )
         .unwrap();
         fs::write(
-            home.join("std/io.nct"),
+            home.join("std/io/index.nct"),
             concat!(
                 "pub func print(text: &str): void! {\n",
                 "    return\n",
@@ -558,7 +560,7 @@ impl TempProject {
         )
         .unwrap();
         fs::write(
-            home.join("std/process.nct"),
+            home.join("std/process/index.nct"),
             concat!(
                 "use std/error.Error\n",
                 "\n",

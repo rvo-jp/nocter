@@ -11,7 +11,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/pack.nct",
+            "std/pack/index.nct",
             r#"pub copy struct Inner {
     pub tag: i32
 }

@@ -318,7 +318,7 @@ func main(): i32! {
         .and_then(|location| location["targetUri"].as_str())
         .or_else(|| definition["uri"].as_str());
     assert!(
-        target_uri.is_some_and(|uri| uri.ends_with("/std/io/core.nct")),
+        target_uri.is_some_and(|uri| uri.ends_with("/std/io/core/index.nct")),
         "definition: {definition:#?}"
     );
 

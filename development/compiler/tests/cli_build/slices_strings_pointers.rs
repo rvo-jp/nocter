@@ -199,7 +199,7 @@ func buffer(): &+[u8] {
 fn build_command_lowers_imported_alias_slice_call_result_compound_assignment() {
     let project = TempProject::new("cli-build-imported-alias-slice-call-result-compound");
     project.write_source(
-        "slice_api.nct",
+        "slice_api/index.nct",
         r#"pub type MutBytes = &+[u8]
 
 pub func buffer(): MutBytes {
@@ -229,7 +229,7 @@ func main(): i32 {
 fn build_command_lowers_imported_alias_slice_call_result_borrow_argument() {
     let project = TempProject::new("cli-build-imported-alias-slice-call-result-borrow");
     project.write_source(
-        "slice_api.nct",
+        "slice_api/index.nct",
         r#"pub type MutBytes = &+[u8]
 
 pub func buffer(): MutBytes {
@@ -389,13 +389,13 @@ func main(): i32 {
 fn build_command_lowers_member_rooted_slice_index_assignment() {
     let project = TempProject::new("cli-build-member-rooted-slice-index-assignment");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
-        "std/buffer.nct",
+        "std/buffer/index.nct",
         r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
@@ -405,7 +405,7 @@ pub func buffer(): &+[u8] {
 "#,
     );
     let source = project.write_source(
-        "member_rooted_slice_index_assignment.nct",
+        "index.nct",
         r#"use std/buffer.buffer
 
 struct Buffer {
@@ -431,7 +431,7 @@ func main(): i32 {
 fn build_command_lowers_public_pointer_from_ref_address_conversion() {
     let project = TempProject::new("cli-build-pointer-from-ref-address");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 "#,
@@ -464,7 +464,7 @@ func address_of(value: &u8): usize {
 fn build_command_lowers_public_pointer_from_ref_mut_address_conversion() {
     let project = TempProject::new("cli-build-pointer-from-ref-mut-address");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref_mut<T>(value: &+T): *T
 "#,
@@ -607,7 +607,7 @@ func main(): i32 {
 fn build_command_lowers_slice_view_aggregate_fields() {
     let project = TempProject::new("cli-build-slice-view-aggregate-fields");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {

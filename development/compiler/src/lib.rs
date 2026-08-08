@@ -23,7 +23,10 @@ pub mod parser;
 pub mod resolve;
 mod semantics;
 pub mod source;
+mod source_layout;
 pub mod target;
 mod test_entry;
+#[cfg(test)]
+mod test_files;
 mod type_notation;
 pub mod typecheck;

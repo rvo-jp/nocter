@@ -341,7 +341,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/items.nct",
+            "std/items/index.nct",
             r#"pub struct Bucket<T> { length: usize }
 
 construct Bucket<T> {
@@ -367,7 +367,7 @@ construct Bucket<T> {
 
 fn minimal_allocator_std() -> (&'static str, &'static str) {
     (
-        "std/mem.nct",
+        "std/mem/index.nct",
         r#"
 pub struct Allocator {
     state: usize

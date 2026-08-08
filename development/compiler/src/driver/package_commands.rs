@@ -111,7 +111,7 @@ pub(super) fn run_run_command(command: &SourceCommand) -> ExitCode {
                 }
                 Err(message) => return write_package_command_error(message),
             };
-            run_package_file(selected.entry().source_path(), &graph, &command.target)
+            run_package_file(selected.module().source_path(), &graph, &command.target)
         }
     }
 }
@@ -183,7 +183,7 @@ fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
             .clone()
             .unwrap_or_else(|| package.root().join(executable.name()));
         let output = build_package_executable_to_path_with_target(
-            executable.entry().source_path(),
+            executable.module().source_path(),
             &graph,
             &output_path,
             &command.source.target,

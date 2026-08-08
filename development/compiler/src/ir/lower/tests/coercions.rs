@@ -117,7 +117,7 @@ func main(): usize {
 }
 "#,
         &[(
-            "std/str.nct",
+            "std/str/index.nct",
             "impl str { pub method &self.count(): usize { return 5 } }\n",
         )],
     );

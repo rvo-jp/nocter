@@ -41,11 +41,11 @@ pub(super) fn resolve_test_targets(
             ));
             continue;
         }
-        let Some((logical, span)) = declaration.entry else {
-            unreachable!("validated test declaration must have an entry")
+        let Some((logical, span)) = declaration.module else {
+            unreachable!("validated test declaration must have a module")
         };
-        let entry = match resolve_explicit_module(root, package.clone(), &logical) {
-            Ok(entry) => entry,
+        let module = match resolve_explicit_module(root, package.clone(), &logical) {
+            Ok(module) => module,
             Err(message) => {
                 diagnostics.push(package_diagnostic(sources, span, message));
                 continue;
@@ -53,7 +53,7 @@ pub(super) fn resolve_test_targets(
         };
         targets.push(TestTarget::new(
             TestTargetId::new(package.clone(), declaration.name),
-            entry,
+            module,
         ));
     }
     if diagnostics.is_empty() {

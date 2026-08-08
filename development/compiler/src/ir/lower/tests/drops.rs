@@ -601,7 +601,7 @@ func main(): i32 {
 }
 "#,
         &[(
-            "std/file.nct",
+            "std/file/index.nct",
             r#"pub struct File {
     pub fd: i32
 }
@@ -807,13 +807,13 @@ func main(): i32 {
 "#,
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive pointee_size<T>(pointer: *T): usize
 "#,
             ),
             (
-                "std/box_test.nct",
+                "std/box_test/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.pointee_size
 

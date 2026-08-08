@@ -36,10 +36,10 @@ func run(): void {
 #[test]
 fn build_command_does_not_treat_relative_std_process_as_std_contract() {
     let project = TempProject::new("cli-build-relative-std-process-not-contract");
-    let local_std = project.root().join("std");
+    let local_std = project.root().join("std/process");
     fs::create_dir_all(&local_std).unwrap();
     fs::write(
-        local_std.join("process.nct"),
+        local_std.join("index.nct"),
         r#"pub func args(): i32! {
     return 9
 }

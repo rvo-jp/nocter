@@ -98,7 +98,7 @@ struct TempProject {
 
 fn write_process_contract_std(project: &TempProject) {
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -110,14 +110,14 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/vec.nct",
+        "std/vec/index.nct",
         r#"pub struct Vec<T> {
     len: usize
 }
 "#,
     );
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"use std/error.Error
 use std/vec.Vec
 
@@ -152,6 +152,9 @@ impl TempProject {
 
     fn write_source(&self, name: &str, text: &str) -> PathBuf {
         let path = self.root.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
         fs::write(&path, text).unwrap();
         path
     }
@@ -166,8 +169,8 @@ impl TempProject {
 
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
-        fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "").unwrap();
+        fs::create_dir_all(home.join("std/prelude")).unwrap();
+        fs::write(home.join("std/prelude/index.nct"), "").unwrap();
         builtin_std::write_builtin_type_surfaces(&home);
     }
 }

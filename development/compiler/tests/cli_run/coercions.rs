@@ -5,7 +5,7 @@ use super::*;
 fn explicit_generic_coercion_invokes_the_selected_body_once() {
     let project = TempProject::new("cli-run-explicit-generic-coercion-once");
     let source = project.write_source(
-        "explicit_generic_coercion_once.nct",
+        "index.nct",
         r#"copy struct Payload {
     code: i32
 }
@@ -64,7 +64,7 @@ func main(): i32 {
 fn contextual_coercion_lowers_each_borrow_valued_control_flow_branch() {
     let project = TempProject::new("cli-run-contextual-coercion-control-flow");
     let source = project.write_source(
-        "explicit_coercion_control_flow.nct",
+        "index.nct",
         r#"struct Box {
     selected: i32
 }
@@ -108,7 +108,7 @@ func main(): i32 {
 fn explicit_coercion_lowers_optional_projection_once() {
     let project = TempProject::new("cli-run-explicit-coercion-projection");
     let source = project.write_source(
-        "explicit_coercion_projection.nct",
+        "index.nct",
         r#"copy struct Payload {
     code: i32
 }

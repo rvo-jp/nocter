@@ -4,7 +4,7 @@ use super::diagnostics::{
     ImportPathKind, ambiguous_import_diagnostic, import_load_diagnostic,
     nocter_home_import_diagnostic, package_absolute_import_without_package_diagnostic,
     package_import_escape_diagnostic, relative_import_without_file_path_diagnostic,
-    undeclared_dependency_diagnostic,
+    source_import_outside_module_diagnostic, undeclared_dependency_diagnostic,
 };
 use crate::ast::{AstFile, Block, Expr, Item, ModulePath, Stmt};
 use crate::diagnostics::Diagnostic;
@@ -252,19 +252,36 @@ pub(super) fn resolve_import_path(
         };
 
         let resolved =
-            resolve_module_candidate(resolved_path, dependencies).map_err(|error| match error {
-                ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
-                    sources,
-                    path.span,
-                    &path.value,
-                    &candidates,
-                    error,
-                    ImportPathKind::Relative,
-                ),
-                ImportResolutionError::Ambiguous { file, directory } => {
-                    ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
+            resolve_module_candidate(sources, resolved_path, dependencies).map_err(|error| {
+                match error {
+                    ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
+                        sources,
+                        path.span,
+                        &path.value,
+                        &candidates,
+                        error,
+                        ImportPathKind::Relative,
+                    ),
+                    ImportResolutionError::Ambiguous { file, directory } => {
+                        ambiguous_import_diagnostic(
+                            sources,
+                            path.span,
+                            &path.value,
+                            &file,
+                            &directory,
+                        )
+                    }
                 }
             })?;
+        if resolved.file_name().is_none_or(|name| name != "index.nct")
+            && !source_paths_share_module(sources, source, &resolved)
+        {
+            return Err(source_import_outside_module_diagnostic(
+                sources,
+                path.span,
+                &path.value,
+            ));
+        }
         return ensure_inside_package(sources, source, path, options, resolved);
     }
 
@@ -274,32 +291,39 @@ pub(super) fn resolve_import_path(
                 sources, path.span,
             ));
         };
-        let resolved =
-            resolve_module_candidate(root.join(path.value.trim_start_matches('/')), dependencies)
-                .map_err(|error| match error {
-                ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
-                    sources,
-                    path.span,
-                    &path.value,
-                    &candidates,
-                    error,
-                    ImportPathKind::PackageAbsolute,
-                ),
-                ImportResolutionError::Ambiguous { file, directory } => {
-                    ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
-                }
-            })?;
+        let resolved = resolve_directory_module_candidate(
+            sources,
+            root.join(path.value.trim_start_matches('/')),
+            dependencies,
+        )
+        .map_err(|error| match error {
+            ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
+                sources,
+                path.span,
+                &path.value,
+                &candidates,
+                error,
+                ImportPathKind::PackageAbsolute,
+            ),
+            ImportResolutionError::Ambiguous { file, directory } => {
+                ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
+            }
+        })?;
         return ensure_inside_root(sources, path, root, resolved);
     }
 
     if let Some((dependency, remainder)) = dependency_import(sources, source, &path.value, options)
     {
         let candidate = if remainder.is_empty() {
-            let path = dependency.package_file_path().to_path_buf();
+            let path = dependency.root_module().source_path().to_path_buf();
             dependencies.record_path(&path);
             path
         } else {
-            match resolve_module_candidate(dependency.root().join(remainder), dependencies) {
+            match resolve_directory_module_candidate(
+                sources,
+                dependency.root().join(remainder),
+                dependencies,
+            ) {
                 Ok(path) => path,
                 Err(ImportResolutionError::Missing { candidates, error }) => {
                     return Err(import_load_diagnostic(
@@ -337,19 +361,21 @@ pub(super) fn resolve_import_path(
         nocter_home_import_diagnostic(sources, path.span, &path.value, message)
     })?;
 
-    resolve_module_candidate(home.join(&path.value), dependencies).map_err(|error| match error {
-        ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
-            sources,
-            path.span,
-            &path.value,
-            &candidates,
-            error,
-            ImportPathKind::NonRelative,
-        ),
-        ImportResolutionError::Ambiguous { file, directory } => {
-            ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
-        }
-    })
+    resolve_directory_module_candidate(sources, home.join(&path.value), dependencies).map_err(
+        |error| match error {
+            ImportResolutionError::Missing { candidates, error } => import_load_diagnostic(
+                sources,
+                path.span,
+                &path.value,
+                &candidates,
+                error,
+                ImportPathKind::NonRelative,
+            ),
+            ImportResolutionError::Ambiguous { file, directory } => {
+                ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
+            }
+        },
+    )
 }
 
 fn ensure_inside_package(
@@ -486,6 +512,23 @@ fn resolve_relative_import_path(
     Some(source_dir.join(&path.value))
 }
 
+fn source_paths_share_module(sources: &SourceMap, source: SourceId, imported: &Path) -> bool {
+    let Some(source_path) = sources.get(source).and_then(|file| file.absolute_path()) else {
+        return false;
+    };
+    module_root_source(sources, source_path) == module_root_source(sources, imported)
+}
+
+fn module_root_source(sources: &SourceMap, source: &Path) -> Option<PathBuf> {
+    if crate::source_layout::is_module_root_source(source) {
+        return Some(known_or_existing_source_path(sources, source)?);
+    }
+    source
+        .parent()?
+        .ancestors()
+        .find_map(|directory| known_or_existing_source_path(sources, &directory.join("index.nct")))
+}
+
 fn current_nocter_home(
     options: &FrontendOptions,
     resolved_nocter_home: &Option<Result<PathBuf, String>>,
@@ -513,6 +556,7 @@ enum ImportResolutionError {
 }
 
 fn resolve_module_candidate(
+    sources: &SourceMap,
     module_path: PathBuf,
     dependencies: &mut SourceDependencyTrace,
 ) -> Result<PathBuf, ImportResolutionError> {
@@ -520,8 +564,8 @@ fn resolve_module_candidate(
     let file = module_path.with_extension("nct");
     let index = module_path.join("index.nct");
     let candidates = vec![file.clone(), index.clone()];
-    let file = canonicalize_candidate(file)?;
-    let index = canonicalize_candidate(index)?;
+    let file = canonicalize_candidate(sources, file)?;
+    let index = canonicalize_candidate(sources, index)?;
 
     match (file, index) {
         (Some(file), Some(index)) => Err(ImportResolutionError::Ambiguous {
@@ -546,7 +590,33 @@ fn resolve_module_candidate(
     }
 }
 
-fn canonicalize_candidate(path: PathBuf) -> Result<Option<PathBuf>, ImportResolutionError> {
+fn resolve_directory_module_candidate(
+    sources: &SourceMap,
+    module_path: PathBuf,
+    dependencies: &mut SourceDependencyTrace,
+) -> Result<PathBuf, ImportResolutionError> {
+    dependencies.record_module_candidates(&module_path);
+    let index = module_path.join("index.nct");
+    let candidates = vec![index.clone()];
+    match canonicalize_candidate(sources, index)? {
+        Some(index) => {
+            dependencies.record_path(&index);
+            Ok(index)
+        }
+        None => Err(ImportResolutionError::Missing {
+            candidates,
+            error: "directory module root source file was not found".to_string(),
+        }),
+    }
+}
+
+fn canonicalize_candidate(
+    sources: &SourceMap,
+    path: PathBuf,
+) -> Result<Option<PathBuf>, ImportResolutionError> {
+    if let Some(path) = known_source_path(sources, &path) {
+        return Ok(Some(path));
+    }
     match path.canonicalize() {
         Ok(path) => Ok(Some(path)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -555,4 +625,19 @@ fn canonicalize_candidate(path: PathBuf) -> Result<Option<PathBuf>, ImportResolu
             error: error.to_string(),
         }),
     }
+}
+
+fn known_or_existing_source_path(sources: &SourceMap, path: &Path) -> Option<PathBuf> {
+    known_source_path(sources, path)
+        .map(|path| crate::source_layout::canonicalize_with_missing_suffix(&path))
+        .or_else(|| path.canonicalize().ok())
+}
+
+fn known_source_path(sources: &SourceMap, path: &Path) -> Option<PathBuf> {
+    let candidate = crate::source_layout::canonicalize_with_missing_suffix(path);
+    sources
+        .sources_with_absolute_paths()
+        .map(|(path, _)| path)
+        .find(|path| crate::source_layout::canonicalize_with_missing_suffix(path) == candidate)
+        .map(Path::to_path_buf)
 }

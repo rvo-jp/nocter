@@ -15,7 +15,7 @@ pub(in crate::driver::buildability) fn unsupported_unloaded_imported_call_diagno
         call.span,
         "unloaded imported function calls",
         &format!(
-            "load `{}` from the active Nocter home or use a same-file function until imported placeholder lowering is promoted",
+            "load `{}` from the active Nocter home or use a same-module function until imported placeholder lowering is promoted",
             imported.path
         ),
     ))

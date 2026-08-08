@@ -8,12 +8,12 @@ fn run_command_uses_package_declared_executable_when_source_is_omitted() {
         "nocter.nct",
         r#"#executable: {
     name: "app",
-    entry: "./main",
+    module: ".",
 }
 "#,
     );
     project.write_source(
-        "main.nct",
+        "index.nct",
         r#"func main(): i32 {
     return 13
 }

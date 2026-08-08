@@ -162,13 +162,13 @@ fn build_package_indexes(
                             package
                                 .executables()
                                 .iter()
-                                .map(|target| target.entry().source_path()),
+                                .map(|target| target.module().source_path()),
                         )
                         .chain(
                             package
                                 .tests()
                                 .iter()
-                                .map(|target| target.entry().source_path()),
+                                .map(|target| target.module().source_path()),
                         )
                 })
                 .collect::<BTreeSet<_>>();

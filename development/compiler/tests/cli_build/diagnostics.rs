@@ -384,7 +384,7 @@ fn build_command_reports_imported_readwrite_borrow_alias_unsupported_argument_be
     let project =
         TempProject::new("cli-build-imported-readwrite-borrow-alias-unsupported-argument");
     project.write_source(
-        "borrow_api.nct",
+        "borrow_api/index.nct",
         r#"pub type IntMut = &+i32
 
 pub func touch(value: IntMut): void {
@@ -564,7 +564,7 @@ func main(): i32 {
 fn build_command_rejects_terminal_if_inside_catch_block_before_ir_lowering() {
     let project = TempProject::new("cli-build-terminal-if-inside-catch-block");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -824,7 +824,7 @@ func main(): i32 {
 fn build_command_rejects_imported_nested_alias_condition_aggregate_move_before_ir_lowering() {
     let project = TempProject::new("cli-build-imported-nested-alias-condition-aggregate-move");
     project.write_source(
-        "slot_api.nct",
+        "slot_api/index.nct",
         r#"pub struct Slot {
     pub value: i32
 }
@@ -960,7 +960,7 @@ fn build_command_supports_native_integer_local_bindings() {
 #[test]
 fn build_command_supports_computation_through_imported_integer_aliases() {
     let project = TempProject::new("cli-build-storage-only-scalar-computation");
-    project.write_source("stored.nct", "pub type Stored = u16\n");
+    project.write_source("stored/index.nct", "pub type Stored = u16\n");
     let source = project.write_source(
         "storage_only_scalar_computation.nct",
         r#"use ./stored.Stored
@@ -1012,7 +1012,7 @@ func runtime_value(): usize {
 fn build_command_supports_imported_nested_alias_integer_locals() {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-local");
     project.write_source(
-        "scalar_aliases.nct",
+        "scalar_aliases/index.nct",
         r#"type PrivateWide = u16
 pub type Wide = PrivateWide
 "#,
@@ -1039,7 +1039,7 @@ func main(): i32 {
 fn build_command_accepts_imported_optional_and_fallible_locals() {
     let project = TempProject::new("cli-build-imported-wrapper-local-boundary");
     project.write_source(
-        "wrappers.nct",
+        "wrappers/index.nct",
         r#"pub type MaybeCount = i32?
 pub type Attempt = i32!
 
@@ -1229,7 +1229,7 @@ func main(): i32 {
 fn build_command_supports_imported_nested_alias_integer_field_members() {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-field");
     project.write_source(
-        "header_api.nct",
+        "header_api/index.nct",
         r#"type PrivateCode = u16
 pub type Code = PrivateCode
 
@@ -1491,7 +1491,7 @@ func identity<T>(item: T): T?! {
 fn build_command_accepts_reachable_composed_outcome_method_return() {
     let project = TempProject::new("cli-build-nested-fallible-method-return-boundary");
     let source = project.write_source(
-        "nested_fallible_method_return_boundary.nct",
+        "index.nct",
         r#"copy struct Holder {
     pub value: i32
 }
@@ -1521,7 +1521,7 @@ func main(): i32! {
 fn build_command_accepts_specialized_composed_outcome_method_return() {
     let project = TempProject::new("cli-build-specialized-nested-fallible-method-return-boundary");
     let source = project.write_source(
-        "specialized_nested_fallible_method_return_boundary.nct",
+        "index.nct",
         r#"copy struct Holder<T> {
     value: T
 }
@@ -1551,7 +1551,7 @@ func main(): i32! {
 fn build_command_accepts_reachable_composed_outcome_associated_return() {
     let project = TempProject::new("cli-build-nested-fallible-associated-return-boundary");
     let source = project.write_source(
-        "nested_fallible_associated_return_boundary.nct",
+        "index.nct",
         r#"copy struct Holder {
     pub value: i32
 }
@@ -1600,7 +1600,7 @@ func value(): (i32?)! {
 fn build_command_does_not_reject_unreachable_nested_fallible_method_return() {
     let project = TempProject::new("cli-build-unreachable-nested-fallible-method-return");
     let source = project.write_source(
-        "unreachable_nested_fallible_method_return.nct",
+        "index.nct",
         r#"copy struct Holder {
     pub value: i32
 }
@@ -1711,7 +1711,7 @@ fn build_command_reports_missing_interpolation_runtime_before_ir_lowering() {
 fn build_command_reports_non_copy_aggregate_slice_index_before_ir_lowering() {
     let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-boundary");
     let source = project.write_source(
-        "non_copy_aggregate_slice_index_boundary.nct",
+        "index.nct",
         r#"struct Text {
     pub len: i32
 }
@@ -1762,7 +1762,7 @@ func source(): &[Text] {
 fn build_command_reports_non_copy_aggregate_slice_index_assignment_before_ir_lowering() {
     let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-assignment-boundary");
     let source = project.write_source(
-        "non_copy_aggregate_slice_index_assignment_boundary.nct",
+        "index.nct",
         r#"struct Text {
     pub len: i32
 }
@@ -1814,13 +1814,13 @@ func source(): &+[Text] {
 fn build_command_reports_null_from_addr_before_ir_lowering() {
     let project = TempProject::new("cli-build-null-from-addr-boundary");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
-        "std/buffer.nct",
+        "std/buffer/index.nct",
         r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
@@ -1871,13 +1871,13 @@ func main(): i32 {
 fn build_command_reports_cast_null_from_addr_before_ir_lowering() {
     let project = TempProject::new("cli-build-cast-null-from-addr-boundary");
     project.write_nocter_home_file(
-        "std/ptr.nct",
+        "std/ptr/index.nct",
         r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
-        "std/buffer.nct",
+        "std/buffer/index.nct",
         r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
@@ -2108,7 +2108,7 @@ func main(): i32 {
 fn build_command_reports_static_error_payload_helper_with_argument_before_ir_lowering() {
     let project = TempProject::new("cli-build-static-error-payload-helper-argument-boundary");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2168,7 +2168,7 @@ func dynamic_message(): &str {
 fn build_command_reports_imported_error_constructor_with_non_str_payload_before_ir_lowering() {
     let project = TempProject::new("cli-build-imported-error-constructor-non-str-boundary");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2180,7 +2180,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_source(
-        "bad_error.nct",
+        "bad_error/index.nct",
         r#"use std/error.Error
 
 pub func app_failed(code: i32, message: i32): error {
@@ -2229,7 +2229,7 @@ func main(): i32! {
 fn build_command_reports_error_return_method_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-error-return-method-helper-boundary");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2292,7 +2292,7 @@ func main(): i32! {
 fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-dynamic-error-return-helper-boundary");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2352,7 +2352,7 @@ func dynamic_message(): &str {
 fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-unreachable-dynamic-failure-payload");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -2565,7 +2565,7 @@ func make(): Text {
 fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 

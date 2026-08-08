@@ -14,7 +14,7 @@ mod tests;
 use crate::analysis::CompileUnit;
 use crate::ast::{AstFile, ImplMember, Item, Visibility};
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ImportSource, ImportSourceMap, PreludeSourceMap};
+use crate::resolve::{ImportKind, ImportSource, ImportSourceMap, PreludeSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
@@ -26,8 +26,9 @@ use builtin_impls::{enqueue_builtin_implementation_sources, validate_builtin_imp
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
-    import_source_diagnostic, nocter_visibility_outside_nocter_home_diagnostic,
-    primitive_outside_nocter_home_diagnostic, primitive_registry_diagnostic,
+    import_source_diagnostic, invalid_source_import_declaration_diagnostic,
+    nocter_visibility_outside_nocter_home_diagnostic, primitive_outside_nocter_home_diagnostic,
+    primitive_registry_diagnostic, public_declaration_outside_module_root_diagnostic,
 };
 use imports::{
     active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
@@ -116,6 +117,10 @@ pub(crate) fn load_compile_unit_with_trace(
 
         filter_target_items(&mut ast, &options.target);
 
+        diagnostics.extend(validate_public_declarations_in_module_root(
+            sources, source, &ast,
+        ));
+
         diagnostics.extend(validate_nocter_visibility_declarations(
             sources,
             source,
@@ -187,6 +192,7 @@ pub(crate) fn load_compile_unit_with_trace(
                                     options,
                                     &resolved_nocter_home,
                                 ),
+                                kind: ImportKind::Module,
                             },
                         );
 
@@ -222,6 +228,18 @@ pub(crate) fn load_compile_unit_with_trace(
                 }
             };
 
+            let import_kind = if crate::source_layout::is_module_root_source(&canonical) {
+                ImportKind::Module
+            } else {
+                ImportKind::Source
+            };
+            if import_kind == ImportKind::Source
+                && !valid_source_import_declaration(&ast, path.span)
+            {
+                diagnostics.push(invalid_source_import_declaration_diagnostic(
+                    sources, path.span,
+                ));
+            }
             let imported = match loaded_sources_by_path.get(&canonical).copied() {
                 Some(source) => source,
                 None => match sources.load_file(&canonical) {
@@ -240,7 +258,6 @@ pub(crate) fn load_compile_unit_with_trace(
                     }
                 },
             };
-
             import_sources.insert(
                 path.span,
                 ImportSource {
@@ -251,6 +268,7 @@ pub(crate) fn load_compile_unit_with_trace(
                         options,
                         &resolved_nocter_home,
                     ),
+                    kind: import_kind,
                 },
             );
 
@@ -316,6 +334,18 @@ pub(crate) fn load_compile_unit_with_trace(
     }
 }
 
+fn valid_source_import_declaration(ast: &AstFile, path_span: ByteSpan) -> bool {
+    ast.items.iter().any(|item| {
+        matches!(
+            item,
+            Item::Import(import)
+                if import.path.span == path_span
+                    && import.visibility == Visibility::Private
+                    && import.alias_is_default
+        )
+    })
+}
+
 fn trusted_module_path(
     sources: &SourceMap,
     source: SourceId,
@@ -373,6 +403,96 @@ fn filter_target_items(ast: &mut AstFile, target: &str) {
             .is_none_or(|directive| directive.target == target),
         _ => true,
     });
+}
+
+fn validate_public_declarations_in_module_root(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &AstFile,
+) -> Vec<Diagnostic> {
+    let Some(path) = sources.get(source).and_then(|file| file.absolute_path()) else {
+        // Virtual sources used by embedding clients have no filesystem layout
+        // from which a module role can be derived. Their caller owns that role.
+        return Vec::new();
+    };
+    if crate::source_layout::is_module_root_source(path) {
+        return Vec::new();
+    }
+
+    public_declaration_spans(ast)
+        .into_iter()
+        .map(|span| public_declaration_outside_module_root_diagnostic(sources, span))
+        .collect()
+}
+
+fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
+    let mut spans = Vec::new();
+    let is_public = |visibility: Visibility| visibility != Visibility::Private;
+    for item in &ast.items {
+        match item {
+            Item::Import(import) if is_public(import.visibility) => spans.push(import.span),
+            Item::FromImport(import) if is_public(import.visibility) => spans.push(import.span),
+            Item::Function(function) if is_public(function.visibility) => spans.push(function.span),
+            Item::Primitive(primitive) if is_public(primitive.visibility) => {
+                spans.push(primitive.span)
+            }
+            Item::TypeAlias(alias) if is_public(alias.visibility) => spans.push(alias.span),
+            Item::Struct(struct_) => {
+                if is_public(struct_.visibility) {
+                    spans.push(struct_.span);
+                }
+                spans.extend(
+                    struct_
+                        .fields
+                        .iter()
+                        .filter(|field| is_public(field.visibility))
+                        .map(|field| field.span),
+                );
+            }
+            Item::Enum(enum_) if is_public(enum_.visibility) => spans.push(enum_.span),
+            Item::Interface(interface) => {
+                if is_public(interface.visibility) {
+                    spans.push(interface.span);
+                }
+                spans.extend(
+                    interface
+                        .methods
+                        .iter()
+                        .filter(|method| is_public(method.visibility))
+                        .map(|method| method.span),
+                );
+            }
+            Item::Impl(impl_) => {
+                spans.extend(impl_.members.iter().filter_map(|member| match member {
+                    ImplMember::Method(method) if is_public(method.visibility) => Some(method.span),
+                    _ => None,
+                }))
+            }
+            Item::Construct(construct) => {
+                spans.extend(
+                    construct
+                        .functions()
+                        .filter(|(_, function)| is_public(function.visibility))
+                        .map(|(_, function)| function.span),
+                );
+                spans.extend(
+                    construct
+                        .literals()
+                        .filter(|(_, literal)| is_public(literal.visibility))
+                        .map(|(_, literal)| literal.span),
+                );
+            }
+            Item::Coerce(coerce) => spans.extend(
+                coerce
+                    .entries
+                    .iter()
+                    .filter(|entry| is_public(entry.visibility))
+                    .map(|entry| entry.span),
+            ),
+            _ => {}
+        }
+    }
+    spans
 }
 
 fn validate_nocter_visibility_declarations(
@@ -539,13 +659,10 @@ fn primitive_module_path(source_path: &Path, home: &Path, _target: &str) -> Opti
 }
 
 fn std_relative_module_path(relative_path: &Path) -> Option<String> {
-    let mut segments = relative_path
+    let logical = crate::source_layout::logical_module_path(relative_path)?;
+    let segments = logical
         .iter()
         .map(|segment| segment.to_str().map(str::to_string))
         .collect::<Option<Vec<_>>>()?;
-    let file = segments.last_mut()?;
-    let stem = file.strip_suffix(".nct")?;
-    *file = stem.to_string();
-
     Some(format!("std/{}", segments.join("/")))
 }

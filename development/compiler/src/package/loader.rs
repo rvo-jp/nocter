@@ -1,6 +1,6 @@
-use super::diagnostics::package_filesystem_diagnostic;
+use super::diagnostics::{package_diagnostic, package_filesystem_diagnostic};
 use super::model::SourcePackage;
-use super::modules::package_root_module;
+use super::modules::resolve_package_root_module;
 use super::targets::resolve_executable_targets;
 use super::test_targets::resolve_test_targets;
 use super::validation::validate_manifest;
@@ -110,7 +110,17 @@ pub(super) fn load_package_with_id_and_overlay(
         }
     };
     let id = id.unwrap_or_else(|| super::model::PackageId::root(&root));
-    let root_module = package_root_module(id.clone(), package_file_path);
+    let root_module = match resolve_package_root_module(&root, id.clone()) {
+        Ok(module) => module,
+        Err(message) => {
+            let diagnostic = package_diagnostic(&sources, package_file.span, message);
+            return PackageLoad {
+                package: None,
+                sources,
+                diagnostics: vec![diagnostic],
+            };
+        }
+    };
     let executables = match resolve_executable_targets(
         &sources,
         &root,
@@ -144,6 +154,7 @@ pub(super) fn load_package_with_id_and_overlay(
         package: Some(SourcePackage::new(
             id,
             root,
+            package_file_path,
             root_module,
             display_name,
             definition.version,

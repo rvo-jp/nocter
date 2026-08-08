@@ -50,7 +50,7 @@ pub(super) fn check_targets<'a>(
             executables
                 .into_iter()
                 .map(|target| PackageCheckTarget {
-                    module: target.entry(),
+                    module: target.module(),
                     executable: true,
                 })
                 .collect()
@@ -64,12 +64,12 @@ pub(super) fn check_targets<'a>(
     for executable in package.executables() {
         if let Some(existing) = targets
             .iter_mut()
-            .find(|target| target.module.id() == executable.entry().id())
+            .find(|target| target.module.id() == executable.module().id())
         {
             existing.executable = true;
         } else {
             targets.push(PackageCheckTarget {
-                module: executable.entry(),
+                module: executable.module(),
                 executable: true,
             });
         }

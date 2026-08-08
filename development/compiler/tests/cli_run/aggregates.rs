@@ -124,7 +124,7 @@ func sum(pair: PairAlias): i32 {
 fn run_command_returns_imported_direct_aggregate_call_exit_code() {
     let project = TempProject::new("cli-run-imported-direct-aggregate-call");
     project.write_nocter_home_file(
-        "std/text.nct",
+        "std/text/index.nct",
         r#"pub copy struct Pair {
     pub first: i32
     pub second: i32
@@ -166,7 +166,7 @@ func main(): i32 {
 fn run_command_returns_imported_indirect_aggregate_call_exit_code() {
     let project = TempProject::new("cli-run-imported-indirect-aggregate-call");
     project.write_nocter_home_file(
-        "std/text.nct",
+        "std/text/index.nct",
         r#"pub copy struct Big {
     pub first: usize
     pub second: usize
@@ -209,7 +209,7 @@ func main(): i32 {
 fn run_command_returns_imported_stack_passed_direct_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-imported-stack-passed-direct-aggregate-arg");
     project.write_nocter_home_file(
-        "std/text.nct",
+        "std/text/index.nct",
         r#"pub copy struct Bytes {
     pub first: u8
     pub second: u8
@@ -267,7 +267,7 @@ func main(): i32 {
 fn run_command_returns_imported_stack_passed_indirect_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-imported-stack-passed-indirect-aggregate-arg");
     project.write_nocter_home_file(
-        "std/text.nct",
+        "std/text/index.nct",
         r#"pub copy struct Big {
     pub first: usize
     pub second: usize
@@ -428,7 +428,7 @@ func value(): Value {
 fn run_command_drops_imported_ignored_aggregate_call_result() {
     let project = TempProject::new("cli-run-imported-ignored-aggregate-drop");
     project.write_nocter_home_file(
-        "std/resource.nct",
+        "std/resource/index.nct",
         r#"use std/io.write_text_raw
 
 pub struct Handle {
@@ -448,7 +448,7 @@ pub func make(): Handle {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -974,7 +974,7 @@ func read(box: Box<i32>): i32 {
 fn run_command_runs_direct_aggregate_return_scope_drops() {
     let project = TempProject::new("cli-run-direct-aggregate-return-scope-drops");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -984,7 +984,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1623,7 +1623,7 @@ func make(): Bytes {
 fn run_command_returns_caught_direct_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1675,7 +1675,7 @@ func consume(pair: Pair): i32 {
 fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1729,7 +1729,7 @@ func consume(value: Big): i32 {
 fn run_command_returns_caught_direct_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1782,7 +1782,7 @@ func make(): Pair! {
 fn run_command_returns_caught_direct_aggregate_call_comparison_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-comparison-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1834,7 +1834,7 @@ func make(): Pair! {
 fn run_command_returns_caught_indirect_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-return-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1889,7 +1889,7 @@ func make(): Big! {
 fn run_command_returns_caught_indirect_aggregate_call_comparison_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-comparison-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1943,7 +1943,7 @@ func make(): Big! {
 fn run_command_returns_caught_aggregate_member_assignment_field_exit_code() {
     let project = TempProject::new("cli-run-caught-aggregate-member-assignment-field");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 

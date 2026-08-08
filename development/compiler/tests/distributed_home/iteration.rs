@@ -497,7 +497,7 @@ fn distributed_std_vec_i32_iteration_preserves_storage_and_source_order() {
     let project = TempProject::new("distributed-home-readonly-i32-iterator-run");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
-    let vec_module = home.join("std/vec.nct");
+    let vec_module = home.join("std/vec/index.nct");
     let vec_source = fs::read_to_string(&vec_module).unwrap();
     fs::write(
         &vec_module,

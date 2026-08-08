@@ -75,7 +75,7 @@ func main(): i32 {
     assert_eq!(
         diagnostics[0].help.as_deref(),
         Some(
-            "load `std/io` from the active Nocter home or use a same-file function until imported placeholder lowering is promoted"
+            "load `std/io` from the active Nocter home or use a same-module function until imported placeholder lowering is promoted"
         )
     );
     assert!(diagnostics[0].primary_span.is_some());
@@ -2366,12 +2366,12 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());
     let str_source = sources.add_source(
-        "std/str.nct",
+        "std/str/index.nct",
         None,
         "impl str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let slice_source = sources.add_source(
-        "std/slice.nct",
+        "std/slice/index.nct",
         None,
         "impl<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );

@@ -84,11 +84,11 @@ fn lsp_command_initializes_and_publishes_diagnostics() {
 fn lsp_command_publishes_typecheck_diagnostic_context() {
     let project = TempProject::new("cli-lsp-diagnostic-context");
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
     let config = project.write_source(
-        "config.nct",
+        "config/index.nct",
         "pub func answer(value: i32): i32 {\n    return value\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -167,7 +167,7 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
 fn lsp_command_single_file_semantic_tokens_classify_builtin_types() {
     let project = TempProject::new("cli-lsp-single-file-semantic-types");
     let source_text = "use ./missing.nope\n\nfunc main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
 
     let output = nocter_lsp(
@@ -258,7 +258,7 @@ func main(choice: Choice): i32 {
     return code
 }
 "#;
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
 
     let output = nocter_lsp(
@@ -362,7 +362,7 @@ func main(choice: Choice): i32 {
     }
 }
 "#;
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let completion_offset = source_text
         .find("Choice.hit")
@@ -446,9 +446,9 @@ func main(choice: Choice): i32 {
 fn lsp_command_hides_imported_signature_dependencies_from_completion() {
     let project = TempProject::new("cli-lsp-hidden-signature-dependency");
     let source_text = "use ./factory.make\n\nfunc main(): i32 {\n    return 0\n}\n";
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     project.write_source(
-        "factory.nct",
+        "factory/index.nct",
         r#"pub struct Produced {
     value: i32
 }
@@ -538,7 +538,7 @@ pub func make(): Produced {
 fn lsp_command_serves_v0_editor_features() {
     let project = TempProject::new("cli-lsp-editor-features");
     let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
 
     let output = nocter_lsp(
@@ -732,17 +732,17 @@ fn lsp_references_include_closed_declared_target_modules() {
     let project = TempProject::new("cli-lsp-package-references");
     project.write_source(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
-#executable: { name: "other", entry: "./other" }
+        r#"#executable: { name: "app", module: "." }
+#executable: { name: "other", module: "./other" }
 "#,
     );
     let app_text = "use ./lib.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
-    let app = project.write_source("app.nct", app_text);
+    let app = project.write_source("index.nct", app_text);
     let other = project.write_source(
-        "other.nct",
-        "use ./lib.answer\n\nfunc main(): i32 { return answer() }\n",
+        "other/index.nct",
+        "use ../lib.answer\n\nfunc main(): i32 { return answer() }\n",
     );
-    project.write_source("lib.nct", "pub func answer(): i32 { return 42 }\n");
+    project.write_source("lib/index.nct", "pub func answer(): i32 { return 42 }\n");
     let app_uri = file_uri(&app);
     let other_uri = file_uri(&other.canonicalize().unwrap());
     let root_uri = file_uri(project.root());
@@ -815,18 +815,18 @@ fn lsp_rename_plans_versioned_package_wide_edits() {
     let project = TempProject::new("cli-lsp-package-rename");
     project.write_source(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
-#executable: { name: "other", entry: "./other" }
+        r#"#executable: { name: "app", module: "." }
+#executable: { name: "other", module: "./other" }
 "#,
     );
     let app_text = "use ./lib.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
-    let app = project.write_source("app.nct", app_text);
+    let app = project.write_source("index.nct", app_text);
     let other = project.write_source(
-        "other.nct",
-        "use ./lib.answer\n\nfunc main(): i32 { return answer() }\n",
+        "other/index.nct",
+        "use ../lib.answer\n\nfunc main(): i32 { return answer() }\n",
     );
     project.write_source(
-        "lib.nct",
+        "lib/index.nct",
         "pub func answer(): i32 { return 42 }\npub func replacement(): i32 { return 0 }\n",
     );
     let app_uri = file_uri(&app);
@@ -950,16 +950,17 @@ fn lsp_rename_never_edits_dependency_owned_declarations() {
     project.write_source(
         "nocter.nct",
         r#"#dependencies: { math: { path: "./packages/math" } }
-#executable: { name: "app", entry: "./app" }
+#executable: { name: "app", module: "." }
 "#,
     );
     fs::create_dir_all(project.root().join("packages/math")).unwrap();
+    project.write_source("packages/math/nocter.nct", "#name: \"math\"\n");
     project.write_source(
-        "packages/math/nocter.nct",
+        "packages/math/index.nct",
         "pub func answer(): i32 { return 42 }\n",
     );
     let app_text = "use math.answer\n\nfunc main(): i32 { return answer() }\n";
-    let app = project.write_source("app.nct", app_text);
+    let app = project.write_source("index.nct", app_text);
     let app_uri = file_uri(&app);
 
     let output = nocter_lsp(
@@ -1032,22 +1033,22 @@ fn lsp_completion_adds_imports_from_reachable_public_exports() {
     let project = TempProject::new("cli-lsp-auto-import");
     project.write_source(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
-#executable: { name: "catalog", entry: "./catalog" }
+        r#"#executable: { name: "app", module: "." }
+#executable: { name: "catalog", module: "./catalog" }
 "#,
     );
     let app_text = "/// Runs.\nfunc main(): i32 {\n    return ans\n}\n";
-    let app = project.write_source("app.nct", app_text);
+    let app = project.write_source("index.nct", app_text);
     project.write_source(
-        "catalog.nct",
-        "use ./lib.answer\nfunc catalog(): i32 { return answer() }\n",
+        "catalog/index.nct",
+        "use ../lib.answer\nfunc catalog(): i32 { return answer() }\n",
     );
     project.write_source(
-        "lib.nct",
+        "lib/index.nct",
         "pub func answer(): i32 { return 42 }\nfunc hidden(): i32 { return 0 }\n",
     );
     project.write_source(
-        "unused.nct",
+        "unused/index.nct",
         "pub func answer_from_unreachable_file(): i32 { return 0 }\n",
     );
     let app_uri = file_uri(&app);
@@ -1125,8 +1126,8 @@ fn lsp_code_actions_share_import_interface_and_outcome_edit_planners() {
     let project = TempProject::new("cli-lsp-code-actions");
     project.write_source(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
-#executable: { name: "catalog", entry: "./catalog" }
+        r#"#executable: { name: "app", module: "." }
+#executable: { name: "catalog", module: "./catalog" }
 "#,
     );
     let app_text = r#"interface Printable {
@@ -1149,12 +1150,12 @@ func main(): i32 {
     return external()
 }
 "#;
-    let app = project.write_source("app.nct", app_text);
+    let app = project.write_source("index.nct", app_text);
     project.write_source(
-        "catalog.nct",
-        "use ./lib.external\nfunc catalog(): i32 { return external() }\n",
+        "catalog/index.nct",
+        "use ../lib.external\nfunc catalog(): i32 { return external() }\n",
     );
-    project.write_source("lib.nct", "pub func external(): i32 { return 42 }\n");
+    project.write_source("lib/index.nct", "pub func external(): i32 { return 42 }\n");
     let app_uri = file_uri(&app);
     let external = app_text.rfind("external").unwrap();
     let impl_target = app_text.find("for User").unwrap() + 4;
@@ -1254,7 +1255,7 @@ func main(): i32 {
 fn lsp_inlay_hints_publish_inferred_types_from_snapshot_facts() {
     let project = TempProject::new("cli-lsp-inlay-hints");
     let source_text = "func main(): i32 {\n    let value = 42\n    return value\n}\n";
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let output = nocter_lsp(
         &project,
@@ -1326,7 +1327,7 @@ fn lsp_inlay_hints_publish_inferred_types_from_snapshot_facts() {
 fn lsp_inlay_hints_do_not_invent_result_contracts() {
     let project = TempProject::new("cli-lsp-provenance-inlay-anchor");
     let source_text = "func label(): &str {\n    return \"static\"\n}\n";
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let output = nocter_lsp(
         &project,
@@ -1398,7 +1399,7 @@ fn lsp_does_not_offer_removed_result_allocation_contract_edits() {
     let project = TempProject::new("cli-lsp-result-allocation-quick-fix");
     project.write_source(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
+        r#"#executable: { name: "app", module: "." }
 "#,
     );
     let source_text = r#"struct Buffer { ptr: *u8 }
@@ -1406,7 +1407,7 @@ interface Factory { pub method &self.make(): Buffer }
 
 func make<F: Factory>(factory: &F): Buffer { return factory.make() }
 "#;
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let output = nocter_lsp(
         &project,
@@ -1476,7 +1477,7 @@ func make<F: Factory>(factory: &F): Buffer { return factory.make() }
 fn lsp_command_presents_native_tests_without_making_them_callable() {
     let project = TempProject::new("cli-lsp-native-tests");
     let source_text = "/// Verifies push behavior.\ntest pushes {\n    return\n}\n\n";
-    let source = project.write_source("tests.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
 
     let output = nocter_lsp(
@@ -1622,7 +1623,7 @@ fn lsp_command_presents_native_tests_without_making_them_callable() {
 fn lsp_hover_preserves_nested_process_result_and_static_provenance() {
     let project = TempProject::new("cli-lsp-process-env-hover");
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"pub func env(name: &str): &str?! from static {
     return none
 }
@@ -1904,7 +1905,7 @@ func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
     return value.read()
 }
 "#;
-    let source = project.write_source("bounds.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let call_start = source_text.rfind("read()").unwrap();
     let declaration_start = source_text.find("read():").unwrap();
@@ -2059,7 +2060,7 @@ func main(): i32 {
     let box = Box { value: 4 }
     let transform = (&box; input: i32): i32 {
         return box."#;
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let hover_offset = source_text.find("transform =").unwrap();
     let signature_offset = source_text.rfind("42").unwrap();
@@ -2292,7 +2293,7 @@ coerce Text {
 func project(value: &Text): &str from value { return value as &str }
 func widen(): i64 { return 1 as i64 }
 "#;
-    let source = project.write_source("app.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let coercion_operator = source_text.rfind("as &str").unwrap();
     let numeric_operator = source_text.rfind("as i64").unwrap();
@@ -2391,9 +2392,9 @@ func project(value: &Text): &str from value { return value as &str }
     let model_text = r#"pub struct Text { value: &str }
 coerce Text { pub &self as &str from self { return self.value } }
 "#;
-    let app = project.write_source("app.nct", app_text);
-    project.write_source("api.nct", "pub use ./model.Text\n");
-    let model = project.write_source("model.nct", model_text);
+    let app = project.write_source("index.nct", app_text);
+    project.write_source("api/index.nct", "pub use ../model.Text\n");
+    let model = project.write_source("model/index.nct", model_text);
     let app_uri = file_uri(&app);
     let model_uri = file_uri(&model.canonicalize().unwrap());
     let operator = app_text.rfind("as &str").unwrap();
@@ -2434,14 +2435,65 @@ coerce Text { pub &self as &str from self { return self.value } }
 }
 
 #[test]
+fn lsp_definition_crosses_a_same_module_source_edge() {
+    let project = TempProject::new("cli-lsp-same-module-source");
+    let index_text = "use ./search\n\nfunc main(): i32 {\n    return answer()\n}\n";
+    let search_text =
+        "/// Returns the answer from a private module source.\nfunc answer(): i32 { return 42 }\n";
+    let index = project.write_source("index.nct", index_text);
+    let search = project.root().join("search.nct");
+    let index_uri = file_uri(&index);
+    let search_uri = file_uri(&search);
+    let call = index_text.rfind("answer").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(index_text, call);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            initialize_request(1),
+            did_open_notification(&index_uri, index_text),
+            did_open_notification(&search_uri, search_text),
+            text_document_position_request(2, "textDocument/hover", &index_uri, line, character),
+            text_document_position_request(
+                3,
+                "textDocument/definition",
+                &index_uri,
+                line,
+                character,
+            ),
+            shutdown_request(4),
+            exit_notification(),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    assert!(
+        response_with_id(&messages, 2)["result"]["contents"]["value"]
+            .as_str()
+            .is_some_and(|hover| hover.contains("func answer(): i32")),
+        "messages: {messages:#?}"
+    );
+    let definition = &response_with_id(&messages, 3)["result"][0];
+    assert_eq!(definition["targetUri"], search_uri);
+    assert_eq!(definition["targetSelectionRange"]["start"]["line"], 1);
+    assert_eq!(definition["targetSelectionRange"]["start"]["character"], 5);
+}
+
+#[test]
 fn lsp_conversion_queries_remain_stable_for_private_and_incomplete_sources() {
     let private_project = TempProject::new("cli-lsp-private-coercion");
     let private_app_text = r#"use ./model.Text
 func project(value: &Text): &str from value { return value as &str }
 "#;
-    let private_app = private_project.write_source("app.nct", private_app_text);
+    let private_app = private_project.write_source("index.nct", private_app_text);
     private_project.write_source(
-        "model.nct",
+        "model/index.nct",
         "pub struct Text { value: &str }\ncoerce Text { &self as &str from self { return self.value } }\n",
     );
     let private_uri = file_uri(&private_app);
@@ -2504,7 +2556,7 @@ func project(value: &Text): &str from value { return value as &str }
 coerce Text { pub &self as &str from self { return self.value } }
 func project(value: &Text): &str from value { return value as &
 "#;
-    let incomplete_source = incomplete_project.write_source("app.nct", incomplete_text);
+    let incomplete_source = incomplete_project.write_source("index.nct", incomplete_text);
     let incomplete_uri = file_uri(&incomplete_source);
     let incomplete_operator = incomplete_text.rfind("as &").unwrap();
     let (incomplete_line, incomplete_character) =
@@ -2635,7 +2687,7 @@ func main(): i32 {
     return 0
 }
 "#;
-    let source = project.write_source("construction.nct", source_text);
+    let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
     let hover_offset = source_text.find("struct Bucket").unwrap() + "struct ".len();
     let completion_offset = source_text.rfind("Bucket.new").unwrap() + "Bucket.".len();
@@ -2881,6 +2933,9 @@ impl TempProject {
 
     fn write_source(&self, name: &str, text: &str) -> PathBuf {
         let path = self.root.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
         fs::write(&path, text).unwrap();
         path
     }
@@ -2895,8 +2950,8 @@ impl TempProject {
 
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
-        fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "").unwrap();
+        fs::create_dir_all(home.join("std/prelude")).unwrap();
+        fs::write(home.join("std/prelude/index.nct"), "").unwrap();
         builtin_std::write_builtin_type_surfaces(&home);
     }
 }

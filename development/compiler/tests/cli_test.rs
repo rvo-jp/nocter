@@ -15,20 +15,20 @@ fn runs_all_test_targets_in_declaration_order_and_continues_after_failure() {
     project.write(
         "nocter.nct",
         r#"#name: "ordered"
-#test: { name: "first", entry: "./tests/first" }
-#test: { name: "fails", entry: "./tests/fails" }
-#test: { name: "last", entry: "./tests/last" }
+#test: { name: "first", module: "./tests/first" }
+#test: { name: "fails", module: "./tests/fails" }
+#test: { name: "last", module: "./tests/last" }
 "#,
     );
     project.write(
-        "tests/first.nct",
+        "tests/first/index.nct",
         "test starts { return }\ntest follows { return }\n",
     );
     project.write(
-        "tests/fails.nct",
+        "tests/fails/index.nct",
         "test reports_error { return Error.new(\"test.failed\", \"expected failure\") }\n",
     );
-    project.write("tests/last.nct", "test finishes { return }\n");
+    project.write("tests/last/index.nct", "test finishes { return }\n");
 
     let output = project.nocter(["test"]);
 
@@ -56,13 +56,13 @@ fn selects_one_named_test_target() {
     let project = TempPackage::new("selected");
     project.write(
         "nocter.nct",
-        r#"#test: { name: "selected", entry: "./selected" }
-#test: { name: "unselected", entry: "./unselected" }
+        r#"#test: { name: "selected", module: "./selected" }
+#test: { name: "unselected", module: "./unselected" }
 "#,
     );
-    project.write("selected.nct", "test chosen { return }\n");
+    project.write("selected/index.nct", "test chosen { return }\n");
     project.write(
-        "unselected.nct",
+        "unselected/index.nct",
         "test ignored { return Error.new(\"test.failed\", \"not selected\") }\n",
     );
 
@@ -71,7 +71,6 @@ fn selects_one_named_test_target() {
     assert_success(&output);
     assert!(text(&output.stdout).contains("test selected::chosen ... ok"));
     assert!(!text(&output.stdout).contains("unselected"));
-    assert!(!project.root.join("selected").exists());
 }
 
 #[test]
@@ -79,10 +78,10 @@ fn selects_one_native_case_without_running_its_siblings() {
     let project = TempPackage::new("selected-case");
     project.write(
         "nocter.nct",
-        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+        "#test: { name: \"unit\", module: \"./unit\" }\n",
     );
     project.write(
-        "unit.nct",
+        "unit/index.nct",
         r#"test unselected_failure {
     return Error.new("test.failed", "must not run")
 }
@@ -110,10 +109,10 @@ fn same_module_tests_use_private_items_but_separate_test_modules_cannot() {
     let white_box = TempPackage::new("white-box");
     white_box.write(
         "nocter.nct",
-        "#test: { name: \"unit\", entry: \"./library\" }\n",
+        "#test: { name: \"unit\", module: \"./library\" }\n",
     );
     white_box.write(
-        "library.nct",
+        "library/index.nct",
         r#"func private_answer(): i32 { return 42 }
 
 test reaches_private_item {
@@ -130,12 +129,15 @@ test reaches_private_item {
     let black_box = TempPackage::new("black-box");
     black_box.write(
         "nocter.nct",
-        "#test: { name: \"api\", entry: \"./api_test\" }\n",
+        "#test: { name: \"api\", module: \"./api_test\" }\n",
     );
-    black_box.write("library.nct", "func private_answer(): i32 { return 42 }\n");
     black_box.write(
-        "api_test.nct",
-        "use ./library.private_answer\n\ntest cannot_reach_private_item { return }\n",
+        "library/index.nct",
+        "func private_answer(): i32 { return 42 }\n",
+    );
+    black_box.write(
+        "api_test/index.nct",
+        "use ../library.private_answer\n\ntest cannot_reach_private_item { return }\n",
     );
 
     let output = black_box.nocter(["test"]);
@@ -163,9 +165,9 @@ fn reports_missing_and_unknown_test_targets() {
     let package = TempPackage::new("unknown-target");
     package.write(
         "nocter.nct",
-        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+        "#test: { name: \"unit\", module: \"./unit\" }\n",
     );
-    package.write("unit.nct", "test exists { return }\n");
+    package.write("unit/index.nct", "test exists { return }\n");
     let output = package.nocter(["test", "--test", "missing"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(
@@ -180,15 +182,15 @@ fn compile_failure_does_not_prevent_later_test_targets() {
     let project = TempPackage::new("compile-failure");
     project.write(
         "nocter.nct",
-        r#"#test: { name: "broken", entry: "./broken" }
-#test: { name: "healthy", entry: "./healthy" }
+        r#"#test: { name: "broken", module: "./broken" }
+#test: { name: "healthy", module: "./healthy" }
 "#,
     );
     project.write(
-        "broken.nct",
+        "broken/index.nct",
         "test does_not_compile { let value: Missing = 1 }\n",
     );
-    project.write("healthy.nct", "test succeeds { return }\n");
+    project.write("healthy/index.nct", "test succeeds { return }\n");
 
     let output = project.nocter(["test"]);
 
@@ -210,10 +212,10 @@ fn json_report_is_one_stable_machine_readable_envelope() {
     let project = TempPackage::new("json");
     project.write(
         "nocter.nct",
-        "#name: \"json-tests\"\n#test: { name: \"unit\", entry: \"./unit\" }\n",
+        "#name: \"json-tests\"\n#test: { name: \"unit\", module: \"./unit\" }\n",
     );
     project.write(
-        "unit.nct",
+        "unit/index.nct",
         "test rejects { return Error.new(\"test.failed\", \"expected failure\") }\n",
     );
 
@@ -241,10 +243,10 @@ fn json_report_captures_each_native_test_process_output() {
     let project = TempPackage::new("captured-output");
     project.write(
         "nocter.nct",
-        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+        "#test: { name: \"unit\", module: \"./unit\" }\n",
     );
     project.write(
-        "unit.nct",
+        "unit/index.nct",
         r#"use std/io.print
 
 test writes_output {
@@ -265,9 +267,9 @@ test writes_output {
 #[test]
 fn locked_offline_test_uses_the_package_graph_without_mutating_the_manifest() {
     let project = TempPackage::new("locked-offline");
-    let manifest = "#test: { name: \"unit\", entry: \"./unit\" }\n";
+    let manifest = "#test: { name: \"unit\", module: \"./unit\" }\n";
     project.write("nocter.nct", manifest);
-    project.write("unit.nct", "test succeeds { return }\n");
+    project.write("unit/index.nct", "test succeeds { return }\n");
 
     let output = project.nocter(["test", "--locked", "--offline"]);
 
@@ -283,10 +285,10 @@ fn propagated_error_is_a_failed_test_outcome() {
     let project = TempPackage::new("fallible-failure");
     project.write(
         "nocter.nct",
-        "#test: { name: \"fallible\", entry: \"./fallible\" }\n",
+        "#test: { name: \"fallible\", module: \"./fallible\" }\n",
     );
     project.write(
-        "fallible.nct",
+        "fallible/index.nct",
         r#"test propagates_error {
     return Error.new("test.failed", "expected failure")
 }
@@ -307,19 +309,19 @@ fn process_trap_is_isolated_and_later_tests_still_run() {
     let project = TempPackage::new("trap");
     project.write(
         "nocter.nct",
-        r#"#test: { name: "traps", entry: "./traps" }
-#test: { name: "healthy", entry: "./healthy" }
+        r#"#test: { name: "traps", module: "./traps" }
+#test: { name: "healthy", module: "./healthy" }
 "#,
     );
     project.write(
-        "traps.nct",
+        "traps/index.nct",
         r#"test divides_by_zero {
     let zero: i32 = 0
     let result = 1 / zero
 }
 "#,
     );
-    project.write("healthy.nct", "test survives { return }\n");
+    project.write("healthy/index.nct", "test survives { return }\n");
 
     let output = project.nocter(["test", "--format", "json"]);
 
@@ -343,11 +345,17 @@ impl TempPackage {
     fn new(name: &str) -> Self {
         let root = std::env::temp_dir().join(unique_name(name));
         let home = root.join(".nocter");
-        fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "pub use std/error.Error\n").unwrap();
-        builtin_std::write_builtin_type_surfaces(&home);
+        fs::create_dir_all(home.join("std/prelude")).unwrap();
         fs::write(
-            home.join("std/error.nct"),
+            home.join("std/prelude/index.nct"),
+            "pub use std/error.Error\n",
+        )
+        .unwrap();
+        builtin_std::write_builtin_type_surfaces(&home);
+        fs::create_dir_all(home.join("std/error")).unwrap();
+        fs::create_dir_all(home.join("std/io")).unwrap();
+        fs::write(
+            home.join("std/error/index.nct"),
             r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -360,7 +368,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
         )
         .unwrap();
         fs::write(
-            home.join("std/io.nct"),
+            home.join("std/io/index.nct"),
             r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -372,7 +380,9 @@ pub func print(text: &str): void! {
 "#,
         )
         .unwrap();
-        Self { root, home }
+        let package = Self { root, home };
+        package.write("index.nct", "");
+        package
     }
 
     fn write(&self, relative: &str, source: &str) {

@@ -5,7 +5,7 @@ use super::*;
 fn run_command_reads_process_environment_count() {
     let project = TempProject::new("cli-run-process-environment-count");
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 
@@ -42,7 +42,7 @@ func main(): i32 {
 fn run_command_reads_indexed_process_environment_views() {
     let project = TempProject::new("cli-run-process-environment-views");
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive env_count_raw(): usize
 #target: "arm64-darwin"

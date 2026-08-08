@@ -9,12 +9,10 @@ const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 mod builtin_std;
 
 #[test]
-fn package_check_accepts_code_in_the_package_file() {
+fn package_check_accepts_code_in_the_root_module_source() {
     let project = TempPackage::new("library");
-    project.write(
-        "nocter.nct",
-        "#name: \"library\"\n\npub func value(): i32 { 7 }\n",
-    );
+    project.write("nocter.nct", "#name: \"library\"\n");
+    project.write("index.nct", "pub func value(): i32 { 7 }\n");
     assert_success(&project.nocter(["check"]));
 }
 
@@ -26,6 +24,14 @@ fn init_creates_a_checkable_library_without_overwriting() {
     let package = project.root.join("created/nocter.nct");
     let source = fs::read_to_string(&package).unwrap();
     assert!(source.contains("#name: \"sample\"") && source.contains("#test:"));
+    assert!(package.parent().unwrap().join("index.nct").is_file());
+    assert!(
+        package
+            .parent()
+            .unwrap()
+            .join("tests/unit/index.nct")
+            .is_file()
+    );
 
     let checked = Command::new(NOCTER)
         .args(["check"])
@@ -44,6 +50,7 @@ fn init_creates_a_checkable_library_without_overwriting() {
 fn graph_json_is_deterministic_and_exposes_dependency_identity() {
     let project = TempPackage::new("graph-json");
     project.write("dep/nocter.nct", "#name: \"dep\"\n#version: \"1.0.0\"\n");
+    project.write("dep/index.nct", "");
     project.write(
         "nocter.nct",
         "#name: \"root\"\n#dependencies: { dep: { path: \"./dep\" } }\n",
@@ -64,34 +71,33 @@ fn graph_json_is_deterministic_and_exposes_dependency_identity() {
 }
 
 #[test]
-fn package_build_uses_declared_entry_and_artifact_name() {
+fn package_build_uses_declared_module_and_artifact_name() {
     let project = TempPackage::new("build");
     project.write(
         "nocter.nct",
         r#"#name: "tool-package"
 #executable: {
     name: "tool",
-    entry: "./src/app",
+    module: "./src/app",
 }
 "#,
     );
-    project.write("src/app.nct", "func main(): i32 { 0 }\n");
+    project.write("src/app/index.nct", "func main(): i32 { 0 }\n");
     assert_success(&project.nocter(["build"]));
     assert!(project.root.join("tool").is_file());
 }
 
 #[test]
-fn package_build_uses_the_root_module_when_entry_is_omitted() {
+fn package_build_uses_the_root_module_when_module_is_omitted() {
     let project = TempPackage::new("root-entry");
     project.write(
         "nocter.nct",
         r#"#executable: {
     name: "app",
 }
-
-func main(): i32 { 0 }
 "#,
     );
+    project.write("index.nct", "func main(): i32 { 0 }\n");
 
     assert_success(&project.nocter(["build"]));
     assert!(project.root.join("app").is_file());
@@ -100,13 +106,8 @@ func main(): i32 { 0 }
 #[test]
 fn package_check_analyzes_a_root_executable_once() {
     let project = TempPackage::new("root-entry-check-plan");
-    project.write(
-        "nocter.nct",
-        r#"#executable: { name: "app" }
-
-func main(value: i32): i32 { value }
-"#,
-    );
+    project.write("nocter.nct", "#executable: { name: \"app\" }\n");
+    project.write("index.nct", "func main(value: i32): i32 { value }\n");
 
     let output = project.nocter(["check"]);
     assert_eq!(output.status.code(), Some(1));
@@ -115,11 +116,11 @@ func main(value: i32): i32 { value }
 }
 
 #[test]
-fn dot_entry_selects_index_nct() {
+fn dot_module_selects_index_nct() {
     let project = TempPackage::new("index-entry");
     project.write(
         "nocter.nct",
-        "#executable: { name: \"app\", entry: \".\" }\n",
+        "#executable: { name: \"app\", module: \".\" }\n",
     );
     project.write("index.nct", "func main(): i32 { 0 }\n");
 
@@ -149,18 +150,14 @@ fn package_check_resolves_a_declared_path_dependency_namespace() {
         r#"#dependencies: {
     math: { path: "./packages/math" },
 }
-
-use math.answer
-
-pub func value(): i32 {
-    answer()
-}
 "#,
     );
     project.write(
-        "packages/math/nocter.nct",
-        "pub func answer(): i32 { 42 }\n",
+        "index.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
     );
+    project.write("packages/math/nocter.nct", "#name: \"math\"\n");
+    project.write("packages/math/index.nct", "pub func answer(): i32 { 42 }\n");
     assert_success(&project.nocter(["check"]));
 }
 
@@ -169,15 +166,16 @@ fn fetch_generates_a_git_lock_and_offline_check_reuses_the_exact_package() {
     let project = TempPackage::new("git-dependency");
     let repository = project.root.join("dependency-repository");
     fs::create_dir_all(&repository).unwrap();
+    fs::write(repository.join("nocter.nct"), "#name: \"math\"\n").unwrap();
     fs::write(
-        repository.join("nocter.nct"),
+        repository.join("index.nct"),
         "pub func answer(): i32 { 42 }\n",
     )
     .unwrap();
     git(&repository, ["init", "--quiet"]);
     git(&repository, ["config", "user.email", "test@nocter.dev"]);
     git(&repository, ["config", "user.name", "Nocter Test"]);
-    git(&repository, ["add", "nocter.nct"]);
+    git(&repository, ["add", "."]);
     git(&repository, ["commit", "--quiet", "-m", "initial"]);
 
     project.write(
@@ -189,15 +187,13 @@ fn fetch_generates_a_git_lock_and_offline_check_reuses_the_exact_package() {
         revision: "HEAD",
     }},
 }}
-
-use math.answer
-
-pub func value(): i32 {{
-    answer()
-}}
 "#,
             repository.display()
         ),
+    );
+    project.write(
+        "index.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
     );
 
     assert_success(&project.nocter(["fetch"]));
@@ -212,8 +208,9 @@ fn fetch_generates_and_verifies_an_archive_content_lock() {
     let project = TempPackage::new("archive-dependency");
     let archive_source = project.root.join("archive-source");
     fs::create_dir_all(&archive_source).unwrap();
+    fs::write(archive_source.join("nocter.nct"), "#name: \"math\"\n").unwrap();
     fs::write(
-        archive_source.join("nocter.nct"),
+        archive_source.join("index.nct"),
         "pub func answer(): i32 { 42 }\n",
     )
     .unwrap();
@@ -233,13 +230,13 @@ fn fetch_generates_and_verifies_an_archive_content_lock() {
             r#"#dependencies: {{
     math: {{ archive: "file://{}" }},
 }}
-
-use math.answer
-
-pub func value(): i32 {{ answer() }}
 "#,
             archive.canonicalize().unwrap().display()
         ),
+    );
+    project.write(
+        "index.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
     );
 
     assert_success(&project.nocter(["fetch"]));
@@ -253,15 +250,16 @@ fn failed_graph_does_not_write_a_partial_generated_lock() {
     let project = TempPackage::new("failed-graph-lock-transaction");
     let repository = project.root.join("dependency-repository");
     fs::create_dir_all(&repository).unwrap();
+    fs::write(repository.join("nocter.nct"), "#name: \"available\"\n").unwrap();
     fs::write(
-        repository.join("nocter.nct"),
+        repository.join("index.nct"),
         "pub func value(): i32 { 1 }\n",
     )
     .unwrap();
     git(&repository, ["init", "--quiet"]);
     git(&repository, ["config", "user.email", "test@nocter.dev"]);
     git(&repository, ["config", "user.name", "Nocter Test"]);
-    git(&repository, ["add", "nocter.nct"]);
+    git(&repository, ["add", "."]);
     git(&repository, ["commit", "--quiet", "-m", "initial"]);
     project.write(
         "nocter.nct",
@@ -351,6 +349,7 @@ fn path_dependency_cycles_are_rejected() {
         "packages/child/nocter.nct",
         "#dependencies: { parent: { path: \"../..\" } }\n",
     );
+    project.write("packages/child/index.nct", "");
 
     let output = project.nocter(["fetch"]);
     assert_eq!(output.status.code(), Some(1));
@@ -366,10 +365,13 @@ fn package_directives_are_rejected_outside_nocter_file() {
     let project = TempPackage::new("directive-location");
     project.write(
         "nocter.nct",
-        r#"#executable: { name: "app", entry: "./app" }
+        r#"#executable: { name: "app", module: "./app" }
 "#,
     );
-    project.write("app.nct", "#name: \"nested\"\n\nfunc main(): i32 { 0 }\n");
+    project.write(
+        "app/index.nct",
+        "#name: \"nested\"\n\nfunc main(): i32 { 0 }\n",
+    );
 
     let output = project.nocter(["check", "--executable", "app"]);
     assert_eq!(output.status.code(), Some(1));
@@ -387,16 +389,16 @@ fn package_run_requires_selection_for_multiple_executables() {
         "nocter.nct",
         r#"#executable: {
     name: "first",
-    entry: "./first",
+    module: "./first",
 }
 #executable: {
     name: "second",
-    entry: "./second",
+    module: "./second",
 }
 "#,
     );
-    project.write("first.nct", "func main(): i32 { 0 }\n");
-    project.write("second.nct", "func main(): i32 { 0 }\n");
+    project.write("first/index.nct", "func main(): i32 { 0 }\n");
+    project.write("second/index.nct", "func main(): i32 { 0 }\n");
     let output = project.nocter(["run"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(text(&output.stderr).contains("use `--executable <name>`"));
@@ -404,17 +406,17 @@ fn package_run_requires_selection_for_multiple_executables() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn package_run_executes_selected_declared_entry() {
+fn package_run_executes_selected_declared_module() {
     let project = TempPackage::new("run");
     project.write(
         "nocter.nct",
         r#"#executable: {
     name: "tool",
-    entry: "./app",
+    module: "./app",
 }
 "#,
     );
-    project.write("app.nct", "func main(): i32 { 7 }\n");
+    project.write("app/index.nct", "func main(): i32 { 7 }\n");
     let output = project.nocter(["run"]);
     assert_eq!(output.status.code(), Some(7), "{}", text(&output.stderr));
 }
@@ -428,10 +430,12 @@ impl TempPackage {
     fn new(name: &str) -> Self {
         let root = std::env::temp_dir().join(unique_name(name));
         let home = root.join(".nocter");
-        fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "").unwrap();
+        fs::create_dir_all(home.join("std/prelude")).unwrap();
+        fs::write(home.join("std/prelude/index.nct"), "").unwrap();
         builtin_std::write_builtin_type_surfaces(&home);
-        Self { root, home }
+        let package = Self { root, home };
+        package.write("index.nct", "");
+        package
     }
 
     fn write(&self, relative: &str, source: &str) {

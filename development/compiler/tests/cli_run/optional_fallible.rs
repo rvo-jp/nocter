@@ -35,7 +35,7 @@ func lookup(present: bool): i32?! {
 fn run_command_propagates_composed_fallible_optional_error_payload() {
     let project = TempProject::new("cli-run-composed-fallible-optional-error");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -73,7 +73,7 @@ func lookup(): i32?! {
 fn run_command_routes_composed_failure_only_to_catch_and_absence_only_to_otherwise() {
     let project = TempProject::new("cli-run-composed-catch-otherwise-channels");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -119,7 +119,7 @@ func lookup(mode: i32): i32?! {
 fn run_command_drops_each_owner_once_across_composed_outcome_paths() {
     let project = TempProject::new("cli-run-composed-outcome-cleanup");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -131,7 +131,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -141,7 +141,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -235,7 +235,7 @@ func main(): i32! {
 fn run_command_ignores_fallible_scalar_and_view_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-fallible-scalar-view-call-statement");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -484,7 +484,7 @@ func make(): Header! {
 fn run_command_returns_generic_function_inferred_from_catch_block_exit_code() {
     let project = TempProject::new("cli-run-generic-function-expected-catch-return");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1073,7 +1073,7 @@ func consume(prefix: i32, bytes: Bytes, suffix: i32): i32 {
 fn run_command_preserves_propagated_failure_payload_after_scope_drop() {
     let project = TempProject::new("cli-run-propagate-cleanup-drop");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1126,7 +1126,7 @@ func touch2(a: i32, b: i32): void {
 fn run_command_runs_catch_failure_scope_drop_cleanup() {
     let project = TempProject::new("cli-run-catch-cleanup-drop");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -1138,7 +1138,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1148,7 +1148,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1974,7 +1974,7 @@ func maybe_answer(flag: bool): i32? {
 fn run_command_does_not_unwind_optional_otherwise_never_exit() {
     let project = TempProject::new("cli-run-optional-otherwise-never-no-unwind");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1984,13 +1984,13 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     project.write_nocter_home_file(
-        "std/process.nct",
+        "std/process/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
@@ -2239,7 +2239,7 @@ func only_even(index: i32): i32? {
 fn run_command_uses_scalar_and_view_optional_otherwise_assignments() {
     let project = TempProject::new("cli-run-scalar-view-optional-otherwise-assignments");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -2341,7 +2341,7 @@ func maybe_data(flag: bool): &[u8]? {
 fn run_command_uses_scalar_and_view_optional_otherwise_value_positions() {
     let project = TempProject::new("cli-run-scalar-view-optional-otherwise-values");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -2879,7 +2879,7 @@ func maybe_text(): &str? {
 fn run_command_runs_optional_scalar_otherwise_return_scope_drops() {
     let project = TempProject::new("cli-run-optional-scalar-otherwise-return-scope-drops");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2889,7 +2889,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3456,7 +3456,7 @@ fn run_command_runs_optional_direct_aggregate_otherwise_return_scope_drops() {
     let project =
         TempProject::new("cli-run-optional-direct-aggregate-otherwise-return-scope-drops");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3466,7 +3466,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3621,7 +3621,7 @@ fn run_command_runs_optional_indirect_aggregate_otherwise_return_scope_drops() {
     let project =
         TempProject::new("cli-run-optional-indirect-aggregate-otherwise-return-scope-drops");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3631,7 +3631,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,

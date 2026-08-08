@@ -491,7 +491,7 @@ fn analyze_text_fixture_with_nocter_home_files(
 
 fn std_error_file() -> (&'static str, &'static str) {
     (
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -506,7 +506,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 
 fn std_io_file() -> (&'static str, &'static str) {
     (
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -529,7 +529,7 @@ pub func print(text: &str): void! {
 
 fn std_string_bytes_file() -> (&'static str, &'static str) {
     (
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8] from value
 
 pub func bytes(value: &str): &[u8] from value {
@@ -541,7 +541,7 @@ pub func bytes(value: &str): &[u8] from value {
 
 fn std_process_file() -> (&'static str, &'static str) {
     (
-        "std/process.nct",
+        "std/process/index.nct",
         r#"use std/os.trap
 
 #target: "arm64-darwin"
@@ -560,7 +560,7 @@ pub func abort(): never {
 
 fn std_os_file() -> (&'static str, &'static str) {
     (
-        "std/os.nct",
+        "std/os/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 
@@ -576,7 +576,7 @@ fn write_nocter_home_files(home: &Path, files: &[(&str, &str)]) {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).unwrap();
         }
-        fs::write(path, text).unwrap();
+        crate::test_files::write(path, text).unwrap();
     }
 }
 
@@ -597,15 +597,17 @@ fn make_temp_project() -> PathBuf {
 
 fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
-    fs::create_dir_all(home.join("std")).unwrap();
-    fs::write(home.join("std/prelude.nct"), "").unwrap();
+    fs::create_dir_all(home.join("std/prelude")).unwrap();
+    crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
     write_builtin_view_surfaces(&home);
     home
 }
 
 fn write_builtin_view_surfaces(home: &Path) {
-    fs::write(
-        home.join("std/str.nct"),
+    fs::create_dir_all(home.join("std/str")).unwrap();
+    fs::create_dir_all(home.join("std/slice")).unwrap();
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         r#"pub(nocter) primitive str_len_raw(value: &str): usize
 impl str {
     pub method &self.len(): usize { return str_len_raw(self) }
@@ -614,8 +616,8 @@ impl str {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/slice.nct"),
+    crate::test_files::write(
+        home.join("std/slice/index.nct"),
         r#"pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
 impl<T> [T] {
     pub method &self.len(): usize { return slice_len_raw(self) }

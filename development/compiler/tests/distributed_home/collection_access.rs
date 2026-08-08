@@ -299,7 +299,7 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
 
-    let mem_module = home.join("std/mem.nct");
+    let mem_module = home.join("std/mem/index.nct");
     let mem_source = fs::read_to_string(&mem_module).unwrap();
     let original = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {
@@ -319,7 +319,7 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
     assert!(mem_source.contains(original));
     fs::write(&mem_module, mem_source.replace(original, failing)).unwrap();
 
-    let vec_module = home.join("std/vec.nct");
+    let vec_module = home.join("std/vec/index.nct");
     let vec_source = fs::read_to_string(&vec_module).unwrap();
     fs::write(
         &vec_module,

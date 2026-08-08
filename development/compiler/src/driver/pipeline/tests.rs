@@ -25,7 +25,7 @@ fn build_file_writes_arm64_macho_executable() {
     let root = make_temp_project("build-macho");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("app.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return 0
@@ -62,7 +62,7 @@ fn build_file_output_runs_main_return_code() {
     let root = make_temp_project("build-run");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("exit42.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return 42
@@ -87,7 +87,7 @@ fn build_file_output_runs_same_file_function_call() {
     let root = make_temp_project("build-run-function-call");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("call.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return answer()
@@ -116,7 +116,7 @@ fn build_file_output_runs_i32_function_call_with_arguments() {
     let root = make_temp_project("build-run-function-arguments");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("add.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return add(20, 22)
@@ -145,7 +145,7 @@ fn build_file_output_runs_void_call_statement_before_return() {
     let root = make_temp_project("build-run-void-call-statement");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("effect.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     effect()
@@ -174,7 +174,7 @@ fn build_file_output_runs_usize_function_call_with_mixed_arguments() {
     let root = make_temp_project("build-run-usize-function-arguments");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("choose.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     let value: usize = choose(7, 42)
@@ -208,7 +208,7 @@ fn build_file_output_runs_usize_tail_call_with_argument() {
     let root = make_temp_project("build-run-usize-tail-call-argument");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("forward.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     let value: usize = forward(42)
@@ -246,7 +246,7 @@ fn build_file_output_runs_bool_function_call_with_mixed_arguments() {
     let root = make_temp_project("build-run-bool-function-arguments");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("choose_bool.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     if choose(7, true, 42) {
@@ -279,7 +279,7 @@ fn build_file_output_runs_str_function_call_argument() {
     let root = make_temp_project("build-run-str-function-argument");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("choose_str.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return choose("Nocter", 42)
@@ -308,7 +308,7 @@ fn build_file_output_runs_str_normal_call_result_as_argument() {
     let root = make_temp_project("build-run-str-normal-call-argument");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("str_call_argument.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return consume(title(), 42)
@@ -341,7 +341,7 @@ fn build_file_output_runs_str_len_and_index_call_results() {
     let root = make_temp_project("build-run-str-call-result-ops");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("str_call_result_ops.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     let size: usize = identity("Nocter").len()
@@ -376,7 +376,7 @@ fn build_file_output_runs_fallible_entry_success_return_code() {
     let root = make_temp_project("build-run-fallible-success");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("fallible.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32! {
     return 31
@@ -400,8 +400,8 @@ fn build_file_output_runs_fallible_entry_success_return_code() {
 fn build_file_output_runs_fallible_entry_failure() {
     let root = make_temp_project("build-run-fallible-failure");
     let nocter_home = make_nocter_home(&root);
-    fs::write(
-        nocter_home.join("std/error.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/error/index.nct"),
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -414,7 +414,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     )
     .unwrap();
     let source = root.join("fallible_fail.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/error.Error
 
@@ -442,8 +442,8 @@ func main(): i32! {
 fn build_file_output_propagates_fallible_void_call_failure() {
     let root = make_temp_project("build-run-fallible-void-propagation");
     let nocter_home = make_nocter_home(&root);
-    fs::write(
-        nocter_home.join("std/error.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/error/index.nct"),
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -456,7 +456,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     )
     .unwrap();
     let source = root.join("fallible_void_fail.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/error.Error
 
@@ -489,7 +489,7 @@ fn build_file_output_runs_fallible_i32_call_success_propagation() {
     let root = make_temp_project("build-run-fallible-i32-success-propagation");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("fallible_i32_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32! {
     let base = 2
@@ -523,7 +523,7 @@ fn build_file_output_propagates_fallible_i32_call_failure() {
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
     let source = root.join("fallible_i32_fail.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/error.Error
 
@@ -556,7 +556,7 @@ fn build_file_output_runs_fallible_i32_catch_success() {
     let root = make_temp_project("build-run-fallible-i32-catch-success");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("fallible_i32_catch_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     return answer() catch error {
@@ -590,7 +590,7 @@ fn build_file_output_runs_fallible_i32_catch_failure() {
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
     let source = root.join("fallible_i32_catch_failure.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/error.Error
 
@@ -626,8 +626,8 @@ fn build_file_output_runs_write_text_raw_catch_failure() {
     let root = make_temp_project("build-run-write-text-raw-catch-failure");
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
-    fs::write(
-        nocter_home.join("std/io.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/io/index.nct"),
         r#"use std/error.Error
 
 #target: "arm64-darwin"
@@ -643,7 +643,7 @@ pub func fail_write(): void! {
     )
     .unwrap();
     let source = root.join("write_catch_failure.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/io.fail_write
 
@@ -672,8 +672,8 @@ fn build_file_output_runs_write_bytes_raw_catch_failure() {
     let root = make_temp_project("build-run-write-bytes-raw-catch-failure");
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
-    fs::write(
-        nocter_home.join("std/string.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/string/index.nct"),
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -682,8 +682,8 @@ pub func bytes(value: &str): &[u8] {
 "#,
     )
     .unwrap();
-    fs::write(
-        nocter_home.join("std/io.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/io/index.nct"),
         r#"use std/error.Error
 use std/string.bytes
 
@@ -700,7 +700,7 @@ pub func fail_write(): void! {
     )
     .unwrap();
     let source = root.join("write_bytes_catch_failure.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/io.fail_write
 
@@ -729,16 +729,16 @@ fn build_file_output_runs_read_bytes_raw_catch_failure() {
     let root = make_temp_project("build-run-read-bytes-raw-catch-failure");
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
-    fs::write(
-        nocter_home.join("std/ptr.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/ptr/index.nct"),
         r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     )
     .unwrap();
-    fs::write(
-        nocter_home.join("std/io.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/io/index.nct"),
         r#"use std/error.Error
 use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
@@ -757,7 +757,7 @@ pub func fail_read(): void! {
     )
     .unwrap();
     let source = root.join("read_bytes_catch_failure.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/io.fail_read
 
@@ -787,7 +787,7 @@ fn build_file_output_runs_non_i32_catch_success_paths() {
     let root = make_temp_project("build-run-non-i32-catch-success");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("non_i32_catch_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     let left: i32 = success_left()
@@ -893,7 +893,7 @@ fn build_file_output_runs_non_i32_catch_failure_recovery_paths() {
     let nocter_home = make_nocter_home(&root);
     write_std_error(&nocter_home);
     let source = root.join("non_i32_catch_failure_recovery.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/error.Error
 
@@ -1000,7 +1000,7 @@ fn build_file_output_runs_fallible_scalar_call_success_propagation() {
     let root = make_temp_project("build-run-fallible-scalar-success-propagation");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("fallible_scalar_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32! {
     let byte_value: u8 = make_byte()?
@@ -1045,8 +1045,8 @@ func make_flag(): bool! {
 fn build_file_output_runs_fallible_str_call_success_propagation() {
     let root = make_temp_project("build-run-fallible-str-success-propagation");
     let nocter_home = make_nocter_home(&root);
-    fs::write(
-        nocter_home.join("std/io.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/io/index.nct"),
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -1058,7 +1058,7 @@ pub func write(text: &str): void! {
     )
     .unwrap();
     let source = root.join("fallible_str_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/io.write
 
@@ -1093,7 +1093,7 @@ fn build_file_output_runs_fallible_force_unwrap_success() {
     let root = make_temp_project("build-run-fallible-force-success");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("fallible_force_success.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): i32 {
     let value = answer()!
@@ -1125,7 +1125,7 @@ fn build_file_output_runs_void_entry_with_zero_exit_code() {
     let root = make_temp_project("build-run-void");
     let nocter_home = make_nocter_home(&root);
     let source = root.join("void.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"func main(): void {
 }
@@ -1148,8 +1148,8 @@ fn build_file_output_runs_void_entry_with_zero_exit_code() {
 fn build_file_output_runs_std_print_hello_world_through_namespace_import() {
     let root = make_temp_project("build-run-std-print-namespace");
     let nocter_home = make_nocter_home(&root);
-    fs::write(
-        nocter_home.join("std/io.nct"),
+    crate::test_files::write(
+        nocter_home.join("std/io/index.nct"),
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
@@ -1162,7 +1162,7 @@ pub func print(text: &str): void! {
     )
     .unwrap();
     let source = root.join("hello.nct");
-    fs::write(
+    crate::test_files::write(
         &source,
         r#"use std/io
 
@@ -1202,28 +1202,31 @@ fn make_temp_project(name: &str) -> PathBuf {
 
 fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
-    fs::create_dir_all(home.join("std")).unwrap();
-    fs::write(home.join("std/prelude.nct"), "").unwrap();
+    fs::create_dir_all(home.join("std/prelude")).unwrap();
+    crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
     write_builtin_view_surfaces(&home);
     home
 }
 
 fn write_builtin_view_surfaces(home: &Path) {
-    fs::write(
-        home.join("std/str.nct"),
+    fs::create_dir_all(home.join("std/str")).unwrap();
+    fs::create_dir_all(home.join("std/slice")).unwrap();
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         "pub(nocter) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
     )
     .unwrap();
-    fs::write(
-        home.join("std/slice.nct"),
+    crate::test_files::write(
+        home.join("std/slice/index.nct"),
         "pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
     )
     .unwrap();
 }
 
 fn write_std_error(nocter_home: &Path) {
-    fs::write(
-        nocter_home.join("std/error.nct"),
+    fs::create_dir_all(nocter_home.join("std/error")).unwrap();
+    crate::test_files::write(
+        nocter_home.join("std/error/index.nct"),
         r#"pub type ErrorCode = &str
 pub type Error = error
 

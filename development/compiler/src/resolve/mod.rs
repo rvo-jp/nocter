@@ -23,13 +23,14 @@ mod tests;
 pub use symbols::{
     AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
     ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
-    ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
-    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
-    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
-    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
+    ImportKind, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind,
+    InterfaceConformance, LiteralCaptureSignature, LiteralResolution, LiteralSignature,
+    LocalSymbol, LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature,
+    PreludeSourceMap, ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind,
+    SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
-use module_index::ModuleIndex;
+use module_index::{MergedModules, ModuleIndex};
 
 use crate::ast::{AstFile, Item};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -53,7 +54,12 @@ pub fn resolve_compile_unit(
     import_sources: &ImportSourceMap,
     prelude_sources: &PreludeSourceMap,
 ) -> ResolveOutput {
-    let module_index = ModuleIndex::new(files);
+    let merged_modules = MergedModules::new(files, import_sources);
+    let module_index = ModuleIndex::new(&merged_modules);
+    let module_ast = module_index
+        .ast_for_source(root.span.source)
+        .cloned()
+        .unwrap_or_else(|| root.clone());
     let access = root_access(root, import_sources, prelude_sources);
     let mut resolver = Resolver {
         sources,
@@ -67,8 +73,8 @@ pub fn resolve_compile_unit(
         collecting_synthetic_prelude: false,
     };
 
-    resolver.collect_top_level_symbols(root);
-    resolver.collect_builtin_impl_surfaces(root);
+    resolver.collect_top_level_symbols(&module_ast);
+    resolver.collect_builtin_impl_surfaces(&module_ast);
     resolver.resolve_callable_bodies(root);
     resolver.output
 }

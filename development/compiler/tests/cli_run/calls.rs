@@ -152,7 +152,7 @@ func value(): i32 {
 fn run_command_ignores_view_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-view-call-statement");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {

@@ -102,12 +102,12 @@ impl ExecutableId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableTarget {
     id: ExecutableId,
-    entry: ResolvedModule,
+    module: ResolvedModule,
 }
 
 impl ExecutableTarget {
-    pub(super) fn new(id: ExecutableId, entry: ResolvedModule) -> Self {
-        Self { id, entry }
+    pub(super) fn new(id: ExecutableId, module: ResolvedModule) -> Self {
+        Self { id, module }
     }
 
     pub fn id(&self) -> &ExecutableId {
@@ -118,8 +118,8 @@ impl ExecutableTarget {
         self.id.name()
     }
 
-    pub fn entry(&self) -> &ResolvedModule {
-        &self.entry
+    pub fn module(&self) -> &ResolvedModule {
+        &self.module
     }
 }
 
@@ -146,12 +146,12 @@ impl TestTargetId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestTarget {
     id: TestTargetId,
-    entry: ResolvedModule,
+    module: ResolvedModule,
 }
 
 impl TestTarget {
-    pub(super) fn new(id: TestTargetId, entry: ResolvedModule) -> Self {
-        Self { id, entry }
+    pub(super) fn new(id: TestTargetId, module: ResolvedModule) -> Self {
+        Self { id, module }
     }
 
     pub fn id(&self) -> &TestTargetId {
@@ -162,8 +162,8 @@ impl TestTarget {
         self.id.name()
     }
 
-    pub fn entry(&self) -> &ResolvedModule {
-        &self.entry
+    pub fn module(&self) -> &ResolvedModule {
+        &self.module
     }
 }
 
@@ -171,6 +171,7 @@ impl TestTarget {
 pub struct SourcePackage {
     id: PackageId,
     root: PathBuf,
+    package_file_path: PathBuf,
     root_module: ResolvedModule,
     display_name: String,
     version: Option<String>,
@@ -184,6 +185,7 @@ impl SourcePackage {
     pub(super) fn new(
         id: PackageId,
         root: PathBuf,
+        package_file_path: PathBuf,
         root_module: ResolvedModule,
         display_name: String,
         version: Option<String>,
@@ -195,6 +197,7 @@ impl SourcePackage {
         Self {
             id,
             root,
+            package_file_path,
             root_module,
             display_name,
             version,
@@ -218,7 +221,7 @@ impl SourcePackage {
     }
 
     pub fn package_file_path(&self) -> &Path {
-        self.root_module.source_path()
+        &self.package_file_path
     }
 
     pub fn display_name(&self) -> &str {

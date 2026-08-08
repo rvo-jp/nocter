@@ -16,6 +16,13 @@ impl Resolver<'_> {
     }
 
     pub(in crate::resolve) fn collect_import_namespace_symbol(&mut self, item: &ImportItem) {
+        if self
+            .import_sources
+            .get(&item.path.span)
+            .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+        {
+            return;
+        }
         let import_source = self
             .module_index
             .import_ast_for_span(item.path.span, self.import_sources)
@@ -102,6 +109,13 @@ impl Resolver<'_> {
     }
 
     pub(in crate::resolve) fn collect_imported_symbols(&mut self, item: &FromImportItem) {
+        if self
+            .import_sources
+            .get(&item.path.span)
+            .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+        {
+            return;
+        }
         if let Some((imported_ast, import_source)) =
             self.module_index.import_ast(item, self.import_sources)
         {
@@ -134,6 +148,13 @@ impl Resolver<'_> {
         item: &ImportItem,
         scope: &mut Scope,
     ) {
+        if self
+            .import_sources
+            .get(&item.path.span)
+            .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+        {
+            return;
+        }
         let import_source = self
             .module_index
             .import_ast_for_span(item.path.span, self.import_sources)
@@ -167,6 +188,13 @@ impl Resolver<'_> {
         item: &FromImportItem,
         scope: &mut Scope,
     ) {
+        if self
+            .import_sources
+            .get(&item.path.span)
+            .is_some_and(|source| source.kind == crate::resolve::ImportKind::Source)
+        {
+            return;
+        }
         if let Some((imported_ast, import_source)) =
             self.module_index.import_ast(item, self.import_sources)
         {

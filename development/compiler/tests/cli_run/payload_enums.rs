@@ -608,7 +608,7 @@ func score(message: Message): i32 {
 fn run_command_accepts_payload_enum_if_is_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -657,7 +657,7 @@ func score(result: Result): usize {
 fn run_command_accepts_payload_enum_if_is_expression_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-expression-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -1079,7 +1079,7 @@ func maybe_ok(): Result? {
 fn run_command_moves_otherwise_fallback_local_into_pattern_target_once() {
     let project = TempProject::new("cli-run-payload-enum-otherwise-target-fallback-move");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -1089,7 +1089,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -1669,7 +1669,7 @@ func score(result: Result): i32 {
 fn run_command_accepts_payload_enum_match_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -1962,7 +1962,7 @@ func score(result: Result): i32 {
 fn run_command_accepts_payload_enum_match_expression_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-expression-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -2384,7 +2384,7 @@ func same(value: i32): i32 {
 fn run_command_returns_payloadless_match_expression_with_import_alias_arms_exit_code() {
     let project = TempProject::new("cli-run-payloadless-match-expression-import-alias-arms");
     project.write_source(
-        "choice.nct",
+        "choice/index.nct",
         r#"pub enum Choice {
     yes
     no
@@ -2392,7 +2392,7 @@ fn run_command_returns_payloadless_match_expression_with_import_alias_arms_exit_
 "#,
     );
     let source = project.write_source(
-        "payloadless_match_expression_import_alias_arms.nct",
+        "index.nct",
         r#"use ./choice.Choice
 use ./choice.Choice as Pick
 
@@ -2422,7 +2422,7 @@ func main(): i32 {
 fn run_command_returns_imported_alias_payloadless_wildcard_only_match_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-payloadless-wildcard-only-match");
     project.write_source(
-        "choices.nct",
+        "choices/index.nct",
         r#"pub enum Choice {
     yes
     no
@@ -2436,7 +2436,7 @@ pub func choose(): PublicChoice {
 "#,
     );
     let source = project.write_source(
-        "payloadless_wildcard_imported_alias.nct",
+        "index.nct",
         r#"use ./choices.{PublicChoice, choose}
 
 func main(): i32 {
@@ -2473,7 +2473,7 @@ func describe(choice: PublicChoice): i32 {
 fn run_command_returns_value_match_binding_and_assignment_exit_code() {
     let project = TempProject::new("cli-run-value-match-binding-and-assignment");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -2891,7 +2891,7 @@ func main(): i32 {
 fn run_command_owns_and_moves_indirect_fixed_array_enum_payloads() {
     let project = TempProject::new("cli-run-indirect-fixed-array-enum-payload-ownership");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -2901,7 +2901,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3011,7 +3011,7 @@ func main(): i32 {
 fn run_command_moves_direct_fixed_array_enum_payloads() {
     let project = TempProject::new("cli-run-direct-fixed-array-enum-payload-ownership");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3021,7 +3021,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3083,7 +3083,7 @@ func main(): i32 {
 fn run_command_transfers_fixed_array_enum_payloads_across_call_boundaries() {
     let project = TempProject::new("cli-run-fixed-array-enum-payload-call-boundaries");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3093,7 +3093,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3185,7 +3185,7 @@ func main(): i32 {
 fn run_command_drops_payload_enums_nested_in_aggregate_abi_surfaces() {
     let project = TempProject::new("cli-run-nested-payload-enum-aggregate-abi");
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3195,7 +3195,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3279,7 +3279,7 @@ func main(): i32 {
 fn run_command_does_not_drop_uninitialized_fixed_array_enum_success_payload() {
     let project = TempProject::new("cli-run-fixed-array-enum-payload-failure-cleanup");
     project.write_nocter_home_file(
-        "std/error.nct",
+        "std/error/index.nct",
         r#"pub type ErrorCode = &str
 pub type Error = error
 
@@ -3291,7 +3291,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 "#,
     );
     project.write_nocter_home_file(
-        "std/log.nct",
+        "std/log/index.nct",
         r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
@@ -3301,7 +3301,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io.nct",
+        "std/io/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,

@@ -8,7 +8,7 @@ use crate::source::SourceMap;
 use serde_json::{Value, json};
 use std::path::Path;
 
-pub(super) fn package_entry_definition(
+pub(super) fn package_module_definition(
     document: &OpenDocument,
     package_root: Option<&Path>,
     params: Option<&Value>,
@@ -31,9 +31,9 @@ pub(super) fn package_entry_definition(
         return None;
     }
     let package_file = parse_package_file(&sources, source, &lexed.tokens).package_file?;
-    let (entry, origin) = crate::package::target_entry_at_offset(&package_file.manifest, offset)?;
+    let (module, origin) = crate::package::target_module_at_offset(&package_file.manifest, offset)?;
 
-    let target = crate::package::resolve_explicit_module_path(root, entry).ok()?;
+    let target = crate::package::resolve_explicit_module_path(root, module).ok()?;
     Some(json!([{
         "originSelectionRange": super::protocol::range_for_byte_span(&document.text, origin),
         "targetUri": file_uri_for_path(&target),

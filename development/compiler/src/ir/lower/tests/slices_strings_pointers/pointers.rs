@@ -12,12 +12,12 @@ func main(): i32 {
         "make",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 "#,
             ),
             (
-                "std/text.nct",
+                "std/text/index.nct",
                 r#"use std/ptr.from_addr
 
 pub struct Text {
@@ -80,12 +80,12 @@ func main(): i32 {
         "make",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 "#,
             ),
             (
-                "std/text.nct",
+                "std/text/index.nct",
                 r#"use std/ptr.from_addr
 
 pub struct Text {
@@ -162,7 +162,7 @@ func main(): i32 {
 "#,
         "address_of",
         &[(
-            "std/ptr.nct",
+            "std/ptr/index.nct",
             r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 "#,
@@ -196,13 +196,13 @@ fn lowers_pointer_returning_normal_call_as_an_address_word() {
         "address",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub primitive addr<T>(pointer: *T): usize
 pub(nocter) primitive from_addr<T>(address: usize): *T
 "#,
             ),
             (
-                "std/pointer_calls.nct",
+                "std/pointer_calls/index.nct",
                 r#"use std/ptr.{addr, from_addr}
 
 func pointer(): *u8 {
@@ -250,7 +250,7 @@ func main(): i32 {
 "#,
         "main",
         &[(
-            "std/ptr.nct",
+            "std/ptr/index.nct",
             r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 "#,
@@ -296,7 +296,7 @@ func main(): i32 {
 "#,
         "main",
         &[(
-            "std/ptr.nct",
+            "std/ptr/index.nct",
             r#"pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 "#,
@@ -376,7 +376,7 @@ func main(): void {
         &[
             std_io_file(),
             (
-                "std/io_close.nct",
+                "std/io_close/index.nct",
                 r#"use std/io.close_fd_raw
 
 pub func close_raw(fd: i32): void {
@@ -411,13 +411,13 @@ func main(): void {
         "store_nul",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
 
@@ -455,13 +455,13 @@ func main(): void {
         "copy",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
 "#,
             ),
             (
-                "std/ptr_copy.nct",
+                "std/ptr_copy/index.nct",
                 r#"use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
 
@@ -499,13 +499,13 @@ func main(): void {
         "store_word",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -543,13 +543,13 @@ func main(): void {
         "store_borrow",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -590,13 +590,13 @@ func main(): void {
         "store_number",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -634,13 +634,13 @@ func main(): void {
         "store_flag",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -678,13 +678,13 @@ func main(): void {
         "store_text",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -722,13 +722,13 @@ func main(): void {
         "store_pair",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -781,13 +781,13 @@ func main(): void {
         "store_pair",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 "#,
             ),
             (
-                "std/ptr_store.nct",
+                "std/ptr_store/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.store_value_to_ptr
 
@@ -836,12 +836,12 @@ func main(): void {
         "drop_at",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 "#,
             ),
             (
-                "std/ptr_drop.nct",
+                "std/ptr_drop/index.nct",
                 r#"use std/ptr.drop_value_at_ptr
 
 struct Item {
@@ -897,12 +897,12 @@ func main(): void {
         "take_at",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T
 "#,
             ),
             (
-                "std/ptr_take.nct",
+                "std/ptr_take/index.nct",
                 r#"use std/ptr.take_value_at_ptr
 
 struct Item {
@@ -949,12 +949,12 @@ func main(): void {
         "size",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive pointee_size<T>(pointer: *T): usize
 "#,
             ),
             (
-                "std/ptr_size.nct",
+                "std/ptr_size/index.nct",
                 r#"use std/ptr.pointee_size
 
 pub copy struct Holder {
@@ -999,12 +999,12 @@ func main(): void {
         "size",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive pointee_size<T>(pointer: *T): usize
 "#,
             ),
             (
-                "std/ptr_size.nct",
+                "std/ptr_size/index.nct",
                 r#"use std/ptr.pointee_size
 
 pub copy struct Holder {
@@ -1041,12 +1041,12 @@ func main(): void {
         "align",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive pointee_align<T>(pointer: *T): usize
 "#,
             ),
             (
-                "std/ptr_align.nct",
+                "std/ptr_align/index.nct",
                 r#"use std/ptr.pointee_align
 
 pub copy struct Pair {
@@ -1096,13 +1096,13 @@ func main(): void {
         "view_mut",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
@@ -1139,13 +1139,13 @@ func main(): void {
         "view",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str from static
 "#,
             ),
             (
-                "std/ptr_str.nct",
+                "std/ptr_str/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.str_from_raw_parts
 
@@ -1187,13 +1187,13 @@ func main(): void {
         "view_mut",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
@@ -1235,13 +1235,13 @@ func main(): void {
         "view",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_value
 
@@ -1278,13 +1278,13 @@ func main(): void {
         "view",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_value
 
@@ -1326,13 +1326,13 @@ func main(): void {
         "view_mut",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_value_mut
 
@@ -1369,13 +1369,13 @@ func main(): void {
         "size",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
 "#,
             ),
             (
-                "std/ptr_str.nct",
+                "std/ptr_str/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.str_from_raw_parts
 
@@ -1417,13 +1417,13 @@ func main(): void {
         "first",
         &[
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
             ),
             (
-                "std/ptr_slice.nct",
+                "std/ptr_slice/index.nct",
                 r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 

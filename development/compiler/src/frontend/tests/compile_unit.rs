@@ -9,8 +9,8 @@ use std::fs;
 fn compile_unit_analysis_retains_per_file_results() {
     let root = make_temp_project("compile-unit-analysis");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./config.answer
 
 func main(): i32 {
@@ -19,8 +19,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("config.nct"),
+    crate::test_files::write(
+        root.join("config/index.nct"),
         r#"pub func answer(): i32 {
     return "bad"
 }
@@ -29,7 +29,7 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let options = FrontendOptions {
         nocter_home: Some(home.to_path_buf()),
         package_graph: None,
@@ -53,10 +53,10 @@ func main(): i32 {
             sources
                 .get(file.ast.span.source)
                 .and_then(|source_file| source_file.absolute_path())
-                .map(|path| path.ends_with("config.nct"))
+                .map(|path| path.ends_with("config/index.nct"))
                 .unwrap_or(false)
         })
-        .expect("expected config.nct analysis");
+        .expect("expected config/index.nct analysis");
     assert!(config.resolved.symbols.symbol_by_name("answer").is_some());
     assert!(
         config
@@ -79,8 +79,8 @@ func main(): i32 {
 fn compile_unit_reuses_preloaded_import_source() {
     let root = make_temp_project("compile-unit-preloaded-import");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use ./config.answer
 
 func main(): i32 {
@@ -89,8 +89,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        root.join("config.nct"),
+    crate::test_files::write(
+        root.join("config/index.nct"),
         r#"pub func answer(): i32 {
     return 0
 }
@@ -99,8 +99,8 @@ func main(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let root_source = sources.load_file(root.join("app.nct")).unwrap();
-    let config_path = root.join("config.nct").canonicalize().unwrap();
+    let root_source = sources.load_file(root.join("index.nct")).unwrap();
+    let config_path = root.join("config/index.nct").canonicalize().unwrap();
     let config_display = config_path.to_string_lossy().into_owned();
     let config_source = sources.add_source(
         config_display,
@@ -136,13 +136,13 @@ func main(): i32 {
 fn failed_compile_unit_retains_only_reached_source_dependencies() {
     let root = make_temp_project("failed-compile-unit-source-trace");
     let home = make_nocter_home(&root);
-    fs::write(root.join("app.nct"), "use ./config.value\n").unwrap();
-    fs::write(root.join("config.nct"), "pub func value(: i32 {\n").unwrap();
-    fs::write(root.join("unrelated.nct"), "pub func value(): i32 { 0 }\n").unwrap();
+    crate::test_files::write(root.join("index.nct"), "use ./config.value\n").unwrap();
+    crate::test_files::write(root.join("config/index.nct"), "pub func value(: i32 {\n").unwrap();
+    crate::test_files::write(root.join("unrelated.nct"), "pub func value(): i32 { 0 }\n").unwrap();
 
     let mut sources = SourceMap::new();
-    let app = sources.load_file(root.join("app.nct")).unwrap();
-    let config = sources.load_file(root.join("config.nct")).unwrap();
+    let app = sources.load_file(root.join("index.nct")).unwrap();
+    let config = sources.load_file(root.join("config/index.nct")).unwrap();
     let unrelated = sources.load_file(root.join("unrelated.nct")).unwrap();
     let options = FrontendOptions {
         nocter_home: Some(home),
@@ -163,8 +163,8 @@ fn failed_compile_unit_retains_only_reached_source_dependencies() {
 fn target_gated_type_imports_follow_active_target() {
     let root = make_temp_project("target-gated-type-imports");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"use std/os.PlatformWord
 
 func main(): i32 {
@@ -173,8 +173,8 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/os.nct"),
+    crate::test_files::write(
+        home.join("std/os/index.nct"),
         r#"#target: "arm64-darwin"
 pub copy struct PlatformWord {
     pub value: usize
@@ -185,7 +185,7 @@ pub copy struct PlatformWord {
 
     let diagnostics_for_target = |target: &str| {
         let mut sources = SourceMap::new();
-        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let source = sources.load_file(root.join("index.nct")).unwrap();
         let options = FrontendOptions {
             nocter_home: Some(home.to_path_buf()),
             package_graph: None,
@@ -214,8 +214,8 @@ pub copy struct PlatformWord {
 fn check_orders_diagnostics_by_source_position() {
     let root = make_temp_project("diagnostic-order");
     let home = make_nocter_home(&root);
-    fs::write(
-        root.join("app.nct"),
+    crate::test_files::write(
+        root.join("index.nct"),
         r#"func takes_i32(value: i32): i32 {
     return value
 }
@@ -232,7 +232,7 @@ func later(): i32 {
     .unwrap();
 
     let mut sources = SourceMap::new();
-    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 

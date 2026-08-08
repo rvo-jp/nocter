@@ -57,8 +57,9 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
         return ExitCode::from(2);
     };
     let package_file = command.directory.join("nocter.nct");
-    let test_file = command.directory.join("tests/unit.nct");
-    if package_file.exists() || test_file.exists() {
+    let root_source_file = command.directory.join("index.nct");
+    let test_file = command.directory.join("tests/unit/index.nct");
+    if package_file.exists() || root_source_file.exists() || test_file.exists() {
         eprintln!(
             "error[E0700]: package initialization target already exists in `{}`",
             command.directory.display()
@@ -72,10 +73,10 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
         );
         return ExitCode::from(2);
     }
-    let source = if command.library {
-        init_templates::library(&name)
+    let root_source = if command.library {
+        init_templates::library_source(&name)
     } else {
-        init_templates::executable(&name)
+        init_templates::executable_source(&name)
     };
     if let Some(parent) = test_file.parent()
         && let Err(error) = fs::create_dir_all(parent)
@@ -86,14 +87,25 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
         );
         return ExitCode::from(2);
     }
-    if let Err(error) = write_new(&package_file, source.as_bytes()) {
+    if let Err(error) = write_new(
+        &package_file,
+        init_templates::package(&name, command.library).as_bytes(),
+    ) {
         eprintln!(
             "error[E0700]: failed to write `{}`: {error}",
             package_file.display()
         );
         return ExitCode::from(2);
     }
-    if let Err(error) = write_new(&test_file, init_templates::test().as_bytes()) {
+    if let Err(error) = write_new(&root_source_file, root_source.as_bytes()) {
+        eprintln!(
+            "error[E0700]: failed to write `{}`: {error}",
+            root_source_file.display()
+        );
+        let _ = fs::remove_file(&package_file);
+        return ExitCode::from(2);
+    }
+    if let Err(error) = write_new(&test_file, init_templates::test_source().as_bytes()) {
         eprintln!(
             "error[E0700]: failed to write `{}`: {error}",
             test_file.display()
@@ -104,6 +116,7 @@ pub(super) fn run_init_command(command: &InitCommand) -> ExitCode {
                 package_file.display()
             );
         }
+        let _ = fs::remove_file(&root_source_file);
         return ExitCode::from(2);
     }
     println!("created {}", package_file.display());

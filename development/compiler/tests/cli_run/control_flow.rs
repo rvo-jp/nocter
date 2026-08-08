@@ -765,7 +765,7 @@ func main(): i32 {
 fn run_command_returns_value_control_call_argument_exit_code() {
     let project = TempProject::new("cli-run-value-control-call-argument");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -820,7 +820,7 @@ func score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
 fn run_command_returns_value_control_method_call_argument_exit_code() {
     let project = TempProject::new("cli-run-value-control-method-call-argument");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {

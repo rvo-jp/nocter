@@ -364,7 +364,7 @@ func main(): i32 {
 fn build_command_lowers_imported_readwrite_borrow_alias_argument() {
     let project = TempProject::new("cli-build-imported-readwrite-borrow-alias-argument");
     project.write_source(
-        "borrow_api.nct",
+        "borrow_api/index.nct",
         r#"pub type IntMut = &+i32
 
 pub func choose(value: IntMut, fallback: i32): i32 {

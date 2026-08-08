@@ -915,7 +915,7 @@ func main(): void {
 "#,
         "size",
         &[(
-            "std/string.nct",
+            "std/string/index.nct",
             r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func size(value: &str): usize {
@@ -942,7 +942,7 @@ fn lowers_typed_str_pointer_primitive_to_the_view_data_word() {
         "use std/str.address\nfunc main(): void { return }\n",
         "address",
         &[(
-            "std/str.nct",
+            "std/str/index.nct",
             r#"pub(nocter) primitive str_ptr_addr_raw(value: &str): usize
 pub func address(value: &str): usize { return str_ptr_addr_raw(value) }
 "#,
@@ -973,7 +973,7 @@ func main(): void {
 "#,
         "first",
         &[(
-            "std/string.nct",
+            "std/string/index.nct",
             r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func first(value: &str): u8 {
@@ -1009,7 +1009,7 @@ func main(): void {
 "#,
         "middle",
         &[(
-            "std/string_views.nct",
+            "std/string_views/index.nct",
             r#"pub(nocter) primitive str_subview_unchecked(
     text: &str,
     start: usize,

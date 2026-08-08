@@ -699,7 +699,7 @@ func main(): void {
         &[
             std_io_file(),
             (
-                "std/io_bytes.nct",
+                "std/io_bytes/index.nct",
                 r#"use std/io.read_bytes_raw
 
 pub func read_count(buffer: &+[u8]): usize! {
@@ -736,18 +736,18 @@ func main(): void {
         "open_raw",
         &[
             (
-                "std/io.nct",
+                "std/io/index.nct",
                 r#"#target: "arm64-darwin"
 pub(nocter) primitive open_read_raw(path: *u8): i32!
 "#,
             ),
             (
-                "std/ptr.nct",
+                "std/ptr/index.nct",
                 r#"pub(nocter) primitive from_addr<T>(address: usize): *T
 "#,
             ),
             (
-                "std/io_open.nct",
+                "std/io_open/index.nct",
                 r#"use std/io.open_read_raw
 use std/ptr.from_addr
 

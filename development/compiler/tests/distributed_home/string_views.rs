@@ -140,7 +140,7 @@ fn distributed_std_borrowed_text_iterators_do_not_reach_the_allocator() {
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
 
-    let mem_module = home.join("std/mem.nct");
+    let mem_module = home.join("std/mem/index.nct");
     let mem_source = fs::read_to_string(&mem_module).unwrap();
     let original = r#"pub func alloc(
     allocator: &+Allocator,
@@ -404,7 +404,7 @@ func main(): i32! {
         .and_then(|location| location["targetUri"].as_str())
         .or_else(|| definition["uri"].as_str());
     assert!(
-        target_uri.is_some_and(|uri| uri.ends_with("/std/string_views.nct")),
+        target_uri.is_some_and(|uri| uri.ends_with("/std/string_views/index.nct")),
         "definition: {definition:#?}"
     );
 

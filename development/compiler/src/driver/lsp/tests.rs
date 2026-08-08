@@ -312,8 +312,8 @@ pub func identity<T>(value: T): T from value {
     return value
 }
 "#;
-    let app = project.write_source("app.nct", app_text);
-    project.write_source("math.nct", math_text);
+    let app = project.write_source("index.nct", app_text);
+    project.write_source("math/index.nct", math_text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), app_text.to_string());
     let server = LspServer {
@@ -358,7 +358,7 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
     return callable(input)
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -409,7 +409,7 @@ func main(): i32 {
     return 0
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -461,7 +461,7 @@ func main(): i32 {
     return 0
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -495,8 +495,8 @@ func main(): i32 {
 fn typed_literal_shape_completion_recovers_a_missing_delimiter() {
     let project = TempProject::new("lsp-typed-literal-shape-completion");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/vec.nct"),
+    crate::test_files::write(
+        home.join("std/vec/index.nct"),
         r#"pub struct Vec<T> { length: usize }
 
 construct Vec<T> {
@@ -513,7 +513,7 @@ construct Vec<T> {
         " \n",
         "    return 0\n}\n"
     );
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -567,7 +567,7 @@ func main(candidate: i32, text: &str): i32 {
     return 0
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -613,7 +613,7 @@ construct Text {
     pub default literal ""(text: &str): Self {
         return Text { value: text }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -862,7 +862,7 @@ fn classifies_builtin_types_and_methods_for_semantic_tokens() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File { fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let documents = HashMap::from([(uri.clone(), document)]);
@@ -908,13 +908,13 @@ fn classifies_an_import_module_path_as_one_namespace_token() {
     let project = TempProject::new("lsp-semantic-import-path");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    std::fs::write(
-        home.join("std/error.nct"),
+    crate::test_files::write(
+        home.join("std/error/index.nct"),
         "pub struct Error { code: i32 }\n",
     )
     .unwrap();
     let text = "use std/error.Error\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let documents = HashMap::from([(uri.clone(), document)]);
@@ -938,8 +938,8 @@ fn classifies_block_imported_function_name_for_semantic_tokens() {
     let _home = NocterHomeEnv::set(&home);
     let app_text = "func main(): i32 {\n    use ./config.answer\n\n    return answer()\n}\n";
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let documents = HashMap::from([
@@ -984,7 +984,7 @@ fn marks_readonly_bindings_for_semantic_tokens() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "func main(value: i32, path: &str): i32 {\n    let alpha = value\n    var beta = 2\n    return alpha + beta\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let documents = HashMap::from([(uri.clone(), document)]);
@@ -1037,7 +1037,7 @@ var readonly_alias = readonly
 return fixed.code + mutable.code + value.code + readonly.code + readwrite.code + readwrite_alias.code + readonly_alias.code
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let documents = HashMap::from([(uri.clone(), document)]);
@@ -1208,7 +1208,7 @@ fn returns_hover_for_local_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "func main(path: &str): i32 {\n    let code = 0\n    return code\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1326,13 +1326,13 @@ fn returns_markdown_hover_for_import_module_path() {
     let project = TempProject::new("lsp-hover-import-module");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    std::fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         "//! **I/O** module.\n//!\n//! Provides file and text APIs.\n\npub func print(text: &str): void! {\n    return\n}\n",
     )
     .unwrap();
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -1379,13 +1379,13 @@ fn returns_markdown_hover_for_block_import_module_path() {
     let project = TempProject::new("lsp-hover-block-import-module");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    std::fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         "//! **I/O** module.\n//!\n//! Provides file and text APIs.\n\npub func print(text: &str): void! {\n    return\n}\n",
     )
     .unwrap();
     let text = "func main(): i32 {\n    use std/io.print\n    return 0\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -1501,7 +1501,7 @@ fn returns_inferred_hover_for_integer_binding() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "func main(): i32 {\n    var count = 0\n    return count\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1550,7 +1550,7 @@ func run(arena: Arena): i32 {
     return 0
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1606,7 +1606,7 @@ func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
     region temp using
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1649,7 +1649,7 @@ func run(parent: Allocator): void {
     region temp using parent {
         let value = 1
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1683,14 +1683,14 @@ func run(parent: Allocator): void {
 fn returns_short_visible_type_names_for_hover() {
     let project = TempProject::new("lsp-hover-short-type-names");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/string.nct"),
+    crate::test_files::write(
+        home.join("std/string/index.nct"),
         "pub copy struct String {\n    ptr: usize\n}\n",
     )
     .unwrap();
     let _home = NocterHomeEnv::set(&home);
     let text = "use std/string.String\n\nstruct TestStruct {\n    field3: String\n}\n\nfunc inspect(value: TestStruct): String {\n    let result = value.field3\n    return result\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -1765,16 +1765,16 @@ pub interface Iterable<T, I> {
     pub method &self.iter(): I
 }
 "#;
-    let core_source = home.join("std/iter/core.nct");
+    let core_source = home.join("std/iter/core/index.nct");
     std::fs::create_dir_all(core_source.parent().unwrap()).unwrap();
-    std::fs::write(&core_source, core_text).unwrap();
-    std::fs::write(
-        home.join("std/iter.nct"),
+    crate::test_files::write(&core_source, core_text).unwrap();
+    crate::test_files::write(
+        home.join("std/iter/index.nct"),
         "pub use std/iter/core.Iterable\n",
     )
     .unwrap();
-    std::fs::write(
-        home.join("std/vec.nct"),
+    crate::test_files::write(
+        home.join("std/vec/index.nct"),
         r#"use std/iter.Iterable
 
 pub struct Vec<T> { value: T }
@@ -1882,18 +1882,18 @@ pub struct Vec<T> { value: T }
 fn shortens_hidden_canonical_type_names_for_hover() {
     let project = TempProject::new("lsp-hover-hidden-canonical-type-names");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/string.nct"),
+    crate::test_files::write(
+        home.join("std/string/index.nct"),
         "pub copy struct String {\n    ptr: usize\n}\n",
     )
     .unwrap();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.make\n\nfunc main(): i32 {\n    let holder = make()\n    return 0\n}\n",
     );
     let config = project.write_source(
-        "config.nct",
+        "config/index.nct",
         "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box { value: String { ptr: 0 } }\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -1949,7 +1949,7 @@ fn shortens_hidden_canonical_type_names_for_hover() {
 fn returns_documented_workspace_hover_for_local_binding_reference() {
     let project = TempProject::new("lsp-hover-local-reference-docs");
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "func main(): i32 {\n    /// Exit code.\n    let code: i32 = 0\n    return code\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -2034,11 +2034,11 @@ fn returns_documented_hover_for_imported_function_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
     let config = project.write_source(
-        "config.nct",
+        "config/index.nct",
         "/// Returns the configured answer.\npub func answer(): i32 {\n    return 42\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -2100,8 +2100,8 @@ fn returns_documented_hover_for_namespace_imported_function_member_reference() {
     let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
     let config_text =
         "/// Returns the configured answer.\npub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2150,11 +2150,11 @@ fn returns_documented_hover_for_imported_type_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
     );
     let config = project.write_source(
-        "config.nct",
+        "config/index.nct",
         "/// Runtime configuration.\npub struct Config {\n    value: i32\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -2215,15 +2215,15 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
     let project = TempProject::new("lsp-hover-imported-type-site");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    let error_module = home.join("std/error.nct");
-    std::fs::write(
+    let error_module = home.join("std/error/index.nct");
+    crate::test_files::write(
         &error_module,
         "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n",
     )
     .unwrap();
     let error_uri = file_uri(&error_module.canonicalize().unwrap());
     let text = "use std/error.Error\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -2403,10 +2403,13 @@ fn returns_definition_for_imported_function_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
-    let config = project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+    let config = project.write_source(
+        "config/index.nct",
+        "pub func answer(): i32 {\n    return 42\n}\n",
+    );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2463,8 +2466,8 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
     let _home = NocterHomeEnv::set(&home);
     let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2511,10 +2514,13 @@ fn returns_references_for_imported_function_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
-    let config = project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+    let config = project.write_source(
+        "config/index.nct",
+        "pub func answer(): i32 {\n    return 42\n}\n",
+    );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2562,15 +2568,15 @@ fn returns_references_for_imported_function_reference() {
     let references = response["result"].as_array().expect("expected references");
 
     assert_eq!(references.len(), 3);
-    assert_eq!(references[0]["uri"], json!(app_uri));
+    assert_eq!(references[0]["uri"], json!(config_uri));
     assert_eq!(references[0]["range"]["start"]["line"], json!(0));
-    assert_eq!(references[0]["range"]["start"]["character"], json!(13));
+    assert_eq!(references[0]["range"]["start"]["character"], json!(9));
     assert_eq!(references[1]["uri"], json!(app_uri));
-    assert_eq!(references[1]["range"]["start"]["line"], json!(3));
-    assert_eq!(references[1]["range"]["start"]["character"], json!(11));
-    assert_eq!(references[2]["uri"], json!(config_uri));
-    assert_eq!(references[2]["range"]["start"]["line"], json!(0));
-    assert_eq!(references[2]["range"]["start"]["character"], json!(9));
+    assert_eq!(references[1]["range"]["start"]["line"], json!(0));
+    assert_eq!(references[1]["range"]["start"]["character"], json!(13));
+    assert_eq!(references[2]["uri"], json!(app_uri));
+    assert_eq!(references[2]["range"]["start"]["line"], json!(3));
+    assert_eq!(references[2]["range"]["start"]["character"], json!(11));
 }
 
 #[test]
@@ -2581,8 +2587,8 @@ fn returns_references_for_block_imported_function_reference() {
     let app_text =
         "func main(): i32 {\n    use ./config.answer\n\n    return answer() + answer()\n}\n";
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2621,18 +2627,18 @@ fn returns_references_for_block_imported_function_reference() {
     let references = response["result"].as_array().expect("expected references");
 
     assert_eq!(references.len(), 4);
-    assert_eq!(references[0]["uri"], json!(app_uri));
-    assert_eq!(references[0]["range"]["start"]["line"], json!(1));
-    assert_eq!(references[0]["range"]["start"]["character"], json!(17));
+    assert_eq!(references[0]["uri"], json!(config_uri));
+    assert_eq!(references[0]["range"]["start"]["line"], json!(0));
+    assert_eq!(references[0]["range"]["start"]["character"], json!(9));
     assert_eq!(references[1]["uri"], json!(app_uri));
-    assert_eq!(references[1]["range"]["start"]["line"], json!(3));
-    assert_eq!(references[1]["range"]["start"]["character"], json!(11));
+    assert_eq!(references[1]["range"]["start"]["line"], json!(1));
+    assert_eq!(references[1]["range"]["start"]["character"], json!(17));
     assert_eq!(references[2]["uri"], json!(app_uri));
     assert_eq!(references[2]["range"]["start"]["line"], json!(3));
-    assert_eq!(references[2]["range"]["start"]["character"], json!(22));
-    assert_eq!(references[3]["uri"], json!(config_uri));
-    assert_eq!(references[3]["range"]["start"]["line"], json!(0));
-    assert_eq!(references[3]["range"]["start"]["character"], json!(9));
+    assert_eq!(references[2]["range"]["start"]["character"], json!(11));
+    assert_eq!(references[3]["uri"], json!(app_uri));
+    assert_eq!(references[3]["range"]["start"]["line"], json!(3));
+    assert_eq!(references[3]["range"]["start"]["character"], json!(22));
 }
 
 #[test]
@@ -2643,8 +2649,8 @@ fn returns_references_for_namespace_imported_function_member_reference() {
     let app_text =
         "use ./config\n\nfunc main(): i32 {\n    return config.answer() + config.answer()\n}\n";
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -2683,15 +2689,15 @@ fn returns_references_for_namespace_imported_function_member_reference() {
     let references = response["result"].as_array().expect("expected references");
 
     assert_eq!(references.len(), 3);
-    assert_eq!(references[0]["uri"], json!(app_uri));
-    assert_eq!(references[0]["range"]["start"]["line"], json!(3));
-    assert_eq!(references[0]["range"]["start"]["character"], json!(18));
+    assert_eq!(references[0]["uri"], json!(config_uri));
+    assert_eq!(references[0]["range"]["start"]["line"], json!(0));
+    assert_eq!(references[0]["range"]["start"]["character"], json!(9));
     assert_eq!(references[1]["uri"], json!(app_uri));
     assert_eq!(references[1]["range"]["start"]["line"], json!(3));
-    assert_eq!(references[1]["range"]["start"]["character"], json!(36));
-    assert_eq!(references[2]["uri"], json!(config_uri));
-    assert_eq!(references[2]["range"]["start"]["line"], json!(0));
-    assert_eq!(references[2]["range"]["start"]["character"], json!(9));
+    assert_eq!(references[1]["range"]["start"]["character"], json!(18));
+    assert_eq!(references[2]["uri"], json!(app_uri));
+    assert_eq!(references[2]["range"]["start"]["line"], json!(3));
+    assert_eq!(references[2]["range"]["start"]["character"], json!(36));
 }
 
 #[test]
@@ -2699,17 +2705,17 @@ fn returns_definition_for_import_module_path() {
     let project = TempProject::new("lsp-definition-import-module");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    std::fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         "//! I/O module.\n\npub func print(text: &str): void! {\n    return\n}\n",
     )
     .unwrap();
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n",
     );
     let app_uri = file_uri(&app);
-    let io = home.join("std/io.nct").canonicalize().unwrap();
+    let io = home.join("std/io/index.nct").canonicalize().unwrap();
     let server = LspServer {
         documents: HashMap::from([(
             app_uri.clone(),
@@ -2760,11 +2766,12 @@ fn returns_definition_for_package_executable_entry() {
     let project = TempProject::new("lsp-definition-package-entry");
     let manifest_text = r#"#executable: {
     name: "app",
-    entry: "./src/app",
+    module: "./src/app",
 }
 "#;
     let manifest = project.write_source("nocter.nct", manifest_text);
-    let app = project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    project.write_source("index.nct", "");
+    let app = project.write_source("src/app/index.nct", "func main(): i32 { 0 }\n");
     let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
     let root = project.root.canonicalize().unwrap();
     let server = LspServer {
@@ -2797,11 +2804,11 @@ fn returns_definition_for_package_executable_entry() {
     );
     assert_eq!(
         definition["originSelectionRange"]["start"]["character"],
-        json!(12)
+        json!(13)
     );
     assert_eq!(
         definition["originSelectionRange"]["end"]["character"],
-        json!(21)
+        json!(22)
     );
 }
 
@@ -2810,11 +2817,12 @@ fn returns_definition_for_package_test_entry() {
     let project = TempProject::new("lsp-definition-package-test-entry");
     let manifest_text = r#"#test: {
     name: "unit",
-    entry: "./tests/unit",
+    module: "./tests/unit",
 }
 "#;
     let manifest = project.write_source("nocter.nct", manifest_text);
-    let unit = project.write_source("tests/unit.nct", "func main(): i32 { 0 }\n");
+    project.write_source("index.nct", "");
+    let unit = project.write_source("tests/unit/index.nct", "func main(): i32 { 0 }\n");
     let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
     let root = project.root.canonicalize().unwrap();
     let server = LspServer {
@@ -2847,20 +2855,21 @@ fn returns_definition_for_package_test_entry() {
     );
     assert_eq!(
         definition["originSelectionRange"]["start"]["character"],
-        json!(12)
+        json!(13)
     );
     assert_eq!(
         definition["originSelectionRange"]["end"]["character"],
-        json!(24)
+        json!(25)
     );
 }
 
 #[test]
 fn nested_nocter_file_is_treated_as_its_own_package_root() {
     let project = TempProject::new("lsp-definition-nested-manifest");
-    let manifest_text = "#executable: { name: \"app\", entry: \"./app\" }\n";
+    let manifest_text = "#executable: { name: \"app\", module: \"./app\" }\n";
     let manifest = project.write_source("src/nocter.nct", manifest_text);
-    project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    project.write_source("src/index.nct", "");
+    project.write_source("src/app/index.nct", "func main(): i32 { 0 }\n");
     let manifest_uri = file_uri(&manifest.canonicalize().unwrap());
     let root = project.root.canonicalize().unwrap();
     let server = LspServer {
@@ -2890,7 +2899,11 @@ fn nested_nocter_file_is_treated_as_its_own_package_root() {
     assert_eq!(
         definition["targetUri"],
         json!(file_uri(
-            &project.root.join("src/app.nct").canonicalize().unwrap()
+            &project
+                .root
+                .join("src/app/index.nct")
+                .canonicalize()
+                .unwrap()
         ))
     );
 }
@@ -2900,15 +2913,15 @@ fn returns_definition_for_block_import_module_path() {
     let project = TempProject::new("lsp-definition-block-import-module");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    std::fs::write(
-        home.join("std/io.nct"),
+    crate::test_files::write(
+        home.join("std/io/index.nct"),
         "//! I/O module.\n\npub func print(text: &str): void! {\n    return\n}\n",
     )
     .unwrap();
     let text = "func main(): i32 {\n    use std/io.print\n    return 0\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
-    let io = home.join("std/io.nct").canonicalize().unwrap();
+    let io = home.join("std/io/index.nct").canonicalize().unwrap();
     let server = LspServer {
         documents: HashMap::from([(
             app_uri.clone(),
@@ -2956,10 +2969,13 @@ fn returns_definition_for_imported_type_reference() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
     );
-    let config = project.write_source("config.nct", "pub struct Config {\n    value: i32\n}\n");
+    let config = project.write_source(
+        "config/index.nct",
+        "pub struct Config {\n    value: i32\n}\n",
+    );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -3015,7 +3031,7 @@ fn returns_definition_for_method_call() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read()\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -3052,8 +3068,8 @@ fn returns_definition_for_method_call() {
 fn coerced_builtin_method_editor_features_share_the_source_declaration() {
     let project = TempProject::new("lsp-coerced-builtin-method");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/string.nct"),
+    crate::test_files::write(
+        home.join("std/string/index.nct"),
         r#"pub struct String { value: &str }
 coerce String { pub &self as &str { return self.value } }
 "#,
@@ -3068,7 +3084,7 @@ func size(text: &String): usize {
 
 func main(): i32 { return 0 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -3117,7 +3133,9 @@ func main(): i32 { return 0 }
     let link = definition_link(&definition);
     assert_eq!(
         link["targetUri"],
-        json!(file_uri(&home.join("std/str.nct").canonicalize().unwrap()))
+        json!(file_uri(
+            &home.join("std/str/index.nct").canonicalize().unwrap()
+        ))
     );
 
     let references = server.references_response(json!(92), Some(&params));
@@ -3293,10 +3311,13 @@ fn returns_completion_items_for_imported_symbols() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
-    let config = project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+    let config = project.write_source(
+        "config/index.nct",
+        "pub func answer(): i32 {\n    return 42\n}\n",
+    );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -3367,7 +3388,7 @@ return match choice {
 }
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
     let server = LspServer {
@@ -3750,8 +3771,8 @@ fn returns_completion_items_for_namespace_import_without_member_leakage() {
     let _home = NocterHomeEnv::set(&home);
     let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -3811,8 +3832,8 @@ return 0
 }
 "#;
     let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
-    let app = project.write_source("app.nct", app_text);
-    let config = project.write_source("config.nct", config_text);
+    let app = project.write_source("index.nct", app_text);
+    let config = project.write_source("config/index.nct", config_text);
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let server = LspServer {
@@ -4019,10 +4040,13 @@ fn ignores_stale_document_changes() {
 fn publishes_diagnostics_for_open_imported_document_text() {
     let project = TempProject::new("lsp-open-import");
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
-    let config = project.write_source("config.nct", "pub func answer(): i32 {\n    return 0\n}\n");
+    let config = project.write_source(
+        "config/index.nct",
+        "pub func answer(): i32 {\n    return 0\n}\n",
+    );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
     let documents = HashMap::from([
@@ -4064,11 +4088,11 @@ fn lsp_diagnostics_include_related_information_and_help() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let app = project.write_source(
-        "app.nct",
+        "index.nct",
         "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
     let config = project.write_source(
-        "config.nct",
+        "config/index.nct",
         "pub func answer(value: i32): i32 {\n    return value\n}\n",
     );
     let app_uri = file_uri(&app);
@@ -4135,7 +4159,7 @@ fn lsp_diagnostics_report_unresolved_identifiers() {
     let project = TempProject::new("lsp-unresolved-identifier");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    let app = project.write_source("app.nct", "func main(): i32 {\n    return missing\n}\n");
+    let app = project.write_source("index.nct", "func main(): i32 {\n    return missing\n}\n");
     let uri = file_uri(&app);
     let documents = HashMap::from([(
         uri.clone(),
@@ -4169,7 +4193,7 @@ fn lsp_diagnostics_report_unresolved_drop_targets() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     let text = "func main(): i32 {\n    drop missing\n    return 0\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let documents = HashMap::from([(
         uri.clone(),
@@ -4250,7 +4274,7 @@ fn returns_only_lexically_visible_local_completion_items() {
     return later
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4306,7 +4330,7 @@ func main(): i32 {
     return answer(1)
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4343,8 +4367,8 @@ func main(): i32 {
 fn vec_string_completion_specializes_methods_and_includes_std_documentation() {
     let project = TempProject::new("lsp-vec-string-completion");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/vec.nct"),
+    crate::test_files::write(
+        home.join("std/vec/index.nct"),
         r#"pub struct Vec<T> {
     len: usize
     data: &[T]
@@ -4363,8 +4387,8 @@ impl<T> Vec<T> {
 "#,
     )
     .unwrap();
-    std::fs::write(
-        home.join("std/string.nct"),
+    crate::test_files::write(
+        home.join("std/string/index.nct"),
         "pub struct String {\n    len: usize\n}\n",
     )
     .unwrap();
@@ -4377,7 +4401,7 @@ func edit(values: &+Vec<String>): void {
     return
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4424,11 +4448,11 @@ fn signature_help_recovers_incomplete_imported_call() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     project.write_source(
-        "math.nct",
+        "math/index.nct",
         "pub func add(left: i32, right: i32): i32 {\n    return left + right\n}\n",
     );
     let text = "use ./math.add\n\nfunc main(): i32 {\n    return add(20, \n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4472,7 +4496,7 @@ func main(good: bool, bad: i32): bool {
     return choose(bad)
 }
 "#;
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4509,11 +4533,11 @@ fn import_symbol_completion_recovers_and_filters_visibility() {
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
     project.write_source(
-        "math.nct",
+        "math/index.nct",
         "pub func add(value: i32): i32 {\n    return value\n}\n\nfunc hidden(): i32 {\n    return 0\n}\n",
     );
     let text = "use ./math.\n\nfunc main(): i32 {\n    return 0\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4555,7 +4579,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
     );
     project.write_source("lib/value.nct", "pub struct Value {\n    raw: i32\n}\n");
     let text = "use ./lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4591,8 +4615,8 @@ fn import_path_completion_discovers_reachable_module_segments() {
 fn member_completion_recovers_incomplete_imported_receiver() {
     let project = TempProject::new("lsp-incomplete-imported-member");
     let home = project.write_nocter_home();
-    std::fs::write(
-        home.join("std/box.nct"),
+    crate::test_files::write(
+        home.join("std/box/index.nct"),
         r#"pub struct Box<T> {
     value: T
 }
@@ -4607,7 +4631,7 @@ impl<T> Box<T> {
     .unwrap();
     let _home = NocterHomeEnv::set(&home);
     let text = "use std/box.Box\n\nfunc inspect(value: &Box<i32>): void {\n    value.\n}\n";
-    let app = project.write_source("app.nct", text);
+    let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let server = LspServer {
         documents: HashMap::from([(
@@ -4660,8 +4684,8 @@ impl Box {
     let member_text =
         "use ./library.Box\n\nfunc inspect(value: &Box): i32 {\n    return value.\n}\n";
     let import_text = "use ./library.\n\nfunc main(): i32 {\n    return 0\n}\n";
-    let library = project.write_source("library.nct", library_text);
-    let app = project.write_source("app.nct", call_text);
+    let library = project.write_source("library/index.nct", library_text);
+    let app = project.write_source("index.nct", call_text);
     let library_uri = file_uri(&library);
     let app_uri = file_uri(&app);
     let mut input = frame(&json!({
@@ -4753,8 +4777,8 @@ fn json_rpc_uses_one_open_overlay_for_diagnostics_definition_and_references() {
     let disk_library = "pub func stale(): i32 {\n    return 0\n}\n";
     let overlay_library = "pub func answer(): i32 {\n    return 42\n}\n";
     let app_text = "use ./library.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
-    let library = project.write_source("library.nct", disk_library);
-    let app = project.write_source("app.nct", app_text);
+    let library = project.write_source("library/index.nct", disk_library);
+    let app = project.write_source("index.nct", app_text);
     let library_uri = file_uri(&library);
     let app_uri = file_uri(&app);
     let call_offset = app_text.rfind("answer()").unwrap();
@@ -4939,35 +4963,38 @@ impl TempProject {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
-        std::fs::write(&path, text).unwrap();
+        crate::test_files::write(&path, text).unwrap();
         path
     }
 
     fn write_nocter_home(&self) -> PathBuf {
         let home = self.root.join(".nocter");
-        std::fs::create_dir_all(home.join("std")).unwrap();
-        std::fs::write(home.join("std/prelude.nct"), "").unwrap();
+        std::fs::create_dir_all(home.join("std/prelude")).unwrap();
+        crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
         write_builtin_view_surfaces(&home);
         home
     }
 }
 
 fn write_builtin_view_surfaces(home: &Path) {
-    std::fs::write(
-        home.join("std/str.nct"),
+    std::fs::create_dir_all(home.join("std/str")).unwrap();
+    std::fs::create_dir_all(home.join("std/slice")).unwrap();
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         "pub(nocter) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
     )
     .unwrap();
-    std::fs::write(
-        home.join("std/slice.nct"),
+    crate::test_files::write(
+        home.join("std/slice/index.nct"),
         "pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
     )
     .unwrap();
 }
 
 fn write_allocator_capability_std(home: &Path) {
-    std::fs::write(
-        home.join("std/mem.nct"),
+    std::fs::create_dir_all(home.join("std/mem")).unwrap();
+    crate::test_files::write(
+        home.join("std/mem/index.nct"),
         r#"pub struct Allocator {
     state: usize
     kind: usize

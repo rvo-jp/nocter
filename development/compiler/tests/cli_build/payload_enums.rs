@@ -254,7 +254,7 @@ func describe(error: AppError): i32 {
 fn build_command_accepts_payload_enum_match_slice_binding() {
     let project = TempProject::new("cli-build-payload-enum-match-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -640,7 +640,7 @@ func main(): i32 {
 fn build_command_accepts_payload_enum_if_is_slice_binding() {
     let project = TempProject::new("cli-build-payload-enum-if-is-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -1053,7 +1053,7 @@ func main(): i32 {
 fn build_command_accepts_payloadless_match_expression_with_import_alias_arms() {
     let project = TempProject::new("cli-build-payloadless-match-expression-import-alias-arms");
     project.write_source(
-        "choice.nct",
+        "choice/index.nct",
         r#"pub enum Choice {
     yes
     no
@@ -1086,7 +1086,7 @@ func main(): i32 {
 fn build_command_accepts_value_match_bindings_and_assignments() {
     let project = TempProject::new("cli-build-value-match-bindings-and-assignments");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
@@ -1322,7 +1322,7 @@ func main(): i32 {
 fn build_command_accepts_payload_enum_match_expression_slice_binding() {
     let project = TempProject::new("cli-build-payload-enum-match-expression-slice-binding");
     project.write_nocter_home_file(
-        "std/string.nct",
+        "std/string/index.nct",
         r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {

@@ -37,7 +37,7 @@ fn write_temp_executable(name: &str, bytes: &[u8]) -> std::path::PathBuf {
             .as_nanos()
     );
     let executable = std::env::temp_dir().join(unique);
-    std::fs::write(&executable, bytes).unwrap();
+    crate::test_files::write(&executable, bytes).unwrap();
     let mut permissions = std::fs::metadata(&executable).unwrap().permissions();
     permissions.set_mode(0o755);
     std::fs::set_permissions(&executable, permissions).unwrap();

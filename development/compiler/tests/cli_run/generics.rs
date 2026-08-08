@@ -382,7 +382,7 @@ func main(): i32 {
 fn run_command_specializes_multiple_bounds_and_conditional_conformance() {
     let project = TempProject::new("cli-run-conditional-conformance");
     let source = project.write_source(
-        "conditional_conformance.nct",
+        "index.nct",
         r#"interface Read {
     pub method &self.read(): i32
 }
@@ -450,7 +450,7 @@ func main(): i32 {
 fn run_command_invokes_interface_default_method() {
     let project = TempProject::new("cli-run-interface-default-method");
     let source = project.write_source(
-        "interface_default_method.nct",
+        "index.nct",
         r#"interface Value {
     pub method &self.value(): i32 {
         return 42
@@ -486,7 +486,7 @@ func main(): i32 {
 fn run_command_interface_default_method_calls_required_method() {
     let project = TempProject::new("cli-run-interface-default-calls-required");
     let source = project.write_source(
-        "interface_default_calls_required.nct",
+        "index.nct",
         r#"interface Value {
     pub method &self.value(): i32
 
@@ -529,7 +529,7 @@ func main(): i32 {
 fn run_command_specializes_interface_default_method_through_generic_bound() {
     let project = TempProject::new("cli-run-interface-default-generic-bound");
     let source = project.write_source(
-        "interface_default_generic_bound.nct",
+        "index.nct",
         r#"interface Value {
     pub method &self.value(): i32 {
         return 42
@@ -569,7 +569,7 @@ func main(): i32 {
 fn run_command_generic_bound_dispatches_to_explicit_default_replacement() {
     let project = TempProject::new("cli-run-interface-default-override");
     let source = project.write_source(
-        "interface_default_override.nct",
+        "index.nct",
         r#"interface Value {
     pub method &self.value(): i32 {
         return 1
@@ -613,7 +613,7 @@ func main(): i32 {
 fn run_command_specializes_generic_interface_default_method() {
     let project = TempProject::new("cli-run-generic-interface-default-method");
     let source = project.write_source(
-        "generic_interface_default_method.nct",
+        "index.nct",
         r#"interface Identity {
     pub method &self.identity<T>(value: T): T from value {
         return value
@@ -649,7 +649,7 @@ func main(): i32 {
 fn run_command_specializes_generic_interface_owner_default_method() {
     let project = TempProject::new("cli-run-generic-interface-owner-default");
     let source = project.write_source(
-        "generic_interface_owner_default.nct",
+        "index.nct",
         r#"interface Value<T> {
     pub method &self.value(fallback: T): T from fallback {
         return fallback

@@ -174,7 +174,7 @@ func main(): void! {
             std_error_file(),
             std_io_file(),
             (
-                "std/io_catch.nct",
+                "std/io_catch/index.nct",
                 r#"use std/error.Error
 use std/io.write_text_raw
 
@@ -231,7 +231,7 @@ func main(): void {
             std_error_file(),
             std_io_file(),
             (
-                "std/io_bytes.nct",
+                "std/io_bytes/index.nct",
                 r#"use std/error.Error
 use std/io.write_bytes_raw
 
@@ -282,7 +282,7 @@ func main(): void {
             std_error_file(),
             std_io_file(),
             (
-                "std/io_bytes_catch.nct",
+                "std/io_bytes_catch/index.nct",
                 r#"use std/error.Error
 use std/io.read_bytes_raw
 

@@ -23,6 +23,11 @@ fn check_command_uses_nocter_nct_when_source_is_omitted() {
     let project = TempProject::new("cli-check-default-source");
     project.write_source(
         "nocter.nct",
+        r#"#name: "check-default"
+"#,
+    );
+    project.write_source(
+        "index.nct",
         r#"pub func answer(): i32 {
     return 42
 }

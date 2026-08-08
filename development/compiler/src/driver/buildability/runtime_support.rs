@@ -712,7 +712,7 @@ pub(super) fn source_is_std_ptr(
     source: SourceId,
     nocter_home: Option<&Path>,
 ) -> bool {
-    source_is_std_module(sources, source, nocter_home, Path::new("std/ptr.nct"))
+    source_is_std_module(sources, source, nocter_home, Path::new("std/ptr/index.nct"))
 }
 
 pub(super) fn source_is_std_module(

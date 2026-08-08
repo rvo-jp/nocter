@@ -5,9 +5,10 @@ use std::path::Path;
 /// deliberately minimal test home.
 pub(crate) fn write_builtin_type_surfaces(home: &Path) {
     let std = home.join("std");
-    fs::create_dir_all(&std).unwrap();
+    fs::create_dir_all(std.join("str")).unwrap();
+    fs::create_dir_all(std.join("slice")).unwrap();
     fs::write(
-        std.join("str.nct"),
+        std.join("str/index.nct"),
         r#"pub(nocter) primitive str_len_raw(value: &str): usize
 
 impl str {
@@ -23,7 +24,7 @@ impl str {
     )
     .unwrap();
     fs::write(
-        std.join("slice.nct"),
+        std.join("slice/index.nct"),
         r#"pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
 
 impl<T> [T] {

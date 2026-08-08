@@ -643,6 +643,13 @@ pub enum ImportedSymbolKind {
 pub struct ImportSource {
     pub source: SourceId,
     pub access: ImportAccess,
+    pub kind: ImportKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImportKind {
+    Module,
+    Source,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

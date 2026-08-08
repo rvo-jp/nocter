@@ -23,10 +23,12 @@ pub(super) fn make_temp_project(name: &str) -> PathBuf {
 
 pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
-    fs::create_dir_all(home.join("std")).unwrap();
-    fs::write(home.join("std/prelude.nct"), "").unwrap();
-    fs::write(
-        home.join("std/str.nct"),
+    fs::create_dir_all(home.join("std/prelude")).unwrap();
+    fs::create_dir_all(home.join("std/str")).unwrap();
+    fs::create_dir_all(home.join("std/slice")).unwrap();
+    crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
+    crate::test_files::write(
+        home.join("std/str/index.nct"),
         r#"impl str {
     pub method &self.len(): usize { return 0 }
     pub method &self.is_empty(): bool { return self.len() == 0 }
@@ -34,8 +36,8 @@ pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/slice.nct"),
+    crate::test_files::write(
+        home.join("std/slice/index.nct"),
         r#"impl<T> [T] {
     pub method &self.len(): usize { return 0 }
     pub method &self.is_empty(): bool { return self.len() == 0 }

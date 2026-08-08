@@ -121,10 +121,11 @@ fn distributed_compiler_runs_package_tests_without_environment_configuration() {
     let project = TempProject::new("distributed-home-package-test");
     project.write_source(
         "nocter.nct",
-        "#test: { name: \"unit\", entry: \"./unit\" }\n",
+        "#test: { name: \"unit\", module: \"./unit\" }\n",
     );
+    project.write_source("index.nct", "");
     project.write_source(
-        "unit.nct",
+        "unit/index.nct",
         r#"use std/testing.{assert, assert_eq_i32, assert_eq_str}
 
 test assertions_pass {
@@ -222,7 +223,7 @@ fn installed_nocter_uses_executable_parent_as_home_without_env() {
         fs::read_to_string(distributed_home().join("NOTICE")).unwrap(),
     )
     .unwrap();
-    fs::create_dir_all(home.join("std")).unwrap();
+    fs::create_dir_all(home.join("std/prelude")).unwrap();
 
     let installed = home.join("nocter");
     fs::copy(NOCTER, &installed).unwrap();
@@ -2117,7 +2118,7 @@ func main(): i32 {
 fn distributed_std_vec_builds_copy_aggregate_push() {
     let project = TempProject::new("distributed-home-vec-aggregate-push-boundary");
     let source = project.write_source(
-        "vec_aggregate_push_boundary.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2157,7 +2158,7 @@ func main(): i32! {
 fn distributed_std_vec_builds_copy_aggregate_free_push() {
     let project = TempProject::new("distributed-home-vec-aggregate-free-push-boundary");
     let source = project.write_source(
-        "vec_aggregate_free_push_boundary.nct",
+        "index.nct",
         r#"use std/vec.{Vec, push}
 
 copy struct Pair {
@@ -2245,7 +2246,7 @@ func main(): void! {
 fn distributed_std_vec_builds_copy_aggregate_with_capacity() {
     let project = TempProject::new("distributed-home-vec-aggregate-with-capacity-boundary");
     let source = project.write_source(
-        "vec_aggregate_with_capacity_boundary.nct",
+        "index.nct",
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
@@ -2287,14 +2288,14 @@ fn distributed_std_vec_builds_cross_source_generic_copy_aggregate_with_capacity(
     let project =
         TempProject::new("distributed-home-vec-cross-source-generic-copy-aggregate-capacity");
     project.write_source(
-        "types.nct",
+        "types/index.nct",
         r#"pub copy struct Pair {
     pub value: i32
 }
 "#,
     );
     project.write_source(
-        "factory.nct",
+        "factory/index.nct",
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
@@ -2305,7 +2306,7 @@ pub func make<T>(seed: T): Vec<T>! {
 "#,
     );
     let source = project.write_source(
-        "app.nct",
+        "index.nct",
         r#"use std/vec.Vec
 use ./factory.make
 use ./types.Pair
@@ -2343,14 +2344,14 @@ fn distributed_std_vec_builds_cross_source_generic_non_copy_aggregate_with_capac
     let project =
         TempProject::new("distributed-home-vec-cross-source-generic-non-copy-aggregate-capacity");
     project.write_source(
-        "types.nct",
+        "types/index.nct",
         r#"pub struct Text {
     pub value: &str
 }
 "#,
     );
     project.write_source(
-        "factory.nct",
+        "factory/index.nct",
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
@@ -2361,7 +2362,7 @@ pub func make<T>(seed: T): Vec<T>! {
 "#,
     );
     let source = project.write_source(
-        "app.nct",
+        "index.nct",
         r#"use std/vec.Vec
 use ./factory.make
 use ./types.Text
@@ -2395,7 +2396,7 @@ fn distributed_std_vec_builds_cross_source_non_copy_generic_copy_struct_with_cap
     let project =
         TempProject::new("distributed-home-vec-cross-source-non-copy-generic-copy-struct-capacity");
     project.write_source(
-        "types.nct",
+        "types/index.nct",
         r#"pub struct Text {
     pub value: &str
 }
@@ -2406,7 +2407,7 @@ pub copy struct Box<T> {
 "#,
     );
     project.write_source(
-        "factory.nct",
+        "factory/index.nct",
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
@@ -2417,7 +2418,7 @@ pub func make<T>(seed: T): Vec<T>! {
 "#,
     );
     let source = project.write_source(
-        "app.nct",
+        "index.nct",
         r#"use std/vec.Vec
 use ./factory.make
 use ./types.{Box, Text}
@@ -2450,7 +2451,7 @@ func main(): i32! {
 fn distributed_std_vec_builds_copy_aggregate_reserve() {
     let project = TempProject::new("distributed-home-vec-aggregate-reserve-boundary");
     let source = project.write_source(
-        "vec_aggregate_reserve_boundary.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2490,7 +2491,7 @@ func main(): i32! {
 fn distributed_std_vec_builds_copy_aggregate_from_slice() {
     let project = TempProject::new("distributed-home-vec-aggregate-from-slice-boundary");
     let source = project.write_source(
-        "vec_aggregate_from_slice_boundary.nct",
+        "index.nct",
         r#"use std/mem.page_allocator
 use std/vec.Vec
 
@@ -2572,7 +2573,7 @@ func main(): i32! {
 fn distributed_std_vec_builds_copy_aggregate_view_index() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-index-boundary");
     let source = project.write_source(
-        "vec_aggregate_view_index_boundary.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2612,7 +2613,7 @@ func main(): i32 {
 fn distributed_std_vec_runs_copy_aggregate_view_index() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-index-run");
     let source = project.write_source(
-        "vec_aggregate_view_index_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2644,7 +2645,7 @@ func main(): i32! {
 fn distributed_std_vec_runs_bound_copy_aggregate_view_index() {
     let project = TempProject::new("distributed-home-vec-bound-aggregate-view-index-run");
     let source = project.write_source(
-        "vec_bound_aggregate_view_index_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2677,7 +2678,7 @@ func main(): i32! {
 fn distributed_std_vec_builds_copy_aggregate_view_mut_index_assignment() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-boundary");
     let source = project.write_source(
-        "vec_aggregate_view_mut_index_assign_boundary.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2719,7 +2720,7 @@ func main(): i32 {
 fn distributed_std_vec_runs_copy_aggregate_view_mut_index_assignment() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-run");
     let source = project.write_source(
-        "vec_aggregate_view_mut_index_assign_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2752,7 +2753,7 @@ func main(): i32! {
 fn distributed_std_vec_runs_copy_aggregate_slice_parameter_indexing() {
     let project = TempProject::new("distributed-home-vec-aggregate-slice-parameter-index-run");
     let source = project.write_source(
-        "vec_aggregate_slice_parameter_index_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2796,7 +2797,7 @@ func main(): i32! {
 fn distributed_std_vec_runs_copy_aggregate_slice_field_indexing() {
     let project = TempProject::new("distributed-home-vec-aggregate-slice-field-index-run");
     let source = project.write_source(
-        "vec_aggregate_slice_field_index_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -2833,7 +2834,7 @@ func main(): i32! {
 fn distributed_std_vec_runs_copy_aggregate_slice_field_index_assignment() {
     let project = TempProject::new("distributed-home-vec-aggregate-slice-field-index-assign-run");
     let source = project.write_source(
-        "vec_aggregate_slice_field_index_assign_run.nct",
+        "index.nct",
         r#"use std/vec.Vec
 
 copy struct Pair {
@@ -3602,8 +3603,9 @@ fn distributed_std_region_release_unmaps_owned_storage() {
     let project = TempProject::new("distributed-home-region-unmap-observation-run");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
+    fs::create_dir_all(home.join("std/region_probe")).unwrap();
     fs::write(
-        home.join("std/region_probe.nct"),
+        home.join("std/region_probe/index.nct"),
         r#"use std/mem.{RawBuffer, alloc, current_allocator}
 use std/os.syscall3
 use std/ptr.addr
@@ -3797,14 +3799,14 @@ func main(): i32 {
 fn distributed_std_accepts_allocating_closure_without_result_variance() {
     let project = TempProject::new("distributed-home-imported-closure-allocation-contract");
     project.write_source(
-        "callbacks.nct",
+        "callbacks/index.nct",
         r#"pub func invoke<F: &func(): String>(callback: F): String {
     return callback()
 }
 "#,
     );
     let source = project.write_source(
-        "app.nct",
+        "index.nct",
         r#"use ./callbacks.invoke
 
 func main(): i32 {
@@ -5453,7 +5455,15 @@ fn distributed_std_all_modules_pass_callable_contract_audit() {
         let relative = file
             .strip_prefix(&home)
             .expect("standard-library module below distributed home");
-        let mut module = relative.with_extension("").to_string_lossy().to_string();
+        let module_path = if relative.file_name().is_some_and(|name| name == "index.nct") {
+            relative
+                .parent()
+                .unwrap_or_else(|| Path::new(""))
+                .to_path_buf()
+        } else {
+            relative.with_extension("")
+        };
+        let mut module = module_path.to_string_lossy().to_string();
         if std::path::MAIN_SEPARATOR != '/' {
             module = module.replace(std::path::MAIN_SEPARATOR, "/");
         }
@@ -5575,7 +5585,7 @@ fn file_uri(path: &Path) -> String {
 }
 
 fn write_minimal_nocter_home(home: &Path) {
-    fs::create_dir_all(home.join("std")).unwrap();
+    fs::create_dir_all(home.join("std/prelude")).unwrap();
     builtin_std::write_builtin_type_surfaces(home);
     fs::write(
         home.join("VERSION"),
@@ -5597,7 +5607,7 @@ fn write_minimal_nocter_home(home: &Path) {
         fs::read_to_string(distributed_home().join("NOTICE")).unwrap(),
     )
     .unwrap();
-    fs::write(home.join("std/prelude.nct"), "").unwrap();
+    fs::write(home.join("std/prelude/index.nct"), "").unwrap();
 }
 
 fn assert_success(output: &Output) {
@@ -5738,6 +5748,9 @@ impl TempProject {
 
     fn write_source(&self, name: &str, text: &str) -> PathBuf {
         let path = self.root.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
         fs::write(&path, text).unwrap();
         path
     }
