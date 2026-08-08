@@ -2,8 +2,10 @@
 
 ## Current Task
 
-No development phase is active. v0.9.0 Phases 0 and 1 are complete; preserve this verified
-checkpoint until a subsequent phase is explicitly planned.
+Implement v0.9.0 Phase 2: Borrowed Text Views. Add one typed borrowed-projection boundary, safe
+UTF-8 range operations, allocation-free split and line iterators, standard-library re-exports, and
+complete ownership, region, LSP, native, specification, and distributed-home coverage. Stop after
+the full acceptance gate and completion record pass.
 
 ## Completed Checkpoint
 
@@ -101,6 +103,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the completed v0.9.0 Phase 1 boundary. A subsequent phase requires an explicit plan and
-acceptance gate. Do not start borrowed text views, bump the release version, prepare an archive,
-tag, push, or publish v0.9.0 without that direction.
+Follow [`milestones/v0.9.0.md`](milestones/v0.9.0.md). Stop when Phase 2 is fully verified and its
+completion record is committed. Do not add Unicode scalar semantics, range syntax, standard input,
+bump the release version, prepare an archive, tag, push, or publish v0.9.0.
