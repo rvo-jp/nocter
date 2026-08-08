@@ -6,9 +6,10 @@ state. Public language behavior belongs in `spec/`; compiler architecture belong
 
 The current milestone record is [v0.9.0](v0.9.0.md). Phase 0 completed portable whole-stream I/O,
 Phase 1 completed declaration-stable result-origin elision, and Phase 2 completed safe
-allocation-free borrowed text ranges, split iteration, and line iteration. The feature milestone
-is complete and inactive; release stabilization and qualification require a separate plan. The
-published baseline remains v0.8.0.
+allocation-free borrowed text ranges, split iteration, and line iteration. Phase 3 is planned to
+move built-in view methods into standard-library source and make owning types reuse those methods
+through one-step receiver coercion. Its implementation has not started. The published baseline
+remains v0.8.0.
 
 [v0.8.0](v0.8.0.md) is complete and historical. Its qualified archive was published and audited on
 2026-08-08.

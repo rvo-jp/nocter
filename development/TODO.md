@@ -2,9 +2,11 @@
 
 ## Current Task
 
-No implementation phase is active. v0.9.0 Phase 2 completed the planned feature milestone. Define
-a separate stabilization and release-qualification plan before changing versions, packaging an
-archive, tagging, pushing, or publishing v0.9.0.
+v0.9.0 Phase 3 is planned and implementation has not started. Follow the ordered plan and
+verification gate in [`milestones/v0.9.0.md`](milestones/v0.9.0.md): introduce source-owned
+`str`/slice method declarations and one-step receiver coercion, then remove duplicated owning-type
+observation methods and compiler recognition of public member spellings. Do not change versions,
+package an archive, tag, push, or publish v0.9.0 during this phase.
 
 ## Completed Checkpoint
 
@@ -120,6 +122,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop after the v0.9.0 Phase 2 completion record is committed. Do not add Unicode scalar semantics,
-range syntax, standard input, bump the release version, prepare an archive, tag, push, or publish
-v0.9.0 without a new stabilization and release-qualification plan.
+Implement only the ordered v0.9.0 Phase 3 scope. Stop after its completion record is committed. Do
+not add Unicode scalar semantics, range syntax, standard input, bump the release version, prepare
+an archive, tag, push, or publish v0.9.0 without a later stabilization and release-qualification
+plan.
