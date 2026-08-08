@@ -1,6 +1,7 @@
 //! Validation and lowering for compiler-owned primitive boundaries.
 
 use crate::ast::{PrimitiveDecl, Visibility, canonical_type_expr};
+use crate::builtin_types::{SLICE_IMPLEMENTATION_MODULE, STR_IMPLEMENTATION_MODULE};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PrimitiveValidationError {
@@ -650,7 +651,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "&+[T]",
         },
         PrimitiveSpec {
-            module_path: "std/str",
+            module_path: STR_IMPLEMENTATION_MODULE,
             target: None,
             visibility: Visibility::Nocter,
             name: "str_len_raw",
@@ -659,7 +660,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "usize",
         },
         PrimitiveSpec {
-            module_path: "std/str",
+            module_path: STR_IMPLEMENTATION_MODULE,
             target: None,
             visibility: Visibility::Nocter,
             name: "str_ptr_addr_raw",
@@ -668,7 +669,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "usize",
         },
         PrimitiveSpec {
-            module_path: "std/slice",
+            module_path: SLICE_IMPLEMENTATION_MODULE,
             target: None,
             visibility: Visibility::Nocter,
             name: "slice_len_raw",
@@ -677,7 +678,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "usize",
         },
         PrimitiveSpec {
-            module_path: "std/slice",
+            module_path: SLICE_IMPLEMENTATION_MODULE,
             target: None,
             visibility: Visibility::Nocter,
             name: "slice_ptr_addr_raw",

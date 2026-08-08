@@ -6,6 +6,9 @@
 
 use crate::ast::TypeExpr;
 
+pub(crate) const STR_IMPLEMENTATION_MODULE: &str = "std/str";
+pub(crate) const SLICE_IMPLEMENTATION_MODULE: &str = "std/slice";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum BuiltinTypeOwner {
     Str,
@@ -24,8 +27,8 @@ impl BuiltinTypeOwner {
 
     pub(crate) const fn implementation_module(self) -> &'static str {
         match self {
-            Self::Str => "std/str",
-            Self::Slice => "std/slice",
+            Self::Str => STR_IMPLEMENTATION_MODULE,
+            Self::Slice => SLICE_IMPLEMENTATION_MODULE,
         }
     }
 
