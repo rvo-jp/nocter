@@ -1,6 +1,7 @@
-use super::{ImportKind, ImportSource, ImportSourceMap};
+use super::{ImportSource, ImportSourceMap};
 use crate::ast::{AstFile, FromImportItem};
 use crate::source::{ByteSpan, SourceId};
+use crate::source_modules::SourceModuleMap;
 use std::collections::HashMap;
 
 /// Indexes semantic modules independently from their physical source files.
@@ -15,25 +16,14 @@ pub(super) struct MergedModules {
 
 impl MergedModules {
     pub(super) fn new(files: &[AstFile], import_sources: &ImportSourceMap) -> Self {
-        let mut parents = files
+        let membership = SourceModuleMap::new(files, import_sources);
+        let module_by_source = files
             .iter()
-            .map(|ast| (ast.span.source, ast.span.source))
+            .map(|ast| {
+                let source = ast.span.source;
+                (source, membership.module(source).unwrap_or(source))
+            })
             .collect::<HashMap<_, _>>();
-
-        for (span, imported) in import_sources {
-            if imported.kind == ImportKind::Source
-                && parents.contains_key(&span.source)
-                && parents.contains_key(&imported.source)
-            {
-                union(&mut parents, span.source, imported.source);
-            }
-        }
-
-        let mut module_by_source = HashMap::new();
-        for ast in files {
-            let root = find(&mut parents, ast.span.source);
-            module_by_source.insert(ast.span.source, root);
-        }
 
         let mut modules: HashMap<SourceId, AstFile> = HashMap::new();
         for ast in files {
@@ -85,24 +75,6 @@ impl<'a> ModuleIndex<'a> {
 
     pub(super) fn asts(&self) -> impl Iterator<Item = &'a AstFile> + '_ {
         self.merged.modules.values()
-    }
-}
-
-fn find(parents: &mut HashMap<SourceId, SourceId>, source: SourceId) -> SourceId {
-    let parent = parents[&source];
-    if parent == source {
-        return source;
-    }
-    let root = find(parents, parent);
-    parents.insert(source, root);
-    root
-}
-
-fn union(parents: &mut HashMap<SourceId, SourceId>, left: SourceId, right: SourceId) {
-    let left_root = find(parents, left);
-    let right_root = find(parents, right);
-    if left_root != right_root {
-        parents.insert(right_root, left_root);
     }
 }
 

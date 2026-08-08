@@ -70,6 +70,9 @@ pub(super) fn check_return_types(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
+                let Some(body) = &function.body else {
+                    continue;
+                };
                 let mut environment = environment_for_function(function, resolved);
                 let mut borrow_provenance = ProvenanceEnvironment::default();
                 let context = ReturnContext::new(
@@ -84,7 +87,7 @@ pub(super) fn check_return_types(
                 check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
-                    &function.body,
+                    body,
                     &context,
                     resolved,
                     diagnostics,
@@ -149,6 +152,9 @@ pub(super) fn check_return_types(
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
+                    let Some(body) = &function.body else {
+                        continue;
+                    };
                     let mut environment = environment_for_function(function, resolved);
                     let mut borrow_provenance = ProvenanceEnvironment::default();
                     let context = ReturnContext::new(
@@ -163,7 +169,7 @@ pub(super) fn check_return_types(
                     check_fallible_success_type(sources, &context, diagnostics);
                     check_block_returns(
                         sources,
-                        &function.body,
+                        body,
                         &context,
                         resolved,
                         diagnostics,
@@ -173,6 +179,9 @@ pub(super) fn check_return_types(
                     );
                 }
                 for (_, literal) in construct.literals() {
+                    let Some(body) = &literal.body else {
+                        continue;
+                    };
                     let mut environment = environment_for_literal(literal, resolved);
                     let mut borrow_provenance = ProvenanceEnvironment::default();
                     let context = ReturnContext::new(
@@ -188,7 +197,7 @@ pub(super) fn check_return_types(
                     );
                     check_block_returns(
                         sources,
-                        &literal.body,
+                        body,
                         &context,
                         resolved,
                         diagnostics,

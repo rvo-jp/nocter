@@ -148,13 +148,21 @@ impl<'a> CallableIndex<'a> {
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
-                    Item::Function(function) if function.generics.parameters.is_empty() => {
+                    Item::Function(function)
+                        if function.body.is_some() && function.generics.parameters.is_empty() =>
+                    {
+                        let identity = if function.owner.is_some() {
+                            function.member_name_span
+                        } else {
+                            function.name_span
+                        };
+                        let declaration = analysis.callable_bodies.canonical_identity(identity);
                         let target = call_target_for_source(
-                            file.ast.span.source,
+                            declaration.source,
                             root_source,
                             function.name.clone(),
                         );
-                        names.insert(function.name_span, function.name.clone());
+                        names.insert(declaration, function.name.clone());
                         definitions.insert(
                             target,
                             IndexedCallable::new_function(
@@ -165,20 +173,22 @@ impl<'a> CallableIndex<'a> {
                             ),
                         );
                     }
-                    Item::Function(function) => {
+                    Item::Function(function) if function.body.is_some() => {
+                        let name_identity = analysis
+                            .callable_bodies
+                            .canonical_identity(function.name_span);
+                        let member_identity = analysis
+                            .callable_bodies
+                            .canonical_identity(function.member_name_span);
                         for specialization in call_specializations
                             .functions
-                            .get(&function.name_span)
-                            .or_else(|| {
-                                call_specializations
-                                    .functions
-                                    .get(&function.member_name_span)
-                            })
+                            .get(&name_identity)
+                            .or_else(|| call_specializations.functions.get(&member_identity))
                             .into_iter()
                             .flatten()
                         {
                             let target = call_target_for_source(
-                                file.ast.span.source,
+                                member_identity.source,
                                 root_source,
                                 specialization.target_name.clone(),
                             );
@@ -194,6 +204,7 @@ impl<'a> CallableIndex<'a> {
                             );
                         }
                     }
+                    Item::Function(_) => {}
                     Item::Impl(impl_) => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
@@ -207,13 +218,16 @@ impl<'a> CallableIndex<'a> {
                                     let Some(body) = method.body.as_ref() else {
                                         continue;
                                     };
+                                    let declaration = analysis
+                                        .callable_bodies
+                                        .canonical_identity(method.name_span);
                                     let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
-                                        file.ast.span.source,
+                                        declaration.source,
                                         root_source,
                                         name.clone(),
                                     );
-                                    names.insert(method.name_span, name.clone());
+                                    names.insert(declaration, name.clone());
                                     definitions.insert(
                                         target,
                                         IndexedCallable::new_method(
@@ -230,9 +244,12 @@ impl<'a> CallableIndex<'a> {
                                     let Some(body) = method.body.as_ref() else {
                                         continue;
                                     };
+                                    let declaration = analysis
+                                        .callable_bodies
+                                        .canonical_identity(method.name_span);
                                     for specialization in call_specializations
                                         .methods
-                                        .get(&method.name_span)
+                                        .get(&declaration)
                                         .into_iter()
                                         .flatten()
                                     {
@@ -242,7 +259,7 @@ impl<'a> CallableIndex<'a> {
                                                 specialization,
                                             );
                                         let target = call_target_for_source(
-                                            file.ast.span.source,
+                                            declaration.source,
                                             root_source,
                                             specialization.target_name.clone(),
                                         );
@@ -338,13 +355,19 @@ impl<'a> CallableIndex<'a> {
                     }
                     Item::Construct(construct) => {
                         for (_, function) in construct.functions() {
+                            if function.body.is_none() {
+                                continue;
+                            }
+                            let declaration = analysis
+                                .callable_bodies
+                                .canonical_identity(function.member_name_span);
                             if function.generics.parameters.is_empty() {
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     function.name.clone(),
                                 );
-                                names.insert(function.member_name_span, function.name.clone());
+                                names.insert(declaration, function.name.clone());
                                 let substitutions =
                                     HashMap::from([("Self".to_string(), construct.target.clone())]);
                                 definitions.insert(
@@ -361,12 +384,7 @@ impl<'a> CallableIndex<'a> {
                             }
                             for specialization in call_specializations
                                 .functions
-                                .get(&function.name_span)
-                                .or_else(|| {
-                                    call_specializations
-                                        .functions
-                                        .get(&function.member_name_span)
-                                })
+                                .get(&declaration)
                                 .into_iter()
                                 .flatten()
                             {
@@ -377,7 +395,7 @@ impl<'a> CallableIndex<'a> {
                                 );
                                 substitutions.insert("Self".to_string(), self_ty);
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     specialization.target_name.clone(),
                                 );
@@ -496,7 +514,10 @@ impl<'a> IndexedCallable<'a> {
 
         Self {
             span: function.span,
-            body: &function.body,
+            body: function
+                .body
+                .as_ref()
+                .expect("buildability indexes only body-bearing functions"),
             return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -530,7 +551,10 @@ impl<'a> IndexedCallable<'a> {
 
         Self {
             span: function.span,
-            body: &function.body,
+            body: function
+                .body
+                .as_ref()
+                .expect("buildability indexes only body-bearing functions"),
             return_type: Some(return_type),
             substitutions,
             resolved: &file.resolved,

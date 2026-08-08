@@ -14,7 +14,10 @@ fn completion_context_in_item_at_offset(
     offset: usize,
 ) -> Option<CompletionContext<'_>> {
     match item {
-        Item::Function(function) => completion_context_in_block_at_offset(&function.body, offset),
+        Item::Function(function) => function
+            .body
+            .as_ref()
+            .and_then(|body| completion_context_in_block_at_offset(body, offset)),
         Item::Test(test) => completion_context_in_block_at_offset(&test.body, offset),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
@@ -31,16 +34,26 @@ fn completion_context_in_item_at_offset(
         }),
         Item::Construct(construct) => construct
             .functions()
-            .find_map(|(_, function)| completion_context_in_block_at_offset(&function.body, offset))
+            .find_map(|(_, function)| {
+                function
+                    .body
+                    .as_ref()
+                    .and_then(|body| completion_context_in_block_at_offset(body, offset))
+            })
             .or_else(|| {
                 construct.literals().find_map(|(_, literal)| {
-                    completion_context_in_block_at_offset(&literal.body, offset)
+                    literal
+                        .body
+                        .as_ref()
+                        .and_then(|body| completion_context_in_block_at_offset(body, offset))
                 })
             }),
-        Item::Coerce(coerce) => coerce
-            .entries
-            .iter()
-            .find_map(|entry| completion_context_in_block_at_offset(&entry.body, offset)),
+        Item::Coerce(coerce) => coerce.entries.iter().find_map(|entry| {
+            entry
+                .body
+                .as_ref()
+                .and_then(|body| completion_context_in_block_at_offset(body, offset))
+        }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

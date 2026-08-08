@@ -26,7 +26,11 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
     let mut facts = Vec::new();
     for item in &file.ast.items {
         match item {
-            Item::Function(function) => collect_block(file, &function.body, None, &mut facts),
+            Item::Function(function) => {
+                if let Some(body) = &function.body {
+                    collect_block(file, body, None, &mut facts);
+                }
+            }
             Item::Test(test) => collect_block(file, &test.body, None, &mut facts),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
@@ -51,15 +55,21 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
-                    collect_block(file, &function.body, None, &mut facts);
+                    if let Some(body) = &function.body {
+                        collect_block(file, body, None, &mut facts);
+                    }
                 }
                 for (_, literal) in construct.literals() {
-                    collect_block(file, &literal.body, None, &mut facts);
+                    if let Some(body) = &literal.body {
+                        collect_block(file, body, None, &mut facts);
+                    }
                 }
             }
             Item::Coerce(coerce) => {
                 for entry in &coerce.entries {
-                    collect_block(file, &entry.body, None, &mut facts);
+                    if let Some(body) = &entry.body {
+                        collect_block(file, body, None, &mut facts);
+                    }
                 }
             }
             Item::Import(_)

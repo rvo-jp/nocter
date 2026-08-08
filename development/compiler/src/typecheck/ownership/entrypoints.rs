@@ -10,6 +10,9 @@ pub(in crate::typecheck) fn check_ownership_states(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
+                let Some(body) = &function.body else {
+                    continue;
+                };
                 let mut environment = environment_for_function(function, resolved);
                 let mut ownership = OwnershipState::default();
                 ownership.define_parameters(
@@ -19,7 +22,7 @@ pub(in crate::typecheck) fn check_ownership_states(
                 );
                 check_block_ownership(
                     sources,
-                    &function.body,
+                    body,
                     resolved,
                     summaries,
                     diagnostics,
@@ -105,12 +108,15 @@ fn check_function_ownership(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(body) = &function.body else {
+        return;
+    };
     let mut environment = environment_for_function(function, resolved);
     let mut ownership = OwnershipState::default();
     ownership.define_parameters(&function.parameters.parameters, &environment, resolved);
     check_block_ownership(
         sources,
-        &function.body,
+        body,
         resolved,
         summaries,
         diagnostics,
@@ -126,12 +132,15 @@ fn check_literal_ownership(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(body) = &literal.body else {
+        return;
+    };
     let mut environment = environment_for_literal(literal, resolved);
     let mut ownership = OwnershipState::default();
     ownership.define_parameters(&literal.parameters.parameters, &environment, resolved);
     check_block_ownership(
         sources,
-        &literal.body,
+        body,
         resolved,
         summaries,
         diagnostics,

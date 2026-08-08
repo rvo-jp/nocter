@@ -58,7 +58,8 @@ pub(super) fn infer_callable_allocation_effects(
                 .iter()
                 .map(|item| {
                     match item {
-                    Item::Function(_) | Item::Test(_) => 1,
+                    Item::Function(function) => usize::from(function.body.is_some()),
+                    Item::Test(_) => 1,
                     Item::Impl(impl_) => impl_
                         .members
                         .iter()
@@ -67,9 +68,18 @@ pub(super) fn infer_callable_allocation_effects(
                         })
                         .count(),
                     Item::Construct(construct) => {
-                        construct.functions().count() + construct.literals().count()
+                        construct
+                            .functions()
+                            .filter(|(_, function)| function.body.is_some())
+                            .count()
+                            + construct
+                                .literals()
+                                .filter(|(_, literal)| literal.body.is_some())
+                                .count()
                     }
-                    Item::Coerce(coerce) => coerce.entries.len(),
+                    Item::Coerce(coerce) => {
+                        coerce.entries.iter().filter(|entry| entry.body.is_some()).count()
+                    }
                     _ => 0,
                 }
                 })
@@ -83,14 +93,20 @@ pub(super) fn infer_callable_allocation_effects(
             for item in &source.ast.items {
                 match item {
                     Item::Function(function) => {
-                        let callable = CallableId::declared_at(if function.owner.is_some() {
+                        let Some(body) = &function.body else {
+                            continue;
+                        };
+                        let identity = if function.owner.is_some() {
                             function.member_name_span
                         } else {
                             function.name_span
-                        });
+                        };
+                        let callable = CallableId::declared_at(
+                            source.resolved.canonical_callable_identity(identity),
+                        );
                         if !summaries.needs_current_allocation_context(callable)
                             && block_needs_current_allocation_context(
-                                &function.body,
+                                body,
                                 source.resolved,
                                 &mut environment_for_function(function, source.resolved),
                                 summaries,
@@ -122,7 +138,11 @@ pub(super) fn infer_callable_allocation_effects(
                             let Some(body) = &method.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(method.name_span);
+                            let callable = CallableId::declared_at(
+                                source
+                                    .resolved
+                                    .canonical_callable_identity(method.name_span),
+                            );
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -161,10 +181,17 @@ pub(super) fn infer_callable_allocation_effects(
                     }
                     Item::Construct(construct) => {
                         for (_, function) in construct.functions() {
-                            let callable = CallableId::declared_at(function.member_name_span);
+                            let Some(body) = &function.body else {
+                                continue;
+                            };
+                            let callable = CallableId::declared_at(
+                                source
+                                    .resolved
+                                    .canonical_callable_identity(function.member_name_span),
+                            );
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
-                                    &function.body,
+                                    body,
                                     source.resolved,
                                     &mut environment_for_function(function, source.resolved),
                                     summaries,
@@ -175,10 +202,15 @@ pub(super) fn infer_callable_allocation_effects(
                             }
                         }
                         for (_, literal) in construct.literals() {
-                            let callable = CallableId::declared_at(literal.span);
+                            let Some(body) = &literal.body else {
+                                continue;
+                            };
+                            let callable = CallableId::declared_at(
+                                source.resolved.canonical_callable_identity(literal.span),
+                            );
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
-                                    &literal.body,
+                                    body,
                                     source.resolved,
                                     &mut environment_for_literal(literal, source.resolved),
                                     summaries,
@@ -198,7 +230,11 @@ pub(super) fn infer_callable_allocation_effects(
                             let Some(body) = &method.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(method.name_span);
+                            let callable = CallableId::declared_at(
+                                source
+                                    .resolved
+                                    .canonical_callable_identity(method.name_span),
+                            );
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,

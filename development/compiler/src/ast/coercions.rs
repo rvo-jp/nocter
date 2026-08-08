@@ -21,7 +21,7 @@ pub struct CoercionEntry {
     pub as_span: ByteSpan,
     pub target: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub body: Block,
+    pub body: Option<Block>,
 }
 
 impl CoerceDecl {
@@ -58,7 +58,7 @@ impl CoercionEntry {
             },
             return_type: self.target.clone(),
             result_provenance: self.result_provenance.clone(),
-            body: Some(self.body.clone()),
+            body: self.body.clone(),
         }
     }
 }

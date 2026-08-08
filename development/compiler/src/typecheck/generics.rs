@@ -44,7 +44,9 @@ pub(super) fn check_generic_type_arities(
                     &scope,
                     diagnostics,
                 );
-                check_block(sources, &function.body, resolved, &scope, diagnostics);
+                if let Some(body) = &function.body {
+                    check_block(sources, body, resolved, &scope, diagnostics);
+                }
             }
             Item::Test(test) => {
                 let generics = GenericParamList {
@@ -141,7 +143,9 @@ pub(super) fn check_generic_type_arities(
                         &scope,
                         diagnostics,
                     );
-                    check_block(sources, &function.body, resolved, &scope, diagnostics);
+                    if let Some(body) = &function.body {
+                        check_block(sources, body, resolved, &scope, diagnostics);
+                    }
                 }
             }
             Item::Coerce(coerce) => {

@@ -1,7 +1,5 @@
 use super::{ParseResult, Parser};
-use crate::ast::{
-    ConstructDecl, ConstructMember, ConstructMemberDecl, FunctionOwner, Item, Visibility,
-};
+use crate::ast::{ConstructDecl, ConstructMember, ConstructMemberDecl, FunctionOwner, Item};
 use crate::lexer::Keyword;
 
 impl Parser<'_> {
@@ -34,17 +32,13 @@ impl Parser<'_> {
 
             let member_start = self.current().span.start;
             let visibility = self.parse_visibility()?;
-            if visibility != Visibility::Public {
-                self.error_current("construct members must be explicitly marked `pub`");
-                return Err(());
-            }
             let default_span = self
                 .match_identifier_text("default")
                 .map(|token| token.span);
             self.reject_removed_result_allocation_modifier()?;
 
             let declaration = if self.at_keyword(Keyword::Func) {
-                let mut function = self.parse_function_decl_data(Visibility::Public, None)?;
+                let mut function = self.parse_function_decl_data(visibility, None)?;
                 if function.owner.is_some() {
                     self.error_at(
                         function.name_span,
@@ -64,7 +58,7 @@ impl Parser<'_> {
                 ConstructMemberDecl::Function(function)
             } else if self.at_keyword(Keyword::Literal) {
                 ConstructMemberDecl::Literal(
-                    self.parse_literal_decl_data(Visibility::Public, Some(target.clone()))?,
+                    self.parse_literal_decl_data(visibility, Some(target.clone()))?,
                 )
             } else {
                 self.error_current("expected `func` or `literal` in construct declaration");

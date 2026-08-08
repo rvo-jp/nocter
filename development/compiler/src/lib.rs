@@ -6,6 +6,7 @@ pub mod analysis;
 pub mod ast;
 pub mod backend;
 mod builtin_types;
+mod callable_bodies;
 pub mod comments;
 pub mod diagnostics;
 pub mod driver;
@@ -24,6 +25,7 @@ pub mod resolve;
 mod semantics;
 pub mod source;
 mod source_layout;
+mod source_modules;
 pub mod target;
 mod test_entry;
 #[cfg(test)]

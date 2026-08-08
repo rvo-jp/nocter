@@ -103,12 +103,9 @@ where
 
     non_root_error_constructor_signature(function, root_source, resolved, resolver)
         || (function.parameters.parameters.is_empty()
-            && static_error_payload_body_is_buildable(
-                &function.body,
-                root_source,
-                resolved,
-                resolver,
-            ))
+            && function.body.as_ref().is_some_and(|body| {
+                static_error_payload_body_is_buildable(body, root_source, resolved, resolver)
+            }))
 }
 
 pub(super) fn non_root_error_constructor_signature<'a, F>(

@@ -125,10 +125,10 @@ func main(): i32 {
             _ => None,
         })
         .expect("expected main function");
-    let Stmt::Binding(bytes) = &function.body.statements[1] else {
+    let Stmt::Binding(bytes) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected bytes binding");
     };
-    let Stmt::Binding(first) = &function.body.statements[2] else {
+    let Stmt::Binding(first) = &function.body.as_ref().unwrap().statements[2] else {
         panic!("expected first binding");
     };
 
@@ -397,7 +397,7 @@ func main(choice: Choice): i32 {
             _ => None,
         })
         .expect("expected main function");
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected match binding");
     };
     let Expr::Match(match_expression) = binding.initializer.without_groups() else {

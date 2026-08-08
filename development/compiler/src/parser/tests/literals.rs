@@ -29,7 +29,7 @@ fn parses_sequence_literal_definition_and_pack_loop() {
     assert_eq!(capture.name, "items");
     assert!(literal.parameters.parameters.is_empty());
     assert!(literal.result_provenance.is_none());
-    let Stmt::LiteralPackFor(loop_) = &literal.body.statements[0] else {
+    let Stmt::LiteralPackFor(loop_) = &literal.body.as_ref().unwrap().statements[0] else {
         panic!("expected literal-pack loop");
     };
     assert_eq!(loop_.name, "item");
@@ -55,7 +55,7 @@ fn parses_typed_literals_with_context_overrides() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    let Stmt::Binding(values) = &function.body.statements[0] else {
+    let Stmt::Binding(values) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected values binding");
     };
     let Expr::TypedSequenceLiteral(values) = &values.initializer else {
@@ -64,7 +64,7 @@ fn parses_typed_literals_with_context_overrides() {
     assert_eq!(values.elements.len(), 3);
     assert!(values.using.is_some());
 
-    let Stmt::Binding(text) = &function.body.statements[1] else {
+    let Stmt::Binding(text) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected text binding");
     };
     let Expr::TypedStringLiteral(text) = &text.initializer else {
@@ -88,7 +88,7 @@ fn keeps_adjacent_brackets_as_index_syntax() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return");
     };
     assert!(matches!(statement.expression, Some(Expr::Index(_))));
@@ -124,7 +124,7 @@ fn parses_explicit_sequence_spread_modes_and_rejects_typed_string_interpolation(
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function")
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return")
     };
     let Expr::TypedSequenceLiteral(literal) = statement.expression.as_ref().unwrap() else {

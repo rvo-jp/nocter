@@ -25,7 +25,11 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
     match item {
         Item::Import(item) => paths.push(&item.path),
         Item::FromImport(item) => paths.push(&item.path),
-        Item::Function(function) => collect_block_import_paths(&function.body, paths),
+        Item::Function(function) => {
+            if let Some(body) = &function.body {
+                collect_block_import_paths(body, paths);
+            }
+        }
         Item::Test(test) => collect_block_import_paths(&test.body, paths),
         Item::Impl(impl_) => {
             for member in &impl_.members {
@@ -50,15 +54,21 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
         }
         Item::Construct(construct) => {
             for (_, function) in construct.functions() {
-                collect_block_import_paths(&function.body, paths);
+                if let Some(body) = &function.body {
+                    collect_block_import_paths(body, paths);
+                }
             }
             for (_, literal) in construct.literals() {
-                collect_block_import_paths(&literal.body, paths);
+                if let Some(body) = &literal.body {
+                    collect_block_import_paths(body, paths);
+                }
             }
         }
         Item::Coerce(coerce) => {
             for entry in &coerce.entries {
-                collect_block_import_paths(&entry.body, paths);
+                if let Some(body) = &entry.body {
+                    collect_block_import_paths(body, paths);
+                }
             }
         }
         Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}

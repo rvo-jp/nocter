@@ -36,7 +36,9 @@ impl Item {
                 if let Some(provenance) = &item.result_provenance {
                     children.push(provenance.to_json(sources));
                 }
-                children.push(item.body.to_json(sources));
+                if let Some(body) = &item.body {
+                    children.push(body.to_json(sources));
+                }
                 JsonAstNode::with_value(
                     "function_decl",
                     item.name.clone(),
@@ -165,7 +167,9 @@ impl Item {
                             if let Some(provenance) = &function.result_provenance {
                                 member_children.push(provenance.to_json(sources));
                             }
-                            member_children.push(function.body.to_json(sources));
+                            if let Some(body) = &function.body {
+                                member_children.push(body.to_json(sources));
+                            }
                             (
                                 "construct_function_member",
                                 function.member_name.clone(),
@@ -198,7 +202,9 @@ impl Item {
                             if let Some(provenance) = &literal.result_provenance {
                                 member_children.push(provenance.to_json(sources));
                             }
-                            member_children.push(literal.body.to_json(sources));
+                            if let Some(body) = &literal.body {
+                                member_children.push(body.to_json(sources));
+                            }
                             (
                                 "construct_literal_member",
                                 match literal.shape {
@@ -237,7 +243,9 @@ impl Item {
                     if let Some(provenance) = &entry.result_provenance {
                         entry_children.push(provenance.to_json(sources));
                     }
-                    entry_children.push(entry.body.to_json(sources));
+                    if let Some(body) = &entry.body {
+                        entry_children.push(body.to_json(sources));
+                    }
                     JsonAstNode::new(
                         "coercion_entry",
                         json_span(sources, entry.span),

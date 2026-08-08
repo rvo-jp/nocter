@@ -73,7 +73,7 @@ fn rejects_removed_result_allocation_in_construct_members() {
 }
 
 #[test]
-fn requires_explicit_public_construct_members() {
+fn parses_private_construct_implementation_members() {
     let output = parse_text(
         r#"construct Value {
     func new(): Self { return make() }
@@ -81,12 +81,41 @@ fn requires_explicit_public_construct_members() {
 "#,
     );
 
-    assert!(output.ast.is_none());
-    assert!(output.diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("construct members must be explicitly marked `pub`")
-    }));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Construct(construct) = &ast.items[0] else {
+        panic!("expected construct declaration");
+    };
+    let ConstructMemberDecl::Function(function) = &construct.members[0].declaration else {
+        panic!("expected construction function");
+    };
+    assert_eq!(function.visibility, crate::ast::Visibility::Private);
+    assert!(function.body.is_some());
+}
+
+#[test]
+fn parses_bodyless_public_construction_contracts() {
+    let output = parse_text(
+        r#"construct Value {
+    pub default func new(): Self
+    pub literal [](...items: i32): Self
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Construct(construct) = &ast.items[0] else {
+        panic!("expected construct declaration");
+    };
+    let ConstructMemberDecl::Function(function) = &construct.members[0].declaration else {
+        panic!("expected construction function");
+    };
+    let ConstructMemberDecl::Literal(literal) = &construct.members[1].declaration else {
+        panic!("expected construction literal");
+    };
+    assert!(function.body.is_none());
+    assert!(literal.body.is_none());
 }
 
 #[test]

@@ -17,7 +17,12 @@ pub(super) fn visible_local_bindings_at_offset(
     let mut locals = Vec::new();
     for item in &ast.items {
         match item {
-            Item::Function(function) if contains(function.body.span, offset) => {
+            Item::Function(function)
+                if function
+                    .body
+                    .as_ref()
+                    .is_some_and(|body| contains(body.span, offset)) =>
+            {
                 for parameter in &function.parameters.parameters {
                     define(
                         &mut locals,
@@ -26,7 +31,11 @@ pub(super) fn visible_local_bindings_at_offset(
                         "parameter",
                     );
                 }
-                collect_block(&function.body, offset, &mut locals);
+                collect_block(
+                    function.body.as_ref().expect("guarded function body"),
+                    offset,
+                    &mut locals,
+                );
                 return locals;
             }
             Item::Impl(impl_) => {

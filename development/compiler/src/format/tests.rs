@@ -40,6 +40,7 @@ fn formats_top_level_items_and_blocks() {
 let x:i32=1+2*3
 if x>3{return x}else{return 0}
 }
+
 "#,
         concat!(
             "pub func main(): i32 {\n",
@@ -51,6 +52,34 @@ if x>3{return x}else{return 0}
             "    }\n",
             "}\n",
         ),
+    );
+}
+
+#[test]
+fn formats_source_backed_callable_contracts_stably() {
+    assert_formats_stably(
+        r#"pub func parse(text:&str):Value! from text
+impl Value{pub method &self.render():String}
+construct Value{pub default func new():Self
+pub literal [](...items:i32):Self}
+coerce Value{pub &self as &str from self}
+"#,
+        r#"pub func parse(text: &str): Value! from text
+
+impl Value {
+    pub method &self.render(): String
+}
+
+construct Value {
+    pub default func new(): Self
+
+    pub literal [](...items: i32): Self
+}
+
+coerce Value {
+    pub &self as &str from self
+}
+"#,
     );
 }
 

@@ -31,7 +31,9 @@ pub(super) fn check_region_statements(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                check_block(sources, &function.body, None, &mut tree, diagnostics)
+                if let Some(body) = &function.body {
+                    check_block(sources, body, None, &mut tree, diagnostics);
+                }
             }
             Item::Test(test) => check_block(sources, &test.body, None, &mut tree, diagnostics),
             Item::Impl(impl_) => {
@@ -63,15 +65,21 @@ pub(super) fn check_region_statements(
             | Item::Enum(_) => {}
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
-                    check_block(sources, &function.body, None, &mut tree, diagnostics);
+                    if let Some(body) = &function.body {
+                        check_block(sources, body, None, &mut tree, diagnostics);
+                    }
                 }
                 for (_, literal) in construct.literals() {
-                    check_block(sources, &literal.body, None, &mut tree, diagnostics);
+                    if let Some(body) = &literal.body {
+                        check_block(sources, body, None, &mut tree, diagnostics);
+                    }
                 }
             }
             Item::Coerce(coerce) => {
                 for entry in &coerce.entries {
-                    check_block(sources, &entry.body, None, &mut tree, diagnostics);
+                    if let Some(body) = &entry.body {
+                        check_block(sources, body, None, &mut tree, diagnostics);
+                    }
                 }
             }
         }

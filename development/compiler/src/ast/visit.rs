@@ -23,7 +23,11 @@ pub(crate) fn closure_expression_by_span(
 pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl FnMut(&'a Expr)) {
     for item in &ast.items {
         match item {
-            Item::Function(function) => visit_block_expressions(&function.body, visitor),
+            Item::Function(function) => {
+                if let Some(body) = &function.body {
+                    visit_block_expressions(body, visitor);
+                }
+            }
             Item::Test(test) => visit_block_expressions(&test.body, visitor),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
@@ -48,17 +52,23 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                 for member in &construct.members {
                     match &member.declaration {
                         ConstructMemberDecl::Function(function) => {
-                            visit_block_expressions(&function.body, visitor)
+                            if let Some(body) = &function.body {
+                                visit_block_expressions(body, visitor);
+                            }
                         }
                         ConstructMemberDecl::Literal(literal) => {
-                            visit_block_expressions(&literal.body, visitor)
+                            if let Some(body) = &literal.body {
+                                visit_block_expressions(body, visitor);
+                            }
                         }
                     }
                 }
             }
             Item::Coerce(coerce) => {
                 for entry in &coerce.entries {
-                    visit_block_expressions(&entry.body, visitor);
+                    if let Some(body) = &entry.body {
+                        visit_block_expressions(body, visitor);
+                    }
                 }
             }
             Item::Import(_)

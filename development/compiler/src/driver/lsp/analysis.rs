@@ -27,6 +27,19 @@ impl LspWorkspaceAnalysis {
         self.analysis.as_ref()
     }
 
+    pub(super) fn file_for_document(&self, document: &OpenDocument) -> Option<&FileAnalysis> {
+        let analysis = self.analysis.as_ref()?;
+        analysis.files.iter().find(|file| {
+            let Some(source) = self.sources.get(file.ast.span.source) else {
+                return false;
+            };
+            match (&document.absolute_path, source.absolute_path()) {
+                (Some(document), Some(source)) => document == source,
+                _ => document.display_path == source.display_path(),
+            }
+        })
+    }
+
     pub(super) fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }

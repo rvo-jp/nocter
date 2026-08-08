@@ -9,7 +9,7 @@ use super::model::{DocumentSnapshot, LspSnapshot, PackageSnapshot};
 use crate::analysis::package_index::PackageSemanticIndexBuilder;
 use crate::package::{PackageSourceOverlay, load_locked_offline_package_graph_with_overlay};
 use std::collections::{BTreeSet, HashMap};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub(in crate::driver::lsp) fn build_snapshot(
@@ -69,12 +69,25 @@ pub(in crate::driver::lsp) fn build_snapshot(
             continue;
         }
 
-        let analysis = workspace_analysis_for_uri_with_package_graph(
-            uri,
-            &documents,
-            package.and_then(|package| package.graph.as_deref()),
-        )
-        .expect("snapshot document must have an analysis source");
+        let analysis_root = module_analysis_root(document, package_root.as_deref());
+        let analysis = analysis_root
+            .as_deref()
+            .and_then(|root| {
+                workspace_analysis_for_path_with_package_graph(
+                    root,
+                    &documents,
+                    package.and_then(|package| package.graph.as_deref()),
+                )
+            })
+            .filter(|analysis| analysis.file_for_document(document).is_some())
+            .or_else(|| {
+                workspace_analysis_for_uri_with_package_graph(
+                    uri,
+                    &documents,
+                    package.and_then(|package| package.graph.as_deref()),
+                )
+            })
+            .expect("snapshot document must have an analysis source");
         analyses.insert(
             uri.clone(),
             DocumentSnapshot {
@@ -130,6 +143,32 @@ pub(in crate::driver::lsp) fn build_snapshot(
         package_indexes,
         diagnostics,
     )
+}
+
+fn module_analysis_root(document: &OpenDocument, package_root: Option<&Path>) -> Option<PathBuf> {
+    let path = document.absolute_path.as_deref()?;
+    if path.file_name().is_some_and(|name| name == "index.nct") {
+        return Some(path.to_path_buf());
+    }
+
+    let mut directory = path.parent()?;
+    loop {
+        let index = directory.join("index.nct");
+        if index.is_file() {
+            return Some(index);
+        }
+        if package_root.is_none_or(|root| directory == root) {
+            break;
+        }
+        let Some(parent) = directory.parent() else {
+            break;
+        };
+        if package_root.is_some_and(|root| !parent.starts_with(root)) {
+            break;
+        }
+        directory = parent;
+    }
+    None
 }
 
 fn build_package_indexes(

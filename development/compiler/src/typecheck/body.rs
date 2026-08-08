@@ -57,15 +57,11 @@ pub(super) fn check_body_expressions(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
+                let Some(body) = &function.body else {
+                    continue;
+                };
                 let mut environment = environment_for_function(function, resolved);
-                check_block_expressions(
-                    sources,
-                    &function.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    0,
-                );
+                check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
             }
             Item::Test(test) => {
                 let mut environment = TypeEnvironment::default();
@@ -100,10 +96,13 @@ pub(super) fn check_body_expressions(
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
+                    let Some(body) = &function.body else {
+                        continue;
+                    };
                     let mut environment = environment_for_function(function, resolved);
                     check_block_expressions(
                         sources,
-                        &function.body,
+                        body,
                         resolved,
                         diagnostics,
                         &mut environment,
@@ -136,15 +135,11 @@ fn check_literal_body_expressions(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(body) = &literal.body else {
+        return;
+    };
     let mut environment = super::environments::environment_for_literal(literal, resolved);
-    check_block_expressions(
-        sources,
-        &literal.body,
-        resolved,
-        diagnostics,
-        &mut environment,
-        0,
-    );
+    check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
 }
 
 fn check_impl_member_expressions(

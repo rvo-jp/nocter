@@ -3,9 +3,11 @@ use crate::ast::{
     ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::builtin_types::BuiltinTypeOwner;
+use crate::callable_bodies::CallableBodyIndex;
 use crate::diagnostics::Diagnostic;
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
+use crate::source_modules::SourceModuleMap;
 use std::collections::HashMap;
 
 use super::builtin_impls::BuiltinTypeSurface;
@@ -35,9 +37,22 @@ pub struct ResolveOutput {
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
     pub(super) builtin_type_surfaces: HashMap<BuiltinTypeOwner, BuiltinTypeSurface>,
     pub(crate) trusted_declarations: TrustedDeclarationFacts,
+    pub(crate) callable_bodies: CallableBodyIndex,
+    pub(crate) source_modules: SourceModuleMap,
 }
 
 impl ResolveOutput {
+    pub(crate) fn canonical_callable_identity(&self, span: ByteSpan) -> ByteSpan {
+        self.callable_bodies.canonical_identity(span)
+    }
+
+    pub(crate) fn sources_share_module(&self, left: SourceId, right: SourceId) -> bool {
+        left == right
+            || matches!(
+                (self.source_modules.module(left), self.source_modules.module(right)),
+                (Some(left_module), Some(right_module)) if left_module == right_module
+            )
+    }
     pub fn symbol_for_identifier(&self, identifier: &IdentifierExpr) -> Option<&Symbol> {
         self.identifier_targets
             .get(&identifier.span)
@@ -279,7 +294,19 @@ impl ResolveOutput {
             local_identifier_targets: HashMap::new(),
             builtin_type_surfaces: HashMap::new(),
             trusted_declarations: TrustedDeclarationFacts::default(),
+            callable_bodies: CallableBodyIndex::default(),
+            source_modules: SourceModuleMap::default(),
         }
+    }
+
+    pub(super) fn with_callable_bodies(mut self, callable_bodies: CallableBodyIndex) -> Self {
+        self.callable_bodies = callable_bodies;
+        self
+    }
+
+    pub(super) fn with_source_modules(mut self, source_modules: SourceModuleMap) -> Self {
+        self.source_modules = source_modules;
+        self
     }
 
     pub(super) fn define_local_symbol(

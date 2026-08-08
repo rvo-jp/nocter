@@ -174,7 +174,7 @@ pub(super) fn check_struct_literal_expression(
     let is_defining_source = struct_symbol
         .construction
         .declaration_span
-        .is_some_and(|span| span.source == literal.ty.span().source);
+        .is_some_and(|span| resolved.sources_share_module(span.source, literal.ty.span().source));
     if structural_is_hidden && !is_defining_source {
         diagnostics.push(structural_construction_inaccessible_diagnostic(
             sources,

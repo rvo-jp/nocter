@@ -21,7 +21,7 @@ pub struct LiteralDecl {
     pub capture: Option<LiteralCapture>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub body: Block,
+    pub body: Option<Block>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

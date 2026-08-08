@@ -34,14 +34,18 @@ fn body_backed_summary_floor(
         for item in &source.ast.items {
             match item {
                 Item::Function(function) => summaries.insert_result(
-                    CallableId::declared_at(function_summary_key(function)),
+                    CallableId::declared_at(function_summary_key(function, source.resolved)),
                     ValueProvenance::Independent,
                 ),
                 Item::Interface(interface) => {
                     for method in &interface.methods {
                         if method.body.is_some() {
                             summaries.insert_result(
-                                CallableId::declared_at(method.name_span),
+                                CallableId::declared_at(
+                                    source
+                                        .resolved
+                                        .canonical_callable_identity(method.name_span),
+                                ),
                                 ValueProvenance::Independent,
                             );
                         }
@@ -53,7 +57,11 @@ fn body_backed_summary_floor(
                             && method.body.is_some()
                         {
                             summaries.insert_result(
-                                CallableId::declared_at(method.name_span),
+                                CallableId::declared_at(
+                                    source
+                                        .resolved
+                                        .canonical_callable_identity(method.name_span),
+                                ),
                                 ValueProvenance::Independent,
                             );
                         }
@@ -62,13 +70,21 @@ fn body_backed_summary_floor(
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         summaries.insert_result(
-                            CallableId::declared_at(function_summary_key(function)),
+                            CallableId::declared_at(function_summary_key(
+                                function,
+                                source.resolved,
+                            )),
                             ValueProvenance::Independent,
                         );
                     }
                     for (_, literal) in construct.literals() {
+                        if literal.body.is_none() {
+                            continue;
+                        }
                         summaries.insert_result(
-                            CallableId::declared_at(literal.span),
+                            CallableId::declared_at(
+                                source.resolved.canonical_callable_identity(literal.span),
+                            ),
                             ValueProvenance::Independent,
                         );
                     }
@@ -78,7 +94,11 @@ fn body_backed_summary_floor(
                     for member in &impl_.members {
                         if let ImplMember::Method(method) = member {
                             summaries.insert_result(
-                                CallableId::declared_at(method.name_span),
+                                CallableId::declared_at(
+                                    source
+                                        .resolved
+                                        .canonical_callable_identity(method.name_span),
+                                ),
                                 ValueProvenance::Independent,
                             );
                         }
@@ -118,7 +138,13 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
         Item::Function(_) => 1,
         Item::Primitive(_) => 1,
         Item::Interface(interface) => interface.methods.len(),
-        Item::Construct(construct) => construct.functions().count() + construct.literals().count(),
+        Item::Construct(construct) => {
+            construct
+                .functions()
+                .filter(|(_, function)| function.body.is_some())
+                .count()
+                + construct.literals().count()
+        }
         Item::Impl(impl_) => impl_
             .members
             .iter()
@@ -138,6 +164,9 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
         for item in &source.ast.items {
             match item {
                 Item::Function(function) => {
+                    let Some(body) = &function.body else {
+                        continue;
+                    };
                     let environment = environment_for_function(function, source.resolved);
                     let return_type = type_expr_to_type_in_environment(
                         &function.return_type,
@@ -145,7 +174,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         &environment,
                     );
                     let provenance = borrow_return_provenance_for_callable_body(
-                        &function.body,
+                        body,
                         &return_type,
                         source.resolved,
                         &environment,
@@ -161,7 +190,8 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         )
                         .ok()
                     });
-                    let callable = CallableId::declared_at(function_summary_key(function));
+                    let callable =
+                        CallableId::declared_at(function_summary_key(function, source.resolved));
                     summaries.insert_result(
                         callable,
                         result_with_contract_fallback(
@@ -172,7 +202,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         ),
                     );
                     collect_retained_input_mutations(
-                        &function.body,
+                        body,
                         None,
                         &function.parameters.parameters,
                         source.resolved,
@@ -281,7 +311,11 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let Some(provenance) = provenance else {
                             continue;
                         };
-                        let callable = CallableId::declared_at(method.name_span);
+                        let callable = CallableId::declared_at(
+                            source
+                                .resolved
+                                .canonical_callable_identity(method.name_span),
+                        );
                         summaries.insert_result(callable, provenance);
                         if let Some(body) = &method.body {
                             collect_retained_input_mutations(
@@ -314,6 +348,9 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                 }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
+                        let Some(body) = &function.body else {
+                            continue;
+                        };
                         let environment = environment_for_function(function, source.resolved);
                         let return_type = type_expr_to_type_in_environment(
                             &function.return_type,
@@ -321,7 +358,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &environment,
                         );
                         let provenance = borrow_return_provenance_for_callable_body(
-                            &function.body,
+                            body,
                             &return_type,
                             source.resolved,
                             &environment,
@@ -337,7 +374,10 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
-                        let callable = CallableId::declared_at(function_summary_key(function));
+                        let callable = CallableId::declared_at(function_summary_key(
+                            function,
+                            source.resolved,
+                        ));
                         summaries.insert_result(
                             callable,
                             result_with_contract_fallback(
@@ -348,7 +388,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             ),
                         );
                         collect_retained_input_mutations(
-                            &function.body,
+                            body,
                             None,
                             &function.parameters.parameters,
                             source.resolved,
@@ -359,6 +399,9 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         );
                     }
                     for (_, literal) in construct.literals() {
+                        let Some(body) = &literal.body else {
+                            continue;
+                        };
                         let environment = environment_for_literal(literal, source.resolved);
                         let return_type = type_expr_to_type_in_environment(
                             &literal.return_type,
@@ -366,7 +409,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &environment,
                         );
                         let provenance = borrow_return_provenance_for_callable_body(
-                            &literal.body,
+                            body,
                             &return_type,
                             source.resolved,
                             &environment,
@@ -388,7 +431,9 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &return_type,
                             source.resolved,
                         );
-                        let callable = CallableId::declared_at(literal.span);
+                        let callable = CallableId::declared_at(
+                            source.resolved.canonical_callable_identity(literal.span),
+                        );
                         summaries.insert_result(
                             callable,
                             result_with_contract_fallback(
@@ -399,7 +444,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             ),
                         );
                         collect_retained_input_mutations(
-                            &literal.body,
+                            body,
                             None,
                             &literal.parameters.parameters,
                             source.resolved,
@@ -450,7 +495,8 @@ fn collect_impl_provenance_summaries(
             )
             .ok()
         });
-        let callable = CallableId::declared_at(method.name_span);
+        let callable =
+            CallableId::declared_at(resolved.canonical_callable_identity(method.name_span));
         summaries.insert_result(
             callable,
             result_with_contract_fallback(provenance, declared, &return_type, resolved),
@@ -567,12 +613,16 @@ fn has_exact_external_origin(provenance: &ValueProvenance) -> bool {
     }
 }
 
-pub(in crate::typecheck) fn function_summary_key(function: &crate::ast::FunctionDecl) -> ByteSpan {
-    if function.owner.is_some() {
+pub(in crate::typecheck) fn function_summary_key(
+    function: &crate::ast::FunctionDecl,
+    resolved: &ResolveOutput,
+) -> ByteSpan {
+    let span = if function.owner.is_some() {
         function.member_name_span
     } else {
         function.name_span
-    }
+    };
+    resolved.canonical_callable_identity(span)
 }
 
 pub(in crate::typecheck) fn borrow_return_provenance_for_callable_body(

@@ -103,7 +103,7 @@ fn lower_process_entry(
     } else {
         None
     };
-    let entry_function = if selected_test.is_none() {
+    let entry_contract = if selected_test.is_none() {
         root.ast.items.iter().find_map(|item| match item {
             Item::Function(function) if function.name == DEFAULT_ENTRY_NAME => Some(function),
             _ => None,
@@ -111,7 +111,7 @@ fn lower_process_entry(
     } else {
         None
     };
-    if selected_test.is_none() && entry_function.is_none() {
+    if selected_test.is_none() && entry_contract.is_none() {
         return Err(vec![
             Diagnostic::error(
                 "E8000",
@@ -120,6 +120,13 @@ fn lower_process_entry(
             .with_primary_span_if_absent(sources, root.ast.span),
         ]);
     }
+
+    let entry_definition = entry_contract.map(|contract| {
+        if contract.body.is_some() {
+            return (root, contract);
+        }
+        source_backed_entry_definition(analysis, contract).unwrap_or((root, contract))
+    });
 
     let function_index = FunctionIndex::new(analysis, root.ast.span.source);
     let diagnostics = match selected_test {
@@ -131,9 +138,17 @@ fn lower_process_entry(
         ),
         None => imported_call_diagnostics(
             sources,
-            entry_function.expect("executable entry was validated"),
-            root.ast.span.source,
-            &root.resolved,
+            entry_definition.expect("executable entry was validated").1,
+            entry_definition
+                .expect("executable entry was validated")
+                .0
+                .ast
+                .span
+                .source,
+            &entry_definition
+                .expect("executable entry was validated")
+                .0
+                .resolved,
         ),
     };
     if !diagnostics.is_empty() {
@@ -163,16 +178,16 @@ fn lower_process_entry(
         )
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, test.span))?,
         None => {
-            let entry = entry_function.expect("executable entry was validated");
+            let (entry_file, entry) = entry_definition.expect("executable entry was validated");
             entry::lower_entry_function_with_target(
                 entry,
                 selected_target,
                 sources,
                 function_signatures.clone(),
                 function_names.clone(),
-                root.ast.span.source,
-                &root.resolved,
-                &root.typecheck_facts,
+                entry_file.ast.span.source,
+                &entry_file.resolved,
+                &entry_file.typecheck_facts,
                 resolved_sources.clone(),
                 error_payloads.clone(),
             )
@@ -196,6 +211,21 @@ fn lower_process_entry(
     )?;
 
     Ok(IrModule::with_entry(entry_target, functions))
+}
+
+fn source_backed_entry_definition<'a>(
+    analysis: &'a CompileUnitAnalysis,
+    contract: &FunctionDecl,
+) -> Option<(&'a FileAnalysis, &'a FunctionDecl)> {
+    let implementation = analysis
+        .callable_bodies
+        .implementation(contract.name_span)?;
+    let file = analysis.file_by_source(implementation.source)?;
+    let function = file.ast.items.iter().find_map(|item| match item {
+        Item::Function(function) if function.name_span == implementation => Some(function),
+        _ => None,
+    })?;
+    Some((file, function))
 }
 
 fn lower_signature_return_type(
@@ -321,28 +351,38 @@ impl<'a> FunctionIndex<'a> {
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
-                    Item::Function(function) if function.generics.parameters.is_empty() => {
+                    Item::Function(function)
+                        if function.body.is_some() && function.generics.parameters.is_empty() =>
+                    {
+                        let identity = if function.owner.is_some() {
+                            function.member_name_span
+                        } else {
+                            function.name_span
+                        };
+                        let declaration = analysis.callable_bodies.canonical_identity(identity);
                         let target = call_target_for_source(
-                            file.ast.span.source,
+                            declaration.source,
                             root_source,
                             function.name.clone(),
                         );
                         definitions.insert(target, IndexedCallable::new_function(function, file));
                     }
-                    Item::Function(function) => {
+                    Item::Function(function) if function.body.is_some() => {
+                        let name_identity = analysis
+                            .callable_bodies
+                            .canonical_identity(function.name_span);
+                        let member_identity = analysis
+                            .callable_bodies
+                            .canonical_identity(function.member_name_span);
                         for specialization in call_specializations
                             .functions
-                            .get(&function.name_span)
-                            .or_else(|| {
-                                call_specializations
-                                    .functions
-                                    .get(&function.member_name_span)
-                            })
+                            .get(&name_identity)
+                            .or_else(|| call_specializations.functions.get(&member_identity))
                             .into_iter()
                             .flatten()
                         {
                             let target = call_target_for_source(
-                                file.ast.span.source,
+                                member_identity.source,
                                 root_source,
                                 specialization.target_name.clone(),
                             );
@@ -357,6 +397,7 @@ impl<'a> FunctionIndex<'a> {
                             );
                         }
                     }
+                    Item::Function(_) => {}
                     Item::Impl(impl_) => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
@@ -409,9 +450,12 @@ impl<'a> FunctionIndex<'a> {
                                     if method.body.is_some()
                                         && impl_.generics.parameters.is_empty() =>
                                 {
+                                    let declaration = analysis
+                                        .callable_bodies
+                                        .canonical_identity(method.name_span);
                                     let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
-                                        file.ast.span.source,
+                                        declaration.source,
                                         root_source,
                                         name.clone(),
                                     );
@@ -427,14 +471,17 @@ impl<'a> FunctionIndex<'a> {
                                     );
                                 }
                                 ImplMember::Method(method) if method.body.is_some() => {
+                                    let declaration = analysis
+                                        .callable_bodies
+                                        .canonical_identity(method.name_span);
                                     for specialization in call_specializations
                                         .methods
-                                        .get(&method.name_span)
+                                        .get(&declaration)
                                         .into_iter()
                                         .flatten()
                                     {
                                         let target = call_target_for_source(
-                                            file.ast.span.source,
+                                            declaration.source,
                                             root_source,
                                             specialization.target_name.clone(),
                                         );
@@ -491,9 +538,15 @@ impl<'a> FunctionIndex<'a> {
                     }
                     Item::Construct(construct) => {
                         for (_, function) in construct.functions() {
+                            if function.body.is_none() {
+                                continue;
+                            }
+                            let declaration = analysis
+                                .callable_bodies
+                                .canonical_identity(function.member_name_span);
                             if function.generics.parameters.is_empty() {
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     function.name.clone(),
                                 );
@@ -503,17 +556,12 @@ impl<'a> FunctionIndex<'a> {
                             }
                             for specialization in call_specializations
                                 .functions
-                                .get(&function.name_span)
-                                .or_else(|| {
-                                    call_specializations
-                                        .functions
-                                        .get(&function.member_name_span)
-                                })
+                                .get(&declaration)
                                 .into_iter()
                                 .flatten()
                             {
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     specialization.target_name.clone(),
                                 );
@@ -529,14 +577,19 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                         for (_, literal) in construct.literals() {
+                            if literal.body.is_none() {
+                                continue;
+                            }
+                            let declaration =
+                                analysis.callable_bodies.canonical_identity(literal.span);
                             for specialization in call_specializations
                                 .literals
-                                .get(&literal.span)
+                                .get(&declaration)
                                 .into_iter()
                                 .flatten()
                             {
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     specialization.target_name.clone(),
                                 );
@@ -553,14 +606,19 @@ impl<'a> FunctionIndex<'a> {
                     }
                     Item::Coerce(coerce) => {
                         for entry in &coerce.entries {
+                            if entry.body.is_none() {
+                                continue;
+                            }
+                            let declaration =
+                                analysis.callable_bodies.canonical_identity(entry.span);
                             for plan in call_specializations
                                 .coercions
-                                .get(&entry.span)
+                                .get(&declaration)
                                 .into_iter()
                                 .flatten()
                             {
                                 let target = call_target_for_source(
-                                    file.ast.span.source,
+                                    declaration.source,
                                     root_source,
                                     plan.target_name.clone(),
                                 );
@@ -827,12 +885,14 @@ impl<'a> IndexedCallable<'a> {
                 })
                 .unwrap_or_default(),
             IndexedDeclaration::Literal { declaration, .. } => {
-                imported_calls::imported_call_diagnostics_for_block(
-                    sources,
-                    &declaration.body,
-                    root_source,
-                    self.resolved,
-                )
+                declaration.body.as_ref().map_or_else(Vec::new, |body| {
+                    imported_calls::imported_call_diagnostics_for_block(
+                        sources,
+                        body,
+                        root_source,
+                        self.resolved,
+                    )
+                })
             }
             IndexedDeclaration::Closure { expression, .. } => {
                 imported_calls::imported_call_diagnostics_for_block(
@@ -858,6 +918,7 @@ impl<'a> IndexedCallable<'a> {
         }
         let mut runtime_statements = function
             .body
+            .as_ref()?
             .statements
             .iter()
             .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));

@@ -15,6 +15,7 @@ pub(super) fn supported_text_document_params_are_valid(
         "textDocument/semanticTokens/full" | "textDocument/documentSymbol" => false,
         "textDocument/hover"
         | "textDocument/definition"
+        | "textDocument/implementation"
         | "textDocument/references"
         | "textDocument/prepareRename"
         | "textDocument/rename"

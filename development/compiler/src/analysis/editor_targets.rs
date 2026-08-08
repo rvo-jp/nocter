@@ -156,7 +156,11 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
         match item {
             Item::Import(import) => sites.push(ImportSite::Namespace(import)),
             Item::FromImport(import) => sites.push(ImportSite::Names(import)),
-            Item::Function(function) => collect_block_import_sites(&function.body, sites),
+            Item::Function(function) => {
+                if let Some(body) = &function.body {
+                    collect_block_import_sites(body, sites);
+                }
+            }
             Item::Test(test) => collect_block_import_sites(&test.body, sites),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
@@ -179,15 +183,21 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
-                    collect_block_import_sites(&function.body, sites);
+                    if let Some(body) = &function.body {
+                        collect_block_import_sites(body, sites);
+                    }
                 }
                 for (_, literal) in construct.literals() {
-                    collect_block_import_sites(&literal.body, sites);
+                    if let Some(body) = &literal.body {
+                        collect_block_import_sites(body, sites);
+                    }
                 }
             }
             Item::Coerce(coerce) => {
                 for entry in &coerce.entries {
-                    collect_block_import_sites(&entry.body, sites);
+                    if let Some(body) = &entry.body {
+                        collect_block_import_sites(body, sites);
+                    }
                 }
             }
             Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}

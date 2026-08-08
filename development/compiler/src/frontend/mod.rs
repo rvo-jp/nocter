@@ -287,6 +287,17 @@ pub(crate) fn load_compile_unit_with_trace(
         };
     }
 
+    let (callable_bodies, callable_body_diagnostics) =
+        crate::callable_bodies::CallableBodyIndex::build(sources, &files, &import_sources);
+    if !callable_body_diagnostics.is_empty() {
+        let (loaded_sources, dependency_paths) = dependencies.into_parts();
+        return CompileUnitLoad {
+            result: Err(callable_body_diagnostics),
+            loaded_sources,
+            dependency_paths,
+        };
+    }
+
     let Some(root_ast) = root_ast else {
         let (loaded_sources, dependency_paths) = dependencies.into_parts();
         return CompileUnitLoad {
@@ -328,6 +339,7 @@ pub(crate) fn load_compile_unit_with_trace(
             prelude_sources,
             nocter_home,
         )
+        .with_callable_bodies(callable_bodies)
         .with_trusted_declarations(trusted_declarations)),
         loaded_sources,
         dependency_paths,

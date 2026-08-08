@@ -14,6 +14,7 @@ mod drop_dependencies;
 pub(crate) mod editor_targets;
 mod expected_completion;
 pub(crate) mod hover;
+pub(crate) mod implementation;
 mod import_completion;
 pub(crate) mod inlay_hints;
 pub(crate) mod interpolation;
@@ -48,8 +49,9 @@ pub(crate) use region_recovery::region_recovery_text;
 mod visible_locals;
 
 use crate::ast::AstFile;
+use crate::callable_bodies::CallableBodyIndex;
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_compile_unit};
+use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput};
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::typecheck::{
@@ -67,6 +69,7 @@ pub(crate) struct CompileUnit {
     prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
     trusted_declarations: TrustedDeclarationFacts,
+    callable_bodies: CallableBodyIndex,
 }
 
 impl CompileUnit {
@@ -84,6 +87,7 @@ impl CompileUnit {
             prelude_sources,
             nocter_home,
             trusted_declarations: TrustedDeclarationFacts::default(),
+            callable_bodies: CallableBodyIndex::default(),
         }
     }
 
@@ -94,6 +98,11 @@ impl CompileUnit {
         self.trusted_declarations = trusted_declarations;
         self
     }
+
+    pub(crate) fn with_callable_bodies(mut self, callable_bodies: CallableBodyIndex) -> Self {
+        self.callable_bodies = callable_bodies;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -101,6 +110,7 @@ pub(crate) struct CompileUnitAnalysis {
     pub(crate) files: Vec<FileAnalysis>,
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
+    pub(crate) callable_bodies: CallableBodyIndex,
 }
 
 impl CompileUnitAnalysis {
@@ -182,12 +192,13 @@ fn analyze_compile_unit_with_root_policy(
         .files
         .iter()
         .map(|file| {
-            let mut resolved = resolve_compile_unit(
+            let mut resolved = crate::resolve::resolve_compile_unit_with_callable_bodies(
                 sources,
                 file,
                 &unit.files,
                 &unit.import_sources,
                 &unit.prelude_sources,
+                &unit.callable_bodies,
             );
             resolved.trusted_declarations = unit.trusted_declarations.clone();
             resolved.diagnostics.retain(|diagnostic| {
@@ -246,6 +257,7 @@ fn analyze_compile_unit_with_root_policy(
         files,
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
+        callable_bodies: unit.callable_bodies.clone(),
     }
 }
 

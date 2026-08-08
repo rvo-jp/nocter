@@ -171,7 +171,7 @@ impl Parser<'_> {
     pub(super) fn parse_method_decl(
         &mut self,
         visibility: Visibility,
-        require_body: bool,
+        _require_body: bool,
     ) -> ParseResult<MethodDecl> {
         let start = self.expect_keyword(Keyword::Method, "`method`")?;
         let receiver = self.parse_method_receiver()?;
@@ -182,7 +182,7 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let body = if require_body || self.at_punctuation("{") {
+        let body = if self.at_punctuation("{") {
             Some(self.parse_block()?)
         } else {
             None

@@ -1,4 +1,5 @@
 mod builtin_types;
+mod callable_bodies;
 mod compile_unit;
 mod non_relative_imports;
 mod prelude;

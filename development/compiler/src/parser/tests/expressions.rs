@@ -24,7 +24,7 @@ fn parses_closure_parameters_result_and_explicit_captures() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Closure(closure) = &binding.initializer else {
@@ -63,11 +63,11 @@ fn distinguishes_zero_parameter_closures_from_grouped_expressions() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     assert!(matches!(binding.initializer, Expr::Closure(_)));
-    let Stmt::Return(return_) = &function.body.statements[1] else {
+    let Stmt::Return(return_) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected return statement");
     };
     assert!(matches!(return_.expression, Some(Expr::Group(_))));
@@ -108,7 +108,7 @@ fn parses_otherwise_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Otherwise(expression) = &binding.initializer else {
@@ -192,7 +192,7 @@ func code(error: AppError): i32 {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return statement");
     };
     let Some(Expr::Match(expression)) = &statement.expression else {
@@ -247,7 +247,7 @@ fn parses_force_unwrap_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return statement");
     };
     let Some(Expr::Force(expression)) = &statement.expression else {
@@ -274,7 +274,7 @@ fn parses_borrow_expressions() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(readonly) = &function.body.statements[0] else {
+    let Stmt::Binding(readonly) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Borrow(readonly_borrow) = &readonly.initializer else {
@@ -286,7 +286,7 @@ fn parses_borrow_expressions() {
         Expr::Identifier(_)
     ));
 
-    let Stmt::Binding(readwrite) = &function.body.statements[1] else {
+    let Stmt::Binding(readwrite) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected binding statement");
     };
     let Expr::Borrow(readwrite_borrow) = &readwrite.initializer else {
@@ -421,7 +421,7 @@ fn parses_array_literal_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::ArrayLiteral(array) = &binding.initializer else {
@@ -469,7 +469,7 @@ fn parses_multi_line_string_literal_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return statement");
     };
     let Some(Expr::StringLiteral(literal)) = &statement.expression else {
@@ -495,7 +495,7 @@ fn parses_byte_literal_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return statement");
     };
     let Some(Expr::ByteLiteral(literal)) = &statement.expression else {
@@ -522,7 +522,7 @@ fn parses_interpolated_string_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::InterpolatedString(expression) = &binding.initializer else {
@@ -572,7 +572,7 @@ func main(): i32 {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::StructLiteral(literal) = &binding.initializer else {
@@ -630,7 +630,7 @@ func main(): i32 {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::StructLiteral(literal) = &binding.initializer else {
@@ -667,7 +667,7 @@ func main(): i32 {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::StructLiteral(literal) = &binding.initializer else {
@@ -698,12 +698,12 @@ fn parses_index_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(first) = &function.body.statements[0] else {
+    let Stmt::Binding(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     assert!(matches!(first.initializer, Expr::Index(_)));
 
-    let Stmt::Binding(second) = &function.body.statements[1] else {
+    let Stmt::Binding(second) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected binding statement");
     };
     let Expr::Index(outer) = &second.initializer else {
@@ -728,12 +728,12 @@ fn parses_comparison_expressions() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(first) = &function.body.statements[0] else {
+    let Stmt::Binding(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     assert!(matches!(first.initializer, Expr::Binary(_)));
 
-    let Stmt::Binding(second) = &function.body.statements[1] else {
+    let Stmt::Binding(second) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(binary) = &second.initializer else {
@@ -757,7 +757,7 @@ fn parses_arithmetic_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(subtract_expression) = &statement.initializer else {
@@ -836,7 +836,7 @@ fn parses_std_slash_expression_as_division() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(binary) = &statement.initializer else {
@@ -860,7 +860,7 @@ fn parses_type_conversion_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(add_expression) = &statement.initializer else {
@@ -887,7 +887,7 @@ fn parses_borrow_before_type_conversion() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Return(statement) = &function.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected return statement");
     };
     let Expr::TypeConversion(conversion) = statement.expression.as_ref().unwrap() else {
@@ -911,7 +911,7 @@ fn parses_shift_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(ordering_expression) = &statement.initializer else {
@@ -950,7 +950,7 @@ fn parses_logical_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(or_expression) = &statement.initializer else {
@@ -984,7 +984,7 @@ fn parses_logical_not_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(and_expression) = &statement.initializer else {
@@ -1013,7 +1013,7 @@ fn parses_numeric_negate_expression_precedence() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(ordering_expression) = &statement.initializer else {
@@ -1042,7 +1042,7 @@ fn parses_move_expression() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &function.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Unary(move_expression) = &statement.initializer else {

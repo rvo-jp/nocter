@@ -11,6 +11,7 @@ mod definition;
 mod diagnostics;
 mod documents;
 mod hover;
+mod implementation;
 mod import_completion;
 mod inlay_hints;
 mod locations;
@@ -53,6 +54,7 @@ use documents::{
 #[cfg(test)]
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
+use implementation::implementation_for_file_analysis;
 use import_completion::module_completion_items;
 use inlay_hints::inlay_hints;
 use package_completion::package_manifest_completion_items;
@@ -267,6 +269,10 @@ impl LspServer {
             }
             "textDocument/definition" => {
                 write_message(writer, self.definition_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/implementation" => {
+                write_message(writer, self.implementation_response(id, params))?;
                 Ok(None)
             }
             "textDocument/references" => {
@@ -522,6 +528,13 @@ impl LspServer {
                 })
         });
         response(id, definition.unwrap_or(Value::Null))
+    }
+
+    fn implementation_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
+        let implementation = document_uri_from_params(params)
+            .and_then(|uri| self.workspace_implementation_for_uri(&snapshot, &uri, params));
+        response(id, implementation.unwrap_or(Value::Null))
     }
 
     fn references_response(&self, id: Value, params: Option<&Value>) -> Value {
@@ -802,6 +815,27 @@ impl LspServer {
         })
     }
 
+    fn workspace_implementation_for_uri(
+        &self,
+        snapshot: &LspSnapshot,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Value> {
+        let position = position_from_params(params)?;
+        self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
+            let root_offset =
+                lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            implementation_for_file_analysis(
+                &workspace.sources,
+                workspace.semantic()?,
+                file,
+                document,
+                snapshot.documents(),
+                root_offset,
+            )
+        })
+    }
+
     fn workspace_references_for_uri(
         &self,
         snapshot: &LspSnapshot,
@@ -983,7 +1017,7 @@ impl LspServer {
     ) -> Option<T> {
         let document = snapshot.document(uri)?;
         let workspace = snapshot.analysis(uri)?;
-        let file = workspace.root_file()?;
+        let file = workspace.file_for_document(document)?;
 
         f(document, workspace, file)
     }
@@ -1011,6 +1045,7 @@ fn initialize_response(id: Value) -> Value {
                 },
                 "hoverProvider": true,
                 "definitionProvider": true,
+                "implementationProvider": true,
                 "referencesProvider": true,
                 "renameProvider": {
                     "prepareProvider": true

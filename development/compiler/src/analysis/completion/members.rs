@@ -344,7 +344,12 @@ fn generic_bounds_at_offset<'a>(
         .iter()
         .find_map(|item| {
             let generics = match item {
-                Item::Function(function) if span_contains(function.body.span, offset) => {
+                Item::Function(function)
+                    if function
+                        .body
+                        .as_ref()
+                        .is_some_and(|body| span_contains(body.span, offset)) =>
+                {
                     &function.generics
                 }
                 Item::Impl(impl_) if span_contains(impl_.span, offset) => &impl_.generics,

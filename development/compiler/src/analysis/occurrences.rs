@@ -5,7 +5,9 @@
 //! classification cannot develop independent target-selection rules.
 
 use super::CompileUnitAnalysis;
-use crate::ast::{AstFile, BindingKind, ClosureCaptureMode, TypeExpr};
+use crate::ast::{
+    AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, ImplMember, Item, TypeExpr,
+};
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::TypecheckFacts;
@@ -82,6 +84,7 @@ pub(crate) struct SemanticOccurrenceIndex {
 impl SemanticOccurrenceIndex {
     pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput, facts: &TypecheckFacts) -> Self {
         let mut builder = OccurrenceBuilder {
+            ast,
             source: ast.span.source,
             resolved,
             facts,
@@ -110,6 +113,7 @@ impl SemanticOccurrenceIndex {
 }
 
 struct OccurrenceBuilder<'a> {
+    ast: &'a AstFile,
     source: SourceId,
     resolved: &'a ResolveOutput,
     facts: &'a TypecheckFacts,
@@ -119,11 +123,107 @@ struct OccurrenceBuilder<'a> {
 impl OccurrenceBuilder<'_> {
     fn collect(&mut self) {
         self.collect_symbol_declarations();
+        self.collect_callable_implementation_occurrences();
         self.collect_local_declarations_and_references();
         self.collect_resolved_references();
         self.collect_generic_parameter_declarations();
         self.collect_type_references();
         self.collect_typechecked_references();
+    }
+
+    fn collect_callable_implementation_occurrences(&mut self) {
+        for item in &self.ast.items {
+            match item {
+                Item::Function(function) => {
+                    let physical_identity = if function.owner.is_some() {
+                        function.member_name_span
+                    } else {
+                        function.name_span
+                    };
+                    let Some(contract) =
+                        self.resolved.callable_bodies.declaration(physical_identity)
+                    else {
+                        continue;
+                    };
+                    let (identity, kind) = if function.owner.is_some() {
+                        (
+                            SemanticIdentity::Member(contract),
+                            SemanticOccurrenceKind::Function,
+                        )
+                    } else {
+                        (
+                            SemanticIdentity::Declaration(contract),
+                            SemanticOccurrenceKind::Function,
+                        )
+                    };
+                    self.push(
+                        function.member_name_span,
+                        Some(identity),
+                        SemanticOccurrenceRole::Reference,
+                        kind,
+                        false,
+                        None,
+                        2,
+                    );
+                }
+                Item::Impl(impl_) if impl_.interface_ty.is_none() => {
+                    for member in &impl_.members {
+                        let ImplMember::Method(method) = member else {
+                            continue;
+                        };
+                        let Some(contract) =
+                            self.resolved.callable_bodies.declaration(method.name_span)
+                        else {
+                            continue;
+                        };
+                        self.push(
+                            method.name_span,
+                            Some(SemanticIdentity::Member(contract)),
+                            SemanticOccurrenceRole::Reference,
+                            SemanticOccurrenceKind::Method,
+                            false,
+                            None,
+                            2,
+                        );
+                    }
+                }
+                Item::Construct(construct) => {
+                    for member in &construct.members {
+                        let (focus, kind) = match &member.declaration {
+                            ConstructMemberDecl::Function(function) => {
+                                (function.member_name_span, SemanticOccurrenceKind::Function)
+                            }
+                            ConstructMemberDecl::Literal(literal) => {
+                                (literal.shape_span, SemanticOccurrenceKind::Literal)
+                            }
+                        };
+                        let Some(contract) = self.resolved.callable_bodies.declaration(focus)
+                        else {
+                            continue;
+                        };
+                        self.push(
+                            focus,
+                            Some(SemanticIdentity::Member(contract)),
+                            SemanticOccurrenceRole::Reference,
+                            kind,
+                            false,
+                            None,
+                            2,
+                        );
+                    }
+                }
+                Item::Import(_)
+                | Item::FromImport(_)
+                | Item::Test(_)
+                | Item::Primitive(_)
+                | Item::TypeAlias(_)
+                | Item::Struct(_)
+                | Item::Enum(_)
+                | Item::Interface(_)
+                | Item::Impl(_)
+                | Item::Coerce(_) => {}
+            }
+        }
     }
 
     fn finish(mut self) -> SemanticOccurrenceIndex {

@@ -114,7 +114,10 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     );
     instructions.extend(lower_callable_body(
         &name,
-        &literal.body,
+        literal
+            .body
+            .as_ref()
+            .expect("literal index contains only body-bearing declarations"),
         &return_type,
         root_source,
         resolved,
@@ -261,7 +264,10 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &function.name,
-        &function.body,
+        function
+            .body
+            .as_ref()
+            .expect("function index contains only body-bearing declarations"),
         &return_type,
         root_source,
         resolved,

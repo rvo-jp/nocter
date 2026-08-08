@@ -10,9 +10,10 @@ pub(super) fn member_visibility_is_accessible(
 ) -> bool {
     match visibility {
         Visibility::Public => true,
-        Visibility::Private => declaration_span.source == use_source,
+        Visibility::Private => resolved.sources_share_module(declaration_span.source, use_source),
         Visibility::Nocter => {
-            declaration_span.source == use_source || resolved.access == ImportAccess::Nocter
+            resolved.sources_share_module(declaration_span.source, use_source)
+                || resolved.access == ImportAccess::Nocter
         }
     }
 }

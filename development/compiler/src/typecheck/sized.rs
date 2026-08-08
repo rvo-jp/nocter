@@ -131,7 +131,9 @@ fn check_literal(
         self_type,
         diagnostics,
     );
-    check_block(sources, &literal.body, resolved, self_type, diagnostics);
+    if let Some(body) = &literal.body {
+        check_block(sources, body, resolved, self_type, diagnostics);
+    }
 }
 
 fn check_function(
@@ -158,7 +160,9 @@ fn check_function(
         self_type,
         diagnostics,
     );
-    check_block(sources, &function.body, resolved, self_type, diagnostics);
+    if let Some(body) = &function.body {
+        check_block(sources, body, resolved, self_type, diagnostics);
+    }
 }
 
 fn check_primitive(

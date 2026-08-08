@@ -67,7 +67,9 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Function(function) => {
             push_function_hover_symbol(text, function, symbols);
             collect_parameter_hover_symbols(&function.parameters.parameters, symbols);
-            collect_block_hover_symbols(text, &function.body, symbols);
+            if let Some(body) = &function.body {
+                collect_block_hover_symbols(text, body, symbols);
+            }
         }
         Item::Test(test) => {
             push_hover_symbol(
@@ -107,7 +109,9 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             for (_, function) in construct.functions() {
                 push_function_hover_symbol(text, function, symbols);
                 collect_parameter_hover_symbols(&function.parameters.parameters, symbols);
-                collect_block_hover_symbols(text, &function.body, symbols);
+                if let Some(body) = &function.body {
+                    collect_block_hover_symbols(text, body, symbols);
+                }
             }
             for (_, literal) in construct.literals() {
                 collect_literal_hover_symbols(text, literal, symbols);
@@ -124,7 +128,9 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 );
                 let receiver = entry.receiver.implicit_parameter();
                 collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
-                collect_block_hover_symbols(text, &entry.body, symbols);
+                if let Some(body) = &entry.body {
+                    collect_block_hover_symbols(text, body, symbols);
+                }
             }
         }
     }
@@ -156,7 +162,9 @@ fn collect_literal_hover_symbols(
             symbols,
         );
     }
-    collect_block_hover_symbols(text, &literal.body, symbols);
+    if let Some(body) = &literal.body {
+        collect_block_hover_symbols(text, body, symbols);
+    }
 }
 
 pub(in crate::analysis::hover) fn collect_struct_hover_symbols(

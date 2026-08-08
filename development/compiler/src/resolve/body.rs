@@ -53,7 +53,9 @@ impl Resolver<'_> {
                             &mut scope,
                         );
                         self.resolve_result_provenance(entry.result_provenance.as_ref(), &scope);
-                        self.resolve_block(&entry.body, &mut scope);
+                        if let Some(body) = &entry.body {
+                            self.resolve_block(body, &mut scope);
+                        }
                     }
                 }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
@@ -68,9 +70,15 @@ impl Resolver<'_> {
 
     fn resolve_function_body(&mut self, function: &crate::ast::FunctionDecl) {
         let mut scope = Scope::new();
-        self.define_parameters(&function.parameters.parameters, &mut scope);
+        if function.body.is_some() {
+            self.define_parameters(&function.parameters.parameters, &mut scope);
+        } else {
+            self.define_declaration_parameters(&function.parameters.parameters, &mut scope);
+        }
         self.resolve_result_provenance(function.result_provenance.as_ref(), &scope);
-        self.resolve_block(&function.body, &mut scope);
+        if let Some(body) = &function.body {
+            self.resolve_block(body, &mut scope);
+        }
     }
 
     fn resolve_literal_body(&mut self, literal: &crate::ast::LiteralDecl) {
@@ -85,7 +93,9 @@ impl Resolver<'_> {
             );
         }
         self.resolve_result_provenance(literal.result_provenance.as_ref(), &scope);
-        self.resolve_block(&literal.body, &mut scope);
+        if let Some(body) = &literal.body {
+            self.resolve_block(body, &mut scope);
+        }
     }
 
     fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {

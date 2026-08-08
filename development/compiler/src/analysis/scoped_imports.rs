@@ -28,7 +28,9 @@ pub(crate) fn visible_scoped_import_spans_at_offset(
 fn collect_scoped_import_name_spans_in_item(item: &Item, spans: &mut HashSet<ByteSpan>) {
     match item {
         Item::Function(function) => {
-            collect_scoped_import_name_spans_in_block(&function.body, spans)
+            if let Some(body) = &function.body {
+                collect_scoped_import_name_spans_in_block(body, spans);
+            }
         }
         Item::Impl(impl_) => {
             for member in &impl_.members {
@@ -245,9 +247,10 @@ fn scoped_import_spans_in_item_at_offset(item: &Item, offset: usize) -> Option<H
     }
 
     match item {
-        Item::Function(function) => {
-            scoped_import_spans_in_block_at_offset(&function.body, offset, &HashSet::new())
-        }
+        Item::Function(function) => function
+            .body
+            .as_ref()
+            .and_then(|body| scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method.body.as_ref().and_then(|body| {
                 scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())

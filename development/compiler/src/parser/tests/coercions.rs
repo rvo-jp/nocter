@@ -101,3 +101,19 @@ fn diagnoses_unclosed_coerce_blocks() {
             .contains("expected `}` to close coerce declaration")
     }));
 }
+
+#[test]
+fn parses_bodyless_public_coercion_contract() {
+    let output = parse_text(
+        r#"coerce Text {
+    pub &self as &str from self
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Coerce(coerce) = &ast.items[0] else {
+        panic!("expected coerce declaration");
+    };
+    assert!(coerce.entries[0].body.is_none());
+}

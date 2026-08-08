@@ -24,7 +24,9 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
         Item::Import(_) | Item::FromImport(_) => {}
         Item::Function(function) => {
             push_target(text, function.span, targets);
-            collect_block_targets(text, &function.body, targets);
+            if let Some(body) = &function.body {
+                collect_block_targets(text, body, targets);
+            }
         }
         Item::Test(test) => {
             push_target(text, test.span, targets);
@@ -65,11 +67,15 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 match &member.declaration {
                     ConstructMemberDecl::Function(function) => {
                         push_target(text, member.span, targets);
-                        collect_block_targets(text, &function.body, targets);
+                        if let Some(body) = &function.body {
+                            collect_block_targets(text, body, targets);
+                        }
                     }
                     ConstructMemberDecl::Literal(literal) => {
                         push_target(text, member.span, targets);
-                        collect_block_targets(text, &literal.body, targets);
+                        if let Some(body) = &literal.body {
+                            collect_block_targets(text, body, targets);
+                        }
                     }
                 }
             }
@@ -78,7 +84,9 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
             push_target(text, coerce.span, targets);
             for entry in &coerce.entries {
                 push_target(text, entry.span, targets);
-                collect_block_targets(text, &entry.body, targets);
+                if let Some(body) = &entry.body {
+                    collect_block_targets(text, body, targets);
+                }
             }
         }
     }

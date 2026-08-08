@@ -33,7 +33,9 @@ pub use symbols::{
 use module_index::{MergedModules, ModuleIndex};
 
 use crate::ast::{AstFile, Item};
+use crate::callable_bodies::CallableBodyIndex;
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::source_modules::SourceModuleMap;
 use std::cell::RefCell;
 use std::collections::HashSet;
 
@@ -54,11 +56,30 @@ pub fn resolve_compile_unit(
     import_sources: &ImportSourceMap,
     prelude_sources: &PreludeSourceMap,
 ) -> ResolveOutput {
+    resolve_compile_unit_with_callable_bodies(
+        sources,
+        root,
+        files,
+        import_sources,
+        prelude_sources,
+        &CallableBodyIndex::default(),
+    )
+}
+
+pub(crate) fn resolve_compile_unit_with_callable_bodies(
+    sources: &SourceMap,
+    root: &AstFile,
+    files: &[AstFile],
+    import_sources: &ImportSourceMap,
+    prelude_sources: &PreludeSourceMap,
+    callable_bodies: &CallableBodyIndex,
+) -> ResolveOutput {
+    let source_modules = SourceModuleMap::new(files, import_sources);
     let merged_modules = MergedModules::new(files, import_sources);
     let module_index = ModuleIndex::new(&merged_modules);
     let module_ast = module_index
         .ast_for_source(root.span.source)
-        .cloned()
+        .map(|ast| callable_bodies.declaration_surface(ast))
         .unwrap_or_else(|| root.clone());
     let access = root_access(root, import_sources, prelude_sources);
     let mut resolver = Resolver {
@@ -66,7 +87,9 @@ pub fn resolve_compile_unit(
         module_index,
         import_sources,
         prelude_sources,
-        output: ResolveOutput::new(access),
+        output: ResolveOutput::new(access)
+            .with_callable_bodies(callable_bodies.clone())
+            .with_source_modules(source_modules),
         synthetic_prelude_symbol_spans: HashSet::new(),
         collected_hidden_type_dependencies: HashSet::new(),
         collecting_imported_type_names: RefCell::new(HashSet::new()),

@@ -109,13 +109,9 @@ fn check_literal_definition(
     }
 
     let mut pack_loops = HashSet::new();
-    check_pack_uses_in_block(
-        sources,
-        &literal.body,
-        resolved,
-        &mut pack_loops,
-        diagnostics,
-    );
+    if let Some(body) = &literal.body {
+        check_pack_uses_in_block(sources, body, resolved, &mut pack_loops, diagnostics);
+    }
 }
 
 pub(super) fn check_typed_sequence_literal(

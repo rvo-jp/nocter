@@ -74,8 +74,10 @@ impl Formatter {
         self.write(" as ");
         self.format_type(&entry.target);
         self.format_result_provenance(entry.result_provenance.as_ref());
-        self.write(" ");
-        self.format_block(&entry.body);
+        if let Some(body) = &entry.body {
+            self.write(" ");
+            self.format_block(body);
+        }
     }
 
     fn format_test_decl(&mut self, item: &TestDecl) {
@@ -113,7 +115,10 @@ impl Formatter {
     }
 
     fn format_construct_member(&mut self, member: &ConstructMember, owner_generic_count: usize) {
-        self.write("pub ");
+        self.format_visibility(match &member.declaration {
+            ConstructMemberDecl::Function(function) => function.visibility,
+            ConstructMemberDecl::Literal(literal) => literal.visibility,
+        });
         if member.is_default() {
             self.write("default ");
         }
@@ -126,8 +131,10 @@ impl Formatter {
                 self.write(": ");
                 self.format_type(&function.return_type);
                 self.format_result_provenance(function.result_provenance.as_ref());
-                self.write(" ");
-                self.format_block(&function.body);
+                if let Some(body) = &function.body {
+                    self.write(" ");
+                    self.format_block(body);
+                }
             }
             ConstructMemberDecl::Literal(literal) => self.format_construct_literal(literal),
         }
@@ -151,8 +158,10 @@ impl Formatter {
         self.write("): ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
-        self.write(" ");
-        self.format_block(&item.body);
+        if let Some(body) = &item.body {
+            self.write(" ");
+            self.format_block(body);
+        }
     }
 
     pub(super) fn format_import_item(&mut self, item: &ImportItem) {
@@ -189,8 +198,10 @@ impl Formatter {
         self.write(": ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
-        self.write(" ");
-        self.format_block(&item.body);
+        if let Some(body) = &item.body {
+            self.write(" ");
+            self.format_block(body);
+        }
     }
 
     fn format_primitive_decl(&mut self, item: &PrimitiveDecl) {

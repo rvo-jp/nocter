@@ -45,8 +45,18 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let body = self.parse_block()?;
-        let end = body.span.end;
+        let body = self
+            .at_punctuation("{")
+            .then(|| self.parse_block())
+            .transpose()?;
+        let end = body.as_ref().map_or_else(
+            || {
+                result_provenance
+                    .as_ref()
+                    .map_or(return_type.span().end, |clause| clause.span.end)
+            },
+            |body| body.span.end,
+        );
 
         Ok(FunctionDecl {
             span: self.span(

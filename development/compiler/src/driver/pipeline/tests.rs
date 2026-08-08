@@ -110,6 +110,84 @@ func answer(): i32 {
     assert_eq!(status.code(), Some(29));
 }
 
+#[test]
+fn build_file_lowers_source_backed_public_function_body() {
+    let root = make_temp_project("build-source-backed-function");
+    let nocter_home = make_nocter_home(&root);
+    let source = root.join("index.nct");
+    crate::test_files::write(
+        &source,
+        r#"use ./answer
+
+pub func answer(value: i32): i32
+
+func main(): i32 {
+    return answer(40)
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("answer.nct"),
+        r#"func answer(value: i32): i32 {
+    return value + 2
+}
+"#,
+    )
+    .unwrap();
+
+    let executable = root.join("source-backed");
+    let output =
+        build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+    assert_diagnostics_empty(&output.diagnostics);
+    assert_eq!(output.output_path, executable);
+    assert!(fs::metadata(&executable).unwrap().len() > 0x4000);
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(42));
+    }
+}
+
+#[test]
+fn build_file_lowers_source_backed_entry_body() {
+    let root = make_temp_project("build-source-backed-entry");
+    let nocter_home = make_nocter_home(&root);
+    let source = root.join("index.nct");
+    crate::test_files::write(
+        &source,
+        r#"use ./main
+
+pub func main(): i32
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("main.nct"),
+        r#"func main(): i32 {
+    return 37
+}
+"#,
+    )
+    .unwrap();
+
+    let executable = root.join("source-backed-entry");
+    let output =
+        build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+    assert_diagnostics_empty(&output.diagnostics);
+    assert_eq!(output.output_path, executable);
+    assert!(fs::metadata(&executable).unwrap().len() > 0x4000);
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(37));
+    }
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn build_file_output_runs_i32_function_call_with_arguments() {

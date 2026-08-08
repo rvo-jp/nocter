@@ -119,7 +119,7 @@ pub struct FunctionDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub body: Block,
+    pub body: Option<Block>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

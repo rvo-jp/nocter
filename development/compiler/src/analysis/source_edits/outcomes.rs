@@ -20,7 +20,12 @@ pub(crate) fn plan_outcome_contract(
 ) -> Option<OutcomeContractEditPlan> {
     let return_type =
         file.ast.items.iter().find_map(|item| match item {
-            Item::Function(function) if contains(function.body.span, diagnostic_offset) => {
+            Item::Function(function)
+                if function
+                    .body
+                    .as_ref()
+                    .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
+            {
                 Some(&function.return_type)
             }
             Item::Interface(interface) => interface.methods.iter().find_map(|method| {
@@ -42,12 +47,18 @@ pub(crate) fn plan_outcome_contract(
                 .declaration
             {
                 ConstructMemberDecl::Function(function)
-                    if contains(function.body.span, diagnostic_offset) =>
+                    if function
+                        .body
+                        .as_ref()
+                        .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
                 {
                     Some(&function.return_type)
                 }
                 ConstructMemberDecl::Literal(literal)
-                    if contains(literal.body.span, diagnostic_offset) =>
+                    if literal
+                        .body
+                        .as_ref()
+                        .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
                 {
                     Some(&literal.return_type)
                 }
@@ -56,7 +67,12 @@ pub(crate) fn plan_outcome_contract(
             Item::Coerce(coerce) => coerce
                 .entries
                 .iter()
-                .find(|entry| contains(entry.body.span, diagnostic_offset))
+                .find(|entry| {
+                    entry
+                        .body
+                        .as_ref()
+                        .is_some_and(|body| contains(body.span, diagnostic_offset))
+                })
                 .map(|entry| &entry.target),
             Item::Import(_)
             | Item::FromImport(_)

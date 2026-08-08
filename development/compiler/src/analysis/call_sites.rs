@@ -25,7 +25,10 @@ fn call_in_item_at_offset(
     region: CallCursorRegion,
 ) -> Option<&CallExpr> {
     match item {
-        Item::Function(function) => call_in_block_at_offset(&function.body, offset, region),
+        Item::Function(function) => function
+            .body
+            .as_ref()
+            .and_then(|body| call_in_block_at_offset(body, offset, region)),
         Item::Test(test) => call_in_block_at_offset(&test.body, offset, region),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
@@ -42,16 +45,26 @@ fn call_in_item_at_offset(
         }),
         Item::Construct(construct) => construct
             .functions()
-            .find_map(|(_, function)| call_in_block_at_offset(&function.body, offset, region))
+            .find_map(|(_, function)| {
+                function
+                    .body
+                    .as_ref()
+                    .and_then(|body| call_in_block_at_offset(body, offset, region))
+            })
             .or_else(|| {
-                construct
-                    .literals()
-                    .find_map(|(_, literal)| call_in_block_at_offset(&literal.body, offset, region))
+                construct.literals().find_map(|(_, literal)| {
+                    literal
+                        .body
+                        .as_ref()
+                        .and_then(|body| call_in_block_at_offset(body, offset, region))
+                })
             }),
-        Item::Coerce(coerce) => coerce
-            .entries
-            .iter()
-            .find_map(|entry| call_in_block_at_offset(&entry.body, offset, region)),
+        Item::Coerce(coerce) => coerce.entries.iter().find_map(|entry| {
+            entry
+                .body
+                .as_ref()
+                .and_then(|body| call_in_block_at_offset(body, offset, region))
+        }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

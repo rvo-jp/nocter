@@ -84,7 +84,12 @@ pub(super) fn lower_entry_function_with_target(
         &function.name,
         function.span,
         &function.return_type,
-        &function.body,
+        function.body.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E8006",
+                "native lowering cannot use a bodyless function as an entry point",
+            )]
+        })?,
         target,
         sources,
         function_signatures,

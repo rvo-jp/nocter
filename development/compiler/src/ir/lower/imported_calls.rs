@@ -25,7 +25,9 @@ pub(super) fn imported_call_diagnostics(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Vec<Diagnostic> {
-    imported_call_diagnostics_for_block(sources, &function.body, root_source, resolved)
+    function.body.as_ref().map_or_else(Vec::new, |body| {
+        imported_call_diagnostics_for_block(sources, body, root_source, resolved)
+    })
 }
 
 pub(super) fn imported_call_diagnostics_for_block(
@@ -50,7 +52,9 @@ pub(super) fn imported_call_targets(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Vec<ImportedCallTarget> {
-    imported_call_targets_for_block(&function.body, root_source, resolved)
+    function.body.as_ref().map_or_else(Vec::new, |body| {
+        imported_call_targets_for_block(body, root_source, resolved)
+    })
 }
 
 fn imported_call_targets_for_block(

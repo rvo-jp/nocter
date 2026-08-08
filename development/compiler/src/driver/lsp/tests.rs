@@ -53,6 +53,7 @@ fn handles_initialize_request() {
     assert!(text.contains("\"semanticTokensProvider\""));
     assert!(text.contains("\"hoverProvider\""));
     assert!(text.contains("\"definitionProvider\""));
+    assert!(text.contains("\"implementationProvider\""));
     assert!(text.contains("\"referencesProvider\""));
     assert!(text.contains("\"documentSymbolProvider\""));
     assert!(text.contains("\"completionProvider\""));
@@ -3062,6 +3063,94 @@ fn returns_definition_for_method_call() {
     assert_eq!(definition["targetRange"]["start"]["line"], json!(5));
     assert_eq!(definition["targetRange"]["start"]["character"], json!(16));
     assert_eq!(definition["targetRange"]["end"]["character"], json!(20));
+}
+
+#[test]
+fn source_backed_callable_navigation_uses_one_semantic_identity() {
+    let project = TempProject::new("lsp-source-backed-callable-navigation");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let index_text = r#"use ./answer
+
+/// Adds two to a value.
+pub func answer(value: i32): i32
+
+func main(): i32 {
+    return answer(40)
+}
+"#;
+    let implementation_text = r#"func answer(value: i32): i32 {
+    return value + 2
+}
+"#;
+    let index = project.write_source("index.nct", index_text);
+    let implementation = project.write_source("answer.nct", implementation_text);
+    let index_uri = file_uri(&index);
+    let implementation_uri = file_uri(&implementation);
+    let server = LspServer {
+        documents: HashMap::from([
+            (
+                index_uri.clone(),
+                open_document(index_uri.clone(), Some(1), index_text.to_string()),
+            ),
+            (
+                implementation_uri.clone(),
+                open_document(
+                    implementation_uri.clone(),
+                    Some(1),
+                    implementation_text.to_string(),
+                ),
+            ),
+        ]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+
+    let contract_params = json!({
+        "textDocument": { "uri": index_uri },
+        "position": byte_offset_to_lsp_position(index_text, index_text.find("answer(value").unwrap())
+    });
+    let implementation_response = server.implementation_response(json!(50), Some(&contract_params));
+    let implementation_link = definition_link(&implementation_response);
+    assert_eq!(implementation_link["targetUri"], json!(implementation_uri));
+    assert_eq!(
+        implementation_link["targetSelectionRange"]["start"]["character"],
+        json!(5)
+    );
+
+    let implementation_params = json!({
+        "textDocument": { "uri": implementation_uri },
+        "position": byte_offset_to_lsp_position(
+            implementation_text,
+            implementation_text.find("answer").unwrap()
+        ),
+        "context": { "includeDeclaration": true }
+    });
+    let definition = server.definition_response(json!(51), Some(&implementation_params));
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetUri"], json!(index_uri));
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        json!(9)
+    );
+
+    let hover = server.hover_response(json!(52), Some(&implementation_params));
+    assert_eq!(
+        hover["result"]["contents"]["value"],
+        json!("```nocter\nfunc answer(value: i32): i32\n```\n\nAdds two to a value.")
+    );
+
+    let references = server.references_response(json!(53), Some(&implementation_params));
+    let references = references["result"].as_array().expect("references");
+    assert_eq!(references.len(), 3, "{references:#?}");
+    assert!(
+        references
+            .iter()
+            .any(|location| location["uri"] == json!(implementation_uri))
+    );
 }
 
 #[test]

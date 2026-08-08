@@ -39,9 +39,20 @@ impl Parser<'_> {
             let as_token = self.expect_keyword(Keyword::As, "`as`")?;
             let entry_target = self.parse_type()?;
             let result_provenance = self.parse_result_provenance_clause()?;
-            let body = self.parse_block()?;
+            let body = self
+                .at_punctuation("{")
+                .then(|| self.parse_block())
+                .transpose()?;
+            let end = body.as_ref().map_or_else(
+                || {
+                    result_provenance
+                        .as_ref()
+                        .map_or(entry_target.span().end, |clause| clause.span.end)
+                },
+                |body| body.span.end,
+            );
             entries.push(CoercionEntry {
-                span: self.span(entry_start, body.span.end),
+                span: self.span(entry_start, end),
                 visibility,
                 receiver,
                 as_span: as_token.span,

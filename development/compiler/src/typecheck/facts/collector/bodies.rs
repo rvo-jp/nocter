@@ -25,6 +25,9 @@ impl TypecheckFactCollector<'_> {
     fn collect_item_body_facts_in_scope(&mut self, item: &Item) {
         match item {
             Item::Function(function) => {
+                let Some(body) = &function.body else {
+                    return;
+                };
                 let mut environment = environment_for_function(function, self.resolved);
                 self.record_parameter_bindings(&function.parameters.parameters, &environment);
                 let return_type = type_expr_to_type_in_environment(
@@ -33,11 +36,7 @@ impl TypecheckFactCollector<'_> {
                     &environment,
                 );
                 let return_success_type = return_type.success_type().clone();
-                self.collect_block_facts(
-                    &function.body,
-                    &mut environment,
-                    Some(&return_success_type),
-                );
+                self.collect_block_facts(body, &mut environment, Some(&return_success_type));
             }
             Item::Test(test) => {
                 let mut environment = TypeEnvironment::default();
@@ -82,6 +81,9 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
+                    let Some(body) = &function.body else {
+                        continue;
+                    };
                     self.with_generic_scope(&function.generics, |collector| {
                         let mut environment =
                             environment_for_function(function, collector.resolved);
@@ -95,13 +97,16 @@ impl TypecheckFactCollector<'_> {
                             &environment,
                         );
                         collector.collect_block_facts(
-                            &function.body,
+                            body,
                             &mut environment,
                             Some(return_type.success_type()),
                         );
                     });
                 }
                 for (_, literal) in construct.literals() {
+                    let Some(body) = &literal.body else {
+                        continue;
+                    };
                     let mut environment = environment_for_literal(literal, self.resolved);
                     let return_type = type_expr_to_type_in_environment(
                         &literal.return_type,
@@ -109,7 +114,7 @@ impl TypecheckFactCollector<'_> {
                         &environment,
                     );
                     self.collect_block_facts(
-                        &literal.body,
+                        body,
                         &mut environment,
                         Some(return_type.success_type()),
                     );

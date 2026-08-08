@@ -21,7 +21,7 @@ fn parses_lexical_region_statement_and_json_shape() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Region(region) = &function.body.statements[0] else {
+    let Stmt::Region(region) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected region statement");
     };
     assert_eq!(region.name, "temp");
@@ -152,9 +152,18 @@ fn parses_block_use_statements_at_block_start() {
         panic!("expected function item");
     };
 
-    assert!(matches!(function.body.statements[0], Stmt::FromImport(_)));
-    assert!(matches!(function.body.statements[1], Stmt::Expression(_)));
-    assert!(matches!(function.body.statements[2], Stmt::Return(_)));
+    assert!(matches!(
+        function.body.as_ref().unwrap().statements[0],
+        Stmt::FromImport(_)
+    ));
+    assert!(matches!(
+        function.body.as_ref().unwrap().statements[1],
+        Stmt::Expression(_)
+    ));
+    assert!(matches!(
+        function.body.as_ref().unwrap().statements[2],
+        Stmt::Return(_)
+    ));
 }
 
 #[test]
@@ -175,7 +184,7 @@ fn parses_block_use_at_nested_block_start() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::If(statement) = &function.body.statements[0] else {
+    let Stmt::If(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected if statement");
     };
 
@@ -243,20 +252,20 @@ fn parses_assignment_and_compound_assignment_statements() {
         panic!("expected function item");
     };
 
-    let Stmt::Assignment(assign) = &function.body.statements[1] else {
+    let Stmt::Assignment(assign) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected assignment statement");
     };
     assert_eq!(assign.operator, AssignmentOperator::Assign);
     assert!(matches!(assign.target, Expr::Identifier(_)));
     assert!(matches!(assign.value, Expr::IntegerLiteral(_)));
 
-    let Stmt::Assignment(add_assign) = &function.body.statements[2] else {
+    let Stmt::Assignment(add_assign) = &function.body.as_ref().unwrap().statements[2] else {
         panic!("expected compound assignment statement");
     };
     assert_eq!(add_assign.operator, AssignmentOperator::AddAssign);
     assert!(matches!(add_assign.target, Expr::Identifier(_)));
 
-    let Stmt::Assignment(field_assign) = &function.body.statements[3] else {
+    let Stmt::Assignment(field_assign) = &function.body.as_ref().unwrap().statements[3] else {
         panic!("expected field compound assignment statement");
     };
     assert_eq!(field_assign.operator, AssignmentOperator::AddAssign);
@@ -281,13 +290,13 @@ fn parses_parenthesized_assignment_target() {
         panic!("expected function item");
     };
 
-    let Stmt::Assignment(assign) = &function.body.statements[1] else {
+    let Stmt::Assignment(assign) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected assignment statement");
     };
     assert_eq!(assign.operator, AssignmentOperator::Assign);
     assert!(matches!(assign.target, Expr::Group(_)));
 
-    let Stmt::Assignment(field_assign) = &function.body.statements[2] else {
+    let Stmt::Assignment(field_assign) = &function.body.as_ref().unwrap().statements[2] else {
         panic!("expected field assignment statement");
     };
     assert_eq!(field_assign.operator, AssignmentOperator::AddAssign);
@@ -311,13 +320,13 @@ fn parses_drop_statement_without_reserving_drop_identifier() {
         panic!("expected function item");
     };
 
-    let Stmt::Drop(drop_) = &function.body.statements[1] else {
+    let Stmt::Drop(drop_) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected drop statement");
     };
     assert_eq!(drop_.name, "file");
 
     assert!(matches!(
-        function.body.result.as_deref(),
+        function.body.as_ref().unwrap().result.as_deref(),
         Some(Expr::Call(_))
     ));
 }
@@ -400,13 +409,13 @@ fn parses_index_assignment_targets() {
         panic!("expected function item");
     };
 
-    let Stmt::Assignment(first) = &function.body.statements[0] else {
+    let Stmt::Assignment(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected assignment statement");
     };
     assert_eq!(first.operator, AssignmentOperator::Assign);
     assert!(matches!(first.target, Expr::Index(_)));
 
-    let Stmt::Assignment(second) = &function.body.statements[1] else {
+    let Stmt::Assignment(second) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected assignment statement");
     };
     assert_eq!(second.operator, AssignmentOperator::AddAssign);
@@ -470,7 +479,7 @@ func main(status: Status): i32 {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    let Stmt::If(first) = &function.body.statements[0] else {
+    let Stmt::If(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected if statement");
     };
     let first_else = first.else_block.as_ref().expect("expected else block");
@@ -508,7 +517,7 @@ fn parses_while_statement() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::While(first) = &function.body.statements[0] else {
+    let Stmt::While(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected while statement");
     };
 
@@ -562,10 +571,10 @@ fn parses_break_and_continue_statements() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::While(first) = &function.body.statements[0] else {
+    let Stmt::While(first) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected while statement");
     };
-    let Stmt::While(second) = &function.body.statements[1] else {
+    let Stmt::While(second) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected while statement");
     };
 
@@ -591,7 +600,7 @@ fn parses_loop_statement() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::Loop(statement) = &function.body.statements[0] else {
+    let Stmt::Loop(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected loop statement");
     };
 
@@ -616,7 +625,10 @@ func run(error: error): i32! {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    assert!(matches!(function.body.statements[0], Stmt::Return(_)));
+    assert!(matches!(
+        function.body.as_ref().unwrap().statements[0],
+        Stmt::Return(_)
+    ));
 }
 
 #[test]
@@ -652,7 +664,7 @@ func code(error: AppError): i32 {
     let Item::Function(function) = &ast.items[2] else {
         panic!("expected function item");
     };
-    let Stmt::Switch(statement) = &function.body.statements[0] else {
+    let Stmt::Switch(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected match statement");
     };
 
@@ -698,7 +710,7 @@ func code(error: AppError): i32 {
     let Item::Function(function) = &ast.items[2] else {
         panic!("expected function item");
     };
-    let Stmt::Switch(statement) = &function.body.statements[0] else {
+    let Stmt::Switch(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected match statement");
     };
 
@@ -735,7 +747,7 @@ func code(error: AppError): i32 {
     let Item::Function(function) = &ast.items[2] else {
         panic!("expected function item");
     };
-    let Stmt::IfIs(statement) = &function.body.statements[0] else {
+    let Stmt::IfIs(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected if-is statement");
     };
 
@@ -849,13 +861,13 @@ func code(error: AppError): i32 {
     let Item::Function(function) = &ast.items[2] else {
         panic!("expected function item");
     };
-    let Stmt::Switch(statement) = &function.body.statements[0] else {
+    let Stmt::Switch(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected match statement");
     };
     assert!(statement.arms[0].payload.as_ref().is_some_and(|payload| {
         payload.binding_name().is_none() && payload.span().start < payload.span().end
     }));
-    let Stmt::IfIs(statement) = &function.body.statements[1] else {
+    let Stmt::IfIs(statement) = &function.body.as_ref().unwrap().statements[1] else {
         panic!("expected if-is statement");
     };
     assert!(statement.payload.as_ref().is_some_and(|payload| {
@@ -968,7 +980,7 @@ fn parses_range_for_statement() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::ForRange(statement) = &function.body.statements[0] else {
+    let Stmt::ForRange(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected range for statement");
     };
 
@@ -998,7 +1010,7 @@ fn parses_collection_for_statement_outside_literal_definitions() {
         panic!("expected function");
     };
     assert!(matches!(
-        function.body.statements[0],
+        function.body.as_ref().unwrap().statements[0],
         Stmt::CollectionFor(_)
     ));
 }
@@ -1040,7 +1052,7 @@ fn parses_if_else_statement_and_bool_literals() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
-    let Stmt::If(statement) = &function.body.statements[0] else {
+    let Stmt::If(statement) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected if statement");
     };
     assert!(matches!(statement.condition, Expr::BoolLiteral(_)));
