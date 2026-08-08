@@ -2,11 +2,11 @@
 
 ## Current Task
 
-v0.10.0 Phase 1 is complete under
-[`milestones/v0.10.0-phase-1.md`](milestones/v0.10.0-phase-1.md). Directory modules now separate
-package metadata, public module roots, and private physical sources. v0.9.0 remains published and
-audited under [`releases/v0.9.0.md`](releases/v0.9.0.md). Define the next v0.10.0 standard-library
-phase before beginning another implementation area.
+v0.10.0 Phase 2 is active under
+[`milestones/v0.10.0-phase-2.md`](milestones/v0.10.0-phase-2.md). Implement one source-backed
+`CallableBodyIndex` that joins public contracts in `index.nct` to private bodies in composed
+sources, then normalize standard-library module boundaries. v0.9.0 remains published and audited
+under [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
 
