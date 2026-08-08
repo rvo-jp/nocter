@@ -102,8 +102,8 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
             }
         }
         for surface in [
-            crate::resolve::BuiltinTypeOwner::Str,
-            crate::resolve::BuiltinTypeOwner::Slice,
+            crate::builtin_types::BuiltinTypeOwner::Str,
+            crate::builtin_types::BuiltinTypeOwner::Slice,
         ]
         .into_iter()
         .filter_map(|owner| target_file.resolved.builtin_type_surface(owner))

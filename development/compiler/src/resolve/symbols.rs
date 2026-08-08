@@ -2,12 +2,13 @@ use crate::ast::{
     BindingKind, CallExpr, ClosureCaptureMode, Expr, IdentifierExpr, LiteralShape, MethodReceiver,
     ResultProvenanceClause, TypeExpr, Visibility,
 };
+use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
-use super::builtin_impls::{BuiltinTypeOwner, BuiltinTypeSurface};
+use super::builtin_impls::BuiltinTypeSurface;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);

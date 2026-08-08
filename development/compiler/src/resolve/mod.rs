@@ -20,7 +20,6 @@ mod type_surfaces;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use builtin_impls::BuiltinTypeOwner;
 pub use symbols::{
     AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
     ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,

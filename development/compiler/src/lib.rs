@@ -5,6 +5,7 @@ pub mod abi;
 pub mod analysis;
 pub mod ast;
 pub mod backend;
+mod builtin_types;
 pub mod comments;
 pub mod diagnostics;
 pub mod driver;

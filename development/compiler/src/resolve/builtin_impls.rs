@@ -8,30 +8,9 @@
 use super::signatures::{duplicate_inherent_member_name_diagnostics, method_signatures};
 use super::{ConstructionSurface, Resolver, TypeSymbol, TypeSymbolKind};
 use crate::ast::{AstFile, ImplDecl, ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::source::ByteSpan;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BuiltinTypeOwner {
-    Str,
-    Slice,
-}
-
-impl BuiltinTypeOwner {
-    pub(crate) const fn canonical_name(self) -> &'static str {
-        match self {
-            Self::Str => "str",
-            Self::Slice => "[T]",
-        }
-    }
-
-    pub(crate) const fn module_path(self) -> &'static str {
-        match self {
-            Self::Str => "std/str",
-            Self::Slice => "std/slice",
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BuiltinTypeSurface {
@@ -78,7 +57,11 @@ impl Resolver<'_> {
             }
 
             let mut methods = method_signatures(&impl_).collect::<Vec<_>>();
-            self.prepare_builtin_surface_methods(ast, owner.module_path(), methods.as_mut_slice());
+            self.prepare_builtin_surface_methods(
+                ast,
+                owner.implementation_module(),
+                methods.as_mut_slice(),
+            );
 
             let surface = self
                 .output
@@ -106,11 +89,7 @@ impl Resolver<'_> {
 }
 
 fn builtin_impl_owner(impl_: &ImplDecl) -> Option<BuiltinTypeOwner> {
-    match &impl_.target_ty {
-        TypeExpr::Reference(reference) if reference.name == "str" => Some(BuiltinTypeOwner::Str),
-        TypeExpr::View(_) => Some(BuiltinTypeOwner::Slice),
-        _ => None,
-    }
+    BuiltinTypeOwner::from_impl_target(&impl_.target_ty)
 }
 
 fn builtin_impl_shape(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> Result<(), &'static str> {

@@ -4,14 +4,12 @@ use super::dependencies::SourceDependencyTrace;
 use super::diagnostics::import_source_diagnostic;
 use super::imports::resolve_import_path;
 use super::{FrontendOptions, trusted_module_path};
-use crate::ast::{AstFile, Item, ModulePath, TypeExpr};
+use crate::ast::{AstFile, Item, ModulePath};
+use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-
-const BUILTIN_IMPLEMENTATION_MODULES: [(&str, &str); 2] =
-    [("str", "std/str"), ("[T]", "std/slice")];
 
 pub(super) fn enqueue_builtin_implementation_sources(
     sources: &mut SourceMap,
@@ -23,7 +21,8 @@ pub(super) fn enqueue_builtin_implementation_sources(
     queue: &mut VecDeque<SourceId>,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    for (_, module) in BUILTIN_IMPLEMENTATION_MODULES {
+    for owner in BuiltinTypeOwner::ALL {
+        let module = owner.implementation_module();
         let path = module_path(root, module);
         let canonical = match resolve_import_path(
             sources,
@@ -80,8 +79,13 @@ pub(super) fn validate_builtin_impl_authority(
             let Item::Impl(impl_) = item else {
                 return None;
             };
-            builtin_target(&impl_.target_ty)
-                .map(|(owner, module)| (owner, module, impl_.target_ty.span()))
+            BuiltinTypeOwner::from_impl_target(&impl_.target_ty).map(|owner| {
+                (
+                    owner.canonical_name(),
+                    owner.implementation_module(),
+                    impl_.target_ty.span(),
+                )
+            })
         })
         .filter(|(_, required_module, _)| {
             actual_module.as_deref() != Some(*required_module)
@@ -101,16 +105,6 @@ pub(super) fn validate_builtin_impl_authority(
             diagnostic
         })
         .collect()
-}
-
-fn builtin_target(target: &TypeExpr) -> Option<(&'static str, &'static str)> {
-    match target {
-        TypeExpr::Reference(reference) if reference.name == "str" => {
-            Some(BUILTIN_IMPLEMENTATION_MODULES[0])
-        }
-        TypeExpr::View(_) => Some(BUILTIN_IMPLEMENTATION_MODULES[1]),
-        _ => None,
-    }
 }
 
 fn module_path(source: SourceId, value: &str) -> ModulePath {

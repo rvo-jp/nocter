@@ -22,10 +22,10 @@ impl<T> [T] {
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     assert!(output.symbols.symbol_by_name("str").is_none());
     let text = output
-        .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Str)
+        .builtin_type_surface(crate::builtin_types::BuiltinTypeOwner::Str)
         .expect("str method surface");
     let slice = output
-        .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Slice)
+        .builtin_type_surface(crate::builtin_types::BuiltinTypeOwner::Slice)
         .expect("slice method surface");
     assert_eq!(text.symbol.methods[0].name, "count");
     assert_eq!(slice.symbol.generic_parameters, ["T"]);

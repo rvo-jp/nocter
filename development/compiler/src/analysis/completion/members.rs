@@ -409,7 +409,7 @@ fn value_member_owner<'a>(
         TypeExpr::Reference(reference) => {
             let symbol = if reference.name == "str" {
                 resolved
-                    .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Str)
+                    .builtin_type_surface(crate::builtin_types::BuiltinTypeOwner::Str)
                     .map(|surface| &surface.symbol)?
             } else {
                 resolved.type_symbol_by_reference_name(&reference.name)?
@@ -436,7 +436,7 @@ fn value_member_owner<'a>(
         TypeExpr::Borrow(borrow) => value_member_owner(resolved, &borrow.inner),
         TypeExpr::View(view) => {
             let symbol = resolved
-                .builtin_type_surface(crate::resolve::BuiltinTypeOwner::Slice)
+                .builtin_type_surface(crate::builtin_types::BuiltinTypeOwner::Slice)
                 .map(|surface| &surface.symbol)?;
             Some(ValueMemberOwner {
                 symbol,

@@ -1006,8 +1006,8 @@ fn inherent_method_owner_for_type<'a>(
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
     let builtin = match ty {
-        Type::StrData => Some(crate::resolve::BuiltinTypeOwner::Str),
-        Type::ArrayData { .. } => Some(crate::resolve::BuiltinTypeOwner::Slice),
+        Type::StrData => Some(crate::builtin_types::BuiltinTypeOwner::Str),
+        Type::ArrayData { .. } => Some(crate::builtin_types::BuiltinTypeOwner::Slice),
         _ => None,
     };
     if let Some(owner) = builtin {
