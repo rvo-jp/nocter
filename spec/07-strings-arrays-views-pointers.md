@@ -584,9 +584,8 @@ Formatting rules:
 
 - `&str` values append their bytes.
 - `String` values append their current string view.
-- The executable scalar integers `i32`, `u8`, and `usize`, plus `bool`, format with their
-  canonical source spelling without extra whitespace. Other integer types become interpolatable
-  when their normal runtime ABI is promoted; `check` must not pretend they are buildable earlier.
+- Every built-in integer type and `bool` format with their canonical source spelling without extra
+  whitespace.
 - Optional, fallible, array, struct, enum, pointer, and user-defined nominal values are not interpolatable until an explicit formatting method protocol is adopted.
 - Using a non-interpolatable expression inside `${...}` is a type error.
 

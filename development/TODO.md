@@ -2,12 +2,23 @@
 
 ## Current Task
 
-v0.10.0 Phase 0 is active under [`milestones/v0.10.0.md`](milestones/v0.10.0.md). It replaces
-module-path native-build exceptions with resolved runtime type capabilities and promotes every
+v0.10.0 Phase 0 is complete under [`milestones/v0.10.0.md`](milestones/v0.10.0.md). It replaced
+module-path native-build exceptions with resolved runtime type capabilities and promoted every
 built-in integer type to ordinary native execution. v0.9.0 remains published and audited under
 [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
+
+- v0.10.0 Phase 0 centralizes integer width, signedness, range, and ABI-word semantics in one
+  descriptor consumed by ABI classification, IR lowering, and arm64 code generation
+- all ten built-in integer types now execute through scalar bindings, calls, outcomes, aggregates,
+  fixed arrays, slices, generic `Vec<T>`, iteration, arithmetic, comparison, shifts, conversion,
+  and interpolation
+- resolved element capabilities replace the former `std/vec.nct` filesystem exception; imported
+  nested aliases preserve their concrete integer kind through locals, parameters, and aggregate
+  fields
+- `development/compiler/scripts/verify.sh` passed all 3,398 tests, formatting, and warnings-denied
+  Clippy; documentation generation produced 107 pages
 
 - v0.9.0 stabilization centralized built-in type identity and implementation-module authority in
   one registry and removed public `String`/`Vec<T>` borrowed-observation forwarding helpers
@@ -152,5 +163,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Complete every v0.10.0 Phase 0 verification gate before planning later standard-library APIs. The
-published v0.9.0 archive and its evidence are immutable.
+v0.10.0 Phase 0 is complete. Do not broaden its scope retroactively; choose the next milestone from
+practical standard-library requirements. The published v0.9.0 archive and its evidence are
+immutable.
