@@ -373,6 +373,14 @@ pub(super) fn slice_index_assignment_element_kind(
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypecheckSliceElementKind> {
     let source_resolver = |source| resolved_sources.get(&source).copied();
+    if let Some(ty) = typecheck_facts.expression_type_expr(expression.span()) {
+        let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+        if let Some(kind) =
+            slice_index_target_type_expr_element_kind_with_resolver(&ty, resolved, &source_resolver)
+        {
+            return Some(kind);
+        }
+    }
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;

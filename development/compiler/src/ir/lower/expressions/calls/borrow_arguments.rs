@@ -328,6 +328,9 @@ fn slice_index_borrow_element_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> TypecheckSliceElementKind {
+    if let Some(kind) = context.expression_slice_element_kind(expression) {
+        return kind;
+    }
     match unwrap_group(expression) {
         Expr::Identifier(identifier) => context
             .slice_element_kind(&identifier.name)

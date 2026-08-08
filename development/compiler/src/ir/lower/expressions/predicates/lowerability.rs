@@ -614,7 +614,9 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
                 || identifier_is_borrow_or_closure_scalar(identifier, Type::Usize, context)
         }
         Expr::Call(call) => {
-            primitive_current_allocation_state_call(call, context)
+            primitive_view_len_call(call, context)
+                || primitive_view_pointer_call(call, context)
+                || primitive_current_allocation_state_call(call, context)
                 || primitive_current_allocation_kind_call(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Usize)
         }
