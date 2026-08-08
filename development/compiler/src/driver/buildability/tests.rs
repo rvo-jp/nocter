@@ -2380,6 +2380,16 @@ func main(): i32! {
 fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());
+    let str_source = sources.add_source(
+        "std/str.nct",
+        None,
+        "impl str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+    );
+    let slice_source = sources.add_source(
+        "std/slice.nct",
+        None,
+        "impl<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+    );
     let lexed = lex(&sources, source);
     assert!(
         lexed.diagnostics.is_empty(),
@@ -2393,8 +2403,18 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
         parsed.diagnostics
     );
     let ast = parsed.ast.expect("expected ast");
+    let builtin_asts = [str_source, slice_source]
+        .into_iter()
+        .map(|source| {
+            let lexed = lex(&sources, source);
+            assert!(lexed.diagnostics.is_empty());
+            parse(&sources, source, &lexed.tokens).ast.unwrap()
+        })
+        .collect::<Vec<_>>();
     let trusted = crate::target::trusted::trusted_declarations_for_module("std/mem", &ast);
-    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None)
+    let mut files = vec![ast.clone()];
+    files.extend(builtin_asts);
+    let unit = CompileUnit::new(ast, files, HashMap::new(), HashMap::new(), None)
         .with_trusted_declarations(trusted);
     let analysis = analyze_executable_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();

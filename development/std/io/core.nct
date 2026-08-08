@@ -23,7 +23,7 @@ pub interface Reader {
     /// Reads until end of stream and validates the complete input as UTF-8.
     pub method &+self.read_to_string(): String! {
         let collected = collect_bytes(self)?
-        return String.from_utf8(collected.view())?
+        return String.from_utf8(&collected as &[u8])?
     }
 }
 
@@ -43,7 +43,7 @@ func collect_bytes<R: Reader>(reader: &+R): Vec<u8>! {
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = initialized_scratch(8192)
     while true {
-        let received: usize = reader.read(scratch.view_mut())?
+        let received: usize = reader.read(&+scratch as &+[u8])?
         if received > scratch.len() {
             return invalid_read_count()
         }
@@ -51,7 +51,7 @@ func collect_bytes<R: Reader>(reader: &+R): Vec<u8>! {
             break
         }
         result.reserve(received)
-        let initialized: &[u8] = scratch.view()
+        let initialized: &[u8] = &scratch as &[u8]
         var offset: usize = 0
         while offset < received {
             result.push(initialized[offset])

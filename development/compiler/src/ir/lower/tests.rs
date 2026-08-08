@@ -312,6 +312,17 @@ fn function_signatures(signatures: Vec<(&str, Type, Vec<Type>)>) -> context::Fun
     )
 }
 
+fn builtin_str_method_target(name: &str) -> CallTarget {
+    CallTarget::imported(crate::source::SourceId::new(1), format!("str.{name}"))
+}
+
+fn builtin_slice_method_target(element: &str, name: &str) -> CallTarget {
+    CallTarget::imported(
+        crate::source::SourceId::new(2),
+        format!("[{element}].{name}"),
+    )
+}
+
 fn assert_contains_fallible_direct_aggregate_catch_call(
     function: &Function,
     expected_destination: AggregateLocation,
@@ -396,10 +407,6 @@ fn u8_local(index: usize) -> U8Value {
 
 fn usize_const(value: u64) -> UsizeValue {
     UsizeValue::Const(value)
-}
-
-fn usize_slice_len(location: SliceLocation) -> UsizeValue {
-    UsizeValue::SliceLen(location)
 }
 
 fn usize_slice_index(location: SliceLocation, index: UsizeValue) -> UsizeValue {
@@ -592,5 +599,29 @@ fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
     fs::create_dir_all(home.join("std")).unwrap();
     fs::write(home.join("std/prelude.nct"), "").unwrap();
+    write_builtin_view_surfaces(&home);
     home
+}
+
+fn write_builtin_view_surfaces(home: &Path) {
+    fs::write(
+        home.join("std/str.nct"),
+        r#"pub(nocter) primitive str_len_raw(value: &str): usize
+impl str {
+    pub method &self.len(): usize { return str_len_raw(self) }
+    pub method &self.is_empty(): bool { return str_len_raw(self) == 0 }
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/slice.nct"),
+        r#"pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
+impl<T> [T] {
+    pub method &self.len(): usize { return slice_len_raw(self) }
+    pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 }
+}
+"#,
+    )
+    .unwrap();
 }

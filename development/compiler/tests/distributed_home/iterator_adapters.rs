@@ -134,16 +134,16 @@ func main(): i32 {
     if indexed_first.index != 0 || indexed_first.item != 7 { return 14 }
     if indexed_second.index != 1 || indexed_second.item != 8 { return 15 }
     if counted != 2 || final_item != 12 { return 16 }
-    if grown.len() != 2 || grown.view()[0] != 13 || grown.view()[1] != 14 { return 17 }
+    if grown.len() != 2 || (&grown as &[i32])[0] != 13 || (&grown as &[i32])[1] != 14 { return 17 }
     if reserved.len() != 2 || reserved.capacity() != 2 { return 18 }
-    if reserved.view()[0] != 15 || reserved.view()[1] != 16 { return 19 }
-    if underreported.len() != 2 || underreported.view()[0] != 17 || underreported.view()[1] != 18 { return 20 }
+    if (&reserved as &[i32])[0] != 15 || (&reserved as &[i32])[1] != 16 { return 19 }
+    if underreported.len() != 2 || (&underreported as &[i32])[0] != 17 || (&underreported as &[i32])[1] != 18 { return 20 }
     if overreported.len() != 2 || overreported.capacity() != 4 { return 21 }
-    if overreported.view()[0] != 19 || overreported.view()[1] != 20 { return 22 }
+    if (&overreported as &[i32])[0] != 19 || (&overreported as &[i32])[1] != 20 { return 22 }
     let arena = page_allocator()
     region temporary using arena {
         let regional: Vec<i32> = Vec.from_iter(PlainIter { next_value: 21, end: 23 })
-        if regional.len() != 2 || regional.view()[1] != 22 { return 23 }
+        if regional.len() != 2 || (&regional as &[i32])[1] != 22 { return 23 }
     }
     return 42
 }
@@ -178,7 +178,7 @@ func main(): i32 {
     })
     if mapped.remaining_len() != 1 { return 1 }
     let values = mapped.filter((value) { value >= 5 }).take(8).to_vec()
-    if total != 5 || values.len() != 1 || values.view()[0] != 5 { return 2 }
+    if total != 5 || values.len() != 1 || (&values as &[i32])[0] != 5 { return 2 }
 
     let found = once(7).find((value) { value == 7 }) otherwise { return 3 }
     if found != 7 { return 4 }

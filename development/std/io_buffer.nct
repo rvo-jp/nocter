@@ -35,12 +35,12 @@ pub func read(reader: &+BufReader, destination: &+[u8]): usize! {
                 reader.buffer.push(0)
                 initialized = initialized + 1
             }
-            let received: usize = file_read(&+reader.source, reader.buffer.view_mut())?
+            let received: usize = file_read(&+reader.source, &+reader.buffer as &+[u8])?
             reader.buffer.truncate(received)
             reader.next = 0
             if received == 0 { break }
         }
-        destination[written] = reader.buffer.view()[reader.next]
+        destination[written] = (&reader.buffer as &[u8])[reader.next]
         written = written + 1
         reader.next = reader.next + 1
     }
@@ -84,7 +84,7 @@ pub func write(writer: &+BufWriter, bytes: &[u8]): void! {
 
 pub func flush(writer: &+BufWriter): void! {
     if writer.buffer.len() == 0 { return }
-    file_write(&+writer.destination, writer.buffer.view())?
+    file_write(&+writer.destination, &writer.buffer as &[u8])?
     writer.buffer.clear()
     writer.destination.flush()?
     return

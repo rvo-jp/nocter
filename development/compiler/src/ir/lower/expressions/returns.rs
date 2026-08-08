@@ -147,6 +147,27 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if let Some(value) = lower_literal_pack_len_call_to_value(call, context) {
+                let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: lowered.value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            if primitive_view_len_call(call, context) {
+                let lowered =
+                    lower_view_len_primitive_call_to_value(call, context, &mut temporaries)?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: lowered.value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if primitive_take_value_at_ptr_call(call, context) {
                 let mut instructions = lower_take_value_at_ptr_primitive_call(
                     call,
@@ -154,16 +175,6 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
                     context,
                     &mut temporaries,
                 )?;
-                instructions.push(Instruction::Return);
-                return Ok(instructions);
-            }
-            if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
-                let lowered = value?;
-                let mut instructions = lowered.instructions;
-                instructions.push(Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: lowered.value,
-                });
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
@@ -359,19 +370,6 @@ pub(in crate::ir::lower) fn lower_bool_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
-            if let Some(value) =
-                lower_builtin_is_empty_call_to_value(call, context, &mut temporaries)
-            {
-                let lowered = value?;
-                let mut instructions = lowered.instructions;
-                instructions.push(Instruction::SetBool {
-                    destination: BoolLocation::Return,
-                    value: lowered.value,
-                });
-                instructions.push(Instruction::Return);
-                return Ok(instructions);
-            }
-
             lower_direct_tail_call(call, context)
         }
         Expr::Group(group) => {

@@ -5,7 +5,7 @@
 
 use std/mem.allocation_abort_raw
 use std/error.Error
-use std/string.{String, try_push_str, view}
+use std/string.{String, try_push_str}
 
 pub func try_append_str(out: &+String, value: &str): void! {
     try_push_str(out, value)?
@@ -20,7 +20,7 @@ pub func append_str(out: &+String, value: &str): void {
 }
 
 pub func try_append_string(out: &+String, value: &String): void! {
-    try_append_str(out, view(value))?
+    try_append_str(out, value as &str)?
     return
 }
 

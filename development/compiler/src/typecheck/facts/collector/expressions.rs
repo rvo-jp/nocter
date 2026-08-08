@@ -151,12 +151,27 @@ impl TypecheckFactCollector<'_> {
             }
             Expr::Call(expression) => {
                 if let Some(method) = method_member_for_call(expression)
-                    && let Some((owner, resolved_method)) =
-                        resolved_method_for_call(self.resolved, expression, environment)
+                    && let Some(selected_method) =
+                        resolved_method_call(self.resolved, expression, environment)
                 {
+                    let owner = selected_method.owner;
+                    let resolved_method = selected_method.method;
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
+                    if let Some(coercion) = selected_method.receiver_coercion {
+                        let receiver_type =
+                            expression_type(&method.object, self.resolved, environment);
+                        self.record_conversion_plan(
+                            method.object.span(),
+                            method.object.span(),
+                            None,
+                            crate::typecheck::conversions::selected_receiver_coercion(
+                                &receiver_type,
+                                coercion,
+                            ),
+                        );
+                    }
                     let kind = match resolved_method.receiver.mode {
                         MethodReceiverMode::Owned => TypecheckMethodReceiverKind::Owned,
                         MethodReceiverMode::ReadonlyBorrow => {

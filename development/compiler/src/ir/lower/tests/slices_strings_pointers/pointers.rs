@@ -1348,11 +1348,12 @@ pub func size(address: usize, len: usize): usize {
                 pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
                 len: UsizeValue::Location(UsizeLocation::Parameter(1)),
             },
-            Instruction::SetUsize {
-                destination: UsizeLocation::Return,
-                value: UsizeValue::StrLen(StrLocation::Local(0)),
+            Instruction::TailCall {
+                target: builtin_str_method_target("len"),
+                arguments: vec![ScalarArgument::Str(StrValue::Location(StrLocation::Local(
+                    0
+                ),))],
             },
-            Instruction::Return,
         ]
     );
 }

@@ -1,0 +1,16 @@
+//! Public observation methods for array slices.
+//!
+//! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary
+//! source built on the narrow representation query below.
+
+pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
+
+impl<T> [T] {
+    pub method &self.len(): usize {
+        return slice_len_raw(self)
+    }
+
+    pub method &self.is_empty(): bool {
+        return slice_len_raw(self) == 0
+    }
+}

@@ -1,3 +1,4 @@
+use super::super::{LoweredUsizeValue, lower_byte_collection_len_expression_to_value};
 use super::*;
 
 pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
@@ -137,6 +138,59 @@ pub(in crate::ir::lower::expressions) fn primitive_bytes_from_str_call(
         context.primitive_name_for_call(call),
         Some("bytes_from_str")
     )
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_view_len_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("str_len_raw" | "slice_len_raw")
+    )
+}
+
+pub(in crate::ir::lower::expressions) fn lower_view_len_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "view length primitives require exactly one view argument",
+        ));
+    }
+    if let Expr::Identifier(identifier) = &call.arguments[0]
+        && let Some(pack) = context.literal_pack(&identifier.name)
+    {
+        let fixed = pack
+            .segments
+            .iter()
+            .filter(|segment| {
+                matches!(
+                    segment,
+                    super::super::super::context::LiteralPackLoweringSegment::Value { .. }
+                )
+            })
+            .count() as u64;
+        let value = match &pack.runtime_length_name {
+            Some(name) => context
+                .usize_location(name)
+                .map(UsizeValue::Location)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E8014",
+                        "literal pack cached length is unavailable",
+                    )]
+                })?,
+            None => UsizeValue::Const(fixed),
+        };
+        return Ok(LoweredUsizeValue {
+            instructions: Vec::new(),
+            value,
+        });
+    }
+    lower_byte_collection_len_expression_to_value(&call.arguments[0], context, temporaries)
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_addr_call(

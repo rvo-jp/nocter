@@ -1,0 +1,80 @@
+//! Public observation and projection methods for UTF-8 string views.
+//!
+//! `str` is a compiler built-in unsized type, but its public methods are
+//! ordinary Nocter source. Only the narrow representation query below is a
+//! trusted primitive.
+
+use std/iter.ViewIter
+use std/string.{String, bytes_from_str, contains, ends_with, find, find_from, split, starts_with}
+use std/string_views.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
+use std/string_views.{strip_prefix, strip_suffix}
+use std/vec.Vec
+
+pub(nocter) primitive str_len_raw(value: &str): usize
+
+impl str {
+    pub method &self.len(): usize {
+        return str_len_raw(self)
+    }
+
+    pub method &self.is_empty(): bool {
+        return str_len_raw(self) == 0
+    }
+
+    pub method &self.bytes(): &[u8] {
+        return bytes_from_str(self)
+    }
+
+    pub method &self.is_char_boundary(index: usize): bool {
+        return is_char_boundary(self, index)
+    }
+
+    pub method &self.get_range(start: usize, end: usize): &str? {
+        return get_range(self, start, end)?
+    }
+
+    pub method &self.find_from(needle: &str, start: usize): usize? {
+        return find_from(self, needle, start)?
+    }
+
+    pub method &self.find(needle: &str): usize? {
+        return find(self, needle)?
+    }
+
+    pub method &self.contains(needle: &str): bool {
+        return contains(self, needle)
+    }
+
+    pub method &self.starts_with(prefix: &str): bool {
+        return starts_with(self, prefix)
+    }
+
+    pub method &self.ends_with(suffix: &str): bool {
+        return ends_with(self, suffix)
+    }
+
+    pub method &self.strip_prefix(prefix: &str): &str? from self {
+        return strip_prefix(self, prefix)?
+    }
+
+    pub method &self.strip_suffix(suffix: &str): &str? from self {
+        return strip_suffix(self, suffix)?
+    }
+
+    pub method &self.split(separator: &str): Vec<String>! {
+        return split(self, separator)?
+    }
+
+    pub method &self.split_views(separator: &str): SplitIter! from self | separator {
+        return split_views(self, separator)?
+    }
+
+    pub method &self.lines(): LinesIter {
+        return lines(self)
+    }
+
+    /// Iterates over the exact UTF-8 encoding bytes without allocation.
+    pub method &self.bytes_iter(): ViewIter<u8> {
+        return ViewIter.from_view(bytes_from_str(self))
+    }
+}

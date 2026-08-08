@@ -116,6 +116,17 @@ fn selected(source: &Type, target: &Type, kind: SelectedConversionKind) -> Selec
     }
 }
 
+pub(super) fn selected_receiver_coercion(
+    source: &Type,
+    coercion: super::coercions::SelectedCoercion,
+) -> SelectedConversion {
+    SelectedConversion {
+        source_type: source.clone(),
+        target_type: coercion.target_type.clone(),
+        kind: SelectedConversionKind::BorrowCoercion(coercion),
+    }
+}
+
 fn borrow_capability_can_weaken(source: &Type, target: &Type) -> bool {
     matches!(
         (source, target),

@@ -1,6 +1,71 @@
 use super::check_text;
 
 #[test]
+fn diagnoses_ambiguous_receiver_coercions_without_ranking_them() {
+    let diagnostics = check_text(
+        r#"struct Source { left: Left, right: Right }
+struct Left { value: usize }
+struct Right { value: usize }
+
+coerce Source {
+    pub &self as &Left { return &self.left }
+    pub &self as &Right { return &self.right }
+}
+
+impl Left {
+    pub method &self.value(): usize { return self.value }
+}
+
+impl Right {
+    pub method &self.value(): usize { return self.value }
+}
+
+func read(source: &Source): usize {
+    return source.value()
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0453");
+    assert_eq!(diagnostics[0].notes.len(), 2);
+}
+
+#[test]
+fn accepts_one_step_receiver_coercion_to_a_source_declared_builtin_method() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: &str
+}
+
+coerce Text {
+    pub &self as &str {
+        return self.value
+    }
+}
+
+impl str {
+    pub method &self.count(): usize {
+        return 1
+    }
+}
+
+func count(text: &Text): usize {
+    return text.count()
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_method_body_receiver_self_type() {
     let diagnostics = check_text(
         r#"struct Point {

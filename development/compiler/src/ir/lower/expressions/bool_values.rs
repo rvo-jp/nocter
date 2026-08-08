@@ -127,17 +127,6 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
         }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            if let Some(value) =
-                lower_builtin_is_empty_call_to_value(call, context, &mut temporaries)
-            {
-                let lowered = value?;
-                let mut instructions = lowered.instructions;
-                instructions.push(Instruction::SetBool {
-                    destination,
-                    value: lowered.value,
-                });
-                return Ok(instructions);
-            }
             lower_bool_normal_call(call, destination, context, &mut temporaries)
         }
         Expr::Propagate(propagation) => lower_bool_fallible_expression_to_location(
@@ -340,10 +329,6 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
             )
         }
         Expr::Call(call) => {
-            if let Some(value) = lower_builtin_is_empty_call_to_value(call, context, temporaries) {
-                return value;
-            }
-
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
                 instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,

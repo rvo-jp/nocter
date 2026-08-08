@@ -251,8 +251,18 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
+            if let Some(value) = lower_literal_pack_len_call_to_value(call, context) {
                 let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination,
+                    value: lowered.value,
+                });
+                return Ok(instructions);
+            }
+            if primitive_view_len_call(call, context) {
+                let lowered =
+                    lower_view_len_primitive_call_to_value(call, context, &mut temporaries)?;
                 let mut instructions = lowered.instructions;
                 instructions.push(Instruction::SetUsize {
                     destination,

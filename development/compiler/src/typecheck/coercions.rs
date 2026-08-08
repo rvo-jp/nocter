@@ -78,6 +78,55 @@ pub(super) fn select_coercion(
     candidates.into_iter().next()
 }
 
+pub(super) fn receiver_coercion_candidates(
+    source_type: &Type,
+    source_is_readwrite: bool,
+    resolved: &ResolveOutput,
+) -> Vec<SelectedCoercion> {
+    let Some(source_name) = source_type.nominal_name() else {
+        return Vec::new();
+    };
+    let Some(symbol) = resolved.type_symbol_by_reference_name(source_name) else {
+        return Vec::new();
+    };
+    let Some(substitutions) = source_substitutions(symbol, source_type) else {
+        return Vec::new();
+    };
+
+    let mut candidates = symbol
+        .coercions
+        .iter()
+        .filter(|coercion| coercion.is_accessible)
+        .filter(|coercion| receiver_accepts(coercion.receiver.mode, source_is_readwrite))
+        .map(|coercion| {
+            let target_type = type_expr_to_type_with_substitutions(
+                &coercion.target,
+                resolved,
+                Some(source_type),
+                &substitutions,
+            );
+            SelectedCoercion {
+                declaration_span: coercion.declaration_span,
+                focus_span: coercion.focus_span,
+                receiver_mode: coercion.receiver.mode,
+                source_is_readwrite,
+                source_type: source_type.clone(),
+                target_type,
+                substitutions: substitutions.clone(),
+                has_explicit_result_provenance: coercion.result_provenance.is_some(),
+            }
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|candidate| {
+        if candidate.receiver_mode == MethodReceiverMode::ReadwriteBorrow {
+            0
+        } else {
+            1
+        }
+    });
+    candidates
+}
+
 pub(super) fn coercion_rejection(
     expected: &Type,
     actual: &Type,

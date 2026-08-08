@@ -103,6 +103,7 @@ pub(in crate::driver::buildability) fn impl_target_type_name(ty: &TypeExpr) -> O
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
+        TypeExpr::View(_) => Some("[]"),
         _ => None,
     }
 }

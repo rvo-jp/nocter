@@ -10,7 +10,7 @@ use std/vec.{Vec, retain}
 
 func main(): i32 {
     let bytes: Vec<u8> = Vec [104, 105]
-    let valid: bool = is_valid_utf8(bytes.view())
+    let valid: bool = is_valid_utf8((&bytes as &[u8]))
     let position: usize = find("hello", "ell") otherwise { return 1 }
     let found: bool = contains("hello", "ell") && starts_with("hello", "he") && ends_with("hello", "lo")
     var parts: Vec<String> = split("a::b", "::") catch error { return 2 }
@@ -81,7 +81,7 @@ func main(): i32! {
     let text = collect(&+buffered)?
     let output = File.create("output.txt")?
     var writer = BufWriter.new(move output)
-    emit(&+writer, text.view())?
+    emit(&+writer, (&text as &str))?
     writer.close()?
     return 0
 }
@@ -129,13 +129,13 @@ func main(): i32! {
     var buffered = BufReader.with_capacity(move source, 3)
     let collected = buffered.read_to_end()?
     if collected.len() != 8194 { return 4 }
-    if collected.view()[0] != 97 || collected.view()[8192] != 169 { return 5 }
+    if (&collected as &[u8])[0] != 97 || (&collected as &[u8])[8192] != 169 { return 5 }
 
     if !rejects_invalid_utf8("__INVALID__") { return 6 }
 
     let destination = File.create("__OUTPUT__")?
     var writer = BufWriter.with_capacity(move destination, 2)
-    writer.write_text(text.view())?
+    writer.write_text((&text as &str))?
     writer.close()?
     return 42
 }
@@ -381,23 +381,23 @@ func main(): i32 {
     if !String "hello".contains("ell") { return 2 }
     if !String "hello".starts_with("he") || !String "hello".ends_with("lo") { return 3 }
     let invalid: Vec<u8> = Vec [240, 40, 140, 40]
-    if is_valid_utf8(invalid.view()) { return 4 }
-    if !rejects_invalid_utf8(invalid.view()) { return 4 }
+    if is_valid_utf8((&invalid as &[u8])) { return 4 }
+    if !rejects_invalid_utf8((&invalid as &[u8])) { return 4 }
     let encoded: Vec<u8> = Vec [104, 195, 169]
-    let decoded = String.from_utf8(encoded.view()) catch error { return 5 }
-    if decoded.view() != "hé" { return 6 }
+    let decoded = String.from_utf8((&encoded as &[u8])) catch error { return 5 }
+    if (&decoded as &str) != "hé" { return 6 }
 
     var parts = split("a::b::", "::") catch error { return 7 }
     if parts.len() != 3 { return 8 }
     let final_part = parts.pop() otherwise { return 9 }
     let middle_part = parts.pop() otherwise { return 10 }
     let first_part = parts.pop() otherwise { return 11 }
-    if first_part.view() != "a" || middle_part.view() != "b" || final_part.view() != "" { return 12 }
+    if (&first_part as &str) != "a" || (&middle_part as &str) != "b" || (&final_part as &str) != "" { return 12 }
     if !rejects_empty_separator() { return 12 }
 
     var values = Vec [1, 2, 3, 4, 5]
     values.retain((value) { value % 2 != 0 })
-    if values.len() != 3 || values.view()[0] != 1 || values.view()[1] != 3 || values.view()[2] != 5 { return 13 }
+    if values.len() != 3 || (&values as &[i32])[0] != 1 || (&values as &[i32])[1] != 3 || (&values as &[i32])[2] != 5 { return 13 }
     return 42
 }
 "#,
@@ -433,8 +433,8 @@ func main(): i32 {
     let file = open_path(&path) catch error { return 3 }
     var reader = BufReader.with_capacity(move file, 3)
     var buffer: Vec<u8> = Vec [0, 0, 0, 0, 0, 0]
-    let received: usize = reader.read(buffer.view_mut()) catch error { return 4 }
-    if received != 6 || buffer.view()[0] != 97 || buffer.view()[5] != 10 { return 5 }
+    let received: usize = reader.read((&+buffer as &+[u8])) catch error { return 4 }
+    if received != 6 || (&buffer as &[u8])[0] != 97 || (&buffer as &[u8])[5] != 10 { return 5 }
 
     let created_path = Utf8Path.new("__OUTPUT__") catch error { return 14 }
     let created_file = create_path(&created_path) catch error { return 15 }
@@ -444,15 +444,15 @@ func main(): i32 {
     let reopened = open_path(&created_path) catch error { return 18 }
     var verifier = BufReader.with_capacity(move reopened, 2)
     var verification: Vec<u8> = Vec [0, 0, 0, 0, 0, 0, 0]
-    let verified: usize = verifier.read(verification.view_mut()) catch error { return 19 }
-    if verified != 7 || verification.view()[0] != 119 || verification.view()[6] != 110 { return 20 }
+    let verified: usize = verifier.read((&+verification as &+[u8])) catch error { return 19 }
+    if verified != 7 || (&verification as &[u8])[0] != 119 || (&verification as &[u8])[6] != 110 { return 20 }
     let appended_file = append_path(&created_path) catch error { return 21 }
     var appender = BufWriter.with_capacity(move appended_file, 1)
     appender.write(bytes("!")) catch error { return 22 }
     appender.close() catch error { return 23 }
 
     let number: i32 = parse_i32("-2147483648") otherwise { return 6 }
-    if number != -2147483648 || usize_to_string(42).view() != "42" { return 7 }
+    if number != -2147483648 || (&usize_to_string(42) as &str) != "42" { return 7 }
     if arg_count() == 0 { return 8 }
     let executable: &str = arg(0) catch error { return 9 } otherwise { return 10 }
     if executable.len() == 0 { return 11 }

@@ -106,10 +106,9 @@ pub(super) fn byte_collection_kind_from_type(ty: &Type) -> Option<ByteCollection
     }
 }
 
-pub(super) fn lower_builtin_len_call_to_value(
+pub(super) fn lower_literal_pack_len_call_to_value(
     call: &CallExpr,
     context: &LoweringContext,
-    temporaries: &mut TemporaryAllocator,
 ) -> Option<Result<LoweredUsizeValue, Vec<Diagnostic>>> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
@@ -117,70 +116,36 @@ pub(super) fn lower_builtin_len_call_to_value(
     if member.member != "len" || !call.arguments.is_empty() {
         return None;
     }
-    if let Expr::Identifier(identifier) = member.object.as_ref()
-        && let Some(pack) = context.literal_pack(&identifier.name)
-    {
-        let fixed = pack
-            .segments
-            .iter()
-            .filter(|segment| {
-                matches!(
-                    segment,
-                    super::super::context::LiteralPackLoweringSegment::Value { .. }
-                )
-            })
-            .count() as u64;
-        let value = match &pack.runtime_length_name {
-            Some(name) => match context.usize_location(name) {
-                Some(location) => UsizeValue::Location(location),
-                None => {
-                    return Some(Err(vec![Diagnostic::error(
-                        "E8014",
-                        "literal pack cached length is unavailable",
-                    )]));
-                }
-            },
-            None => UsizeValue::Const(fixed),
-        };
-        return Some(Ok(LoweredUsizeValue {
-            instructions: Vec::new(),
-            value,
-        }));
-    }
-    byte_collection_expression_kind(&member.object, context)?;
-
-    Some(lower_byte_collection_len_expression_to_value(
-        &member.object,
-        context,
-        temporaries,
-    ))
-}
-
-pub(super) fn lower_builtin_is_empty_call_to_value(
-    call: &CallExpr,
-    context: &LoweringContext,
-    temporaries: &mut TemporaryAllocator,
-) -> Option<Result<LoweredBoolValue, Vec<Diagnostic>>> {
-    let Expr::Member(member) = call.callee.as_ref() else {
+    let Expr::Identifier(identifier) = member.object.as_ref() else {
         return None;
     };
-    if member.member != "is_empty" || !call.arguments.is_empty() {
-        return None;
-    }
-    byte_collection_expression_kind(&member.object, context)?;
-
-    Some(
-        lower_byte_collection_len_expression_to_value(&member.object, context, temporaries).map(
-            |source| LoweredBoolValue {
-                instructions: source.instructions,
-                value: BoolValue::UsizeComparison {
-                    operator: I32ComparisonOperator::Equal,
-                    left: source.value,
-                    right: UsizeValue::Const(0),
-                },
-            },
-        ),
-    )
+    let pack = context.literal_pack(&identifier.name)?;
+    let fixed = pack
+        .segments
+        .iter()
+        .filter(|segment| {
+            matches!(
+                segment,
+                super::super::context::LiteralPackLoweringSegment::Value { .. }
+            )
+        })
+        .count() as u64;
+    let value = match &pack.runtime_length_name {
+        Some(name) => match context.usize_location(name) {
+            Some(location) => UsizeValue::Location(location),
+            None => {
+                return Some(Err(vec![Diagnostic::error(
+                    "E8014",
+                    "literal pack cached length is unavailable",
+                )]));
+            }
+        },
+        None => UsizeValue::Const(fixed),
+    };
+    Some(Ok(LoweredUsizeValue {
+        instructions: Vec::new(),
+        value,
+    }))
 }
 
 pub(super) fn lower_byte_collection_len_expression_to_value(

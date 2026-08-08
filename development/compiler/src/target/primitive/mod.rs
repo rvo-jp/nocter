@@ -292,6 +292,14 @@ const STRING_BYTES_FROM_STR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveP
     name: "value",
     ty: "&str",
 }];
+const VIEW_STR_LEN_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "value",
+    ty: "&str",
+}];
+const VIEW_SLICE_LEN_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "value",
+    ty: "&[T]",
+}];
 const STRING_SUBVIEW_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "text",
@@ -640,6 +648,24 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &["T"],
             parameters: PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS,
             return_type: "&+[T]",
+        },
+        PrimitiveSpec {
+            module_path: "std/str",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "str_len_raw",
+            generics: &[],
+            parameters: VIEW_STR_LEN_PARAMETERS,
+            return_type: "usize",
+        },
+        PrimitiveSpec {
+            module_path: "std/slice",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "slice_len_raw",
+            generics: &["T"],
+            parameters: VIEW_SLICE_LEN_PARAMETERS,
+            return_type: "usize",
         },
         PrimitiveSpec {
             module_path: "std/string",

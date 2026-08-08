@@ -160,7 +160,7 @@ func main(): i32! {
     }
 
     let removed = values.remove(1) otherwise { return 3 }
-    if removed.view() != "B" {
+    if (&removed as &str) != "B" {
         return 4
     }
     let remaining_first = values.get(0) otherwise { return 5 }
@@ -178,7 +178,7 @@ func main(): i32! {
 }
 
 func read(value: &String): &str {
-    return value.view()
+    return (value as &str)
 }
 "#,
     );
@@ -219,7 +219,7 @@ func main(): i32 {
     if values.len() != 2 || values.capacity() != 2 {
         return 1
     }
-    if values.view()[0] != 20 || values.view()[1] != 22 {
+    if (&values as &[i32])[0] != 20 || (&values as &[i32])[1] != 22 {
         return 2
     }
     return 42
@@ -299,7 +299,7 @@ func main(): i32 {
     if before != after || values.len() != 2 || values.capacity() != 2 {
         return 2
     }
-    if values.view()[0] != 20 || values.view()[1] != 22 {
+    if (&values as &[i32])[0] != 20 || (&values as &[i32])[1] != 22 {
         return 3
     }
     return 42

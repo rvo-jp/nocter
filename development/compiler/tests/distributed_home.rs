@@ -689,7 +689,7 @@ func method_shape(values: &[usize]): usize! {
     if owned.is_empty() {
         return 0
     }
-    return owned.len() + owned.capacity() + owned.view().len() + owned.view_mut().len()
+    return owned.len() + owned.capacity() + (&owned as &[usize]).len() + (&+owned as &+[usize]).len()
 }
 
 func main(): i32 {
@@ -824,21 +824,21 @@ func main(): i32 {
     if first.capacity() != 0 {
         return 3
     }
-    if first.view().len() != 0 {
+    if (&first as &[u8]).len() != 0 {
         return 4
     }
 
     var second: Vec<u8> = empty()
-    if second.view_mut().len() != 0 {
+    if (&+second as &+[u8]).len() != 0 {
         return 5
     }
     second.clear()
 
     let third: Vec<usize> = Vec.empty()
-    if third.view().len() != 0 {
+    if (&third as &[usize]).len() != 0 {
         return 6
     }
-    if !third.view().is_empty() {
+    if !(&third as &[usize]).is_empty() {
         return 7
     }
     return 0
@@ -871,12 +871,12 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     let source: Vec<usize> = Vec.empty()
-    let view = source.view()
+    let view = (&source as &[usize])
     let copy: Vec<usize> = Vec.from_slice(view)
     if copy.len() != 0 {
         return 1
     }
-    if !copy.view().is_empty() {
+    if !(&copy as &[usize]).is_empty() {
         return 2
     }
     return 42
@@ -912,56 +912,56 @@ func main(): i32! {
     var bytes: Vec<u8> = Vec.empty()
     bytes.push(3)
     bytes.push(9)
-    let byte_copy: Vec<u8> = Vec.from_slice(bytes.view())
+    let byte_copy: Vec<u8> = Vec.from_slice((&bytes as &[u8]))
     if byte_copy.len() != 2 {
         return 1
     }
-    if byte_copy.view()[0] != 3 {
+    if (&byte_copy as &[u8])[0] != 3 {
         return 2
     }
-    if byte_copy.view()[1] != 9 {
+    if (&byte_copy as &[u8])[1] != 9 {
         return 3
     }
 
     var words: Vec<usize> = Vec.empty()
     words.push(13)
     words.push(21)
-    let word_copy: Vec<usize> = Vec.from_slice(words.view())
+    let word_copy: Vec<usize> = Vec.from_slice((&words as &[usize]))
     if word_copy.len() != 2 {
         return 4
     }
-    if word_copy.view()[0] != 13 {
+    if (&word_copy as &[usize])[0] != 13 {
         return 5
     }
-    if word_copy.view()[1] != 21 {
+    if (&word_copy as &[usize])[1] != 21 {
         return 6
     }
 
     var numbers: Vec<i32> = Vec.empty()
     numbers.push(34)
     numbers.push(55)
-    let number_copy: Vec<i32> = Vec.from_slice(numbers.view())
+    let number_copy: Vec<i32> = Vec.from_slice((&numbers as &[i32]))
     if number_copy.len() != 2 {
         return 7
     }
-    if number_copy.view()[0] != 34 {
+    if (&number_copy as &[i32])[0] != 34 {
         return 8
     }
-    if number_copy.view()[1] != 55 {
+    if (&number_copy as &[i32])[1] != 55 {
         return 9
     }
 
     var flags: Vec<bool> = Vec.empty()
     flags.push(false)
     flags.push(true)
-    let flag_copy: Vec<bool> = Vec.from_slice(flags.view())
+    let flag_copy: Vec<bool> = Vec.from_slice((&flags as &[bool]))
     if flag_copy.len() != 2 {
         return 10
     }
-    if flag_copy.view()[0] != false {
+    if (&flag_copy as &[bool])[0] != false {
         return 11
     }
-    if flag_copy.view()[1] != true {
+    if (&flag_copy as &[bool])[1] != true {
         return 12
     }
 
@@ -993,7 +993,7 @@ fn distributed_std_vec_empty_non_byte_slice_index_branch_runs() {
 
 func main(): usize {
     let values: Vec<usize> = Vec.empty()
-    let view = values.view()
+    let view = &values as &[usize]
     if view.len() == 0 {
         return 42
     } else {
@@ -1026,10 +1026,10 @@ fn distributed_std_vec_empty_direct_non_byte_view_index_branch_runs() {
 
 func main(): usize {
     let values: Vec<usize> = Vec.empty()
-    if values.view().len() == 0 {
+    if (&values as &[usize]).len() == 0 {
         return 42
     }
-    if values.view()[0] == 0 {
+    if (&values as &[usize])[0] == 0 {
         return 1
     }
     return 2
@@ -1067,7 +1067,7 @@ func main(): i32! {
     values.push(1)
     values.push(2)
 
-    var buffer = Buffer { data: values.view_mut() }
+    var buffer = Buffer { data: &+values as &+[usize] }
     buffer.data[0] = 9
     buffer.data[1] = 7
 
@@ -1113,7 +1113,7 @@ func main(): i32! {
     values.push(10)
     values.push(20)
 
-    var buffer = Buffer { data: values.view_mut() }
+    var buffer = Buffer { data: &+values as &+[i32] }
     buffer.data[0] += 5
     buffer.data[1] *= 2
 
@@ -1259,7 +1259,7 @@ func main(): i32! {
     if !values.is_empty() {
         return 3
     }
-    if values.view().len() != 0 {
+    if (&values as &[u8]).len() != 0 {
         return 4
     }
     reserve(&+values, 1)
@@ -1333,7 +1333,7 @@ func preserved(values: &Vec<u8>): i32 {
     if values.capacity() != 1 {
         return 2
     }
-    if values.view()[0] != 42 {
+    if (&values as &[u8])[0] != 42 {
         return 3
     }
     return 42
@@ -1453,7 +1453,7 @@ use std/vec.Vec
 func recover(outer: &+Vec<Vec<String>>): i32! {
     var recovered_inner = outer.pop() otherwise { return 2 }
     let recovered_text = recovered_inner.pop() otherwise { return 3 }
-    print(recovered_text.view())?
+    print((&recovered_text as &str))?
     return 0
 }
 
@@ -1583,7 +1583,7 @@ func main(): i32! {
     values.push(move text)
     let popped = values.pop() otherwise { return 2 }
     drop values
-    print(popped.view())?
+    print((&popped as &str))?
     return 0
 }
 "#,
@@ -1717,10 +1717,10 @@ func main(): i32! {
     if bytes.capacity() != 2 {
         return 2
     }
-    if bytes.view()[0] != 1 {
+    if (&bytes as &[u8])[0] != 1 {
         return 3
     }
-    if bytes.view()[1] != 7 {
+    if (&bytes as &[u8])[1] != 7 {
         return 4
     }
 
@@ -1733,10 +1733,10 @@ func main(): i32! {
     if words.capacity() != 2 {
         return 6
     }
-    if words.view()[0] != 11 {
+    if (&words as &[usize])[0] != 11 {
         return 7
     }
-    if words.view()[1] != 31 {
+    if (&words as &[usize])[1] != 31 {
         return 8
     }
 
@@ -1749,10 +1749,10 @@ func main(): i32! {
     if numbers.capacity() != 2 {
         return 10
     }
-    if numbers.view()[0] != 11 {
+    if (&numbers as &[i32])[0] != 11 {
         return 11
     }
-    if numbers.view()[1] != 42 {
+    if (&numbers as &[i32])[1] != 42 {
         return 12
     }
 
@@ -1765,10 +1765,10 @@ func main(): i32! {
     if flags.capacity() != 2 {
         return 14
     }
-    if flags.view()[0] != true {
+    if (&flags as &[bool])[0] != true {
         return 15
     }
-    if flags.view()[1] != false {
+    if (&flags as &[bool])[1] != false {
         return 16
     }
 
@@ -1810,23 +1810,23 @@ func main(): i32! {
     if values.capacity() != 2 {
         return 2
     }
-    if values.view().len() != 2 {
+    if (&values as &[&str]).len() != 2 {
         return 3
     }
-    if values.view()[0] != "first" {
+    if (&values as &[&str])[0] != "first" {
         return 4
     }
-    if values.view()[1] != "second" {
+    if (&values as &[&str])[1] != "second" {
         return 5
     }
-    let copy: Vec<&str> = Vec.from_slice(values.view())
+    let copy: Vec<&str> = Vec.from_slice(&values as &[&str])
     if copy.len() != 2 {
         return 6
     }
-    if copy.view()[0] != "first" {
+    if (&copy as &[&str])[0] != "first" {
         return 7
     }
-    if copy.view()[1] != "second" {
+    if (&copy as &[&str])[1] != "second" {
         return 8
     }
     return 0
@@ -1870,10 +1870,10 @@ func main(): i32! {
     if bytes.len() != 2 {
         return 1
     }
-    if bytes.view()[0] != 5 {
+    if (&bytes as &[u8])[0] != 5 {
         return 2
     }
-    if bytes.view()[1] != 7 {
+    if (&bytes as &[u8])[1] != 7 {
         return 3
     }
 
@@ -1882,7 +1882,7 @@ func main(): i32! {
     if words.len() != 1 {
         return 4
     }
-    if words.view()[0] != 13 {
+    if (&words as &[usize])[0] != 13 {
         return 5
     }
 
@@ -1891,7 +1891,7 @@ func main(): i32! {
     if flags.len() != 1 {
         return 6
     }
-    if flags.view()[0] != true {
+    if (&flags as &[bool])[0] != true {
         return 7
     }
 
@@ -1900,7 +1900,7 @@ func main(): i32! {
     if texts.len() != 1 {
         return 8
     }
-    if texts.view()[0] != "Nocter" {
+    if (&texts as &[&str])[0] != "Nocter" {
         return 9
     }
 
@@ -1939,60 +1939,60 @@ func main(): i32! {
     var bytes: Vec<u8> = Vec.empty()
     bytes.push(1)
     bytes.push(2)
-    set_first_byte(bytes.view_mut())
-    bytes.view_mut()[1] = 5
-    if bytes.view()[0] != 4 {
+    set_first_byte((&+bytes as &+[u8]))
+    (&+bytes as &+[u8])[1] = 5
+    if (&bytes as &[u8])[0] != 4 {
         return 1
     }
-    if bytes.view()[1] != 5 {
+    if (&bytes as &[u8])[1] != 5 {
         return 2
     }
 
     var words: Vec<usize> = Vec.empty()
     words.push(11)
     words.push(12)
-    words.view_mut()[0] = 21
-    words.view_mut()[1] = 22
-    if words.view()[0] != 21 {
+    (&+words as &+[usize])[0] = 21
+    (&+words as &+[usize])[1] = 22
+    if (&words as &[usize])[0] != 21 {
         return 3
     }
-    if words.view()[1] != 22 {
+    if (&words as &[usize])[1] != 22 {
         return 4
     }
 
     var numbers: Vec<i32> = Vec.empty()
     numbers.push(31)
     numbers.push(32)
-    numbers.view_mut()[0] = 41
-    numbers.view_mut()[1] = 42
-    if numbers.view()[0] != 41 {
+    (&+numbers as &+[i32])[0] = 41
+    (&+numbers as &+[i32])[1] = 42
+    if (&numbers as &[i32])[0] != 41 {
         return 5
     }
-    if numbers.view()[1] != 42 {
+    if (&numbers as &[i32])[1] != 42 {
         return 6
     }
 
     var flags: Vec<bool> = Vec.empty()
     flags.push(true)
     flags.push(false)
-    flags.view_mut()[0] = false
-    flags.view_mut()[1] = true
-    if flags.view()[0] != false {
+    (&+flags as &+[bool])[0] = false
+    (&+flags as &+[bool])[1] = true
+    if (&flags as &[bool])[0] != false {
         return 7
     }
-    if flags.view()[1] != true {
+    if (&flags as &[bool])[1] != true {
         return 8
     }
 
     var texts: Vec<&str> = Vec.empty()
     texts.push("before")
     texts.push("old")
-    texts.view_mut()[0] = "after"
-    texts.view_mut()[1] = "new"
-    if texts.view()[0] != "after" {
+    (&+texts as &+[&str])[0] = "after"
+    (&+texts as &+[&str])[1] = "new"
+    if (&texts as &[&str])[0] != "after" {
         return 9
     }
-    if texts.view()[1] != "new" {
+    if (&texts as &[&str])[1] != "new" {
         return 10
     }
 
@@ -2030,25 +2030,25 @@ func main(): i32! {
     var words: Vec<usize> = Vec.empty()
     words.push(40)
     words.push(47)
-    words.view_mut()[0] += 2
-    words.view_mut()[1] %= 5
-    if words.view()[0] != 42 {
+    (&+words as &+[usize])[0] += 2
+    (&+words as &+[usize])[1] %= 5
+    if (&words as &[usize])[0] != 42 {
         return 1
     }
-    if words.view()[1] != 2 {
+    if (&words as &[usize])[1] != 2 {
         return 2
     }
 
     var numbers: Vec<i32> = Vec.empty()
     numbers.push(40)
     numbers.push(8)
-    numbers.view_mut()[0] += one()
-    numbers.view_mut()[1] *= 5
-    numbers.view_mut()[1] -= 10
-    if numbers.view()[0] != 41 {
+    (&+numbers as &+[i32])[0] += one()
+    (&+numbers as &+[i32])[1] *= 5
+    (&+numbers as &+[i32])[1] -= 10
+    if (&numbers as &[i32])[0] != 41 {
         return 3
     }
-    if numbers.view()[1] != 30 {
+    if (&numbers as &[i32])[1] != 30 {
         return 4
     }
 
@@ -2204,7 +2204,7 @@ func main(): void! {
     var values: Vec<i32> = Vec.empty()
     values.push(1)
     let checker = Checker { seed: 0 }
-    checker.touch(&+values.view_mut()[0])
+    checker.touch(&+(&+values as &+[i32])[0])
     return
 }
 "#,
@@ -2491,7 +2491,7 @@ copy struct Pair {
 func main(): i32! {
     var allocator = page_allocator()
     let values: Vec<Pair> = Vec.empty()
-    let copy = Vec.from_slice(values.view())
+    let copy = Vec.from_slice(&values as &[Pair])
     return 0
 }
 "#,
@@ -2535,7 +2535,7 @@ func main(): i32! {
     var values: Vec<Text> = Vec.empty()
     let value = Text { value: "owned" }
     values.push(move value)
-    let copy = Vec.from_slice(values.view())
+    let copy = Vec.from_slice(&values as &[Text])
     return 0
 }
 "#,
@@ -2570,7 +2570,7 @@ copy struct Pair {
 
 func main(): i32 {
     let values: Vec<Pair> = Vec.empty()
-    let first = values.view()[0]
+    let first = (&values as &[Pair])[0]
     return first.value
 }
 "#,
@@ -2612,7 +2612,7 @@ copy struct Pair {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 7, right: 11 })
-    let first = values.view()[0]
+    let first = (&values as &[Pair])[0]
     return first.left + first.right
 }
 "#,
@@ -2644,7 +2644,7 @@ copy struct Pair {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 9, right: 14 })
-    let view = values.view()
+    let view = &values as &[Pair]
     let first = view[0]
     return first.left + first.right
 }
@@ -2675,7 +2675,7 @@ copy struct Pair {
 
 func main(): i32 {
     var values: Vec<Pair> = Vec.empty()
-    values.view_mut()[0] = Pair { value: 1 }
+    (&+values as &+[Pair])[0] = Pair { value: 1 }
     return 0
 }
 "#,
@@ -2719,8 +2719,8 @@ copy struct Pair {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 1, right: 2 })
-    values.view_mut()[0] = Pair { left: 13, right: 5 }
-    let first = values.view()[0]
+    (&+values as &+[Pair])[0] = Pair { left: 13, right: 5 }
+    let first = (&values as &[Pair])[0]
     return first.left - first.right
 }
 "#,
@@ -2762,9 +2762,9 @@ func sum(view: &[Pair]): i32 {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 1, right: 2 })
-    let mutable_view = values.view_mut()
+    let mutable_view = &+values as &+[Pair]
     replace(mutable_view)
-    let view = values.view()
+    let view = &values as &[Pair]
     return sum(view)
 }
 "#,
@@ -2800,7 +2800,7 @@ copy struct Holder {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 5, right: 18 })
-    let holder = Holder { view: values.view() }
+    let holder = Holder { view: &values as &[Pair] }
     let first = holder.view[0]
     return first.left + first.right
 }
@@ -2837,9 +2837,9 @@ struct Holder {
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
     values.push(Pair { left: 1, right: 2 })
-    var holder = Holder { view: values.view_mut() }
+    var holder = Holder { view: &+values as &+[Pair] }
     holder.view[0] = Pair { left: 19, right: 4 }
-    let first = values.view()[0]
+    let first = (&values as &[Pair])[0]
     return first.left + first.right
 }
 "#,
@@ -2954,13 +2954,13 @@ func main(): i32! {
     if empty.len() != 4 {
         return 2
     }
-    let empty_view = empty.view()
+    let empty_view = (&empty as &str)
     var text = String.with_capacity(16)
     if text.capacity() != 16 {
         return 3
     }
     text.push_str(empty_view)
-    let copy = String.from_str(text.view())
+    let copy = String.from_str((&text as &str))
     if copy.len() != 4 {
         return 4
     }
@@ -3461,10 +3461,10 @@ func main(): i32 {
         values.push(20)
         values.push(22)
         let text = String.from_str("temporary")
-        if values.view()[0] != 20 {
+        if (&values as &[usize])[0] != 20 {
             return 1
         }
-        if values.view()[1] != 22 {
+        if (&values as &[usize])[1] != 22 {
             return 2
         }
         if text.len() != 9 {
@@ -3712,7 +3712,7 @@ func leak_error_view(): i32! {
     var arena = page_allocator()
     region temporary using arena {
         let text = String.from_str("error")
-        return Error.new("app.region", text.view())
+        return Error.new("app.region", (&text as &str))
     }
 }
 
@@ -4345,7 +4345,7 @@ func main(): i32! {
     if values_len == 0 {
         return 1
     }
-    let view = values.view()
+    let view = &values as &[&str]
     let view_len: usize = view.len()
     if view_len != values_len {
         return 2
@@ -4564,7 +4564,7 @@ use std/process.cwd
 
 func main(): void! {
     let value = cwd()?
-    print(value.view())?
+    print((&value as &str))?
     return
 }
 
@@ -4598,7 +4598,7 @@ use std/process.try_cwd
 func main(): void! {
     var allocator = page_try_allocator()
     let value = try_cwd(&+allocator)?
-    print(value.view())?
+    print((&value as &str))?
     return
 }
 "#,
@@ -4887,8 +4887,8 @@ func main(): i32! {
     var text = String.with_capacity(32)
     text.push_str("Hello")
     let suffix = String.from_str(" Associated")
-    text.push_str(suffix.view())
-    print(text.view())?
+    text.push_str((&suffix as &str))
+    print((&text as &str))?
     return 0
 }
 "#,
@@ -4922,7 +4922,7 @@ fn distributed_std_string_view_equality_runs() {
 func main(): i32! {
     var allocator = page_allocator()
     let text = String.from_str("Nocter")
-    if text.view() == "Nocter" && text.view() != "Other" {
+    if (&text as &str) == "Nocter" && (&text as &str) != "Other" {
         return 42
     } else {
         return 1
@@ -5018,7 +5018,7 @@ func grow_huge(text: &+String): void! {
 }
 
 func preserved(text: &String): i32 {
-    if text.view() != "keep" {
+    if (&text as &str) != "keep" {
         return 1
     }
     if text.len() != 4 {

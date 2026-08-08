@@ -88,7 +88,7 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
             context.bool_location(&identifier.name).is_some()
                 || identifier_is_borrow_or_closure_scalar(identifier, Type::Bool, context)
         }
-        Expr::Call(call) => builtin_is_empty_call_is_lowerable(call, context),
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
         Expr::Index(index) => {
             expression_is_lowerable_bool_slice_index_object(&index.object, context)
                 && expression_is_lowerable_usize_expression(&index.index, context)
@@ -270,10 +270,7 @@ fn expression_is_lowerable_bool_expression(expression: &Expr, context: &Lowering
             context.bool_location(&identifier.name).is_some()
                 || identifier_is_borrow_or_closure_scalar(identifier, Type::Bool, context)
         }
-        Expr::Call(call) => {
-            builtin_is_empty_call_is_lowerable(call, context)
-                || direct_call_return_type(call, context) == Some(&Type::Bool)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
         Expr::Index(index) => {
             expression_is_lowerable_bool_slice_index_object(&index.object, context)
                 && expression_is_lowerable_usize_expression(&index.index, context)
@@ -597,8 +594,7 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
                 || identifier_is_borrow_or_closure_scalar(identifier, Type::Usize, context)
         }
         Expr::Call(call) => {
-            builtin_len_call_is_lowerable(call, context)
-                || primitive_current_allocation_state_call(call, context)
+            primitive_current_allocation_state_call(call, context)
                 || primitive_current_allocation_kind_call(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Usize)
         }
@@ -616,24 +612,6 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
         Expr::Group(group) => expression_is_lowerable_usize_expression(&group.expression, context),
         _ => expression_is_lowerable_usize_value(expression, context),
     }
-}
-
-fn builtin_len_call_is_lowerable(call: &CallExpr, context: &LoweringContext) -> bool {
-    let Expr::Member(member) = call.callee.as_ref() else {
-        return false;
-    };
-    member.member == "len"
-        && call.arguments.is_empty()
-        && super::super::byte_collection_expression_kind(&member.object, context).is_some()
-}
-
-fn builtin_is_empty_call_is_lowerable(call: &CallExpr, context: &LoweringContext) -> bool {
-    let Expr::Member(member) = call.callee.as_ref() else {
-        return false;
-    };
-    member.member == "is_empty"
-        && call.arguments.is_empty()
-        && super::super::byte_collection_expression_kind(&member.object, context).is_some()
 }
 
 fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringContext) -> bool {

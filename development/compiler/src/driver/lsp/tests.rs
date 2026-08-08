@@ -4867,8 +4867,22 @@ impl TempProject {
         let home = self.root.join(".nocter");
         std::fs::create_dir_all(home.join("std")).unwrap();
         std::fs::write(home.join("std/prelude.nct"), "").unwrap();
+        write_builtin_view_surfaces(&home);
         home
     }
+}
+
+fn write_builtin_view_surfaces(home: &Path) {
+    std::fs::write(
+        home.join("std/str.nct"),
+        "pub(nocter) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        home.join("std/slice.nct"),
+        "pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
+    )
+    .unwrap();
 }
 
 fn write_allocator_capability_std(home: &Path) {

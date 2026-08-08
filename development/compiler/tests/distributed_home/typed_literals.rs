@@ -406,7 +406,7 @@ func main(): i32 {
     let source = Vec [1, 2, 3]
     let other = Vec [7, 8]
     let copied = Vec [0, ...source, ...other, ...source, 9]
-    if copied.len() != 10 || copied.view()[0] != 0 || copied.view()[4] != 7 || copied.view()[8] != 3 {
+    if copied.len() != 10 || (&copied as &[i32])[0] != 0 || (&copied as &[i32])[4] != 7 || (&copied as &[i32])[8] != 3 {
         return 1
     }
     if source.len() != 3 || other.len() != 2 {
@@ -506,7 +506,7 @@ func main(): i32 {
     if values.len() != 3 {
         return 1
     }
-    if values.view()[0] != 10 || values.view()[1] != 20 || values.view()[2] != 12 {
+    if (&values as &[i32])[0] != 10 || (&values as &[i32])[1] != 20 || (&values as &[i32])[2] != 12 {
         return 2
     }
 
@@ -516,7 +516,7 @@ func main(): i32 {
     }
 
     let text = String "hello"
-    if text.view() != "hello" || text.len() != 5 {
+    if (&text as &str) != "hello" || text.len() != 5 {
         return 4
     }
     return 42
@@ -582,7 +582,7 @@ func main(): i32 {
     region temp using page {
         let values = Vec [1, 2, 3]
         let text = String "region"
-        if values.len() != 3 || text.view() != "region" {
+        if values.len() != 3 || (&text as &str) != "region" {
             return 1
         }
     }
@@ -629,10 +629,10 @@ func make_text(): String {
 func main(): i32 {
     let values = make_values()
     let text = make_text()
-    if values.len() != 2 || values.view()[0] != 20 || values.view()[1] != 22 {
+    if values.len() != 2 || (&values as &[i32])[0] != 20 || (&values as &[i32])[1] != 22 {
         return 1
     }
-    if text.view() != "explicit" {
+    if (&text as &str) != "explicit" {
         return 2
     }
     return 42

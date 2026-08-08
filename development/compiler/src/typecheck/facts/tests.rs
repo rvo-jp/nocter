@@ -66,6 +66,32 @@ func main(): i32 {
 }
 
 #[test]
+fn records_receiver_coercion_and_builtin_method_declaration_identity() {
+    let text = r#"struct Text { value: &str }
+coerce Text { pub &self as &str { return self.value } }
+impl str { pub method &self.count(): usize { return 1 } }
+func count(text: &Text): usize { return text.count() }
+func main(): i32 { return 0 }
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let call_start = text.rfind("text.count").expect("method call");
+    let receiver_span = ByteSpan::new(ast.span.source, call_start, call_start + "text".len());
+    let member_start = call_start + "text.".len();
+    let member_span = ByteSpan::new(ast.span.source, member_start, member_start + "count".len());
+
+    let plan = facts
+        .coercion_plan(receiver_span)
+        .expect("receiver coercion plan");
+    assert_eq!(canonical_type_expr(&plan.self_ty), "Text");
+    assert_eq!(canonical_type_expr(&plan.target_ty), "&str");
+    let target = facts
+        .method_call_target(member_span)
+        .expect("source method target");
+    assert_eq!(&text[target.start..target.end], "count");
+}
+
+#[test]
 fn records_a_concrete_coercion_plan_at_the_expected_type_boundary() {
     let text = r#"struct Box<T> { value: T }
 coerce Box<T> {

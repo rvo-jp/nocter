@@ -45,8 +45,8 @@ func main(): i32! {
         escaped \"line\"\n${marked("A", -2147483648)?}/${marked("B", 0)?}/${marked("C", 2147483647)?}
         ${byte}/${word}/${false}/${existing}/${temporary()}
         """
-    print(text.view())?
-    if existing.view() != "owned" {
+    print((&text as &str))?
+    if (&existing as &str) != "owned" {
         return 1
     }
     return 0
@@ -80,7 +80,7 @@ fn distributed_std_interpolation_is_an_ordinary_owned_aggregate_value() {
 }
 
 func consume(text: String): i32 {
-    if text.view() != "argument 2" {
+    if (&text as &str) != "argument 2" {
         return 1
     }
     return 0
@@ -93,15 +93,15 @@ func rendered(): String {
 func main(): i32 {
     var assigned = String "initial"
     assigned = "assigned ${1}"
-    if assigned.view() != "assigned 1" {
+    if (&assigned as &str) != "assigned 1" {
         return 2
     }
 
     let holder = Holder { text: "field ${4}" }
-    if holder.text.view() != "field 4" {
+    if holder.(&text as &str) != "field 4" {
         return 3
     }
-    if rendered().view() != "return 3" {
+    if (&rendered() as &str) != "return 3" {
         return 4
     }
     return consume("argument ${2}")
@@ -133,7 +133,7 @@ func main(): i32 {
     let arena = page_allocator()
     region temporary using arena {
         let text = "region ${42}"
-        if text.view() != "region 42" {
+        if (&text as &str) != "region 42" {
             return 1
         }
     }

@@ -19,6 +19,7 @@ use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
 use std/string_search.find_from_bytes
 use std/vec.Vec
+use std/str.str_len_raw
 pub use std/string_views.{
     LinesIter,
     SplitIter,
@@ -69,7 +70,7 @@ construct String {
     }
 
     pub func from_str(value: &str): Self {
-        let value_len: usize = value.len()
+        let value_len: usize = str_len_raw(value)
         var result = String.with_capacity(value_len)
         copy_str_to_ptr(result.storage.ptr, 0, value)
         result.len = value_len
@@ -84,7 +85,7 @@ construct String {
         allocator: &+TryAllocator,
         value: &str,
     ): Self! from allocator {
-        let value_len: usize = value.len()
+        let value_len: usize = str_len_raw(value)
         var result = String.try_with_capacity(allocator, value_len)?
         copy_str_to_ptr(result.storage.ptr, 0, value)
         result.len = value_len
@@ -328,10 +329,6 @@ pub func empty_separator(): error {
     return Error.new("std.string.empty_separator", "string separator must not be empty")
 }
 
-pub func bytes_iter(text: &String): ViewIter<u8> {
-    return ViewIter.from_view(bytes_from_str(view(text)))
-}
-
 pub func try_push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
@@ -353,20 +350,8 @@ pub func capacity_overflow(): error {
 }
 
 impl String {
-    pub method &self.view(): &str {
-        return view(self)
-    }
-
-    pub method &self.len(): usize {
-        return len(self)
-    }
-
     pub method &self.capacity(): usize {
         return capacity(self)
-    }
-
-    pub method &self.is_empty(): bool {
-        return is_empty(self)
     }
 
     pub method &+self.reserve(additional: usize): void {
@@ -382,35 +367,6 @@ impl String {
     pub method &+self.clear(): void {
         clear(self)
         return
-    }
-
-    pub method &self.bytes(): &[u8] {
-        return bytes_from_str(view(self))
-    }
-
-    pub method &self.find(needle: &str): usize? {
-        return find(view(self), needle)?
-    }
-
-    pub method &self.contains(needle: &str): bool {
-        return contains(view(self), needle)
-    }
-
-    pub method &self.starts_with(prefix: &str): bool {
-        return starts_with(view(self), prefix)
-    }
-
-    pub method &self.ends_with(suffix: &str): bool {
-        return ends_with(view(self), suffix)
-    }
-
-    pub method &self.split(separator: &str): Vec<String>! {
-        return split(view(self), separator)?
-    }
-
-    /// Iterates over the exact UTF-8 encoding bytes without allocation.
-    pub method &self.bytes_iter(): ViewIter<u8> {
-        return bytes_iter(self)
     }
 
     pub method &+self.push_str(value: &str): void {

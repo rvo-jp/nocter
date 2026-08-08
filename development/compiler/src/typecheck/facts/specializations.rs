@@ -86,8 +86,7 @@ pub(super) fn method_call_specialization(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<MethodCallSpecialization> {
-    let receiver_type = expression_type(&member.object, resolved, environment);
-    let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
+    let self_type = resolved_method_call(resolved, call, environment)?.self_type;
     let mut free_type_parameters = HashSet::new();
     let self_ty = type_to_type_expr_allowing_parameters(
         &self_type,

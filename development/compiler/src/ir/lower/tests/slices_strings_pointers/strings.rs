@@ -474,13 +474,12 @@ func size(text: &str): usize {
             name: "size".to_string(),
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Usize,
-            instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::StrLen(StrLocation::Parameter(0)),
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: builtin_str_method_target("len"),
+                arguments: vec![ScalarArgument::Str(StrValue::Location(
+                    StrLocation::Parameter(0),
+                ))],
+            }],
         }
     );
 }
@@ -505,13 +504,12 @@ func size(): usize {
             name: "size".to_string(),
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Usize,
-            instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::Const(6),
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: builtin_str_method_target("len"),
+                arguments: vec![ScalarArgument::Str(StrValue::StaticBytes(
+                    b"Nocter".to_vec(),
+                ))],
+            }],
         }
     );
 }
@@ -550,11 +548,12 @@ func identity(text: &str): &str {
                         StrLocation::Parameter(0),
                     ))],
                 ),
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::StrLen(StrLocation::Local(0)),
+                Instruction::TailCall {
+                    target: builtin_str_method_target("len"),
+                    arguments: vec![ScalarArgument::Str(StrValue::Location(StrLocation::Local(
+                        0
+                    ),))],
                 },
-                Instruction::Return,
             ],
         }
     );
@@ -594,15 +593,12 @@ func identity(text: &str): &str {
                         StrLocation::Parameter(0),
                     ))],
                 ),
-                Instruction::SetBool {
-                    destination: BoolLocation::Return,
-                    value: BoolValue::UsizeComparison {
-                        operator: I32ComparisonOperator::Equal,
-                        left: UsizeValue::StrLen(StrLocation::Local(0)),
-                        right: usize_const(0),
-                    },
+                Instruction::TailCall {
+                    target: builtin_str_method_target("is_empty"),
+                    arguments: vec![ScalarArgument::Str(StrValue::Location(StrLocation::Local(
+                        0
+                    ),))],
                 },
-                Instruction::Return,
             ],
         }
     );
@@ -629,13 +625,12 @@ func empty(text: &str): bool {
             target: crate::ir::CallTarget::same_file("empty".to_string()),
             return_type: Type::Bool,
             instructions: vec![
-                Instruction::SetBool {
+                Instruction::CallBool {
                     destination: BoolLocation::Local(0),
-                    value: BoolValue::UsizeComparison {
-                        operator: I32ComparisonOperator::Equal,
-                        left: UsizeValue::StrLen(StrLocation::Parameter(0)),
-                        right: usize_const(0),
-                    },
+                    target: builtin_str_method_target("is_empty"),
+                    arguments: vec![ScalarArgument::Str(StrValue::Location(
+                        StrLocation::Parameter(0),
+                    ))],
                 },
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
@@ -932,13 +927,12 @@ pub func size(value: &str): usize {
 
     assert_eq!(
         size.instructions,
-        vec![
-            Instruction::SetUsize {
-                destination: UsizeLocation::Return,
-                value: UsizeValue::StrLen(StrLocation::Parameter(0)),
-            },
-            Instruction::Return,
-        ]
+        vec![Instruction::TailCall {
+            target: builtin_slice_method_target("u8", "len"),
+            arguments: vec![ScalarArgument::Slice(SliceValue::StrBytes(
+                StrValue::Location(StrLocation::Parameter(0)),
+            ))],
+        }]
     );
 }
 

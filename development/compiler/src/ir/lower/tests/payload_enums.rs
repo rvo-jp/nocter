@@ -1061,10 +1061,14 @@ func score(bytes: &[u8]): usize {
                     destination: UsizeLocation::Local(2),
                     source: AggregateLocation::Slot(0),
                     offset: 16,
-                }) && then_instructions.contains(&Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Local(1)),
-                })
+                }) && then_instructions.iter().any(|instruction| matches!(
+                    instruction,
+                    Instruction::TailCall { target, arguments }
+                        if target == &builtin_slice_method_target("u8", "len")
+                            && arguments == &vec![ScalarArgument::Slice(SliceValue::Location(
+                                SliceLocation::Local(1),
+                            ))]
+                ))
             )
         }),
         "{score:?}"

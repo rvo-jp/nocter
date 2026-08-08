@@ -319,7 +319,7 @@ fn distributed_std_owned_iterator_consumes_the_source_vec() {
 func main(): i32 {
     let values = Vec [1, 2, 3]
     let iterator = (move values).into_iter()
-    return values.view()[0]
+    return (&values as &[i32])[0]
 }
 "#,
     );
@@ -514,7 +514,7 @@ use std/vec.{Vec, storage_address}
 func main(): i32 {
     let values: Vec<i32> = Vec [4, 11, 27]
     let before = storage_address(&values)
-    let observed = values.view()
+    let observed = (&values as &[i32])
     var iterator = values.iter()
     var index: usize = 0
     loop {

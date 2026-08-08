@@ -154,7 +154,7 @@ func leak_element(): &i32 {
     region temporary using arena {
         let values = Vec [1, 2, 3]
         var iterator = values.iter()
-        return iterator.next() otherwise { return &values.view()[0] }
+        return iterator.next() otherwise { return &(&values as &[i32])[0] }
     }
 }
 

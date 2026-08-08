@@ -556,9 +556,12 @@ func make_text(): &str! {
                     arguments: vec![],
                     failure_mode: OutcomeFailureMode::Propagate,
                 },
-                Instruction::SetUsize {
+                Instruction::CallUsize {
                     destination: UsizeLocation::Return,
-                    value: UsizeValue::StrLen(StrLocation::Local(0)),
+                    target: builtin_str_method_target("len"),
+                    arguments: vec![ScalarArgument::Str(StrValue::Location(StrLocation::Local(
+                        0
+                    ),))],
                 },
                 Instruction::ReturnOutcomeSuccess,
             ],

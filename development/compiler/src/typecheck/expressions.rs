@@ -112,10 +112,6 @@ pub(super) fn expression_type(
             if let Some(ty) = literal_pack_len_call_type(expression, resolved, environment) {
                 return ty;
             }
-            if let Some(ty) = collection_builtin_call_type(expression, resolved, environment) {
-                return ty;
-            }
-
             if let Some(contract) =
                 super::callables::callable_contract_for_call(expression, resolved, environment)
             {
@@ -293,60 +289,4 @@ fn borrow_expression_type(
         is_readwrite: expression.is_readwrite,
         inner: Box::new(inner),
     }
-}
-
-pub(super) fn collection_len_call_type(
-    call: &crate::ast::CallExpr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Option<Type> {
-    collection_method_call_type(
-        call,
-        resolved,
-        environment,
-        "len",
-        Type::Primitive("usize".to_string()),
-    )
-}
-
-pub(super) fn collection_builtin_call_type(
-    call: &crate::ast::CallExpr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Option<Type> {
-    collection_len_call_type(call, resolved, environment).or_else(|| {
-        collection_method_call_type(
-            call,
-            resolved,
-            environment,
-            "is_empty",
-            Type::Primitive("bool".to_string()),
-        )
-    })
-}
-
-fn collection_method_call_type(
-    call: &crate::ast::CallExpr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-    method_name: &str,
-    return_type: Type,
-) -> Option<Type> {
-    let Expr::Member(member) = call.callee.as_ref() else {
-        return None;
-    };
-    if member.member != method_name || !call.arguments.is_empty() {
-        return None;
-    }
-
-    let receiver_type = expression_type(&member.object, resolved, environment);
-    if collection_has_len(&receiver_type) {
-        Some(return_type)
-    } else {
-        None
-    }
-}
-
-pub(super) fn collection_has_len(ty: &Type) -> bool {
-    matches!(ty, Type::Str | Type::View { .. })
 }

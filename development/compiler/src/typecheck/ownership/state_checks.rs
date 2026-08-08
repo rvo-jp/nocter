@@ -757,18 +757,6 @@ pub(super) fn check_expression_ownership(
                     resolved,
                 );
                 ownership.move_binding(sources, identifier, diagnostics);
-            } else if collection_builtin_call_type(expression, resolved, environment).is_some() {
-                if let Some(method) = method_member_for_call(expression) {
-                    check_expression_ownership(
-                        sources,
-                        &method.object,
-                        resolved,
-                        summaries,
-                        diagnostics,
-                        environment,
-                        ownership,
-                    );
-                }
             } else if let Some(method) = method_member_for_call(expression)
                 && resolved_method_for_call(resolved, expression, environment).is_some()
             {

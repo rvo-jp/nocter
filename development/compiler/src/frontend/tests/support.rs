@@ -25,6 +25,24 @@ pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
     fs::create_dir_all(home.join("std")).unwrap();
     fs::write(home.join("std/prelude.nct"), "").unwrap();
+    fs::write(
+        home.join("std/str.nct"),
+        r#"impl str {
+    pub method &self.len(): usize { return 0 }
+    pub method &self.is_empty(): bool { return self.len() == 0 }
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/slice.nct"),
+        r#"impl<T> [T] {
+    pub method &self.len(): usize { return 0 }
+    pub method &self.is_empty(): bool { return self.len() == 0 }
+}
+"#,
+    )
+    .unwrap();
     home
 }
 

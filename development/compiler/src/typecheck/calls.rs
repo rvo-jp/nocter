@@ -1,3 +1,4 @@
+use super::coercions::{SelectedCoercion, receiver_coercion_candidates};
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     ambiguous_concrete_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
@@ -18,7 +19,7 @@ use super::operations::is_expression_assignable;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use super::visibility::member_visibility_is_accessible;
 use crate::ast::{CallExpr, Expr, MemberExpr, MethodReceiverMode, TypeExpr};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
     FunctionSignature, MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind,
 };
@@ -175,19 +176,13 @@ pub(super) fn resolved_call_signature<'a>(
         });
     }
 
-    resolved_method_for_call(resolved, call, environment).map(|(owner, method)| {
-        let receiver_type = method_member_for_call(call)
-            .map(|member| expression_type(&member.object, resolved, environment))
-            .unwrap_or_else(|| Type::Named(owner.canonical_name.clone()));
-        let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
-        CheckedCallSignature {
-            signature: &method.signature,
-            self_type: Some(self_type),
-            impl_target_ty: method.impl_target_ty.as_ref(),
-            name: format!("{}.{}", owner.canonical_name, method.name),
-            kind: CheckedCallKind::Method,
-            declaration_span: Some(method.name_span),
-        }
+    resolved_method_call(resolved, call, environment).map(|selected| CheckedCallSignature {
+        signature: &selected.method.signature,
+        self_type: Some(selected.self_type),
+        impl_target_ty: selected.method.impl_target_ty.as_ref(),
+        name: format!("{}.{}", selected.owner.canonical_name, selected.method.name),
+        kind: CheckedCallKind::Method,
+        declaration_span: Some(selected.method.name_span),
     })
 }
 
@@ -211,6 +206,23 @@ pub(super) fn resolved_method_for_call<'a>(
     call: &CallExpr,
     environment: &TypeEnvironment,
 ) -> Option<(&'a TypeSymbol, &'a MethodSignature)> {
+    resolved_method_call(resolved, call, environment)
+        .map(|selected| (selected.owner, selected.method))
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ResolvedMethodCall<'a> {
+    pub(super) owner: &'a TypeSymbol,
+    pub(super) method: &'a MethodSignature,
+    pub(super) self_type: Type,
+    pub(super) receiver_coercion: Option<SelectedCoercion>,
+}
+
+pub(super) fn resolved_method_call<'a>(
+    resolved: &'a ResolveOutput,
+    call: &CallExpr,
+    environment: &TypeEnvironment,
+) -> Option<ResolvedMethodCall<'a>> {
     let member = method_member_for_call(call)?;
     let receiver_type = expression_type(&member.object, resolved, environment);
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
@@ -219,8 +231,13 @@ pub(super) fn resolved_method_for_call<'a>(
             let mut candidates =
                 bounded_method_candidates(parameter, &self_type, member, environment, resolved)
                     .into_iter();
-            let candidate = candidates.next()?;
-            candidates.next().is_none().then_some(candidate)
+            let (owner, method) = candidates.next()?;
+            candidates.next().is_none().then_some(ResolvedMethodCall {
+                owner,
+                method,
+                self_type,
+                receiver_coercion: None,
+            })
         }
         _ => {
             let inherent = inherent_method_owner_for_type(&self_type, resolved).and_then(|owner| {
@@ -245,9 +262,92 @@ pub(super) fn resolved_method_for_call<'a>(
             if inherent.is_some() && interface.is_some() || interface_candidates.next().is_some() {
                 return None;
             }
-            inherent.or(interface)
+            if let Some((owner, method)) = inherent.or(interface) {
+                return Some(ResolvedMethodCall {
+                    owner,
+                    method,
+                    self_type,
+                    receiver_coercion: None,
+                });
+            }
+
+            resolve_receiver_coerced_method(
+                resolved,
+                member,
+                &receiver_type,
+                &self_type,
+                environment,
+            )
         }
     }
+}
+
+fn resolve_receiver_coerced_method<'a>(
+    resolved: &'a ResolveOutput,
+    member: &MemberExpr,
+    receiver_type: &Type,
+    source_self_type: &Type,
+    environment: &TypeEnvironment,
+) -> Option<ResolvedMethodCall<'a>> {
+    let mut candidates = receiver_coerced_method_candidates(
+        resolved,
+        member,
+        receiver_type,
+        source_self_type,
+        environment,
+    );
+    let candidate = candidates.pop()?;
+    candidates.is_empty().then_some(candidate)
+}
+
+fn receiver_coerced_method_candidates<'a>(
+    resolved: &'a ResolveOutput,
+    member: &MemberExpr,
+    receiver_type: &Type,
+    source_self_type: &Type,
+    environment: &TypeEnvironment,
+) -> Vec<ResolvedMethodCall<'a>> {
+    let source_is_readwrite = matches!(
+        receiver_type,
+        Type::Borrow {
+            is_readwrite: true,
+            ..
+        }
+    ) || receiver_is_mutable_binding(member, environment);
+    let coercions = receiver_coercion_candidates(source_self_type, source_is_readwrite, resolved);
+    let mut candidates = Vec::new();
+    for coercion in coercions {
+        let target_self_type =
+            method_self_type_for_receiver_in_environment(&coercion.target_type, environment);
+        let inherent =
+            inherent_method_owner_for_type(&target_self_type, resolved).and_then(|owner| {
+                owner
+                    .methods
+                    .iter()
+                    .find(|method| {
+                        method_is_accessible(method, member.member_span.source, resolved)
+                            && method.name == member.member
+                            && method_applies_to_receiver(method, &target_self_type, resolved)
+                    })
+                    .map(|method| (owner, method))
+            });
+        let interfaces = super::interface_methods::candidates(
+            &target_self_type,
+            &member.member,
+            member.member_span.source,
+            resolved,
+        );
+        let target_candidates = inherent.into_iter().chain(interfaces);
+        for (owner, method) in target_candidates {
+            candidates.push(ResolvedMethodCall {
+                owner,
+                method,
+                self_type: target_self_type.clone(),
+                receiver_coercion: Some(coercion.clone()),
+            });
+        }
+    }
+    candidates
 }
 
 pub(super) fn infer_generic_substitutions(
@@ -690,6 +790,22 @@ pub(super) fn check_unresolved_member_call(
             ));
             return;
         }
+
+        if candidates.is_empty() {
+            let coerced = receiver_coerced_method_candidates(
+                resolved,
+                member,
+                &receiver_type,
+                &self_type,
+                environment,
+            );
+            if coerced.len() > 1 {
+                diagnostics.push(receiver_coercion_ambiguity_diagnostic(
+                    sources, member, &coerced,
+                ));
+                return;
+            }
+        }
     }
     let Some(owner) = inherent_method_owner_for_type(&self_type, resolved) else {
         diagnostics.push(method_unknown_diagnostic(
@@ -717,6 +833,40 @@ pub(super) fn check_unresolved_member_call(
         &receiver_type,
         Some(owner),
     ));
+}
+
+fn receiver_coercion_ambiguity_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    candidates: &[ResolvedMethodCall<'_>],
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0453",
+        format!(
+            "method `{}` is ambiguous across receiver coercions",
+            member.member
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    for candidate in candidates {
+        let Some(coercion) = &candidate.receiver_coercion else {
+            continue;
+        };
+        if let Ok(span) = sources.span_to_json(coercion.focus_span) {
+            diagnostic.notes.push(DiagnosticNote {
+                message: format!(
+                    "coercion to `{}` reaches `{}.{}`",
+                    coercion.target_type.display(),
+                    candidate.owner.canonical_name,
+                    candidate.method.name
+                ),
+                span: Some(span),
+            });
+        }
+    }
+    diagnostic.help =
+        Some("use an explicit `as` coercion to choose one borrowed receiver type".to_string());
+    diagnostic
 }
 
 fn bounded_method_candidates<'a>(

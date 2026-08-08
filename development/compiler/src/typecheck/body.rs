@@ -22,9 +22,7 @@ use super::environments::{
     environment_for_interface_method, environment_for_literal_pack_binding, environment_for_method,
     environment_for_parameters_in_impl, environment_for_switch_arm,
 };
-use super::expressions::{
-    check_error_member_expression, collection_builtin_call_type, expression_type,
-};
+use super::expressions::{check_error_member_expression, expression_type};
 use super::fallible::check_force_unwrap_operand;
 use super::literals::{
     check_literal_pack_for_statement, check_typed_sequence_literal, check_typed_string_literal,
@@ -883,8 +881,7 @@ fn check_expression_tree(
                 );
             }
             check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
-            if collection_builtin_call_type(expression, resolved, environment).is_none()
-                && !is_enum_variant_call(expression, resolved)
+            if !is_enum_variant_call(expression, resolved)
                 && super::callables::callable_contract_for_call(expression, resolved, environment)
                     .is_none()
             {

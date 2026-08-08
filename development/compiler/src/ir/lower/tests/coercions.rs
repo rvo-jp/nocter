@@ -77,6 +77,7 @@ fn lowers_string_view_coercion_through_the_same_plan() {
 coerce Text {
     pub &self as &str from self { return self.data }
 }
+
 func accept(value: &str): i32 { return 1 }
 func main(): i32 {
     let text = Text { data: "hello" }
@@ -101,6 +102,51 @@ func main(): i32 {
         }),
         "{main:#?}"
     );
+}
+
+#[test]
+fn lowers_receiver_coercion_before_the_selected_source_method() {
+    let ir = lower_text_with_nocter_home_files(
+        r#"struct Text { data: &str }
+coerce Text {
+    pub &self as &str { return self.data }
+}
+func main(): usize {
+    let text = Text { data: "hello" }
+    return text.count()
+}
+"#,
+        &[(
+            "std/str.nct",
+            "impl str { pub method &self.count(): usize { return 5 } }\n",
+        )],
+    );
+    let coercion = ir
+        .functions
+        .iter()
+        .find(|function| function.name.starts_with("Text.__nocter$coerce$"))
+        .expect("expected coercion");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected main");
+
+    let coercion_index = main
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(instruction, Instruction::CallStr { target, .. } if target == &coercion.target)
+        })
+        .expect("receiver coercion call");
+    let method_index = main
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(instruction, Instruction::CallUsize { target: CallTarget::Imported { name, .. }, .. } | Instruction::TailCall { target: CallTarget::Imported { name, .. }, .. } if name == "str.count")
+        })
+        .unwrap_or_else(|| panic!("source-declared str method call: {main:#?}"));
+    assert!(coercion_index < method_index, "{main:#?}");
 }
 
 #[test]

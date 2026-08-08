@@ -517,8 +517,11 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
     }
     match expression {
         Expr::Call(call) => {
-            if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {
+            if let Some(value) = lower_literal_pack_len_call_to_value(call, context) {
                 return value;
+            }
+            if primitive_view_len_call(call, context) {
+                return lower_view_len_primitive_call_to_value(call, context, temporaries);
             }
             if primitive_addr_call(call, context) {
                 let (instructions, value) =

@@ -1,5 +1,6 @@
 //! Front-end source loading, parsing, and compile-unit construction.
 
+mod builtin_impls;
 mod dependencies;
 mod diagnostics;
 mod imports;
@@ -21,6 +22,7 @@ use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
+use builtin_impls::{enqueue_builtin_implementation_sources, validate_builtin_impl_authority};
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
@@ -88,6 +90,16 @@ pub(crate) fn load_compile_unit_with_trace(
         loaded_sources_by_path.insert(path.to_path_buf(), source);
     }
 
+    diagnostics.extend(enqueue_builtin_implementation_sources(
+        sources,
+        root,
+        options,
+        &mut resolved_nocter_home,
+        &mut loaded_sources_by_path,
+        &mut dependencies,
+        &mut queue,
+    ));
+
     while let Some(source) = queue.pop_front() {
         let parse_result = if source_is_package_file(sources, source, options) {
             parse_package_source_for_check(sources, source)
@@ -105,6 +117,14 @@ pub(crate) fn load_compile_unit_with_trace(
         filter_target_items(&mut ast, &options.target);
 
         diagnostics.extend(validate_nocter_visibility_declarations(
+            sources,
+            source,
+            &ast,
+            options,
+            &mut resolved_nocter_home,
+        ));
+
+        diagnostics.extend(validate_builtin_impl_authority(
             sources,
             source,
             &ast,

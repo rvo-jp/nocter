@@ -22,11 +22,11 @@ pub func from_str(value: &str): Utf8Path! {
 }
 
 pub func view(path: &Utf8Path): &str {
-    return path.text.view()
+    return &path.text as &str
 }
 
 pub func is_absolute(path: &Utf8Path): bool {
-    let value: &str = path.text.view()
+    let value: &str = &path.text as &str
     return value.len() != 0 && bytes(value)[0] == 47
 }
 
@@ -35,7 +35,7 @@ pub func join(path: &Utf8Path, child: &str): Utf8Path! {
     if child.len() != 0 && bytes(child)[0] == 47 {
         return Utf8Path.new(child)?
     }
-    var result = String.copy(path.text.view())
+    var result = String.copy(&path.text as &str)
     if result.len() != 0 && !result.ends_with("/") {
         result.push_str("/")
     }

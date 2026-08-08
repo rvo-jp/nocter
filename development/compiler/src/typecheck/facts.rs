@@ -4,8 +4,7 @@
 use super::bindings::continuing_binding_type;
 use super::calls::{
     infer_generic_substitutions, method_member_for_call,
-    method_self_type_for_receiver_in_environment, resolved_call_signature,
-    resolved_method_for_call,
+    method_self_type_for_receiver_in_environment, resolved_call_signature, resolved_method_call,
 };
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,

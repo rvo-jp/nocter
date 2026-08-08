@@ -420,18 +420,6 @@ impl<T> Vec<T> {
         return capacity(self)
     }
 
-    pub method &self.is_empty(): bool {
-        return is_empty(self)
-    }
-
-    pub method &self.view(): &[T] {
-        return view(self)
-    }
-
-    pub method &+self.view_mut(): &+[T] {
-        return view_mut(self)
-    }
-
     /// Returns a readwrite element borrow when `index` is in bounds.
     pub method &+self.get_mut(index: usize): &+T? {
         if index >= self.len {

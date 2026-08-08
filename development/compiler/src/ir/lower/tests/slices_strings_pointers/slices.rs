@@ -746,13 +746,12 @@ func size(bytes: &[u8]): usize {
             name: "size".to_string(),
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Usize,
-            instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: builtin_slice_method_target("u8", "len"),
+                arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                    SliceLocation::Parameter(0),
+                ))],
+            }],
         }
     );
 }
@@ -777,13 +776,12 @@ func size(bytes: &+[u8]): usize {
             name: "size".to_string(),
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Usize,
-            instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: builtin_slice_method_target("u8", "len"),
+                arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                    SliceLocation::Parameter(0),
+                ))],
+            }],
         }
     );
 }
@@ -808,13 +806,12 @@ func size(values: &[usize]): usize {
             name: "size".to_string(),
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Usize,
-            instructions: vec![
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: builtin_slice_method_target("usize", "len"),
+                arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                    SliceLocation::Parameter(0),
+                ))],
+            }],
         }
     );
 }
@@ -845,11 +842,12 @@ func size(values: &[usize]): usize {
                     destination: SliceLocation::Local(0),
                     value: SliceValue::Location(SliceLocation::Parameter(0)),
                 },
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Local(0)),
+                Instruction::TailCall {
+                    target: builtin_slice_method_target("usize", "len"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Local(0),
+                    ))],
                 },
-                Instruction::Return,
             ],
         }
     );
@@ -1005,15 +1003,24 @@ func choose(bytes: &[u8]): i32 {
             name: "choose".to_string(),
             target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: Type::I32,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::UsizeComparison {
-                    operator: I32ComparisonOperator::Equal,
-                    left: usize_slice_len(SliceLocation::Parameter(0)),
-                    right: usize_const(0),
+            instructions: vec![
+                Instruction::CallUsize {
+                    destination: UsizeLocation::Local(0),
+                    target: builtin_slice_method_target("u8", "len"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
                 },
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
-            }],
+                Instruction::If {
+                    condition: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: UsizeValue::Location(UsizeLocation::Local(0)),
+                        right: usize_const(0),
+                    },
+                    then_instructions: vec![set_return_i32(42), Instruction::Return],
+                    else_instructions: vec![set_return_i32(7), Instruction::Return],
+                },
+            ],
         }
     );
 }
@@ -1054,16 +1061,23 @@ func identity(bytes: &[u8]): &[u8] {
             return_type: Type::I32,
             instructions: vec![
                 call_slice(
-                    SliceLocation::Local(0),
+                    SliceLocation::Local(1),
                     "identity",
                     vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
                 ),
+                Instruction::CallUsize {
+                    destination: UsizeLocation::Local(0),
+                    target: builtin_slice_method_target("u8", "len"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Local(1),
+                    ))],
+                },
                 Instruction::If {
                     condition: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::NotEqual,
-                        left: usize_slice_len(SliceLocation::Local(0)),
+                        left: UsizeValue::Location(UsizeLocation::Local(0)),
                         right: usize_const(0),
                     },
                     then_instructions: vec![set_return_i32(42), Instruction::Return],
@@ -1098,15 +1112,20 @@ func choose(bytes: &[u8]): i32 {
             name: "choose".to_string(),
             target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: Type::I32,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::UsizeComparison {
-                    operator: I32ComparisonOperator::Equal,
-                    left: usize_slice_len(SliceLocation::Parameter(0)),
-                    right: usize_const(0),
+            instructions: vec![
+                Instruction::CallBool {
+                    destination: BoolLocation::Local(0),
+                    target: builtin_slice_method_target("u8", "is_empty"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
                 },
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
-            }],
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(42), Instruction::Return],
+                    else_instructions: vec![set_return_i32(7), Instruction::Return],
+                },
+            ],
         }
     );
 }
@@ -1153,15 +1172,12 @@ func identity(values: &[usize]): &[usize] {
                         SliceLocation::Parameter(0),
                     ))],
                 ),
-                Instruction::SetBool {
-                    destination: BoolLocation::Return,
-                    value: BoolValue::UsizeComparison {
-                        operator: I32ComparisonOperator::Equal,
-                        left: usize_slice_len(SliceLocation::Local(0)),
-                        right: usize_const(0),
-                    },
+                Instruction::TailCall {
+                    target: builtin_slice_method_target("usize", "is_empty"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Local(0),
+                    ))],
                 },
-                Instruction::Return,
             ],
         }
     );
@@ -1205,11 +1221,12 @@ func identity(bytes: &[u8]): &[u8] {
                         SliceLocation::Parameter(0),
                     ))],
                 ),
-                Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
-                    value: UsizeValue::SliceLen(SliceLocation::Local(0)),
+                Instruction::TailCall {
+                    target: builtin_slice_method_target("u8", "len"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Local(0),
+                    ))],
                 },
-                Instruction::Return,
             ],
         }
     );

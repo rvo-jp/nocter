@@ -94,7 +94,7 @@ func main(): i32! {
     let owned_last = owned.pop() otherwise { return 33 }
     let owned_middle = owned.pop() otherwise { return 34 }
     let owned_first = owned.pop() otherwise { return 35 }
-    if owned_first.view() != "a" || owned_middle.view() != "b" || owned_last.view() != "" { return 36 }
+    if (&owned_first as &str) != "a" || (&owned_middle as &str) != "b" || (&owned_last as &str) != "" { return 36 }
 
     var text_lines = lines("first\r\n\nthird\rfour\n")
     if text_lines.next()! != "first" { return 23 }
@@ -196,7 +196,7 @@ fn distributed_std_borrowed_text_view_keeps_owned_source_loan_active() {
 
 func invalid(): usize {
     var text = String "hello"
-    let view = get_range(text.view(), 1, 4) otherwise { return 0 }
+    let view = get_range((&text as &str), 1, 4) otherwise { return 0 }
     text.push_str("!")
     return view.len()
 }
@@ -224,14 +224,14 @@ fn distributed_std_borrowed_text_iterators_keep_both_inputs_active() {
 
 func mutate_text(): usize! {
     var text = String "a,b"
-    var parts = split_views(text.view(), ",")?
+    var parts = split_views((&text as &str), ",")?
     text.push_str(",c")
     return parts.next()!.len()
 }
 
 func mutate_separator(): usize! {
     var separator = String ","
-    var parts = split_views("a,b", separator.view())?
+    var parts = split_views("a,b", (&separator as &str))?
     separator.push_str(";")
     return parts.next()!.len()
 }
@@ -259,14 +259,14 @@ fn distributed_std_borrowed_text_view_rejects_source_move_and_drop() {
 
 func move_source(): usize {
     let text = String "hello"
-    let view = get_range(text.view(), 1, 4) otherwise { return 0 }
+    let view = get_range((&text as &str), 1, 4) otherwise { return 0 }
     let consumed = move text
     return view.len()
 }
 
 func drop_source(): usize {
     let text = String "hello"
-    let view = get_range(text.view(), 1, 4) otherwise { return 0 }
+    let view = get_range((&text as &str), 1, 4) otherwise { return 0 }
     drop text
     return view.len()
 }
@@ -297,7 +297,7 @@ func temporary_prefix(text: &str): &str {
     var arena = page_allocator()
     region temporary using arena {
         let prefix = String "he"
-        return strip_prefix(text, prefix.view()) otherwise { return text }
+        return strip_prefix(text, (&prefix as &str)) otherwise { return text }
     }
 }
 
@@ -487,7 +487,7 @@ func leak(): &str {
     var arena = page_allocator()
     region temporary using arena {
         let text = String "hello"
-        return get_range(text.view(), 1, 4) otherwise { return "" }
+        return get_range((&text as &str), 1, 4) otherwise { return "" }
     }
 }
 
