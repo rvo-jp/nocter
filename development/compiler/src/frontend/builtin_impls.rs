@@ -83,21 +83,22 @@ pub(super) fn validate_builtin_impl_authority(
             builtin_target(&impl_.target_ty)
                 .map(|(owner, module)| (owner, module, impl_.target_ty.span()))
         })
-        .filter_map(|(owner, required_module, span)| {
-            (actual_module.as_deref() != Some(required_module)).then(|| {
-                let mut diagnostic = Diagnostic::error(
-                    "E0416",
-                    format!(
-                        "implementations for built-in type `{owner}` are owned by `{required_module}`"
-                    ),
-                );
-                diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
-                diagnostic.help = Some(
-                    "define behavior on a project-owned type; built-in type surfaces are supplied by the active Nocter home"
-                        .to_string(),
-                );
-                diagnostic
-            })
+        .filter(|(_, required_module, _)| {
+            actual_module.as_deref() != Some(*required_module)
+        })
+        .map(|(owner, required_module, span)| {
+            let mut diagnostic = Diagnostic::error(
+                "E0416",
+                format!(
+                    "implementations for built-in type `{owner}` are owned by `{required_module}`"
+                ),
+            );
+            diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+            diagnostic.help = Some(
+                "define behavior on a project-owned type; built-in type surfaces are supplied by the active Nocter home"
+                    .to_string(),
+            );
+            diagnostic
         })
         .collect()
 }
