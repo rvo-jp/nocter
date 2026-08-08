@@ -11,6 +11,12 @@ pub(super) fn slice_target_element_type_expr(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<TypeExpr> {
+    if let Some(ty) = context.expression_type_expr(expression.span())
+        && let Some(element) = slice_element_type_expr_from_type_expr(&ty, context)
+    {
+        return Some(element);
+    }
+
     match unwrap_group(expression) {
         Expr::Identifier(identifier) => context.slice_element_type_expr(&identifier.name).cloned(),
         Expr::Member(member) => match aggregate_member_field_kind_from_member(member, context)

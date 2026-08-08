@@ -394,6 +394,9 @@ fn expressions_are_lowerable_str_values(
 }
 
 fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringContext) -> bool {
+    if context.expression_ir_type(expression) == Some(Type::Str) {
+        return true;
+    }
     match expression {
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Str),
         Expr::Propagate(propagation) => {
@@ -438,6 +441,11 @@ fn expression_is_lowerable_str_value(expression: &Expr, context: &LoweringContex
 }
 
 fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &LoweringContext) -> bool {
+    if context.expression_ir_type(expression) == Some(Type::Str)
+        || context.expression_slice_element_kind(expression) == Some(TypecheckSliceElementKind::U8)
+    {
+        return true;
+    }
     match expression {
         Expr::StringLiteral(_) => true,
         Expr::Identifier(identifier) => {
@@ -466,6 +474,9 @@ fn expression_is_lowerable_slice_index_object(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
+    if context.expression_slice_element_kind(expression) == Some(TypecheckSliceElementKind::Usize) {
+        return true;
+    }
     match expression {
         Expr::Identifier(identifier) => {
             identifier_slice_element_kind(identifier, context)
@@ -488,6 +499,9 @@ fn expression_is_lowerable_i32_slice_index_object(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
+    if context.expression_slice_element_kind(expression) == Some(TypecheckSliceElementKind::I32) {
+        return true;
+    }
     match expression {
         Expr::Identifier(identifier) => {
             identifier_slice_element_kind(identifier, context)
@@ -510,6 +524,9 @@ fn expression_is_lowerable_bool_slice_index_object(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
+    if context.expression_slice_element_kind(expression) == Some(TypecheckSliceElementKind::Bool) {
+        return true;
+    }
     match expression {
         Expr::Identifier(identifier) => {
             identifier_slice_element_kind(identifier, context)
@@ -532,6 +549,9 @@ fn expression_is_lowerable_str_slice_index_object(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
+    if context.expression_slice_element_kind(expression) == Some(TypecheckSliceElementKind::Str) {
+        return true;
+    }
     match expression {
         Expr::Identifier(identifier) => {
             identifier_slice_element_kind(identifier, context)

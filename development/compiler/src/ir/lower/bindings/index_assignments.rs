@@ -474,6 +474,9 @@ pub(super) fn slice_index_assignment_element_kind(
     object: &Expr,
     context: &LoweringContext,
 ) -> TypecheckSliceElementKind {
+    if let Some(kind) = context.expression_slice_element_kind(object) {
+        return kind;
+    }
     match unwrap_group(object) {
         Expr::Identifier(identifier) => context
             .slice_element_kind(&identifier.name)

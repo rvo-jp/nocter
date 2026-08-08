@@ -32,6 +32,12 @@ pub(super) fn byte_collection_expression_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
+    match context.expression_ir_type(expression) {
+        Some(Type::Str) => return Some(ByteCollectionKind::Str),
+        Some(Type::Slice { .. }) => return Some(ByteCollectionKind::Slice),
+        _ => {}
+    }
+
     match expression {
         Expr::StringLiteral(_) => Some(ByteCollectionKind::Str),
         Expr::Identifier(identifier) => {
