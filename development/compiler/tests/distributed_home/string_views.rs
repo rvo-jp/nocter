@@ -476,12 +476,12 @@ fn string_view_semantic_data_contains(
 }
 
 #[test]
-fn distributed_std_borrowed_text_view_cannot_escape_source_region() {
-    let project = TempProject::new("distributed-home-borrowed-text-view-region");
+fn distributed_std_borrowed_text_view_cannot_escape_local_owner() {
+    let project = TempProject::new("distributed-home-borrowed-text-view-local-owner");
     let source = project.write_source(
         "borrowed_text_view_region.nct",
         r#"use std/mem.page_allocator
-use std/string.{String, get_range}
+use std/string.get_range
 
 func leak(): &str {
     var arena = page_allocator()
@@ -498,9 +498,6 @@ func main(): i32 { return 0 }
     let output = nocter_check(&project, &source);
     assert_eq!(output.status.code(), Some(1), "{}", text(&output.stderr));
     let stderr = text(&output.stderr);
-    assert!(stderr.contains("error[E0436]"), "{stderr}");
-    assert!(
-        stderr.contains("region `temporary`") && stderr.contains("region ends before"),
-        "{stderr}"
-    );
+    assert!(stderr.contains("error[E0433]"), "{stderr}");
+    assert!(stderr.contains("local binding `text`"), "{stderr}");
 }

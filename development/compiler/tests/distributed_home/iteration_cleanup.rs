@@ -174,10 +174,10 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     // `leak_element` has two independently escaping paths: the iterator
-    // success value and the fallback borrow. Precise literal allocation
-    // provenance must diagnose both rather than hiding one behind a merged
-    // unknown summary.
-    assert_eq!(stderr.matches("error[E0436]").count(), 4, "{stderr}");
+    // success carries region storage, while the fallback directly borrows a
+    // local owner. Preserve both distinct diagnostics.
+    assert_eq!(stderr.matches("error[E0436]").count(), 3, "{stderr}");
+    assert_eq!(stderr.matches("error[E0433]").count(), 1, "{stderr}");
     assert!(stderr.contains("region `temporary`"), "{stderr}");
 }
 

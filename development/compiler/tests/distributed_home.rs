@@ -1077,7 +1077,7 @@ func main(): i32! {
     values.push(1)
     values.push(2)
 
-    var buffer = Buffer { data: &+values as &+[usize] }
+    var buffer = Buffer { data: &+values as &+[u8] }
     buffer.data[0] = 9
     buffer.data[1] = 7
 
@@ -1123,7 +1123,7 @@ func main(): i32! {
     values.push(10)
     values.push(20)
 
-    var buffer = Buffer { data: &+values as &+[i32] }
+    var buffer = Buffer { data: &+values as &+[usize] }
     buffer.data[0] += 5
     buffer.data[1] *= 2
 
@@ -1343,7 +1343,7 @@ func preserved(values: &Vec<u8>): i32 {
     if values.capacity() != 1 {
         return 2
     }
-    if (&values as &[u8])[0] != 42 {
+    if (values as &[u8])[0] != 42 {
         return 3
     }
     return 42
@@ -3471,10 +3471,10 @@ func main(): i32 {
         values.push(20)
         values.push(22)
         let text = String.from_str("temporary")
-        if (&values as &[usize])[0] != 20 {
+        if (&values as &[u8])[0] != 20 {
             return 1
         }
-        if (&values as &[usize])[1] != 22 {
+        if (&values as &[u8])[1] != 22 {
             return 2
         }
         if text.len() != 9 {
@@ -3752,11 +3752,8 @@ func main(): i32 {
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
     let stderr = text(&output.stderr);
-    assert_eq!(
-        stderr.matches("error[E0436]").count(),
-        4,
-        "expected one region escape diagnostic per wrapper shape:\n{stderr}"
-    );
+    assert_eq!(stderr.matches("error[E0436]").count(), 3, "{stderr}");
+    assert_eq!(stderr.matches("error[E0433]").count(), 1, "{stderr}");
     assert!(
         stderr.contains("region `temporary`") && stderr.contains("region ends before"),
         "expected source-backed region origin details:\n{stderr}"
@@ -5028,7 +5025,7 @@ func grow_huge(text: &+String): void! {
 }
 
 func preserved(text: &String): i32 {
-    if (&text as &str) != "keep" {
+    if (text as &str) != "keep" {
         return 1
     }
     if text.len() != 4 {

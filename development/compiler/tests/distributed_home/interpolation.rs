@@ -98,7 +98,7 @@ func main(): i32 {
     }
 
     let holder = Holder { text: "field ${4}" }
-    if holder.(&text as &str) != "field 4" {
+    if (&holder.text as &str) != "field 4" {
         return 3
     }
     if (&rendered() as &str) != "return 3" {
