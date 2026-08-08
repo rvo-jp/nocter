@@ -191,7 +191,7 @@ pub func try_from_slice<T>(
     return Vec.try_from_slice(allocator, values)?
 }
 
-pub func len<T>(values: &Vec<T>): usize {
+func len<T>(values: &Vec<T>): usize {
     let values_len: usize = values.len
     return values_len
 }
@@ -201,31 +201,31 @@ pub func capacity<T>(values: &Vec<T>): usize {
     return values_capacity
 }
 
-pub func is_empty<T>(values: &Vec<T>): bool {
+func is_empty<T>(values: &Vec<T>): bool {
     let values_len: usize = values.len
     return values_len == 0
 }
 
-pub func view<T>(values: &Vec<T>): &[T] {
+func view<T>(values: &Vec<T>): &[T] {
     return slice_from_raw_parts_value(values.ptr, values.len)
 }
 
-pub func view_mut<T>(values: &+Vec<T>): &+[T] {
+func view_mut<T>(values: &+Vec<T>): &+[T] {
     return slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
-pub func iter<T>(values: &Vec<T>): ViewIter<T> {
+func iter<T>(values: &Vec<T>): ViewIter<T> {
     return ViewIter.from_view(view(values))
 }
 
-pub func get<T>(values: &Vec<T>, index: usize): &T? {
+func get<T>(values: &Vec<T>, index: usize): &T? {
     if index >= values.len {
         return none
     }
     return &view(values)[index]
 }
 
-pub func get_mut<T>(values: &+Vec<T>, index: usize): &+T? {
+func get_mut<T>(values: &+Vec<T>, index: usize): &+T? {
     if index >= values.len {
         return none
     }

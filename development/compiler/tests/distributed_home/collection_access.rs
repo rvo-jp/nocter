@@ -5,11 +5,11 @@ fn distributed_std_vec_access_and_mutation_surface_passes_check() {
     let project = TempProject::new("distributed-home-vec-access-check");
     let source = project.write_source(
         "vec_access_shape.nct",
-        r#"use std/vec.{Vec, get, get_mut, insert, remove, try_insert}
+        r#"use std/vec.{Vec, insert, remove, try_insert}
 
 func mutate(values: &+Vec<i32>): void! {
-    let read: &i32 = get(values, 0) otherwise { return }
-    let write: &+i32 = get_mut(values, 0) otherwise { return }
+    let read: &i32 = values.get(0) otherwise { return }
+    let write: &+i32 = values.get_mut(0) otherwise { return }
     try_insert(values, 0, 1)?
     insert(values, 1, 2)
     let removed: i32 = remove(values, 0) otherwise { return }

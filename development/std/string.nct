@@ -168,23 +168,13 @@ pub func try_from_utf8(
     return String.try_from_utf8(allocator, candidate)?
 }
 
-pub func view(text: &String): &str {
+func view(text: &String): &str {
     return str_from_raw_parts(text.storage.ptr, text.len)
-}
-
-pub func len(text: &String): usize {
-    let text_len: usize = text.len
-    return text_len
 }
 
 pub func capacity(text: &String): usize {
     let text_capacity: usize = text.storage.len
     return text_capacity
-}
-
-pub func is_empty(text: &String): bool {
-    let text_len: usize = text.len
-    return text_len == 0
 }
 
 pub func try_reserve(text: &+String, additional: usize): void! {
