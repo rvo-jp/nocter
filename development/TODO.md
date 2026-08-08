@@ -2,8 +2,10 @@
 
 ## Current Task
 
-v0.9.0 is published and audited under [`releases/v0.9.0.md`](releases/v0.9.0.md). No release repair
-remains. The next implementation milestone requires a separate plan before feature work begins.
+v0.10.0 Phase 0 is active under [`milestones/v0.10.0.md`](milestones/v0.10.0.md). It replaces
+module-path native-build exceptions with resolved runtime type capabilities and promotes every
+built-in integer type to ordinary native execution. v0.9.0 remains published and audited under
+[`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
 
@@ -150,5 +152,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan the next milestone before implementation. The published v0.9.0 archive and its evidence are
-immutable.
+Complete every v0.10.0 Phase 0 verification gate before planning later standard-library APIs. The
+published v0.9.0 archive and its evidence are immutable.
