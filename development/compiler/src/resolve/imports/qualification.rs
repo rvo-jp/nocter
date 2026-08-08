@@ -223,6 +223,28 @@ fn qualify_type_symbol(
     }
 }
 
+pub(super) fn qualify_method_signature(
+    method: &mut MethodSignature,
+    import_path: &str,
+    local_type_names: &[String],
+    imported_type_names: &[ImportedTypeName],
+) {
+    if let Some(impl_target_ty) = &mut method.impl_target_ty {
+        qualify_type_expr(
+            impl_target_ty,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+    }
+    qualify_function_signature(
+        &mut method.signature,
+        import_path,
+        local_type_names,
+        imported_type_names,
+    );
+}
+
 fn qualify_function_signature(
     signature: &mut FunctionSignature,
     import_path: &str,

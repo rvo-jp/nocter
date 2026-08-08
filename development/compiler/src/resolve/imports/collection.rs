@@ -583,7 +583,7 @@ impl Resolver<'_> {
         }
     }
 
-    fn collect_hidden_imported_type_symbols(
+    pub(in crate::resolve) fn collect_hidden_imported_type_symbols(
         &mut self,
         imported_ast: &AstFile,
         import_path: &str,
@@ -612,7 +612,10 @@ impl Resolver<'_> {
         }
     }
 
-    fn collect_hidden_imported_type_dependencies(&mut self, type_names: &[ImportedTypeName]) {
+    pub(super) fn collect_hidden_imported_type_dependencies(
+        &mut self,
+        type_names: &[ImportedTypeName],
+    ) {
         for type_name in type_names {
             let Some((imported_ast, import_source)) = self
                 .module_index

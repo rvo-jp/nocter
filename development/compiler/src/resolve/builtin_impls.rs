@@ -24,6 +24,13 @@ impl BuiltinTypeOwner {
             Self::Slice => "[T]",
         }
     }
+
+    pub(crate) const fn module_path(self) -> &'static str {
+        match self {
+            Self::Str => "std/str",
+            Self::Slice => "std/slice",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,14 +45,17 @@ impl Resolver<'_> {
         let impls = self
             .module_index
             .asts()
-            .flat_map(|ast| ast.items.iter())
-            .filter_map(|item| match item {
-                Item::Impl(impl_) => builtin_impl_owner(impl_).map(|owner| (owner, impl_.clone())),
-                _ => None,
+            .flat_map(|ast| {
+                ast.items.iter().filter_map(move |item| match item {
+                    Item::Impl(impl_) => {
+                        builtin_impl_owner(impl_).map(|owner| (ast, owner, impl_.clone()))
+                    }
+                    _ => None,
+                })
             })
             .collect::<Vec<_>>();
 
-        for (owner, impl_) in impls {
+        for (ast, owner, impl_) in impls {
             if let Err(message) = builtin_impl_shape(owner, &impl_) {
                 if impl_.span.source == root.span.source {
                     self.output
@@ -59,6 +69,9 @@ impl Resolver<'_> {
                 }
                 continue;
             }
+
+            let mut methods = method_signatures(&impl_).collect::<Vec<_>>();
+            self.prepare_builtin_surface_methods(ast, owner.module_path(), methods.as_mut_slice());
 
             let surface = self
                 .output
@@ -80,7 +93,7 @@ impl Resolver<'_> {
                         &impl_,
                     ));
             }
-            surface.symbol.methods.extend(method_signatures(&impl_));
+            surface.symbol.methods.extend(methods);
         }
     }
 }

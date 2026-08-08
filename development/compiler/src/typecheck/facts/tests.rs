@@ -92,6 +92,51 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn receiver_coerced_method_result_keeps_concrete_nested_generics() {
+    let text = r#"struct View { marker: usize }
+struct Text { view: View }
+struct Iter<T> { marker: usize }
+interface Iterator<Item> {
+    pub method &+self.next(): Item?
+}
+coerce Text { pub &self as &View { return &self.view } }
+impl View {
+    pub method &self.bytes_iter(): Iter<u8> {
+        return Iter<u8> { marker: 0 }
+    }
+}
+impl<T> Iterator<&T> for Iter<T> {
+    method &+self.next(): &T? { return none }
+}
+func main(): i32 {
+    let text = Text { view: View { marker: 0 } }
+    var bytes = text.bytes_iter()
+    let first = bytes.next() otherwise { return 0 }
+    return 0
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let function = ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .expect("expected main function");
+    let Stmt::Binding(bytes) = &function.body.statements[1] else {
+        panic!("expected bytes binding");
+    };
+    let Stmt::Binding(first) = &function.body.statements[2] else {
+        panic!("expected first binding");
+    };
+
+    assert_eq!(facts.binding_type_label(bytes.name_span), Some("Iter<u8>"));
+    assert_eq!(facts.binding_type_label(first.name_span), Some("&u8"));
+}
+
+#[test]
 fn records_a_concrete_coercion_plan_at_the_expected_type_boundary() {
     let text = r#"struct Box<T> { value: T }
 coerce Box<T> {
