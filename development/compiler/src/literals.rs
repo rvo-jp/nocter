@@ -468,7 +468,7 @@ fn decode_escaped_bytes(
                 index += 1;
             }
             b'$' if reject_interpolation && text.as_bytes().get(index + 1) == Some(&b'{') => {
-                return Err("string interpolation is not implemented yet");
+                return Err("unescaped interpolation start is invalid in string text");
             }
             b'\n' if allow_raw_newlines => {
                 output.push(b'\n');
@@ -572,8 +572,8 @@ fn hex_digit(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        StringLiteralPartSpan, decode_byte_literal, decode_interpolated_text_part,
-        decode_string_literal_bytes, string_literal_parts,
+        StringLiteralPartSpan, decode_byte_literal, decode_escaped_text,
+        decode_interpolated_text_part, decode_string_literal_bytes, string_literal_parts,
     };
 
     #[test]
@@ -622,6 +622,16 @@ mod tests {
         let error = decode_string_literal_bytes("\"hello ${name}\"").unwrap_err();
 
         assert!(error.contains("not a string literal"));
+    }
+
+    #[test]
+    fn raw_string_text_rejects_an_interpolation_boundary_without_claiming_it_is_unsupported() {
+        let error = decode_escaped_text("hello ${name}", false).unwrap_err();
+
+        assert_eq!(
+            error,
+            "unescaped interpolation start is invalid in string text"
+        );
     }
 
     #[test]
