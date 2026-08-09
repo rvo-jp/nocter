@@ -268,6 +268,7 @@ fn closure_method(
         },
         return_type: (*plan.ty.return_type).clone(),
         result_provenance: None,
+        requirements: None,
         body: Some(expression.body.clone()),
     }
 }

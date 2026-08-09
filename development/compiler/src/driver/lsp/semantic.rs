@@ -129,6 +129,7 @@ pub(super) const fn semantic_token_kind_index(kind: SemanticTokenKind) -> u32 {
         SemanticTokenKind::Type => 4,
         SemanticTokenKind::Property => 5,
         SemanticTokenKind::Namespace => 6,
+        SemanticTokenKind::Keyword => 7,
     }
 }
 

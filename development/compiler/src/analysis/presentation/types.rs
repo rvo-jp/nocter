@@ -32,15 +32,21 @@ pub(crate) struct TypeDeclarationPresentation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GenericParameterPresentation {
     name: String,
+    is_copy: bool,
     bounds: Vec<String>,
 }
 
 impl GenericParameterPresentation {
     pub(crate) fn render(&self) -> String {
+        let copy = if self.is_copy { "copy " } else { "" };
         if self.bounds.is_empty() {
-            format!("type parameter {}", self.name)
+            format!("type parameter {copy}{}", self.name)
         } else {
-            format!("type parameter {}: {}", self.name, self.bounds.join(" + "))
+            format!(
+                "type parameter {copy}{}: {}",
+                self.name,
+                self.bounds.join(" + ")
+            )
         }
     }
 }
@@ -51,6 +57,7 @@ pub(crate) fn generic_parameter_presentation(
 ) -> GenericParameterPresentation {
     GenericParameterPresentation {
         name: parameter.name.clone(),
+        is_copy: parameter.is_copy,
         bounds: parameter
             .bounds
             .iter()
@@ -146,14 +153,16 @@ fn declared_type_label(
             if requirements.is_empty() {
                 return parameter.clone();
             }
-            format!(
-                "{parameter}: {}",
-                requirements
-                    .type_bounds()
-                    .map(|bound| type_expr_presentation_label(bound, resolved))
-                    .collect::<Vec<_>>()
-                    .join(" + ")
-            )
+            let copy = if requirements.has_copy() { "copy " } else { "" };
+            let bounds = requirements
+                .type_bounds()
+                .map(|bound| type_expr_presentation_label(bound, resolved))
+                .collect::<Vec<_>>();
+            if bounds.is_empty() {
+                format!("{copy}{parameter}")
+            } else {
+                format!("{copy}{parameter}: {}", bounds.join(" + "))
+            }
         })
         .collect::<Vec<_>>()
         .join(", ");

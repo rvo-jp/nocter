@@ -55,6 +55,7 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
+        let requirements = self.parse_callable_requirement_clause()?;
         let body = if self.at_punctuation("{") {
             let previous_capture = self.literal_pack_capture.clone();
             self.literal_pack_capture = capture.as_ref().map(|capture| capture.name.clone());
@@ -66,9 +67,14 @@ impl Parser<'_> {
         };
         let end = body.as_ref().map_or_else(
             || {
-                result_provenance
-                    .as_ref()
-                    .map_or(return_type.span().end, |clause| clause.span.end)
+                requirements.as_ref().map_or_else(
+                    || {
+                        result_provenance
+                            .as_ref()
+                            .map_or(return_type.span().end, |clause| clause.span.end)
+                    },
+                    |clause| clause.span.end,
+                )
             },
             |body| body.span.end,
         );
@@ -83,6 +89,7 @@ impl Parser<'_> {
             capture,
             return_type,
             result_provenance,
+            requirements,
             body,
         })
     }

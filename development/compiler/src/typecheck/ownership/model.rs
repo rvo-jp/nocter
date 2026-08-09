@@ -150,7 +150,7 @@ impl OwnershipState {
         resolved: &ResolveOutput,
     ) {
         if let Some(ty) = environment.get(name) {
-            self.define_binding(name.to_string(), span, ty, resolved);
+            self.define_binding(name.to_string(), span, ty, resolved, environment);
         } else {
             self.places.remove_root(name);
         }
@@ -175,8 +175,13 @@ impl OwnershipState {
         span: ByteSpan,
         ty: &Type,
         resolved: &ResolveOutput,
+        environment: &TypeEnvironment,
     ) {
-        if non_copy_owned_type_kind(ty, resolved).is_some() || matches!(ty, Type::Parameter(_)) {
+        if non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_some()
+            || matches!(ty, Type::Parameter(name) if !environment
+                .generic_requirements(name)
+                .is_some_and(|requirements| requirements.has_copy()))
+        {
             if self.places.contains_root(&name) {
                 self.places.initialize(&BorrowPlace::whole(name), span);
             } else {

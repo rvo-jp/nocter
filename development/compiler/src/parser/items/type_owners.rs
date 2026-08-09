@@ -21,6 +21,7 @@ pub(in crate::parser) fn owner_target_generics(target: &TypeExpr) -> ParseResult
         };
         parameters.push(GenericParam {
             span: reference.span,
+            copy_span: None,
             name: reference.name.clone(),
             name_span: reference.span,
             bounds: Vec::new(),

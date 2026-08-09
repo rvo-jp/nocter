@@ -143,6 +143,7 @@ fn callable_contract(
         signature: FunctionSignature {
             generic_parameters: Vec::new(),
             generic_parameter_requirements: Vec::new(),
+            callable_requirements: None,
             parameters,
             return_type: return_type_expr,
             result_provenance,

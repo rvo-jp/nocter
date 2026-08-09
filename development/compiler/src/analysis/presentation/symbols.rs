@@ -18,17 +18,21 @@ fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
-            let bounds = signature
-                .generic_parameter_requirements
-                .get(index)
+            let requirements = signature.generic_parameter_requirements.get(index);
+            let bounds = requirements
                 .into_iter()
                 .flat_map(|requirements| requirements.type_bounds())
                 .map(crate::ast::canonical_type_expr)
                 .collect::<Vec<_>>();
-            if bounds.is_empty() {
-                parameter.clone()
+            let copy = if requirements.is_some_and(|requirements| requirements.has_copy()) {
+                "copy "
             } else {
-                format!("{parameter}: {}", bounds.join(" + "))
+                ""
+            };
+            if bounds.is_empty() {
+                format!("{copy}{parameter}")
+            } else {
+                format!("{copy}{parameter}: {}", bounds.join(" + "))
             }
         })
         .collect();
@@ -50,6 +54,29 @@ fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
         parameters,
         crate::ast::canonical_type_expr(&signature.return_type),
         super::result_origin_labels(signature.result_provenance.as_ref()),
+        signature
+            .callable_requirements
+            .as_ref()
+            .into_iter()
+            .flat_map(|clause| &clause.requirements)
+            .map(|requirement| {
+                let copy = if requirement.copy_span.is_some() {
+                    "copy "
+                } else {
+                    ""
+                };
+                let bounds = requirement
+                    .bounds
+                    .iter()
+                    .map(crate::ast::canonical_type_expr)
+                    .collect::<Vec<_>>();
+                if bounds.is_empty() {
+                    format!("{copy}{}", requirement.name)
+                } else {
+                    format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
+                }
+            })
+            .collect(),
     )
     .render()
 }

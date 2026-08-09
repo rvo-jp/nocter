@@ -6,8 +6,6 @@
 //!
 //! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
 //! that prefix, while clear and drop destroy its elements in reverse order.
-//! `from_slice` remains a copying constructor and therefore accepts only copyable
-//! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
 use std/iter.{ExactSizeIterator, Iterable, IntoIterator, Iterator, ViewIter}
@@ -129,7 +127,7 @@ construct Vec<T> {
         }
     }
 
-    pub func from_slice(values: &[T]): Self {
+    pub func from_slice(values: &[T]): Self where copy T {
         var result: Vec<T> = Vec.with_capacity(values.len())
         var index: usize = 0
         while index < values.len() {
@@ -165,7 +163,7 @@ construct Vec<T> {
     pub func try_from_slice(
         allocator: &+TryAllocator,
         values: &[T],
-    ): Self! from allocator | values {
+    ): Self! from allocator | values where copy T {
         var result: Vec<T> = Vec.try_with_capacity(allocator, values.len())?
         var index: usize = 0
         while index < values.len() {
@@ -203,11 +201,11 @@ pub func try_with_capacity<T>(
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func from_slice<T>(values: &[T]): Vec<T> {
+pub func from_slice<copy T>(values: &[T]): Vec<T> {
     return Vec.from_slice(values)
 }
 
-pub func try_from_slice<T>(
+pub func try_from_slice<copy T>(
     allocator: &+TryAllocator,
     values: &[T],
 ): Vec<T>! from allocator | values {

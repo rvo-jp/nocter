@@ -53,6 +53,7 @@ pub(super) fn check_statement_ownership(
                 statement.name_span,
                 &binding_type,
                 resolved,
+                environment,
             );
             flow.reaches_end = true;
             flow
@@ -80,7 +81,13 @@ pub(super) fn check_statement_ownership(
             if let Some(identifier) = whole_identifier(&statement.target)
                 && let Some(ty) = environment.get(&identifier.name)
             {
-                ownership.define_binding(identifier.name.clone(), identifier.span, ty, resolved);
+                ownership.define_binding(
+                    identifier.name.clone(),
+                    identifier.span,
+                    ty,
+                    resolved,
+                    environment,
+                );
             }
             if expression_type(&statement.value, resolved, environment) == Type::Never {
                 FlowState::terminal()
@@ -498,7 +505,7 @@ pub(super) fn check_statement_ownership(
                 ));
                 return FlowState::fallthrough();
             };
-            if non_copy_owned_type_kind(ty, resolved).is_none() {
+            if non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_none() {
                 diagnostics.push(invalid_drop_target_diagnostic(
                     sources,
                     statement.name.as_str(),
@@ -556,8 +563,11 @@ pub(super) fn check_expression_ownership(
                 ownership.require_initialized(sources, &identifier, "capture", diagnostics);
                 if capture.mode == crate::ast::ClosureCaptureMode::Move
                     && let Some(ty) = environment.get(&capture.name)
-                    && (non_copy_owned_type_kind(ty, resolved).is_some()
-                        || matches!(ty, Type::Parameter(_)))
+                    && (non_copy_owned_type_kind_in_environment(ty, resolved, environment)
+                        .is_some()
+                        || matches!(ty, Type::Parameter(name) if !environment
+                            .generic_requirements(name)
+                            .is_some_and(|requirements| requirements.has_copy())))
                 {
                     ownership.ensure_binding_from_environment(
                         &capture.name,
@@ -612,8 +622,10 @@ pub(super) fn check_expression_ownership(
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = expression.operand.as_ref()
                 && let Some(ty) = environment.get(&identifier.name)
-                && (non_copy_owned_type_kind(ty, resolved).is_some()
-                    || matches!(ty, Type::Parameter(_)))
+                && (non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_some()
+                    || matches!(ty, Type::Parameter(name) if !environment
+                        .generic_requirements(name)
+                        .is_some_and(|requirements| requirements.has_copy())))
             {
                 ownership.ensure_binding_from_environment(
                     &identifier.name,

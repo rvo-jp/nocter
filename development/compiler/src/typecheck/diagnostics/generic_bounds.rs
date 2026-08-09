@@ -42,6 +42,40 @@ pub(in crate::typecheck) fn duplicate_generic_bound_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn unknown_callable_requirement_parameter_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0452",
+        format!("callable requirement names unknown generic parameter `{name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "declare the parameter in the callable or its enclosing type, or remove the requirement"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn duplicate_copy_requirement_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    first_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error("E0453", "generic parameter repeats `copy`");
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the first `copy` requirement is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("remove the duplicate `copy` requirement".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn ambiguous_generic_bound_method_diagnostic(
     sources: &SourceMap,
     member_span: ByteSpan,
@@ -128,5 +162,31 @@ pub(in crate::typecheck) fn generic_bound_not_satisfied_diagnostic(
         bound.display(),
         actual.display()
     ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn copy_requirement_not_satisfied_diagnostic(
+    sources: &SourceMap,
+    argument_span: ByteSpan,
+    actual: &Type,
+    requirement_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0458",
+        format!(
+            "type `{}` is not copyable but this call requires `copy`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(argument_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(requirement_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the `copy` requirement is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(
+        "pass a copyable type, or use an operation that transfers or borrows the value".to_string(),
+    );
     diagnostic
 }

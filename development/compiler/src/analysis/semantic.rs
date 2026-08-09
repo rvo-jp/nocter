@@ -21,6 +21,7 @@ pub(crate) enum SemanticTokenKind {
     Type,
     Property,
     Namespace,
+    Keyword,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +115,7 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_test_declarations();
         self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
+        self.collect_generic_requirement_keywords();
         self.collect_editor_targets();
     }
 
@@ -299,6 +301,16 @@ impl SemanticIdentifierCollector<'_> {
         }
     }
 
+    fn collect_generic_requirement_keywords(&mut self) {
+        let mut spans = Vec::new();
+        for item in &self.ast.items {
+            collect_item_generic_requirement_keyword_spans(item, &mut spans);
+        }
+        for span in spans {
+            self.push(span, SemanticTokenKind::Keyword, false, 0);
+        }
+    }
+
     fn push_parameter(&mut self, span: ByteSpan) {
         self.push(
             span,
@@ -380,6 +392,76 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
         SemanticTokenKind::Parameter => 1,
         SemanticTokenKind::Variable => 0,
         SemanticTokenKind::Namespace => 6,
+        SemanticTokenKind::Keyword => 7,
+    }
+}
+
+fn collect_item_generic_requirement_keyword_spans(
+    item: &crate::ast::Item,
+    spans: &mut Vec<ByteSpan>,
+) {
+    fn generics(generics: &crate::ast::GenericParamList, spans: &mut Vec<ByteSpan>) {
+        spans.extend(
+            generics
+                .parameters
+                .iter()
+                .filter_map(|parameter| parameter.copy_span),
+        );
+    }
+    fn clause(clause: Option<&crate::ast::CallableRequirementClause>, spans: &mut Vec<ByteSpan>) {
+        if let Some(clause) = clause {
+            spans.push(clause.keyword_span);
+            spans.extend(
+                clause
+                    .requirements
+                    .iter()
+                    .filter_map(|requirement| requirement.copy_span),
+            );
+        }
+    }
+    fn method(method: &crate::ast::MethodDecl, spans: &mut Vec<ByteSpan>) {
+        generics(&method.generics, spans);
+        clause(method.requirements.as_ref(), spans);
+    }
+    match item {
+        crate::ast::Item::Function(function) => {
+            generics(&function.generics, spans);
+            clause(function.requirements.as_ref(), spans);
+        }
+        crate::ast::Item::Primitive(primitive) => {
+            generics(&primitive.generics, spans);
+            clause(primitive.requirements.as_ref(), spans);
+        }
+        crate::ast::Item::TypeAlias(alias) => generics(&alias.generics, spans),
+        crate::ast::Item::Struct(struct_) => generics(&struct_.generics, spans),
+        crate::ast::Item::Enum(enum_) => generics(&enum_.generics, spans),
+        crate::ast::Item::Interface(interface) => {
+            generics(&interface.generics, spans);
+            for member in &interface.methods {
+                method(member, spans);
+            }
+        }
+        crate::ast::Item::Impl(impl_) => {
+            generics(&impl_.generics, spans);
+            for member in &impl_.members {
+                if let crate::ast::ImplMember::Method(member) = member {
+                    method(member, spans);
+                }
+            }
+        }
+        crate::ast::Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                generics(&function.generics, spans);
+                clause(function.requirements.as_ref(), spans);
+            }
+            for (_, literal) in construct.literals() {
+                clause(literal.requirements.as_ref(), spans);
+            }
+        }
+        crate::ast::Item::Coerce(coerce) => generics(&coerce.generics, spans),
+        crate::ast::Item::Import(_)
+        | crate::ast::Item::FromImport(_)
+        | crate::ast::Item::Test(_) => {}
     }
 }
 
@@ -831,6 +913,29 @@ func main(choice: Choice): i32 {
             identifiers_for_lexeme(text, &identifiers, "_").is_empty(),
             "payload discard should not be classified as an identifier"
         );
+    }
+
+    #[test]
+    fn analysis_classifies_intrinsic_generic_requirement_words_as_keywords() {
+        let text = r#"func duplicate<copy T>(value: T): T where copy T {
+    return value
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let copy_tokens = identifiers_for_lexeme(text, &identifiers, "copy");
+        let where_tokens = identifiers_for_lexeme(text, &identifiers, "where");
+        assert_eq!(copy_tokens.len(), 2);
+        assert!(
+            copy_tokens
+                .iter()
+                .all(|token| token.kind == SemanticTokenKind::Keyword)
+        );
+        assert_eq!(where_tokens.len(), 1);
+        assert_eq!(where_tokens[0].kind, SemanticTokenKind::Keyword);
     }
 
     fn identifiers_for_lexeme<'a>(

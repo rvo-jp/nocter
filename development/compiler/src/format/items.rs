@@ -1,10 +1,11 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, CoerceDecl, CoercionEntry, ConstructDecl, ConstructMember, ConstructMemberDecl,
-    DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList,
-    ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape,
-    MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
-    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
+    AstFile, CallableRequirementClause, CoerceDecl, CoercionEntry, ConstructDecl, ConstructMember,
+    ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
+    GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl,
+    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, PackageFile, Parameter,
+    ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField, TestDecl,
+    TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -131,6 +132,7 @@ impl Formatter {
                 self.write(": ");
                 self.format_type(&function.return_type);
                 self.format_result_provenance(function.result_provenance.as_ref());
+                self.format_callable_requirements(function.requirements.as_ref());
                 if let Some(body) = &function.body {
                     self.write(" ");
                     self.format_block(body);
@@ -158,6 +160,7 @@ impl Formatter {
         self.write("): ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
+        self.format_callable_requirements(item.requirements.as_ref());
         if let Some(body) = &item.body {
             self.write(" ");
             self.format_block(body);
@@ -198,6 +201,7 @@ impl Formatter {
         self.write(": ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
+        self.format_callable_requirements(item.requirements.as_ref());
         if let Some(body) = &item.body {
             self.write(" ");
             self.format_block(body);
@@ -214,6 +218,7 @@ impl Formatter {
         self.write(": ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
+        self.format_callable_requirements(item.requirements.as_ref());
     }
 
     fn format_type_alias_decl(&mut self, item: &TypeAliasDecl) {
@@ -366,6 +371,7 @@ impl Formatter {
         self.write(": ");
         self.format_type(&item.return_type);
         self.format_result_provenance(item.result_provenance.as_ref());
+        self.format_callable_requirements(item.requirements.as_ref());
 
         if let Some(body) = &item.body {
             self.write(" ");
@@ -436,6 +442,9 @@ impl Formatter {
     }
 
     fn format_generic_param(&mut self, parameter: &GenericParam) {
+        if parameter.copy_span.is_some() {
+            self.write("copy ");
+        }
         self.write(&parameter.name);
         if !parameter.bounds.is_empty() {
             self.write(": ");
@@ -444,6 +453,31 @@ impl Formatter {
                     self.write(" + ");
                 }
                 self.format_type(bound);
+            }
+        }
+    }
+
+    fn format_callable_requirements(&mut self, clause: Option<&CallableRequirementClause>) {
+        let Some(clause) = clause else {
+            return;
+        };
+        self.write(" where ");
+        for (index, requirement) in clause.requirements.iter().enumerate() {
+            if index != 0 {
+                self.write(", ");
+            }
+            if requirement.copy_span.is_some() {
+                self.write("copy ");
+            }
+            self.write(&requirement.name);
+            if !requirement.bounds.is_empty() {
+                self.write(": ");
+                for (bound_index, bound) in requirement.bounds.iter().enumerate() {
+                    if bound_index != 0 {
+                        self.write(" + ");
+                    }
+                    self.format_type(bound);
+                }
             }
         }
     }

@@ -671,6 +671,7 @@ pub(crate) enum TypeOccurrenceTarget {
 pub(crate) struct GenericParameterFact {
     pub(crate) name: String,
     pub(crate) span: ByteSpan,
+    pub(crate) is_copy: bool,
     pub(crate) bounds: Vec<TypeExpr>,
 }
 

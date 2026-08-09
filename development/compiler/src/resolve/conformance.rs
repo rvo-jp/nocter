@@ -15,7 +15,7 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
             .generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(GenericRequirements::from_parameter)
             .collect(),
         interface_ty: impl_.interface_ty.clone()?,
         target_ty: impl_.target_ty.clone(),

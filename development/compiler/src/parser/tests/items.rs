@@ -1114,6 +1114,47 @@ fn parses_multiple_generic_interface_bounds() {
 }
 
 #[test]
+fn parses_prefix_copy_generic_requirement() {
+    let output = parse_text(
+        r#"func duplicate<copy T>(value: T): T {
+    return value
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let parameter = &function.generics.parameters[0];
+    assert_eq!(parameter.name, "T");
+    assert!(parameter.copy_span.is_some());
+    assert!(function.requirements.is_none());
+}
+
+#[test]
+fn parses_callable_where_copy_requirement() {
+    let output = parse_text(
+        r#"func duplicate<T>(value: T): T where copy T {
+    return value
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert!(function.generics.parameters[0].copy_span.is_none());
+    let clause = function.requirements.as_ref().expect("where clause");
+    assert_eq!(clause.requirements.len(), 1);
+    assert_eq!(clause.requirements[0].name, "T");
+    assert!(clause.requirements[0].copy_span.is_some());
+}
+
+#[test]
 fn rejects_function_members_in_impl_blocks() {
     let output = parse_text(
         r#"struct Counter {

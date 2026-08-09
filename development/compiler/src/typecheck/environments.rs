@@ -44,6 +44,7 @@ pub(super) fn environment_for_function(
         }
     }
     environment.define_generic_parameter_list(&function.generics);
+    environment.apply_callable_requirements(function.requirements.as_ref());
     define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
     environment
 }
@@ -73,6 +74,7 @@ pub(super) fn environment_for_literal(
     } else {
         environment.define_generic_parameters(generic_names);
     }
+    environment.apply_callable_requirements(literal.requirements.as_ref());
     define_parameters_in_environment(&literal.parameters.parameters, resolved, &mut environment);
     if let Some(capture) = &literal.capture {
         let element_type =
@@ -133,6 +135,7 @@ pub(super) fn environment_for_method(
     let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
     define_impl_generic_parameters(impl_, &mut environment);
     environment.define_generic_parameter_list(&method.generics);
+    environment.apply_callable_requirements(method.requirements.as_ref());
     let receiver = method.receiver.implicit_parameter();
     let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
     environment.define(method.receiver.name.clone(), receiver_type);
@@ -152,6 +155,7 @@ pub(super) fn environment_for_interface_method(
         crate::resolve::GenericRequirements::from_bounds(&[interface_self_bound(interface)]),
     );
     environment.define_generic_parameter_list(&method.generics);
+    environment.apply_callable_requirements(method.requirements.as_ref());
     let receiver = method.receiver.implicit_parameter();
     let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
     environment.define(method.receiver.name.clone(), receiver_type);

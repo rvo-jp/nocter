@@ -6,6 +6,7 @@ mod coercions;
 mod collection_for;
 mod constructs;
 mod documentation;
+mod generic_requirements;
 mod json;
 mod literals;
 mod packages;
@@ -21,6 +22,7 @@ pub use closures::*;
 pub use coercions::*;
 pub use collection_for::*;
 pub use constructs::*;
+pub use generic_requirements::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
 pub use packages::*;
@@ -138,6 +140,7 @@ pub struct FunctionDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
+    pub requirements: Option<CallableRequirementClause>,
     pub body: Option<Block>,
 }
 
@@ -159,6 +162,7 @@ pub struct PrimitiveDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
+    pub requirements: Option<CallableRequirementClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -265,21 +269,8 @@ pub struct MethodDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
+    pub requirements: Option<CallableRequirementClause>,
     pub body: Option<Block>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenericParamList {
-    pub span: Option<ByteSpan>,
-    pub parameters: Vec<GenericParam>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenericParam {
-    pub span: ByteSpan,
-    pub name: String,
-    pub name_span: ByteSpan,
-    pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -840,15 +831,6 @@ impl ImportedName {
             .as_ref()
             .map(|alias| alias.span)
             .unwrap_or(self.name_span)
-    }
-}
-
-impl GenericParamList {
-    pub fn empty() -> Self {
-        Self {
-            span: None,
-            parameters: Vec::new(),
-        }
     }
 }
 

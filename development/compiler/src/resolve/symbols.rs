@@ -562,6 +562,7 @@ pub enum SymbolKind {
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
     pub generic_parameter_requirements: Vec<GenericRequirements>,
+    pub callable_requirements: Option<crate::ast::CallableRequirementClause>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,

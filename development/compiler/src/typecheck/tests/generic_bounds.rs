@@ -1,6 +1,97 @@
 use super::check_text;
 
 #[test]
+fn accepts_copy_requirement_in_generic_body_and_at_copyable_call_site() {
+    let diagnostics = check_text(
+        r#"func duplicate<copy T>(value: T): [T; 2] {
+    return [value, value]
+}
+
+func main(): i32 {
+    let values = duplicate(7)
+    return values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_where_copy_requirement_for_an_enclosing_type_parameter() {
+    let diagnostics = check_text(
+        r#"struct Pair<T> {
+    pub first: T,
+    pub second: T,
+}
+
+construct Pair<T> {
+    pub func duplicate(value: T): Self where copy T {
+        return Pair<T> { first: value, second: value }
+    }
+}
+
+func main(): i32 {
+    let pair = Pair.duplicate(7)
+    return pair.second
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_non_copy_type_at_copy_required_call() {
+    let diagnostics = check_text(
+        r#"struct Resource {
+    value: i32
+}
+
+func duplicate<copy T>(value: T): [T; 2] {
+    return [value, value]
+}
+
+func main(): i32 {
+    let resource = Resource { value: 7 }
+    let values = duplicate(move resource)
+    return values[0].value
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0458"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_unknown_and_duplicate_where_copy_requirements() {
+    let diagnostics = check_text(
+        r#"func duplicate<copy T>(value: T): T where copy T, copy Missing {
+    return value
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0452"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0453"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn accepts_builtin_readonly_callable_bound_and_direct_invocation() {
     let diagnostics = check_text(
         r#"func invoke<F: &func(i32): i32>(callback: F, value: i32): i32 {

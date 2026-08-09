@@ -1,6 +1,6 @@
 //! Protocol resolution and semantic planning for collection `for` statements.
 
-use super::copyability::non_copy_owned_type_kind;
+use super::copyability::non_copy_owned_type_kind_in_environment;
 use super::expressions::expression_type;
 use super::interface_bounds::{
     implemented_interface_types, interface_symbols_for_generic_parameter,
@@ -138,7 +138,7 @@ pub(super) fn resolve_sequence_spread(
         SequenceSpreadMode::Readonly | SequenceSpreadMode::Move => iteration.item_type.clone(),
     };
     if mode == SequenceSpreadMode::Copy
-        && non_copy_owned_type_kind(&pack_item_type, resolved).is_some()
+        && non_copy_owned_type_kind_in_environment(&pack_item_type, resolved, environment).is_some()
     {
         return Err(CollectionIterationError::CopyRequiresCopy(pack_item_type));
     }

@@ -5,6 +5,7 @@ mod collection_for;
 mod constructs;
 mod cursor;
 mod expressions;
+mod generic_requirements;
 mod items;
 mod literals;
 mod regions;

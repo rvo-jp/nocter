@@ -13,6 +13,7 @@ pub(crate) struct CallablePresentation {
     parameters: Vec<String>,
     return_type: String,
     result_origins: Vec<String>,
+    requirements: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +66,7 @@ impl CallablePresentation {
         parameters: Vec<String>,
         return_type: impl Into<String>,
         result_origins: Vec<String>,
+        requirements: Vec<String>,
     ) -> Self {
         Self {
             kind: kind.into(),
@@ -73,6 +75,7 @@ impl CallablePresentation {
             parameters,
             return_type: return_type.into(),
             result_origins,
+            requirements,
         }
     }
 
@@ -87,8 +90,13 @@ impl CallablePresentation {
         } else {
             format!(" from {}", self.result_origins.join(" | "))
         };
+        let requirements = if self.requirements.is_empty() {
+            String::new()
+        } else {
+            format!(" where {}", self.requirements.join(", "))
+        };
         format!(
-            "{} {}{generics}({}): {}{origins}",
+            "{} {}{generics}({}): {}{origins}{requirements}",
             self.kind,
             self.name,
             self.parameters.join(", "),
@@ -114,14 +122,28 @@ pub(crate) fn callable_signature_presentation(
             if requirements.is_empty() {
                 return parameter.clone();
             }
-            format!(
-                "{parameter}: {}",
-                requirements
-                    .type_bounds()
-                    .map(|bound| type_expr_presentation_label(bound, resolved))
-                    .collect::<Vec<_>>()
-                    .join(" + ")
-            )
+            let clause_has_copy_span = signature
+                .callable_requirements
+                .as_ref()
+                .into_iter()
+                .flat_map(|clause| &clause.requirements)
+                .filter(|requirement| requirement.name == *parameter)
+                .filter_map(|requirement| requirement.copy_span)
+                .any(|span| Some(span) == requirements.copy_span());
+            let prefix = if requirements.has_copy() && !clause_has_copy_span {
+                "copy "
+            } else {
+                ""
+            };
+            let bounds = requirements
+                .type_bounds()
+                .map(|bound| type_expr_presentation_label(bound, resolved))
+                .collect::<Vec<_>>();
+            if bounds.is_empty() {
+                format!("{prefix}{parameter}")
+            } else {
+                format!("{prefix}{parameter}: {}", bounds.join(" + "))
+            }
         })
         .collect();
     let parameters = signature
@@ -142,6 +164,7 @@ pub(crate) fn callable_signature_presentation(
         parameters,
         type_expr_presentation_label(&signature.return_type, resolved),
         result_origin_labels(signature.result_provenance.as_ref()),
+        callable_requirement_labels(signature.callable_requirements.as_ref(), resolved),
     )
 }
 
@@ -262,7 +285,35 @@ pub(crate) fn method_presentation_with_substitutions(
         parameters,
         type_expr_presentation_label(&return_type, resolved),
         result_origin_labels(method.signature.result_provenance.as_ref()),
+        callable_requirement_labels(method.signature.callable_requirements.as_ref(), resolved),
     )
+}
+
+pub(crate) fn callable_requirement_labels(
+    clause: Option<&crate::ast::CallableRequirementClause>,
+    resolved: &ResolveOutput,
+) -> Vec<String> {
+    clause
+        .into_iter()
+        .flat_map(|clause| &clause.requirements)
+        .map(|requirement| {
+            let prefix = if requirement.copy_span.is_some() {
+                "copy "
+            } else {
+                ""
+            };
+            let bounds = requirement
+                .bounds
+                .iter()
+                .map(|bound| type_expr_presentation_label(bound, resolved))
+                .collect::<Vec<_>>();
+            if bounds.is_empty() {
+                format!("{prefix}{}", requirement.name)
+            } else {
+                format!("{prefix}{}: {}", requirement.name, bounds.join(" + "))
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn drop_presentation(drop_: &DropSignature, resolved: &ResolveOutput) -> String {

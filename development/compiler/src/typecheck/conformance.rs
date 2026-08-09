@@ -111,6 +111,9 @@ fn specialize_conformance(
         .zip(&conformance.generic_parameter_requirements)
     {
         let parameter_type = substitutions.get(parameter)?;
+        if bounds.has_copy() && !super::copyability::type_is_copy(parameter_type, resolved) {
+            return None;
+        }
         for bound in bounds.type_bounds() {
             let bound_type =
                 type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);

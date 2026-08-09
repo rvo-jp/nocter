@@ -218,6 +218,7 @@ pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
         &function.parameters.parameters,
         function.return_type.clone(),
         function.result_provenance.clone(),
+        function.requirements.as_ref(),
     )
 }
 
@@ -227,6 +228,7 @@ pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignatur
         &primitive.parameters.parameters,
         primitive.return_type.clone(),
         primitive.result_provenance.clone(),
+        primitive.requirements.as_ref(),
     )
 }
 
@@ -244,7 +246,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(GenericRequirements::from_parameter)
             .collect(),
         generic_arity: alias.generics.parameters.len(),
         is_copy: false,
@@ -275,7 +277,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(GenericRequirements::from_parameter)
             .collect(),
         generic_arity: interface.generics.parameters.len(),
         is_copy: false,
@@ -314,7 +316,7 @@ pub(super) fn struct_type_symbol(
             .generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(GenericRequirements::from_parameter)
             .collect(),
         generic_arity: struct_.generics.parameters.len(),
         is_copy,
@@ -364,7 +366,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(GenericRequirements::from_parameter)
             .collect(),
         generic_arity: enum_.generics.parameters.len(),
         is_copy: false,
@@ -427,6 +429,7 @@ fn method_signature_inner(
             &method.parameters.parameters,
             method.return_type.clone(),
             method.result_provenance.clone(),
+            method.requirements.as_ref(),
         ),
     }
 }
@@ -437,20 +440,27 @@ fn method_callable_signature(
     parameters: &[Parameter],
     return_type: TypeExpr,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
+    requirements: Option<&crate::ast::CallableRequirementClause>,
 ) -> FunctionSignature {
+    let generic_parameters = owner_generics
+        .parameters
+        .iter()
+        .chain(&method_generics.parameters)
+        .collect::<Vec<_>>();
     FunctionSignature {
-        generic_parameters: owner_generics
-            .parameters
+        generic_parameters: generic_parameters
             .iter()
-            .chain(&method_generics.parameters)
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_requirements: owner_generics
-            .parameters
+        generic_parameter_requirements: generic_parameters
             .iter()
-            .chain(&method_generics.parameters)
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(|parameter| {
+                let mut resolved = GenericRequirements::from_parameter(parameter);
+                resolved.extend_from_clause(&parameter.name, requirements);
+                resolved
+            })
             .collect(),
+        callable_requirements: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
         result_provenance,
@@ -462,6 +472,7 @@ fn callable_signature(
     parameters: &[Parameter],
     return_type: TypeExpr,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
+    requirements: Option<&crate::ast::CallableRequirementClause>,
 ) -> FunctionSignature {
     FunctionSignature {
         generic_parameters: generics
@@ -472,8 +483,13 @@ fn callable_signature(
         generic_parameter_requirements: generics
             .parameters
             .iter()
-            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
+            .map(|parameter| {
+                let mut resolved = GenericRequirements::from_parameter(parameter);
+                resolved.extend_from_clause(&parameter.name, requirements);
+                resolved
+            })
             .collect(),
+        callable_requirements: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
         result_provenance,

@@ -1,12 +1,12 @@
 use super::coercions::{SelectedCoercion, receiver_coercion_candidates};
-use super::copyability::implicit_non_copy_owned_value_source;
+use super::copyability::{implicit_non_copy_owned_value_source, type_is_copy_in_environment};
 use super::diagnostics::{
     ambiguous_concrete_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
     associated_function_unknown_diagnostic, closure_callable_contract_diagnostic,
-    field_called_as_method_diagnostic, generic_bound_not_satisfied_diagnostic,
-    method_readwrite_receiver_requires_var_diagnostic, method_unknown_diagnostic,
-    non_copy_struct_argument_diagnostic,
+    copy_requirement_not_satisfied_diagnostic, field_called_as_method_diagnostic,
+    generic_bound_not_satisfied_diagnostic, method_readwrite_receiver_requires_var_diagnostic,
+    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
@@ -615,6 +615,19 @@ fn check_generic_interface_bounds(
         let Some(actual) = substitutions.get(parameter) else {
             continue;
         };
+        if let Some(requirement_span) = bounds.copy_span()
+            && !type_is_copy_in_environment(actual, resolved, environment)
+        {
+            let span =
+                generic_argument_evidence_span(call, &signature.signature.parameters, parameter)
+                    .unwrap_or(call.span);
+            diagnostics.push(copy_requirement_not_satisfied_diagnostic(
+                sources,
+                span,
+                actual,
+                requirement_span,
+            ));
+        }
         for bound in bounds.type_bounds() {
             let bound_type = match bound {
                 TypeExpr::Callable(_) => {

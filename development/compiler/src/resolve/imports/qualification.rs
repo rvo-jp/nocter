@@ -256,6 +256,13 @@ fn qualify_function_signature(
             }
         }
     }
+    if let Some(clause) = &mut signature.callable_requirements {
+        for requirement in &mut clause.requirements {
+            for bound in &mut requirement.bounds {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
+        }
+    }
     for parameter in &mut signature.parameters {
         qualify_parameter_signature(
             parameter,

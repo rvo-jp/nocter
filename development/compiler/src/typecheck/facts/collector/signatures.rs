@@ -42,11 +42,13 @@ impl TypecheckFactCollector<'_> {
                 self.collect_generic_param_type_references(&function.generics);
                 self.collect_parameter_type_references(&function.parameters.parameters);
                 self.collect_type_expr_references(&function.return_type);
+                self.collect_callable_requirement_type_references(function.requirements.as_ref());
             }
             Item::Primitive(primitive) => {
                 self.collect_generic_param_type_references(&primitive.generics);
                 self.collect_parameter_type_references(&primitive.parameters.parameters);
                 self.collect_type_expr_references(&primitive.return_type);
+                self.collect_callable_requirement_type_references(primitive.requirements.as_ref());
             }
             Item::TypeAlias(alias) => {
                 self.collect_generic_param_type_references(&alias.generics);
@@ -97,6 +99,9 @@ impl TypecheckFactCollector<'_> {
                         collector
                             .collect_parameter_type_references(&function.parameters.parameters);
                         collector.collect_type_expr_references(&function.return_type);
+                        collector.collect_callable_requirement_type_references(
+                            function.requirements.as_ref(),
+                        );
                     });
                 }
                 for (_, literal) in construct.literals() {
@@ -105,6 +110,9 @@ impl TypecheckFactCollector<'_> {
                         self.collect_type_expr_references(&capture.element_type);
                     }
                     self.collect_type_expr_references(&literal.return_type);
+                    self.collect_callable_requirement_type_references(
+                        literal.requirements.as_ref(),
+                    );
                 }
             }
             Item::Coerce(coerce) => {
@@ -124,6 +132,26 @@ impl TypecheckFactCollector<'_> {
         self.collect_generic_param_type_references(&method.generics);
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
+        self.collect_callable_requirement_type_references(method.requirements.as_ref());
+    }
+
+    fn collect_callable_requirement_type_references(
+        &mut self,
+        clause: Option<&crate::ast::CallableRequirementClause>,
+    ) {
+        for requirement in clause.into_iter().flat_map(|clause| &clause.requirements) {
+            self.record_type_reference(
+                &requirement.name,
+                requirement.name_span,
+                TypeExpr::Reference(TypeReference {
+                    span: requirement.name_span,
+                    name: requirement.name.clone(),
+                }),
+            );
+            for bound in &requirement.bounds {
+                self.collect_type_expr_references(bound);
+            }
+        }
     }
 
     pub(in crate::typecheck::facts::collector) fn collect_generic_param_type_references(

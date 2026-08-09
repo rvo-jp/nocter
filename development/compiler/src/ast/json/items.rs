@@ -43,6 +43,9 @@ impl Item {
                 if let Some(provenance) = &item.result_provenance {
                     children.push(provenance.to_json(sources));
                 }
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
+                }
                 if let Some(body) = &item.body {
                     children.push(body.to_json(sources));
                 }
@@ -69,6 +72,9 @@ impl Item {
                 ]);
                 if let Some(provenance) = &item.result_provenance {
                     children.push(provenance.to_json(sources));
+                }
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
                 }
                 JsonAstNode::with_value(
                     "primitive_decl",
@@ -174,6 +180,9 @@ impl Item {
                             if let Some(provenance) = &function.result_provenance {
                                 member_children.push(provenance.to_json(sources));
                             }
+                            if let Some(requirements) = &function.requirements {
+                                member_children.push(requirements.to_json(sources));
+                            }
                             if let Some(body) = &function.body {
                                 member_children.push(body.to_json(sources));
                             }
@@ -208,6 +217,9 @@ impl Item {
                             ]);
                             if let Some(provenance) = &literal.result_provenance {
                                 member_children.push(provenance.to_json(sources));
+                            }
+                            if let Some(requirements) = &literal.requirements {
+                                member_children.push(requirements.to_json(sources));
                             }
                             if let Some(body) = &literal.body {
                                 member_children.push(body.to_json(sources));
@@ -351,16 +363,57 @@ impl GenericParamList {
 
 impl GenericParam {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        let children = self
+        let mut children = self
             .bounds
             .iter()
             .map(|bound| bound.to_json(sources))
-            .collect();
+            .collect::<Vec<_>>();
+        if let Some(span) = self.copy_span {
+            children.insert(
+                0,
+                JsonAstNode::new("copy_requirement", json_span(sources, span), Vec::new()),
+            );
+        }
         JsonAstNode::with_value(
             "generic_param",
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl CallableRequirementClause {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::new(
+            "callable_requirement_clause",
+            json_span(sources, self.span),
+            self.requirements
+                .iter()
+                .map(|requirement| {
+                    let mut children = requirement
+                        .bounds
+                        .iter()
+                        .map(|bound| bound.to_json(sources))
+                        .collect::<Vec<_>>();
+                    if let Some(span) = requirement.copy_span {
+                        children.insert(
+                            0,
+                            JsonAstNode::new(
+                                "copy_requirement",
+                                json_span(sources, span),
+                                Vec::new(),
+                            ),
+                        );
+                    }
+                    JsonAstNode::with_value(
+                        "generic_requirement",
+                        requirement.name.clone(),
+                        json_span(sources, requirement.span),
+                        children,
+                    )
+                })
+                .collect(),
         )
     }
 }
@@ -390,6 +443,9 @@ impl MethodDecl {
         ];
         if let Some(provenance) = &self.result_provenance {
             children.push(provenance.to_json(sources));
+        }
+        if let Some(requirements) = &self.requirements {
+            children.push(requirements.to_json(sources));
         }
         if let Some(body) = &self.body {
             children.push(body.to_json(sources));

@@ -58,6 +58,7 @@ impl CoercionEntry {
             },
             return_type: self.target.clone(),
             result_provenance: self.result_provenance.clone(),
+            requirements: None,
             body: self.body.clone(),
         }
     }

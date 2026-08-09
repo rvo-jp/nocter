@@ -171,7 +171,7 @@ fn empty_builtin_symbol(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> TypeSymbol
             .generics
             .parameters
             .iter()
-            .map(|parameter| super::GenericRequirements::from_bounds(&parameter.bounds))
+            .map(super::GenericRequirements::from_parameter)
             .collect(),
         generic_arity: impl_.generics.parameters.len(),
         is_copy: false,

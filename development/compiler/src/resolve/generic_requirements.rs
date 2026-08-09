@@ -5,7 +5,7 @@
 //! from arbitrary type syntax. Nominal requirements remain subject to interface validation during
 //! type checking; preserving that invalid form lets diagnostics point at the authored bound.
 
-use crate::ast::TypeExpr;
+use crate::ast::{CallableRequirementClause, GenericParam, TypeExpr};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +62,46 @@ impl GenericRequirements {
         }
     }
 
+    pub fn from_parameter(parameter: &GenericParam) -> Self {
+        let mut requirements = parameter
+            .copy_span
+            .map(|span| vec![GenericRequirement::Copy { span }])
+            .unwrap_or_default();
+        requirements.extend(
+            parameter
+                .bounds
+                .iter()
+                .cloned()
+                .map(GenericRequirement::from_type_expr),
+        );
+        Self { requirements }
+    }
+
+    pub fn extend_from_clause(
+        &mut self,
+        parameter: &str,
+        clause: Option<&CallableRequirementClause>,
+    ) {
+        let Some(clause) = clause else {
+            return;
+        };
+        for authored in &clause.requirements {
+            if authored.name != parameter {
+                continue;
+            }
+            if let Some(span) = authored.copy_span {
+                self.requirements.push(GenericRequirement::Copy { span });
+            }
+            self.requirements.extend(
+                authored
+                    .bounds
+                    .iter()
+                    .cloned()
+                    .map(GenericRequirement::from_type_expr),
+            );
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.requirements.is_empty()
     }
@@ -72,6 +112,10 @@ impl GenericRequirements {
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut GenericRequirement> {
         self.requirements.iter_mut()
+    }
+
+    pub fn push(&mut self, requirement: GenericRequirement) {
+        self.requirements.push(requirement);
     }
 
     pub fn type_bounds(&self) -> impl Iterator<Item = &TypeExpr> {
@@ -93,5 +137,14 @@ impl GenericRequirements {
         self.requirements
             .iter()
             .any(|requirement| matches!(requirement, GenericRequirement::Copy { .. }))
+    }
+
+    pub fn copy_span(&self) -> Option<ByteSpan> {
+        self.requirements
+            .iter()
+            .find_map(|requirement| match requirement {
+                GenericRequirement::Copy { span } => Some(*span),
+                GenericRequirement::Nominal(_) | GenericRequirement::Callable(_) => None,
+            })
     }
 }

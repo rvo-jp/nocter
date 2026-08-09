@@ -1,14 +1,15 @@
 use super::diagnostics::{
-    duplicate_callable_parameter_name_diagnostic, duplicate_generic_bound_diagnostic,
-    generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
-    invalid_callable_provenance_origin_diagnostic, multiple_callable_bounds_diagnostic,
-    self_type_outside_context_diagnostic, unresolved_type_reference_diagnostic,
+    duplicate_callable_parameter_name_diagnostic, duplicate_copy_requirement_diagnostic,
+    duplicate_generic_bound_diagnostic, generic_bound_not_interface_diagnostic,
+    generic_type_argument_count_diagnostic, invalid_callable_provenance_origin_diagnostic,
+    multiple_callable_bounds_diagnostic, self_type_outside_context_diagnostic,
+    unknown_callable_requirement_parameter_diagnostic, unresolved_type_reference_diagnostic,
 };
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{
-    AstFile, Block, Expr, GenericParamList, ImplMember, InterpolatedStringPart, Item, MethodDecl,
-    Parameter, Stmt, TypeExpr,
+    AstFile, Block, CallableRequirementClause, Expr, GenericParam, GenericParamList, ImplMember,
+    InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -30,6 +31,13 @@ pub(super) fn check_generic_type_arities(
                     GenericScope::new(&function.generics)
                 };
                 check_generic_bounds(sources, &function.generics, resolved, &scope, diagnostics);
+                check_callable_requirements(
+                    sources,
+                    function.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 check_parameters(
                     sources,
                     &function.parameters.parameters,
@@ -64,6 +72,13 @@ pub(super) fn check_generic_type_arities(
             Item::Primitive(primitive) => {
                 let scope = GenericScope::new(&primitive.generics);
                 check_generic_bounds(sources, &primitive.generics, resolved, &scope, diagnostics);
+                check_callable_requirements(
+                    sources,
+                    primitive.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 check_parameters(
                     sources,
                     &primitive.parameters.parameters,
@@ -125,6 +140,13 @@ pub(super) fn check_generic_type_arities(
                     check_generic_bounds(
                         sources,
                         &function.generics,
+                        resolved,
+                        &scope,
+                        diagnostics,
+                    );
+                    check_callable_requirements(
+                        sources,
+                        function.requirements.as_ref(),
                         resolved,
                         &scope,
                         diagnostics,
@@ -263,9 +285,121 @@ fn check_generic_bounds(
     }
 }
 
+fn check_callable_requirements(
+    sources: &SourceMap,
+    clause: Option<&CallableRequirementClause>,
+    resolved: &ResolveOutput,
+    scope: &GenericScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(clause) = clause else {
+        return;
+    };
+    let substitutions = scope
+        .parameters
+        .keys()
+        .map(|name| ((*name).to_string(), Type::Parameter((*name).to_string())))
+        .collect();
+    let mut seen_copy = scope
+        .parameters
+        .iter()
+        .filter_map(|(name, parameter)| parameter.copy_span.map(|span| (*name, span)))
+        .collect::<HashMap<_, _>>();
+    let mut seen_bounds = scope
+        .parameters
+        .iter()
+        .map(|(name, parameter)| {
+            let bounds = parameter
+                .bounds
+                .iter()
+                .map(|bound| {
+                    (
+                        type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions)
+                            .display(),
+                        bound.span(),
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            (*name, bounds)
+        })
+        .collect::<HashMap<_, _>>();
+    let mut callable_bound_spans = scope
+        .parameters
+        .iter()
+        .filter_map(|(name, parameter)| {
+            parameter
+                .bounds
+                .iter()
+                .find(|bound| matches!(bound, TypeExpr::Callable(_)))
+                .map(|bound| (*name, bound.span()))
+        })
+        .collect::<HashMap<_, _>>();
+
+    for requirement in &clause.requirements {
+        let Some(_) = scope.parameters.get(requirement.name.as_str()) else {
+            diagnostics.push(unknown_callable_requirement_parameter_diagnostic(
+                sources,
+                &requirement.name,
+                requirement.name_span,
+            ));
+            for bound in &requirement.bounds {
+                check_type_expr(sources, bound, resolved, scope, diagnostics);
+            }
+            continue;
+        };
+        if let Some(copy_span) = requirement.copy_span
+            && let Some(first_span) = seen_copy.insert(requirement.name.as_str(), copy_span)
+        {
+            diagnostics.push(duplicate_copy_requirement_diagnostic(
+                sources, copy_span, first_span,
+            ));
+        }
+        for bound in &requirement.bounds {
+            check_type_expr(sources, bound, resolved, scope, diagnostics);
+            let bound_type =
+                type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
+            if bound_type.is_unknown_or_unresolved() {
+                continue;
+            }
+            let is_interface_or_callable = matches!(bound_type, Type::Callable(_))
+                || bound_type
+                    .nominal_name()
+                    .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+                    .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
+            if !is_interface_or_callable {
+                diagnostics.push(generic_bound_not_interface_diagnostic(
+                    sources,
+                    bound,
+                    &bound_type,
+                ));
+                continue;
+            }
+            if matches!(bound_type, Type::Callable(_))
+                && let Some(first_span) =
+                    callable_bound_spans.insert(requirement.name.as_str(), bound.span())
+            {
+                diagnostics.push(multiple_callable_bounds_diagnostic(
+                    sources,
+                    bound.span(),
+                    first_span,
+                ));
+            }
+            let parameter_bounds = seen_bounds.entry(requirement.name.as_str()).or_default();
+            if let Some(first_span) = parameter_bounds.insert(bound_type.display(), bound.span()) {
+                diagnostics.push(duplicate_generic_bound_diagnostic(
+                    sources,
+                    bound,
+                    &bound_type,
+                    first_span,
+                ));
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct GenericScope<'a> {
-    parameters: HashMap<&'a str, ByteSpan>,
+    parameters: HashMap<&'a str, &'a GenericParam>,
     allows_self_type: bool,
 }
 
@@ -275,7 +409,7 @@ impl<'a> GenericScope<'a> {
             parameters: generics
                 .parameters
                 .iter()
-                .map(|parameter| (parameter.name.as_str(), parameter.name_span))
+                .map(|parameter| (parameter.name.as_str(), parameter))
                 .collect(),
             allows_self_type: false,
         }
@@ -291,7 +425,7 @@ impl<'a> GenericScope<'a> {
             generics
                 .parameters
                 .iter()
-                .map(|parameter| (parameter.name.as_str(), parameter.name_span)),
+                .map(|parameter| (parameter.name.as_str(), parameter)),
         );
         self
     }
@@ -305,7 +439,9 @@ impl<'a> GenericScope<'a> {
     }
 
     fn parameter_span(&self, name: &str) -> Option<ByteSpan> {
-        self.parameters.get(name).copied()
+        self.parameters
+            .get(name)
+            .map(|parameter| parameter.name_span)
     }
 }
 
@@ -316,6 +452,13 @@ fn check_method_signature(
     scope: &GenericScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    check_callable_requirements(
+        sources,
+        method.requirements.as_ref(),
+        resolved,
+        scope,
+        diagnostics,
+    );
     check_parameters(
         sources,
         &method.parameters.parameters,

@@ -239,6 +239,7 @@ fn signature_info_for_call(
             .collect(),
         return_label,
         crate::analysis::presentation::result_origin_labels(result_provenance),
+        Vec::new(),
     )
     .render();
 
@@ -301,6 +302,10 @@ fn callable_value_signature_info(
             .collect(),
         return_label,
         crate::analysis::presentation::result_origin_labels(signature.result_provenance.as_ref()),
+        crate::analysis::presentation::callable_requirement_labels(
+            signature.callable_requirements.as_ref(),
+            &file.resolved,
+        ),
     )
     .render();
     Some(SignatureHelpInfo {

@@ -254,6 +254,7 @@ impl Parser<'_> {
                 return Err(());
             }
 
+            let copy_span = self.match_identifier_text("copy").map(|token| token.span);
             let parameter = self.expect_name_identifier("expected generic parameter name")?;
             let mut bounds = Vec::new();
             if self.match_punctuation(":").is_some() {
@@ -268,7 +269,11 @@ impl Parser<'_> {
                 .last()
                 .map_or(parameter.span.end, |bound| bound.span().end);
             parameters.push(GenericParam {
-                span: self.span(parameter.span.start, end),
+                span: self.span(
+                    copy_span.map_or(parameter.span.start, |span| span.start),
+                    end,
+                ),
+                copy_span,
                 name: parameter.value,
                 name_span: parameter.span,
                 bounds,

@@ -31,6 +31,28 @@ fn completion_candidates_include_keywords_and_symbols() {
 }
 
 #[test]
+fn copy_completion_is_scoped_to_generic_requirements() {
+    let text = r#"func duplicate<T>(value: T): T {
+    return value
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let generic_offset = text.find("<T").expect("generic list") + 1;
+    let body_offset = text.find("return").expect("body");
+
+    let generic_items = completion_items_for_file_analysis_at_offset(file, generic_offset);
+    let body_items = completion_items_for_file_analysis_at_offset(file, body_offset);
+    assert!(
+        generic_items
+            .iter()
+            .any(|item| { item.label == "copy" && item.kind == CompletionItemKind::Keyword })
+    );
+    assert!(!body_items.iter().any(|item| item.label == "copy"));
+    assert!(sources.get(file.ast.span.source).is_some());
+}
+
+#[test]
 fn completion_candidates_offer_declared_literal_shapes_after_target() {
     let text = r#"struct Bucket<T> { length: usize }
 

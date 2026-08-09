@@ -35,7 +35,7 @@ use members::{
     struct_literal_field_completion_items,
 };
 
-const CONTEXTUAL_COMPLETION_KEYWORDS: &[&str] = &["from"];
+const CONTEXTUAL_COMPLETION_KEYWORDS: &[&str] = &["from", "copy"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
@@ -107,7 +107,71 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         visible_scoped_import_spans_at_offset(&file.ast, offset),
         &local_names,
     ));
+    if !copy_requirement_completion_is_allowed(&file.ast, offset) {
+        items.retain(|item| item.label != "copy");
+    }
     items
+}
+
+fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool {
+    fn generics(generics: &crate::ast::GenericParamList, offset: usize) -> bool {
+        generics
+            .span
+            .is_some_and(|span| span.start <= offset && offset <= span.end)
+            && !generics.parameters.iter().any(|parameter| {
+                parameter.copy_span.is_some()
+                    && parameter.span.start <= offset
+                    && offset <= parameter.span.end
+            })
+    }
+    fn clause(clause: Option<&crate::ast::CallableRequirementClause>, offset: usize) -> bool {
+        clause.is_some_and(|clause| {
+            clause.span.start <= offset
+                && offset <= clause.span.end
+                && !clause.requirements.iter().any(|requirement| {
+                    requirement.copy_span.is_some()
+                        && requirement.span.start <= offset
+                        && offset <= requirement.span.end
+                })
+        })
+    }
+    fn method(method: &crate::ast::MethodDecl, offset: usize) -> bool {
+        generics(&method.generics, offset) || clause(method.requirements.as_ref(), offset)
+    }
+    ast.items.iter().any(|item| match item {
+        Item::Function(function) => {
+            generics(&function.generics, offset) || clause(function.requirements.as_ref(), offset)
+        }
+        Item::Primitive(primitive) => {
+            generics(&primitive.generics, offset) || clause(primitive.requirements.as_ref(), offset)
+        }
+        Item::TypeAlias(alias) => generics(&alias.generics, offset),
+        Item::Struct(struct_) => generics(&struct_.generics, offset),
+        Item::Enum(enum_) => generics(&enum_.generics, offset),
+        Item::Interface(interface) => {
+            generics(&interface.generics, offset)
+                || interface
+                    .methods
+                    .iter()
+                    .any(|member| method(member, offset))
+        }
+        Item::Impl(impl_) => {
+            generics(&impl_.generics, offset)
+                || impl_.members.iter().any(
+                    |member| matches!(member, ImplMember::Method(member) if method(member, offset)),
+                )
+        }
+        Item::Construct(construct) => {
+            construct.functions().any(|(_, function)| {
+                generics(&function.generics, offset)
+                    || clause(function.requirements.as_ref(), offset)
+            }) || construct
+                .literals()
+                .any(|(_, literal)| clause(literal.requirements.as_ref(), offset))
+        }
+        Item::Coerce(coerce) => generics(&coerce.generics, offset),
+        Item::Import(_) | Item::FromImport(_) | Item::Test(_) => false,
+    })
 }
 
 pub(crate) fn literal_shape_completion_items_for_file_analysis_at_offset(

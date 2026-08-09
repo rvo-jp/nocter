@@ -48,6 +48,7 @@ pub(crate) fn ast_function_presentation(function: &FunctionDecl) -> String {
         &function.parameters.parameters,
         &function.return_type,
         function.result_provenance.as_ref(),
+        function.requirements.as_ref(),
     )
 }
 
@@ -59,6 +60,7 @@ pub(crate) fn ast_primitive_presentation(primitive: &PrimitiveDecl) -> String {
         &primitive.parameters.parameters,
         &primitive.return_type,
         primitive.result_provenance.as_ref(),
+        primitive.requirements.as_ref(),
     )
 }
 
@@ -74,6 +76,7 @@ pub(crate) fn ast_method_presentation(method: &MethodDecl) -> String {
         &method.parameters.parameters,
         &method.return_type,
         method.result_provenance.as_ref(),
+        method.requirements.as_ref(),
     )
 }
 
@@ -147,6 +150,7 @@ fn callable(
     parameters: &[Parameter],
     return_type: &crate::ast::TypeExpr,
     result_provenance: Option<&crate::ast::ResultProvenanceClause>,
+    requirements: Option<&crate::ast::CallableRequirementClause>,
 ) -> String {
     CallablePresentation::new(
         kind,
@@ -155,16 +159,42 @@ fn callable(
         ast_parameter_labels(parameters),
         crate::ast::canonical_type_expr(return_type),
         super::result_origin_labels(result_provenance),
+        requirements
+            .into_iter()
+            .flat_map(|clause| &clause.requirements)
+            .map(|requirement| {
+                let copy = if requirement.copy_span.is_some() {
+                    "copy "
+                } else {
+                    ""
+                };
+                let bounds = requirement
+                    .bounds
+                    .iter()
+                    .map(crate::ast::canonical_type_expr)
+                    .collect::<Vec<_>>();
+                if bounds.is_empty() {
+                    format!("{copy}{}", requirement.name)
+                } else {
+                    format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
+                }
+            })
+            .collect(),
     )
     .render()
 }
 
 fn generic_label(parameter: &GenericParam) -> String {
+    let copy = if parameter.copy_span.is_some() {
+        "copy "
+    } else {
+        ""
+    };
     if parameter.bounds.is_empty() {
-        return parameter.name.clone();
+        return format!("{copy}{}", parameter.name);
     }
     format!(
-        "{}: {}",
+        "{copy}{}: {}",
         parameter.name,
         parameter
             .bounds
