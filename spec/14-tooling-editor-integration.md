@@ -86,7 +86,8 @@ ranges.
 
 Hover and signature help render normalized compiler declarations, not raw source excerpts. They
 preserve specialized generic arguments, every interface bound, callable capability, outcome layers,
-and source-visible result provenance supplied by analysis. Compiler-owned execution allocation and
+intrinsic `copy` requirements, callable `where` clauses, and source-visible result provenance
+supplied by analysis. Compiler-owned execution allocation and
 fresh-result storage do not appear as signature prose.
 
 Declaration owners are shown when they disambiguate a member. Construction hover presents the
@@ -98,6 +99,7 @@ inaccessible members are absent.
 Completion follows lexical scope, visibility, shadowing, receiver capability, generic bounds, and
 the exact package graph. It includes accessible declarations, imports, members, enum-pattern
 variants, unused struct fields, construction entries, native-test syntax, and relevant keywords.
+`copy` is offered only in a generic requirement context where it is not already present.
 
 Automatic imports consider only reached exports whose resolved boundary contains the current
 module: ancestor- and package-visible exports in the active package, bare-public exports in direct
@@ -122,6 +124,8 @@ location, so a plan containing any non-owned occurrence is rejected as a whole.
 
 A generic-bound call defines to the interface declaration. Concrete specialization may retain its
 selected implementation target internally without changing that source-level definition result.
+The target name in a callable `where` clause defines, references, and renames as the corresponding
+generic parameter; contextual `copy` and `where` tokens never acquire declaration identities.
 
 ## Diagnostics, Code Actions, and Hints
 

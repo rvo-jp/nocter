@@ -24,7 +24,7 @@ A generic parameter may carry a finite `+`-separated capability set:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
-GenericParameter  = Name [":" Bound ("+" Bound)*]
+GenericParameter  = ["copy"] Name [":" Bound ("+" Bound)*]
 Bound             = InterfaceBound | CallableContract
 InterfaceBound    = Type
 CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
@@ -35,6 +35,33 @@ order is formatting information; semantics use specialized interface declaration
 at most one structural callable contract. Duplicate interface identities and multiple callable
 contracts are invalid.
 
+`copy` is an intrinsic requirement, not an interface or a type modifier. A callable may rely on
+implicit copies of `T` only when `T` is declared as `<copy T>`. A concrete call satisfies the
+requirement only when its substituted type is copyable under the ownership rules.
+
+Callables can refine a generic parameter inherited from a surrounding `construct`, `impl`, or
+`interface` scope:
+
+```nct
+construct Buffer<T> {
+    pub func from_view(values: &[T]): Self where copy T {
+        ...
+    }
+}
+```
+
+```text
+CallableWhereClause = "where" Requirement ("," Requirement)*
+Requirement         = "copy" Name [":" Bound ("+" Bound)*]
+                    | Name ":" Bound ("+" Bound)*
+```
+
+The clause follows result provenance and precedes the body. Its target must be a generic parameter
+visible to that callable. Inline and callable requirements merge into one unordered semantic set;
+duplicate `copy` requirements, duplicate interface bounds, and multiple callable contracts are
+invalid. Canonical style uses inline requirements for a callable's own parameters and `where` for
+inherited parameters. `copy` is invalid inside a type expression such as `&[copy T]`.
+
 ```nct
 func inspect<T: Readable<i32>>(value: &T): i32 {
     return value.read()
@@ -42,8 +69,8 @@ func inspect<T: Readable<i32>>(value: &T): i32 {
 ```
 
 Generic implementation uses monomorphization. Nocter does not provide runtime generic metadata,
-interface objects, `where` clauses, interface inheritance, higher-kinded types, generic associated
-types, or general const generics.
+interface objects, general predicate clauses, interface inheritance, higher-kinded types, generic
+associated types, or general const generics.
 
 ## Inherent Implementations
 

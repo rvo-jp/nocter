@@ -131,6 +131,9 @@ Rules:
   `T: Interface<U>`.
 - Multiple bounds use one space around `+`:
   `T: Iterator<U> + ExactSizeIterator<U>`.
+- An intrinsic requirement prefixes the parameter as `<copy T>` or `<copy T: Interface>`.
+- A callable requirement clause remains on the signature line after result provenance:
+  `: Self! from allocator where copy T`. Requirements use comma-space separation.
 - A result provenance clause follows the return type on the same line with one space before
   `from`. Union origins use one space around `|`.
 

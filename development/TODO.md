@@ -2,15 +2,18 @@
 
 ## Current Task
 
-Implement [v0.11.0 Phase 0](milestones/v0.11.0.md): replace raw generic-bound reinterpretation with
-one resolved requirement model, add intrinsic `<copy T>` parameters and callable `where copy T`
-requirements for inherited owner parameters, and migrate every standard-library API whose readonly
-generic copy precondition is currently enforced only after specialization. Begin with the
-behavior-preserving requirement-model extraction; do not add associated types or combine the
-structural migration with the source-language change.
+v0.11.0 Phase 0 is complete. Select the next standard-library expression gap from the remaining
+milestone candidates; do not extend generic predicates beyond the completed nominal, callable, and
+intrinsic-copy requirement model without a separate design phase.
 
 ## Completed Checkpoint
 
+- v0.11.0 Phase 0 separates authored syntax from resolved generic requirements, supports `<copy T>`
+  and callable `where copy T`, validates generic bodies and concrete substitutions through the
+  ownership classifier, and publishes the contract through compiler-backed editor surfaces
+- `Vec.from_slice` and `Vec.try_from_slice` now state their copy precondition at the public boundary;
+  the top-level forwarding APIs use inline requirements and no implementation-only limitation
+  comment remains
 - v0.10.0 stabilization requires the implicit versioned standard package instead of silently
   omitting it, preserves the same exact identity when `std` is the graph root, and orders graph
   namespaces deterministically

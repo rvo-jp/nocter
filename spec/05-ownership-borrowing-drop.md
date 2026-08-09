@@ -360,6 +360,10 @@ Rules:
 - Type aliases to copy types are copyable. For example, a project-local alias to `i32` is copyable.
 - `&T` is copyable.
 - `&+T` is not copyable.
+- A generic parameter is treated as potentially move-only unless its declaration or enclosing
+  callable contract requires `copy`.
+- `copy T` permits ordinary copy operations in the generic body and is checked again against every
+  concrete substitution. It adds no runtime metadata and cannot be implemented by user code.
 - Non-copy values are not implicitly moved by assignment, argument passing, or return.
 - Moving a non-copy value requires explicit `move`.
 

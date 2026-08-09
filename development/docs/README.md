@@ -43,6 +43,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   conditional conformance, adapter state, collection construction, and editor boundaries
 - [Callable Values and Interface Default Methods](callable-default-methods.md): method generics,
   required/default methods, closure ownership, callable specialization, and iterator chains
+- [Generic Requirement Architecture](generic-requirements.md): authored and resolved requirements,
+  intrinsic copyability, specialization, and editor integration
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): runtime responsibilities, ownership invariants, target
@@ -78,6 +80,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Protocol-driven collection iteration | `iteration-protocol.md` |
 | Composable iterators and collection builders | `iterator-composition.md` |
 | Callable values, interface default methods, and iterator chains | `callable-default-methods.md` |
+| Generic requirement identity, copyability, and specialization | `generic-requirements.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Built-in `str` and `[T]` method authority and compiler integration | `builtin-type-methods.md` |
