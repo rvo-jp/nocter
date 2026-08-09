@@ -2,9 +2,11 @@
 
 ## Current Task
 
-No implementation phase is active. v0.10.0 Phase 2 completed under
-[`milestones/v0.10.0-phase-2.md`](milestones/v0.10.0-phase-2.md). A release-stabilization phase or
-further feature phase requires a new explicit plan. v0.9.0 remains published and audited under
+v0.10.0 Phase 3 is active under
+[`milestones/v0.10.0-phase-3.md`](milestones/v0.10.0-phase-3.md). Complete ancestor-based
+`pub(...)` visibility, make `std` an implicit toolchain package, remove `pub(nocter)` and its
+path-derived access tier, migrate the distributed library and tooling, then stop at the Phase 3
+completion gate. v0.9.0 remains published and audited under
 [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
