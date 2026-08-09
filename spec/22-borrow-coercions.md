@@ -31,8 +31,8 @@ The following rules apply:
 - the target is a borrowed type, `&str`, or a slice view
 - the result origin is always the receiver and is normally elided; an explicit clause, when
   written, must be exactly `from self`
-- `pub` makes an entry available outside its defining module; an entry without `pub` is private
-- `pub(nocter)` is not accepted on an entry
+- an omitted visibility makes an entry private; `pub(./)`, ancestor scopes, `pub(/)`, and bare
+  `pub` expose it through the same boundaries as other declarations
 - the enclosing `coerce` declaration has no visibility modifier
 - only the module that defines a nominal type may declare coercions for that type
 - the source receiver capability and canonical target type identify an entry, so duplicate entries

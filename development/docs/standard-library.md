@@ -67,7 +67,8 @@ public surface. Shared byte search lives in `search.nct`; owned and borrowed alg
 divergent copies of the same loop.
 
 Ordinary source validates every public range before calling
-`std/string.str_subview_unchecked`. That declaration is a closed `pub(nocter)` primitive and
+`std/string.str_subview_unchecked`. That declaration is a closed `pub(/)` primitive in the exact
+implicit standard-library package and
 has one compiler-owned `BorrowedProjection { source: 0 }` role. The role is attached only when the
 owning module, visibility, declaration kind, generic arity, parameter names and types, return type,
 target, and `from text` clause match exactly. Typecheck instantiates the source argument's resolved
@@ -100,8 +101,9 @@ unwind partially initialized Nocter values through a second failure mechanism.
 ## Target Boundary
 
 Target-specific declarations expose the minimum primitive operations needed by portable source.
-They are available only inside the `pub(nocter)` trust boundary and are validated as one coherent
-runtime capability set before lowering.
+They are package-visible only inside the implicit `std` package and are validated as one coherent
+runtime capability set before lowering. Package visibility and trusted runtime authority remain
+separate semantic facts.
 
 The `arm64-darwin` entry path retains process arguments and environment pointers in reserved
 runtime state. `std/process` performs bounds checks, UTF-8 validation, environment-name matching,

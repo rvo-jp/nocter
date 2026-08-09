@@ -14,7 +14,10 @@ Diagnostics for type checking, ownership, borrowing, initialization state, visib
 - why it is invalid
 - the most useful correction direction when one is known
 
-Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `T?!`, `entry function`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
+Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`,
+`pub(../)`, `pub(/)`, `T!`, `error`, `T?`, `T?!`, `entry function`, `primitive`, and `Nocter home`.
+It should not expose backend implementation details such as temporary register allocation, Mach-O
+offsets, internal AST node names, or recovery placeholders.
 
 ## Format
 
@@ -272,11 +275,12 @@ Required diagnostic families:
   or import defines it.
 - Name collision in imports or declarations.
 - Attribute syntax or reserved `@` used in source.
-- `pub(nocter)` item imported from a user project module.
-- `pub(nocter)` used outside the active Nocter home.
-- Primitive declaration outside the active Nocter home.
+- A `pub(...)` scope containing a name, dependency alias, arbitrary path, or too many `../`
+  components.
+- A module importing a declaration outside its ancestor or package visibility boundary.
+- Primitive declaration outside the exact implicit toolchain standard-library package.
 - Primitive declaration with an invalid module path, name, or signature.
-- Direct call to a `pub(nocter)` primitive from a user project module.
+- Direct call to a package-visible standard-library primitive from a user package.
 - Borrow exclusivity violation.
 - Readwrite borrow from a non-writable place.
 - Move while borrowed.
@@ -322,7 +326,7 @@ Required diagnostic families:
 - `return` with a value in a `void` function.
 - `return` value type mismatch when both expected and actual types are known.
 - Non-`void` function reaching the end without an explicit return.
-- `pub use path.Name` or `pub use path.{...}` attempting to re-export a private or `pub(nocter)` name.
+- A re-export whose visibility boundary is wider than the imported declaration's boundary.
 - Reserved target requested before implementation.
 
 These families do not require final numeric code assignment in the language design phase. The implementation should assign codes when the diagnostics are implemented.
@@ -332,13 +336,13 @@ These families do not require final numeric code assignment in the language desi
 Visibility:
 
 ```text
-error[E0140]: `from_addr` is visible only inside the active Nocter home
+error[E0412]: import `std/ptr` cannot access `pub(/)` name `from_addr`
   --> app.nct:3:22
    |
 3 | use std/ptr.from_addr
    |                      ^^^^^^^^^
    |
-note: `from_addr` is declared as `pub(nocter)`
+note: `from_addr` is declared as `pub(/)` in the implicit `std` package
 help: use a public safe API instead
 ```
 

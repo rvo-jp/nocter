@@ -96,7 +96,9 @@ owned values. Keep immutable per-type drop shapes, mutable per-path drop obligat
 provenance separate. See [Allocator and Ownership](allocator-ownership.md).
 
 The compiler does not special-case public names such as `Allocator`, `String`, or `Vec`. Required
-primitives are confined to the `pub(nocter)` trust boundary and explicit IR operations.
+primitives are confined to the exact implicit toolchain standard-library package and explicit IR
+operations. Their `pub(/)` visibility controls access within that package but does not grant
+primitive authority.
 
 Phase 0 established a compiler-owned provenance boundary between typecheck and ownership. Callable
 provenance summaries, lexical outlives constraints, and allocation-effect facts are derived by the

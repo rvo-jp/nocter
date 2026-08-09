@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/string/index.nct - Nocter">
@@ -175,7 +175,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>search
 <span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>views
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">bytes_from_str</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
@@ -198,7 +198,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Reconstructs a previously validated UTF-8 subview.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>
     text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>

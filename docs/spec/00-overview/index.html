@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-06">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Overview - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Overview - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/00-overview/","mainEntityOfPage":"https://nocter.dev/spec/00-overview/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"00 Overview","item":"https://nocter.dev/spec/00-overview/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Overview - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/00-overview/","mainEntityOfPage":"https://nocter.dev/spec/00-overview/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"00 Overview","item":"https://nocter.dev/spec/00-overview/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -176,7 +176,8 @@
 @<span class="token-function">target</span><span class="token-operator">(</span><span class="token-operator">...</span><span class="token-operator">)</span>
 @test
 @deprecated
-</code></pre><p>Rules:</p><ul><li>The <code>@</code> character is reserved for possible future attribute-like syntax and is invalid outside string literals, byte literals, and comments.</li><li>Layout is governed by the internal Nocter ABI, not by a <code>repr</code> attribute.</li><li>Target-specific std declarations are selected by <code>#target: "..."</code> directives inside <code>~/.nocter/std/</code>, not by <code>@target</code> attributes or target overlay directories.</li><li>Low-level compiler boundaries are expressed by typed <code>primitive</code> declarations inside the active Nocter home, not by attributes.</li><li>Visibility is expressed by <code>pub</code> and <code>pub(nocter)</code>, not by attributes.</li><li>Test, inline, deprecation, documentation, export-name, and link-name attributes are not supported.</li></ul>
+</code></pre><p>Rules:</p><ul><li>The <code>@</code> character is reserved for possible future attribute-like syntax and is invalid outside string literals, byte literals, and comments.</li><li>Layout is governed by the internal Nocter ABI, not by a <code>repr</code> attribute.</li><li>Target-specific std declarations are selected by <code>#target: "..."</code> directives inside <code>~/.nocter/std/</code>, not by <code>@target</code> attributes or target overlay directories.</li><li>Low-level compiler boundaries are expressed by typed <code>primitive</code> declarations inside the active Nocter home, not by attributes.</li><li>Visibility is expressed by <code>pub</code>, ancestor scopes such as <code>pub(../)</code>, and package scope
+  <code>pub(/)</code>, not by attributes.</li><li>Test, inline, deprecation, documentation, export-name, and link-name attributes are not supported.</li></ul>
             </div>
         </main>
     </div>

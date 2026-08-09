@@ -365,8 +365,8 @@ Rules:
 
 - Type aliases are top-level declarations.
 - Type aliases are private by default.
-- `pub type` makes the alias importable and re-exportable.
-- `pub(nocter) type` makes the alias importable only inside the active Nocter home.
+- A non-private `pub(...) type` makes the alias importable inside its declared visibility boundary.
+- Bare `pub type` makes the alias importable and re-exportable across packages.
 - Generic type aliases are allowed.
 - A type alias has no separate identity from its target type.
 - A type alias does not change ownership, copyability, drop behavior, layout, or ABI.

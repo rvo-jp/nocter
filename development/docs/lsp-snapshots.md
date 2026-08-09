@@ -23,6 +23,11 @@ compile unit containing every package file. This preserves normal import visibil
 unreferenced file to be edited as its own module. Package identity, dependency namespaces, open
 overlays, and generation remain shared across those analyses.
 
+Every valid package graph also contains the immutable implicit `std` package selected by the active
+Nocter home. Standard-library overlays participate in invalidation and navigation through that
+exact graph identity; a directory name or dependency spelling does not confer standard-library
+authority.
+
 ## Build and Publication
 
 `SnapshotStore` owns the current generation. Document open, accepted document change, saved text,

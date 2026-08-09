@@ -42,8 +42,8 @@ Rules:
 - The target must be a nominal struct or enum declared in the same module.
 - The target arguments must bind every generic parameter in declaration order.
 - A nominal type may have at most one `construct` declaration.
-- Every construction member must carry explicit `pub` visibility. `pub(nocter)` and private
-  construction members are invalid.
+- Every construction member must carry an explicit non-private visibility: `pub(./)`, an ancestor
+  scope, `pub(/)`, or bare `pub`. Private construction members are invalid.
 - A construction function must produce `Self` as its direct result or as the success/present payload
   of a supported outcome type.
 - A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules

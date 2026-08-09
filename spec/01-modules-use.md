@@ -124,10 +124,9 @@ module. Source import rules are deliberately narrower than module imports:
 For example, if both `search.nct` and `search/index.nct` exist, `use ./search` is ambiguous. Rename
 one side; the compiler does not choose by precedence.
 
-Only a module root source may contain `pub` or `pub(nocter)` declarations, public fields, public
-interface members, public construction or coercion entries, or `pub use`. Implementation sources
-are private parts of the module. This keeps the complete external surface readable in
-`index.nct`.
+Only a module root source may contain non-private declarations, fields, interface members,
+construction or coercion entries, or re-exports. Implementation sources are private parts of the
+module. This keeps every module boundary readable in `index.nct`.
 
 ## Public Callable Contracts and Bodies
 
@@ -188,7 +187,7 @@ Rules:
 
 - re-exports are allowed only in a module root source
 - a namespace re-export does not flatten the target module
-- selected re-exports can expose only `pub` names, never private or `pub(nocter)` names
+- a re-export boundary must be contained by the target name's boundary and can never widen it
 - re-exported names participate in ordinary collision checks
 - wildcard and namespace-alias re-exports are invalid
 - selected-name re-exports do not also create a namespace alias
@@ -288,6 +287,18 @@ Package-file rules:
 The compiler does not discover a package target by probing `main.nct` or another conventional
 filename.
 
+## Implicit Standard-Library Package
+
+The active Nocter home contributes one immutable package at `<Nocter-home>/std`. It contains its
+own `nocter.nct` and root `index.nct`; the package name and version must match the toolchain
+installation. Every compilation graph binds reserved dependency alias `std` to this exact package,
+including imports written inside `std` itself.
+
+User `#dependencies` and generated `#lock` data must not contain `std`. A package named `std`, a
+directory with that spelling, or a dependency alias cannot shadow the compiler-selected package or
+gain its primitive authority. Single-file mode uses the same toolchain package without creating a
+manifest for the source file.
+
 ## Compile Units
 
 Package `build`, `run`, and `check` begin with resolved target modules. Explicit file mode remains
@@ -357,7 +368,8 @@ Rules:
 - relative paths cannot leave their package or enter another module's implementation source
 - a leading `/` is package-absolute, never filesystem-absolute
 - `use config.Config` requires a dependency alias named `config`; it does not search project files
-- `std/io` resolves only through the compiler-matched Nocter home
+- `std` is a reserved implicit dependency bound to the active toolchain standard-library package
+- packages must not declare or lock a dependency named `std`
 - `.nct` is omitted from imports
 - `index.nct` is the only directory-module root convention
 - Nocter home comes from `NOCTER_HOME` when set, otherwise from the real running compiler path
@@ -378,8 +390,8 @@ diagnosed across every source in the module, independent of source traversal ord
 
 ## Visibility
 
-Definitions are private by default. `pub` exposes API to other modules. `pub(nocter)` exposes
-distribution-internal API only to modules inside the active Nocter home.
+Definitions are private by default. A `pub(...)` scope exposes a name to a selected ancestor module
+tree or to its package. Bare `pub` exposes a name to every package.
 
 ```nct
 // std/io/index.nct
@@ -399,7 +411,8 @@ pub func stdout(): File {
 ```
 
 ```nct
-pub(nocter) primitive from_addr<T>(address: usize): *T
+// std/ptr/index.nct
+pub(/) primitive from_addr<T>(address: usize): *T
 ```
 
 Rules:
@@ -409,9 +422,19 @@ Rules:
   methods, interface members, construction entries, coercion entries, and re-exports follow this
   rule
 - private declarations in every composed source are visible throughout their module
-- `pub` names are importable from other modules
-- `pub(nocter)` may be declared and imported only inside the active Nocter home
-- `pub(nocter)` cannot be publicly re-exported
+- `pub(./)` exposes the declaring module and all descendant modules
+- each `../` in `pub(../)`, `pub(../../)`, and deeper forms moves the boundary to one ancestor
+  module; the boundary cannot move above the package root
+- `pub(/)` exposes every module in the declaring package
+- bare `pub` exposes every package
+- scoped visibility is interpreted from the declaring directory module, so all implementation
+  sources in that module share one boundary
+- names, dependency aliases, and arbitrary module paths are not valid inside `pub(...)`
+- a re-export may narrow a boundary but cannot widen it
 - enum variants follow their enum's visibility
 - `impl` blocks are not themselves marked public
-- there is no `private` keyword or package-level friend visibility
+- there is no `private` keyword, friend namespace, or named visibility scope
+
+Visibility grants source access only. The exact implicit `std` package identity separately grants
+authority to declare registered primitives and provide compiler-owned runtime roles. Writing
+`pub(/)` in an ordinary package never grants that authority.

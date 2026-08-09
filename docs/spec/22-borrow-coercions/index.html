@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Borrow Coercions - Nocter">
     <meta name="twitter:description" content="Availability: Expected-type and explicit selection were published in v0.8.0. One-step method receiver selection is implemented for v0.9.0.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Borrow Coercions - Nocter","description":"Availability: Expected-type and explicit selection were published in v0.8.0. One-step method receiver selection is implemented for v0.9.0.","url":"https://nocter.dev/spec/22-borrow-coercions/","mainEntityOfPage":"https://nocter.dev/spec/22-borrow-coercions/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"22 Borrow Coercions","item":"https://nocter.dev/spec/22-borrow-coercions/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Borrow Coercions - Nocter","description":"Availability: Expected-type and explicit selection were published in v0.8.0. One-step method receiver selection is implemented for v0.9.0.","url":"https://nocter.dev/spec/22-borrow-coercions/","mainEntityOfPage":"https://nocter.dev/spec/22-borrow-coercions/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"22 Borrow Coercions","item":"https://nocter.dev/spec/22-borrow-coercions/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -161,7 +161,8 @@
 <span class="token-operator">}</span>
 </code></pre><p>An entry has this grammar:</p><pre><code class="language-text">visibility? receiver `as` target (`from` `self`)? block
 </code></pre><p>The following rules apply:</p><ul><li>the receiver is exactly <code>&amp;self</code> or <code>&amp;+self</code>; an owned <code>self</code> receiver is invalid</li><li>the target is a borrowed type, <code>&amp;str</code>, or a slice view</li><li>the result origin is always the receiver and is normally elided; an explicit clause, when
-  written, must be exactly <code>from self</code></li><li><code>pub</code> makes an entry available outside its defining module; an entry without <code>pub</code> is private</li><li><code>pub(nocter)</code> is not accepted on an entry</li><li>the enclosing <code>coerce</code> declaration has no visibility modifier</li><li>only the module that defines a nominal type may declare coercions for that type</li><li>the source receiver capability and canonical target type identify an entry, so duplicate entries
+  written, must be exactly <code>from self</code></li><li>an omitted visibility makes an entry private; <code>pub(./)</code>, ancestor scopes, <code>pub(/)</code>, and bare
+  <code>pub</code> expose it through the same boundaries as other declarations</li><li>the enclosing <code>coerce</code> declaration has no visibility modifier</li><li>only the module that defines a nominal type may declare coercions for that type</li><li>the source receiver capability and canonical target type identify an entry, so duplicate entries
   are invalid even when they appear in separate <code>coerce</code> blocks</li></ul><p>A readonly receiver cannot produce a readwrite target. A readwrite receiver may produce either a readonly or readwrite target, subject to the declared body and provenance contract.</p><p>Generic source parameters follow the source type's declaration order:</p><pre><code class="language-nct">coerce <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>

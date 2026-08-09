@@ -31,7 +31,7 @@ Representative layering:
 ```text
 user package
     -> public std function or type
-        -> pub(nocter) std implementation
+        -> package-visible std implementation
             -> registered primitive
                 -> target backend or process boundary
 ```
@@ -64,16 +64,17 @@ raw error records do not cross the public boundary.
 target result -> target raw error -> OSError -> public error
 ```
 
-The current internal records are `pub(nocter)` declarations:
+The current internal records are `pub(/)` declarations, visible throughout the implicit `std`
+package:
 
 ```nct
-pub(nocter) enum Platform {
+pub(/) enum Platform {
     macos
     linux
     windows
 }
 
-pub(nocter) enum OSErrorKind {
+pub(/) enum OSErrorKind {
     interrupted
     would_block
     not_found
@@ -86,7 +87,7 @@ pub(nocter) enum OSErrorKind {
     unknown
 }
 
-pub(nocter) copy struct OSError {
+pub(/) copy struct OSError {
     pub platform: Platform
     pub code: i32
     pub kind: OSErrorKind
@@ -102,7 +103,7 @@ being misclassified.
 A primitive declaration has a typed Nocter signature but no Nocter body:
 
 ```nct
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 ```
 
 After visibility checks, calls are type checked and use the Nocter ABI like ordinary calls. The
@@ -111,11 +112,12 @@ module path, name, generic shape, parameter types, result type, target, and meta
 
 Rules:
 
-- Primitive declarations are allowed only in `std/` inside the active Nocter home.
+- Primitive declarations are allowed only in the exact implicit standard-library package selected
+  by the active Nocter home.
 - Every primitive must match an entry in the compiler's closed registry exactly.
 - Moving a registered declaration to another module or changing its signature is a compile error.
 - An ordinary function with the same name has no primitive behavior.
-- `pub(nocter)` primitives are callable only from the active Nocter home.
+- `pub(/)` primitives are callable only from modules in that same `std` package.
 - A deliberately public primitive remains subject to normal import and type rules.
 - User packages cannot declare primitives, even when they use the same module spelling or name.
 - Primitive lowering must preserve Nocter safety, ownership, provenance, and failure contracts at
@@ -144,9 +146,11 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 ```
 
 They convert an existing pointer or borrow without granting dereference permission. Operations
-that construct pointers or views from integer addresses and raw parts are `pub(nocter)` because
-their validity depends on invariants unavailable to general source code. The complete user-facing
-pointer contract is in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md).
+that construct pointers or views from integer addresses and raw parts are `pub(/)` so only the
+implicit `std` package can call them. Their primitive authority is independently tied to that
+package's toolchain identity because their validity depends on invariants unavailable to general
+source code. The complete user-facing pointer contract is in
+[Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md).
 
 ## Target-Gated Standard-Library Declarations
 
@@ -155,7 +159,7 @@ Target-dependent functions, primitives, aliases, structs, enums, and interfaces 
 
 ```nct
 #target: "arm64-darwin"
-pub(nocter) primitive exit_raw(code: i32): never
+pub(/) primitive exit_raw(code: i32): never
 ```
 
 Rules:
@@ -179,14 +183,16 @@ registry, and standard-library declarations are incomplete.
 ## Trusted Boundary
 
 Nocter has no `unsafe` keyword, unsafe block, or unsafe function declaration. Trusted low-level
-authority is defined structurally by the active Nocter home and by `pub(nocter)` visibility.
+authority belongs to the exact implicit standard-library package selected by the active Nocter
+home. Visibility remains an independent source-access rule.
 
 Rules:
 
 - User package modules are always ordinary safe Nocter code.
 - `unsafe` and `trusted` are ordinary identifiers, not permission markers.
-- Only active-home standard-library modules may declare registered primitives.
-- Only active-home modules may access `pub(nocter)` declarations.
+- Only the implicit toolchain standard-library package may declare registered primitives.
+- Package-visible `pub(/)` declarations are accessible only from modules with the same exact
+  package identity.
 - A project directory named `std` cannot shadow the compiler-matched standard library or gain
   trusted authority.
 - A dependency package cannot gain trusted authority from its package name or filesystem layout.
@@ -196,7 +202,7 @@ Rules:
 
 This boundary keeps low-level implementation code reviewable without creating a general-purpose
 escape hatch in the user language. If Nocter later needs third-party trusted code, that requires a
-separate capability and distribution design rather than widening `pub(nocter)`.
+separate capability and distribution design rather than overloading visibility.
 
 ## Process and I/O Boundaries
 

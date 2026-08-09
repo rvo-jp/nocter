@@ -77,6 +77,12 @@ Automatic imports use compiler-owned edit planners. Planners preserve leading do
 import grouping, and their edits are reparsed in compiler tests. Protocol code only translates
 source offsets and document versions.
 
+`PackageSemanticIndex` stores each non-private export with the semantic visibility boundary
+resolved by `SourceScopeMap`. Candidate selection compares that boundary with the requesting
+module's exact package and module identity. It does not reconstruct access from source text or
+special-case a path component named `std`; the implicit standard-library graph node supplies the
+ordinary dependency path.
+
 Signature help consumes resolved callable candidates and the parser's active argument context.
 Recovery overlays may supply missing delimiters or placeholder operands long enough to run the
 ordinary query, but cannot manufacture declarations, conformance, callable identities, or types.

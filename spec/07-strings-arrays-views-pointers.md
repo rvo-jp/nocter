@@ -64,10 +64,12 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 Restricted API:
 
 ```nct
-pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(/) primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is `pub(nocter)`, so it is visible only to trusted modules inside the active Nocter home `std/` tree. User project modules must not call it.
+`from_addr` is package-visible within the implicit toolchain `std` package. User packages cannot
+import it. Its registered primitive authority comes from the exact toolchain package identity, not
+from `pub(/)`.
 
 Rules:
 

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/iter/index.nct - Nocter">
@@ -163,33 +163,33 @@
 
 <span class="token-comment">/// Lazily transforms items from an owning source iterator.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">MapIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">U</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> transform<span class="token-operator">:</span> <span class="token-type">F</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> transform<span class="token-operator">:</span> <span class="token-type">F</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Lazily retains items from an owning source iterator.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">FilterIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">,</span> <span class="token-type">F</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> predicate<span class="token-operator">:</span> <span class="token-type">F</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> predicate<span class="token-operator">:</span> <span class="token-type">F</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Yields at most `remaining` items from `source`.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TakeIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> remaining<span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> remaining<span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Discards at most `remaining_to_skip` source items before yielding.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">SkipIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> remaining_to_skip<span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> remaining_to_skip<span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Yields every left item before every right item.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">ChainIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">L</span><span class="token-operator">,</span> <span class="token-type">R</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> left<span class="token-operator">:</span> <span class="token-type">L</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> right<span class="token-operator">:</span> <span class="token-type">R</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> in_left<span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> left<span class="token-operator">:</span> <span class="token-type">L</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> right<span class="token-operator">:</span> <span class="token-type">R</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> in_left<span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// One indexed item yielded by `EnumerateIter`.</span>
@@ -200,8 +200,8 @@
 
 <span class="token-comment">/// An owning iterator that pairs every item with its zero-based index.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">EnumerateIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">,</span> <span class="token-type">I</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
-    <span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> next_index<span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> source<span class="token-operator">:</span> <span class="token-type">I</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> next_index<span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Owned state passed to a folding callback.</span>

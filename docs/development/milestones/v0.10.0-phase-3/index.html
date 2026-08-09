@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.10.0 Phase 3 - Nocter</title>
-    <meta name="description" content="Status: In progress.">
+    <meta name="description" content="Status: Completed on 2026-08-09.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.10.0-phase-3/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.10.0 Phase 3 - Nocter">
-    <meta property="og:description" content="Status: In progress.">
+    <meta property="og:description" content="Status: Completed on 2026-08-09.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.10.0-phase-3/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.10.0 Phase 3 - Nocter">
-    <meta name="twitter:description" content="Status: In progress.">
+    <meta name="twitter:description" content="Status: Completed on 2026-08-09.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 3 - Nocter","description":"Status: In progress.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-3/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 3","item":"https://nocter.dev/development/milestones/v0.10.0-phase-3/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 3 - Nocter","description":"Status: Completed on 2026-08-09.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-3/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 3","item":"https://nocter.dev/development/milestones/v0.10.0-phase-3/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -130,7 +130,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.10.0-phase-3.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-10-0-phase-3">Nocter v0.10.0 Phase 3</h1><p><strong>Status:</strong> In progress.</p><h2 id="purpose">Purpose</h2><p>Phase 3 removes the remaining special boundary around the standard library. <code>std</code> becomes an implicit toolchain package with ordinary package and module identity, while visibility becomes one ancestor-based module hierarchy shared by user packages and the standard library.</p><p>This phase removes <code>pub(nocter)</code>. Visibility controls source access only. Permission to declare a compiler primitive or satisfy another trusted runtime role comes from the exact standard-library package identity, never from visibility spelling or filesystem containment alone.</p><h2 id="visibility-syntax">Visibility Syntax</h2><p>Nocter supports exactly these declaration visibility forms:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">local</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
+                <h1 id="nocter-v0-10-0-phase-3">Nocter v0.10.0 Phase 3</h1><p><strong>Status:</strong> Completed on 2026-08-09.</p><h2 id="purpose">Purpose</h2><p>Phase 3 removes the remaining special boundary around the standard library. <code>std</code> becomes an implicit toolchain package with ordinary package and module identity, while visibility becomes one ancestor-based module hierarchy shared by user packages and the standard library.</p><p>This phase removes <code>pub(nocter)</code>. Visibility controls source access only. Permission to declare a compiler primitive or satisfy another trusted runtime role comes from the exact standard-library package identity, never from visibility spelling or filesystem containment alone.</p><h2 id="visibility-syntax">Visibility Syntax</h2><p>Nocter supports exactly these declaration visibility forms:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">local</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">.</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">descendants</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">parent_tree</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">grandparent_tree</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
@@ -161,7 +161,24 @@ pub           -&gt; unrestricted
   recognizes it by a path component or <code>ImportAccess::Nocter</code></li><li>primitive declarations require the exact implicit standard-library package identity regardless
   of authored visibility</li><li>the distributed standard library builds and runs with <code>pub(/)</code> and contains no <code>pub(nocter)</code></li><li>public specification, contributor architecture, and generated documentation contain one current
   model</li><li>the complete compiler verification suite, installed-home suite, public examples, source corpus,
-  formatting, warnings-denied Clippy, documentation generation, and <code>git diff --check</code> pass</li></ul><p>Phase 3 does not add friend modules, named visibility namespaces, third-party trusted packages, unsafe source constructs, dependency-selectable standard libraries, separate compilation, or a v0.10.0 release artifact.</p>
+  formatting, warnings-denied Clippy, documentation generation, and <code>git diff --check</code> pass</li></ul><p>Phase 3 does not add friend modules, named visibility namespaces, third-party trusted packages, unsafe source constructs, dependency-selectable standard libraries, separate compilation, or a v0.10.0 release artifact.</p><h2 id="completion-evidence">Completion Evidence</h2><ul><li><code>Visibility</code> now represents private, module-tree, package, and universal boundaries directly.
+  The parser, formatter, AST JSON, normalized presentation, diagnostics, and recovery accept only
+  <code>pub(./)</code>, repeated ancestor forms such as <code>pub(../../)</code>, <code>pub(/)</code>, and bare <code>pub</code>.</li><li><code>SourceScopeMap</code> assigns physical sources an exact <code>PackageId</code> and directory <code>ModuleId</code>, resolves
+  relative scopes once, and supplies the same semantic boundary to imports, re-exports, member
+  filtering, trusted-role checks, and the package semantic index. Public boundaries remain valid in
+  standalone source analysis, where no package scope exists.</li><li>Re-export lookup retains the original declaration span for diagnostics and navigation while
+  applying the re-exporting module's visibility boundary. Chained re-exports cannot widen a target,
+  and type members continue to use their original declaration boundary.</li><li>The installed <code>std/nocter.nct</code> and <code>std/index.nct</code> define one implicit toolchain package. Package
+  graphs reserve the <code>std</code> alias, reject an explicit <code>std</code> dependency, validate the installed
+  package name and exact toolchain version before writing generated locks, and make imports inside
+  <code>std</code> resolve to the same package identity.</li><li>Primitive and trusted runtime authority now comes from the selected standard-library package
+  identity. Ordinary packages cannot acquire authority with <code>pub(/)</code> or a directory named <code>std</code>.</li><li>LSP auto-import and import-path completion consume package-graph dependencies and resolved
+  visibility boundaries. They no longer infer standard-library identity by searching path
+  components, and scoped exports are offered only inside their permitted module subtree.</li><li>The distributed standard library and active fixtures contain <code>pub(/)</code> rather than
+  <code>pub(nocter)</code>. The complete test run passed all 3,433 compiler, CLI, native execution,
+  installed-home, example, and corpus tests. Formatting and warnings-denied Clippy passed after
+  the final mechanical formatting update. Documentation generation produced 111 pages, and
+  <code>git diff --check</code> passed.</li></ul>
             </div>
         </main>
     </div>

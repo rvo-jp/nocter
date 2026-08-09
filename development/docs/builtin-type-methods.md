@@ -45,8 +45,8 @@ reported through stable frontend or resolver diagnostics.
 ## Trusted Representation Boundary
 
 Source methods implement public behavior. Operations that source cannot express use narrow,
-typed `pub(nocter)` primitives registered by module, visibility, generic shape, parameter types,
-and result type:
+typed `pub(/)` primitives in the exact implicit standard-library package, registered by module,
+visibility, generic shape, parameter types, and result type:
 
 - `std/str.str_len_raw`
 - `std/str.str_ptr_addr_raw`

@@ -2,14 +2,28 @@
 
 ## Current Task
 
-v0.10.0 Phase 3 is active under
-[`milestones/v0.10.0-phase-3.md`](milestones/v0.10.0-phase-3.md). Complete ancestor-based
-`pub(...)` visibility, make `std` an implicit toolchain package, remove `pub(nocter)` and its
-path-derived access tier, migrate the distributed library and tooling, then stop at the Phase 3
-completion gate. v0.9.0 remains published and audited under
+v0.10.0 Phase 3 is complete under
+[`milestones/v0.10.0-phase-3.md`](milestones/v0.10.0-phase-3.md). Ancestor-based `pub(...)`
+visibility and one implicit, validated `std` toolchain package now share semantic package and module
+identity across compilation and LSP analysis. Stop at this completion boundary. v0.9.0 remains
+published and audited under
 [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
+
+- v0.10.0 Phase 3 replaces `pub(nocter)` with private, descendant-module, ancestor-module,
+  package, and universal visibility boundaries resolved from exact `PackageId` and `ModuleId`
+- re-exports preserve original declaration navigation while applying their own non-widening
+  boundary; imports, members, construction, coercion, diagnostics, and LSP auto-import consume the
+  same semantic access model
+- `std` is one implicit package selected and version-validated from the active Nocter home; the
+  reserved alias never enters user dependencies or locks, and validation precedes generated-lock
+  writes
+- primitive and trusted runtime authority is independent of source visibility and requires the
+  exact selected standard-library package identity
+- the distributed library and fixtures use `pub(/)` with no compatibility grammar for
+  `pub(nocter)`; all 3,433 tests, formatting, warnings-denied Clippy, generated documentation, and
+  diff checks pass
 
 - v0.10.0 Phase 2 adds one source-backed callable identity model for root contracts and focused
   implementation sources, including canonical receiver, parameter, and literal-capture identities
@@ -186,5 +200,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the completed v0.10.0 Phase 2 boundary. Do not begin release qualification or Phase 3
-without a new plan. The published v0.9.0 archive and its evidence are immutable.
+Stop at the completed v0.10.0 Phase 3 boundary. Do not begin release qualification or another
+phase without a new plan. The published v0.9.0 archive and its evidence are immutable.

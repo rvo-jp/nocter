@@ -68,7 +68,7 @@ Rules:
 
 - Unicode letters are not accepted in identifiers.
 - Reserved keywords are not identifiers.
-- `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
+- `nocter` is an ordinary identifier and has no visibility meaning.
 - `copy` is not a reserved keyword. It is emitted as an identifier token; the
   parser recognizes the contextual `copy struct` source form.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
@@ -198,7 +198,7 @@ eof
 Keyword rules:
 
 - Reserved keywords are emitted as keyword tokens.
-- `nocter` is emitted as an identifier token; parser and resolver treat it contextually in `pub(nocter)`.
+- `nocter` is emitted as an identifier token.
 - `drop` is emitted as an identifier token; the parser treats `drop &+self { ... }` in an inherent `impl` block and `drop name` in statement position as contextual source forms.
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.

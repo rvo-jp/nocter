@@ -312,8 +312,8 @@ Rules:
 `primitive` declarations use Nocter ABI at the Nocter call boundary.
 
 ```nct
-pub(nocter) primitive syscall3(...): SyscallResult
-pub(nocter) primitive trap(): never
+pub(/) primitive syscall3(...): SyscallResult
+pub(/) primitive trap(): never
 ```
 
 Rules:

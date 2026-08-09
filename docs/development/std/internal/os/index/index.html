@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/os/index.nct - Nocter">
@@ -155,15 +155,15 @@
 <span class="token-comment">//!</span>
 <span class="token-comment">//! Target-specific boundaries convert raw platform error values into OSError.</span>
 <span class="token-comment">//! User-facing modules expose only the built-in `error` payload from fallible</span>
-<span class="token-comment">//! APIs; OSError and OSErrorKind stay behind `pub(nocter)` visibility.</span>
+<span class="token-comment">//! APIs; OSError and OSErrorKind stay behind `pub(/)` visibility.</span>
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">Platform</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">Platform</span> <span class="token-operator">{</span>
     macos
     linux
     windows
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
     interrupted
     would_block
     not_found
@@ -176,30 +176,30 @@
     unknown
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> platform<span class="token-operator">:</span> <span class="token-type">Platform</span>
     <span class="token-keyword">pub</span> code<span class="token-operator">:</span> <span class="token-type">i32</span>
     <span class="token-keyword">pub</span> kind<span class="token-operator">:</span> <span class="token-type">OSErrorKind</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">SyscallResult</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">SyscallResult</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">usize</span>
     <span class="token-keyword">pub</span> errno<span class="token-operator">:</span> <span class="token-type">i32</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> code<span class="token-operator">:</span> <span class="token-type">i32</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">errno</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">errno</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">Errno</span> <span class="token-operator">{</span> code<span class="token-operator">:</span> code <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
         platform<span class="token-operator">:</span> <span class="token-type">Platform</span><span class="token-operator">.</span>macos<span class="token-operator">,</span>
         code<span class="token-operator">:</span> error<span class="token-operator">.</span>code<span class="token-operator">,</span>
@@ -208,7 +208,7 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">kind_from_errno</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">kind_from_errno</span><span class="token-operator">(</span>error<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
     <span class="token-comment">// Darwin errno values used by the std syscall wrappers.</span>
     <span class="token-keyword">if</span> error<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">4</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted
@@ -259,48 +259,48 @@
 <span class="token-comment">// list is filled in as each wrapper is implemented.</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_open</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_open</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> 0x02000005
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> 0x02000006
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_fcntl</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_sys_fcntl</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> 0x0200005c
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_f_getpath</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_f_getpath</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-number">50</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_max_path_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">darwin_max_path_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-number">1024</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall0</span><span class="token-operator">(</span>number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall0</span><span class="token-operator">(</span>number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall1</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall1</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall2</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall2</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
@@ -308,7 +308,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall4</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall4</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
@@ -317,7 +317,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall5</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall5</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
@@ -327,7 +327,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall6</span><span class="token-operator">(</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">syscall6</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a1<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
@@ -338,10 +338,10 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">trap</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">never</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">trap</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">never</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">unreachable</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">never</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">unreachable</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">never</span>
 </code></pre>
             </div>
         </main>

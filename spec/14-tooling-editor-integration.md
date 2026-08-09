@@ -99,10 +99,12 @@ Completion follows lexical scope, visibility, shadowing, receiver capability, ge
 the exact package graph. It includes accessible declarations, imports, members, enum-pattern
 variants, unused struct fields, construction entries, native-test syntax, and relevant keywords.
 
-Automatic imports consider only reached public exports in the active package, direct dependency
-aliases, and `std`. The compiler supplies the additional top-level `use` edit while preserving
-leading documentation and existing import groups. Private, unreachable, dependency-internal, and
-standard-library-internal declarations are not candidates.
+Automatic imports consider only reached exports whose resolved boundary contains the current
+module: ancestor- and package-visible exports in the active package, bare-public exports in direct
+dependencies, and the public surface of the implicit `std` package. The compiler supplies the
+additional top-level `use` edit while preserving leading documentation and existing import groups.
+Private, unreachable, dependency-internal, and standard-library-internal declarations are not
+candidates.
 
 Member completion for a generic receiver combines its declared capability set. Distinct interfaces
 with the same applicable member name are ambiguous; order never chooses one.

@@ -149,5 +149,6 @@ Rules:
 - Layout is governed by the internal Nocter ABI, not by a `repr` attribute.
 - Target-specific std declarations are selected by `#target: "..."` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
 - Low-level compiler boundaries are expressed by typed `primitive` declarations inside the active Nocter home, not by attributes.
-- Visibility is expressed by `pub` and `pub(nocter)`, not by attributes.
+- Visibility is expressed by `pub`, ancestor scopes such as `pub(../)`, and package scope
+  `pub(/)`, not by attributes.
 - Test, inline, deprecation, documentation, export-name, and link-name attributes are not supported.
