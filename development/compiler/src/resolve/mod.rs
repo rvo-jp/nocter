@@ -9,6 +9,7 @@ mod collector;
 mod conformance;
 mod constructions;
 mod diagnostics;
+mod generic_requirements;
 mod imports;
 mod literals;
 mod module_index;
@@ -20,6 +21,7 @@ mod type_surfaces;
 #[cfg(test)]
 mod tests;
 
+pub use generic_requirements::{GenericRequirement, GenericRequirements};
 pub use symbols::{
     AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
     ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,

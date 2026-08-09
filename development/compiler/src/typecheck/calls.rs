@@ -553,12 +553,12 @@ fn infer_substitutions_from_interface_bounds(
             .signature
             .generic_parameters
             .iter()
-            .zip(&signature.signature.generic_parameter_bounds)
+            .zip(&signature.signature.generic_parameter_requirements)
         {
             let Some(actual) = substitutions.get(parameter).cloned() else {
                 continue;
             };
-            for bound in bounds {
+            for bound in bounds.type_bounds() {
                 let expected_interface_name = match bound {
                     TypeExpr::Reference(reference) => reference.name.as_str(),
                     TypeExpr::Generic(generic) => generic.name.as_str(),
@@ -610,12 +610,12 @@ fn check_generic_interface_bounds(
         .signature
         .generic_parameters
         .iter()
-        .zip(&signature.signature.generic_parameter_bounds)
+        .zip(&signature.signature.generic_parameter_requirements)
     {
         let Some(actual) = substitutions.get(parameter) else {
             continue;
         };
-        for bound in bounds {
+        for bound in bounds.type_bounds() {
             let bound_type = match bound {
                 TypeExpr::Callable(_) => {
                     type_expr_to_type_with_substitutions(bound, resolved, None, substitutions)
@@ -676,7 +676,9 @@ fn type_satisfies_bound_in_environment(
     }
     let parameter = match actual {
         Type::Parameter(parameter) => parameter,
-        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => parameter,
+        Type::Named(parameter) if environment.generic_requirements(parameter).is_some() => {
+            parameter
+        }
         _ => return false,
     };
     interface_symbols_for_generic_parameter(parameter, environment, resolved)
@@ -1064,7 +1066,7 @@ pub(super) fn method_self_type_for_receiver_in_environment(
     let Type::Named(name) = &self_type else {
         return self_type;
     };
-    if environment.generic_bounds(name).is_some() {
+    if environment.generic_requirements(name).is_some() {
         Type::Parameter(name.clone())
     } else {
         self_type

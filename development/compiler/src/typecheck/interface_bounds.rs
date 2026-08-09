@@ -10,12 +10,12 @@ pub(super) fn interface_symbols_for_generic_parameter<'a>(
     environment: &TypeEnvironment,
     resolved: &'a ResolveOutput,
 ) -> Vec<(&'a TypeSymbol, Type)> {
-    let Some(bounds) = environment.generic_bounds(parameter) else {
+    let Some(requirements) = environment.generic_requirements(parameter) else {
         return Vec::new();
     };
     let substitutions = environment.generic_parameter_substitutions();
-    bounds
-        .iter()
+    requirements
+        .type_bounds()
         .filter_map(|bound| interface_symbol_for_bound(bound, &substitutions, resolved))
         .collect()
 }

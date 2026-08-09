@@ -12,6 +12,7 @@ use crate::source_scopes::SourceScopeMap;
 use std::collections::HashMap;
 
 use super::builtin_impls::BuiltinTypeSurface;
+use super::generic_requirements::GenericRequirements;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
@@ -560,7 +561,7 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
-    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
+    pub generic_parameter_requirements: Vec<GenericRequirements>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
@@ -571,7 +572,7 @@ pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
     pub generic_parameters: Vec<String>,
-    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
+    pub generic_parameter_requirements: Vec<GenericRequirements>,
     pub generic_arity: usize,
     pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,
@@ -624,7 +625,7 @@ pub enum ConstructionEntryKind {
 pub struct InterfaceConformance {
     pub declaration_span: ByteSpan,
     pub generic_parameters: Vec<String>,
-    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
+    pub generic_parameter_requirements: Vec<GenericRequirements>,
     pub interface_ty: TypeExpr,
     pub target_ty: TypeExpr,
     pub methods: Vec<MethodSignature>,

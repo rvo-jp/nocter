@@ -1,6 +1,4 @@
-use crate::ast::{
-    BindingKind, CallableCapability, ClosureTypeExpr, ResultProvenanceClause, TypeExpr,
-};
+use crate::ast::{BindingKind, CallableCapability, ClosureTypeExpr, ResultProvenanceClause};
 use crate::source::ByteSpan;
 use crate::type_notation::{PostfixOperator, PrefixOperator, TypeNotation, TypeNotationParameter};
 use std::collections::{HashMap, HashSet};
@@ -343,7 +341,7 @@ pub(super) struct TypeEnvironment {
     literal_packs: HashMap<String, Type>,
     self_type: Option<Type>,
     generic_parameters: HashSet<String>,
-    generic_bounds: HashMap<String, Vec<TypeExpr>>,
+    generic_requirements: HashMap<String, crate::resolve::GenericRequirements>,
 }
 
 impl TypeEnvironment {
@@ -353,7 +351,7 @@ impl TypeEnvironment {
             literal_packs: HashMap::new(),
             self_type: Some(self_type),
             generic_parameters: HashSet::new(),
-            generic_bounds: HashMap::new(),
+            generic_requirements: HashMap::new(),
         }
     }
 
@@ -366,7 +364,7 @@ impl TypeEnvironment {
             literal_packs: HashMap::new(),
             self_type: self.self_type.clone(),
             generic_parameters: self.generic_parameters.clone(),
-            generic_bounds: self.generic_bounds.clone(),
+            generic_requirements: self.generic_requirements.clone(),
         }
     }
 
@@ -396,22 +394,30 @@ impl TypeEnvironment {
     ) {
         for parameter in &generics.parameters {
             self.generic_parameters.insert(parameter.name.clone());
-            if !parameter.bounds.is_empty() {
-                self.generic_bounds
-                    .insert(parameter.name.clone(), parameter.bounds.clone());
+            let requirements = crate::resolve::GenericRequirements::from_bounds(&parameter.bounds);
+            if !requirements.is_empty() {
+                self.generic_requirements
+                    .insert(parameter.name.clone(), requirements);
             }
         }
     }
 
-    pub(super) fn define_generic_parameter(&mut self, name: String, bounds: Vec<TypeExpr>) {
+    pub(super) fn define_generic_parameter(
+        &mut self,
+        name: String,
+        requirements: crate::resolve::GenericRequirements,
+    ) {
         self.generic_parameters.insert(name.clone());
-        if !bounds.is_empty() {
-            self.generic_bounds.insert(name, bounds);
+        if !requirements.is_empty() {
+            self.generic_requirements.insert(name, requirements);
         }
     }
 
-    pub(super) fn generic_bounds(&self, name: &str) -> Option<&[TypeExpr]> {
-        self.generic_bounds.get(name).map(Vec::as_slice)
+    pub(super) fn generic_requirements(
+        &self,
+        name: &str,
+    ) -> Option<&crate::resolve::GenericRequirements> {
+        self.generic_requirements.get(name)
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&Type> {

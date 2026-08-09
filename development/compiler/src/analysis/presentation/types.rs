@@ -140,16 +140,16 @@ fn declared_type_label(
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
-            let Some(bounds) = type_symbol.generic_parameter_bounds.get(index) else {
+            let Some(requirements) = type_symbol.generic_parameter_requirements.get(index) else {
                 return parameter.clone();
             };
-            if bounds.is_empty() {
+            if requirements.is_empty() {
                 return parameter.clone();
             }
             format!(
                 "{parameter}: {}",
-                bounds
-                    .iter()
+                requirements
+                    .type_bounds()
                     .map(|bound| type_expr_presentation_label(bound, resolved))
                     .collect::<Vec<_>>()
                     .join(" + ")

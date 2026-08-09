@@ -323,13 +323,13 @@ fn append_construction_entries(
                     .iter_mut()
                     .find(|signature| signature.name_span == function.member_name_span)
                 {
-                    for (bounds, owner_bounds) in signature
+                    for (requirements, owner_requirements) in signature
                         .signature
-                        .generic_parameter_bounds
+                        .generic_parameter_requirements
                         .iter_mut()
-                        .zip(&symbol.generic_parameter_bounds)
+                        .zip(&symbol.generic_parameter_requirements)
                     {
-                        *bounds = owner_bounds.clone();
+                        *requirements = owner_requirements.clone();
                     }
                 }
                 ConstructionEntryKind::Function(function.member_name.clone())

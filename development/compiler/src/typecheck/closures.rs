@@ -32,9 +32,9 @@ pub(super) fn expected_callable_contract_for_generic<'a>(
         .iter()
         .position(|parameter| parameter == generic)?;
     signature
-        .generic_parameter_bounds
+        .generic_parameter_requirements
         .get(index)?
-        .iter()
+        .callable_bounds()
         .find_map(|bound| {
             let TypeExpr::Callable(callable) = bound else {
                 return None;

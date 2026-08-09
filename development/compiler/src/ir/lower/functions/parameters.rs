@@ -264,7 +264,7 @@ pub(in crate::ir::lower) fn resolved_function_signature(
 ) -> ResolvedFunctionSignature {
     ResolvedFunctionSignature {
         generic_parameters: Vec::new(),
-        generic_parameter_bounds: Vec::new(),
+        generic_parameter_requirements: Vec::new(),
         parameters: parameters
             .iter()
             .map(|parameter| ParameterSignature {

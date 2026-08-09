@@ -167,11 +167,11 @@ fn empty_builtin_symbol(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> TypeSymbol
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: impl_
+        generic_parameter_requirements: impl_
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| super::GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         generic_arity: impl_.generics.parameters.len(),
         is_copy: false,

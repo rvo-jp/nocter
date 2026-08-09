@@ -108,16 +108,16 @@ pub(crate) fn callable_signature_presentation(
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
-            let Some(bounds) = signature.generic_parameter_bounds.get(index) else {
+            let Some(requirements) = signature.generic_parameter_requirements.get(index) else {
                 return parameter.clone();
             };
-            if bounds.is_empty() {
+            if requirements.is_empty() {
                 return parameter.clone();
             }
             format!(
                 "{parameter}: {}",
-                bounds
-                    .iter()
+                requirements
+                    .type_bounds()
                     .map(|bound| type_expr_presentation_label(bound, resolved))
                     .collect::<Vec<_>>()
                     .join(" + ")
@@ -220,10 +220,10 @@ pub(crate) fn method_presentation_with_substitutions(
             }
             let bounds = method
                 .signature
-                .generic_parameter_bounds
+                .generic_parameter_requirements
                 .get(index)
                 .into_iter()
-                .flatten()
+                .flat_map(|requirements| requirements.type_bounds())
                 .map(|bound| {
                     let bound = crate::ast::substitute_type_expr_parameters(bound, &substitutions);
                     type_expr_presentation_label(&bound, resolved)
@@ -359,9 +359,11 @@ fn signature_with_owner_type(
     let owner_type = owner_type_expr(owner, signature.return_type.span());
     let substitutions = std::collections::HashMap::from([("Self".to_string(), owner_type)]);
     let mut specialized = signature_without_owner_generics(signature, owner_generic_count);
-    for bounds in &mut specialized.generic_parameter_bounds {
-        for bound in bounds {
-            *bound = crate::ast::substitute_type_expr_parameters(bound, &substitutions);
+    for requirements in &mut specialized.generic_parameter_requirements {
+        for requirement in requirements.iter_mut() {
+            if let Some(bound) = requirement.type_expr_mut() {
+                *bound = crate::ast::substitute_type_expr_parameters(bound, &substitutions);
+            }
         }
     }
     for parameter in &mut specialized.parameters {
@@ -404,7 +406,9 @@ fn signature_without_owner_generics(
     let mut signature = signature.clone();
     let split = owner_generic_count.min(signature.generic_parameters.len());
     signature.generic_parameters.drain(..split);
-    let bound_split = owner_generic_count.min(signature.generic_parameter_bounds.len());
-    signature.generic_parameter_bounds.drain(..bound_split);
+    let bound_split = owner_generic_count.min(signature.generic_parameter_requirements.len());
+    signature
+        .generic_parameter_requirements
+        .drain(..bound_split);
     signature
 }

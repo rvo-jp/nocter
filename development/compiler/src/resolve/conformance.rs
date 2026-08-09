@@ -1,5 +1,5 @@
-use super::InterfaceConformance;
 use super::signatures::method_signatures;
+use super::{GenericRequirements, InterfaceConformance};
 use crate::ast::ImplDecl;
 
 pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConformance> {
@@ -11,11 +11,11 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: impl_
+        generic_parameter_requirements: impl_
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         interface_ty: impl_.interface_ty.clone()?,
         target_ty: impl_.target_ty.clone(),

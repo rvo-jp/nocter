@@ -108,10 +108,10 @@ fn specialize_conformance(
     for (parameter, bounds) in conformance
         .generic_parameters
         .iter()
-        .zip(&conformance.generic_parameter_bounds)
+        .zip(&conformance.generic_parameter_requirements)
     {
         let parameter_type = substitutions.get(parameter)?;
-        for bound in bounds {
+        for bound in bounds.type_bounds() {
             let bound_type =
                 type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
             if bound_type.is_unknown_or_unresolved()

@@ -315,7 +315,7 @@ fn implemented_protocol_type(
 ) -> Option<Type> {
     let parameter = match actual {
         Type::Parameter(parameter) => Some(parameter.as_str()),
-        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => {
+        Type::Named(parameter) if environment.generic_requirements(parameter).is_some() => {
             Some(parameter.as_str())
         }
         _ => None,
@@ -347,7 +347,7 @@ fn resolve_concrete_method(
 ) -> Result<IterationMethodResolution, CollectionIterationError> {
     let parameter = match receiver_type {
         Type::Parameter(parameter) => Some(parameter.as_str()),
-        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => {
+        Type::Named(parameter) if environment.generic_requirements(parameter).is_some() => {
             Some(parameter.as_str())
         }
         _ => None,

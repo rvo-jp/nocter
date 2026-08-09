@@ -19,10 +19,10 @@ fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
         .enumerate()
         .map(|(index, parameter)| {
             let bounds = signature
-                .generic_parameter_bounds
+                .generic_parameter_requirements
                 .get(index)
                 .into_iter()
-                .flatten()
+                .flat_map(|requirements| requirements.type_bounds())
                 .map(crate::ast::canonical_type_expr)
                 .collect::<Vec<_>>();
             if bounds.is_empty() {
@@ -72,10 +72,10 @@ fn type_declaration(name: &str, symbol: &TypeSymbol) -> String {
         .enumerate()
         .map(|(index, parameter)| {
             let bounds = symbol
-                .generic_parameter_bounds
+                .generic_parameter_requirements
                 .get(index)
                 .into_iter()
-                .flatten()
+                .flat_map(|requirements| requirements.type_bounds())
                 .map(crate::ast::canonical_type_expr)
                 .collect::<Vec<_>>();
             if bounds.is_empty() {

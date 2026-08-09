@@ -38,7 +38,7 @@ pub(super) fn environment_for_function(
         for (name, bounds) in symbol
             .generic_parameters
             .iter()
-            .zip(&symbol.generic_parameter_bounds)
+            .zip(&symbol.generic_parameter_requirements)
         {
             environment.define_generic_parameter(name.clone(), bounds.clone());
         }
@@ -66,7 +66,7 @@ pub(super) fn environment_for_literal(
         for (name, bounds) in symbol
             .generic_parameters
             .iter()
-            .zip(&symbol.generic_parameter_bounds)
+            .zip(&symbol.generic_parameter_requirements)
         {
             environment.define_generic_parameter(name.clone(), bounds.clone());
         }
@@ -147,7 +147,10 @@ pub(super) fn environment_for_interface_method(
 ) -> TypeEnvironment {
     let mut environment = TypeEnvironment::with_self_type(Type::Parameter("Self".to_string()));
     environment.define_generic_parameter_list(&interface.generics);
-    environment.define_generic_parameter("Self".to_string(), vec![interface_self_bound(interface)]);
+    environment.define_generic_parameter(
+        "Self".to_string(),
+        crate::resolve::GenericRequirements::from_bounds(&[interface_self_bound(interface)]),
+    );
     environment.define_generic_parameter_list(&method.generics);
     let receiver = method.receiver.implicit_parameter();
     let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);

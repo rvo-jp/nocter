@@ -155,9 +155,11 @@ fn qualify_type_symbol(
             local_type_names,
             imported_type_names,
         );
-        for bounds in &mut conformance.generic_parameter_bounds {
-            for bound in bounds {
-                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+        for requirements in &mut conformance.generic_parameter_requirements {
+            for requirement in requirements.iter_mut() {
+                if let Some(bound) = requirement.type_expr_mut() {
+                    qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+                }
             }
         }
         for method in &mut conformance.methods {
@@ -247,9 +249,11 @@ fn qualify_function_signature(
     local_type_names: &[String],
     imported_type_names: &[ImportedTypeName],
 ) {
-    for bounds in &mut signature.generic_parameter_bounds {
-        for bound in bounds {
-            qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+    for requirements in &mut signature.generic_parameter_requirements {
+        for requirement in requirements.iter_mut() {
+            if let Some(bound) = requirement.type_expr_mut() {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
         }
     }
     for parameter in &mut signature.parameters {

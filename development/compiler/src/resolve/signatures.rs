@@ -1,3 +1,4 @@
+use super::GenericRequirements;
 use super::{
     AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
     DropSignature, EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature,
@@ -239,11 +240,11 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: alias
+        generic_parameter_requirements: alias
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         generic_arity: alias.generics.parameters.len(),
         is_copy: false,
@@ -270,11 +271,11 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: interface
+        generic_parameter_requirements: interface
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         generic_arity: interface.generics.parameters.len(),
         is_copy: false,
@@ -309,11 +310,11 @@ pub(super) fn struct_type_symbol(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: struct_
+        generic_parameter_requirements: struct_
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         generic_arity: struct_.generics.parameters.len(),
         is_copy,
@@ -359,11 +360,11 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: enum_
+        generic_parameter_requirements: enum_
             .generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         generic_arity: enum_.generics.parameters.len(),
         is_copy: false,
@@ -444,11 +445,11 @@ fn method_callable_signature(
             .chain(&method_generics.parameters)
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: owner_generics
+        generic_parameter_requirements: owner_generics
             .parameters
             .iter()
             .chain(&method_generics.parameters)
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
@@ -468,10 +469,10 @@ fn callable_signature(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_bounds: generics
+        generic_parameter_requirements: generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bounds.clone())
+            .map(|parameter| GenericRequirements::from_bounds(&parameter.bounds))
             .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,

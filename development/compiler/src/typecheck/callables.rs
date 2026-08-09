@@ -74,8 +74,8 @@ fn callable_contract_for_type(
             None,
         ),
         Type::Parameter(name) | Type::Named(name) => {
-            let bounds = environment.generic_bounds(name)?;
-            let mut callables = bounds.iter().filter_map(|bound| {
+            let requirements = environment.generic_requirements(name)?;
+            let mut callables = requirements.callable_bounds().filter_map(|bound| {
                 let TypeExpr::Callable(callable) = bound else {
                     return None;
                 };
@@ -142,7 +142,7 @@ fn callable_contract(
         return_type,
         signature: FunctionSignature {
             generic_parameters: Vec::new(),
-            generic_parameter_bounds: Vec::new(),
+            generic_parameter_requirements: Vec::new(),
             parameters,
             return_type: return_type_expr,
             result_provenance,
