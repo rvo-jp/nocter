@@ -2,13 +2,13 @@
 
 ## Current Task
 
-v0.10.0 stabilization and local qualification are complete under
+v0.10.0 publication and its independent public-asset audit are complete under
 [`releases/v0.10.0.md`](releases/v0.10.0.md). The feature scope is frozen at the completed Phase 3
 boundary. The contract audit closed the implicit-standard-package omission and namespace-ordering
-defects in commit `f1d7e4b4`; candidate identity is v0.10.0 and the deterministic archive passed
-the complete fresh-install matrix. Stop at this qualification boundary. Do not publish without
-separate authorization. v0.9.0 remains the latest published and audited release under
-[`releases/v0.9.0.md`](releases/v0.9.0.md).
+defects in commit `f1d7e4b4`; the deterministic archive passed local and public fresh-install
+matrices. Annotated tag `v0.10.0` resolves to publication commit `cc866309`, and GitHub exposes the
+qualified archive as the only asset of the latest non-prerelease release. Stop at this published
+boundary.
 
 ## Completed Checkpoint
 
@@ -19,9 +19,16 @@ separate authorization. v0.9.0 remains the latest published and audited release 
   Clippy, public examples, source corpus, and the distributed installed-home suite
 - documentation generation produced 113 pages; the two-build archive comparison and complete
   isolated fresh-install matrix passed
-- the retained 3,465,760-byte `arm64-darwin` candidate has SHA-256
+- the published 3,465,760-byte `arm64-darwin` archive has SHA-256
   `fe47f69b274a23c8d83bd28d9bb28b3e3ee3a43f02bb16ed0151a42345ce61c9` and contains all 27
   standard-library files
+- annotated tag `v0.10.0` resolves to publication commit
+  `cc866309e6815670e1b7e558d461fcd7415111c4`
+- GitHub resolves v0.10.0 as the latest release with exactly the qualified archive and marks it
+  neither draft nor prerelease
+- a separate public download reproduced the qualified size and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
 - v0.10.0 Phase 3 replaces `pub(nocter)` with private, descendant-module, ancestor-module,
   package, and universal visibility boundaries resolved from exact `PackageId` and `ModuleId`
@@ -212,7 +219,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the locally qualified v0.10.0 candidate. Do not tag, push, create a GitHub Release, upload
-an asset, or change published download links without separate authorization. Any compiler,
-standard-library, or packaging change invalidates the candidate and requires complete
-requalification. The published v0.9.0 archive and its evidence are immutable.
+Stop at the published and audited v0.10.0 boundary. Do not begin another milestone or alter the
+published asset without a new plan. Any compiler, standard-library, or packaging change belongs to
+a later version and requires complete qualification. Published archives and their evidence are
+immutable.
