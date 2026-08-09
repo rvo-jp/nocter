@@ -136,6 +136,10 @@ Rules:
   `: Self! from allocator where copy T`. Requirements use comma-space separation.
 - A result provenance clause follows the return type on the same line with one space before
   `from`. Union origins use one space around `|`.
+- An associated type declaration is `pub type Name` on its own interface-member line.
+- An associated type binding is `type Name = Type` and precedes method implementations in a
+  conformance body.
+- A projected type uses no spaces around the dot: `Self.Item` or `S.Item`.
 
 Examples:
 

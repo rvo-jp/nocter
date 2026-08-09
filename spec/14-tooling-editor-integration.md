@@ -94,6 +94,11 @@ Declaration owners are shown when they disambiguate a member. Construction hover
 type-owned public construction surface, including its default entry. Raw private construction and
 inaccessible members are absent.
 
+Associated type hover uses the interface-owned declaration identity. A declaration or projection
+is shown as `associated type Interface.Name`; a conformance binding is shown as
+`type Interface.Name = ConcreteType`. Normalized callable presentation preserves a generic
+`Self.Name` or `T.Name` projection until concrete specialization selects a binding.
+
 ## Completion
 
 Completion follows lexical scope, visibility, shadowing, receiver capability, generic bounds, and
@@ -111,6 +116,10 @@ candidates.
 Member completion for a generic receiver combines its declared capability set. Distinct interfaces
 with the same applicable member name are ambiguous; order never chooses one.
 
+Type-position completion after `Self.` or a bounded parameter offers only associated types from
+the resolved interface requirements. It does not infer a member from a spelling or from an
+unresolved interface.
+
 ## Navigation, References, and Rename
 
 Definition and references use semantic declaration identity rather than spelling. Package-wide
@@ -126,6 +135,9 @@ A generic-bound call defines to the interface declaration. Concrete specializati
 selected implementation target internally without changing that source-level definition result.
 The target name in a callable `where` clause defines, references, and renames as the corresponding
 generic parameter; contextual `copy` and `where` tokens never acquire declaration identities.
+An associated type declaration owns the identity shared by its conformance bindings and projected
+uses. Definition, references, and rename cross imports through that identity rather than treating
+each `Item` spelling as a separate symbol.
 
 ## Diagnostics, Code Actions, and Hints
 

@@ -2,12 +2,20 @@
 
 ## Current Task
 
-v0.11.0 Phase 0 is complete. Select the next standard-library expression gap from the remaining
-milestone candidates; do not extend generic predicates beyond the completed nominal, callable, and
-intrinsic-copy requirement model without a separate design phase.
+v0.11.0 Phase 1 is complete. Before migrating the iterator interfaces, design a separate phase for
+associated-type equality requirements; adapters with two independent sources must be able to prove
+relations such as `Right.Item = Left.Item` without retaining a redundant unchecked type parameter.
 
 ## Completed Checkpoint
 
+- v0.11.0 Phase 1 adds required interface associated types, exact conformance bindings,
+  `Self.Item`/`T.Item`/concrete projections, and one recursive normalization service shared by
+  signature compatibility, specialization, ownership, sizing, buildability, lowering, and LSP
+- associated declarations, bindings, projected uses, and imported occurrences share the interface
+  declaration's semantic identity for hover, completion, definition, references, rename, and
+  semantic tokens; no `Iterator`, `Item`, `std`, or source-path recognition was added
+- focused generic, concrete, nested, callable-`where`, imported, recovery, editor, and native
+  execution tests pass; full qualification is recorded in `milestones/v0.11.0.md`
 - v0.11.0 Phase 0 separates authored syntax from resolved generic requirements, supports `<copy T>`
   and callable `where copy T`, validates generic bodies and concrete substitutions through the
   ownership classifier, and publishes the contract through compiler-backed editor surfaces
@@ -221,8 +229,8 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Follow the ordered work and commit boundaries in [v0.11.0 Phase 0](milestones/v0.11.0.md). The first
-checkpoint is a behavior-preserving authored-bound/resolved-requirement model shared by resolver,
-typecheck, analysis, and signature consumers. Add `copy` and callable `where` syntax only after that
-checkpoint passes focused bound, conformance, callable, presentation, and formatting tests. Keep
-the published v0.10.0 archive, tag, and release evidence immutable.
+Plan the next v0.11.0 phase before changing source syntax. The likely scope is associated-type
+equality requirements plus migration of `Iterator<T>`, `Iterable<T, I>`, and `IntoIterator<T, I>`
+to associated results. Reuse the Phase 1 declaration identity and normalization service; do not add
+iterator-name recognition, textual equality, or an adapter-only constraint path. Keep the published
+v0.10.0 archive, tag, and release evidence immutable.

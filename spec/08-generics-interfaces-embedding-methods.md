@@ -117,9 +117,9 @@ interface, conformance, or construction owner; it is not resolved as an ordinary
 
 ## Interfaces
 
-An interface is a nominal public capability. Its members are explicitly public methods. A member
-without a body is required; a member with a body is reusable default behavior derived from the same
-interface contract.
+An interface is a nominal public capability. Its associated types and methods are explicitly
+public. A method without a body is required; a method with a body is reusable default behavior
+derived from the same interface contract.
 
 ```nct
 pub interface Counter {
@@ -136,9 +136,50 @@ pub interface Counter {
 }
 ```
 
-An interface cannot declare fields, stored state, associated data, associated types, construction
-members, or `drop`. A default method does not establish conformance and cannot access members absent
-from its declaring interface contract.
+An interface cannot declare fields, stored state, associated data, construction members, or
+`drop`. A default method does not establish conformance and cannot access members absent from its
+declaring interface contract.
+
+## Associated Types
+
+An interface may declare a required type selected by each conformance:
+
+```nct
+pub interface Source {
+    pub type Item
+
+    pub method &+self.next(): Self.Item?
+}
+
+impl<T> Source for BufferSource<T> {
+    type Item = T
+
+    method &+self.next(): T? {
+        ...
+    }
+}
+```
+
+```text
+AssociatedTypeDeclaration = "pub" "type" Name
+AssociatedTypeBinding     = "type" Name "=" Type
+ProjectedType             = TypeAtom "." Name
+```
+
+Every associated type is required and public. A conformance binds each declaration exactly once
+and cannot bind an undeclared name. Bindings omit `pub` because their visibility and identity come
+from the interface declaration. Inherent implementations cannot contain associated type bindings.
+Associated type names use a namespace separate from interface method names.
+
+`Self.Name` selects a declaration on the current interface. `T.Name` requires one unambiguous
+interface requirement on `T` that declares `Name`. A concrete projection follows one applicable
+conformance and substitutes its binding. The normalized result participates in method-signature
+compatibility, ownership, copyability, sizing, provenance, generic specialization, ABI checking,
+and lowering exactly like the bound type written by the implementation.
+
+Associated type declarations cannot currently have defaults, bounds, or generic parameters.
+Nocter does not yet provide associated-type equality requirements, so a generic contract cannot
+state that associated types selected by two independent parameters are equal.
 
 ## Explicit Conformance
 
@@ -161,10 +202,13 @@ Conformance rules are:
 - the interface and target resolve to exact nominal identities
 - the target is a nominal `struct` or `enum`
 - every bodyless interface method has exactly one matching implementation member
+- every associated type declaration has exactly one binding and no undeclared binding is present
 - extra methods, associated functions, literals, `drop`, and construction members are invalid
 - receiver capability, generic parameters, parameter and result types, outcome layers, and external
   result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
+- associated projections in method signatures are compared after substituting the conformance's
+  bindings
 - a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
   storage-independent result may omit an interface origin that cannot apply to that result, while
   a storage-carrying result cannot introduce an undeclared origin

@@ -310,12 +310,15 @@ type syntax group a type without creating a new type.
 
 `Self` is type-position syntax, not an ordinary user-defined name.
 
-`Self` is valid only in type positions inside an inherent `impl` block or a
-qualified associated function declaration such as `func File.open`.
+`Self` is valid only in type positions owned by a type or interface declaration: an inherent or
+interface `impl`, an interface member signature or default body, a `construct` entry, or a
+qualified associated function such as `func File.open`.
 
 Meaning:
 
 - In `impl File { ... }`, `Self` means `File`.
+- In `interface Source { ... }`, `Self` means the eventual conforming type.
+- In `impl Source for File { ... }`, `Self` means `File`.
 - In `func File.open(...)`, `Self` means `File`.
 
 Rules:
@@ -324,10 +327,31 @@ Rules:
 - `Self` cannot be used as a binding name, parameter name, function name, method name, field name, enum variant name, module name, type declaration name, type parameter name, or import alias.
 - `Self` is not resolved through normal name lookup.
 - `Self` is not imported or exported.
-- `Self` has no meaning outside inherent member type positions.
+- `Self` has no meaning outside a type- or interface-owned type position.
 - Lowercase `self` is not special. It is an ordinary identifier if it is otherwise valid in that syntactic position.
 
 This preserves Nocter's rule that ordinary names do not define special behavior. The special behavior belongs to type syntax, not to a value or declaration name.
+
+### Associated Type Projections
+
+`Base.Name` in a type position is an associated type projection. It denotes the type selected for
+`Name` by an interface conformance, rather than an ordinary qualified declaration.
+
+```nct
+func next<S: Source>(source: &+S): S.Item? {
+    return source.next()
+}
+```
+
+`Self.Item` is valid when the current interface declares `Item`. `S.Item` requires exactly one
+interface requirement on `S` to declare `Item`. A concrete projection such as `FileSource.Item`
+requires exactly one applicable conformance that binds `Item`. Projection normalization also
+applies beneath existing type constructors, so `Vec<S.Item>`, `S.Item?`, and `&S.Item` retain their
+ordinary outer type rules.
+
+An unknown or ambiguous projection is an error. Nocter does not select a declaration by import
+order, interface spelling, or the name `Item`. Associated-type declarations, bindings, and
+constraints are specified in [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#associated-types).
 
 Built-in literal values:
 

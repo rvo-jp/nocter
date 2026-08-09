@@ -181,7 +181,8 @@
   <code>T: Interface&lt;U&gt;</code>.</li><li>Multiple bounds use one space around <code>+</code>:
   <code>T: Iterator&lt;U&gt; + ExactSizeIterator&lt;U&gt;</code>.</li><li>An intrinsic requirement prefixes the parameter as <code>&lt;copy T&gt;</code> or <code>&lt;copy T: Interface&gt;</code>.</li><li>A callable requirement clause remains on the signature line after result provenance:
   <code>: Self! from allocator where copy T</code>. Requirements use comma-space separation.</li><li>A result provenance clause follows the return type on the same line with one space before
-  <code>from</code>. Union origins use one space around <code>|</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+  <code>from</code>. Union origins use one space around <code>|</code>.</li><li>An associated type declaration is <code>pub type Name</code> on its own interface-member line.</li><li>An associated type binding is <code>type Name = Type</code> and precedes method implementations in a
+  conformance body.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
 <span class="token-keyword">let</span> home <span class="token-operator">=</span> maybe_home<span class="token-operator">?</span>
 

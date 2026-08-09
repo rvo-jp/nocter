@@ -175,6 +175,6 @@ in source order.
 
 ## Unsupported Features
 
-The current language does not include interface inheritance, associated types, erased callable types, dynamic
-dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
-sorting, extension declarations, or implicit conformance.
+The current language does not include interface inheritance, associated-type equality requirements,
+erased callable types, dynamic dispatch, implicit capture, asynchronous closures, generators,
+parallel iterators, comparator sorting, extension declarations, or implicit conformance.
