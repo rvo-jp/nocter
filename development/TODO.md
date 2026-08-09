@@ -3,7 +3,7 @@
 ## Current Task
 
 Implement [v0.11.0 Phase 0](milestones/v0.11.0.md): replace raw generic-bound reinterpretation with
-one resolved requirement model, add the intrinsic `T: copy` source contract and callable `where`
+one resolved requirement model, add intrinsic `<copy T>` parameters and callable `where copy T`
 requirements for inherited owner parameters, and migrate every standard-library API whose readonly
 generic copy precondition is currently enforced only after specialization. Begin with the
 behavior-preserving requirement-model extraction; do not add associated types or combine the
