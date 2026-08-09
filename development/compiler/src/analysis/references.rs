@@ -182,6 +182,26 @@ mod tests {
     }
 
     #[test]
+    fn reference_query_joins_associated_declaration_binding_and_projection() {
+        let text = r#"interface Source {
+    pub type Item
+}
+struct NumberSource { value: i32 }
+impl Source for NumberSource {
+    type Item = i32
+}
+func project<S: Source>(source: S): S.Item { return source }
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("type Item").unwrap() + "type ".len();
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(span_fragments(text, &spans), vec!["Item", "Item", "Item"]);
+    }
+
+    #[test]
     fn reference_query_finds_member_references() {
         let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method &self.read(): i32 {\n        return self.fd\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd + file.read()\n}\n";
         let (_sources, analysis) = analyze_text(text);

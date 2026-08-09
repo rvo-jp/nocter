@@ -288,6 +288,12 @@ impl OccurrenceBuilder<'_> {
                                 SemanticOccurrenceKind::Property,
                             );
                         }
+                        for associated in &type_symbol.associated_types {
+                            self.push_member_declaration(
+                                associated.name_span,
+                                SemanticOccurrenceKind::Type,
+                            );
+                        }
                         for function in &type_symbol.associated_functions {
                             self.push_member_declaration(
                                 function.name_span,
@@ -423,6 +429,9 @@ impl OccurrenceBuilder<'_> {
                     }
                     crate::typecheck::TypeOccurrenceTarget::GenericParameter(span) => {
                         SemanticIdentity::GenericParameter(span)
+                    }
+                    crate::typecheck::TypeOccurrenceTarget::Member(span) => {
+                        SemanticIdentity::Member(span)
                     }
                 }),
                 SemanticOccurrenceRole::Reference,

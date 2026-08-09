@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::TypeExpr;
 
 pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
     sources: &SourceMap,
@@ -397,6 +398,33 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
             documentation: None,
         });
     }
+    if let crate::analysis::occurrences::SemanticIdentity::Member(span) = occurrence.identity? {
+        let (owner, associated) = associated_type_for_declaration_span(analysis, span)?;
+        let label = if matches!(occurrence.contextual_type, Some(TypeExpr::Projection(_)))
+            || occurrence.role == crate::analysis::occurrences::SemanticOccurrenceRole::Declaration
+        {
+            format!(
+                "associated type {}.{}",
+                owner.canonical_name, associated.name
+            )
+        } else {
+            format!(
+                "type {}.{} = {}",
+                owner.canonical_name,
+                associated.name,
+                occurrence
+                    .contextual_type
+                    .as_ref()
+                    .map(crate::ast::canonical_type_expr)
+                    .unwrap_or_else(|| "<unknown>".to_string())
+            )
+        };
+        return Some(HoverInfo {
+            span: occurrence.focus_span,
+            label,
+            documentation: target_documentation(sources, analysis, associated.name_span),
+        });
+    }
     let crate::analysis::occurrences::SemanticIdentity::Declaration(declaration_span) =
         occurrence.identity?
     else {
@@ -450,6 +478,27 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         span: occurrence.focus_span,
         label,
         documentation,
+    })
+}
+
+fn associated_type_for_declaration_span<'a>(
+    analysis: &'a CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<(
+    &'a crate::resolve::TypeSymbol,
+    &'a crate::resolve::AssociatedTypeSignature,
+)> {
+    analysis.files.iter().find_map(|file| {
+        file.resolved.symbols.symbols().find_map(|symbol| {
+            let SymbolKind::Type(owner) = &symbol.kind else {
+                return None;
+            };
+            owner
+                .associated_types
+                .iter()
+                .find(|associated| associated.name_span == declaration_span)
+                .map(|associated| (owner, associated))
+        })
     })
 }
 

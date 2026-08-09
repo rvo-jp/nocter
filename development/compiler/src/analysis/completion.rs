@@ -88,6 +88,11 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
+    if let Some(items) =
+        associated_type_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
+    {
+        return items;
+    }
     if let Some(items) = result_provenance_completion_items(&file.ast, offset) {
         return items;
     }
@@ -266,6 +271,10 @@ pub(crate) fn completion_items_for_text_at_offset(
     );
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
+    if let Some(items) = associated_type_completion_items(&parsed.ast, &resolved, &facts, offset) {
+        return Some(items);
+    }
+
     if let Some(items) = result_provenance_completion_items(&parsed.ast, offset) {
         return Some(items);
     }
@@ -285,6 +294,109 @@ pub(crate) fn completion_items_for_text_at_offset(
         &local_names,
     ));
     Some(items)
+}
+
+fn associated_type_completion_items(
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    let projection = facts.type_occurrences().find_map(|occurrence| {
+        let TypeExpr::Projection(projection) = &occurrence.contextual_type else {
+            return None;
+        };
+        (occurrence.focus_span.start <= offset && offset <= occurrence.focus_span.end)
+            .then_some(projection)
+    })?;
+    let entries = match projection.base.as_ref() {
+        TypeExpr::Reference(reference) if reference.name == "Self" => ast
+            .items
+            .iter()
+            .find(|item| item.span().start <= offset && offset <= item.span().end)
+            .and_then(|item| match item {
+                Item::Interface(interface) => Some(
+                    interface
+                        .associated_types
+                        .iter()
+                        .map(|associated| {
+                            (
+                                associated.name.clone(),
+                                interface.name.clone(),
+                                associated.name_span,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                Item::Impl(impl_) => {
+                    let name = match impl_.interface_ty.as_ref()? {
+                        TypeExpr::Reference(reference) => &reference.name,
+                        TypeExpr::Generic(generic) => &generic.name,
+                        _ => return None,
+                    };
+                    let interface = resolved.type_symbol_by_reference_name(name)?;
+                    Some(
+                        interface
+                            .associated_types
+                            .iter()
+                            .map(|associated| {
+                                (
+                                    associated.name.clone(),
+                                    interface.canonical_name.clone(),
+                                    associated.name_span,
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+                _ => None,
+            })
+            .unwrap_or_default(),
+        TypeExpr::Reference(reference) => facts
+            .generic_parameter_declarations()
+            .find(|parameter| parameter.name == reference.name)
+            .map(|parameter| {
+                parameter
+                    .bounds
+                    .iter()
+                    .filter_map(|bound| {
+                        let name = match bound {
+                            TypeExpr::Reference(reference) => &reference.name,
+                            TypeExpr::Generic(generic) => &generic.name,
+                            _ => return None,
+                        };
+                        resolved.type_symbol_by_reference_name(name)
+                    })
+                    .flat_map(|interface| {
+                        interface.associated_types.iter().map(|associated| {
+                            (
+                                associated.name.clone(),
+                                interface.canonical_name.clone(),
+                                associated.name_span,
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(|| {
+                crate::typecheck::concrete_associated_types(&projection.base, resolved)
+            }),
+        _ => crate::typecheck::concrete_associated_types(&projection.base, resolved),
+    };
+    Some(
+        entries
+            .into_iter()
+            .map(|(name, owner, declaration_span)| CompletionItemInfo {
+                label: name.clone(),
+                kind: CompletionItemKind::Class,
+                detail: Some(format!("associated type {owner}.{name}")),
+                documentation: None,
+                insert_text: Some(name),
+                sort_text: None,
+                declaration_span: Some(declaration_span),
+            })
+            .collect(),
+    )
 }
 
 fn result_provenance_completion_items(

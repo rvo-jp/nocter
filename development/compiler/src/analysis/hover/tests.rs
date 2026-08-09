@@ -686,6 +686,45 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter
 }
 
 #[test]
+fn workspace_hover_uses_associated_type_contract_identity() {
+    let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+
+struct NumberSource { value: i32 }
+
+impl Source for NumberSource {
+    type Item = i32
+    method &self.get(): i32 { return self.value }
+}
+
+func project<S: Source>(source: &S): S.Item {
+    return source.get()
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let declaration_offset = text.find("type Item").unwrap() + "type ".len();
+    let declaration = hover_for_file_analysis(&sources, &analysis, file, declaration_offset)
+        .expect("associated declaration hover");
+    assert_eq!(declaration.label, "associated type Source.Item");
+    assert_eq!(&text[declaration.span.start..declaration.span.end], "Item");
+
+    let binding_offset = text.rfind("type Item").unwrap() + "type ".len();
+    let binding = hover_for_file_analysis(&sources, &analysis, file, binding_offset)
+        .expect("associated binding hover");
+    assert_eq!(binding.label, "type Source.Item = i32");
+
+    let projection_offset = text.rfind("S.Item").unwrap() + "S.".len();
+    let projection = hover_for_file_analysis(&sources, &analysis, file, projection_offset)
+        .expect("associated projection hover");
+    assert_eq!(projection.label, "associated type Source.Item");
+    assert_eq!(&text[projection.span.start..projection.span.end], "Item");
+}
+
+#[test]
 fn workspace_hover_presents_method_generic_parameter_identity() {
     let text = r#"interface Iterator<T> {}
 

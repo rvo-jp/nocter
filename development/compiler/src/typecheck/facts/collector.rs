@@ -6,6 +6,7 @@ pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -
         resolved,
         facts: TypecheckFacts::default(),
         generic_parameters: Vec::new(),
+        associated_types: Vec::new(),
     };
 
     for item in &ast.items {
@@ -22,6 +23,7 @@ struct TypecheckFactCollector<'a> {
     resolved: &'a ResolveOutput,
     facts: TypecheckFacts,
     generic_parameters: Vec<(String, ByteSpan)>,
+    associated_types: Vec<(String, ByteSpan)>,
 }
 
 impl TypecheckFactCollector<'_> {
@@ -55,6 +57,24 @@ impl TypecheckFactCollector<'_> {
             .iter()
             .rev()
             .find_map(|(parameter, span)| (parameter == name).then_some(*span))
+    }
+
+    fn with_associated_type_scope(
+        &mut self,
+        associated_types: impl IntoIterator<Item = (String, ByteSpan)>,
+        collect: impl FnOnce(&mut Self),
+    ) {
+        let previous_len = self.associated_types.len();
+        self.associated_types.extend(associated_types);
+        collect(self);
+        self.associated_types.truncate(previous_len);
+    }
+
+    fn associated_type_declaration(&self, name: &str) -> Option<ByteSpan> {
+        self.associated_types
+            .iter()
+            .rev()
+            .find_map(|(associated, span)| (associated == name).then_some(*span))
     }
 }
 

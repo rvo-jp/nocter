@@ -12,6 +12,8 @@ mod builtin_std;
 mod aggregates;
 #[path = "cli_run/arrays.rs"]
 mod arrays;
+#[path = "cli_run/associated_types.rs"]
+mod associated_types;
 #[path = "cli_run/calls.rs"]
 mod calls;
 #[path = "cli_run/closures.rs"]

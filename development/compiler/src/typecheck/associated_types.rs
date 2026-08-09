@@ -50,29 +50,12 @@ pub(super) fn check_declarations(
 }
 
 pub(super) fn normalize_projection(base: Type, member: &str, resolved: &ResolveOutput) -> Type {
-    let mut candidates = implemented_interface_conformances(&base, resolved)
-        .into_iter()
-        .filter_map(|(conformance, interface_type)| {
-            let interface =
-                resolved.type_symbol_by_canonical_name(interface_type.nominal_name()?)?;
-            interface
-                .associated_types
-                .iter()
-                .any(|associated| associated.name == member)
-                .then_some(conformance)
-        });
-    let Some(conformance) = candidates.next() else {
+    let Some((conformance, _)) = concrete_projection_contract(&base, member, resolved) else {
         return Type::Projection {
             base: Box::new(base),
             member: member.to_string(),
         };
     };
-    if candidates.next().is_some() {
-        return Type::Projection {
-            base: Box::new(base),
-            member: member.to_string(),
-        };
-    }
     let Some(binding) = conformance
         .associated_types
         .iter()
@@ -99,4 +82,27 @@ pub(super) fn normalize_projection(base: Type, member: &str, resolved: &ResolveO
         &mut substitutions,
     );
     type_expr_to_type_with_substitutions(&binding.value, resolved, Some(&base), &substitutions)
+}
+
+pub(super) fn concrete_projection_contract<'a>(
+    base: &Type,
+    member: &str,
+    resolved: &'a ResolveOutput,
+) -> Option<(
+    &'a crate::resolve::InterfaceConformance,
+    &'a crate::resolve::AssociatedTypeSignature,
+)> {
+    let mut candidates = implemented_interface_conformances(base, resolved)
+        .into_iter()
+        .filter_map(|(conformance, interface_type)| {
+            let interface =
+                resolved.type_symbol_by_canonical_name(interface_type.nominal_name()?)?;
+            interface
+                .associated_types
+                .iter()
+                .find(|associated| associated.name == member)
+                .map(|associated| (conformance, associated))
+        });
+    let candidate = candidates.next()?;
+    candidates.next().is_none().then_some(candidate)
 }

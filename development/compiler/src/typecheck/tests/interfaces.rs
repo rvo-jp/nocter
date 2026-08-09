@@ -36,6 +36,45 @@ func main(): void {
 }
 
 #[test]
+fn normalizes_associated_types_in_concrete_nested_and_where_constrained_positions() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+}
+
+copy struct Pair<T> {
+    first: T
+    second: T
+}
+
+copy struct Numbers {
+    value: i32
+}
+
+impl Source for Numbers {
+    type Item = i32
+}
+
+func concrete(value: Numbers.Item): i32 {
+    return value
+}
+
+func nested<S>(value: Pair<S.Item>): Pair<S.Item> where S: Source {
+    return value
+}
+
+func main(): i32 {
+    let pair = Pair<i32> { first: 20, second: 22 }
+    let result: Pair<i32> = nested<Numbers>(pair)
+    return concrete(result.first + result.second)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_incomplete_and_non_contract_associated_type_bindings() {
     let diagnostics = check_text(
         r#"interface Source {

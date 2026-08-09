@@ -1274,6 +1274,60 @@ func inspect<T: Readable + >(value: &T): i32 {
 }
 
 #[test]
+fn completion_recovers_associated_types_after_projection_dot() {
+    let text = r#"interface Source {
+    pub type Item
+    pub type Error
+}
+
+func project<S: Source>(source: S): S. {
+    return source
+}
+"#;
+    let offset = text.find("S. {").unwrap() + "S.".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected associated type completion");
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Item", "Error"]
+    );
+    assert!(items.iter().all(|item| {
+        item.detail
+            .as_deref()
+            .is_some_and(|detail| detail.starts_with("associated type Source."))
+    }));
+}
+
+#[test]
+fn completion_uses_callable_requirements_for_associated_types() {
+    let text = r#"interface Source {
+    pub type Item
+}
+
+func project<S>(source: S): S. where S: Source {
+    return source
+}
+"#;
+    let offset = text.find("S. where").unwrap() + "S.".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected associated type completion from callable requirement");
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Item"]
+    );
+}
+
+#[test]
 fn method_presentation_matches_completion_hover_and_signature_help() {
     let text = r#"struct Box<T> { value: T }
 

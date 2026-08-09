@@ -99,6 +99,37 @@ pub(crate) fn normalize_associated_type_expr(
     (!matches!(result, crate::ast::TypeExpr::Projection(_))).then_some(result)
 }
 
+pub(crate) fn concrete_associated_types(
+    ty: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> Vec<(String, String, crate::source::ByteSpan)> {
+    let ty = type_expr::type_expr_to_type(ty, resolved);
+    let mut entries = conformance::implemented_interface_conformances(&ty, resolved)
+        .into_iter()
+        .filter_map(|(_, interface)| {
+            resolved.type_symbol_by_canonical_name(interface.nominal_name()?)
+        })
+        .flat_map(|interface| {
+            interface.associated_types.iter().map(|associated| {
+                (
+                    associated.name.clone(),
+                    interface.canonical_name.clone(),
+                    associated.name_span,
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        left.1
+            .cmp(&right.1)
+            .then(left.0.cmp(&right.0))
+            .then(left.2.source.raw().cmp(&right.2.source.raw()))
+            .then(left.2.start.cmp(&right.2.start))
+    });
+    entries.dedup();
+    entries
+}
+
 pub(crate) fn type_expr_is_aborting_allocator_capability(
     ty: &crate::ast::TypeExpr,
     resolved: &ResolveOutput,

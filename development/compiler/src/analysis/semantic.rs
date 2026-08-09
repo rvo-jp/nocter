@@ -487,6 +487,24 @@ mod tests {
     }
 
     #[test]
+    fn associated_type_names_are_semantic_types() {
+        let text = r#"interface Source { pub type Item }
+struct NumberSource { value: i32 }
+impl Source for NumberSource { type Item = i32 }
+func project<S: Source>(source: S): S.Item { return source }
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+        let item_tokens = identifiers_for_lexeme(text, &identifiers, "Item");
+        assert_eq!(item_tokens.len(), 3, "{item_tokens:#?}");
+        assert!(
+            item_tokens
+                .iter()
+                .all(|identifier| identifier.kind == SemanticTokenKind::Type)
+        );
+    }
+
+    #[test]
     fn native_test_name_is_a_function_like_declaration_only_on_its_identifier() {
         let text = "test pushes { return }\n";
         let identifiers =

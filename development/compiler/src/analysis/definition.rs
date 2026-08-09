@@ -340,6 +340,31 @@ coerce Text { &self as &str from self { return self.value } }
     }
 
     #[test]
+    fn definition_query_resolves_associated_binding_and_projection() {
+        let text = r#"interface Source {
+    pub type Item
+}
+struct NumberSource { value: i32 }
+impl Source for NumberSource {
+    type Item = i32
+}
+func project<S: Source>(source: S): S.Item { return source }
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let expected = text.find("type Item").unwrap() + "type ".len();
+        for offset in [
+            text.rfind("type Item").unwrap() + "type ".len(),
+            text.rfind("S.Item").unwrap() + "S.".len(),
+        ] {
+            let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+                .expect("associated type definition");
+            assert_eq!(span.start, expected);
+            assert_eq!(&text[span.start..span.end], "Item");
+        }
+    }
+
+    #[test]
     fn definition_query_resolves_struct_literal_fields() {
         let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
@@ -540,5 +565,45 @@ func main(): i32 {
             span.start,
             text.find("method &self.measure(): i32 {").unwrap() + 13
         );
+    }
+
+    #[test]
+    fn definition_query_resolves_imported_associated_type_identity() {
+        let root_text = r#"use lib/math.Source
+
+struct Number { value: i32 }
+
+impl Source for Number {
+    type Item = i32
+}
+
+func project<S: Source>(source: S): S.Item {
+    return source
+}
+"#;
+        let module_text = r#"pub interface Source {
+    pub type Item
+}
+"#;
+        let (sources, analysis) = analyze_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = root_text.rfind("S.Item").unwrap() + "S.".len();
+
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected imported associated type definition");
+        let target_text = sources
+            .get(target.declaration_span.source)
+            .expect("expected imported source")
+            .text();
+
+        assert_eq!(
+            &root_text[target.focus_span.start..target.focus_span.end],
+            "Item"
+        );
+        assert_eq!(
+            &target_text[target.declaration_span.start..target.declaration_span.end],
+            "Item"
+        );
+        assert_ne!(target.focus_span.source, target.declaration_span.source);
     }
 }

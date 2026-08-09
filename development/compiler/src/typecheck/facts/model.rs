@@ -664,6 +664,7 @@ pub(crate) struct TypeOccurrenceFact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TypeOccurrenceTarget {
     Declaration(ByteSpan),
+    Member(ByteSpan),
     GenericParameter(ByteSpan),
 }
 

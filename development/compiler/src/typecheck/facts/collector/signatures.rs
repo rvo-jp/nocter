@@ -40,15 +40,15 @@ impl TypecheckFactCollector<'_> {
                     );
                 }
                 self.collect_generic_param_type_references(&function.generics);
+                self.collect_callable_requirement_type_references(function.requirements.as_ref());
                 self.collect_parameter_type_references(&function.parameters.parameters);
                 self.collect_type_expr_references(&function.return_type);
-                self.collect_callable_requirement_type_references(function.requirements.as_ref());
             }
             Item::Primitive(primitive) => {
                 self.collect_generic_param_type_references(&primitive.generics);
+                self.collect_callable_requirement_type_references(primitive.requirements.as_ref());
                 self.collect_parameter_type_references(&primitive.parameters.parameters);
                 self.collect_type_expr_references(&primitive.return_type);
-                self.collect_callable_requirement_type_references(primitive.requirements.as_ref());
             }
             Item::TypeAlias(alias) => {
                 self.collect_generic_param_type_references(&alias.generics);
@@ -68,11 +68,19 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Interface(interface) => {
                 self.collect_generic_param_type_references(&interface.generics);
-                for method in &interface.methods {
-                    self.with_generic_scope(&method.generics, |collector| {
-                        collector.collect_method_signature_type_references(method);
-                    });
-                }
+                self.with_associated_type_scope(
+                    interface
+                        .associated_types
+                        .iter()
+                        .map(|associated| (associated.name.clone(), associated.name_span)),
+                    |collector| {
+                        for method in &interface.methods {
+                            collector.with_generic_scope(&method.generics, |collector| {
+                                collector.collect_method_signature_type_references(method);
+                            });
+                        }
+                    },
+                );
             }
             Item::Impl(impl_) => {
                 self.collect_generic_param_type_references(&impl_.generics);
@@ -80,42 +88,74 @@ impl TypecheckFactCollector<'_> {
                     self.collect_type_expr_references(interface_ty);
                 }
                 self.collect_type_expr_references(&impl_.target_ty);
-                for member in &impl_.members {
-                    match member {
-                        ImplMember::AssociatedType(binding) => {
-                            self.collect_type_expr_references(&binding.value);
+                let associated_types = impl_
+                    .interface_ty
+                    .as_ref()
+                    .and_then(|ty| match ty {
+                        TypeExpr::Reference(reference) => {
+                            self.resolved.type_symbol_by_reference_name(&reference.name)
                         }
-                        ImplMember::Method(method) => {
-                            self.with_generic_scope(&method.generics, |collector| {
-                                collector.collect_method_signature_type_references(method);
-                            });
+                        TypeExpr::Generic(generic) => {
+                            self.resolved.type_symbol_by_reference_name(&generic.name)
                         }
-                        ImplMember::Drop(_) => {}
+                        _ => None,
+                    })
+                    .map(|interface| {
+                        interface
+                            .associated_types
+                            .iter()
+                            .map(|associated| (associated.name.clone(), associated.name_span))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                self.with_associated_type_scope(associated_types, |collector| {
+                    for member in &impl_.members {
+                        match member {
+                            ImplMember::AssociatedType(binding) => {
+                                if let Some(target) = collector
+                                    .associated_type_declaration(&binding.name)
+                                    .map(TypeOccurrenceTarget::Member)
+                                {
+                                    collector.facts.type_occurrences.push(TypeOccurrenceFact {
+                                        focus_span: binding.name_span,
+                                        contextual_type: binding.value.clone(),
+                                        target: Some(target),
+                                    });
+                                }
+                                collector.collect_type_expr_references(&binding.value);
+                            }
+                            ImplMember::Method(method) => {
+                                collector.with_generic_scope(&method.generics, |collector| {
+                                    collector.collect_method_signature_type_references(method);
+                                });
+                            }
+                            ImplMember::Drop(_) => {}
+                        }
                     }
-                }
+                });
             }
             Item::Construct(construct) => {
                 self.collect_type_expr_references(&construct.target);
                 for (_, function) in construct.functions() {
                     self.with_generic_scope(&function.generics, |collector| {
                         collector.collect_generic_param_type_references(&function.generics);
-                        collector
-                            .collect_parameter_type_references(&function.parameters.parameters);
-                        collector.collect_type_expr_references(&function.return_type);
                         collector.collect_callable_requirement_type_references(
                             function.requirements.as_ref(),
                         );
+                        collector
+                            .collect_parameter_type_references(&function.parameters.parameters);
+                        collector.collect_type_expr_references(&function.return_type);
                     });
                 }
                 for (_, literal) in construct.literals() {
+                    self.collect_callable_requirement_type_references(
+                        literal.requirements.as_ref(),
+                    );
                     self.collect_parameter_type_references(&literal.parameters.parameters);
                     if let Some(capture) = &literal.capture {
                         self.collect_type_expr_references(&capture.element_type);
                     }
                     self.collect_type_expr_references(&literal.return_type);
-                    self.collect_callable_requirement_type_references(
-                        literal.requirements.as_ref(),
-                    );
                 }
             }
             Item::Coerce(coerce) => {
@@ -133,9 +173,9 @@ impl TypecheckFactCollector<'_> {
         method: &MethodDecl,
     ) {
         self.collect_generic_param_type_references(&method.generics);
+        self.collect_callable_requirement_type_references(method.requirements.as_ref());
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
-        self.collect_callable_requirement_type_references(method.requirements.as_ref());
     }
 
     fn collect_callable_requirement_type_references(
@@ -143,6 +183,20 @@ impl TypecheckFactCollector<'_> {
         clause: Option<&crate::ast::CallableRequirementClause>,
     ) {
         for requirement in clause.into_iter().flat_map(|clause| &clause.requirements) {
+            if let Some(declaration) = self.generic_parameter_declaration(&requirement.name) {
+                if let Some(parameter) = self
+                    .facts
+                    .generic_parameter_declarations
+                    .iter_mut()
+                    .find(|parameter| parameter.span == declaration)
+                {
+                    for bound in &requirement.bounds {
+                        if !parameter.bounds.contains(bound) {
+                            parameter.bounds.push(bound.clone());
+                        }
+                    }
+                }
+            }
             self.record_type_reference(
                 &requirement.name,
                 requirement.name_span,
@@ -208,6 +262,7 @@ impl TypecheckFactCollector<'_> {
             }
             TypeExpr::Projection(ty) => {
                 self.collect_type_expr_references(&ty.base);
+                self.record_associated_type_reference(ty);
             }
             TypeExpr::Pointer(ty) => self.collect_type_expr_references(&ty.inner),
             TypeExpr::Borrow(ty) => self.collect_type_expr_references(&ty.inner),

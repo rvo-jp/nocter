@@ -155,6 +155,51 @@ impl TypecheckFactCollector<'_> {
         });
     }
 
+    pub(in crate::typecheck::facts::collector) fn record_associated_type_reference(
+        &mut self,
+        projection: &crate::ast::ProjectedType,
+    ) {
+        let target = if let TypeExpr::Reference(reference) = projection.base.as_ref() {
+            if reference.name == "Self" {
+                self.associated_type_declaration(&projection.name)
+            } else {
+                self.generic_parameter_declaration(&reference.name)
+                    .and_then(|span| self.facts.generic_parameter(span))
+                    .and_then(|parameter| {
+                        let mut candidates = parameter.bounds.iter().filter_map(|bound| {
+                            let name = match bound {
+                                TypeExpr::Reference(reference) => &reference.name,
+                                TypeExpr::Generic(generic) => &generic.name,
+                                _ => return None,
+                            };
+                            self.resolved
+                                .type_symbol_by_reference_name(name)?
+                                .associated_types
+                                .iter()
+                                .find(|associated| associated.name == projection.name)
+                                .map(|associated| associated.name_span)
+                        });
+                        let candidate = candidates.next()?;
+                        candidates.next().is_none().then_some(candidate)
+                    })
+            }
+        } else {
+            let base =
+                super::super::super::type_expr::type_expr_to_type(&projection.base, self.resolved);
+            super::super::super::associated_types::concrete_projection_contract(
+                &base,
+                &projection.name,
+                self.resolved,
+            )
+            .map(|(_, associated)| associated.name_span)
+        };
+        self.facts.type_occurrences.push(TypeOccurrenceFact {
+            focus_span: projection.name_span,
+            contextual_type: TypeExpr::Projection(projection.clone()),
+            target: target.map(TypeOccurrenceTarget::Member),
+        });
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_if_is_pattern_references(
         &mut self,
         statement: &IfIsStmt,
