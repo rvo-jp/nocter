@@ -192,7 +192,7 @@ fn distributed_std_borrowed_text_view_keeps_owned_source_loan_active() {
     let project = TempProject::new("distributed-home-borrowed-text-view-loan");
     let source = project.write_source(
         "borrowed_text_view_loan.nct",
-        r#"use std/string.{String, get_range}
+        r#"use std/string.get_range
 
 func invalid(): usize {
     var text = String "hello"
@@ -220,7 +220,7 @@ fn distributed_std_borrowed_text_iterators_keep_both_inputs_active() {
     let project = TempProject::new("distributed-home-borrowed-text-iterator-loans");
     let source = project.write_source(
         "borrowed_text_iterator_loans.nct",
-        r#"use std/string.{String, split_views}
+        r#"use std/string.split_views
 
 func mutate_text(): usize! {
     var text = String "a,b"
@@ -255,7 +255,7 @@ fn distributed_std_borrowed_text_view_rejects_source_move_and_drop() {
     let project = TempProject::new("distributed-home-borrowed-text-move-drop");
     let source = project.write_source(
         "borrowed_text_move_drop.nct",
-        r#"use std/string.{String, get_range}
+        r#"use std/string.get_range
 
 func move_source(): usize {
     let text = String "hello"
@@ -387,7 +387,7 @@ func main(): i32! {
         ),
         "{split_hover}"
     );
-    assert!(!split_hover.contains("std/string_views."), "{split_hover}");
+    assert!(!split_hover.contains("std/string."), "{split_hover}");
 
     let signature = string_view_lsp_response(&frames, 4)["result"]["signatures"][0]["label"]
         .as_str()
@@ -404,7 +404,7 @@ func main(): i32! {
         .and_then(|location| location["targetUri"].as_str())
         .or_else(|| definition["uri"].as_str());
     assert!(
-        target_uri.is_some_and(|uri| uri.ends_with("/std/string_views/index.nct")),
+        target_uri.is_some_and(|uri| uri.ends_with("/std/string/index.nct")),
         "definition: {definition:#?}"
     );
 

@@ -301,6 +301,7 @@ struct FunctionIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     resolved_sources: ResolvedSources<'a>,
     method_target_aliases: Vec<(String, CallTarget)>,
+    root_source: SourceId,
 }
 
 struct IndexedCallable<'a> {
@@ -453,9 +454,14 @@ impl<'a> FunctionIndex<'a> {
                                     let declaration = analysis
                                         .callable_bodies
                                         .canonical_identity(method.name_span);
+                                    let declaration_source = if declaration == method.name_span {
+                                        file.ast.span.source
+                                    } else {
+                                        declaration.source
+                                    };
                                     let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
-                                        declaration.source,
+                                        declaration_source,
                                         root_source,
                                         name.clone(),
                                     );
@@ -474,6 +480,11 @@ impl<'a> FunctionIndex<'a> {
                                     let declaration = analysis
                                         .callable_bodies
                                         .canonical_identity(method.name_span);
+                                    let declaration_source = if declaration == method.name_span {
+                                        file.ast.span.source
+                                    } else {
+                                        declaration.source
+                                    };
                                     for specialization in call_specializations
                                         .methods
                                         .get(&declaration)
@@ -481,7 +492,7 @@ impl<'a> FunctionIndex<'a> {
                                         .flatten()
                                     {
                                         let target = call_target_for_source(
-                                            declaration.source,
+                                            declaration_source,
                                             root_source,
                                             specialization.target_name.clone(),
                                         );
@@ -683,21 +694,51 @@ impl<'a> FunctionIndex<'a> {
             definitions,
             resolved_sources,
             method_target_aliases,
+            root_source,
         }
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
-        self.definitions.get(target)
+        self.definitions.get(target).or_else(|| {
+            let (target_source, target_name) = match target {
+                CallTarget::SameFile(name) => (self.root_source, name),
+                CallTarget::Imported { source, name } => (*source, name),
+            };
+            self.definitions.iter().find_map(|(candidate, callable)| {
+                let CallTarget::Imported { source, name } = candidate else {
+                    return None;
+                };
+                (name == target_name
+                    && self
+                        .resolved_sources
+                        .get(source)
+                        .is_some_and(|resolved| resolved.module_source(*source) == target_source))
+                .then_some(callable)
+            })
+        })
     }
 
     fn signatures(&self) -> FunctionSignatures {
         FunctionSignatures::from_call_targets(
             self.definitions
                 .iter()
-                .filter_map(|(target, function)| {
-                    function
-                        .signature(&self.resolved_sources)
-                        .map(|signature| (target.clone(), signature))
+                .flat_map(|(target, function)| {
+                    let Some(signature) = function.signature(&self.resolved_sources) else {
+                        return Vec::new();
+                    };
+                    let mut entries = vec![(target.clone(), signature.clone())];
+                    if let CallTarget::Imported { source, name } = target
+                        && let Some(resolved) = self.resolved_sources.get(source)
+                    {
+                        let module = resolved.module_source(*source);
+                        if module != *source {
+                            entries.push((
+                                call_target_for_source(module, self.root_source, name.clone()),
+                                signature,
+                            ));
+                        }
+                    }
+                    entries
                 })
                 .collect(),
         )

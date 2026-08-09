@@ -81,7 +81,20 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
         .ast_for_source(root.span.source)
         .map(|ast| callable_bodies.declaration_surface(ast))
         .unwrap_or_else(|| root.clone());
-    let access = root_access(root, import_sources, prelude_sources);
+    let root_module = source_modules
+        .module(root.span.source)
+        .unwrap_or(root.span.source);
+    let access = files
+        .iter()
+        .filter(|file| {
+            source_modules
+                .module(file.span.source)
+                .unwrap_or(file.span.source)
+                == root_module
+        })
+        .map(|file| root_access(file, import_sources, prelude_sources))
+        .find(|access| *access == ImportAccess::Nocter)
+        .unwrap_or(ImportAccess::Public);
     let mut resolver = Resolver {
         sources,
         module_index,

@@ -165,7 +165,7 @@ fn target_gated_type_imports_follow_active_target() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
-        r#"use std/os.PlatformWord
+        r#"use std/internal/os.PlatformWord
 
 func main(): i32 {
     return 0
@@ -174,7 +174,7 @@ func main(): i32 {
     )
     .unwrap();
     crate::test_files::write(
-        home.join("std/os/index.nct"),
+        home.join("std/internal/os/index.nct"),
         r#"#target: "arm64-darwin"
 pub copy struct PlatformWord {
     pub value: usize

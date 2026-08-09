@@ -5,14 +5,47 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 use std/error.Error
-pub use std/io/core.{Reader, Writer, invalid_read_count}
+use ./core
 use std/mem.alloc_pages
 use std/mem.free_pages
-use std/os.{OSError, OSErrorKind}
+use std/internal/os.{OSError, OSErrorKind}
 use std/path.Utf8Path
 use std/ptr.copy_str_to_ptr
 use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
+use std/string.String
+use std/string.bytes as string_bytes
+use std/vec.Vec
+
+/// A source that initializes at most `buffer.len()` bytes per read.
+pub interface Reader {
+    pub method &+self.read(buffer: &+[u8]): usize!
+
+    /// Reads until end of stream into independently owned byte storage.
+    pub method &+self.read_to_end(): Vec<u8>! {
+        return collect_bytes(self)?
+    }
+
+    /// Reads until end of stream and validates the complete input as UTF-8.
+    pub method &+self.read_to_string(): String! {
+        let collected = collect_bytes(self)?
+        return String.from_utf8(&collected as &[u8])?
+    }
+}
+
+/// A destination that accepts the complete byte view or returns an error.
+pub interface Writer {
+    pub method &+self.write(value: &[u8]): void!
+    pub method &+self.flush(): void! { return }
+
+    /// Writes the UTF-8 encoding bytes through the shared byte contract.
+    pub method &+self.write_text(text: &str): void! {
+        write_text_to(self, text)?
+        return
+    }
+}
+
+pub func invalid_read_count(): error
 
 #target: "arm64-darwin"
 pub(nocter) primitive open_read_raw(path: *u8): i32!

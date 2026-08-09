@@ -1,0 +1,21 @@
+//! Consuming terminal iterator operations.
+
+func count<T, I: Iterator<T>>(source: I): usize {
+    var iterator = move source
+    var total: usize = 0
+    while true {
+        let item = iterator.next() otherwise { return total }
+        total = total + 1
+    }
+    return 0
+}
+
+func last<T, I: Iterator<T>>(source: I): T? {
+    var iterator = move source
+    var result: T? = none
+    while true {
+        let item = iterator.next() otherwise { return move result }
+        result = move item
+    }
+    return none
+}

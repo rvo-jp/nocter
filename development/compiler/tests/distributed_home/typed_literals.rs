@@ -819,7 +819,7 @@ fn typed_literal_region_release_unmaps_literal_owned_storage() {
     fs::create_dir_all(home.join("std/literal_region_probe")).unwrap();
     fs::write(
         home.join("std/literal_region_probe/index.nct"),
-        r#"use std/os.syscall3
+        r#"use std/internal/os.syscall3
 
 pub func is_mapped(address: usize): bool {
     let page_start = address / 16384 * 16384

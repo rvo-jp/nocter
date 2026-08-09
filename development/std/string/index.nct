@@ -17,19 +17,10 @@ use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 use std/ptr.store_u8_to_ptr
-use std/string_search.find_from_bytes
 use std/vec.Vec
 use std/str.str_len_raw
-pub use std/string_views.{
-    LinesIter,
-    SplitIter,
-    get_range,
-    is_char_boundary,
-    lines,
-    split_views,
-    strip_prefix,
-    strip_suffix,
-}
+use ./search
+use ./views
 
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
@@ -37,6 +28,60 @@ pub struct String {
     storage: RawBuffer
     len: usize
 }
+
+/// Allocation-free iterator over separator-delimited borrowed components.
+pub struct SplitIter {
+    text: &str
+    separator: &str
+    next_start: usize
+    finished: bool
+}
+
+/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
+pub struct LinesIter {
+    text: &str
+    next_start: usize
+    finished: bool
+}
+
+/// Reconstructs a previously validated UTF-8 subview.
+pub(nocter) primitive str_subview_unchecked(
+    text: &str,
+    start: usize,
+    len: usize,
+): &str from text
+
+/// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
+pub func is_char_boundary(text: &str, index: usize): bool
+
+/// Returns a borrowed UTF-8 range, or `none` for invalid endpoints.
+pub func get_range(text: &str, start: usize, end: usize): &str?
+
+/// Removes `prefix` without allocation when it exactly matches.
+pub func strip_prefix(text: &str, prefix: &str): &str? from text
+
+/// Removes `suffix` without allocation when it exactly matches.
+pub func strip_suffix(text: &str, suffix: &str): &str? from text
+
+construct SplitIter {
+    pub default func new(
+        text: &str,
+        separator: &str,
+    ): Self! from text | separator
+}
+
+/// Creates an allocation-free separator iterator.
+pub func split_views(
+    text: &str,
+    separator: &str,
+): SplitIter! from text | separator
+
+construct LinesIter {
+    pub default func new(text: &str): Self
+}
+
+/// Creates an allocation-free iterator over borrowed lines.
+pub func lines(text: &str): LinesIter
 
 construct String {
     /// Copies a static string view into owned storage in the current allocation context.

@@ -1766,12 +1766,12 @@ pub interface Iterable<T, I> {
     pub method &self.iter(): I
 }
 "#;
-    let core_source = home.join("std/iter/core/index.nct");
+    let core_source = home.join("std/iter/protocol/index.nct");
     std::fs::create_dir_all(core_source.parent().unwrap()).unwrap();
     crate::test_files::write(&core_source, core_text).unwrap();
     crate::test_files::write(
         home.join("std/iter/index.nct"),
-        "pub use std/iter/core.Iterable\n",
+        "pub use std/iter/protocol.Iterable\n",
     )
     .unwrap();
     crate::test_files::write(

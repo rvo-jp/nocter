@@ -31,7 +31,7 @@ fn distributed_std_path_io_numeric_and_process_surface_passes_check() {
     let source = project.write_source(
         "practical_services_shape.nct",
         r#"use std/io.{File, Reader, Writer, open_path}
-use std/io_buffer.{BufReader, BufWriter}
+use std/io/buffer.{BufReader, BufWriter}
 use std/num.{i32_to_string, parse_i32, parse_u8, parse_usize, usize_to_string}
 use std/path.Utf8Path
 use std/process.{arg, arg_count, environment, environment_count}
@@ -61,7 +61,7 @@ fn distributed_std_whole_stream_io_surface_passes_check() {
     let source = project.write_source(
         "whole_stream_io_shape.nct",
         r#"use std/io.{File, Reader, Writer}
-use std/io_buffer.{BufReader, BufWriter}
+use std/io/buffer.{BufReader, BufWriter}
 
 func collect<R: Reader>(reader: &+R): String! {
     return reader.read_to_string()?
@@ -106,7 +106,7 @@ fn distributed_std_whole_stream_io_operations_run() {
     fs::write(&invalid_path, [0xf0, 0x28, 0x8c, 0x28]).unwrap();
 
     let source_text = r#"use std/io.File
-use std/io_buffer.{BufReader, BufWriter}
+use std/io/buffer.{BufReader, BufWriter}
 
 func rejects_invalid_utf8(path: &str): bool {
     var input = File.open(path) catch error { return false }
@@ -309,7 +309,7 @@ func main(): i32! {
         hover.contains("method &+File.read_to_string(): String!"),
         "{hover}"
     );
-    assert!(!hover.contains("std/io/core."), "{hover}");
+    assert!(!hover.contains("std/io."), "{hover}");
 
     let definition = &io_lsp_response(&frames, 3)["result"];
     let target_uri = definition
@@ -318,7 +318,7 @@ func main(): i32! {
         .and_then(|location| location["targetUri"].as_str())
         .or_else(|| definition["uri"].as_str());
     assert!(
-        target_uri.is_some_and(|uri| uri.ends_with("/std/io/core/index.nct")),
+        target_uri.is_some_and(|uri| uri.ends_with("/std/io/index.nct")),
         "definition: {definition:#?}"
     );
 
@@ -420,7 +420,7 @@ fn distributed_std_filesystem_cli_foundation_runs() {
     let fixture = project.write_source("input.txt", "alpha\nbeta\n");
     let output_path = project.root().join("output.txt");
     let source_text = r#"use std/io.{append_path, create_path, open_path, stdout}
-use std/io_buffer.{BufReader, BufWriter}
+use std/io/buffer.{BufReader, BufWriter}
 use std/num.{parse_i32, usize_to_string}
 use std/path.Utf8Path
 use std/process.{arg, arg_count}

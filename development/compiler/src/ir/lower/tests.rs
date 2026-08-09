@@ -542,7 +542,7 @@ pub func bytes(value: &str): &[u8] from value {
 fn std_process_file() -> (&'static str, &'static str) {
     (
         "std/process/index.nct",
-        r#"use std/os.trap
+        r#"use std/internal/os.trap
 
 #target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
@@ -560,7 +560,7 @@ pub func abort(): never {
 
 fn std_os_file() -> (&'static str, &'static str) {
     (
-        "std/os/index.nct",
+        "std/internal/os/index.nct",
         r#"#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 

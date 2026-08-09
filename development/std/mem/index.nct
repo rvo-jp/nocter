@@ -10,7 +10,7 @@
 //! provide the OS boundary behind this common API.
 
 use std/error.Error
-use std/os.{syscall2, syscall6}
+use std/internal/os.{syscall2, syscall6}
 use std/ptr.addr
 use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr

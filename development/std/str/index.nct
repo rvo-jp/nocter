@@ -7,8 +7,8 @@
 use std/iter.ViewIter
 use std/ptr.from_addr
 use std/string.{String, bytes_from_str, contains, ends_with, find, find_from, split, starts_with}
-use std/string_views.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
-use std/string_views.{strip_prefix, strip_suffix}
+use std/string.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
+use std/string.{strip_prefix, strip_suffix}
 use std/vec.Vec
 
 pub(nocter) primitive str_len_raw(value: &str): usize

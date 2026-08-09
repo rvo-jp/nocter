@@ -290,7 +290,7 @@ fn distributed_std_owned_iterator_surface_passes_check() {
     let source = project.write_source(
         "owned_iterator_shape.nct",
         r#"use std/vec.{Vec, into_iter}
-use std/vec_into_iter.{VecIntoIter, next, remaining}
+use std/vec.{VecIntoIter, next, remaining}
 
 func consume(values: Vec<i32>): usize {
     var first: VecIntoIter<i32> = into_iter(move values)
@@ -566,7 +566,7 @@ func main(): i32 {
 fn distributed_lsp_exposes_iteration_plans_and_recovers_incomplete_headers() {
     let project = TempProject::new("distributed-home-collection-for-lsp");
     let valid_text = r#"use std/vec.Vec
-use std/vec_into_iter.VecIntoIter
+use std/vec.VecIntoIter
 
 func run(values: Vec<i32>, owned: Vec<i32>, iterator: VecIntoIter<i32>): void {
     for readonly_item in &values {

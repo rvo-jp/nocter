@@ -71,16 +71,16 @@ mod tests {
 ): &str from text
 "#;
         assert_eq!(
-            role_for(exact, "std/string_views"),
+            role_for(exact, "std/string"),
             Some(TrustedDeclarationRole::BorrowedProjection { source: 0 })
         );
         assert_eq!(role_for(exact, "app/string_views"), None);
 
         let wrong_result = exact.replace(": &str from text", ": &[u8] from text");
-        assert_eq!(role_for(&wrong_result, "std/string_views"), None);
+        assert_eq!(role_for(&wrong_result, "std/string"), None);
 
         let missing_contract = exact.replace(" from text", "");
-        assert_eq!(role_for(&missing_contract, "std/string_views"), None);
+        assert_eq!(role_for(&missing_contract, "std/string"), None);
 
         let near_misses = [
             exact.replace("pub(nocter)", "pub"),
@@ -97,11 +97,7 @@ mod tests {
             exact.replace("from text", "from text | start"),
         ];
         for near_miss in near_misses {
-            assert_eq!(
-                role_for(&near_miss, "std/string_views"),
-                None,
-                "{near_miss}"
-            );
+            assert_eq!(role_for(&near_miss, "std/string"), None, "{near_miss}");
         }
     }
 }

@@ -339,7 +339,7 @@ fn source_aware_abi_resolves_qualified_type_name_in_declaring_source() {
     let mut sources = SourceMap::new();
     let library_ast = parse_source(
         &mut sources,
-        "std/os/index.nct",
+        "std/internal/os/index.nct",
         r#"copy struct SyscallResult {
 value: usize
 errno: i32
@@ -355,7 +355,7 @@ errno: i32
 
     let ty = TypeExpr::Reference(TypeReference {
         span: library_ast.span,
-        name: "std/os.SyscallResult".to_string(),
+        name: "std/internal/os.SyscallResult".to_string(),
     });
     let value = abi_value_from_type_expr_with_resolver(&ty, &library_resolved, |source| {
         (source == library_ast.span.source).then_some(&library_resolved)

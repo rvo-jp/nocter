@@ -192,7 +192,8 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     });
                     let callable =
                         CallableId::declared_at(function_summary_key(function, source.resolved));
-                    summaries.insert_result(
+                    insert_body_result_summary(
+                        &mut summaries,
                         callable,
                         result_with_contract_fallback(
                             provenance,
@@ -200,6 +201,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &return_type,
                             source.resolved,
                         ),
+                        source.resolved,
                     );
                     collect_retained_input_mutations(
                         body,
@@ -316,7 +318,12 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 .resolved
                                 .canonical_callable_identity(method.name_span),
                         );
-                        summaries.insert_result(callable, provenance);
+                        insert_body_result_summary(
+                            &mut summaries,
+                            callable,
+                            provenance,
+                            source.resolved,
+                        );
                         if let Some(body) = &method.body {
                             collect_retained_input_mutations(
                                 body,
@@ -378,7 +385,8 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             function,
                             source.resolved,
                         ));
-                        summaries.insert_result(
+                        insert_body_result_summary(
+                            &mut summaries,
                             callable,
                             result_with_contract_fallback(
                                 provenance,
@@ -386,6 +394,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 &return_type,
                                 source.resolved,
                             ),
+                            source.resolved,
                         );
                         collect_retained_input_mutations(
                             body,
@@ -434,7 +443,8 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let callable = CallableId::declared_at(
                             source.resolved.canonical_callable_identity(literal.span),
                         );
-                        summaries.insert_result(
+                        insert_body_result_summary(
+                            &mut summaries,
                             callable,
                             result_with_contract_fallback(
                                 provenance,
@@ -442,6 +452,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                                 &return_type,
                                 source.resolved,
                             ),
+                            source.resolved,
                         );
                         collect_retained_input_mutations(
                             body,
@@ -497,9 +508,11 @@ fn collect_impl_provenance_summaries(
         });
         let callable =
             CallableId::declared_at(resolved.canonical_callable_identity(method.name_span));
-        summaries.insert_result(
+        insert_body_result_summary(
+            summaries,
             callable,
             result_with_contract_fallback(provenance, declared, &return_type, resolved),
+            resolved,
         );
         collect_retained_input_mutations(
             body,
@@ -512,6 +525,18 @@ fn collect_impl_provenance_summaries(
             callable,
         );
     }
+}
+
+fn insert_body_result_summary(
+    summaries: &mut CallableProvenanceSummaries,
+    callable: CallableId,
+    result: ValueProvenance,
+    resolved: &ResolveOutput,
+) {
+    summaries.insert_result(
+        callable,
+        canonicalize_provenance_summary_inputs(result, resolved),
+    );
 }
 
 /// A sequence capture is a semantic callable input, but element transfers into

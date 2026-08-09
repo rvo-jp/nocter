@@ -1,3 +1,0 @@
-//! Prefix-limiting and prefix-skipping owning iterator adapters.
-
-pub use std/iter/core.{SkipIter, TakeIter, skip, take}

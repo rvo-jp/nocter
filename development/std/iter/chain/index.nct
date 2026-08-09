@@ -1,3 +1,0 @@
-//! Sequential composition of two owning iterators.
-
-pub use std/iter/core.{ChainIter, chain}

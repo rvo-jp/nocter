@@ -15,6 +15,7 @@ use std::collections::HashMap;
 pub(crate) struct CallableBodyIndex {
     declaration_to_implementation: HashMap<ByteSpan, ByteSpan>,
     implementation_to_declaration: HashMap<ByteSpan, ByteSpan>,
+    implementation_input_to_declaration: HashMap<ByteSpan, ByteSpan>,
 }
 
 impl CallableBodyIndex {
@@ -66,6 +67,13 @@ impl CallableBodyIndex {
                     index
                         .implementation_to_declaration
                         .insert(implementation.declaration_span, contract.declaration_span);
+                    for (declaration, implementation) in
+                        contract.inputs.iter().zip(&implementation.inputs)
+                    {
+                        index
+                            .implementation_input_to_declaration
+                            .insert(*implementation, *declaration);
+                    }
                 }
                 [implementation] => diagnostics.push(signature_mismatch_diagnostic(
                     sources,
@@ -93,6 +101,14 @@ impl CallableBodyIndex {
 
     pub(crate) fn canonical_identity(&self, span: ByteSpan) -> ByteSpan {
         self.declaration(span).unwrap_or(span)
+    }
+
+    /// Returns the public contract identity for a receiver, parameter, or literal capture.
+    pub(crate) fn canonical_input_identity(&self, span: ByteSpan) -> ByteSpan {
+        self.implementation_input_to_declaration
+            .get(&span)
+            .copied()
+            .unwrap_or(span)
     }
 
     pub(crate) fn is_implementation(&self, span: ByteSpan) -> bool {
@@ -150,7 +166,10 @@ impl CallableBodyIndex {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum CallableKey {
-    Function(String),
+    Function {
+        owner: Option<String>,
+        name: String,
+    },
     Method {
         owner: String,
         name: String,
@@ -169,7 +188,10 @@ enum CallableKey {
 impl CallableKey {
     fn label(&self) -> String {
         match self {
-            Self::Function(name) => format!("function `{name}`"),
+            Self::Function { owner, name } => owner.as_ref().map_or_else(
+                || format!("function `{name}`"),
+                |owner| format!("associated function `{owner}.{name}`"),
+            ),
             Self::Method { owner, name } => format!("method `{owner}.{name}`"),
             Self::Literal { owner, shape } => format!(
                 "{} literal for `{owner}`",
@@ -202,6 +224,7 @@ struct CallableRecord {
     declaration_span: ByteSpan,
     key: CallableKey,
     signature: CallableSignature,
+    inputs: Vec<ByteSpan>,
 }
 
 fn collect_file_callables(
@@ -411,6 +434,7 @@ fn collect_coercions(
                     return_type: canonical_type_expr(&entry.target),
                     provenance: provenance_signature(entry.result_provenance.as_ref()),
                 },
+                inputs: vec![entry.receiver.name_span],
             },
             entry.visibility,
             entry.body.is_some(),
@@ -427,7 +451,10 @@ fn record_for_function(module: SourceId, function: &FunctionDecl) -> CallableRec
         module,
         identity: function_identity(function),
         declaration_span: function.span,
-        key: CallableKey::Function(function.name.clone()),
+        key: CallableKey::Function {
+            owner: function.owner.as_ref().map(|owner| owner.name.clone()),
+            name: function.member_name.clone(),
+        },
         signature: CallableSignature {
             owner_generics: Vec::new(),
             generics: generic_signature(&function.generics),
@@ -436,6 +463,12 @@ fn record_for_function(module: SourceId, function: &FunctionDecl) -> CallableRec
             return_type: canonical_type_expr(&function.return_type),
             provenance: provenance_signature(function.result_provenance.as_ref()),
         },
+        inputs: function
+            .parameters
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name_span)
+            .collect(),
     }
 }
 
@@ -457,6 +490,15 @@ fn record_for_method(module: SourceId, impl_: &ImplDecl, method: &MethodDecl) ->
             return_type: canonical_type_expr(&method.return_type),
             provenance: provenance_signature(method.result_provenance.as_ref()),
         },
+        inputs: std::iter::once(method.receiver.name_span)
+            .chain(
+                method
+                    .parameters
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name_span),
+            )
+            .collect(),
     }
 }
 
@@ -469,6 +511,13 @@ fn record_for_literal(module: SourceId, literal: &LiteralDecl) -> CallableRecord
             canonical_type_expr(&capture.element_type)
         ));
     }
+    let inputs = literal
+        .parameters
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name_span)
+        .chain(literal.capture.iter().map(|capture| capture.name_span))
+        .collect();
     CallableRecord {
         module,
         identity: literal.shape_span,
@@ -485,6 +534,7 @@ fn record_for_literal(module: SourceId, literal: &LiteralDecl) -> CallableRecord
             return_type: canonical_type_expr(&literal.return_type),
             provenance: provenance_signature(literal.result_provenance.as_ref()),
         },
+        inputs,
     }
 }
 
@@ -613,9 +663,12 @@ mod tests {
     #[test]
     fn joins_matching_function_contract_and_body() {
         let mut sources = SourceMap::new();
-        let root = sources.add_source("index.nct", None, "pub func answer(): i32\n");
-        let implementation =
-            sources.add_source("answer.nct", None, "func answer(): i32 { return 42 }\n");
+        let root = sources.add_source("index.nct", None, "pub func answer(value: i32): i32\n");
+        let implementation = sources.add_source(
+            "answer.nct",
+            None,
+            "func answer(value: i32): i32 { return value }\n",
+        );
         let root_tokens = lex(&sources, root);
         let implementation_tokens = lex(&sources, implementation);
         let root_ast = parse(&sources, root, &root_tokens.tokens).ast.unwrap();
@@ -644,5 +697,17 @@ mod tests {
         };
         assert_eq!(index.implementation(declaration), Some(body));
         assert_eq!(index.declaration(body), Some(declaration));
+        let declaration_input = match &files[0].items[0] {
+            Item::Function(function) => function.parameters.parameters[0].name_span,
+            _ => panic!("expected function"),
+        };
+        let body_input = match &files[1].items[0] {
+            Item::Function(function) => function.parameters.parameters[0].name_span,
+            _ => panic!("expected function"),
+        };
+        assert_eq!(
+            index.canonical_input_identity(body_input),
+            declaration_input
+        );
     }
 }

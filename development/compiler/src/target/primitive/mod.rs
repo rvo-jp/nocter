@@ -696,7 +696,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "&[u8]",
         },
         PrimitiveSpec {
-            module_path: "std/string_views",
+            module_path: "std/string",
             target: None,
             visibility: Visibility::Nocter,
             name: "str_subview_unchecked",
@@ -732,7 +732,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "usize",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall0",
@@ -741,7 +741,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall1",
@@ -750,7 +750,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall2",
@@ -759,7 +759,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall3",
@@ -768,7 +768,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall4",
@@ -777,7 +777,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall5",
@@ -786,7 +786,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "syscall6",
@@ -795,7 +795,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "SyscallResult",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "trap",
@@ -804,7 +804,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "never",
         },
         PrimitiveSpec {
-            module_path: "std/os",
+            module_path: "std/internal/os",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "unreachable",

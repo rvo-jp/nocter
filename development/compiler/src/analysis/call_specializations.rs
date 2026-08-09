@@ -133,7 +133,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                     continue;
                 }
                 let Some((file, function)) =
-                    function_declaration_for_span(analysis, specialization.declaration_span)
+                    function_body_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
                 };
@@ -160,7 +160,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                     continue;
                 }
                 let Some((file, impl_, method)) =
-                    method_declaration_for_span(analysis, specialization.declaration_span)
+                    method_body_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
                 };
@@ -190,13 +190,17 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_coercion_specialization(&mut coercions, plan.clone()) {
                     continue;
                 }
-                let Some(file) = analysis.file_by_source(plan.declaration_span.source) else {
+                let body_span = analysis
+                    .callable_bodies
+                    .implementation(plan.declaration_span)
+                    .unwrap_or(plan.declaration_span);
+                let Some(file) = analysis.file_by_source(body_span.source) else {
                     continue;
                 };
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
-                    plan.declaration_span,
+                    body_span,
                     &plan.substitutions,
                     &mut queue,
                 );
@@ -555,6 +559,17 @@ fn function_declaration_for_span(
     })
 }
 
+fn function_body_declaration_for_span(
+    analysis: &CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<(&FileAnalysis, &FunctionDecl)> {
+    let body_span = analysis
+        .callable_bodies
+        .implementation(declaration_span)
+        .unwrap_or(declaration_span);
+    function_declaration_for_span(analysis, body_span)
+}
+
 fn method_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
@@ -573,6 +588,17 @@ fn method_declaration_for_span(
             _ => None,
         })
     })
+}
+
+fn method_body_declaration_for_span(
+    analysis: &CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<(&FileAnalysis, Option<&ImplDecl>, &MethodDecl)> {
+    let body_span = analysis
+        .callable_bodies
+        .implementation(declaration_span)
+        .unwrap_or(declaration_span);
+    method_declaration_for_span(analysis, body_span)
 }
 
 fn drop_declaration_for_span(

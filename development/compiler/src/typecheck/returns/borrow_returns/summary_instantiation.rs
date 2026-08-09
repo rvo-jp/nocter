@@ -1,5 +1,77 @@
 use super::*;
 
+/// Rebinds body-local input identities to the matching public callable contract.
+///
+/// Source-backed bodies retain physical spans for diagnostics, but summaries cross the callable
+/// boundary and therefore use the receiver, parameter, and literal-capture identities authored in
+/// the module root contract.
+pub(in crate::typecheck::returns) fn canonicalize_provenance_summary_inputs(
+    summary: ValueProvenance,
+    resolved: &ResolveOutput,
+) -> ValueProvenance {
+    match summary {
+        ValueProvenance::Independent => ValueProvenance::Independent,
+        ValueProvenance::Origins(origins) => ValueProvenance::Origins(
+            origins
+                .into_iter()
+                .map(|origin| canonicalize_storage_origin_input(origin, resolved))
+                .collect(),
+        ),
+        ValueProvenance::Aggregate {
+            fallback,
+            fields,
+            elements,
+        } => ValueProvenance::Aggregate {
+            fallback: fallback
+                .map(|value| Box::new(canonicalize_provenance_summary_inputs(*value, resolved))),
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| {
+                    (
+                        name,
+                        canonicalize_provenance_summary_inputs(value, resolved),
+                    )
+                })
+                .collect(),
+            elements: elements
+                .into_iter()
+                .map(|(index, value)| {
+                    (
+                        index,
+                        canonicalize_provenance_summary_inputs(value, resolved),
+                    )
+                })
+                .collect(),
+        },
+        ValueProvenance::Fallible { success, error } => ValueProvenance::Fallible {
+            success: success
+                .map(|value| Box::new(canonicalize_provenance_summary_inputs(*value, resolved))),
+            error: error
+                .map(|value| Box::new(canonicalize_provenance_summary_inputs(*value, resolved))),
+        },
+    }
+}
+
+fn canonicalize_storage_origin_input(
+    origin: StorageOrigin,
+    resolved: &ResolveOutput,
+) -> StorageOrigin {
+    match origin {
+        StorageOrigin::Input(input) => StorageOrigin::Input(InputId::declared_at(
+            resolved.canonical_callable_input_identity(input.declaration_span()),
+        )),
+        StorageOrigin::InputWithCurrentFallback(input) => {
+            StorageOrigin::InputWithCurrentFallback(InputId::declared_at(
+                resolved.canonical_callable_input_identity(input.declaration_span()),
+            ))
+        }
+        StorageOrigin::Allocated(origin) => StorageOrigin::Allocated(Box::new(
+            canonicalize_storage_origin_input(*origin, resolved),
+        )),
+        origin => origin,
+    }
+}
+
 /// Replaces declaration-relative storage origins with call-site origins while
 /// retaining the result's aggregate and fallible shape.
 pub(in crate::typecheck::returns) fn instantiate_provenance_summary(

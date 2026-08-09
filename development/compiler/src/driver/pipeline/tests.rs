@@ -152,6 +152,51 @@ func main(): i32 {
 }
 
 #[test]
+fn build_file_specializes_calls_reachable_from_a_source_backed_generic_body() {
+    let root = make_temp_project("build-source-backed-generic-call");
+    let nocter_home = make_nocter_home(&root);
+    let source = root.join("index.nct");
+    crate::test_files::write(
+        &source,
+        r#"use ./relay
+
+pub func relay<T>(value: T): T
+
+func identity<T>(value: T): T {
+    return move value
+}
+
+func main(): i32 {
+    return relay(42)
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("relay.nct"),
+        r#"func relay<T>(value: T): T {
+    return identity(move value)
+}
+"#,
+    )
+    .unwrap();
+
+    let executable = root.join("source-backed-generic-call");
+    let output =
+        build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+    assert_diagnostics_empty(&output.diagnostics);
+    assert_eq!(output.output_path, executable);
+    assert!(fs::metadata(&executable).unwrap().len() > 0x4000);
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(42));
+    }
+}
+
+#[test]
 fn build_file_lowers_source_backed_entry_body() {
     let root = make_temp_project("build-source-backed-entry");
     let nocter_home = make_nocter_home(&root);

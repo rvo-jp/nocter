@@ -317,6 +317,12 @@ pub(crate) fn load_compile_unit_with_trace(
 
     let trusted_modules = files
         .iter()
+        .filter(|ast| {
+            sources
+                .get(ast.span.source)
+                .and_then(|source| source.absolute_path())
+                .is_none_or(|path| crate::source_layout::is_module_root_source(path))
+        })
         .filter_map(|ast| {
             trusted_module_path(sources, ast.span.source, options, &mut resolved_nocter_home)
                 .map(|path| (path, ast))

@@ -4,7 +4,7 @@
 //! well-formed UTF-8 needle begins at a UTF-8 boundary in the haystack.
 
 /// Returns the first byte offset of `needle` at or after `start`.
-pub(nocter) func find_from_bytes(
+func find_from_bytes(
     text: &str,
     needle: &str,
     start: usize,

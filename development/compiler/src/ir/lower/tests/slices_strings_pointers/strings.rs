@@ -1001,7 +1001,7 @@ pub func first(value: &str): u8 {
 #[test]
 fn lowers_trusted_str_subview_projection_without_raw_pointer_ir() {
     let middle = lower_imported_named_function_with_nocter_home_files(
-        r#"use std/string_views.middle
+        r#"use std/string.middle
 
 func main(): void {
     return
@@ -1009,7 +1009,7 @@ func main(): void {
 "#,
         "middle",
         &[(
-            "std/string_views/index.nct",
+            "std/string/index.nct",
             r#"pub(nocter) primitive str_subview_unchecked(
     text: &str,
     start: usize,

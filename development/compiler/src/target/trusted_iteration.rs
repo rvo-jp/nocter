@@ -17,11 +17,11 @@ pub(crate) fn attach_iteration_runtime(
 }
 
 fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRuntime> {
-    let module = modules.get("std/iter/core")?;
+    let module = modules.get("std/iter")?;
     Some(IterationRuntime {
         iterator: find_interface(
             module,
-            "std/iter/core",
+            "std/iter",
             "Iterator",
             &["T"],
             "next",
@@ -33,7 +33,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         exact_size: find_interface(
             module,
-            "std/iter/core",
+            "std/iter",
             "ExactSizeIterator",
             &["T"],
             "remaining_len",
@@ -43,7 +43,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         readonly_conversion: find_interface(
             module,
-            "std/iter/core",
+            "std/iter",
             "Iterable",
             &["T", "I"],
             "iter",
@@ -55,7 +55,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         owned_conversion: find_interface(
             module,
-            "std/iter/core",
+            "std/iter",
             "IntoIterator",
             &["T", "I"],
             "into_iter",
@@ -192,7 +192,7 @@ pub interface IntoIterator<T, I> {
 }
 "#,
         );
-        let modules = HashMap::from([("std/iter/core".to_string(), &iter)]);
+        let modules = HashMap::from([("std/iter".to_string(), &iter)]);
 
         let runtime = iteration_runtime(&modules).expect("expected runtime");
 
@@ -211,7 +211,7 @@ pub interface IntoIterator<T, I> {
             &mut sources,
             "pub interface Iterator<T> { pub method self.next(): usize }\n",
         );
-        let modules = HashMap::from([("std/iter/core".to_string(), &iter)]);
+        let modules = HashMap::from([("std/iter".to_string(), &iter)]);
 
         assert!(iteration_runtime(&modules).is_none());
     }

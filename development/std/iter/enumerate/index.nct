@@ -1,3 +1,0 @@
-//! Stable zero-based indexing of an owning iterator.
-
-pub use std/iter/core.{EnumerateIter, Indexed, enumerate}

@@ -46,12 +46,20 @@ impl ResolveOutput {
         self.callable_bodies.canonical_identity(span)
     }
 
+    pub(crate) fn canonical_callable_input_identity(&self, span: ByteSpan) -> ByteSpan {
+        self.callable_bodies.canonical_input_identity(span)
+    }
+
     pub(crate) fn sources_share_module(&self, left: SourceId, right: SourceId) -> bool {
         left == right
             || matches!(
                 (self.source_modules.module(left), self.source_modules.module(right)),
                 (Some(left_module), Some(right_module)) if left_module == right_module
             )
+    }
+
+    pub(crate) fn module_source(&self, source: SourceId) -> SourceId {
+        self.source_modules.module(source).unwrap_or(source)
     }
     pub fn symbol_for_identifier(&self, identifier: &IdentifierExpr) -> Option<&Symbol> {
         self.identifier_targets

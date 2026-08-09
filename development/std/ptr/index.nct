@@ -3,7 +3,7 @@
 //! Raw pointers are address-carrying values. They do not own memory, do not
 //! extend lifetimes, and do not grant dereference permission. These declarations
 //! are target-independent core primitives, separate from OS target primitives
-//! such as `std/os.syscall0`.
+//! such as `std/internal/os.syscall0`.
 
 pub primitive addr<T>(pointer: *T): usize
 

@@ -3,23 +3,10 @@
 //! Public operations validate byte ranges before crossing the restricted
 //! projection boundary. Returned views retain their source text storage.
 
-use std/error.Error
 use std/iter.Iterator
-use std/string_search.find_from_bytes
-
-/// Reconstructs a previously validated subview while preserving `text` origin.
-///
-/// This boundary is restricted to the distributed standard library. Callers
-/// must prove `start + len <= text.len()` and both endpoints are UTF-8
-/// boundaries before calling it.
-pub(nocter) primitive str_subview_unchecked(
-    text: &str,
-    start: usize,
-    len: usize,
-): &str from text
 
 /// Returns whether `index` is a valid UTF-8 byte boundary in `text`.
-pub func is_char_boundary(text: &str, index: usize): bool {
+func is_char_boundary(text: &str, index: usize): bool {
     if index > text.len() { return false }
     if index == 0 || index == text.len() { return true }
     let byte: u8 = text[index]
@@ -27,7 +14,7 @@ pub func is_char_boundary(text: &str, index: usize): bool {
 }
 
 /// Returns a borrowed UTF-8 range, or `none` for invalid endpoints.
-pub func get_range(text: &str, start: usize, end: usize): &str? {
+func get_range(text: &str, start: usize, end: usize): &str? {
     if start > end { return none }
     if !is_char_boundary(text, start) || !is_char_boundary(text, end) {
         return none
@@ -36,7 +23,7 @@ pub func get_range(text: &str, start: usize, end: usize): &str? {
 }
 
 /// Removes `prefix` without allocation when it exactly matches.
-pub func strip_prefix(text: &str, prefix: &str): &str? from text {
+func strip_prefix(text: &str, prefix: &str): &str? from text {
     if prefix.len() > text.len() { return none }
     var index: usize = 0
     while index < prefix.len() {
@@ -47,7 +34,7 @@ pub func strip_prefix(text: &str, prefix: &str): &str? from text {
 }
 
 /// Removes `suffix` without allocation when it exactly matches.
-pub func strip_suffix(text: &str, suffix: &str): &str? from text {
+func strip_suffix(text: &str, suffix: &str): &str? from text {
     if suffix.len() > text.len() { return none }
     let start: usize = text.len() - suffix.len()
     var index: usize = 0
@@ -58,16 +45,8 @@ pub func strip_suffix(text: &str, suffix: &str): &str? from text {
     return str_subview_unchecked(text, 0, start)
 }
 
-/// Allocation-free iterator over separator-delimited borrowed components.
-pub struct SplitIter {
-    text: &str
-    separator: &str
-    next_start: usize
-    finished: bool
-}
-
 construct SplitIter {
-    pub default func new(
+    func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator {
@@ -82,7 +61,7 @@ construct SplitIter {
 }
 
 /// Creates an allocation-free separator iterator.
-pub func split_views(
+func split_views(
     text: &str,
     separator: &str,
 ): SplitIter! from text | separator {
@@ -110,15 +89,8 @@ impl Iterator<&str> for SplitIter {
     }
 }
 
-/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
-pub struct LinesIter {
-    text: &str
-    next_start: usize
-    finished: bool
-}
-
 construct LinesIter {
-    pub default func new(text: &str): Self {
+    func new(text: &str): Self {
         return LinesIter {
             text: text,
             next_start: 0,
@@ -128,7 +100,7 @@ construct LinesIter {
 }
 
 /// Creates an allocation-free iterator over borrowed lines.
-pub func lines(text: &str): LinesIter {
+func lines(text: &str): LinesIter {
     return LinesIter.new(text)
 }
 

@@ -2904,7 +2904,7 @@ fn distributed_os_error_model_is_not_public_api() {
     let project = TempProject::new("distributed-home-os-error-private");
     let source = project.write_source(
         "os_error_private.nct",
-        r#"use std/os.OSErrorKind
+        r#"use std/internal/os.OSErrorKind
 
 func main(): i32 {
     let kind = OSErrorKind.not_found
@@ -3607,7 +3607,7 @@ fn distributed_std_region_release_unmaps_owned_storage() {
     fs::write(
         home.join("std/region_probe/index.nct"),
         r#"use std/mem.{RawBuffer, alloc, current_allocator}
-use std/os.syscall3
+use std/internal/os.syscall3
 use std/ptr.addr
 
 pub func buffer_address(buffer: &RawBuffer): usize {
@@ -5451,18 +5451,18 @@ fn distributed_std_all_modules_pass_callable_contract_audit() {
     files.sort();
 
     let mut source_text = String::new();
-    for file in &files {
+    let module_roots = files
+        .iter()
+        .filter(|file| file.file_name().is_some_and(|name| name == "index.nct"))
+        .collect::<Vec<_>>();
+    for file in &module_roots {
         let relative = file
             .strip_prefix(&home)
             .expect("standard-library module below distributed home");
-        let module_path = if relative.file_name().is_some_and(|name| name == "index.nct") {
-            relative
-                .parent()
-                .unwrap_or_else(|| Path::new(""))
-                .to_path_buf()
-        } else {
-            relative.with_extension("")
-        };
+        let module_path = relative
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .to_path_buf();
         let mut module = module_path.to_string_lossy().to_string();
         if std::path::MAIN_SEPARATOR != '/' {
             module = module.replace(std::path::MAIN_SEPARATOR, "/");
@@ -5488,7 +5488,7 @@ fn distributed_std_all_modules_pass_callable_contract_audit() {
         output.status.code(),
         Some(0),
         "all {} distributed modules must pass callable contract validation:\n{}",
-        files.len(),
+        module_roots.len(),
         text(&output.stderr)
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");

@@ -131,7 +131,7 @@ fn distributed_std_region_iterators_cannot_escape_their_storage_region() {
         r#"use std/iter.ViewIter
 use std/mem.page_allocator
 use std/vec.Vec
-use std/vec_into_iter.VecIntoIter
+use std/vec.VecIntoIter
 
 func leak_readonly(): ViewIter<i32> {
     let arena = page_allocator()
@@ -332,9 +332,9 @@ func main(): i32 {
 fn token_program(main_body: &str) -> String {
     format!(
         r#"use std/io.print
-use std/iter/chain.chain
-use std/iter/ops.last
-use std/iter/sources.once
+use std/iter.chain
+use std/iter.last
+use std/iter.once
 use std/vec.Vec
 
 struct Token {{

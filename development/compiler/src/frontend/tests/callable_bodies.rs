@@ -178,6 +178,47 @@ impl Box {
 }
 
 #[test]
+fn associated_function_contracts_are_distinguished_by_owner() {
+    let diagnostics = analyze_sources(
+        r#"use ./constructors
+
+pub struct Left { value: i32 }
+pub struct Right { value: i32 }
+
+construct Left {
+    pub default func new(value: i32): Self
+}
+
+construct Right {
+    pub default func new(value: i32): Self
+}
+
+func main(): i32 {
+    let left = Left.new(20)
+    let right = Right.new(22)
+    return left.value + right.value
+}
+"#,
+        &[(
+            "constructors.nct",
+            r#"construct Left {
+    func new(value: i32): Self {
+        return Left { value: value }
+    }
+}
+
+construct Right {
+    func new(value: i32): Self {
+        return Right { value: value }
+    }
+}
+"#,
+        )],
+    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn literal_and_coercion_contracts_share_their_private_bodies() {
     let diagnostics = analyze_sources(
         r#"use ./text_impl

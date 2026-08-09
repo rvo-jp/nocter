@@ -1,0 +1,44 @@
+//! Portable byte-stream implementation bodies.
+
+func collect_bytes<R: Reader>(reader: &+R): Vec<u8>! {
+    var result: Vec<u8> = Vec.empty()
+    var scratch: Vec<u8> = initialized_scratch(8192)
+    while true {
+        let received: usize = reader.read(&+scratch as &+[u8])?
+        if received > scratch.len() {
+            return invalid_read_count()
+        }
+        if received == 0 {
+            break
+        }
+        result.reserve(received)
+        let initialized: &[u8] = &scratch as &[u8]
+        var offset: usize = 0
+        while offset < received {
+            result.push(initialized[offset])
+            offset = offset + 1
+        }
+    }
+    return move result
+}
+
+func initialized_scratch(size: usize): Vec<u8> {
+    var scratch: Vec<u8> = Vec.with_capacity(size)
+    while scratch.len() < size {
+        scratch.push(0)
+    }
+    return move scratch
+}
+
+func write_text_to<W: Writer>(writer: &+W, text: &str): void! {
+    let encoded: &[u8] = string_bytes(text)
+    writer.write(encoded)?
+    return
+}
+
+func invalid_read_count(): error {
+    return Error.new(
+        "std.io.invalid_read_count",
+        "reader returned more bytes than the supplied buffer can hold",
+    )
+}

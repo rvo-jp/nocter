@@ -1,0 +1,171 @@
+//! Iterator adapter implementations.
+
+/// Constructs a lazy mapping adapter without allocating.
+func map<T, U, I: Iterator<T>, F: &+func(T): U>(
+    source: I,
+    transform: F,
+): MapIter<T, U, I, F> from source | transform {
+    return MapIter<T, U, I, F> {
+        source: move source,
+        transform: move transform,
+    }
+}
+
+impl<T, U, I: Iterator<T>, F: &+func(T): U> Iterator<U> for MapIter<T, U, I, F> {
+    /// Advances the source once and transforms the yielded item once.
+    method &+self.next(): U? {
+        let item = self.source.next()?
+        return self.transform(move item)
+    }
+}
+
+impl<T, U, I: ExactSizeIterator<T>, F: &+func(T): U> ExactSizeIterator<U> for MapIter<T, U, I, F> {
+    /// Mapping preserves the source iterator's exact cardinality.
+    method &self.remaining_len(): usize {
+        return self.source.remaining_len()
+    }
+}
+
+/// Constructs a lazy filtering adapter without allocating.
+func filter<T, I: Iterator<T>, F: &+func(&T): bool>(
+    source: I,
+    predicate: F,
+): FilterIter<T, I, F> from source | predicate {
+    return FilterIter<T, I, F> {
+        source: move source,
+        predicate: move predicate,
+    }
+}
+
+impl<T, I: Iterator<T>, F: &+func(&T): bool> Iterator<T> for FilterIter<T, I, F> {
+    /// Advances until the predicate accepts an item or the source is exhausted.
+    method &+self.next(): T? {
+        while true {
+            let item = self.source.next()?
+            if self.predicate(&item) {
+                return move item
+            }
+        }
+        return none
+    }
+}
+
+/// Constructs an owning prefix-limiting adapter.
+func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> {
+    return TakeIter<T, I> {
+        source: move source,
+        remaining: limit,
+    }
+}
+
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
+    method &+self.next(): T? {
+        if self.remaining == 0 {
+            return none
+        }
+        let item = self.source.next() otherwise {
+            self.remaining = 0
+            return none
+        }
+        self.remaining = self.remaining - 1
+        return move item
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I> {
+    method &self.remaining_len(): usize {
+        let source_remaining: usize = self.source.remaining_len()
+        if source_remaining < self.remaining {
+            return source_remaining
+        }
+        return self.remaining
+    }
+}
+
+/// Constructs an owning prefix-skipping adapter.
+func skip<T, I: Iterator<T>>(source: I, amount: usize): SkipIter<T, I> {
+    return SkipIter<T, I> {
+        source: move source,
+        remaining_to_skip: amount,
+    }
+}
+
+impl<T, I: Iterator<T>> Iterator<T> for SkipIter<T, I> {
+    method &+self.next(): T? {
+        while self.remaining_to_skip != 0 {
+            let skipped = self.source.next() otherwise {
+                self.remaining_to_skip = 0
+                return none
+            }
+            self.remaining_to_skip = self.remaining_to_skip - 1
+        }
+        return self.source.next()?
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for SkipIter<T, I> {
+    method &self.remaining_len(): usize {
+        let source_remaining: usize = self.source.remaining_len()
+        if source_remaining <= self.remaining_to_skip {
+            return 0
+        }
+        return source_remaining - self.remaining_to_skip
+    }
+}
+
+/// Constructs an owning sequential adapter.
+func chain<T, L: Iterator<T>, R: Iterator<T>>(
+    left: L,
+    right: R,
+): ChainIter<T, L, R> from left | right {
+    return ChainIter<T, L, R> {
+        left: move left,
+        right: move right,
+        in_left: true,
+    }
+}
+
+impl<T, L: Iterator<T>, R: Iterator<T>> Iterator<T> for ChainIter<T, L, R> {
+    method &+self.next(): T? {
+        while self.in_left {
+            let item = self.left.next() otherwise {
+                self.in_left = false
+                continue
+            }
+            return move item
+        }
+        return self.right.next()?
+    }
+}
+
+impl<T, L: ExactSizeIterator<T>, R: ExactSizeIterator<T>> ExactSizeIterator<T> for ChainIter<T, L, R> {
+    method &self.remaining_len(): usize {
+        return self.left.remaining_len() + self.right.remaining_len()
+    }
+}
+
+/// Constructs an indexed owning adapter.
+func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> {
+    return EnumerateIter<T, I> {
+        source: move source,
+        next_index: 0,
+    }
+}
+
+impl<T, I: Iterator<T>> Iterator<Indexed<T>> for EnumerateIter<T, I> {
+    method &+self.next(): Indexed<T>? {
+        let item = self.source.next()?
+        let index: usize = self.next_index
+        self.next_index = index + 1
+        return Indexed<T> {
+            index: index,
+            item: move item,
+        }
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I> {
+    method &self.remaining_len(): usize {
+        return self.source.remaining_len()
+    }
+}

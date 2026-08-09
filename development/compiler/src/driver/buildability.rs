@@ -130,6 +130,7 @@ struct CallableIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     names: HashMap<ByteSpan, String>,
     resolved_sources: ResolvedSources<'a>,
+    root_source: SourceId,
 }
 
 type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
@@ -221,9 +222,14 @@ impl<'a> CallableIndex<'a> {
                                     let declaration = analysis
                                         .callable_bodies
                                         .canonical_identity(method.name_span);
+                                    let declaration_source = if declaration == method.name_span {
+                                        file.ast.span.source
+                                    } else {
+                                        declaration.source
+                                    };
                                     let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
-                                        declaration.source,
+                                        declaration_source,
                                         root_source,
                                         name.clone(),
                                     );
@@ -247,6 +253,11 @@ impl<'a> CallableIndex<'a> {
                                     let declaration = analysis
                                         .callable_bodies
                                         .canonical_identity(method.name_span);
+                                    let declaration_source = if declaration == method.name_span {
+                                        file.ast.span.source
+                                    } else {
+                                        declaration.source
+                                    };
                                     for specialization in call_specializations
                                         .methods
                                         .get(&declaration)
@@ -259,7 +270,7 @@ impl<'a> CallableIndex<'a> {
                                                 specialization,
                                             );
                                         let target = call_target_for_source(
-                                            declaration.source,
+                                            declaration_source,
                                             root_source,
                                             specialization.target_name.clone(),
                                         );
@@ -454,11 +465,28 @@ impl<'a> CallableIndex<'a> {
             definitions,
             names,
             resolved_sources,
+            root_source,
         }
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
-        self.definitions.get(target)
+        self.definitions.get(target).or_else(|| {
+            let (target_source, target_name) = match target {
+                CallTarget::SameFile(name) => (self.root_source, name),
+                CallTarget::Imported { source, name } => (*source, name),
+            };
+            self.definitions.iter().find_map(|(candidate, callable)| {
+                let CallTarget::Imported { source, name } = candidate else {
+                    return None;
+                };
+                (name == target_name
+                    && self
+                        .resolved_sources
+                        .get(source)
+                        .is_some_and(|resolved| resolved.module_source(*source) == target_source))
+                .then_some(callable)
+            })
+        })
     }
 }
 

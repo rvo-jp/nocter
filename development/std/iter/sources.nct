@@ -1,15 +1,9 @@
 //! Zero- and one-element owning iterators.
 
-use std/iter.{ExactSizeIterator, Iterator}
 use std/ptr.{from_ref_mut, store_value_to_ptr, take_value_at_ptr}
 
-/// An iterator that never yields an item.
-pub struct EmptyIter<T> {
-    exhausted: bool
-}
-
 /// Constructs an empty iterator.
-pub func empty<T>(): EmptyIter<T> {
+func empty<T>(): EmptyIter<T> {
     return EmptyIter<T> { exhausted: true }
 }
 
@@ -27,14 +21,8 @@ impl<T> Iterator<T> for EmptyIter<T> {
     }
 }
 
-/// An iterator that owns at most one unconsumed item.
-pub struct OnceIter<T> {
-    item: T?
-    remaining: usize
-}
-
 /// Constructs an iterator that yields `item` once.
-pub func once<T>(item: T): OnceIter<T> {
+func once<T>(item: T): OnceIter<T> {
     return OnceIter<T> {
         item: move item,
         remaining: 1,

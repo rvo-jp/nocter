@@ -33,14 +33,10 @@ impl<T> ViewIter<T> {
     )
     .unwrap();
     crate::test_files::write(
-        home.join("std/vec_into_iter/index.nct"),
-        r#"pub struct VecIntoIter<T> {
-    remaining_count: usize
-}
-
-impl<T> VecIntoIter<T> {
+        home.join("std/vec/into_iter.nct"),
+        r#"impl<T> VecIntoIter<T> {
     /// Moves the next element out of the owned remaining range.
-    pub method &+self.next(): T? {
+    method &+self.next(): T? {
         return none
     }
 }
@@ -49,7 +45,17 @@ impl<T> VecIntoIter<T> {
     .unwrap();
     crate::test_files::write(
         home.join("std/vec/index.nct"),
-        r#"use std/iter.ViewIter
+        r#"use ./into_iter
+use std/iter.ViewIter
+
+pub struct VecIntoIter<T> {
+    remaining_count: usize
+}
+
+impl<T> VecIntoIter<T> {
+    /// Moves the next element out of the owned remaining range.
+    pub method &+self.next(): T?
+}
 
 pub struct Vec<T> {
     view: &[T]
@@ -91,7 +97,7 @@ fn iteration_server(name: &str, text: &str) -> (TempProject, NocterHomeEnv, Stri
 fn iterator_queries_expose_specialized_capability_and_provenance() {
     let text = r#"use std/iter.ViewIter
 use std/vec.Vec
-use std/vec_into_iter.VecIntoIter
+use std/vec.VecIntoIter
 
 func inspect(values: &Vec<i32>, initial: VecIntoIter<i32>): void {
     var iterator: ViewIter<i32> = values.iter()

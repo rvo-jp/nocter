@@ -23,7 +23,30 @@ use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
 use std/sequence.Sequence
-use std/vec_into_iter.{VecIntoIter, vec_into_iter_from_raw_parts}
+use ./into_iter
+
+/// A forward iterator that owns a Vec allocation and its remaining elements.
+pub struct VecIntoIter<T> {
+    ptr: *T
+    storage: RawBuffer
+    next_index: usize
+    end_index: usize
+}
+
+pub(nocter) func vec_into_iter_from_raw_parts<T>(
+    pointer: *T,
+    storage: &+RawBuffer,
+    item_count: usize,
+): VecIntoIter<T>
+
+pub func remaining<T>(iterator: &VecIntoIter<T>): usize
+
+pub func next<T>(iterator: &+VecIntoIter<T>): T?
+
+impl<T> VecIntoIter<T> {
+    /// Returns the number of owned elements not yet yielded.
+    pub method &self.remaining(): usize
+}
 
 /// An owning, growable sequence with an initialized prefix of elements.
 pub struct Vec<T> {

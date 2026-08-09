@@ -5,11 +5,11 @@ fn distributed_std_iterator_adapter_surface_passes_check() {
     let project = TempProject::new("distributed-home-iterator-adapters-check");
     let source = project.write_source(
         "iterator_adapters_shape.nct",
-        r#"use std/iter/chain.{ChainIter, chain}
-use std/iter/enumerate.{EnumerateIter, Indexed, enumerate}
-use std/iter/ops.{count, last}
-use std/iter/range.{SkipIter, TakeIter, skip, take}
-use std/iter/sources.{EmptyIter, OnceIter, empty, once}
+        r#"use std/iter.{ChainIter, chain}
+use std/iter.{EnumerateIter, Indexed, enumerate}
+use std/iter.{count, last}
+use std/iter.{SkipIter, TakeIter, skip, take}
+use std/iter.{EmptyIter, OnceIter, empty, once}
 use std/vec.Vec
 
 func main(): i32 {
@@ -39,11 +39,11 @@ fn distributed_std_iterator_adapters_and_vec_builders_run() {
     let project = TempProject::new("distributed-home-iterator-adapters-run");
     let source = project.write_source(
         "iterator_adapters_run.nct",
-        r#"use std/iter/chain.chain
-use std/iter/enumerate.enumerate
-use std/iter/ops.{count, last}
-use std/iter/range.{skip, take}
-use std/iter/sources.once
+        r#"use std/iter.chain
+use std/iter.enumerate
+use std/iter.{count, last}
+use std/iter.{skip, take}
+use std/iter.once
 use std/iter.{ExactSizeIterator, Iterator}
 use std/mem.page_allocator
 use std/vec.Vec
@@ -167,7 +167,7 @@ fn distributed_std_callable_iterator_defaults_run() {
     let source = project.write_source(
         "callable_iterator_defaults_run.nct",
         r#"use std/iter.{FoldStep, Iterator}
-use std/iter/sources.once
+use std/iter.once
 use std/vec.Vec
 
 func main(): i32 {
@@ -215,7 +215,7 @@ fn distributed_std_filter_does_not_claim_exact_size() {
     let source = project.write_source(
         "filter_not_exact_size.nct",
         r#"use std/iter.Iterator
-use std/iter/sources.once
+use std/iter.once
 
 func main(): i32 {
     let filtered = once(1).filter((value) { value == 1 })
@@ -238,7 +238,7 @@ fn distributed_std_callback_allocation_uses_current_region() {
     let source = project.write_source(
         "callback_current_region.nct",
         r#"use std/iter.Iterator
-use std/iter/sources.once
+use std/iter.once
 use std/mem.page_allocator
 
 func main(): i32 {
@@ -268,7 +268,7 @@ fn distributed_std_callback_result_cannot_hide_region_storage() {
     let source = project.write_source(
         "callback_region_escape.nct",
         r#"use std/iter.Iterator
-use std/iter/sources.once
+use std/iter.once
 use std/mem.page_allocator
 
 func leak(): String {
@@ -299,7 +299,7 @@ fn distributed_std_callback_borrow_results_preserve_argument_and_capture_origins
     let source = project.write_source(
         "callback_borrow_provenance.nct",
         r#"use std/iter.Iterator
-use std/iter/sources.once
+use std/iter.once
 
 func from_argument(value: &i32): &i32 from value {
     let result = once(value).map((item) { item }).last() otherwise { return value }
@@ -335,7 +335,7 @@ fn distributed_std_iterator_builder_cannot_escape_lexical_region() {
     let project = TempProject::new("distributed-home-iterator-builder-region-escape");
     let source = project.write_source(
         "iterator_builder_region_escape.nct",
-        r#"use std/iter/sources.once
+        r#"use std/iter.once
 use std/mem.page_allocator
 use std/vec.Vec
 

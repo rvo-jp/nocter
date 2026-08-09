@@ -3,26 +3,258 @@
 //! ViewIter retains the source view itself so element borrows preserve the
 //! view's storage origin. Iterator names are ordinary standard-library APIs.
 
-pub use std/iter/core.{
-    ExactSizeIterator,
-    ChainIter,
-    EnumerateIter,
-    FilterIter,
-    FoldStep,
-    Indexed,
-    IntoIterator,
-    Iterable,
-    Iterator,
-    MapIter,
-    SkipIter,
-    TakeIter,
-    chain,
-    enumerate,
-    filter,
-    map,
-    skip,
-    take,
+use ./core
+use ./ops
+use ./sources
+use std/vec.Vec
+
+/// Lazily transforms items from an owning source iterator.
+pub struct MapIter<T, U, I, F> {
+    pub(nocter) source: I
+    pub(nocter) transform: F
 }
+
+/// Lazily retains items from an owning source iterator.
+pub struct FilterIter<T, I, F> {
+    pub(nocter) source: I
+    pub(nocter) predicate: F
+}
+
+/// Yields at most `remaining` items from `source`.
+pub struct TakeIter<T, I> {
+    pub(nocter) source: I
+    pub(nocter) remaining: usize
+}
+
+/// Discards at most `remaining_to_skip` source items before yielding.
+pub struct SkipIter<T, I> {
+    pub(nocter) source: I
+    pub(nocter) remaining_to_skip: usize
+}
+
+/// Yields every left item before every right item.
+pub struct ChainIter<T, L, R> {
+    pub(nocter) left: L
+    pub(nocter) right: R
+    pub(nocter) in_left: bool
+}
+
+/// One indexed item yielded by `EnumerateIter`.
+pub struct Indexed<T> {
+    pub index: usize
+    pub item: T
+}
+
+/// An owning iterator that pairs every item with its zero-based index.
+pub struct EnumerateIter<T, I> {
+    pub(nocter) source: I
+    pub(nocter) next_index: usize
+}
+
+/// Owned state passed to a folding callback.
+pub struct FoldStep<T, U> {
+    pub accumulator: U
+    pub item: T
+}
+
+/// Advances a mutable iterator and returns one item, or `none` at exhaustion.
+pub interface Iterator<T> {
+    pub method &+self.next(): T?
+
+    /// Lazily transforms every yielded item.
+    pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> from self | transform {
+        return MapIter<T, U, Self, F> {
+            source: move self,
+            transform: move transform,
+        }
+    }
+
+    /// Lazily retains items accepted by `predicate`.
+    pub method self.filter<F: &+func(&T): bool>(predicate: F): FilterIter<T, Self, F> from self | predicate {
+        return FilterIter<T, Self, F> {
+            source: move self,
+            predicate: move predicate,
+        }
+    }
+
+    /// Lazily yields at most `limit` items.
+    pub method self.take(limit: usize): TakeIter<T, Self> {
+        return TakeIter<T, Self> {
+            source: move self,
+            remaining: limit,
+        }
+    }
+
+    /// Lazily discards at most `count` items before yielding.
+    pub method self.skip(amount: usize): SkipIter<T, Self> {
+        return SkipIter<T, Self> {
+            source: move self,
+            remaining_to_skip: amount,
+        }
+    }
+
+    /// Lazily yields this iterator followed by `right`.
+    pub method self.chain<R: Iterator<T>>(right: R): ChainIter<T, Self, R> from self | right {
+        return ChainIter<T, Self, R> {
+            left: move self,
+            right: move right,
+            in_left: true,
+        }
+    }
+
+    /// Lazily pairs every yielded item with its zero-based index.
+    pub method self.enumerate(): EnumerateIter<T, Self> {
+        return EnumerateIter<T, Self> {
+            source: move self,
+            next_index: 0,
+        }
+    }
+
+    /// Consumes the iterator and returns the number of yielded items.
+    pub method self.count(): usize {
+        var source = move self
+        var total: usize = 0
+        while true {
+            let item = source.next() otherwise { return total }
+            total = total + 1
+        }
+        return 0
+    }
+
+    /// Consumes the iterator and returns its last item, or `none`.
+    pub method self.last(): T? {
+        var source = move self
+        var result: T? = none
+        while true {
+            let item = source.next() otherwise { break }
+            result = move item
+        }
+        return move result
+    }
+
+    /// Returns the first item accepted by `predicate`, or `none`.
+    pub method self.find<F: &+func(&T): bool>(predicate: F): T? from self {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next()?
+            if predicate_fn(&item) {
+                return move item
+            }
+        }
+        return none
+    }
+
+    /// Returns true when `predicate` accepts any yielded item.
+    pub method self.any<F: &+func(&T): bool>(predicate: F): bool {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next() otherwise { return false }
+            if predicate_fn(&item) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Returns true when `predicate` accepts every yielded item.
+    pub method self.all<F: &+func(&T): bool>(predicate: F): bool {
+        var source = move self
+        var predicate_fn = move predicate
+        while true {
+            let item = source.next() otherwise { return true }
+            if !predicate_fn(&item) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Reduces every item into one accumulator value.
+    pub method self.fold<U, F: &+func(FoldStep<T, U>): U>(
+        initial: U,
+        combine: F,
+    ): U from self | initial | combine {
+        var source = move self
+        var callback = move combine
+        var accumulator = move initial
+        while true {
+            let item = source.next() otherwise { break }
+            accumulator = callback(FoldStep<T, U> {
+                accumulator: move accumulator,
+                item: move item,
+            })
+        }
+        return move accumulator
+    }
+
+    /// Consumes the iterator into a newly allocated Vec.
+    pub method self.to_vec(): Vec<T> {
+        var source = move self
+        var result: Vec<T> = Vec.empty()
+        while true {
+            let item = source.next() otherwise { break }
+            result.push(move item)
+        }
+        return move result
+    }
+}
+
+/// Reports the exact number of values that the iterator has not yielded yet.
+pub interface ExactSizeIterator<T> {
+    pub method &self.remaining_len(): usize
+}
+
+/// Creates a readonly iterator whose yielded values retain the collection origin.
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+
+/// Transfers a collection into an owning iterator.
+pub interface IntoIterator<T, I> {
+    pub method self.into_iter(): I
+}
+
+/// Constructs a lazy mapping adapter without allocating.
+pub func map<T, U, I: Iterator<T>, F: &+func(T): U>(
+    source: I,
+    transform: F,
+): MapIter<T, U, I, F> from source | transform
+
+/// Constructs a lazy filtering adapter without allocating.
+pub func filter<T, I: Iterator<T>, F: &+func(&T): bool>(
+    source: I,
+    predicate: F,
+): FilterIter<T, I, F> from source | predicate
+
+pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I>
+
+pub func skip<T, I: Iterator<T>>(source: I, amount: usize): SkipIter<T, I>
+
+pub func chain<T, L: Iterator<T>, R: Iterator<T>>(
+    left: L,
+    right: R,
+): ChainIter<T, L, R> from left | right
+
+pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I>
+
+/// An iterator that never yields an item.
+pub struct EmptyIter<T> {
+    exhausted: bool
+}
+
+/// An iterator that owns at most one unconsumed item.
+pub struct OnceIter<T> {
+    item: T?
+    remaining: usize
+}
+
+pub func empty<T>(): EmptyIter<T>
+pub func once<T>(item: T): OnceIter<T>
+pub func count<T, I: Iterator<T>>(source: I): usize
+
+pub func last<T, I: Iterator<T>>(source: I): T?
 
 /// A forward cursor over readonly borrows into contiguous storage.
 pub struct ViewIter<T> {
