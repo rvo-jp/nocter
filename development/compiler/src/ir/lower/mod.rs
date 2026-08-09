@@ -405,6 +405,7 @@ impl<'a> FunctionIndex<'a> {
                         };
                         for member in &impl_.members {
                             match member {
+                                ImplMember::AssociatedType(_) => {}
                                 ImplMember::Drop(drop_) if impl_.generics.parameters.is_empty() => {
                                     let name = drop_target_name(&impl_.target_ty);
                                     let target = call_target_for_source(

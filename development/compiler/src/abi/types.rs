@@ -277,6 +277,22 @@ where
                 resolving_names,
             )
         }
+        TypeExpr::Projection(_) => {
+            let substituted = substitute_type_expr_parameters(ty, substitutions);
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(normalized) =
+                crate::typecheck::normalize_associated_type_expr(&substituted, resolved)
+            else {
+                return Err(AbiTypeError::UnresolvedType(canonical_type_expr(ty)));
+            };
+            abi_type_kind_from_type_expr(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                substitutions,
+                resolving_names,
+            )
+        }
         TypeExpr::Pointer(_) => Ok(AbiTypeKind::Value(AbiType::Pointer)),
         TypeExpr::Borrow(borrow) => {
             match abi_type_kind_from_type_expr(

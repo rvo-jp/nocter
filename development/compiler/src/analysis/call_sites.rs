@@ -31,6 +31,7 @@ fn call_in_item_at_offset(
             .and_then(|body| call_in_block_at_offset(body, offset, region)),
         Item::Test(test) => call_in_block_at_offset(&test.body, offset, region),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
+            ImplMember::AssociatedType(_) => None,
             ImplMember::Method(method) => method
                 .body
                 .as_ref()

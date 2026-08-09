@@ -101,6 +101,7 @@ impl Resolver<'_> {
     fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {
         for member in &impl_.members {
             match member {
+                ImplMember::AssociatedType(_) => {}
                 ImplMember::Method(method) => {
                     self.resolve_method(method);
                 }

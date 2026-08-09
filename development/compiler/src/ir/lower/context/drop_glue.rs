@@ -144,6 +144,20 @@ where
 {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Projection(_) => {
+            let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
+                ty,
+                fallback_resolved,
+                resolver,
+            );
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            array_element_type_expr_with_resolver(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
@@ -396,6 +410,15 @@ where
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Projection(_) => {
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }
         TypeExpr::Reference(reference) => {
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             match symbol.kind {
@@ -514,6 +537,17 @@ where
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
+        TypeExpr::Projection(_) => {
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            return drop_glue_for_type_expr_inner(
+                &normalized,
+                root_source,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+                peel_tagged_payloads,
+            );
+        }
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
@@ -640,6 +674,16 @@ where
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
+        TypeExpr::Projection(_) => {
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            return enum_symbol_for_type_expr_inner(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                payload_requirement,
+                resolving_names,
+            );
+        }
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;

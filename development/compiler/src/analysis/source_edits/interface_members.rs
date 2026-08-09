@@ -34,7 +34,7 @@ pub(crate) fn plan_missing_interface_members(
         .iter()
         .filter_map(|member| match member {
             ImplMember::Method(method) => Some(method.name.as_str()),
-            ImplMember::Drop(_) => None,
+            ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
         })
         .collect::<std::collections::HashSet<_>>();
     let missing = interface
@@ -66,6 +66,7 @@ fn type_reference_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
+        TypeExpr::Projection(_) => None,
         TypeExpr::Callable(_)
         | TypeExpr::Closure(_)
         | TypeExpr::Pointer(_)

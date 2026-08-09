@@ -41,6 +41,7 @@ pub(super) fn visible_local_bindings_at_offset(
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
+                        ImplMember::AssociatedType(_) => {}
                         ImplMember::Method(method) => {
                             let Some(body) = &method.body else {
                                 continue;

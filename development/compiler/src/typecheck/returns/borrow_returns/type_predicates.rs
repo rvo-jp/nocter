@@ -45,6 +45,7 @@ fn type_contains_readwrite_borrow_inner(
                 .collect();
             type_symbol_contains_readwrite_borrow(name, resolved, &substitutions, resolving_names)
         }
+        Type::Projection { .. } => true,
         Type::Array { element, .. } | Type::Optional(element) | Type::ArrayData { element } => {
             type_contains_readwrite_borrow_inner(element, resolved, resolving_names)
         }
@@ -193,6 +194,10 @@ fn type_expr_contains_readwrite_borrow(
                 resolving_names,
             )
         }
+        TypeExpr::Projection(_) => {
+            let ty = type_expr_to_type_with_substitutions(ty, resolved, None, substitutions);
+            type_contains_readwrite_borrow_inner(&ty, resolved, resolving_names)
+        }
     }
 }
 
@@ -228,6 +233,7 @@ pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
                 .collect();
             type_symbol_contains_borrow_like(name, resolved, &substitutions, resolving_names)
         }
+        Type::Projection { .. } => true,
         Type::Array { element, .. } | Type::Optional(element) => {
             type_contains_borrow_like_inner(element, resolved, resolving_names)
         }
@@ -371,6 +377,10 @@ pub(in crate::typecheck) fn type_expr_contains_borrow_like(
                 &nested_substitutions,
                 resolving_names,
             )
+        }
+        TypeExpr::Projection(_) => {
+            let ty = type_expr_to_type_with_substitutions(ty, resolved, None, substitutions);
+            type_contains_borrow_like_inner(&ty, resolved, resolving_names)
         }
     }
 }

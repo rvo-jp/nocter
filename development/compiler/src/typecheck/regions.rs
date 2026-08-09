@@ -39,6 +39,7 @@ pub(super) fn check_region_statements(
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
+                        ImplMember::AssociatedType(_) => {}
                         ImplMember::Method(method) => {
                             if let Some(body) = &method.body {
                                 check_block(sources, body, None, &mut tree, diagnostics);

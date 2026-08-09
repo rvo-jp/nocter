@@ -46,6 +46,10 @@ pub(super) fn with_type_span(ty: TypeExpr, span: ByteSpan) -> TypeExpr {
             ty.span = span;
             TypeExpr::Generic(ty)
         }
+        TypeExpr::Projection(mut ty) => {
+            ty.span = span;
+            TypeExpr::Projection(ty)
+        }
         TypeExpr::Pointer(mut ty) => {
             ty.span = span;
             TypeExpr::Pointer(ty)

@@ -200,6 +200,9 @@ fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> S
                 .join(", ");
             format!("{name}<{arguments}>")
         }
+        Type::Projection { base, member } => {
+            format!("{}.{member}", conformance_key_type(base, parameters))
+        }
         Type::Parameter(name) => {
             let next = parameters.len();
             let index = *parameters.entry(name.clone()).or_insert(next);

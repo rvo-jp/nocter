@@ -247,7 +247,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Projection(_) => return None,
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let symbol = type_symbol_by_reference_name(resolved, &generic.name)?;

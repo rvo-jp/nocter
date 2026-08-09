@@ -579,6 +579,7 @@ pub struct TypeSymbol {
     pub alias_target: Option<TypeExpr>,
     pub fields: Vec<StructFieldSignature>,
     pub variants: Vec<EnumVariantSignature>,
+    pub associated_types: Vec<AssociatedTypeSignature>,
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
     pub interface_conformances: Vec<InterfaceConformance>,
@@ -586,6 +587,13 @@ pub struct TypeSymbol {
     pub literals: Vec<LiteralSignature>,
     pub coercions: Vec<CoercionSignature>,
     pub construction: ConstructionSurface,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssociatedTypeSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub declaration_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -629,7 +637,16 @@ pub struct InterfaceConformance {
     pub generic_parameter_requirements: Vec<GenericRequirements>,
     pub interface_ty: TypeExpr,
     pub target_ty: TypeExpr,
+    pub associated_types: Vec<AssociatedTypeBindingSignature>,
     pub methods: Vec<MethodSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssociatedTypeBindingSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub declaration_span: ByteSpan,
+    pub value: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

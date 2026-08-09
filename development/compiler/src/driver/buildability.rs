@@ -212,6 +212,7 @@ impl<'a> CallableIndex<'a> {
                         };
                         for member in &impl_.members {
                             match member {
+                                ImplMember::AssociatedType(_) => {}
                                 ImplMember::Method(method)
                                     if method.body.is_some()
                                         && impl_.generics.parameters.is_empty() =>

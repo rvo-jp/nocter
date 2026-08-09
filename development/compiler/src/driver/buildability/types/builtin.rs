@@ -96,6 +96,16 @@ where
                 resolver,
             )
         }),
+        TypeExpr::Projection(_) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            crate::typecheck::normalize_associated_type_expr(ty, resolved).is_none_or(|ty| {
+                type_expr_contains_unresolved_type_parameter_with_resolver(
+                    &ty,
+                    fallback_resolved,
+                    resolver,
+                )
+            })
+        }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             !known_builtin_type_name(&reference.name)

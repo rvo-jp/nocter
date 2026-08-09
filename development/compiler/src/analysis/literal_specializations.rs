@@ -391,6 +391,7 @@ fn type_contains_parameter(ty: &TypeExpr, parameters: &HashSet<String>) -> bool 
             .arguments
             .iter()
             .any(|argument| type_contains_parameter(argument, parameters)),
+        TypeExpr::Projection(projection) => type_contains_parameter(&projection.base, parameters),
         TypeExpr::Pointer(pointer) => type_contains_parameter(&pointer.inner, parameters),
         TypeExpr::Borrow(borrow) => type_contains_parameter(&borrow.inner, parameters),
         TypeExpr::View(view) => type_contains_parameter(&view.element, parameters),

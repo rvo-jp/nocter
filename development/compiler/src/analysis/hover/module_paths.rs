@@ -19,6 +19,7 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
             .and_then(|body| module_path_in_block_at_offset(body, offset)),
         Item::Test(test) => module_path_in_block_at_offset(&test.body, offset),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
+            ImplMember::AssociatedType(_) => None,
             ImplMember::Method(method) => method
                 .body
                 .as_ref()

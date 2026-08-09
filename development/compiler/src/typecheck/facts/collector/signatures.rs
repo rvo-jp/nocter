@@ -82,6 +82,9 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&impl_.target_ty);
                 for member in &impl_.members {
                     match member {
+                        ImplMember::AssociatedType(binding) => {
+                            self.collect_type_expr_references(&binding.value);
+                        }
                         ImplMember::Method(method) => {
                             self.with_generic_scope(&method.generics, |collector| {
                                 collector.collect_method_signature_type_references(method);
@@ -202,6 +205,9 @@ impl TypecheckFactCollector<'_> {
                 for argument in &ty.arguments {
                     self.collect_type_expr_references(argument);
                 }
+            }
+            TypeExpr::Projection(ty) => {
+                self.collect_type_expr_references(&ty.base);
             }
             TypeExpr::Pointer(ty) => self.collect_type_expr_references(&ty.inner),
             TypeExpr::Borrow(ty) => self.collect_type_expr_references(&ty.inner),

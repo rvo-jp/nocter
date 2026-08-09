@@ -1,11 +1,11 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, CallableRequirementClause, CoerceDecl, CoercionEntry, ConstructDecl, ConstructMember,
-    ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
-    GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl,
-    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, PackageFile, Parameter,
-    ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField, TestDecl,
-    TypeAliasDecl, TypeExpr, Visibility,
+    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CallableRequirementClause, CoerceDecl,
+    CoercionEntry, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl,
+    EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl,
+    ImplMember, ImportItem, ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape,
+    MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
+    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -296,7 +296,7 @@ impl Formatter {
         self.format_generics(&item.generics);
         self.write(" ");
 
-        if item.methods.is_empty() {
+        if item.associated_types.is_empty() && item.methods.is_empty() {
             self.write("{}");
             return;
         }
@@ -304,6 +304,14 @@ impl Formatter {
         self.write("{");
         self.newline();
         self.indented(|formatter| {
+            for associated_type in &item.associated_types {
+                formatter.write_indent();
+                formatter.format_associated_type_decl(associated_type);
+                formatter.newline();
+            }
+            if !item.associated_types.is_empty() && !item.methods.is_empty() {
+                formatter.newline();
+            }
             for method in &item.methods {
                 formatter.write_indent();
                 formatter.format_method_decl(method);
@@ -312,6 +320,11 @@ impl Formatter {
         });
         self.write_indent();
         self.write("}");
+    }
+
+    fn format_associated_type_decl(&mut self, item: &AssociatedTypeDecl) {
+        self.write("pub type ");
+        self.write(&item.name);
     }
 
     fn format_impl_decl(&mut self, item: &ImplDecl) {
@@ -348,9 +361,17 @@ impl Formatter {
 
     fn format_impl_member(&mut self, member: &ImplMember) {
         match member {
+            ImplMember::AssociatedType(binding) => self.format_associated_type_binding(binding),
             ImplMember::Method(method) => self.format_method_decl(method),
             ImplMember::Drop(drop_) => self.format_drop_decl(drop_),
         }
+    }
+
+    fn format_associated_type_binding(&mut self, binding: &AssociatedTypeBinding) {
+        self.write("type ");
+        self.write(&binding.name);
+        self.write(" = ");
+        self.format_type(&binding.value);
     }
 
     fn format_drop_decl(&mut self, item: &DropDecl) {

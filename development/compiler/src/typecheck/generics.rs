@@ -29,7 +29,8 @@ pub(super) fn check_generic_type_arities(
                     GenericScope::new(&function.generics).with_self_type()
                 } else {
                     GenericScope::new(&function.generics)
-                };
+                }
+                .with_callable_requirements(function.requirements.as_ref());
                 check_generic_bounds(sources, &function.generics, resolved, &scope, diagnostics);
                 check_callable_requirements(
                     sources,
@@ -70,7 +71,8 @@ pub(super) fn check_generic_type_arities(
                 );
             }
             Item::Primitive(primitive) => {
-                let scope = GenericScope::new(&primitive.generics);
+                let scope = GenericScope::new(&primitive.generics)
+                    .with_callable_requirements(primitive.requirements.as_ref());
                 check_generic_bounds(sources, &primitive.generics, resolved, &scope, diagnostics);
                 check_callable_requirements(
                     sources,
@@ -114,10 +116,13 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Interface(interface) => {
-                let scope = GenericScope::new(&interface.generics).with_self_type();
+                let scope = GenericScope::new(&interface.generics).with_interface(interface);
                 check_generic_bounds(sources, &interface.generics, resolved, &scope, diagnostics);
                 for method in &interface.methods {
-                    let method_scope = scope.clone().with_generics(&method.generics);
+                    let method_scope = scope
+                        .clone()
+                        .with_generics(&method.generics)
+                        .with_callable_requirements(method.requirements.as_ref());
                     check_generic_bounds(
                         sources,
                         &method.generics,
@@ -136,7 +141,9 @@ pub(super) fn check_generic_type_arities(
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
-                    let scope = GenericScope::new(&function.generics).with_self_type();
+                    let scope = GenericScope::new(&function.generics)
+                        .with_self_type()
+                        .with_callable_requirements(function.requirements.as_ref());
                     check_generic_bounds(
                         sources,
                         &function.generics,
@@ -190,11 +197,23 @@ fn check_impl_types(
         check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
     }
     check_type_expr(sources, &impl_.target_ty, resolved, &scope, diagnostics);
-    let member_scope = scope.clone().with_self_type();
+    let member_scope = scope.clone().with_impl_interface(impl_, resolved);
     for member in &impl_.members {
         match member {
+            ImplMember::AssociatedType(binding) => {
+                check_type_expr(
+                    sources,
+                    &binding.value,
+                    resolved,
+                    &member_scope,
+                    diagnostics,
+                );
+            }
             ImplMember::Method(method) => {
-                let method_scope = member_scope.clone().with_generics(&method.generics);
+                let method_scope = member_scope
+                    .clone()
+                    .with_generics(&method.generics)
+                    .with_callable_requirements(method.requirements.as_ref());
                 check_generic_bounds(
                     sources,
                     &method.generics,
@@ -400,7 +419,8 @@ fn check_callable_requirements(
 #[derive(Debug, Clone)]
 struct GenericScope<'a> {
     parameters: HashMap<&'a str, &'a GenericParam>,
-    allows_self_type: bool,
+    requirements: HashMap<&'a str, Vec<&'a TypeExpr>>,
+    self_associated_types: Option<HashMap<String, ByteSpan>>,
 }
 
 impl<'a> GenericScope<'a> {
@@ -411,12 +431,59 @@ impl<'a> GenericScope<'a> {
                 .iter()
                 .map(|parameter| (parameter.name.as_str(), parameter))
                 .collect(),
-            allows_self_type: false,
+            requirements: generics
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    (
+                        parameter.name.as_str(),
+                        parameter.bounds.iter().collect::<Vec<_>>(),
+                    )
+                })
+                .collect(),
+            self_associated_types: None,
         }
     }
 
     fn with_self_type(mut self) -> Self {
-        self.allows_self_type = true;
+        self.self_associated_types = Some(HashMap::new());
+        self
+    }
+
+    fn with_interface(mut self, interface: &'a crate::ast::InterfaceDecl) -> Self {
+        self.self_associated_types = Some(
+            interface
+                .associated_types
+                .iter()
+                .map(|associated| (associated.name.clone(), associated.name_span))
+                .collect(),
+        );
+        self
+    }
+
+    fn with_impl_interface(
+        mut self,
+        impl_: &crate::ast::ImplDecl,
+        resolved: &ResolveOutput,
+    ) -> Self {
+        self.self_associated_types = Some(HashMap::new());
+        let Some(interface_ty) = &impl_.interface_ty else {
+            return self;
+        };
+        let name = match interface_ty {
+            TypeExpr::Reference(reference) => &reference.name,
+            TypeExpr::Generic(generic) => &generic.name,
+            _ => return self,
+        };
+        if let Some(interface) = resolved.type_symbol_by_reference_name(name) {
+            self.self_associated_types = Some(
+                interface
+                    .associated_types
+                    .iter()
+                    .map(|associated| (associated.name.clone(), associated.name_span))
+                    .collect(),
+            );
+        }
         self
     }
 
@@ -427,11 +494,30 @@ impl<'a> GenericScope<'a> {
                 .iter()
                 .map(|parameter| (parameter.name.as_str(), parameter)),
         );
+        self.requirements
+            .extend(generics.parameters.iter().map(|parameter| {
+                (
+                    parameter.name.as_str(),
+                    parameter.bounds.iter().collect::<Vec<_>>(),
+                )
+            }));
+        self
+    }
+
+    fn with_callable_requirements(mut self, clause: Option<&'a CallableRequirementClause>) -> Self {
+        if let Some(clause) = clause {
+            for requirement in &clause.requirements {
+                self.requirements
+                    .entry(requirement.name.as_str())
+                    .or_default()
+                    .extend(&requirement.bounds);
+            }
+        }
         self
     }
 
     fn allows_self_type(&self) -> bool {
-        self.allows_self_type
+        self.self_associated_types.is_some()
     }
 
     fn contains(&self, name: &str) -> bool {
@@ -665,6 +751,44 @@ fn check_type_expr(
                 check_type_expr(sources, argument, resolved, scope, diagnostics);
             }
         }
+        TypeExpr::Projection(projection) => {
+            check_type_expr(sources, &projection.base, resolved, scope, diagnostics);
+            let candidates = associated_type_projection_candidates(projection, resolved, scope);
+            if candidates.len() != 1 {
+                let message = if candidates.is_empty() {
+                    format!(
+                        "type `{}` has no associated type `{}` in this context",
+                        crate::ast::canonical_type_expr(&projection.base),
+                        projection.name
+                    )
+                } else {
+                    format!(
+                        "associated type projection `{}.{}` is ambiguous between {} interface requirements",
+                        crate::ast::canonical_type_expr(&projection.base),
+                        projection.name,
+                        candidates.len()
+                    )
+                };
+                let mut diagnostic = Diagnostic::error("E0436", message);
+                diagnostic.primary_span = sources
+                    .span_to_json(projection.name_span)
+                    .ok()
+                    .map(Box::new);
+                for span in candidates {
+                    if let Ok(span) = sources.span_to_json(span) {
+                        diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
+                            message: "candidate associated type is declared here".to_string(),
+                            span: Some(span),
+                        });
+                    }
+                }
+                diagnostic.help = Some(
+                    "project an associated type supplied by one unambiguous interface contract"
+                        .to_string(),
+                );
+                diagnostics.push(diagnostic);
+            }
+        }
         TypeExpr::Pointer(pointer) => {
             check_type_expr(sources, &pointer.inner, resolved, scope, diagnostics)
         }
@@ -684,6 +808,66 @@ fn check_type_expr(
             check_type_expr(sources, &fallible.success, resolved, scope, diagnostics);
             check_type_expr(sources, &fallible.error, resolved, scope, diagnostics);
         }
+    }
+}
+
+fn associated_type_projection_candidates(
+    projection: &crate::ast::ProjectedType,
+    resolved: &ResolveOutput,
+    scope: &GenericScope<'_>,
+) -> Vec<ByteSpan> {
+    if let TypeExpr::Reference(reference) = projection.base.as_ref() {
+        if reference.name == "Self" {
+            return scope
+                .self_associated_types
+                .as_ref()
+                .and_then(|types| types.get(&projection.name))
+                .copied()
+                .into_iter()
+                .collect();
+        }
+        if let Some(bounds) = scope.requirements.get(reference.name.as_str()) {
+            let mut candidates = bounds
+                .iter()
+                .filter_map(|bound| {
+                    let name = match bound {
+                        TypeExpr::Reference(reference) => &reference.name,
+                        TypeExpr::Generic(generic) => &generic.name,
+                        _ => return None,
+                    };
+                    let interface = resolved.type_symbol_by_reference_name(name)?;
+                    (interface.kind == crate::resolve::TypeSymbolKind::Interface)
+                        .then_some(interface)?
+                        .associated_types
+                        .iter()
+                        .find(|associated| associated.name == projection.name)
+                        .map(|associated| associated.name_span)
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_by_key(|span| (span.source.raw(), span.start, span.end));
+            candidates.dedup();
+            return candidates;
+        }
+    }
+
+    let substitutions = scope
+        .parameters
+        .keys()
+        .map(|name| ((*name).to_string(), Type::Parameter((*name).to_string())))
+        .collect::<HashMap<_, _>>();
+    let projected = type_expr_to_type_with_substitutions(
+        &TypeExpr::Projection(projection.clone()),
+        resolved,
+        None,
+        &substitutions,
+    );
+    if matches!(
+        projected,
+        Type::Projection { .. } | Type::Unresolved(_) | Type::Unknown
+    ) {
+        Vec::new()
+    } else {
+        vec![projection.name_span]
     }
 }
 

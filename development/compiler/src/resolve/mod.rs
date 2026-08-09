@@ -23,13 +23,13 @@ mod tests;
 
 pub use generic_requirements::{GenericRequirement, GenericRequirements};
 pub use symbols::{
-    AssociatedFunctionSignature, CoercionSignature, ConstructionEntry, ConstructionEntryKind,
-    ConstructionSurface, DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
-    ImportKind, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind,
-    InterfaceConformance, LiteralCaptureSignature, LiteralResolution, LiteralSignature,
-    LocalSymbol, LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature,
-    PreludeSourceMap, ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind,
-    SymbolTable, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, AssociatedTypeBindingSignature, AssociatedTypeSignature,
+    CoercionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
+    DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportKind, ImportSource,
+    ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
+    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::{MergedModules, ModuleIndex};

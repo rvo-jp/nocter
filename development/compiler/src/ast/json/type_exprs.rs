@@ -46,6 +46,12 @@ impl TypeExpr {
                     .map(|argument| argument.to_json(sources))
                     .collect(),
             ),
+            TypeExpr::Projection(ty) => JsonAstNode::with_value(
+                "projected_type",
+                ty.name.clone(),
+                json_span(sources, ty.span),
+                vec![ty.base.to_json(sources)],
+            ),
             TypeExpr::Pointer(ty) => JsonAstNode::new(
                 "pointer_type",
                 json_span(sources, ty.span),

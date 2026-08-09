@@ -231,7 +231,15 @@ pub struct InterfaceDecl {
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
+    pub associated_types: Vec<AssociatedTypeDecl>,
     pub methods: Vec<MethodDecl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssociatedTypeDecl {
+    pub span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -245,8 +253,17 @@ pub struct ImplDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImplMember {
+    AssociatedType(AssociatedTypeBinding),
     Method(MethodDecl),
     Drop(DropDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssociatedTypeBinding {
+    pub span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub value: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -293,12 +310,21 @@ pub enum TypeExpr {
     Closure(ClosureTypeExpr),
     Reference(TypeReference),
     Generic(GenericType),
+    Projection(ProjectedType),
     Pointer(PointerType),
     Borrow(BorrowType),
     View(ViewType),
     Array(ArrayType),
     Optional(OptionalType),
     Fallible(FallibleType),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedType {
+    pub span: ByteSpan,
+    pub base: Box<TypeExpr>,
+    pub name: String,
+    pub name_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -841,6 +867,7 @@ impl TypeExpr {
             TypeExpr::Closure(ty) => ty.span,
             TypeExpr::Reference(ty) => ty.span,
             TypeExpr::Generic(ty) => ty.span,
+            TypeExpr::Projection(ty) => ty.span,
             TypeExpr::Pointer(ty) => ty.span,
             TypeExpr::Borrow(ty) => ty.span,
             TypeExpr::View(ty) => ty.span,

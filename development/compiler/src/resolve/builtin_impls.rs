@@ -178,6 +178,7 @@ fn empty_builtin_symbol(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> TypeSymbol
         alias_target: None,
         fields: Vec::new(),
         variants: Vec::new(),
+        associated_types: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),

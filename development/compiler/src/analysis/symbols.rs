@@ -192,6 +192,13 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
 
 fn impl_member_document_symbol(member: &ImplMember) -> DocumentSymbolInfo {
     match member {
+        ImplMember::AssociatedType(binding) => document_symbol(
+            binding.name.clone(),
+            DocumentSymbolKind::Class,
+            binding.span,
+            binding.name_span,
+            Vec::new(),
+        ),
         ImplMember::Method(method) => method_document_symbol(method),
         ImplMember::Drop(drop_) => document_symbol(
             "drop".to_string(),

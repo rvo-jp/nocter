@@ -170,6 +170,30 @@ fn formats_interface_default_methods_stably() {
 }
 
 #[test]
+fn formats_associated_types_before_interface_methods_stably() {
+    assert_formats_stably(
+        r#"interface Source{pub method &+self.next():Self.Item? pub type Item}
+impl<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
+"#,
+        concat!(
+            "interface Source {\n",
+            "    pub type Item\n",
+            "\n",
+            "    pub method &+self.next(): Self.Item?\n",
+            "}\n",
+            "\n",
+            "impl<T> Source for Buffer<T> {\n",
+            "    method &+self.next(): T? {\n",
+            "        return none\n",
+            "    }\n",
+            "\n",
+            "    type Item = T\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_generic_interface_bounds_stably() {
     assert_formats_stably(
         r#"func measure<T:Measure+Display>(value:&T):i32{return value.measure()}

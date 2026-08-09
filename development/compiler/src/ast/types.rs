@@ -46,6 +46,14 @@ pub(crate) fn substitute_type_expr_parameters(
                 .collect();
             TypeExpr::Generic(generic)
         }
+        TypeExpr::Projection(projection) => {
+            let mut projection = projection.clone();
+            projection.base = Box::new(substitute_type_expr_parameters(
+                &projection.base,
+                substitutions,
+            ));
+            TypeExpr::Projection(projection)
+        }
         TypeExpr::Pointer(pointer) => {
             let mut pointer = pointer.clone();
             pointer.inner = Box::new(substitute_type_expr_parameters(

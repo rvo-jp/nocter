@@ -725,6 +725,18 @@ fn infer_impl_substitutions(
                     },
                 )
         }
+        TypeExpr::Projection(expected) => {
+            let TypeExpr::Projection(actual) = actual else {
+                return false;
+            };
+            expected.name == actual.name
+                && infer_impl_substitutions(
+                    &expected.base,
+                    &actual.base,
+                    generic_parameters,
+                    substitutions,
+                )
+        }
         TypeExpr::Pointer(expected) => {
             let TypeExpr::Pointer(actual) = actual else {
                 return false;

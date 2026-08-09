@@ -257,6 +257,14 @@ pub(super) fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a>(
 ) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Projection(_) => {
+            let normalized = super::super::normalize_associated_type_expr(ty, resolved)?;
+            payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                &normalized,
+                resolved,
+                resolving_names,
+            )
+        }
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             match symbol.kind {
@@ -360,6 +368,9 @@ pub(super) fn collect_free_type_parameters_in_type_expr(
                 collect_free_type_parameters_in_type_expr(argument, resolved, parameters);
             }
         }
+        TypeExpr::Projection(projection) => {
+            collect_free_type_parameters_in_type_expr(&projection.base, resolved, parameters);
+        }
         TypeExpr::Pointer(pointer) => {
             collect_free_type_parameters_in_type_expr(&pointer.inner, resolved, parameters);
         }
@@ -426,6 +437,9 @@ pub(super) fn type_expr_contains_free_parameters(
             .arguments
             .iter()
             .any(|argument| type_expr_contains_free_parameters(argument, free_type_parameters)),
+        TypeExpr::Projection(projection) => {
+            type_expr_contains_free_parameters(&projection.base, free_type_parameters)
+        }
         TypeExpr::Pointer(pointer) => {
             type_expr_contains_free_parameters(&pointer.inner, free_type_parameters)
         }

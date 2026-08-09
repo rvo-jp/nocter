@@ -687,6 +687,7 @@ fn literal_owner<'a>(
                 substitutions,
             })
         }
+        TypeExpr::Projection(_) => None,
         TypeExpr::Pointer(_)
         | TypeExpr::Borrow(_)
         | TypeExpr::View(_)

@@ -740,6 +740,9 @@ fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
                     .iter()
                     .any(|argument| type_expr_mentions_parameter(argument, parameter))
         }
+        TypeExpr::Projection(projection) => {
+            type_expr_mentions_parameter(&projection.base, parameter)
+        }
         TypeExpr::Pointer(pointer) => type_expr_mentions_parameter(&pointer.inner, parameter),
         TypeExpr::Borrow(borrow) => type_expr_mentions_parameter(&borrow.inner, parameter),
         TypeExpr::View(view) => type_expr_mentions_parameter(&view.element, parameter),

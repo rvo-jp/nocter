@@ -1,6 +1,6 @@
 use super::signatures::method_signatures;
 use super::{GenericRequirements, InterfaceConformance};
-use crate::ast::ImplDecl;
+use crate::ast::{ImplDecl, ImplMember};
 
 pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConformance> {
     Some(InterfaceConformance {
@@ -19,6 +19,21 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
             .collect(),
         interface_ty: impl_.interface_ty.clone()?,
         target_ty: impl_.target_ty.clone(),
+        associated_types: impl_
+            .members
+            .iter()
+            .filter_map(|member| match member {
+                ImplMember::AssociatedType(binding) => {
+                    Some(super::AssociatedTypeBindingSignature {
+                        name: binding.name.clone(),
+                        name_span: binding.name_span,
+                        declaration_span: binding.span,
+                        value: binding.value.clone(),
+                    })
+                }
+                ImplMember::Method(_) | ImplMember::Drop(_) => None,
+            })
+            .collect(),
         methods: method_signatures(impl_).collect(),
     })
 }

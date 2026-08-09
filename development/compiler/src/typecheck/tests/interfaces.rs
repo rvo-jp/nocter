@@ -1,6 +1,120 @@
 use super::check_text;
 
 #[test]
+fn accepts_required_associated_type_projection_in_generic_code() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+
+struct Buffer<T> {
+    marker: i32,
+}
+
+impl<T> Source for Buffer<T> {
+    type Item = T
+
+    method &+self.next(): T? {
+        return none
+    }
+}
+
+func pull<S: Source>(source: &+S): S.Item? {
+    return source.next()
+}
+
+func main(): void {
+    var source = Buffer<i32> { marker: 0 }
+    let value: i32? = pull(&+source)
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_incomplete_and_non_contract_associated_type_bindings() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+}
+
+struct Buffer {
+    marker: i32,
+}
+
+impl Source for Buffer {
+    type Other = i32
+    type Other = bool
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 3, "{diagnostics:?}");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0433")
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0434")
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0435")
+    );
+}
+
+#[test]
+fn diagnoses_duplicate_and_invalid_associated_type_projections() {
+    let diagnostics = check_text(
+        r#"interface Left {
+    pub type Item
+    pub type Item
+}
+
+interface Right {
+    pub type Item
+}
+
+func ambiguous<T: Left + Right>(value: T): T.Item {
+    return value
+}
+
+func unknown<T: Left>(value: T): T.Output {
+    return value
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0432")
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "E0436" && diagnostic.message.contains("ambiguous")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "E0436" && diagnostic.message.contains("no associated type")
+    }));
+}
+
+#[test]
 fn accepts_interface_default_without_inherent_implementation() {
     let diagnostics = check_text(
         r#"interface Value {

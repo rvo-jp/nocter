@@ -35,6 +35,7 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
+                        crate::ast::ImplMember::AssociatedType(_) => {}
                         crate::ast::ImplMember::Method(method) => {
                             if let Some(body) = &method.body {
                                 collect_block(file, body, None, &mut facts);

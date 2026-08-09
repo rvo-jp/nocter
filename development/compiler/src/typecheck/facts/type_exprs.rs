@@ -149,6 +149,18 @@ pub(super) fn type_to_type_expr_inner(
                 })
                 .collect::<Option<Vec<_>>>()?,
         })),
+        Type::Projection { base, member } => {
+            Some(TypeExpr::Projection(crate::ast::ProjectedType {
+                span,
+                base: Box::new(type_to_type_expr_inner(
+                    base,
+                    span,
+                    free_type_parameters.as_deref_mut(),
+                )?),
+                name: member.clone(),
+                name_span: span,
+            }))
+        }
         Type::Parameter(name) => {
             let free_type_parameters = free_type_parameters?;
             free_type_parameters.insert(name.clone());

@@ -91,13 +91,21 @@ impl Parser<'_> {
                 return Err(());
             }
             self.reject_removed_result_allocation_modifier()?;
-            if !self.at_keyword(Keyword::Method) {
-                self.error_current("expected `method` in interface implementation block");
-                return Err(());
+            if self.at_keyword(Keyword::Type) {
+                members.push(ImplMember::AssociatedType(
+                    self.parse_associated_type_binding()?,
+                ));
+            } else {
+                if !self.at_keyword(Keyword::Method) {
+                    self.error_current(
+                        "expected `type` or `method` in interface implementation block",
+                    );
+                    return Err(());
+                }
+                members.push(ImplMember::Method(
+                    self.parse_method_decl(Visibility::Private, true)?,
+                ));
             }
-            members.push(ImplMember::Method(
-                self.parse_method_decl(Visibility::Private, true)?,
-            ));
             self.skip_newlines();
         }
 
@@ -115,6 +123,7 @@ impl Parser<'_> {
         let generics = self.parse_generic_param_list()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut methods = Vec::new();
+        let mut associated_types = Vec::new();
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -128,12 +137,18 @@ impl Parser<'_> {
                 self.error_current("interface members must be marked `pub`");
                 return Err(());
             }
-            self.reject_removed_result_allocation_modifier()?;
-            if !self.at_keyword(Keyword::Method) {
-                self.error_current("expected `pub method` in interface declaration");
-                return Err(());
+            if self.at_keyword(Keyword::Type) {
+                associated_types.push(self.parse_associated_type_decl()?);
+            } else {
+                self.reject_removed_result_allocation_modifier()?;
+                if !self.at_keyword(Keyword::Method) {
+                    self.error_current(
+                        "expected `pub type` or `pub method` in interface declaration",
+                    );
+                    return Err(());
+                }
+                methods.push(self.parse_method_decl(method_visibility, false)?);
             }
-            methods.push(self.parse_method_decl(method_visibility, false)?);
 
             self.skip_newlines();
         }
@@ -151,8 +166,32 @@ impl Parser<'_> {
             name: name.value,
             name_span: name.span,
             generics,
+            associated_types,
             methods,
         }))
+    }
+
+    fn parse_associated_type_decl(&mut self) -> ParseResult<AssociatedTypeDecl> {
+        let start = self.expect_keyword(Keyword::Type, "`type`")?;
+        let name = self.expect_name_identifier("expected associated type name after `type`")?;
+        Ok(AssociatedTypeDecl {
+            span: self.span(start.span.start, name.span.end),
+            name: name.value,
+            name_span: name.span,
+        })
+    }
+
+    fn parse_associated_type_binding(&mut self) -> ParseResult<AssociatedTypeBinding> {
+        let start = self.expect_keyword(Keyword::Type, "`type`")?;
+        let name = self.expect_name_identifier("expected associated type name after `type`")?;
+        self.expect_punctuation("=", "`=` after associated type name")?;
+        let value = self.parse_type()?;
+        Ok(AssociatedTypeBinding {
+            span: self.span(start.span.start, value.span().end),
+            name: name.value,
+            name_span: name.span,
+            value,
+        })
     }
 
     pub(super) fn parse_drop_decl(&mut self) -> ParseResult<DropDecl> {

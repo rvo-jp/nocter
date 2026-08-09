@@ -223,6 +223,7 @@ pub(super) fn infer_type_expr_substitutions(
                 }
             }
         }
+        TypeExpr::Projection(_) => {}
         TypeExpr::Reference(_) => {}
     }
 }
@@ -379,6 +380,16 @@ fn type_expr_to_type_inner(
             resolving_aliases.remove(&canonical_name);
             resolved_alias
         }
+        TypeExpr::Projection(projection) => {
+            let base = type_expr_to_type_inner(
+                &projection.base,
+                resolved,
+                self_type,
+                substitutions,
+                resolving_aliases,
+            );
+            super::associated_types::normalize_projection(base, &projection.name, resolved)
+        }
         TypeExpr::Pointer(pointer) => Type::Pointer(Box::new(type_expr_to_type_inner(
             &pointer.inner,
             resolved,
@@ -454,6 +465,18 @@ fn infer_type_substitutions(
             for (expected, actual) in expected_arguments.iter().zip(actual_arguments) {
                 infer_type_substitutions(expected, actual, parameters, substitutions);
             }
+        }
+        (
+            Type::Projection {
+                base: expected_base,
+                member: expected_member,
+            },
+            Type::Projection {
+                base: actual_base,
+                member: actual_member,
+            },
+        ) if expected_member == actual_member => {
+            infer_type_substitutions(expected_base, actual_base, parameters, substitutions);
         }
         (Type::Pointer(expected), Type::Pointer(actual))
         | (Type::Optional(expected), Type::Optional(actual)) => {

@@ -81,6 +81,10 @@ fn first_unsized_generic_argument(
                 .iter()
                 .find_map(|argument| first_unsized_value_part(argument, resolved, self_type))
         }),
+        TypeExpr::Projection(_) => {
+            let projected = type_expr_to_type_with_self_type(ty, resolved, self_type);
+            projected.first_unsized_part().cloned()
+        }
         TypeExpr::Array(array) => first_unsized_value_part(&array.element, resolved, self_type),
         TypeExpr::Pointer(pointer) => {
             first_unsized_generic_argument(&pointer.inner, resolved, self_type)

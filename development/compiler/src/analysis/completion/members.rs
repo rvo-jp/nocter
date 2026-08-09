@@ -438,6 +438,10 @@ fn value_member_owner<'a>(
                 substitutions,
             })
         }
+        TypeExpr::Projection(_) => {
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            value_member_owner(resolved, &normalized)
+        }
         TypeExpr::Borrow(borrow) => value_member_owner(resolved, &borrow.inner),
         TypeExpr::View(view) => {
             let symbol = resolved

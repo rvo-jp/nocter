@@ -27,6 +27,10 @@ pub(crate) fn type_expr_notation(ty: &TypeExpr) -> TypeNotation {
             name: generic.name.clone(),
             arguments: generic.arguments.iter().map(type_expr_notation).collect(),
         },
+        TypeExpr::Projection(projection) => TypeNotation::Projection {
+            base: Box::new(type_expr_notation(&projection.base)),
+            member: projection.name.clone(),
+        },
         TypeExpr::Pointer(pointer) => prefix(PrefixOperator::Pointer, &pointer.inner),
         TypeExpr::Borrow(borrow) => prefix(
             if borrow.is_readwrite {

@@ -138,6 +138,17 @@ where
 {
     match ty {
         TypeExpr::Callable(_) => false,
+        TypeExpr::Projection(_) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            crate::typecheck::normalize_associated_type_expr(ty, resolved).is_some_and(|ty| {
+                type_expr_is_runtime_copy_value_with_resolver(
+                    &ty,
+                    fallback_resolved,
+                    resolver,
+                    resolving_names,
+                )
+            })
+        }
         TypeExpr::Closure(closure) => closure.captures.iter().all(|capture| match capture.mode {
             crate::ast::ClosureCaptureMode::ReadonlyBorrow => true,
             crate::ast::ClosureCaptureMode::ReadwriteBorrow => false,

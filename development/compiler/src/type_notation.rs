@@ -10,6 +10,10 @@ pub(crate) enum TypeNotation {
         name: String,
         arguments: Vec<TypeNotation>,
     },
+    Projection {
+        base: Box<TypeNotation>,
+        member: String,
+    },
     Prefix {
         operator: PrefixOperator,
         inner: Box<TypeNotation>,
@@ -72,6 +76,11 @@ impl TypeNotation {
                     argument.render_into(output, RenderContext::Root);
                 });
                 output.push('>');
+            }
+            Self::Projection { base, member } => {
+                base.render_into(output, RenderContext::ProjectionOperand);
+                output.push('.');
+                output.push_str(member);
             }
             Self::Prefix { operator, inner } => {
                 output.push_str(operator.source_text());
@@ -138,6 +147,10 @@ impl TypeNotation {
                     ) && matches!(self, Self::Callable { .. }))
             }
             RenderContext::PostfixOperand => matches!(self, Self::Callable { .. }),
+            RenderContext::ProjectionOperand => matches!(
+                self,
+                Self::Callable { .. } | Self::Prefix { .. } | Self::Postfix { .. }
+            ),
         }
     }
 }
@@ -166,6 +179,7 @@ enum RenderContext {
     Root,
     PrefixOperand(PrefixOperator),
     PostfixOperand,
+    ProjectionOperand,
 }
 
 fn render_separated<T>(values: &[T], output: &mut String, mut render: impl FnMut(&T, &mut String)) {

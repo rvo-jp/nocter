@@ -1,7 +1,81 @@
 use super::{
-    Diagnostic, DiagnosticNote, ImplDecl, MethodSignature, SourceMap, Type, TypeExpr, TypeSymbol,
-    type_symbol_kind_name,
+    AssociatedTypeBindingSignature, AssociatedTypeSignature, Diagnostic, DiagnosticNote, ImplDecl,
+    MethodSignature, SourceMap, Type, TypeExpr, TypeSymbol, type_symbol_kind_name,
 };
+
+pub(in crate::typecheck) fn associated_type_missing_diagnostic(
+    sources: &SourceMap,
+    impl_: &ImplDecl,
+    interface_symbol: &TypeSymbol,
+    target_symbol: &TypeSymbol,
+    required: &AssociatedTypeSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0433",
+        format!(
+            "interface implementation for `{}` does not bind associated type `{}` from `{}`",
+            target_symbol.canonical_name, required.name, interface_symbol.canonical_name
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(impl_.target_ty.span())
+        .ok()
+        .map(Box::new);
+    if let Ok(span) = sources.span_to_json(required.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "associated type is required here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "add `type {} = ConcreteType` to this interface implementation",
+        required.name
+    ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn associated_type_extra_diagnostic(
+    sources: &SourceMap,
+    interface_symbol: &TypeSymbol,
+    target_symbol: &TypeSymbol,
+    binding: &AssociatedTypeBindingSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0434",
+        format!(
+            "associated type `{}.{}` is not declared by interface `{}`",
+            target_symbol.canonical_name, binding.name, interface_symbol.canonical_name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(binding.name_span).ok().map(Box::new);
+    diagnostic.help =
+        Some("remove the binding or declare the associated type in the interface".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn duplicate_associated_type_binding_diagnostic(
+    sources: &SourceMap,
+    target_symbol: &TypeSymbol,
+    binding: &AssociatedTypeBindingSignature,
+    first_span: crate::source::ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0435",
+        format!(
+            "interface implementation for `{}` binds associated type `{}` more than once",
+            target_symbol.canonical_name, binding.name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(binding.name_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first binding is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("keep exactly one binding for each associated type".to_string());
+    diagnostic
+}
 
 pub(in crate::typecheck) fn interface_impl_contract_not_interface_diagnostic(
     sources: &SourceMap,

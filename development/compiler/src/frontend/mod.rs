@@ -609,7 +609,7 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
             Item::Impl(impl_) => {
                 declarations.extend(impl_.members.iter().filter_map(|member| match member {
                     ImplMember::Method(method) => Some((method.visibility, method.span)),
-                    ImplMember::Drop(_) => None,
+                    ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
                 }))
             }
             Item::Construct(construct) => declarations.extend(construct.members.iter().map(

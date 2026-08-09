@@ -34,6 +34,7 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
+                    crate::ast::ImplMember::AssociatedType(_) => {}
                     crate::ast::ImplMember::Method(method) => {
                         if let Some(body) = &method.body {
                             collect_block_import_paths(body, paths);

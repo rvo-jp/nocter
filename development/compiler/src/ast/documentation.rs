@@ -98,6 +98,9 @@ fn collect_impl_member_targets(
     targets: &mut Vec<DocumentationTarget>,
 ) {
     match member {
+        ImplMember::AssociatedType(binding) => {
+            push_target(text, binding.span, targets);
+        }
         ImplMember::Method(method) => {
             push_target(text, method.span, targets);
             if let Some(body) = &method.body {

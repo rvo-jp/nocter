@@ -101,6 +101,12 @@ fn collect_drop_dependencies(
                 }
             }
         }
+        TypeExpr::Projection(_) => {
+            if let Some(normalized) = crate::typecheck::normalize_associated_type_expr(ty, resolved)
+            {
+                collect_drop_dependencies(analysis, file, &normalized, visiting, dependencies)
+            }
+        }
         TypeExpr::Closure(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) | TypeExpr::View(_) => {}
     }
 

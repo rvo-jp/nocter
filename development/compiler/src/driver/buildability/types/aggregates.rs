@@ -76,6 +76,17 @@ where
 {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => false,
+        TypeExpr::Projection(_) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            crate::typecheck::normalize_associated_type_expr(ty, resolved).is_some_and(|ty| {
+                type_expr_is_supported_payload_enum_value_inner(
+                    &ty,
+                    fallback_resolved,
+                    resolver,
+                    resolving_names,
+                )
+            })
+        }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
@@ -200,6 +211,18 @@ where
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (symbol, substitutions) = match ty {
         TypeExpr::Callable(_) => return false,
+        TypeExpr::Projection(_) => {
+            let Some(normalized) = crate::typecheck::normalize_associated_type_expr(ty, resolved)
+            else {
+                return false;
+            };
+            return type_expr_has_supported_recursive_drop_with_resolver(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+        }
         TypeExpr::Closure(closure) => {
             return closure.captures.iter().all(|capture| {
                 capture.mode != crate::ast::ClosureCaptureMode::Move
@@ -370,6 +393,16 @@ where
 {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Projection(_) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
+            fixed_array_element_type_expr_with_resolver(
+                &normalized,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);

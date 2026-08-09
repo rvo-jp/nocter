@@ -35,8 +35,8 @@ use crate::ast::{
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
-    EnumVariantSignature, MethodSignature, ParameterSignature, ResolveOutput, StructFieldSignature,
-    TypeSymbol, TypeSymbolKind,
+    AssociatedTypeBindingSignature, AssociatedTypeSignature, EnumVariantSignature, MethodSignature,
+    ParameterSignature, ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::{ByteSpan, SourceMap};
 

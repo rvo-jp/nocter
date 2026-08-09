@@ -5,6 +5,44 @@ use super::support::{
 use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
+fn parses_required_associated_types_and_impl_bindings() {
+    let output = parse_text(
+        r#"pub interface Source {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+
+impl<T> Source for Buffer<T> {
+    type Item = T
+    method &+self.next(): T? { return none }
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface");
+    };
+    assert_eq!(interface.associated_types[0].name, "Item");
+    assert!(matches!(
+        &interface.methods[0].return_type,
+        TypeExpr::Optional(optional)
+            if matches!(optional.inner.as_ref(), TypeExpr::Projection(projection)
+                if projection.name == "Item"
+                    && matches!(projection.base.as_ref(), TypeExpr::Reference(reference) if reference.name == "Self"))
+    ));
+    let Item::Impl(impl_) = &ast.items[1] else {
+        panic!("expected impl");
+    };
+    assert!(matches!(
+        &impl_.members[0],
+        ImplMember::AssociatedType(binding)
+            if binding.name == "Item"
+                && matches!(&binding.value, TypeExpr::Reference(reference) if reference.name == "T")
+    ));
+}
+
+#[test]
 fn parses_only_ancestor_based_visibility_scopes() {
     let output = parse_text(
         r#"pub(./) func descendants(): void { return }

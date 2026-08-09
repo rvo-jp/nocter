@@ -35,6 +35,7 @@ fn collect_scoped_import_name_spans_in_item(item: &Item, spans: &mut HashSet<Byt
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
+                    ImplMember::AssociatedType(_) => {}
                     ImplMember::Method(method) => {
                         if let Some(body) = &method.body {
                             collect_scoped_import_name_spans_in_block(body, spans);
@@ -252,6 +253,7 @@ fn scoped_import_spans_in_item_at_offset(item: &Item, offset: usize) -> Option<H
             .as_ref()
             .and_then(|body| scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
+            ImplMember::AssociatedType(_) => None,
             ImplMember::Method(method) => method.body.as_ref().and_then(|body| {
                 scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())
             }),

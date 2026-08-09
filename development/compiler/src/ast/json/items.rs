@@ -132,6 +132,14 @@ impl Item {
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                 ]);
+                children.extend(item.associated_types.iter().map(|associated_type| {
+                    JsonAstNode::with_value(
+                        "associated_type_decl",
+                        associated_type.name.clone(),
+                        json_span(sources, associated_type.span),
+                        vec![visibility_json(Visibility::Public)],
+                    )
+                }));
                 children.extend(item.methods.iter().map(|method| method.to_json(sources)));
                 JsonAstNode::with_value(
                     "interface_decl",
@@ -421,6 +429,12 @@ impl CallableRequirementClause {
 impl ImplMember {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
+            ImplMember::AssociatedType(binding) => JsonAstNode::with_value(
+                "associated_type_binding",
+                binding.name.clone(),
+                json_span(sources, binding.span),
+                vec![binding.value.to_json(sources)],
+            ),
             ImplMember::Method(method) => method.to_json(sources),
             ImplMember::Drop(drop_) => JsonAstNode::with_value(
                 "drop_decl",

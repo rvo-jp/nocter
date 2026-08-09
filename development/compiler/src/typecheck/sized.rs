@@ -211,6 +211,16 @@ fn check_impl(
     let self_type = impl_self_type(impl_, resolved);
     for member in &impl_.members {
         match member {
+            ImplMember::AssociatedType(binding) => {
+                check_value_type(
+                    sources,
+                    &binding.value,
+                    "associated type binding",
+                    resolved,
+                    Some(&self_type),
+                    diagnostics,
+                );
+            }
             ImplMember::Method(method) => {
                 let prefix = format!("method `{}`", method.name);
                 check_method_with_prefix(

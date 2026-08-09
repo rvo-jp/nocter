@@ -136,7 +136,7 @@ impl CallableBodyIndex {
                 let mut filtered = impl_.clone();
                 filtered.members.retain(|member| match member {
                     ImplMember::Method(method) => !self.is_implementation(method.name_span),
-                    ImplMember::Drop(_) => true,
+                    ImplMember::AssociatedType(_) | ImplMember::Drop(_) => true,
                 });
                 Some(Item::Impl(filtered))
             }

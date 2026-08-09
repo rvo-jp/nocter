@@ -98,6 +98,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
+                    ImplMember::AssociatedType(_) => {}
                     ImplMember::Method(method) => {
                         collect_method_hover_symbols(text, method, symbols)
                     }

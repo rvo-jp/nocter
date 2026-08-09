@@ -41,6 +41,10 @@ pub(super) enum Type {
         name: String,
         arguments: Vec<Type>,
     },
+    Projection {
+        base: Box<Type>,
+        member: String,
+    },
     Parameter(String),
     Unresolved(String),
     Unknown,
@@ -121,6 +125,10 @@ impl Type {
                     .iter()
                     .map(|argument| argument.substitute_parameters(substitutions))
                     .collect(),
+            },
+            Type::Projection { base, member } => Type::Projection {
+                base: Box::new(base.substitute_parameters(substitutions)),
+                member: member.clone(),
             },
             Type::Closure(_)
             | Type::I32
@@ -222,6 +230,10 @@ impl Type {
                     .map(|argument| argument.notation_with_name(display_name))
                     .collect(),
             },
+            Type::Projection { base, member } => TypeNotation::Projection {
+                base: Box::new(base.notation_with_name(display_name)),
+                member: member.clone(),
+            },
             Type::Parameter(name) | Type::Unresolved(name) => atom(name),
             Type::Unknown => atom("<unknown>"),
         }
@@ -229,7 +241,7 @@ impl Type {
 
     pub(super) fn nominal_name(&self) -> Option<&str> {
         match self {
-            Type::Callable(_) | Type::Closure(_) => None,
+            Type::Callable(_) | Type::Closure(_) | Type::Projection { .. } => None,
             Type::Named(name) | Type::Generic { name, .. } => Some(name),
             _ => None,
         }
@@ -249,6 +261,7 @@ impl Type {
             Type::Pointer(inner) | Type::Borrow { inner, .. } => inner.is_unknown_or_unresolved(),
             Type::Optional(inner) => inner.is_unknown_or_unresolved(),
             Type::Generic { arguments, .. } => arguments.iter().any(Type::is_unknown_or_unresolved),
+            Type::Projection { base, .. } => base.is_unknown_or_unresolved(),
             Type::Fallible { success, error } => {
                 success.is_unknown_or_unresolved() || error.is_unknown_or_unresolved()
             }
@@ -275,6 +288,7 @@ impl Type {
             Type::Pointer(_) | Type::Borrow { .. } => None,
             Type::Optional(inner) => inner.first_unsized_part(),
             Type::Generic { arguments, .. } => arguments.iter().find_map(Type::first_unsized_part),
+            Type::Projection { base, .. } => base.first_unsized_part(),
             Type::Fallible { success, error } => success
                 .first_unsized_part()
                 .or_else(|| error.first_unsized_part()),

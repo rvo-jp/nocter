@@ -53,7 +53,7 @@ pub(in crate::typecheck) fn type_may_retain_fresh_result_storage(
                     &mut HashSet::new(),
                 )
         }),
-        Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => true,
+        Type::Parameter(_) | Type::Projection { .. } | Type::Unresolved(_) | Type::Unknown => true,
         Type::Callable(_)
         | Type::I32
         | Type::Primitive(_)
@@ -99,6 +99,7 @@ fn type_contains_pointer(
                 .collect();
             type_symbol_contains_pointer(name, resolved, &substitutions, resolving_names)
         }
+        Type::Projection { .. } => true,
         Type::Array { element, .. } | Type::Optional(element) | Type::ArrayData { element } => {
             type_contains_pointer(element, resolved, resolving_names)
         }
@@ -225,6 +226,10 @@ fn type_expr_contains_pointer(
                 &nested_substitutions,
                 resolving_names,
             )
+        }
+        TypeExpr::Projection(_) => {
+            let ty = type_expr_to_type_with_substitutions(ty, resolved, None, substitutions);
+            type_contains_pointer(&ty, resolved, resolving_names)
         }
     }
 }

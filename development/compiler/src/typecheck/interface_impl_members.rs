@@ -1,8 +1,10 @@
 //! Contract validation for members owned by body-bearing interface implementations.
 
 use super::diagnostics::{
-    duplicate_interface_impl_method_diagnostic, interface_impl_extra_method_diagnostic,
-    interface_method_missing_diagnostic, interface_method_signature_mismatch_diagnostic,
+    associated_type_extra_diagnostic, associated_type_missing_diagnostic,
+    duplicate_associated_type_binding_diagnostic, duplicate_interface_impl_method_diagnostic,
+    interface_impl_extra_method_diagnostic, interface_method_missing_diagnostic,
+    interface_method_signature_mismatch_diagnostic,
 };
 use super::interfaces::{
     method_impl_target_substitutions, method_shape, method_shape_label,
@@ -34,6 +36,14 @@ pub(super) fn check_interface_impl_members(
     };
     report_extra_and_duplicate_methods(
         sources,
+        conformance,
+        interface_symbol,
+        target_symbol,
+        diagnostics,
+    );
+    report_associated_type_bindings(
+        sources,
+        impl_,
         conformance,
         interface_symbol,
         target_symbol,
@@ -77,6 +87,55 @@ pub(super) fn check_interface_impl_members(
                 actual,
                 method_shape_label(required, resolved, self_type, &interface_substitutions),
                 method_shape_label(actual, resolved, self_type, &actual_substitutions),
+            ));
+        }
+    }
+}
+
+fn report_associated_type_bindings(
+    sources: &SourceMap,
+    impl_: &ImplDecl,
+    conformance: &InterfaceConformance,
+    interface_symbol: &TypeSymbol,
+    target_symbol: &TypeSymbol,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut seen = HashMap::<&str, ByteSpan>::new();
+    for binding in &conformance.associated_types {
+        if let Some(first_span) = seen.insert(&binding.name, binding.name_span) {
+            diagnostics.push(duplicate_associated_type_binding_diagnostic(
+                sources,
+                target_symbol,
+                binding,
+                first_span,
+            ));
+            continue;
+        }
+        if !interface_symbol
+            .associated_types
+            .iter()
+            .any(|required| required.name == binding.name)
+        {
+            diagnostics.push(associated_type_extra_diagnostic(
+                sources,
+                interface_symbol,
+                target_symbol,
+                binding,
+            ));
+        }
+    }
+    for required in &interface_symbol.associated_types {
+        if !conformance
+            .associated_types
+            .iter()
+            .any(|binding| binding.name == required.name)
+        {
+            diagnostics.push(associated_type_missing_diagnostic(
+                sources,
+                impl_,
+                interface_symbol,
+                target_symbol,
+                required,
             ));
         }
     }

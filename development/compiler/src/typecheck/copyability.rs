@@ -395,6 +395,15 @@ fn type_expr_is_copy_inner(
                 environment,
             )
         }
+        TypeExpr::Projection(_) => {
+            let ty = super::type_expr::type_expr_to_type_with_substitutions(
+                ty,
+                resolved,
+                None,
+                substitutions,
+            );
+            type_is_copy_maybe_inner(&ty, resolved, resolving_names, environment)
+        }
         TypeExpr::View(_) => None,
     }
 }
@@ -479,6 +488,7 @@ fn type_is_copy_maybe_inner(
                 .generic_requirements(name)
                 .is_some_and(|requirements| requirements.has_copy())
         }),
+        Type::Projection { .. } => None,
         Type::Unresolved(_) | Type::Unknown => None,
     }
 }

@@ -3,7 +3,7 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     ArrayLength, ArrayType, BorrowType, CallableCapability, CallableTypeExpr,
     CallableTypeParameter, FallibleType, GenericParam, GenericParamList, GenericType, OptionalType,
-    PointerType, TypeExpr, TypeReference, ViewType,
+    PointerType, ProjectedType, TypeExpr, TypeReference, ViewType,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -13,6 +13,19 @@ impl Parser<'_> {
         let mut ty = self.parse_type_atom()?;
 
         loop {
+            if self.at_punctuation(".") && self.next_is_identifier() {
+                self.bump();
+                let name =
+                    self.expect_name_identifier("expected associated type name after `.`")?;
+                ty = TypeExpr::Projection(ProjectedType {
+                    span: self.span(ty.span().start, name.span.end),
+                    base: Box::new(ty),
+                    name: name.value,
+                    name_span: name.span,
+                });
+                continue;
+            }
+
             if let Some(question) = self.match_punctuation("?") {
                 ty = TypeExpr::Optional(OptionalType {
                     span: self.span(ty.span().start, question.span.end),

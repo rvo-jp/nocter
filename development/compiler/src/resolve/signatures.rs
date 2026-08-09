@@ -107,7 +107,7 @@ pub(super) fn associated_function_signature(
 pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
     impl_.members.iter().filter_map(|member| match member {
         ImplMember::Method(method) => Some(method_signature_in_impl(method, impl_)),
-        ImplMember::Drop(_) => None,
+        ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
     })
 }
 
@@ -119,7 +119,7 @@ pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
             target_name: drop_function_name(target_name),
             binding: parameter_signature(&drop_.binding),
         }),
-        ImplMember::Method(_) => None,
+        ImplMember::AssociatedType(_) | ImplMember::Method(_) => None,
     })
 }
 
@@ -146,7 +146,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     for member in &impl_.members {
         let (name, span) = match member {
             ImplMember::Method(method) => (method.name.as_str(), method.name_span),
-            ImplMember::Drop(_) => continue,
+            ImplMember::AssociatedType(_) | ImplMember::Drop(_) => continue,
         };
         match seen.entry(name) {
             std::collections::hash_map::Entry::Occupied(first) => {
@@ -176,7 +176,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
     let mut diagnostics = Vec::new();
     let Some(drop_) = impl_.members.iter().find_map(|member| match member {
         ImplMember::Drop(drop_) => Some(drop_),
-        ImplMember::Method(_) => None,
+        ImplMember::AssociatedType(_) | ImplMember::Method(_) => None,
     }) else {
         return diagnostics;
     };
@@ -196,7 +196,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
 
 pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Projection(_) => None,
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
         TypeExpr::Pointer(_)
@@ -253,6 +253,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         alias_target: Some(alias.target.clone()),
         fields: Vec::new(),
         variants: Vec::new(),
+        associated_types: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
@@ -284,6 +285,15 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
         alias_target: None,
         fields: Vec::new(),
         variants: Vec::new(),
+        associated_types: interface
+            .associated_types
+            .iter()
+            .map(|associated_type| super::AssociatedTypeSignature {
+                name: associated_type.name.clone(),
+                name_span: associated_type.name_span,
+                declaration_span: associated_type.span,
+            })
+            .collect(),
         associated_functions: Vec::new(),
         methods: interface
             .methods
@@ -332,6 +342,7 @@ pub(super) fn struct_type_symbol(
             })
             .collect(),
         variants: Vec::new(),
+        associated_types: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
@@ -381,6 +392,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
                 payload: variant.payload.iter().map(parameter_signature).collect(),
             })
             .collect(),
+        associated_types: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),

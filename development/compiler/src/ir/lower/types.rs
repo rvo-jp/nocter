@@ -40,6 +40,12 @@ pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> Typ
                 .map(|argument| type_expr_with_self_type(argument, self_ty))
                 .collect(),
         }),
+        TypeExpr::Projection(projection) => TypeExpr::Projection(crate::ast::ProjectedType {
+            span: projection.span,
+            base: Box::new(type_expr_with_self_type(&projection.base, self_ty)),
+            name: projection.name.clone(),
+            name_span: projection.name_span,
+        }),
         TypeExpr::Pointer(pointer) => TypeExpr::Pointer(PointerType {
             span: pointer.span,
             inner: Box::new(type_expr_with_self_type(&pointer.inner, self_ty)),

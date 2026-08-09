@@ -2,6 +2,7 @@
 
 mod allocation;
 mod arrays;
+mod associated_types;
 mod bindings;
 mod body;
 mod callables;
@@ -87,6 +88,17 @@ pub(crate) fn type_expr_is_assignable(
     )
 }
 
+pub(crate) fn normalize_associated_type_expr(
+    ty: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<crate::ast::TypeExpr> {
+    let normalized = type_expr::type_expr_to_type(ty, resolved);
+    let mut parameters = std::collections::HashSet::new();
+    let result =
+        facts::type_to_type_expr_allowing_parameters(&normalized, ty.span(), &mut parameters)?;
+    (!matches!(result, crate::ast::TypeExpr::Projection(_))).then_some(result)
+}
+
 pub(crate) fn type_expr_is_aborting_allocator_capability(
     ty: &crate::ast::TypeExpr,
     resolved: &ResolveOutput,
@@ -152,6 +164,7 @@ pub(crate) fn check_module_with_summary_sources(
 
     test_declarations::check_test_declarations(sources, ast, &mut diagnostics);
     check_generic_type_arities(sources, ast, resolved, &mut diagnostics);
+    associated_types::check_declarations(sources, ast, &mut diagnostics);
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);

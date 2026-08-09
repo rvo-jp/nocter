@@ -36,6 +36,7 @@ pub(crate) fn plan_outcome_contract(
                     .map(|_| &method.return_type)
             }),
             Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
+                ImplMember::AssociatedType(_) => None,
                 ImplMember::Method(method) => method
                     .body
                     .as_ref()

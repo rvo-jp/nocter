@@ -158,6 +158,7 @@ fn check_impl_member_ownership(
 ) {
     for member in &impl_.members {
         match member {
+            ImplMember::AssociatedType(_) => {}
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;
