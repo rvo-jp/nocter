@@ -2,13 +2,12 @@
 
 ## Current Task
 
-v0.10.0 publication and its independent public-asset audit are complete under
-[`releases/v0.10.0.md`](releases/v0.10.0.md). The feature scope is frozen at the completed Phase 3
-boundary. The contract audit closed the implicit-standard-package omission and namespace-ordering
-defects in commit `f1d7e4b4`; the deterministic archive passed local and public fresh-install
-matrices. Annotated tag `v0.10.0` resolves to publication commit `cc866309`, and GitHub exposes the
-qualified archive as the only asset of the latest non-prerelease release. Stop at this published
-boundary.
+Implement [v0.11.0 Phase 0](milestones/v0.11.0.md): replace raw generic-bound reinterpretation with
+one resolved requirement model, add the intrinsic `T: copy` source contract and callable `where`
+requirements for inherited owner parameters, and migrate every standard-library API whose readonly
+generic copy precondition is currently enforced only after specialization. Begin with the
+behavior-preserving requirement-model extraction; do not add associated types or combine the
+structural migration with the source-language change.
 
 ## Completed Checkpoint
 
@@ -219,7 +218,8 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the published and audited v0.10.0 boundary. Do not begin another milestone or alter the
-published asset without a new plan. Any compiler, standard-library, or packaging change belongs to
-a later version and requires complete qualification. Published archives and their evidence are
-immutable.
+Follow the ordered work and commit boundaries in [v0.11.0 Phase 0](milestones/v0.11.0.md). The first
+checkpoint is a behavior-preserving authored-bound/resolved-requirement model shared by resolver,
+typecheck, analysis, and signature consumers. Add `copy` and callable `where` syntax only after that
+checkpoint passes focused bound, conformance, callable, presentation, and formatting tests. Keep
+the published v0.10.0 archive, tag, and release evidence immutable.

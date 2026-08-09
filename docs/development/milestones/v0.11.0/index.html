@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocter v0.11.0 Milestone - Nocter</title>
+    <meta name="description" content="Status: Phase 0 planned.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.11.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Nocter v0.11.0 Milestone - Nocter">
+    <meta property="og:description" content="Status: Phase 0 planned.">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.11.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-09">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nocter v0.11.0 Milestone - Nocter">
+    <meta name="twitter:description" content="Status: Phase 0 planned.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.11.0 Milestone - Nocter","description":"Status: Phase 0 planned.","url":"https://nocter.dev/development/milestones/v0.11.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.11.0/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.11.0","item":"https://nocter.dev/development/milestones/v0.11.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="./index.html#content" aria-current="page">v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
+                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
+                <li><a href="../../releases/v0.10.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.11.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="nocter-v0-11-0-milestone">Nocter v0.11.0 Milestone</h1><p><strong>Status:</strong> Phase 0 planned.</p><h2 id="purpose">Purpose</h2><p>v0.11.0 removes language-expression gaps that force ordinary standard-library contracts to rely on implementation-time rejection. Phase 0 starts with the smallest existing contract defect: generic source can perform a copy only after concrete specialization proves that the type is copyable, but a declaration cannot require that property in its generic signature. Construction members expose a second part of the same defect: a member cannot add a requirement to an owner parameter without constraining the type's entire construction surface.</p><p>The current <code>Vec.from_slice&lt;T&gt;</code> and <code>Vec.try_from_slice&lt;T&gt;</code> implementations copy elements from a readonly slice. Their public signatures cannot state that <code>T</code> must be copyable. The compiler eventually rejects a non-copy specialization, but callers, generic forwarding functions, editor tooling, and API documentation cannot observe the requirement at the declaration boundary.</p><p>Phase 0 introduces one identity-independent intrinsic generic requirement and a shared semantic requirement model. It does not encode the rule as a standard-library interface, infer a hidden requirement from a function body, or special-case <code>Vec</code>, a callable name, or a source path.</p><h2 id="phase-0-resolved-generic-requirements-and-copy-contracts">Phase 0: Resolved Generic Requirements and Copy Contracts</h2><h3 id="source-contract">Source Contract</h3><p>The <code>copy</code> keyword is valid as a generic bound:</p><pre><code class="language-nct"><span class="token-keyword">func</span> duplicate<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> copy<span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> value
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> inspect<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> copy <span class="token-operator">+</span> <span class="token-type">Printable</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+    value<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><p>A callable may add requirements to generic parameters already in its lexical scope:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_slice</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">T</span><span class="token-operator">:</span> copy <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p>The callable <code>where</code> clause is necessary because placing <code>copy</code> on <code>construct Vec&lt;T&gt;</code> would also constrain <code>Vec.empty</code>, <code>Vec.with_capacity</code>, and every other construction entry that works for non-copy element types. It is not an alternate spelling that hides an ordinary local bound: directly declared generic parameters use inline bounds by canonical style, while <code>where</code> allows a callable to refine an owner parameter inherited from <code>construct</code>, <code>impl</code>, or <code>interface</code> scope.</p><pre><code class="language-text">CallableWhereClause = "where" Requirement ("," Requirement)*
+Requirement         = Name ":" Bound ("+" Bound)*
+</code></pre><p>The clause follows result provenance and precedes the body or bodyless declaration terminator:</p><pre><code class="language-nct"><span class="token-keyword">func</span> project<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> from value where <span class="token-type">T</span><span class="token-operator">:</span> <span class="token-type">Inspectable</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> value
+<span class="token-operator">}</span>
+</code></pre><p><code>copy</code> in a bound names the compiler-owned copyability property. It is not a type, interface, prelude declaration, importable symbol, or user-implementable contract. Existing <code>copy struct</code> syntax remains unchanged.</p><p>Rules:</p><ul><li>bound order is formatting information and has no semantic effect</li><li>a parameter may contain at most one <code>copy</code> requirement</li><li><code>copy</code> may be combined with nominal interface bounds and one callable contract</li><li>a callable <code>where</code> clause may constrain its own parameters and inherited owner parameters</li><li>an inline bound and <code>where</code> requirement for the same parameter merge into one set and follow the
+  same duplicate and multiple-callable rules</li><li>every <code>where</code> target must resolve to a generic parameter in that callable's lexical scope</li><li>a concrete type satisfies <code>copy</code> exactly when the ownership model classifies that concrete type
+  as copyable</li><li>a generic parameter satisfies another callable's <code>copy</code> requirement only when its own declared
+  requirement set contains <code>copy</code></li><li>the compiler does not infer or publish a missing <code>copy</code> requirement from body operations</li><li>aliases preserve the copyability of their resolved target and cannot manufacture copyability</li><li>no <code>impl</code>, import, declaration name, or package can grant the intrinsic property</li><li>the requirement introduces no runtime metadata, dictionary, witness value, or ABI field</li></ul><p>Copyability remains structural where the existing ownership rules already make it structural. A concrete instantiation of a generic <code>copy struct</code> is copyable only when all of its stored fields are copyable. <code>T: copy</code> allows generic body checking to rely on that property before specialization; specialization still validates the concrete substitution and lowering still consumes the ordinary resolved type capability.</p><h3 id="semantic-requirement-model">Semantic Requirement Model</h3><p>Phase 0 replaces the current convention in which every bound is transported as an unresolved <code>TypeExpr</code> and repeatedly reclassified by consumers. Syntax and semantic requirements have separate representations:</p><pre><code class="language-text">authored generic bound
+    -&gt; resolver-owned requirement identity
+        -&gt; typecheck requirement environment
+            -&gt; call/conformance validation, ownership, analysis, and lowering
+</code></pre><p>The semantic model distinguishes exactly these existing and new kinds:</p><ul><li>a specialized nominal interface identity</li><li>a structural callable contract</li><li>the intrinsic <code>copy</code> property</li></ul><p>The model has one canonical equality and duplicate rule. Interface member lookup consumes only interface requirements. Callable conversion and invocation consume only the callable requirement. Ownership copy decisions consume the intrinsic requirement. Consumers must not recover a requirement kind from formatted source, a declaration spelling, or an unresolved type expression.</p><p>The AST retains authored inline-bound and <code>where</code> spans for formatting, diagnostics, and editor focus. Resolver output owns canonical interface identities, lexical parameter identities, and the intrinsic kind. Typecheck environments and callable signatures carry the merged resolved requirement set rather than parallel <code>Vec&lt;TypeExpr&gt;</code> conventions. Concrete substitution checks use the same copyability classifier already used by ownership, buildability, and native value capabilities.</p><h3 id="ownership-and-generic-bodies">Ownership and Generic Bodies</h3><p>Inside a generic body, an unconstrained owned <code>T</code> remains non-copy by default. With <code>T: copy</code>, the following operations use ordinary copy semantics:</p><ul><li>reading an owned parameter or local without <code>move</code></li><li>returning or passing the value without consuming its source binding</li><li>readonly array and slice element reads</li><li>readonly sequence spread when the yielded element type is that parameter</li><li>construction and assignment of aggregates whose concrete copyability follows from the bound</li></ul><p>The requirement does not weaken borrow conflicts, make an unsized value sized, suppress drop for a non-copy concrete type, or permit byte copying of a type that the ownership classifier rejects. Contradictory internal facts are compiler errors, not a fallback to unchecked copying.</p><p>Generic forwarding must be declaration-stable:</p><pre><code class="language-nct"><span class="token-keyword">func</span> inner<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> copy<span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> value
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> valid<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> copy<span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">inner</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> invalid<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">inner</span><span class="token-operator">(</span><span class="token-keyword">move</span> value<span class="token-operator">)</span> <span class="token-comment">// error: T does not promise copy</span>
+<span class="token-operator">}</span>
+</code></pre><p>Conditional conformances and method-local generics use the same requirement environment. No second check may exist only in buildability or IR lowering.</p><h3 id="standard-library-migration">Standard-Library Migration</h3><p>Phase 0 updates every public standard-library declaration whose implementation copies a generic value from a borrow. At minimum, the owned vector constructors become:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_slice</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">T</span><span class="token-operator">:</span> copy
+
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_from_slice</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator | values where <span class="token-type">T</span><span class="token-operator">:</span> copy
+<span class="token-operator">}</span>
+</code></pre><p>Top-level forwarding functions declare their own <code>T: copy</code> inline. The migration audit also covers readonly spread, collection builders, numeric/text helpers, and package-visible helpers so no copying precondition remains only in an implementation comment or late buildability path.</p><p>Existing valid copy instantiations keep their behavior and ABI. A non-copy call is rejected during semantic call checking at the concrete type argument, with a note pointing to the <code>copy</code> bound. There is no compatibility path that accepts the call and waits for buildability or code generation to fail.</p><h3 id="diagnostics-and-editor-contract">Diagnostics and Editor Contract</h3><ul><li>malformed, misplaced, unknown-target, and duplicate <code>copy</code> or <code>where</code> requirements receive
+  source-backed diagnostics</li><li>a non-copy concrete argument reports the actual type, the intrinsic requirement, and the
+  declaration span that introduced it</li><li>forwarding an unconstrained generic parameter reports the missing requirement at the call and
+  suggests adding <code>: copy</code> when that preserves the function's intent</li><li>hover, completion detail, signature help, and normalized declaration presentation render the
+  authored <code>copy</code> bound through the shared requirement model</li><li>completion offers <code>copy</code> only in a generic-bound position where it is not already present</li><li>semantic tokens classify <code>copy</code> as a keyword; it has no go-to-definition target</li><li>rename, references, and auto-import never treat <code>copy</code> as a source symbol</li><li>AST JSON preserves the intrinsic bound kind, callable requirement clause, and exact source spans</li><li>the formatter emits one canonical spacing, <code>+</code> layout, and callable <code>where</code> placement</li></ul><p>Editor features must consume resolver/typechecker requirements. They may not scan declaration text or recognize <code>copy</code> by a presentation string after semantic analysis.</p><h2 id="implementation-order">Implementation Order</h2><ol><li>1. Introduce explicit authored-bound and resolved-requirement types, then migrate existing
+   interface and callable consumers without changing accepted source.</li><li>Add <code>copy</code> bounds and callable <code>where</code> clauses to parsing, recovery, AST JSON, formatting, and
+   canonical source notation.</li><li>Resolve and merge inline and callable requirements, then make generic environments, call
+   checking, conformance, ownership, sequence copying, and specialization consume the shared model.</li><li>Remove late or name-based copying assumptions that the semantic requirement now replaces.</li><li>Migrate <code>Vec.from_slice</code>, <code>Vec.try_from_slice</code>, their forwarding APIs, and every other audited
+   standard-library copying contract.</li><li>Integrate diagnostics, hover, completion, signature help, semantic tokens, navigation, and
+   source edits with the same semantic requirement identity.</li><li>Update the public specification and focused contributor design, regenerate the documentation
+   site, and run the complete qualification gate.</li></ol><p>Structural migration of the generic-requirement model should be committed separately from the source-language behavior when practical. Each later step must use the new model rather than temporarily maintaining old and new semantic paths.</p><h2 id="completion-gate">Completion Gate</h2><p>Phase 0 is complete only when all of the following hold:</p><ul><li><code>T: copy</code> is accepted in every generic declaration position supported for existing bounds,
+  including functions, methods, nominal types, interfaces, construction members, and impls</li><li>callable <code>where</code> clauses constrain local and inherited parameters consistently in functions,
+  methods, interface members, impl members, construction functions, and literal members</li><li>generic body checking permits copy operations only with a declared intrinsic requirement or an
+  independently concrete copyable type</li><li>concrete calls, generic forwarding, conditional conformance, aliases, nested copy aggregates,
+  arrays, slices, sequence spread, optional/fallible values, and callable specialization share one
+  requirement-satisfaction path</li><li>non-copy <code>String</code>, <code>Vec&lt;T&gt;</code>, and user-owned aggregates fail at semantic call checking when passed
+  to a <code>copy</code>-bounded API; references, integers, booleans, and valid copy aggregates succeed</li><li>resolver and typecheck signatures no longer expose an undifferentiated bound collection that
+  every downstream consumer must reinterpret</li><li>no compiler rule identifies <code>Vec</code>, <code>from_slice</code>, <code>std</code>, a file path, or a presentation spelling
+  to authorize copying</li><li>distributed <code>Vec.from_slice</code> and <code>try_from_slice</code> signatures state their copy requirement, and
+  their former implementation-only limitation comment is removed</li><li>check, build, run, native tests, installed-home tests, and single-file mode agree on acceptance,
+  diagnostics, ownership, cleanup, and execution</li><li>parser recovery and all LSP surfaces remain stable for incomplete inline bounds, callable
+  requirement clauses, and mixed requirement sets</li><li>the public specification, contributor design, generated website, and packaged standard library
+  contain one current contract</li><li><code>development/compiler/scripts/verify.sh</code>, warnings-denied Clippy, <code>cargo fmt --check</code>, public
+  examples, source corpus, documentation generation, and <code>git diff --check</code> pass</li></ul><p>No required Phase 0 TODO, compatibility grammar, duplicated semantic path, or deferred implementation marker may remain at completion.</p><h2 id="non-goals">Non-goals</h2><p>Phase 0 does not add:</p><ul><li>associated types, type projections, associated-type equality requirements, general predicate
+  clauses on non-callable declarations, or generic associated types</li><li>const generics, compile-time evaluation, or source constant declarations</li><li>a user-implementable <code>Copy</code> or <code>Clone</code> interface</li><li>inferred public generic requirements</li><li>negative requirements, specialization, or overlap ranking</li><li>operator overloading, interface inheritance, interface objects, or dynamic dispatch</li><li>new copyability rules, unsafe memory copying, runtime type metadata, or ABI changes</li><li>Unicode scalar values, floating-point types, or a formatting protocol</li><li>another native target or a v0.11.0 release artifact</li></ul><p>Associated types are the leading candidate for a later v0.11.0 phase after the requirement model is qualified. That later phase must receive its own plan and must not be pulled into Phase 0 merely to redesign <code>Iterator</code> during this work.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>
