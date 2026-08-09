@@ -183,17 +183,16 @@ impl TypecheckFactCollector<'_> {
         clause: Option<&crate::ast::CallableRequirementClause>,
     ) {
         for requirement in clause.into_iter().flat_map(|clause| &clause.requirements) {
-            if let Some(declaration) = self.generic_parameter_declaration(&requirement.name) {
-                if let Some(parameter) = self
+            if let Some(declaration) = self.generic_parameter_declaration(&requirement.name)
+                && let Some(parameter) = self
                     .facts
                     .generic_parameter_declarations
                     .iter_mut()
                     .find(|parameter| parameter.span == declaration)
-                {
-                    for bound in &requirement.bounds {
-                        if !parameter.bounds.contains(bound) {
-                            parameter.bounds.push(bound.clone());
-                        }
+            {
+                for bound in &requirement.bounds {
+                    if !parameter.bounds.contains(bound) {
+                        parameter.bounds.push(bound.clone());
                     }
                 }
             }

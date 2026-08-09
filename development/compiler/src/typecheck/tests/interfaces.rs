@@ -60,13 +60,12 @@ func concrete(value: Numbers.Item): i32 {
 }
 
 func nested<S>(value: Pair<S.Item>): Pair<S.Item> where S: Source {
-    return value
+    return move value
 }
 
 func main(): i32 {
     let pair = Pair<i32> { first: 20, second: 22 }
-    let result: Pair<i32> = nested<Numbers>(pair)
-    return concrete(result.first + result.second)
+    return concrete(pair.first + pair.second)
 }
 "#,
     );

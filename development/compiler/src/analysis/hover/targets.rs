@@ -481,12 +481,12 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
     })
 }
 
-fn associated_type_for_declaration_span<'a>(
-    analysis: &'a CompileUnitAnalysis,
+fn associated_type_for_declaration_span(
+    analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
 ) -> Option<(
-    &'a crate::resolve::TypeSymbol,
-    &'a crate::resolve::AssociatedTypeSignature,
+    &crate::resolve::TypeSymbol,
+    &crate::resolve::AssociatedTypeSignature,
 )> {
     analysis.files.iter().find_map(|file| {
         file.resolved.symbols.symbols().find_map(|symbol| {
