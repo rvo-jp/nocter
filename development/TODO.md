@@ -2,14 +2,26 @@
 
 ## Current Task
 
-v0.10.0 stabilization and local qualification are active under
+v0.10.0 stabilization and local qualification are complete under
 [`releases/v0.10.0.md`](releases/v0.10.0.md). The feature scope is frozen at the completed Phase 3
 boundary. The contract audit closed the implicit-standard-package omission and namespace-ordering
-defects in commit `f1d7e4b4`; candidate identity is now v0.10.0. Stop after deterministic local
-archive qualification. Do not publish without separate authorization. v0.9.0 remains the latest
-published and audited release under [`releases/v0.9.0.md`](releases/v0.9.0.md).
+defects in commit `f1d7e4b4`; candidate identity is v0.10.0 and the deterministic archive passed
+the complete fresh-install matrix. Stop at this qualification boundary. Do not publish without
+separate authorization. v0.9.0 remains the latest published and audited release under
+[`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
+
+- v0.10.0 stabilization requires the implicit versioned standard package instead of silently
+  omitting it, preserves the same exact identity when `std` is the graph root, and orders graph
+  namespaces deterministically
+- incremental and clean verification each passed all 3,437 tests, formatting, warnings-denied
+  Clippy, public examples, source corpus, and the distributed installed-home suite
+- documentation generation produced 113 pages; the two-build archive comparison and complete
+  isolated fresh-install matrix passed
+- the retained 3,465,760-byte `arm64-darwin` candidate has SHA-256
+  `fe47f69b274a23c8d83bd28d9bb28b3e3ee3a43f02bb16ed0151a42345ce61c9` and contains all 27
+  standard-library files
 
 - v0.10.0 Phase 3 replaces `pub(nocter)` with private, descendant-module, ancestor-module,
   package, and universal visibility boundaries resolved from exact `PackageId` and `ModuleId`
@@ -200,7 +212,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Complete v0.10.0 incremental and clean repository verification, deterministic two-build local
-archive qualification, and the qualification evidence record. Stop before tagging, pushing,
-GitHub publication, asset upload, or changing published download links. The published v0.9.0
-archive and its evidence are immutable.
+Stop at the locally qualified v0.10.0 candidate. Do not tag, push, create a GitHub Release, upload
+an asset, or change published download links without separate authorization. Any compiler,
+standard-library, or packaging change invalidates the candidate and requires complete
+requalification. The published v0.9.0 archive and its evidence are immutable.
