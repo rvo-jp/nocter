@@ -851,8 +851,8 @@ pub func answer(): i32 {
 }
 
 #[test]
-fn check_reports_nocter_visibility_import_from_user_project() {
-    let root = make_temp_project("nocter-visibility-user-import");
+fn check_rejects_package_visible_import_from_another_package() {
+    let root = make_temp_project("package-visibility-user-import");
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
@@ -884,8 +884,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_allows_nocter_visibility_import_inside_nocter_home() {
-    let root = make_temp_project("nocter-visibility-home-import");
+fn check_allows_package_visible_import_inside_standard_library_package() {
+    let root = make_temp_project("package-visibility-std-import");
     let home = make_nocter_home(&root);
     crate::test_files::write(
         home.join("std/io/index.nct"),
@@ -1151,8 +1151,8 @@ pub(/) func Raw.secret(): i32 {
 }
 
 #[test]
-fn check_reports_nocter_visibility_declaration_outside_nocter_home() {
-    let root = make_temp_project("nocter-visibility-user-declaration");
+fn check_rejects_package_visibility_without_a_package_root() {
+    let root = make_temp_project("package-visibility-single-file");
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
@@ -1216,8 +1216,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_allows_nocter_visibility_declaration_inside_nocter_home() {
-    let root = make_temp_project("nocter-visibility-home-declaration");
+fn check_allows_package_visibility_inside_standard_library_package() {
+    let root = make_temp_project("package-visibility-std-declaration");
     let home = make_nocter_home(&root);
     crate::test_files::write(
         home.join("std/app/index.nct"),
@@ -1297,12 +1297,13 @@ func main(): i32 {
 }
 
 #[test]
-fn check_reports_nocter_primitive_outside_nocter_home_as_primitive_boundary() {
-    let root = make_temp_project("user-nocter-primitive");
+fn check_package_visibility_does_not_grant_primitive_authority() {
+    let root = make_temp_project("user-package-visible-primitive");
     let home = make_nocter_home(&root);
+    crate::test_files::write(root.join("nocter.nct"), "#name: \"user\"\n").unwrap();
     crate::test_files::write(
         root.join("index.nct"),
-        r#"pub primitive new_error(code: &str, message: &str): error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
 func main(): i32 {
     return 0

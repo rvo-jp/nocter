@@ -1,6 +1,6 @@
 //! Semantic package and directory-module ownership for loaded physical sources.
 
-use crate::package::{PackageGraph, PackageId};
+use crate::package::{ModuleId, ModuleKey, NormalizedModulePath, PackageGraph, PackageId};
 use crate::resolve::ImportAccess;
 use crate::source::{SourceId, SourceMap};
 use std::collections::HashMap;
@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceScope {
     package: PackageId,
+    module_id: ModuleId,
     module: Vec<String>,
     standard_library: bool,
 }
@@ -16,6 +17,21 @@ struct SourceScope {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SourceScopeMap {
     scopes: HashMap<SourceId, SourceScope>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum VisibilityBoundary {
+    ModuleTree(ModuleId),
+    Public,
+}
+
+impl VisibilityBoundary {
+    pub(crate) fn allows(&self, module: &ModuleId) -> bool {
+        match self {
+            Self::Public => true,
+            Self::ModuleTree(boundary) => boundary.contains(module),
+        }
+    }
 }
 
 impl SourceScopeMap {
@@ -32,15 +48,13 @@ impl SourceScopeMap {
                 let path = sources.get(source)?.absolute_path()?;
                 let (package, root, standard_library) =
                     package_scope(path, graph, standard_library_root.as_deref())?;
-                let relative = path.strip_prefix(&root).ok()?;
-                let module = crate::source_layout::logical_module_path(relative)?
-                    .components()
-                    .map(|component| component.as_os_str().to_str().map(str::to_string))
-                    .collect::<Option<Vec<_>>>()?;
+                let module = semantic_module_components(path, &root)?;
+                let module_id = module_id_from_components(package.clone(), &module);
                 Some((
                     source,
                     SourceScope {
                         package,
+                        module_id,
                         module,
                         standard_library,
                     },
@@ -85,6 +99,12 @@ impl SourceScopeMap {
             .is_some_and(|scope| scope.standard_library)
     }
 
+    pub(crate) fn sources_share_module(&self, left: SourceId, right: SourceId) -> Option<bool> {
+        let left = self.scopes.get(&left)?;
+        let right = self.scopes.get(&right)?;
+        Some(left.module_id == right.module_id)
+    }
+
     pub(crate) fn standard_library_module_path(&self, source: SourceId) -> Option<String> {
         let scope = self.scopes.get(&source)?;
         scope.standard_library.then(|| {
@@ -103,43 +123,74 @@ impl SourceScopeMap {
         reexport_visibility: crate::ast::Visibility,
         reexport_source: SourceId,
     ) -> bool {
-        use crate::ast::Visibility;
-        if target_visibility == Visibility::Public {
-            return true;
-        }
-        if reexport_visibility == Visibility::Public || target_visibility == Visibility::Private {
-            return false;
-        }
-        let Some((target_package, target_boundary)) =
-            self.boundary(target_visibility, target_source)
-        else {
+        let Some(target) = self.visibility_boundary(target_visibility, target_source) else {
             return false;
         };
-        let Some((reexport_package, reexport_boundary)) =
-            self.boundary(reexport_visibility, reexport_source)
-        else {
+        let Some(reexport) = self.visibility_boundary(reexport_visibility, reexport_source) else {
             return false;
         };
-        target_package == reexport_package && reexport_boundary.starts_with(&target_boundary)
+        match (target, reexport) {
+            (VisibilityBoundary::Public, _) => true,
+            (VisibilityBoundary::ModuleTree(_), VisibilityBoundary::Public) => false,
+            (VisibilityBoundary::ModuleTree(target), VisibilityBoundary::ModuleTree(reexport)) => {
+                target.contains(&reexport)
+            }
+        }
     }
 
-    fn boundary(
+    pub(crate) fn visibility_boundary(
         &self,
         visibility: crate::ast::Visibility,
         source: SourceId,
-    ) -> Option<(PackageId, Vec<String>)> {
+    ) -> Option<VisibilityBoundary> {
         use crate::ast::Visibility;
+        if visibility == Visibility::Public {
+            return Some(VisibilityBoundary::Public);
+        }
         let scope = self.scopes.get(&source)?;
-        let boundary = match visibility {
+        let module = match visibility {
             Visibility::Package => Vec::new(),
             Visibility::ModuleTree(parents) => {
                 let retained = scope.module.len().checked_sub(usize::from(parents))?;
                 scope.module[..retained].to_vec()
             }
-            Visibility::Private | Visibility::Public => return None,
+            Visibility::Public => unreachable!("handled before source-scope lookup"),
+            Visibility::Private => return None,
         };
-        Some((scope.package.clone(), boundary))
+        Some(VisibilityBoundary::ModuleTree(module_id_from_components(
+            scope.package.clone(),
+            &module,
+        )))
     }
+}
+
+pub(crate) fn semantic_module_id(
+    path: &Path,
+    package_root: &Path,
+    package: PackageId,
+) -> Option<ModuleId> {
+    let components = semantic_module_components(path, package_root)?;
+    Some(module_id_from_components(package, &components))
+}
+
+pub(crate) fn semantic_module_components(path: &Path, package_root: &Path) -> Option<Vec<String>> {
+    let relative = path.strip_prefix(package_root).ok()?;
+    let logical = crate::source_layout::logical_module_path(relative)?;
+    logical
+        .components()
+        .map(|component| component.as_os_str().to_str().map(str::to_string))
+        .collect()
+}
+
+fn module_id_from_components(package: PackageId, components: &[String]) -> ModuleId {
+    ModuleId::new(
+        package,
+        if components.is_empty() {
+            ModuleKey::PackageRoot
+        } else {
+            ModuleKey::Path(NormalizedModulePath::new(components.join("/")))
+        },
+    )
 }
 
 fn package_scope(

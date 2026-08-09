@@ -4,7 +4,7 @@ use super::model::{
 };
 use crate::analysis::occurrences::{SemanticIdentity, SemanticOccurrence};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{Item, Visibility};
+use crate::ast::Item;
 use crate::package::PackageGraph;
 use crate::resolve::SymbolKind;
 use crate::source::{ByteSpan, SourceMap};
@@ -114,53 +114,73 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         for item in &file.ast.items {
             let export = match item {
                 Item::Function(function)
-                    if function.visibility == Visibility::Public && function.owner.is_none() =>
+                    if !function.visibility.is_private() && function.owner.is_none() =>
                 {
-                    Some((function.name.clone(), IndexedExportKind::Function))
+                    Some((
+                        function.name.clone(),
+                        IndexedExportKind::Function,
+                        function.visibility,
+                    ))
                 }
-                Item::Primitive(primitive) if primitive.visibility == Visibility::Public => {
-                    Some((primitive.name.clone(), IndexedExportKind::Function))
-                }
-                Item::TypeAlias(alias) if alias.visibility == Visibility::Public => {
-                    Some((alias.name.clone(), IndexedExportKind::Type))
-                }
-                Item::Struct(struct_) if struct_.visibility == Visibility::Public => {
-                    Some((struct_.name.clone(), IndexedExportKind::Type))
-                }
-                Item::Enum(enum_) if enum_.visibility == Visibility::Public => {
-                    Some((enum_.name.clone(), IndexedExportKind::Type))
-                }
-                Item::Interface(interface) if interface.visibility == Visibility::Public => {
-                    Some((interface.name.clone(), IndexedExportKind::Type))
-                }
-                Item::Import(import) if import.visibility == Visibility::Public => {
+                Item::Primitive(primitive) if !primitive.visibility.is_private() => Some((
+                    primitive.name.clone(),
+                    IndexedExportKind::Function,
+                    primitive.visibility,
+                )),
+                Item::TypeAlias(alias) if !alias.visibility.is_private() => Some((
+                    alias.name.clone(),
+                    IndexedExportKind::Type,
+                    alias.visibility,
+                )),
+                Item::Struct(struct_) if !struct_.visibility.is_private() => Some((
+                    struct_.name.clone(),
+                    IndexedExportKind::Type,
+                    struct_.visibility,
+                )),
+                Item::Enum(enum_) if !enum_.visibility.is_private() => Some((
+                    enum_.name.clone(),
+                    IndexedExportKind::Type,
+                    enum_.visibility,
+                )),
+                Item::Interface(interface) if !interface.visibility.is_private() => Some((
+                    interface.name.clone(),
+                    IndexedExportKind::Type,
+                    interface.visibility,
+                )),
+                Item::Import(import) if !import.visibility.is_private() => {
                     match (
                         import.path.segments.last(),
                         analysis.import_sources.get(&import.path.span),
                     ) {
                         (Some(target), Some(source)) => {
                             resolved_import_kind(analysis, source.source, target)
-                                .map(|kind| (import.alias.name.clone(), kind))
+                                .map(|kind| (import.alias.name.clone(), kind, import.visibility))
                         }
                         _ => None,
                     }
                 }
-                Item::FromImport(import) if import.visibility == Visibility::Public => {
-                    let source = analysis
-                        .import_sources
-                        .get(&import.path.span)
-                        .map(|entry| entry.source);
+                Item::FromImport(import) if !import.visibility.is_private() => {
+                    let Some(visibility) = file
+                        .resolved
+                        .visibility_boundary(import.visibility, file.ast.span.source)
+                    else {
+                        continue;
+                    };
                     for imported in &import.names {
                         let name = imported.local_name();
-                        let Some(kind) = source.and_then(|source| {
-                            resolved_import_kind(analysis, source, &imported.name)
-                        }) else {
+                        let Some(kind) = file
+                            .resolved
+                            .symbols
+                            .symbol_by_name(name)
+                            .and_then(|symbol| export_kind(&symbol.kind))
+                        else {
                             continue;
                         };
                         self.exports.push(IndexedExport {
                             name: name.to_string(),
                             kind,
                             absolute_path: absolute_path.clone(),
+                            visibility: visibility.clone(),
                         });
                     }
                     None
@@ -178,11 +198,16 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 | Item::Construct(_)
                 | Item::Coerce(_) => None,
             };
-            if let Some((name, kind)) = export {
+            if let Some((name, kind, visibility)) = export
+                && let Some(visibility) = file
+                    .resolved
+                    .visibility_boundary(visibility, file.ast.span.source)
+            {
                 self.exports.push(IndexedExport {
                     name,
                     kind,
                     absolute_path: absolute_path.clone(),
+                    visibility,
                 });
             }
         }

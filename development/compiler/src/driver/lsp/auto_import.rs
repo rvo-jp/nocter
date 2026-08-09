@@ -8,7 +8,7 @@ use crate::package::{PackageGraph, SourcePackage};
 use crate::source::{ByteSpan, SourceId};
 use serde_json::{Value, json};
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AutoImportCandidate {
@@ -54,11 +54,17 @@ pub(super) fn auto_import_candidates(
     let Some(owner) = context.graph.package_containing(current_path) else {
         return Vec::new();
     };
+    let Some(current_module) =
+        crate::source_scopes::semantic_module_id(current_path, owner.root(), owner.id().clone())
+    else {
+        return Vec::new();
+    };
     let mut candidates = context
         .index
         .exports()
         .iter()
         .filter(|export| export.absolute_path != current_path)
+        .filter(|export| export.visibility.allows(&current_module))
         .filter(|export| exact_or_prefix.is_none_or(|prefix| export.name.starts_with(prefix)))
         .filter_map(|export| {
             Some(AutoImportCandidate {
@@ -128,7 +134,7 @@ fn import_module_path(
         });
     }
 
-    standard_module_path(target_path)
+    None
 }
 
 fn module_path_inside_package(package: &SourcePackage, source: &Path) -> Option<String> {
@@ -147,23 +153,6 @@ fn normalized_module_path(relative: &Path) -> Option<String> {
         .collect::<Option<Vec<_>>>()?
         .join("/");
     Some(value)
-}
-
-fn standard_module_path(source: &Path) -> Option<String> {
-    let components = source.components().collect::<Vec<_>>();
-    let std_index = components
-        .iter()
-        .rposition(|component| component.as_os_str() == "std")?;
-    let relative = components[std_index + 1..]
-        .iter()
-        .map(|component| component.as_os_str())
-        .collect::<PathBuf>();
-    let module = normalized_module_path(&relative)?;
-    Some(if module.is_empty() {
-        "std".to_string()
-    } else {
-        format!("std/{module}")
-    })
 }
 
 fn identifier_prefix(text: &str, offset: usize) -> &str {

@@ -1029,7 +1029,7 @@ fn lsp_rename_never_edits_dependency_owned_declarations() {
 }
 
 #[test]
-fn lsp_completion_adds_imports_from_reachable_public_exports() {
+fn lsp_completion_adds_imports_from_reachable_visible_exports() {
     let project = TempProject::new("cli-lsp-auto-import");
     project.write_source(
         "nocter.nct",
@@ -1045,11 +1045,15 @@ fn lsp_completion_adds_imports_from_reachable_public_exports() {
     );
     project.write_source(
         "lib/index.nct",
-        "pub func answer(): i32 { return 42 }\nfunc hidden(): i32 { return 0 }\n",
+        "pub func answer(): i32 { return 42 }\npub(/) func answer_package(): i32 { return 43 }\npub(./) func answer_subtree(): i32 { return 44 }\nfunc hidden(): i32 { return 0 }\n",
     );
     project.write_source(
         "unused/index.nct",
         "pub func answer_from_unreachable_file(): i32 { return 0 }\n",
+    );
+    project.write_source(
+        "widened/index.nct",
+        "pub use ../lib.answer_subtree as leaked_answer\n",
     );
     let app_uri = file_uri(&app);
 
@@ -1116,6 +1120,14 @@ fn lsp_completion_adds_imports_from_reachable_public_exports() {
     assert_eq!(
         answer["additionalTextEdits"][0]["range"]["start"]["line"],
         0
+    );
+    let package_answer = completion_item_with_label(items, "answer_package")
+        .expect("expected package-visible auto import");
+    assert_eq!(package_answer["detail"], "auto import from /lib");
+    assert!(completion_item_with_label(items, "answer_subtree").is_none());
+    assert!(
+        completion_item_with_label(items, "leaked_answer").is_none(),
+        "an invalid widening re-export must not enter the semantic package index"
     );
     assert!(completion_item_with_label(items, "hidden").is_none());
     assert!(completion_item_with_label(items, "answer_from_unreachable_file").is_none());

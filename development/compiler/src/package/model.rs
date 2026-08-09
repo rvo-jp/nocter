@@ -36,7 +36,7 @@ pub struct ModuleId {
 }
 
 impl ModuleId {
-    pub(super) fn new(package: PackageId, key: ModuleKey) -> Self {
+    pub(crate) fn new(package: PackageId, key: ModuleKey) -> Self {
         Self { package, key }
     }
 
@@ -46,6 +46,23 @@ impl ModuleId {
 
     pub fn key(&self) -> &ModuleKey {
         &self.key
+    }
+
+    pub(crate) fn contains(&self, module: &Self) -> bool {
+        if self.package != module.package {
+            return false;
+        }
+        match (&self.key, &module.key) {
+            (ModuleKey::PackageRoot, _) => true,
+            (ModuleKey::Path(_), ModuleKey::PackageRoot) => false,
+            (ModuleKey::Path(boundary), ModuleKey::Path(candidate)) => {
+                candidate.as_str() == boundary.as_str()
+                    || candidate
+                        .as_str()
+                        .strip_prefix(boundary.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            }
+        }
     }
 }
 
@@ -59,7 +76,7 @@ pub enum ModuleKey {
 pub struct NormalizedModulePath(String);
 
 impl NormalizedModulePath {
-    pub(super) fn new(path: String) -> Self {
+    pub(crate) fn new(path: String) -> Self {
         Self(path)
     }
 
@@ -274,5 +291,36 @@ impl SourcePackage {
 
     pub fn test(&self, name: &str) -> Option<&TestTarget> {
         self.tests.iter().find(|target| target.name() == name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn module(package: &PackageId, path: Option<&str>) -> ModuleId {
+        ModuleId::new(
+            package.clone(),
+            path.map_or(ModuleKey::PackageRoot, |path| {
+                ModuleKey::Path(NormalizedModulePath::new(path.to_string()))
+            }),
+        )
+    }
+
+    #[test]
+    fn module_identity_contains_only_its_semantic_subtree() {
+        let package = PackageId::from_descriptor("package:a");
+        let other_package = PackageId::from_descriptor("package:b");
+        let root = module(&package, None);
+        let text = module(&package, Some("text"));
+        let text_search = module(&package, Some("text/search"));
+        let textual = module(&package, Some("textual"));
+
+        assert!(root.contains(&text_search));
+        assert!(text.contains(&text));
+        assert!(text.contains(&text_search));
+        assert!(!text.contains(&root));
+        assert!(!text.contains(&textual));
+        assert!(!text.contains(&module(&other_package, Some("text/search"))));
     }
 }

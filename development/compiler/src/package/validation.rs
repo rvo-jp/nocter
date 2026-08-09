@@ -125,7 +125,7 @@ fn dependency_declarations(
     let mut names = HashSet::new();
     let mut dependencies = Vec::new();
     for field in fields {
-        if field.name == "std" {
+        if field.name == super::standard_library::STANDARD_LIBRARY_ALIAS {
             diagnostics.push(package_diagnostic(
                 sources,
                 field.name_span,

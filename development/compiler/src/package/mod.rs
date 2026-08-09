@@ -9,6 +9,7 @@ mod lockfile;
 mod model;
 mod modules;
 mod overlay;
+pub(crate) mod standard_library;
 mod store;
 mod targets;
 mod test_targets;

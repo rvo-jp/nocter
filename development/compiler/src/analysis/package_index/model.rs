@@ -194,6 +194,7 @@ pub(crate) struct IndexedExport {
     pub(crate) name: String,
     pub(crate) kind: IndexedExportKind,
     pub(crate) absolute_path: PathBuf,
+    pub(crate) visibility: crate::source_scopes::VisibilityBoundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

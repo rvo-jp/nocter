@@ -71,7 +71,10 @@ impl ResolveOutput {
         use_source: SourceId,
     ) -> bool {
         match visibility {
-            Visibility::Private => self.sources_share_module(declaration_source, use_source),
+            Visibility::Private => self
+                .source_scopes
+                .sources_share_module(declaration_source, use_source)
+                .unwrap_or_else(|| self.sources_share_module(declaration_source, use_source)),
             _ => self
                 .source_scopes
                 .access(declaration_source, use_source)
@@ -92,6 +95,14 @@ impl ResolveOutput {
             reexport_visibility,
             reexport_source,
         )
+    }
+
+    pub(crate) fn visibility_boundary(
+        &self,
+        visibility: Visibility,
+        source: SourceId,
+    ) -> Option<crate::source_scopes::VisibilityBoundary> {
+        self.source_scopes.visibility_boundary(visibility, source)
     }
 
     pub(crate) fn source_access(

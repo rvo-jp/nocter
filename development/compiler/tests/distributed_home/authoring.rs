@@ -56,5 +56,11 @@ fn distributed_compiler_graph_json_describes_a_fresh_package() {
     assert_eq!(graph.status.code(), Some(0), "{}", text(&graph.stderr));
     let value: Value = serde_json::from_slice(&graph.stdout).unwrap();
     assert_eq!(value["format"], 1);
-    assert_eq!(value["packages"][0]["name"], "fresh-lib");
+    let packages = value["packages"].as_array().expect("packages array");
+    assert!(
+        packages
+            .iter()
+            .any(|package| package["name"] == "fresh-lib")
+    );
+    assert!(packages.iter().any(|package| package["name"] == "std"));
 }

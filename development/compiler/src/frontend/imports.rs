@@ -476,7 +476,7 @@ pub(super) fn import_access_for_source(
     use_source: SourceId,
     declaration_source: SourceId,
     options: &FrontendOptions,
-    _resolved_nocter_home: &Option<Result<PathBuf, String>>,
+    resolved_nocter_home: &Option<Result<PathBuf, String>>,
 ) -> ImportAccess {
     let Some(use_path) = sources
         .get(use_source)
@@ -492,10 +492,25 @@ pub(super) fn import_access_for_source(
     else {
         return ImportAccess::Public;
     };
-    let Some(use_root) = semantic_package_root(&use_path, options) else {
+    let standard_library_root = options
+        .nocter_home
+        .as_ref()
+        .or_else(|| {
+            resolved_nocter_home
+                .as_ref()
+                .and_then(|result| result.as_ref().ok())
+        })
+        .map(|home| canonicalize_existing(&home.join("std")));
+    let Some(use_root) =
+        semantic_package_root_with_std(&use_path, options, standard_library_root.as_deref())
+    else {
         return ImportAccess::Public;
     };
-    let Some(declaration_root) = semantic_package_root(&declaration_path, options) else {
+    let Some(declaration_root) = semantic_package_root_with_std(
+        &declaration_path,
+        options,
+        standard_library_root.as_deref(),
+    ) else {
         return ImportAccess::Public;
     };
     if use_root != declaration_root {
@@ -524,13 +539,20 @@ pub(super) fn import_access_for_source(
 }
 
 pub(super) fn semantic_package_root(path: &Path, options: &FrontendOptions) -> Option<PathBuf> {
-    if let Some(std_root) = options
+    let standard_library_root = options
         .nocter_home
         .as_ref()
-        .map(|home| canonicalize_existing(&home.join("std")))
-        .filter(|root| path.starts_with(root))
-    {
-        return Some(std_root);
+        .map(|home| canonicalize_existing(&home.join("std")));
+    semantic_package_root_with_std(path, options, standard_library_root.as_deref())
+}
+
+fn semantic_package_root_with_std(
+    path: &Path,
+    options: &FrontendOptions,
+    standard_library_root: Option<&Path>,
+) -> Option<PathBuf> {
+    if let Some(std_root) = standard_library_root.filter(|root| path.starts_with(root)) {
+        return Some(std_root.to_path_buf());
     }
     if let Some(package) = options
         .package_graph
@@ -546,12 +568,7 @@ pub(super) fn semantic_package_root(path: &Path, options: &FrontendOptions) -> O
 }
 
 pub(super) fn semantic_module_components(path: &Path, package_root: &Path) -> Option<Vec<String>> {
-    let relative = path.strip_prefix(package_root).ok()?;
-    let logical = crate::source_layout::logical_module_path(relative)?;
-    logical
-        .components()
-        .map(|component| component.as_os_str().to_str().map(str::to_string))
-        .collect()
+    crate::source_scopes::semantic_module_components(path, package_root)
 }
 
 pub(super) fn canonicalize_existing(path: &Path) -> PathBuf {

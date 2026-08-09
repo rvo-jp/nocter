@@ -81,23 +81,23 @@ fn search_directories(
     if typed_path.starts_with("./") || typed_path.starts_with("../") {
         return vec![source_dir.join(parent)];
     }
+    let (name, remainder) = parent.split_once('/').unwrap_or((parent, ""));
+    if let Some(directory) = package_graph
+        .and_then(|graph| {
+            let owner = graph.package_containing(source_dir)?;
+            graph.dependency(owner.id(), name)
+        })
+        .map(|dependency| dependency.root().join(remainder))
+    {
+        return vec![directory];
+    }
     if parent == "std" || parent.starts_with("std/") {
         return resolve_nocter_home()
             .ok()
             .map(|home| vec![home.join(parent)])
             .unwrap_or_default();
     }
-    let Some(graph) = package_graph else {
-        return Vec::new();
-    };
-    let Some(owner) = graph.package_containing(source_dir) else {
-        return Vec::new();
-    };
-    let (name, remainder) = parent.split_once('/').unwrap_or((parent, ""));
-    graph
-        .dependency(owner.id(), name)
-        .map(|dependency| vec![dependency.root().join(remainder)])
-        .unwrap_or_default()
+    Vec::new()
 }
 
 fn dependency_aliases(

@@ -203,27 +203,7 @@ test assertion_fails {
 fn installed_nocter_uses_executable_parent_as_home_without_env() {
     let install = TempProject::new("distributed-home-installed-layout");
     let home = install.root();
-    fs::write(
-        home.join("VERSION"),
-        fs::read_to_string(distributed_home().join("VERSION")).unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        home.join("MANIFEST.json"),
-        fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        home.join("LICENSE"),
-        fs::read_to_string(distributed_home().join("LICENSE")).unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        home.join("NOTICE"),
-        fs::read_to_string(distributed_home().join("NOTICE")).unwrap(),
-    )
-    .unwrap();
-    fs::create_dir_all(home.join("std/prelude")).unwrap();
+    write_minimal_nocter_home(home);
 
     let installed = home.join("nocter");
     fs::copy(NOCTER, &installed).unwrap();
@@ -4192,7 +4172,7 @@ func main(): i32 {{
         );
 
         let output = nocter_check(&project, &source);
-        assert_pub_nocter_visibility_rejected(&output, helper);
+        assert_package_visibility_rejected(&output, helper);
     }
 }
 
@@ -5608,6 +5588,16 @@ fn write_minimal_nocter_home(home: &Path) {
     )
     .unwrap();
     fs::write(home.join("std/prelude/index.nct"), "").unwrap();
+    fs::copy(
+        distributed_home().join("std/nocter.nct"),
+        home.join("std/nocter.nct"),
+    )
+    .unwrap();
+    fs::copy(
+        distributed_home().join("std/index.nct"),
+        home.join("std/index.nct"),
+    )
+    .unwrap();
 }
 
 fn assert_success(output: &Output) {
@@ -5630,7 +5620,7 @@ fn assert_success(output: &Output) {
     );
 }
 
-fn assert_pub_nocter_visibility_rejected(output: &Output, imported_name: &str) {
+fn assert_package_visibility_rejected(output: &Output, imported_name: &str) {
     assert_eq!(
         output.status.code(),
         Some(1),

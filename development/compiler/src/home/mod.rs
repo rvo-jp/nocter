@@ -62,6 +62,25 @@ pub(crate) fn validate_nocter_home(home: &Path) -> Vec<String> {
     require_file(home, "LICENSE", &mut errors);
     require_file(home, "NOTICE", &mut errors);
 
+    if home.join("std/nocter.nct").is_file() && home.join("std/index.nct").is_file() {
+        let load = crate::package::load_package(&home.join("std"));
+        if load.diagnostics.is_empty() {
+            if let Some(package) = load.package.as_ref() {
+                errors.extend(crate::package::standard_library::validation_errors(
+                    package,
+                    version.as_deref(),
+                ));
+            }
+        } else {
+            errors.extend(load.diagnostics.into_iter().map(|diagnostic| {
+                format!(
+                    "invalid toolchain standard-library package: {}",
+                    diagnostic.message
+                )
+            }));
+        }
+    }
+
     if let (Some(version), Some(manifest)) = (version.as_deref(), manifest.as_ref()) {
         validate_manifest(home, version, manifest, &mut errors);
     }
@@ -113,6 +132,10 @@ fn read_version_file(path: &Path) -> Result<String, String> {
     }
 
     Ok(version.to_string())
+}
+
+pub(crate) fn read_nocter_home_version(home: &Path) -> Result<String, String> {
+    read_version_file(&home.join("VERSION"))
 }
 
 fn is_valid_release_version(version: &str) -> bool {
@@ -391,8 +414,20 @@ mod tests {
         .unwrap();
 
         let errors = validate_nocter_home(&root);
-        fs::remove_dir_all(&root).unwrap();
-
         assert!(errors.is_empty(), "{errors:?}");
+
+        fs::write(
+            root.join("std/nocter.nct"),
+            "#name: \"std\"\n#version: \"0.2.0\"\n",
+        )
+        .unwrap();
+        let errors = validate_nocter_home(&root);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("does not match Nocter home version")),
+            "{errors:?}"
+        );
+        fs::remove_dir_all(&root).unwrap();
     }
 }

@@ -173,3 +173,48 @@ fn reexports_cannot_widen_an_ancestor_visibility_boundary() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn reexported_type_members_keep_the_original_declaration_boundary() {
+    let root = make_temp_project("reexported-member-boundary");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(root.join("nocter.nct"), "#name: \"visibility\"\n").unwrap();
+    crate::test_files::write(
+        root.join("index.nct"),
+        "use /internal/facade/child.run\n\nfunc main(): i32 { return run() }\n",
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("internal/a/index.nct"),
+        r#"pub struct Secret {
+    pub(./) value: i32
+}
+
+pub func make(): Secret {
+    return Secret { value: 7 }
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("internal/facade/index.nct"),
+        "pub use /internal/a.{Secret, make}\n",
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("internal/facade/child/index.nct"),
+        "use /internal/facade.{Secret, make}\n\npub func run(): i32 { let value: Secret = make() return value.value }\n",
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E0377" && diagnostic.message.contains("not visible here")
+        }),
+        "{diagnostics:?}"
+    );
+}
