@@ -170,7 +170,7 @@ fn build_command_lowers_ignored_fallible_scalar_and_view_call_expression_stateme
     let project = TempProject::new("cli-build-ignored-fallible-scalar-view-call-statement");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -214,7 +214,7 @@ fn build_command_lowers_scalar_and_view_optional_otherwise_assignments() {
     let project = TempProject::new("cli-build-scalar-view-optional-otherwise-assignments");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -311,7 +311,7 @@ fn build_command_lowers_scalar_and_view_optional_otherwise_value_positions() {
     let project = TempProject::new("cli-build-scalar-view-optional-otherwise-values");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -913,7 +913,7 @@ fn build_command_lowers_dynamic_failure_payload() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -949,7 +949,7 @@ fn build_command_lowers_dynamic_failure_payload_code_and_message() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -989,7 +989,7 @@ fn build_command_lowers_static_error_payload_helper() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)

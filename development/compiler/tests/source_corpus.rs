@@ -537,7 +537,7 @@ impl TempProject {
             concat!(
                 "pub type ErrorCode = &str\n",
                 "pub type Error = error\n",
-                "pub(nocter) primitive new_error(code: &str, message: &str): error\n",
+                "pub(/) primitive new_error(code: &str, message: &str): error\n",
                 "\n",
                 "pub func Error.new(code: ErrorCode, message: &str): Error from code | message {\n",
                 "    return new_error(code, message)\n",

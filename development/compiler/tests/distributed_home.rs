@@ -2925,8 +2925,8 @@ func main(): i32 {
     assert!(output.stdout.is_empty(), "expected empty stdout");
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -3984,8 +3984,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4087,8 +4087,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4121,8 +4121,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4155,8 +4155,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4225,8 +4225,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4259,8 +4259,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -4293,8 +4293,8 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)"),
+        "expected pub(/) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -5645,10 +5645,8 @@ fn assert_pub_nocter_visibility_rejected(output: &Output, imported_name: &str) {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412")
-            && stderr.contains("pub(nocter)")
-            && stderr.contains(imported_name),
-        "expected pub(nocter) visibility diagnostic for `{imported_name}`, got:\n{stderr}"
+        stderr.contains("E0412") && stderr.contains("pub(/)") && stderr.contains(imported_name),
+        "expected pub(/) visibility diagnostic for `{imported_name}`, got:\n{stderr}"
     );
 }
 

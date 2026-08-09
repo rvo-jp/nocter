@@ -359,7 +359,7 @@ impl TempPackage {
             r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -370,7 +370,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
         fs::write(
             home.join("std/io/index.nct"),
             r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func print(text: &str): void! {
     write_text_raw(1, text)?

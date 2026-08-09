@@ -21,6 +21,7 @@ pub struct PackageGraphOptions {
 #[derive(Debug, Clone)]
 pub struct PackageGraph {
     root: PackageId,
+    standard_library: Option<PackageId>,
     packages: BTreeMap<PackageId, SourcePackage>,
     namespaces: HashMap<(PackageId, String), PackageId>,
 }
@@ -34,6 +35,16 @@ impl PackageGraph {
 
     pub fn packages(&self) -> impl Iterator<Item = &SourcePackage> {
         self.packages.values()
+    }
+
+    pub fn standard_library(&self) -> Option<&SourcePackage> {
+        self.standard_library
+            .as_ref()
+            .and_then(|id| self.packages.get(id))
+    }
+
+    pub fn is_standard_library_package(&self, id: &PackageId) -> bool {
+        self.standard_library.as_ref() == Some(id)
     }
 
     pub fn package_containing(&self, source: &Path) -> Option<&SourcePackage> {
@@ -83,7 +94,13 @@ pub struct PackageGraphLoad {
 }
 
 pub fn load_package_graph(root: &Path, options: PackageGraphOptions) -> PackageGraphLoad {
-    load_package_graph_impl(root, options, &super::PackageSourceOverlay::default(), true)
+    load_package_graph_impl(
+        root,
+        options,
+        &super::PackageSourceOverlay::default(),
+        true,
+        active_standard_library_root(),
+    )
 }
 
 /// Resolves the exact graph without rewriting the source-owned package lock.
@@ -93,6 +110,7 @@ pub fn inspect_package_graph(root: &Path, options: PackageGraphOptions) -> Packa
         options,
         &super::PackageSourceOverlay::default(),
         false,
+        active_standard_library_root(),
     )
 }
 
@@ -108,6 +126,7 @@ pub(crate) fn load_locked_offline_package_graph_with_overlay(
         },
         overlay,
         false,
+        active_standard_library_root(),
     )
 }
 
@@ -116,6 +135,7 @@ fn load_package_graph_impl(
     options: PackageGraphOptions,
     overlay: &super::PackageSourceOverlay,
     write_lock: bool,
+    standard_library_root: Option<PathBuf>,
 ) -> PackageGraphLoad {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let store = PackageStore::new(&root);
@@ -130,6 +150,7 @@ fn load_package_graph_impl(
         diagnostics: Vec::new(),
         pending_lock_writes: Vec::new(),
         lock_changed: false,
+        standard_library_root,
     };
     let root_id = builder.visit(&root, None, true);
     if write_lock && builder.diagnostics.is_empty() {
@@ -143,9 +164,29 @@ fn load_package_graph_impl(
             package_files: builder.package_files,
         };
     }
+    let standard_library = root_id
+        .as_ref()
+        .and_then(|_| builder.attach_standard_library());
+    if !builder.diagnostics.is_empty() {
+        return PackageGraphLoad {
+            graph: None,
+            diagnostics: builder.diagnostics,
+            lock_changed: builder.lock_changed,
+            package_files: builder.package_files,
+        };
+    }
+    if let Some(standard_library) = &standard_library {
+        let package_ids = builder.packages.keys().cloned().collect::<Vec<_>>();
+        for package in package_ids {
+            builder
+                .namespaces
+                .insert((package, "std".to_string()), standard_library.clone());
+        }
+    }
     PackageGraphLoad {
         graph: root_id.map(|root| PackageGraph {
             root,
+            standard_library,
             packages: builder.packages,
             namespaces: builder.namespaces,
         }),
@@ -166,9 +207,71 @@ struct GraphBuilder<'a> {
     diagnostics: Vec<Diagnostic>,
     pending_lock_writes: Vec<(PathBuf, Vec<LockedDependency>)>,
     lock_changed: bool,
+    standard_library_root: Option<PathBuf>,
 }
 
 impl GraphBuilder<'_> {
+    fn attach_standard_library(&mut self) -> Option<PackageId> {
+        let root = self.standard_library_root.clone()?;
+        if !root.join("nocter.nct").is_file() || !root.join("index.nct").is_file() {
+            return None;
+        }
+        let root = root.canonicalize().unwrap_or(root);
+        let package_file = root.join("nocter.nct");
+        self.package_files.insert(package_file);
+        if let Some((id, package)) = self
+            .packages
+            .iter()
+            .find(|(_, package)| package.root() == root)
+            .map(|(id, package)| (id.clone(), package.clone()))
+        {
+            return self
+                .validate_standard_library_package(&package)
+                .then_some(id);
+        }
+        let probe = load_package_with_id_and_overlay(&root, None, Some(self.overlay));
+        if !probe.diagnostics.is_empty() {
+            self.diagnostics.extend(probe.diagnostics);
+            return None;
+        }
+        let probe = probe
+            .package
+            .expect("successful standard-library package load");
+        if !self.validate_standard_library_package(&probe) {
+            return None;
+        }
+        let id = PackageId::standard_library(&root, probe.version());
+        let load = load_package_with_id_and_overlay(&root, Some(id.clone()), Some(self.overlay));
+        if !load.diagnostics.is_empty() {
+            self.diagnostics.extend(load.diagnostics);
+            return None;
+        }
+        self.packages.insert(
+            id.clone(),
+            load.package
+                .expect("successful standard-library package load with fixed identity"),
+        );
+        Some(id)
+    }
+
+    fn validate_standard_library_package(&mut self, package: &SourcePackage) -> bool {
+        if package.display_name() != "std" {
+            self.error("toolchain standard-library package must declare `#name: \"std\"`");
+            return false;
+        }
+        if !package.dependencies().is_empty()
+            || !package.locks().is_empty()
+            || !package.executables().is_empty()
+            || !package.tests().is_empty()
+        {
+            self.error(
+                "toolchain standard-library package cannot declare dependencies, locks, executables, or tests",
+            );
+            return false;
+        }
+        true
+    }
+
     fn visit(
         &mut self,
         root: &Path,
@@ -199,6 +302,10 @@ impl GraphBuilder<'_> {
         let mut locks = package.locks().to_vec();
         let mut package_lock_changed = false;
         for dependency in package.dependencies() {
+            if dependency.name() == "std" {
+                self.error("dependency name `std` is reserved for the toolchain standard library");
+                continue;
+            }
             let resolution = match self.resolve_dependency(&package, dependency, may_generate_lock)
             {
                 Some(resolution) => resolution,
@@ -361,6 +468,12 @@ impl GraphBuilder<'_> {
     }
 }
 
+fn active_standard_library_root() -> Option<PathBuf> {
+    crate::home::resolve_nocter_home()
+        .ok()
+        .map(|home| home.join("std"))
+}
+
 struct ResolvedDependency {
     root: PathBuf,
     id: Option<PackageId>,
@@ -377,4 +490,101 @@ fn lock_matches_source(source: &DependencySource, lock: &DependencyLock) -> bool
                 DependencyLock::ArchiveSha256(_)
             )
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn attaches_the_toolchain_standard_library_as_an_implicit_dependency() {
+        let sandbox = temp_directory("implicit-std");
+        let package = sandbox.join("app");
+        let standard_library = sandbox.join("home/std");
+        write_package(&package, "#name: \"app\"\n");
+        write_package(&standard_library, "#name: \"std\"\n#version: \"0.9.0\"\n");
+
+        let load = load_package_graph_impl(
+            &package,
+            PackageGraphOptions::default(),
+            &super::super::PackageSourceOverlay::default(),
+            false,
+            Some(standard_library.clone()),
+        );
+        assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
+        let graph = load.graph.unwrap();
+        let root = graph.root_package();
+        let std = graph.standard_library().expect("std package");
+        assert_eq!(std.root(), standard_library.canonicalize().unwrap());
+        assert_eq!(graph.dependency(root.id(), "std"), Some(std));
+        assert_eq!(graph.packages().count(), 2);
+        fs::remove_dir_all(sandbox).unwrap();
+    }
+
+    #[test]
+    fn the_standard_library_graph_uses_one_package_identity_for_itself() {
+        let sandbox = temp_directory("std-self-identity");
+        let standard_library = sandbox.join("home/std");
+        write_package(&standard_library, "#name: \"std\"\n#version: \"0.9.0\"\n");
+
+        let load = load_package_graph_impl(
+            &standard_library,
+            PackageGraphOptions::default(),
+            &super::super::PackageSourceOverlay::default(),
+            false,
+            Some(standard_library.clone()),
+        );
+        assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
+        let graph = load.graph.unwrap();
+        let root = graph.root_package();
+        assert!(graph.is_standard_library_package(root.id()));
+        assert_eq!(graph.dependency(root.id(), "std"), Some(root));
+        assert_eq!(graph.packages().count(), 1);
+        fs::remove_dir_all(sandbox).unwrap();
+    }
+
+    #[test]
+    fn rejects_an_explicit_dependency_named_std() {
+        let sandbox = temp_directory("reserved-std-dependency");
+        let package = sandbox.join("app");
+        let fake = package.join("fake");
+        write_package(
+            &package,
+            "#name: \"app\"\n#dependencies: { std: { path: \"./fake\" } }\n",
+        );
+        write_package(&fake, "#name: \"fake\"\n");
+
+        let load = load_package_graph_impl(
+            &package,
+            PackageGraphOptions::default(),
+            &super::super::PackageSourceOverlay::default(),
+            false,
+            None,
+        );
+        assert!(load.graph.is_none());
+        assert!(load.diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("dependency name `std` is reserved")
+        }));
+        fs::remove_dir_all(sandbox).unwrap();
+    }
+
+    fn write_package(root: &Path, package_source: &str) {
+        crate::test_files::write(root.join("nocter.nct"), package_source).unwrap();
+        crate::test_files::write(root.join("index.nct"), "").unwrap();
+    }
+
+    fn temp_directory(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "nocter-package-graph-{label}-{}-{nonce}",
+            std::process::id()
+        ))
+    }
 }

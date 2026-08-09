@@ -8,6 +8,7 @@ use crate::diagnostics::Diagnostic;
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use crate::source_modules::SourceModuleMap;
+use crate::source_scopes::SourceScopeMap;
 use std::collections::HashMap;
 
 use super::builtin_impls::BuiltinTypeSurface;
@@ -39,6 +40,7 @@ pub struct ResolveOutput {
     pub(crate) trusted_declarations: TrustedDeclarationFacts,
     pub(crate) callable_bodies: CallableBodyIndex,
     pub(crate) source_modules: SourceModuleMap,
+    pub(crate) source_scopes: SourceScopeMap,
 }
 
 impl ResolveOutput {
@@ -60,6 +62,44 @@ impl ResolveOutput {
 
     pub(crate) fn module_source(&self, source: SourceId) -> SourceId {
         self.source_modules.module(source).unwrap_or(source)
+    }
+
+    pub(crate) fn visibility_is_accessible(
+        &self,
+        visibility: Visibility,
+        declaration_source: SourceId,
+        use_source: SourceId,
+    ) -> bool {
+        match visibility {
+            Visibility::Private => self.sources_share_module(declaration_source, use_source),
+            _ => self
+                .source_scopes
+                .access(declaration_source, use_source)
+                .allows(visibility),
+        }
+    }
+
+    pub(crate) fn reexport_does_not_widen(
+        &self,
+        target_visibility: Visibility,
+        target_source: SourceId,
+        reexport_visibility: Visibility,
+        reexport_source: SourceId,
+    ) -> bool {
+        self.source_scopes.reexport_does_not_widen(
+            target_visibility,
+            target_source,
+            reexport_visibility,
+            reexport_source,
+        )
+    }
+
+    pub(crate) fn source_access(
+        &self,
+        declaration_source: SourceId,
+        use_source: SourceId,
+    ) -> ImportAccess {
+        self.source_scopes.access(declaration_source, use_source)
     }
     pub fn symbol_for_identifier(&self, identifier: &IdentifierExpr) -> Option<&Symbol> {
         self.identifier_targets
@@ -304,6 +344,7 @@ impl ResolveOutput {
             trusted_declarations: TrustedDeclarationFacts::default(),
             callable_bodies: CallableBodyIndex::default(),
             source_modules: SourceModuleMap::default(),
+            source_scopes: SourceScopeMap::default(),
         }
     }
 
@@ -314,6 +355,11 @@ impl ResolveOutput {
 
     pub(super) fn with_source_modules(mut self, source_modules: SourceModuleMap) -> Self {
         self.source_modules = source_modules;
+        self
+    }
+
+    pub(super) fn with_source_scopes(mut self, source_scopes: SourceScopeMap) -> Self {
+        self.source_scopes = source_scopes;
         self
     }
 
@@ -689,8 +735,27 @@ pub enum ImportKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportAccess {
+    /// Only universally public declarations are accessible.
     Public,
-    Nocter,
+    /// Both sources belong to one package. A module-tree declaration must move up at least this
+    /// many parents from its declaring module to contain the importing module.
+    Package { required_parent_levels: u16 },
+}
+
+impl ImportAccess {
+    pub(crate) fn allows(self, visibility: crate::ast::Visibility) -> bool {
+        match visibility {
+            crate::ast::Visibility::Public => true,
+            crate::ast::Visibility::Package => matches!(self, Self::Package { .. }),
+            crate::ast::Visibility::ModuleTree(available) => matches!(
+                self,
+                Self::Package {
+                    required_parent_levels
+                } if available >= required_parent_levels
+            ),
+            crate::ast::Visibility::Private => false,
+        }
+    }
 }
 
 pub type ImportSourceMap = HashMap<ByteSpan, ImportSource>;

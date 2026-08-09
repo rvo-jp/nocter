@@ -80,10 +80,6 @@ impl Parser<'_> {
                 self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
-            if visibility == Visibility::Nocter {
-                self.error_current("`pub(nocter) use` is not valid");
-                return Err(());
-            }
             return self.parse_use_item(visibility);
         }
 
@@ -304,13 +300,33 @@ impl Parser<'_> {
             return Ok(Visibility::Public);
         }
 
-        let scope = self.expect_identifier("expected visibility scope after `pub(`")?;
-        self.expect_punctuation(")", "`)`")?;
-        if scope.value != "nocter" {
-            self.error_at(scope.span, "expected `nocter` visibility scope");
-            return Err(());
+        if self.match_punctuation("/").is_some() {
+            self.expect_punctuation(")", "`)`")?;
+            return Ok(Visibility::Package);
         }
 
-        Ok(Visibility::Nocter)
+        let first_dot = self.match_punctuation(".").ok_or_else(|| {
+            self.error_current("expected `./`, `../`, or `/` visibility scope");
+        })?;
+        if self.match_punctuation("/").is_some() {
+            self.expect_punctuation(")", "`)`")?;
+            return Ok(Visibility::ModuleTree(0));
+        }
+
+        self.expect_punctuation(".", "`.` in `../`")?;
+        self.expect_punctuation("/", "`/` in `../`")?;
+        let mut parents = 1_u16;
+        while self.match_punctuation(")").is_none() {
+            let component = self.expect_punctuation(".", "`../` or `)`")?;
+            self.expect_punctuation(".", "`.` in `../`")?;
+            self.expect_punctuation("/", "`/` in `../`")?;
+            parents = parents.checked_add(1).ok_or_else(|| {
+                self.error_at(
+                    self.span(first_dot.span.start, component.span.end),
+                    "visibility scope has too many parent components",
+                );
+            })?;
+        }
+        Ok(Visibility::ModuleTree(parents))
     }
 }

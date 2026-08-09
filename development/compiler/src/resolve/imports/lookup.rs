@@ -44,7 +44,7 @@ impl Resolver<'_> {
             {
                 return None;
             }
-            if item.visibility != Visibility::Public {
+            if item.visibility == Visibility::Private {
                 return None;
             }
 
@@ -52,15 +52,31 @@ impl Resolver<'_> {
                 .names
                 .iter()
                 .find(|imported| imported.local_name() == name)?;
-            let (imported_ast, _) = self.module_index.import_ast(item, self.import_sources)?;
+            let (imported_ast, import_source) =
+                self.module_index.import_ast(item, self.import_sources)?;
             let mut branch_visited = visited.clone();
-            let imported = self.find_importable_symbol_with_visited(
+            let mut imported = self.find_importable_symbol_with_visited(
                 imported_ast,
                 &reexport.name,
                 &mut branch_visited,
             )?;
-            (imported.visibility == Visibility::Public)
-                .then(|| qualify_imported_symbol(imported, &item.path.value, &reexport.name))
+            if !imported.is_visible_to(import_source.access)
+                || !self.output.reexport_does_not_widen(
+                    imported.visibility,
+                    imported.visibility_source,
+                    item.visibility,
+                    ast.span.source,
+                )
+            {
+                return None;
+            }
+            imported.visibility = item.visibility;
+            imported.visibility_source = ast.span.source;
+            Some(qualify_imported_symbol(
+                imported,
+                &item.path.value,
+                &reexport.name,
+            ))
         })
     }
 
@@ -71,7 +87,7 @@ impl Resolver<'_> {
     ) -> Option<ImportableSymbol> {
         ast.items.iter().find_map(|item| match item {
             Item::Import(import)
-                if import.visibility == Visibility::Public && import.alias.name == name =>
+                if import.visibility != Visibility::Private && import.alias.name == name =>
             {
                 let source = self
                     .module_index
@@ -80,7 +96,8 @@ impl Resolver<'_> {
                 Some(ImportableSymbol {
                     declaration_span: import.alias.span,
                     declaration_name_span: import.alias.span,
-                    visibility: Visibility::Public,
+                    visibility: import.visibility,
+                    visibility_source: ast.span.source,
                     kind: SymbolKind::Imported(ImportedSymbol {
                         path: import.path.value.clone(),
                         source: source.map(|source| source.source),
@@ -96,6 +113,7 @@ impl Resolver<'_> {
                     declaration_span: function.name_span,
                     declaration_name_span: function.name_span,
                     visibility: function.visibility,
+                    visibility_source: ast.span.source,
                     kind: SymbolKind::Function(function_signature(function)),
                     local_type_names: type_decl_names(ast),
                     imported_type_names: self.imported_type_names(ast),
@@ -105,6 +123,7 @@ impl Resolver<'_> {
                 declaration_span: primitive.name_span,
                 declaration_name_span: primitive.name_span,
                 visibility: primitive.visibility,
+                visibility_source: ast.span.source,
                 kind: SymbolKind::Primitive(primitive_signature(primitive)),
                 local_type_names: type_decl_names(ast),
                 imported_type_names: self.imported_type_names(ast),

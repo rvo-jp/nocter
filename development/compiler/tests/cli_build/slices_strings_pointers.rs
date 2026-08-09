@@ -390,8 +390,8 @@ fn build_command_lowers_member_rooted_slice_index_assignment() {
     let project = TempProject::new("cli-build-member-rooted-slice-index-assignment");
     project.write_nocter_home_file(
         "std/ptr/index.nct",
-        r#"pub(nocter) primitive from_addr<T>(address: usize): *T
-pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+        r#"pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
@@ -608,7 +608,7 @@ fn build_command_lowers_slice_view_aggregate_fields() {
     let project = TempProject::new("cli-build-slice-view-aggregate-fields");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)

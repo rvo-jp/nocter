@@ -61,12 +61,12 @@ impl Resolver<'_> {
         }
 
         let source = namespace.source?;
-        let access = namespace.access.unwrap_or(ImportAccess::Public);
+        let access = self.output.source_access(source, member_span.source);
         let imported_ast = self.module_index.ast_for_source(source)?;
 
         match self.find_importable_symbol(imported_ast, member_name) {
             Some(imported) if imported.is_visible_to(access) => {
-                let imported = filter_importable_symbol_for_access(imported, access);
+                let imported = self.filter_importable_members_for_use(imported, member_span.source);
                 let dependency_type_names = imported.local_type_names.clone();
                 let dependency_imported_type_names = imported.imported_type_names.clone();
                 let imported = qualify_imported_symbol(imported, &namespace.path, member_name);
@@ -238,7 +238,8 @@ impl Resolver<'_> {
         for name in &item.names {
             match self.find_importable_symbol(imported_ast, &name.name) {
                 Some(imported) if imported.is_visible_to(access) => {
-                    let imported = filter_importable_symbol_for_access(imported, access);
+                    let imported =
+                        self.filter_importable_members_for_use(imported, item.span.source);
                     let dependency_imported_type_names = imported.imported_type_names.clone();
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
                     let dependency_type_names = imported.local_type_names.clone();
@@ -325,7 +326,25 @@ impl Resolver<'_> {
         for name in &item.names {
             match self.find_importable_symbol(imported_ast, &name.name) {
                 Some(imported) if imported.is_visible_to(access) => {
-                    let imported = filter_importable_symbol_for_access(imported, access);
+                    if item.visibility != Visibility::Private
+                        && !self.output.reexport_does_not_widen(
+                            imported.visibility,
+                            imported.visibility_source,
+                            item.visibility,
+                            item.span.source,
+                        )
+                    {
+                        self.output.diagnostics.push(widening_reexport_diagnostic(
+                            self.sources,
+                            &name.name,
+                            imported.visibility,
+                            item.visibility,
+                            name.name_span,
+                            imported.declaration_span,
+                        ));
+                    }
+                    let imported =
+                        self.filter_importable_members_for_use(imported, item.span.source);
                     let dependency_imported_type_names = imported.imported_type_names.clone();
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
                     let dependency_type_names = imported.local_type_names.clone();
@@ -373,6 +392,7 @@ impl Resolver<'_> {
                         declaration_span: function.name_span,
                         declaration_name_span: function.name_span,
                         visibility: function.visibility,
+                        visibility_source: ast.span.source,
                         kind: SymbolKind::Function(function_signature(function)),
                         local_type_names: type_decl_names(ast),
                         imported_type_names: self.imported_type_names(ast),
@@ -391,6 +411,7 @@ impl Resolver<'_> {
                         declaration_span: primitive.name_span,
                         declaration_name_span: primitive.name_span,
                         visibility: primitive.visibility,
+                        visibility_source: ast.span.source,
                         kind: SymbolKind::Primitive(primitive_signature(primitive)),
                         local_type_names: type_decl_names(ast),
                         imported_type_names: self.imported_type_names(ast),
@@ -496,10 +517,10 @@ impl Resolver<'_> {
                         module_path,
                     );
                 }
-                Item::FromImport(item) if item.visibility == Visibility::Public => {
+                Item::FromImport(item) if item.visibility != Visibility::Private => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Import(item) if item.visibility == Visibility::Public => {
+                Item::Import(item) if item.visibility != Visibility::Private => {
                     self.collect_public_namespace_reexport(item, access);
                 }
                 Item::Function(_)
@@ -514,13 +535,13 @@ impl Resolver<'_> {
     }
 
     fn collect_public_namespace_reexport(&mut self, item: &ImportItem, access: ImportAccess) {
-        let Some((_, import_source)) = self
+        let Some((_, _)) = self
             .module_index
             .import_ast_for_span(item.path.span, self.import_sources)
         else {
             return;
         };
-        if import_source.access != ImportAccess::Public || access != ImportAccess::Public {
+        if !access.allows(item.visibility) {
             self.output.diagnostics.push(restricted_import_diagnostic(
                 self.sources,
                 &item.alias.name,
@@ -567,11 +588,19 @@ impl Resolver<'_> {
         for name in &item.names {
             match self.find_importable_symbol(imported_ast, &name.name) {
                 Some(imported)
-                    if imported.visibility == Visibility::Public
-                        && imported.is_visible_to(import_source.access)
-                        && imported.is_visible_to(access) =>
+                    if imported.is_visible_to(import_source.access)
+                        && access.allows(item.visibility)
+                        && self.output.reexport_does_not_widen(
+                            imported.visibility,
+                            imported.visibility_source,
+                            item.visibility,
+                            item.span.source,
+                        ) =>
                 {
-                    let imported = filter_importable_symbol_for_access(imported, access);
+                    let mut imported =
+                        self.filter_importable_members_for_use(imported, item.span.source);
+                    imported.visibility = item.visibility;
+                    imported.visibility_source = item.span.source;
                     let dependency_type_names = imported.local_type_names.clone();
                     let dependency_imported_type_names = imported.imported_type_names.clone();
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);

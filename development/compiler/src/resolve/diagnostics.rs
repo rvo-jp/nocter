@@ -373,8 +373,11 @@ pub(super) fn restricted_import_diagnostic(
     diagnostic.help = Some(
         match visibility {
             Visibility::Private => "mark the declaration `pub` if it is part of the module API",
-            Visibility::Nocter => {
-                "`pub(nocter)` names are importable only from files inside the active Nocter home"
+            Visibility::ModuleTree(_) => {
+                "move the declaration's `pub(...)` boundary to an ancestor containing the importing module"
+            }
+            Visibility::Package => {
+                "`pub(/)` names are importable only from modules in the declaring package"
             }
             Visibility::Public => {
                 "public names should be importable; this diagnostic is unexpected"
@@ -382,6 +385,34 @@ pub(super) fn restricted_import_diagnostic(
         }
         .to_string(),
     );
+    diagnostic
+}
+
+pub(super) fn widening_reexport_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    target_visibility: Visibility,
+    reexport_visibility: Visibility,
+    reexport_span: ByteSpan,
+    declaration_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0412",
+        format!(
+            "re-export `{name}` with `{}` would widen its `{}` visibility boundary",
+            reexport_visibility.source_notation(),
+            target_visibility.source_notation(),
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(reexport_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(declaration_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "name is declared with this narrower boundary".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("choose a re-export boundary contained by the declaration boundary".to_string());
     diagnostic
 }
 
@@ -401,10 +432,12 @@ pub(super) fn unresolved_identifier_diagnostic(
     diagnostic
 }
 
-fn visibility_description(visibility: Visibility) -> &'static str {
+fn visibility_description(visibility: Visibility) -> String {
     match visibility {
-        Visibility::Private => "private",
-        Visibility::Public => "public",
-        Visibility::Nocter => "`pub(nocter)`",
+        Visibility::Private => "private".to_string(),
+        Visibility::Public => "public".to_string(),
+        Visibility::ModuleTree(_) | Visibility::Package => {
+            format!("`{}`", visibility.source_notation())
+        }
     }
 }

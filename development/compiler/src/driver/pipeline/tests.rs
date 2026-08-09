@@ -528,7 +528,7 @@ fn build_file_output_runs_fallible_entry_failure() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -570,7 +570,7 @@ fn build_file_output_propagates_fallible_void_call_failure() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -754,7 +754,7 @@ fn build_file_output_runs_write_text_raw_catch_failure() {
         r#"use std/error.Error
 
 #target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func fail_write(): void! {
     write_text_raw(-1, "x") catch error {
@@ -797,7 +797,7 @@ fn build_file_output_runs_write_bytes_raw_catch_failure() {
     write_std_error(&nocter_home);
     crate::test_files::write(
         nocter_home.join("std/string/index.nct"),
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -811,7 +811,7 @@ pub func bytes(value: &str): &[u8] {
 use std/string.bytes
 
 #target: "arm64-darwin"
-pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 pub func fail_write(): void! {
     write_bytes_raw(-1, bytes("x")) catch error {
@@ -854,9 +854,9 @@ fn build_file_output_runs_read_bytes_raw_catch_failure() {
     write_std_error(&nocter_home);
     crate::test_files::write(
         nocter_home.join("std/ptr/index.nct"),
-        r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+        r#"pub(/) primitive from_addr<T>(address: usize): *T
 
-pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     )
     .unwrap();
@@ -867,7 +867,7 @@ use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
 #target: "arm64-darwin"
-pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
 pub func fail_read(): void! {
     let buffer: &+[u8] = slice_from_raw_parts_mut(from_addr(1), 1)
@@ -1171,7 +1171,7 @@ fn build_file_output_runs_fallible_str_call_success_propagation() {
     crate::test_files::write(
         nocter_home.join("std/io/index.nct"),
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -1274,7 +1274,7 @@ fn build_file_output_runs_std_print_hello_world_through_namespace_import() {
     crate::test_files::write(
         nocter_home.join("std/io/index.nct"),
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func print(text: &str): void! {
     let marker = 1
@@ -1336,12 +1336,12 @@ fn write_builtin_view_surfaces(home: &Path) {
     fs::create_dir_all(home.join("std/slice")).unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        "pub(nocter) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
+        "pub(/) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
     )
     .unwrap();
     crate::test_files::write(
         home.join("std/slice/index.nct"),
-        "pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
+        "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
     )
     .unwrap();
 }
@@ -1353,7 +1353,7 @@ fn write_std_error(nocter_home: &Path) {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)

@@ -9,7 +9,7 @@ pub(crate) fn write_builtin_type_surfaces(home: &Path) {
     fs::create_dir_all(std.join("slice")).unwrap();
     fs::write(
         std.join("str/index.nct"),
-        r#"pub(nocter) primitive str_len_raw(value: &str): usize
+        r#"pub(/) primitive str_len_raw(value: &str): usize
 
 impl str {
     pub method &self.len(): usize {
@@ -25,7 +25,7 @@ impl str {
     .unwrap();
     fs::write(
         std.join("slice/index.nct"),
-        r#"pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
+        r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 
 impl<T> [T] {
     pub method &self.len(): usize {

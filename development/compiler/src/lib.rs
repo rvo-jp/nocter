@@ -26,6 +26,7 @@ mod semantics;
 pub mod source;
 mod source_layout;
 mod source_modules;
+mod source_scopes;
 pub mod target;
 mod test_entry;
 #[cfg(test)]

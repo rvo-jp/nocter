@@ -20,16 +20,16 @@ use std/ptr.slice_from_raw_parts_value
 use std/ptr.store_value_to_ptr
 
 pub copy struct Layout {
-    pub(nocter) size: usize
-    pub(nocter) align: usize
+    pub(/) size: usize
+    pub(/) align: usize
 }
 
 pub struct RawBuffer {
-    pub(nocter) ptr: *u8
-    pub(nocter) len: usize
-    pub(nocter) align: usize
-    pub(nocter) allocator_state: usize
-    pub(nocter) allocator_kind: usize
+    pub(/) ptr: *u8
+    pub(/) len: usize
+    pub(/) align: usize
+    pub(/) allocator_state: usize
+    pub(/) allocator_kind: usize
 }
 
 pub struct Allocator {
@@ -42,11 +42,11 @@ pub struct TryAllocator {
     kind: usize
 }
 
-pub(nocter) primitive current_allocator_state(): usize
-pub(nocter) primitive current_allocator_kind(): usize
-pub(nocter) primitive allocation_abort_raw(): never
+pub(/) primitive current_allocator_state(): usize
+pub(/) primitive current_allocator_kind(): usize
+pub(/) primitive allocation_abort_raw(): never
 
-pub(nocter) func current_allocator(): Allocator {
+pub(/) func current_allocator(): Allocator {
     return Allocator {
         state: current_allocator_state(),
         kind: current_allocator_kind(),
@@ -61,7 +61,7 @@ pub func page_try_allocator(): TryAllocator {
     return TryAllocator { state: 0, kind: 0 }
 }
 
-pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
+pub(/) func empty_page_buffer(align: usize): RawBuffer {
     // Kind 2 is an unbound empty sentinel. It owns no storage and therefore
     // carries no allocator origin. The first growth operation binds it to the
     // allocator selected at that operation.
@@ -96,7 +96,7 @@ pub func layout_align(value: &Layout): usize {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func alloc_pages(size: usize): usize! {
+pub(/) func alloc_pages(size: usize): usize! {
     let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
     if result.errno != 0 {
         return Error.new("std.mem.out_of_memory", "allocation failed")
@@ -105,12 +105,12 @@ pub(nocter) func alloc_pages(size: usize): usize! {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func free_pages(address: usize, size: usize): void {
+pub(/) func free_pages(address: usize, size: usize): void {
     let result = syscall2(0x02000049, address, size)
     return
 }
 
-pub(nocter) func region_alloc_pages(
+pub(/) func region_alloc_pages(
     state: usize,
     size: usize,
     align: usize,
@@ -258,7 +258,7 @@ pub func try_grow(
     return
 }
 
-pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
@@ -279,7 +279,7 @@ pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): voi
     return
 }
 
-pub(nocter) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
+pub(/) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
     try_grow_owned(buffer, new_size) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -408,7 +408,7 @@ pub func invalid_argument(): error {
     return Error.new("std.mem.invalid_argument", "invalid allocation request")
 }
 
-pub(nocter) func abort_allocation(allocation_error: error): never {
+pub(/) func abort_allocation(allocation_error: error): never {
     // The compiler-owned boundary exits directly without allocating or
     // unwinding Nocter scopes.
     allocation_abort_raw()

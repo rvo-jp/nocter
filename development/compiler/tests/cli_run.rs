@@ -62,7 +62,7 @@ fn write_process_exit_home(project: &TempProject) {
     project.write_nocter_home_file(
         "std/process/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive exit_raw(code: i32): never
+pub(/) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {
     exit_raw(code)

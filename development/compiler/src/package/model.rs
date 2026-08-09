@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 pub struct PackageId(String);
 
 impl PackageId {
-    pub(super) fn root(root: &Path) -> Self {
+    pub(crate) fn root(root: &Path) -> Self {
         let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
         Self::from_descriptor(&format!("root:{}", root.display()))
     }
@@ -13,6 +13,15 @@ impl PackageId {
     pub(super) fn from_descriptor(descriptor: &str) -> Self {
         let digest = Sha256::digest(descriptor.as_bytes());
         Self(format!("{digest:x}"))
+    }
+
+    pub(crate) fn standard_library(root: &Path, version: Option<&str>) -> Self {
+        let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        Self::from_descriptor(&format!(
+            "toolchain-std:{}:{}",
+            version.unwrap_or("unversioned"),
+            root.display()
+        ))
     }
 
     pub fn as_str(&self) -> &str {

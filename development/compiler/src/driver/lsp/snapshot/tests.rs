@@ -524,12 +524,12 @@ impl TempProject {
         crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
         crate::test_files::write(
             home.join("std/str/index.nct"),
-            "pub(nocter) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
+            "pub(/) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
         )
         .unwrap();
         crate::test_files::write(
             home.join("std/slice/index.nct"),
-            "pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
+            "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
         )
         .unwrap();
         home

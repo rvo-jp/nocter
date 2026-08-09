@@ -738,12 +738,12 @@ func main(): void {
             (
                 "std/io/index.nct",
                 r#"#target: "arm64-darwin"
-pub(nocter) primitive open_read_raw(path: *u8): i32!
+pub(/) primitive open_read_raw(path: *u8): i32!
 "#,
             ),
             (
                 "std/ptr/index.nct",
-                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+                r#"pub(/) primitive from_addr<T>(address: usize): *T
 "#,
             ),
             (

@@ -808,8 +808,8 @@ func main(): i32 {
         &[
             (
                 "std/ptr/index.nct",
-                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
-pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+                r#"pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive pointee_size<T>(pointer: *T): usize
 "#,
             ),
             (

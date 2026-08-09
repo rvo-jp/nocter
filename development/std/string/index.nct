@@ -22,7 +22,7 @@ use std/str.str_len_raw
 use ./search
 use ./views
 
-pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub struct String {
     storage: RawBuffer
@@ -45,7 +45,7 @@ pub struct LinesIter {
 }
 
 /// Reconstructs a previously validated UTF-8 subview.
-pub(nocter) primitive str_subview_unchecked(
+pub(/) primitive str_subview_unchecked(
     text: &str,
     start: usize,
     len: usize,

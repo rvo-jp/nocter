@@ -568,7 +568,7 @@ fn build_command_rejects_terminal_if_inside_catch_block_before_ir_lowering() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1815,8 +1815,8 @@ fn build_command_reports_null_from_addr_before_ir_lowering() {
     let project = TempProject::new("cli-build-null-from-addr-boundary");
     project.write_nocter_home_file(
         "std/ptr/index.nct",
-        r#"pub(nocter) primitive from_addr<T>(address: usize): *T
-pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+        r#"pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
@@ -1872,8 +1872,8 @@ fn build_command_reports_cast_null_from_addr_before_ir_lowering() {
     let project = TempProject::new("cli-build-cast-null-from-addr-boundary");
     project.write_nocter_home_file(
         "std/ptr/index.nct",
-        r#"pub(nocter) primitive from_addr<T>(address: usize): *T
-pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+        r#"pub(/) primitive from_addr<T>(address: usize): *T
+pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 "#,
     );
     project.write_nocter_home_file(
@@ -2112,7 +2112,7 @@ fn build_command_reports_static_error_payload_helper_with_argument_before_ir_low
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2172,7 +2172,7 @@ fn build_command_reports_imported_error_constructor_with_non_str_payload_before_
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2233,7 +2233,7 @@ fn build_command_reports_error_return_method_helper_before_ir_lowering() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2296,7 +2296,7 @@ fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2356,7 +2356,7 @@ fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2569,7 +2569,7 @@ fn built_fallible_entry_failure_reports_stderr() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)

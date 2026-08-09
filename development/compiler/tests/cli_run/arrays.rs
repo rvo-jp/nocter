@@ -862,7 +862,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -921,7 +921,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -980,7 +980,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1036,7 +1036,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1111,7 +1111,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1172,7 +1172,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1237,7 +1237,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1298,7 +1298,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1364,7 +1364,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1431,7 +1431,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1484,7 +1484,7 @@ fn run_command_preserves_move_only_fixed_array_target_on_propagated_failure() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1504,7 +1504,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1568,7 +1568,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1627,7 +1627,7 @@ fn run_command_does_not_drop_uninitialized_move_only_fixed_array_catch_binding()
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1647,7 +1647,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1711,7 +1711,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1778,7 +1778,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1854,7 +1854,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1929,7 +1929,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -2008,7 +2008,7 @@ fn run_command_preserves_move_only_fixed_array_field_on_call_failure() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2028,7 +2028,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -2107,7 +2107,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -2195,7 +2195,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -2262,7 +2262,7 @@ fn run_command_drops_partial_payload_in_current_fixed_array_element() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -2282,7 +2282,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(

@@ -21,6 +21,7 @@ pub(super) fn type_importable_symbol(
         declaration_span,
         declaration_name_span,
         visibility,
+        visibility_source: declaration_span.source,
         kind: SymbolKind::Type(symbol),
         local_type_names,
         imported_type_names,

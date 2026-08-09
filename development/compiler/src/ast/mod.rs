@@ -61,8 +61,27 @@ pub enum Item {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
     Private,
+    /// The declaring module subtree (`0`) or one of its ancestor subtrees.
+    ModuleTree(u16),
+    /// Every module in the declaring package.
+    Package,
     Public,
-    Nocter,
+}
+
+impl Visibility {
+    pub fn source_notation(self) -> String {
+        match self {
+            Self::Private => String::new(),
+            Self::ModuleTree(0) => "pub(./)".to_string(),
+            Self::ModuleTree(parents) => format!("pub({})", "../".repeat(parents.into())),
+            Self::Package => "pub(/)".to_string(),
+            Self::Public => "pub".to_string(),
+        }
+    }
+
+    pub fn is_private(self) -> bool {
+        self == Self::Private
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

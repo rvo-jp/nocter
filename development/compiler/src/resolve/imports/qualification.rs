@@ -57,11 +57,7 @@ fn refresh_construction_access(symbol: &mut TypeSymbol) {
 }
 
 fn visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {
-    match visibility {
-        Visibility::Public => true,
-        Visibility::Nocter => access == ImportAccess::Nocter,
-        Visibility::Private => false,
-    }
+    access.allows(visibility)
 }
 
 pub(super) fn qualify_imported_symbol(

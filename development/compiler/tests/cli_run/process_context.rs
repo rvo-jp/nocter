@@ -7,7 +7,7 @@ fn run_command_reads_process_environment_count() {
     project.write_nocter_home_file(
         "std/process/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive env_count_raw(): usize
+pub(/) primitive env_count_raw(): usize
 
 pub func environment_count(): usize {
     return env_count_raw()
@@ -44,11 +44,11 @@ fn run_command_reads_indexed_process_environment_views() {
     project.write_nocter_home_file(
         "std/process/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive env_count_raw(): usize
+pub(/) primitive env_count_raw(): usize
 #target: "arm64-darwin"
-pub(nocter) primitive env_name_raw(index: usize): &str
+pub(/) primitive env_name_raw(index: usize): &str
 #target: "arm64-darwin"
-pub(nocter) primitive env_value_raw(index: usize): &str
+pub(/) primitive env_value_raw(index: usize): &str
 
 pub func environment_probe(name: &str, value: &str): i32 {
     let count = env_count_raw()

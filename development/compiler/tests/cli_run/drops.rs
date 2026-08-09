@@ -189,7 +189,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -244,7 +244,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -300,7 +300,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -357,7 +357,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -416,7 +416,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(

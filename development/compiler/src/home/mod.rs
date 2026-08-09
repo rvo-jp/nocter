@@ -57,6 +57,8 @@ pub(crate) fn validate_nocter_home(home: &Path) -> Vec<String> {
     };
 
     require_dir(home, "std", &mut errors);
+    require_file(home, "std/nocter.nct", &mut errors);
+    require_file(home, "std/index.nct", &mut errors);
     require_file(home, "LICENSE", &mut errors);
     require_file(home, "NOTICE", &mut errors);
 
@@ -343,6 +345,12 @@ mod tests {
     fn validates_nocter_home_shape() {
         let root = make_temp_home("home-shape");
         fs::create_dir_all(root.join("std")).unwrap();
+        fs::write(
+            root.join("std/nocter.nct"),
+            "#name: \"std\"\n#version: \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("std/index.nct"), "//! Standard library.\n").unwrap();
         fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
         fs::write(root.join("LICENSE"), "Apache License\n").unwrap();
         fs::write(root.join("NOTICE"), "Nocter\nCopyright 2026 Rvo JP\n").unwrap();

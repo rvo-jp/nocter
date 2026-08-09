@@ -20,7 +20,7 @@ pub(super) fn trusted_string_view_declarations(ast: &AstFile) -> TrustedDeclarat
 }
 
 fn subview_shape_matches(primitive: &crate::ast::PrimitiveDecl) -> bool {
-    primitive.visibility == Visibility::Nocter
+    primitive.visibility == Visibility::Package
         && primitive.target.is_none()
         && primitive.name == "str_subview_unchecked"
         && primitive.generics.parameters.is_empty()
@@ -64,7 +64,7 @@ mod tests {
 
     #[test]
     fn attaches_only_to_the_exact_owned_module_and_shape() {
-        let exact = r#"pub(nocter) primitive str_subview_unchecked(
+        let exact = r#"pub(/) primitive str_subview_unchecked(
     text: &str,
     start: usize,
     len: usize,
@@ -83,10 +83,10 @@ mod tests {
         assert_eq!(role_for(&missing_contract, "std/string"), None);
 
         let near_misses = [
-            exact.replace("pub(nocter)", "pub"),
+            exact.replace("pub(/)", "pub"),
             exact.replace(
-                "pub(nocter) primitive",
-                "#target: \"arm64-darwin\"\npub(nocter) primitive",
+                "pub(/) primitive",
+                "#target: \"arm64-darwin\"\npub(/) primitive",
             ),
             exact.replace("str_subview_unchecked", "str_subview"),
             exact.replace("str_subview_unchecked(", "str_subview_unchecked<T>("),

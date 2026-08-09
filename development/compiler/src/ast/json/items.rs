@@ -4,21 +4,28 @@ impl Item {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
             Item::Import(item) => JsonAstNode::with_value(
-                match item.visibility {
-                    Visibility::Public => "pub_use_namespace_item",
-                    Visibility::Private | Visibility::Nocter => "use_namespace_item",
+                if item.visibility.is_private() {
+                    "use_namespace_item"
+                } else {
+                    "pub_use_namespace_item"
                 },
                 item.path.value.clone(),
                 json_span(sources, item.span),
-                vec![item.path.to_json(sources), item.alias.to_json(sources)],
+                vec![
+                    visibility_json(item.visibility),
+                    item.path.to_json(sources),
+                    item.alias.to_json(sources),
+                ],
             ),
             Item::FromImport(item) => {
-                let mut children = vec![item.path.to_json(sources)];
+                let mut children =
+                    vec![visibility_json(item.visibility), item.path.to_json(sources)];
                 children.extend(item.names.iter().map(|name| name.to_json(sources)));
                 JsonAstNode::with_value(
-                    match item.visibility {
-                        Visibility::Public => "pub_use_names_item",
-                        Visibility::Private | Visibility::Nocter => "use_names_item",
+                    if item.visibility.is_private() {
+                        "use_names_item"
+                    } else {
+                        "pub_use_names_item"
                     },
                     item.path.value.clone(),
                     json_span(sources, item.span),
@@ -488,9 +495,10 @@ fn visibility_json(visibility: Visibility) -> JsonAstNode {
     JsonAstNode::with_value(
         "visibility",
         match visibility {
-            Visibility::Private => "private",
-            Visibility::Public => "pub",
-            Visibility::Nocter => "pub(nocter)",
+            Visibility::Private => "private".to_string(),
+            Visibility::ModuleTree(_) | Visibility::Package | Visibility::Public => {
+                visibility.source_notation()
+            }
         },
         None,
         Vec::new(),

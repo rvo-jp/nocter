@@ -450,7 +450,7 @@ pub func make(): Handle {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -986,7 +986,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1627,7 +1627,7 @@ fn run_command_returns_caught_direct_aggregate_call_argument_field_exit_code() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1679,7 +1679,7 @@ fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code()
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1733,7 +1733,7 @@ fn run_command_returns_caught_direct_aggregate_call_return_field_exit_code() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1786,7 +1786,7 @@ fn run_command_returns_caught_direct_aggregate_call_comparison_field_exit_code()
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1838,7 +1838,7 @@ fn run_command_returns_caught_indirect_aggregate_call_return_field_exit_code() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1893,7 +1893,7 @@ fn run_command_returns_caught_indirect_aggregate_call_comparison_field_exit_code
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -1947,7 +1947,7 @@ fn run_command_returns_caught_aggregate_member_assignment_field_exit_code() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)

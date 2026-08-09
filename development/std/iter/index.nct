@@ -10,33 +10,33 @@ use std/vec.Vec
 
 /// Lazily transforms items from an owning source iterator.
 pub struct MapIter<T, U, I, F> {
-    pub(nocter) source: I
-    pub(nocter) transform: F
+    pub(/) source: I
+    pub(/) transform: F
 }
 
 /// Lazily retains items from an owning source iterator.
 pub struct FilterIter<T, I, F> {
-    pub(nocter) source: I
-    pub(nocter) predicate: F
+    pub(/) source: I
+    pub(/) predicate: F
 }
 
 /// Yields at most `remaining` items from `source`.
 pub struct TakeIter<T, I> {
-    pub(nocter) source: I
-    pub(nocter) remaining: usize
+    pub(/) source: I
+    pub(/) remaining: usize
 }
 
 /// Discards at most `remaining_to_skip` source items before yielding.
 pub struct SkipIter<T, I> {
-    pub(nocter) source: I
-    pub(nocter) remaining_to_skip: usize
+    pub(/) source: I
+    pub(/) remaining_to_skip: usize
 }
 
 /// Yields every left item before every right item.
 pub struct ChainIter<T, L, R> {
-    pub(nocter) left: L
-    pub(nocter) right: R
-    pub(nocter) in_left: bool
+    pub(/) left: L
+    pub(/) right: R
+    pub(/) in_left: bool
 }
 
 /// One indexed item yielded by `EnumerateIter`.
@@ -47,8 +47,8 @@ pub struct Indexed<T> {
 
 /// An owning iterator that pairs every item with its zero-based index.
 pub struct EnumerateIter<T, I> {
-    pub(nocter) source: I
-    pub(nocter) next_index: usize
+    pub(/) source: I
+    pub(/) next_index: usize
 }
 
 /// Owned state passed to a folding callback.

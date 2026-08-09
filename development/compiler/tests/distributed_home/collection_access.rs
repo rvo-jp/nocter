@@ -301,7 +301,7 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
 
     let mem_module = home.join("std/mem/index.nct");
     let mem_source = fs::read_to_string(&mem_module).unwrap();
-    let original = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    let original = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
@@ -313,7 +313,7 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
     try_grow(&+allocator, buffer, new_size)?
     return
 }"#;
-    let failing = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    let failing = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     return Error.new("test.out_of_memory", "deterministic growth failure")
 }"#;
     assert!(mem_source.contains(original));

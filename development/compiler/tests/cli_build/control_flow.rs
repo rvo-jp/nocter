@@ -814,7 +814,7 @@ fn build_command_accepts_value_control_call_arguments() {
     let project = TempProject::new("cli-build-value-control-call-arguments");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -864,7 +864,7 @@ fn build_command_accepts_value_control_method_call_arguments() {
     let project = TempProject::new("cli-build-value-control-method-call-arguments");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)

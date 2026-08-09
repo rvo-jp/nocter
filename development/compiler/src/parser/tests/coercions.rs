@@ -68,7 +68,7 @@ fn rejects_owned_coercion_receivers() {
 }
 
 #[test]
-fn rejects_top_level_visibility_and_nocter_entry_visibility() {
+fn rejects_top_level_visibility_and_accepts_package_entry_visibility() {
     let top_level = parse_text("pub coerce Text {}\n");
     assert!(top_level.ast.is_none());
     assert!(top_level.diagnostics.iter().any(|diagnostic| {
@@ -79,16 +79,17 @@ fn rejects_top_level_visibility_and_nocter_entry_visibility() {
 
     let entry = parse_text(
         r#"coerce Text {
-    pub(nocter) &self as &str from self { return self.view() }
+    pub(/) &self as &str from self { return self.view() }
 }
 "#,
     );
-    assert!(entry.ast.is_none());
-    assert!(entry.diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("coercion entries cannot use `pub(nocter)`")
-    }));
+    let ast = entry
+        .ast
+        .expect("package-scoped coercion entry should parse");
+    let crate::ast::Item::Coerce(coerce) = &ast.items[0] else {
+        panic!("expected coercion declaration");
+    };
+    assert_eq!(coerce.entries[0].visibility, Visibility::Package);
 }
 
 #[test]

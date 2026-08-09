@@ -763,7 +763,7 @@ fn lowers_typed_slice_pointer_primitive_to_the_view_data_word() {
         "address",
         &[(
             "std/slice/index.nct",
-            r#"pub(nocter) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
+            r#"pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 pub func address(value: &[u8]): usize { return slice_ptr_addr_raw(value) }
 "#,
         )],

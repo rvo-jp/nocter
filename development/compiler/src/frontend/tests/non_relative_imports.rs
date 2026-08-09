@@ -500,7 +500,7 @@ func main(): i32 {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -805,7 +805,7 @@ func main(): i32 {
     crate::test_files::write(
         home.join("std/io/index.nct"),
         r#"#target: "x64-linux"
-pub(nocter) primitive unknown_for_linux(): void
+pub(/) primitive unknown_for_linux(): void
 
 #target: "x64-linux"
 pub func answer(): &str {
@@ -866,7 +866,7 @@ func main(): i32 {
     .unwrap();
     crate::test_files::write(
         home.join("std/ptr/index.nct"),
-        r#"pub(nocter) func internal(): i32 {
+        r#"pub(/) func internal(): i32 {
     return 1
 }
 "#,
@@ -880,7 +880,7 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0412");
-    assert!(diagnostics[0].message.contains("pub(nocter)"));
+    assert!(diagnostics[0].message.contains("pub(/)"));
 }
 
 #[test]
@@ -899,7 +899,7 @@ func main(): i32 {
     .unwrap();
     crate::test_files::write(
         home.join("std/ptr/index.nct"),
-        r#"pub(nocter) func internal(): i32 {
+        r#"pub(/) func internal(): i32 {
     return 1
 }
 "#,
@@ -932,7 +932,7 @@ func main(): i32 {
     crate::test_files::write(
         home.join("std/mem/index.nct"),
         r#"pub struct Raw {
-    pub(nocter) value: i32
+    pub(/) value: i32
 }
 
 pub func make(): Raw {
@@ -970,7 +970,7 @@ func main(): i32 {
     crate::test_files::write(
         home.join("std/mem/index.nct"),
         r#"pub struct Raw {
-    pub(nocter) value: i32
+    pub(/) value: i32
 }
 
 pub func make(): Raw {
@@ -1014,7 +1014,7 @@ pub func make(): Raw {
 }
 
 impl Raw {
-    pub(nocter) method &self.secret(): i32 {
+    pub(/) method &self.secret(): i32 {
         return self.value
     }
 }
@@ -1058,7 +1058,7 @@ pub func make(): Raw {
 }
 
 impl Raw {
-    pub(nocter) method &self.secret(): i32 {
+    pub(/) method &self.secret(): i32 {
         return self.value
     }
 }
@@ -1094,7 +1094,7 @@ func main(): i32 {
     value: i32
 }
 
-pub(nocter) func Raw.secret(): i32 {
+pub(/) func Raw.secret(): i32 {
     return 1
 }
 "#,
@@ -1135,7 +1135,7 @@ func main(): i32 {
     value: i32
 }
 
-pub(nocter) func Raw.secret(): i32 {
+pub(/) func Raw.secret(): i32 {
     return 1
 }
 "#,
@@ -1156,34 +1156,34 @@ fn check_reports_nocter_visibility_declaration_outside_nocter_home() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
-        r#"pub(nocter) func hidden_func(): i32 {
+        r#"pub(/) func hidden_func(): i32 {
     return 1
 }
 
-pub(nocter) type HiddenAlias = i32
+pub(/) type HiddenAlias = i32
 
-pub(nocter) copy struct HiddenStruct {
+pub(/) copy struct HiddenStruct {
     value: i32
 }
 
 pub struct PublicStruct {
-    pub(nocter) value: i32
+    pub(/) value: i32
 }
 
-pub(nocter) enum HiddenEnum {
+pub(/) enum HiddenEnum {
     one
 }
 
-pub(nocter) interface HiddenInterface {
+pub(/) interface HiddenInterface {
     pub method &self.value(): i32
 }
 
-pub(nocter) func PublicStruct.hidden_associated(): i32 {
+pub(/) func PublicStruct.hidden_associated(): i32 {
     return 2
 }
 
 impl PublicStruct {
-    pub(nocter) method &self.hidden_method(): i32 {
+    pub(/) method &self.hidden_method(): i32 {
         return self.value
     }
 }
@@ -1210,7 +1210,7 @@ func main(): i32 {
     assert!(
         diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.message.contains("pub(nocter)")),
+            .all(|diagnostic| diagnostic.message.contains("pub(/)")),
         "{diagnostics:?}"
     );
 }
@@ -1221,34 +1221,34 @@ fn check_allows_nocter_visibility_declaration_inside_nocter_home() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         home.join("std/app/index.nct"),
-        r#"pub(nocter) func hidden_func(): i32 {
+        r#"pub(/) func hidden_func(): i32 {
     return 1
 }
 
-pub(nocter) type HiddenAlias = i32
+pub(/) type HiddenAlias = i32
 
-pub(nocter) copy struct HiddenStruct {
+pub(/) copy struct HiddenStruct {
     value: i32
 }
 
 pub struct PublicStruct {
-    pub(nocter) value: i32
+    pub(/) value: i32
 }
 
-pub(nocter) enum HiddenEnum {
+pub(/) enum HiddenEnum {
     one
 }
 
-pub(nocter) interface HiddenInterface {
+pub(/) interface HiddenInterface {
     pub method &self.value(): i32
 }
 
-pub(nocter) func PublicStruct.hidden_associated(): i32 {
+pub(/) func PublicStruct.hidden_associated(): i32 {
     return 2
 }
 
 impl PublicStruct {
-    pub(nocter) method &self.hidden_method(): i32 {
+    pub(/) method &self.hidden_method(): i32 {
         return self.value
     }
 }
@@ -1302,7 +1302,7 @@ fn check_reports_nocter_primitive_outside_nocter_home_as_primitive_boundary() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
-        r#"pub(nocter) primitive new_error(code: &str, message: &str): error
+        r#"pub primitive new_error(code: &str, message: &str): error
 
 func main(): i32 {
     return 0

@@ -495,7 +495,7 @@ fn std_error_file() -> (&'static str, &'static str) {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -508,16 +508,16 @@ fn std_io_file() -> (&'static str, &'static str) {
     (
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 #target: "arm64-darwin"
-pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 #target: "arm64-darwin"
-pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
 #target: "arm64-darwin"
-pub(nocter) primitive close_fd_raw(fd: i32): void
+pub(/) primitive close_fd_raw(fd: i32): void
 
 pub func print(text: &str): void! {
     write_text_raw(1, text)?
@@ -530,7 +530,7 @@ pub func print(text: &str): void! {
 fn std_string_bytes_file() -> (&'static str, &'static str) {
     (
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8] from value
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8] from value
 
 pub func bytes(value: &str): &[u8] from value {
     return bytes_from_str(value)
@@ -545,7 +545,7 @@ fn std_process_file() -> (&'static str, &'static str) {
         r#"use std/internal/os.trap
 
 #target: "arm64-darwin"
-pub(nocter) primitive exit_raw(code: i32): never
+pub(/) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {
     exit_raw(code)
@@ -562,10 +562,10 @@ fn std_os_file() -> (&'static str, &'static str) {
     (
         "std/internal/os/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive trap(): never
+pub(/) primitive trap(): never
 
 #target: "arm64-darwin"
-pub(nocter) primitive unreachable(): never
+pub(/) primitive unreachable(): never
 "#,
     )
 }
@@ -608,7 +608,7 @@ fn write_builtin_view_surfaces(home: &Path) {
     fs::create_dir_all(home.join("std/slice")).unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        r#"pub(nocter) primitive str_len_raw(value: &str): usize
+        r#"pub(/) primitive str_len_raw(value: &str): usize
 impl str {
     pub method &self.len(): usize { return str_len_raw(self) }
     pub method &self.is_empty(): bool { return str_len_raw(self) == 0 }
@@ -618,7 +618,7 @@ impl str {
     .unwrap();
     crate::test_files::write(
         home.join("std/slice/index.nct"),
-        r#"pub(nocter) primitive slice_len_raw<T>(value: &[T]): usize
+        r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 impl<T> [T] {
     pub method &self.len(): usize { return slice_len_raw(self) }
     pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 }

@@ -319,7 +319,7 @@ pub(super) fn resolve_import_path(
                 ambiguous_import_diagnostic(sources, path.span, &path.value, &file, &directory)
             }
         })?;
-        return ensure_inside_root(sources, path, root, resolved);
+        return ensure_inside_root(sources, path, &root, resolved);
     }
 
     if let Some((dependency, remainder)) = dependency_import(sources, source, &path.value, options)
@@ -398,7 +398,7 @@ fn ensure_inside_package(
     let Some(root) = package_root_for_source(sources, source, options) else {
         return Ok(resolved);
     };
-    ensure_inside_root(sources, import, root, resolved)
+    ensure_inside_root(sources, import, &root, resolved)
 }
 
 fn ensure_inside_root(
@@ -430,17 +430,13 @@ fn ensure_inside_root(
     }
 }
 
-fn package_root_for_source<'a>(
+fn package_root_for_source(
     sources: &SourceMap,
     source: SourceId,
-    options: &'a FrontendOptions,
-) -> Option<&'a Path> {
+    options: &FrontendOptions,
+) -> Option<PathBuf> {
     let path = sources.get(source)?.absolute_path()?;
-    options
-        .package_graph
-        .as_ref()?
-        .package_containing(path)
-        .map(crate::package::SourcePackage::root)
+    semantic_package_root(path, options)
 }
 
 fn dependency_import<'a>(
@@ -477,26 +473,85 @@ pub(super) fn active_nocter_home(
 
 pub(super) fn import_access_for_source(
     sources: &SourceMap,
-    source: SourceId,
+    use_source: SourceId,
+    declaration_source: SourceId,
     options: &FrontendOptions,
-    resolved_nocter_home: &Option<Result<PathBuf, String>>,
+    _resolved_nocter_home: &Option<Result<PathBuf, String>>,
 ) -> ImportAccess {
-    let Some(home) = current_nocter_home(options, resolved_nocter_home) else {
-        return ImportAccess::Public;
-    };
-    let Some(source_path) = sources
-        .get(source)
+    let Some(use_path) = sources
+        .get(use_source)
         .and_then(|file| file.absolute_path())
         .map(|path| canonicalize_existing(path))
     else {
         return ImportAccess::Public;
     };
-
-    if source_path.starts_with(home) {
-        ImportAccess::Nocter
-    } else {
-        ImportAccess::Public
+    let Some(declaration_path) = sources
+        .get(declaration_source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return ImportAccess::Public;
+    };
+    let Some(use_root) = semantic_package_root(&use_path, options) else {
+        return ImportAccess::Public;
+    };
+    let Some(declaration_root) = semantic_package_root(&declaration_path, options) else {
+        return ImportAccess::Public;
+    };
+    if use_root != declaration_root {
+        return ImportAccess::Public;
     }
+
+    let Some(use_module) = semantic_module_components(&use_path, &use_root) else {
+        return ImportAccess::Public;
+    };
+    let Some(declaration_module) = semantic_module_components(&declaration_path, &declaration_root)
+    else {
+        return ImportAccess::Public;
+    };
+    let common = use_module
+        .iter()
+        .zip(&declaration_module)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let required_parent_levels = declaration_module.len().saturating_sub(common);
+    let Ok(required_parent_levels) = u16::try_from(required_parent_levels) else {
+        return ImportAccess::Public;
+    };
+    ImportAccess::Package {
+        required_parent_levels,
+    }
+}
+
+pub(super) fn semantic_package_root(path: &Path, options: &FrontendOptions) -> Option<PathBuf> {
+    if let Some(std_root) = options
+        .nocter_home
+        .as_ref()
+        .map(|home| canonicalize_existing(&home.join("std")))
+        .filter(|root| path.starts_with(root))
+    {
+        return Some(std_root);
+    }
+    if let Some(package) = options
+        .package_graph
+        .as_ref()
+        .and_then(|graph| graph.package_containing(path))
+    {
+        return Some(canonicalize_existing(package.root()));
+    }
+    path.parent()?
+        .ancestors()
+        .find(|directory| directory.join("nocter.nct").is_file())
+        .map(canonicalize_existing)
+}
+
+pub(super) fn semantic_module_components(path: &Path, package_root: &Path) -> Option<Vec<String>> {
+    let relative = path.strip_prefix(package_root).ok()?;
+    let logical = crate::source_layout::logical_module_path(relative)?;
+    logical
+        .components()
+        .map(|component| component.as_os_str().to_str().map(str::to_string))
+        .collect()
 }
 
 pub(super) fn canonicalize_existing(path: &Path) -> PathBuf {
@@ -537,20 +592,6 @@ fn module_root_source(sources: &SourceMap, source: &Path) -> Option<PathBuf> {
         .parent()?
         .ancestors()
         .find_map(|directory| known_or_existing_source_path(sources, &directory.join("index.nct")))
-}
-
-fn current_nocter_home(
-    options: &FrontendOptions,
-    resolved_nocter_home: &Option<Result<PathBuf, String>>,
-) -> Option<PathBuf> {
-    if let Some(home) = &options.nocter_home {
-        return Some(canonicalize_existing(home));
-    }
-
-    resolved_nocter_home
-        .as_ref()
-        .and_then(|home| home.as_ref().ok())
-        .map(|home| canonicalize_existing(home))
 }
 
 #[derive(Debug)]

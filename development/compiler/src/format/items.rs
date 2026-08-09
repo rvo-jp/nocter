@@ -377,7 +377,10 @@ impl Formatter {
         match visibility {
             Visibility::Private => {}
             Visibility::Public => self.write("pub "),
-            Visibility::Nocter => self.write("pub(nocter) "),
+            Visibility::ModuleTree(_) | Visibility::Package => {
+                self.write(&visibility.source_notation());
+                self.write(" ");
+            }
         }
     }
 

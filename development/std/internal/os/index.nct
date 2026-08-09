@@ -2,15 +2,15 @@
 //!
 //! Target-specific boundaries convert raw platform error values into OSError.
 //! User-facing modules expose only the built-in `error` payload from fallible
-//! APIs; OSError and OSErrorKind stay behind `pub(nocter)` visibility.
+//! APIs; OSError and OSErrorKind stay behind `pub(/)` visibility.
 
-pub(nocter) enum Platform {
+pub(/) enum Platform {
     macos
     linux
     windows
 }
 
-pub(nocter) enum OSErrorKind {
+pub(/) enum OSErrorKind {
     interrupted
     would_block
     not_found
@@ -23,30 +23,30 @@ pub(nocter) enum OSErrorKind {
     unknown
 }
 
-pub(nocter) copy struct OSError {
+pub(/) copy struct OSError {
     pub platform: Platform
     pub code: i32
     pub kind: OSErrorKind
 }
 
 #target: "arm64-darwin"
-pub(nocter) copy struct SyscallResult {
+pub(/) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
 #target: "arm64-darwin"
-pub(nocter) copy struct Errno {
+pub(/) copy struct Errno {
     pub code: i32
 }
 
 #target: "arm64-darwin"
-pub(nocter) func errno(code: i32): Errno {
+pub(/) func errno(code: i32): Errno {
     return Errno { code: code }
 }
 
 #target: "arm64-darwin"
-pub(nocter) func error_from_errno(error: Errno): OSError {
+pub(/) func error_from_errno(error: Errno): OSError {
     return OSError {
         platform: Platform.macos,
         code: error.code,
@@ -55,7 +55,7 @@ pub(nocter) func error_from_errno(error: Errno): OSError {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
+pub(/) func kind_from_errno(error: Errno): OSErrorKind {
     // Darwin errno values used by the std syscall wrappers.
     if error.code == 4 {
         return OSErrorKind.interrupted
@@ -106,48 +106,48 @@ pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
 // list is filled in as each wrapper is implemented.
 
 #target: "arm64-darwin"
-pub(nocter) func darwin_sys_open(): usize {
+pub(/) func darwin_sys_open(): usize {
     return 0x02000005
 }
 
 #target: "arm64-darwin"
-pub(nocter) func darwin_sys_close(): usize {
+pub(/) func darwin_sys_close(): usize {
     return 0x02000006
 }
 
 #target: "arm64-darwin"
-pub(nocter) func darwin_sys_fcntl(): usize {
+pub(/) func darwin_sys_fcntl(): usize {
     return 0x0200005c
 }
 
 #target: "arm64-darwin"
-pub(nocter) func darwin_f_getpath(): usize {
+pub(/) func darwin_f_getpath(): usize {
     return 50
 }
 
 #target: "arm64-darwin"
-pub(nocter) func darwin_max_path_len(): usize {
+pub(/) func darwin_max_path_len(): usize {
     return 1024
 }
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall0(number: usize): SyscallResult
+pub(/) primitive syscall0(number: usize): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall1(
+pub(/) primitive syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall2(
+pub(/) primitive syscall2(
     number: usize,
     a0: usize,
     a1: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall3(
+pub(/) primitive syscall3(
     number: usize,
     a0: usize,
     a1: usize,
@@ -155,7 +155,7 @@ pub(nocter) primitive syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall4(
+pub(/) primitive syscall4(
     number: usize,
     a0: usize,
     a1: usize,
@@ -164,7 +164,7 @@ pub(nocter) primitive syscall4(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall5(
+pub(/) primitive syscall5(
     number: usize,
     a0: usize,
     a1: usize,
@@ -174,7 +174,7 @@ pub(nocter) primitive syscall5(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive syscall6(
+pub(/) primitive syscall6(
     number: usize,
     a0: usize,
     a1: usize,
@@ -185,7 +185,7 @@ pub(nocter) primitive syscall6(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(nocter) primitive trap(): never
+pub(/) primitive trap(): never
 
 #target: "arm64-darwin"
-pub(nocter) primitive unreachable(): never
+pub(/) primitive unreachable(): never

@@ -34,10 +34,7 @@ pub(super) fn import_symbol_items_at_offset(
 }
 
 fn visible_export_spans(ast: &AstFile, access: ImportAccess) -> HashSet<ByteSpan> {
-    let visible = |visibility| {
-        visibility == Visibility::Public
-            || (visibility == Visibility::Nocter && access == ImportAccess::Nocter)
-    };
+    let visible = |visibility| visibility == Visibility::Public || access.allows(visibility);
     let mut spans = HashSet::new();
     for item in &ast.items {
         match item {

@@ -64,10 +64,10 @@ mod tests {
     #[test]
     fn marks_validated_raw_io_errors_as_storage_independent() {
         let ast = parse_text(
-            r#"pub(nocter) primitive open_read_raw(path: *u8): i32!
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
-pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
-pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+            r#"pub(/) primitive open_read_raw(path: *u8): i32!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 "#,
         );
         let facts = trusted_io_declarations(&ast);
@@ -85,7 +85,7 @@ pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
     #[test]
     fn rejects_name_only_raw_io_contracts() {
-        let ast = parse_text("pub(nocter) primitive write_text_raw(text: &str): void!\n");
+        let ast = parse_text("pub(/) primitive write_text_raw(text: &str): void!\n");
         let facts = trusted_io_declarations(&ast);
         let Item::Primitive(primitive) = &ast.items[0] else {
             panic!("expected primitive");

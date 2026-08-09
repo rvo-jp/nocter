@@ -33,7 +33,7 @@ pub struct VecIntoIter<T> {
     end_index: usize
 }
 
-pub(nocter) func vec_into_iter_from_raw_parts<T>(
+pub(/) func vec_into_iter_from_raw_parts<T>(
     pointer: *T,
     storage: &+RawBuffer,
     item_count: usize,

@@ -41,10 +41,10 @@ mod tests {
     #[test]
     fn marks_only_complete_process_view_shapes_as_static() {
         let ast = parse_text(
-            "pub(nocter) primitive arg_raw(index: usize): &str\n\
-             pub(nocter) primitive env_name_raw(index: usize): &str\n\
-             pub(nocter) primitive env_value_raw(index: usize): &str\n\
-             pub(nocter) primitive arg_raw_wrong(index: i32): &str\n",
+            "pub(/) primitive arg_raw(index: usize): &str\n\
+             pub(/) primitive env_name_raw(index: usize): &str\n\
+             pub(/) primitive env_value_raw(index: usize): &str\n\
+             pub(/) primitive arg_raw_wrong(index: i32): &str\n",
         );
         let facts = trusted_process_declarations(&ast);
         let roles = ast

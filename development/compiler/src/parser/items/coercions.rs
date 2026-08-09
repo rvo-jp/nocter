@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{CoerceDecl, CoercionEntry, Item, MethodReceiverMode, Visibility};
+use crate::ast::{CoerceDecl, CoercionEntry, Item, MethodReceiverMode};
 use crate::lexer::Keyword;
 
 impl Parser<'_> {
@@ -31,10 +31,6 @@ impl Parser<'_> {
 
             let entry_start = self.current().span.start;
             let visibility = self.parse_visibility()?;
-            if visibility == Visibility::Nocter {
-                self.error_current("coercion entries cannot use `pub(nocter)`");
-                return Err(());
-            }
             let receiver = self.parse_coercion_receiver()?;
             let as_token = self.expect_keyword(Keyword::As, "`as`")?;
             let entry_target = self.parse_type()?;

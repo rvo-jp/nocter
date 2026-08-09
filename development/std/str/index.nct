@@ -11,8 +11,8 @@ use std/string.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_
 use std/string.{strip_prefix, strip_suffix}
 use std/vec.Vec
 
-pub(nocter) primitive str_len_raw(value: &str): usize
-pub(nocter) primitive str_ptr_addr_raw(value: &str): usize
+pub(/) primitive str_len_raw(value: &str): usize
+pub(/) primitive str_ptr_addr_raw(value: &str): usize
 
 impl str {
     pub method &self.len(): usize {

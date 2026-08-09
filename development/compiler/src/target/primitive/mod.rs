@@ -87,10 +87,10 @@ impl PrimitiveSpec {
             .target
             .map(|target| format!("#target: \"{target}\"\n"))
             .unwrap_or_default();
-        let visibility = match self.visibility {
-            Visibility::Private => "",
-            Visibility::Public => "pub ",
-            Visibility::Nocter => "pub(nocter) ",
+        let visibility = if self.visibility.is_private() {
+            String::new()
+        } else {
+            format!("{} ", self.visibility.source_notation())
         };
         let generics = if self.generics.is_empty() {
             String::new()
@@ -491,7 +491,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/error",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "new_error",
             generics: &[],
             parameters: ERROR_PARAMETERS,
@@ -527,7 +527,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "from_addr",
             generics: &["T"],
             parameters: PTR_FROM_ADDR_PARAMETERS,
@@ -536,7 +536,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "pointee_size",
             generics: &["T"],
             parameters: PTR_POINTEE_SIZE_PARAMETERS,
@@ -545,7 +545,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "pointee_align",
             generics: &["T"],
             parameters: PTR_POINTEE_SIZE_PARAMETERS,
@@ -554,7 +554,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "copy_str_to_ptr",
             generics: &[],
             parameters: PTR_COPY_STR_TO_PTR_PARAMETERS,
@@ -563,7 +563,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "take_value_at_ptr",
             generics: &["T"],
             parameters: PTR_TAKE_VALUE_AT_PTR_PARAMETERS,
@@ -572,7 +572,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "copy_ptr_to_ptr",
             generics: &[],
             parameters: PTR_COPY_PTR_TO_PTR_PARAMETERS,
@@ -581,7 +581,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "store_u8_to_ptr",
             generics: &[],
             parameters: PTR_STORE_U8_TO_PTR_PARAMETERS,
@@ -590,7 +590,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "store_value_to_ptr",
             generics: &["T"],
             parameters: PTR_STORE_VALUE_TO_PTR_PARAMETERS,
@@ -599,7 +599,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "drop_value_at_ptr",
             generics: &["T"],
             parameters: PTR_DROP_VALUE_AT_PTR_PARAMETERS,
@@ -608,7 +608,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "str_from_raw_parts",
             generics: &[],
             parameters: PTR_STR_FROM_RAW_PARTS_PARAMETERS,
@@ -617,7 +617,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_from_raw_parts",
             generics: &[],
             parameters: PTR_SLICE_FROM_RAW_PARTS_PARAMETERS,
@@ -626,7 +626,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_from_raw_parts_mut",
             generics: &[],
             parameters: PTR_SLICE_FROM_RAW_PARTS_PARAMETERS,
@@ -635,7 +635,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_from_raw_parts_value",
             generics: &["T"],
             parameters: PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS,
@@ -644,7 +644,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/ptr",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_from_raw_parts_value_mut",
             generics: &["T"],
             parameters: PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS,
@@ -653,7 +653,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: STR_IMPLEMENTATION_MODULE,
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "str_len_raw",
             generics: &[],
             parameters: VIEW_STR_LEN_PARAMETERS,
@@ -662,7 +662,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: STR_IMPLEMENTATION_MODULE,
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "str_ptr_addr_raw",
             generics: &[],
             parameters: VIEW_STR_LEN_PARAMETERS,
@@ -671,7 +671,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: SLICE_IMPLEMENTATION_MODULE,
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_len_raw",
             generics: &["T"],
             parameters: VIEW_SLICE_LEN_PARAMETERS,
@@ -680,7 +680,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: SLICE_IMPLEMENTATION_MODULE,
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "slice_ptr_addr_raw",
             generics: &["T"],
             parameters: VIEW_SLICE_LEN_PARAMETERS,
@@ -689,7 +689,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/string",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "bytes_from_str",
             generics: &[],
             parameters: STRING_BYTES_FROM_STR_PARAMETERS,
@@ -698,7 +698,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/string",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "str_subview_unchecked",
             generics: &[],
             parameters: STRING_SUBVIEW_PARAMETERS,
@@ -707,7 +707,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/mem",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "current_allocator_state",
             generics: &[],
             parameters: &[],
@@ -716,7 +716,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/mem",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "allocation_abort_raw",
             generics: &[],
             parameters: &[],
@@ -725,7 +725,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/mem",
             target: None,
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "current_allocator_kind",
             generics: &[],
             parameters: &[],
@@ -734,7 +734,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall0",
             generics: &[],
             parameters: SYSCALL0_PARAMETERS,
@@ -743,7 +743,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall1",
             generics: &[],
             parameters: SYSCALL1_PARAMETERS,
@@ -752,7 +752,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall2",
             generics: &[],
             parameters: SYSCALL2_PARAMETERS,
@@ -761,7 +761,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall3",
             generics: &[],
             parameters: SYSCALL3_PARAMETERS,
@@ -770,7 +770,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall4",
             generics: &[],
             parameters: SYSCALL4_PARAMETERS,
@@ -779,7 +779,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall5",
             generics: &[],
             parameters: SYSCALL5_PARAMETERS,
@@ -788,7 +788,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "syscall6",
             generics: &[],
             parameters: SYSCALL6_PARAMETERS,
@@ -797,7 +797,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "trap",
             generics: &[],
             parameters: &[],
@@ -806,7 +806,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/internal/os",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "unreachable",
             generics: &[],
             parameters: &[],
@@ -815,7 +815,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "open_read_raw",
             generics: &[],
             parameters: OPEN_READ_RAW_PARAMETERS,
@@ -824,7 +824,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "create_raw",
             generics: &[],
             parameters: OPEN_READ_RAW_PARAMETERS,
@@ -833,7 +833,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "append_raw",
             generics: &[],
             parameters: OPEN_READ_RAW_PARAMETERS,
@@ -842,7 +842,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "write_text_raw",
             generics: &[],
             parameters: WRITE_TEXT_RAW_PARAMETERS,
@@ -851,7 +851,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "write_bytes_raw",
             generics: &[],
             parameters: WRITE_BYTES_RAW_PARAMETERS,
@@ -860,7 +860,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "read_bytes_raw",
             generics: &[],
             parameters: READ_BYTES_RAW_PARAMETERS,
@@ -869,7 +869,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/io",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "close_fd_raw",
             generics: &[],
             parameters: CLOSE_FD_RAW_PARAMETERS,
@@ -878,7 +878,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "exit_raw",
             generics: &[],
             parameters: PROCESS_EXIT_RAW_PARAMETERS,
@@ -887,7 +887,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "arg_count_raw",
             generics: &[],
             parameters: &[],
@@ -896,7 +896,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "arg_raw",
             generics: &[],
             parameters: PROCESS_ARG_RAW_PARAMETERS,
@@ -905,7 +905,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "env_count_raw",
             generics: &[],
             parameters: &[],
@@ -914,7 +914,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "env_name_raw",
             generics: &[],
             parameters: PROCESS_ARG_RAW_PARAMETERS,
@@ -923,7 +923,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
         PrimitiveSpec {
             module_path: "std/process",
             target: Some("arm64-darwin"),
-            visibility: Visibility::Nocter,
+            visibility: Visibility::Package,
             name: "env_value_raw",
             generics: &[],
             parameters: PROCESS_ARG_RAW_PARAMETERS,

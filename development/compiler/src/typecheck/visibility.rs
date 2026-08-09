@@ -1,5 +1,5 @@
 use crate::ast::Visibility;
-use crate::resolve::{ImportAccess, ResolveOutput};
+use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId};
 
 pub(super) fn member_visibility_is_accessible(
@@ -8,12 +8,5 @@ pub(super) fn member_visibility_is_accessible(
     use_source: SourceId,
     resolved: &ResolveOutput,
 ) -> bool {
-    match visibility {
-        Visibility::Public => true,
-        Visibility::Private => resolved.sources_share_module(declaration_span.source, use_source),
-        Visibility::Nocter => {
-            resolved.sources_share_module(declaration_span.source, use_source)
-                || resolved.access == ImportAccess::Nocter
-        }
-    }
+    resolved.visibility_is_accessible(visibility, declaration_span.source, use_source)
 }

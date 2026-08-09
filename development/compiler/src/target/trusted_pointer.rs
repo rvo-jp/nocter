@@ -20,7 +20,7 @@ pub(super) fn trusted_pointer_declarations(ast: &AstFile) -> TrustedDeclarationF
 }
 
 fn take_value_shape_matches(primitive: &crate::ast::PrimitiveDecl) -> bool {
-    primitive.visibility == Visibility::Nocter
+    primitive.visibility == Visibility::Package
         && primitive.generics.parameters.len() == 1
         && primitive.generics.parameters[0].name == "T"
         && primitive.generics.parameters[0].bounds.is_empty()
@@ -46,7 +46,7 @@ mod tests {
         let source = sources.add_source(
             "ptr.nct",
             None,
-            "pub(nocter) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T\n",
+            "pub(/) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T\n",
         );
         let tokens = lex(&sources, source);
         let ast = parse(&sources, source, &tokens.tokens).ast.unwrap();

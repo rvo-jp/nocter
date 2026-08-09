@@ -609,7 +609,7 @@ fn run_command_accepts_payload_enum_if_is_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-slice-binding");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -658,7 +658,7 @@ fn run_command_accepts_payload_enum_if_is_expression_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-expression-slice-binding");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -1091,7 +1091,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -1670,7 +1670,7 @@ fn run_command_accepts_payload_enum_match_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-slice-binding");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -1963,7 +1963,7 @@ fn run_command_accepts_payload_enum_match_expression_slice_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-expression-slice-binding");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -2474,7 +2474,7 @@ fn run_command_returns_value_match_binding_and_assignment_exit_code() {
     let project = TempProject::new("cli-run-value-match-binding-and-assignment");
     project.write_nocter_home_file(
         "std/string/index.nct",
-        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
 
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
@@ -2903,7 +2903,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3023,7 +3023,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3095,7 +3095,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3197,7 +3197,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3283,7 +3283,7 @@ fn run_command_does_not_drop_uninitialized_fixed_array_enum_success_payload() {
         r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: &str, message: &str): error
+pub(/) primitive new_error(code: &str, message: &str): error
 
 pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     return new_error(code, message)
@@ -3303,7 +3303,7 @@ pub func write(text: &str): void! {
     project.write_nocter_home_file(
         "std/io/index.nct",
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(

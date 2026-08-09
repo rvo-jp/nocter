@@ -20,14 +20,14 @@ use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
 use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use builtin_impls::{enqueue_builtin_implementation_sources, validate_builtin_impl_authority};
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
     import_source_diagnostic, invalid_source_import_declaration_diagnostic,
-    nocter_visibility_outside_nocter_home_diagnostic, primitive_outside_nocter_home_diagnostic,
+    invalid_visibility_boundary_diagnostic, primitive_outside_nocter_home_diagnostic,
     primitive_registry_diagnostic, public_declaration_outside_module_root_diagnostic,
 };
 use imports::{
@@ -121,12 +121,12 @@ pub(crate) fn load_compile_unit_with_trace(
             sources, source, &ast,
         ));
 
-        diagnostics.extend(validate_nocter_visibility_declarations(
+        diagnostics.extend(validate_visibility_boundaries(
             sources,
             source,
             &ast,
             options,
-            &mut resolved_nocter_home,
+            &resolved_nocter_home,
         ));
 
         diagnostics.extend(validate_builtin_impl_authority(
@@ -189,6 +189,7 @@ pub(crate) fn load_compile_unit_with_trace(
                                 access: import_access_for_source(
                                     sources,
                                     source,
+                                    imported,
                                     options,
                                     &resolved_nocter_home,
                                 ),
@@ -265,6 +266,7 @@ pub(crate) fn load_compile_unit_with_trace(
                     access: import_access_for_source(
                         sources,
                         source,
+                        imported,
                         options,
                         &resolved_nocter_home,
                     ),
@@ -310,10 +312,16 @@ pub(crate) fn load_compile_unit_with_trace(
         };
     };
 
-    let nocter_home = resolved_nocter_home
+    let nocter_home = options
+        .nocter_home
         .as_ref()
-        .and_then(|home| home.as_ref().ok())
-        .map(|home| canonicalize_existing(home));
+        .map(|home| canonicalize_existing(home))
+        .or_else(|| {
+            resolved_nocter_home
+                .as_ref()
+                .and_then(|home| home.as_ref().ok())
+                .map(|home| canonicalize_existing(home))
+        });
 
     let trusted_modules = files
         .iter()
@@ -336,6 +344,13 @@ pub(crate) fn load_compile_unit_with_trace(
         &trusted_modules,
         &mut trusted_declarations,
     );
+    let standard_library_root = nocter_home.as_ref().map(|home| home.join("std"));
+    let source_scopes = crate::source_scopes::SourceScopeMap::new(
+        sources,
+        files.iter().map(|file| file.span.source),
+        options.package_graph.as_ref(),
+        standard_library_root.as_deref(),
+    );
     let (loaded_sources, dependency_paths) = dependencies.into_parts();
     CompileUnitLoad {
         result: Ok(CompileUnit::new(
@@ -346,6 +361,7 @@ pub(crate) fn load_compile_unit_with_trace(
             nocter_home,
         )
         .with_callable_bodies(callable_bodies)
+        .with_source_scopes(source_scopes)
         .with_trusted_declarations(trusted_declarations)),
         loaded_sources,
         dependency_paths,
@@ -371,11 +387,13 @@ fn trusted_module_path(
     resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
 ) -> Option<String> {
     let home = active_nocter_home(options, resolved_nocter_home).ok()?;
-    let source_path = sources
-        .get(source)
-        .and_then(|file| file.absolute_path())
-        .map(|path| canonicalize_existing(path))?;
-    primitive_module_path(&source_path, &home, &options.target)
+    let scopes = crate::source_scopes::SourceScopeMap::new(
+        sources,
+        [source],
+        options.package_graph.as_ref(),
+        Some(&home.join("std")),
+    );
+    scopes.standard_library_module_path(source)
 }
 
 fn source_is_package_file(
@@ -513,89 +531,107 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
     spans
 }
 
-fn validate_nocter_visibility_declarations(
+fn validate_visibility_boundaries(
     sources: &SourceMap,
     source: SourceId,
     ast: &AstFile,
     options: &FrontendOptions,
-    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+    resolved_nocter_home: &Option<Result<PathBuf, String>>,
 ) -> Vec<Diagnostic> {
-    let spans = nocter_visibility_declaration_spans(ast);
-    if spans.is_empty()
-        || source_is_inside_active_nocter_home(sources, source, options, resolved_nocter_home)
-    {
+    let Some(path) = sources.get(source).and_then(|file| file.absolute_path()) else {
         return Vec::new();
-    }
-
-    spans
+    };
+    let package_root = imports::semantic_package_root(path, options).or_else(|| {
+        resolved_nocter_home
+            .as_ref()
+            .and_then(|home| home.as_ref().ok())
+            .map(|home| canonicalize_existing(&home.join("std")))
+            .filter(|root| path.starts_with(root))
+    });
+    let module_depth = package_root.as_ref().and_then(|root| {
+        imports::semantic_module_components(path, root).map(|components| components.len())
+    });
+    declaration_visibilities(ast)
         .into_iter()
-        .map(|span| nocter_visibility_outside_nocter_home_diagnostic(sources, span))
+        .filter_map(|(visibility, span)| match visibility {
+            Visibility::Package if package_root.is_none() => {
+                Some(invalid_visibility_boundary_diagnostic(
+                    sources,
+                    span,
+                    "`pub(/)` requires a package selected through `nocter.nct`",
+                ))
+            }
+            Visibility::ModuleTree(parents)
+                if module_depth.is_none_or(|depth| usize::from(parents) > depth) =>
+            {
+                Some(invalid_visibility_boundary_diagnostic(
+                    sources,
+                    span,
+                    &format!(
+                        "`{}` moves above the declaring package root",
+                        visibility.source_notation()
+                    ),
+                ))
+            }
+            _ => None,
+        })
         .collect()
 }
 
-fn nocter_visibility_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
-    let mut spans = Vec::new();
-
+fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
+    let mut declarations = Vec::new();
     for item in &ast.items {
         match item {
-            Item::Function(function) if function.visibility == Visibility::Nocter => {
-                spans.push(function.span);
-            }
-            Item::TypeAlias(alias) if alias.visibility == Visibility::Nocter => {
-                spans.push(alias.span);
-            }
+            Item::Import(import) => declarations.push((import.visibility, import.span)),
+            Item::FromImport(import) => declarations.push((import.visibility, import.span)),
+            Item::Function(function) => declarations.push((function.visibility, function.span)),
+            Item::Primitive(primitive) => declarations.push((primitive.visibility, primitive.span)),
+            Item::TypeAlias(alias) => declarations.push((alias.visibility, alias.span)),
             Item::Struct(struct_) => {
-                if struct_.visibility == Visibility::Nocter {
-                    spans.push(struct_.span);
-                }
-                spans.extend(
+                declarations.push((struct_.visibility, struct_.span));
+                declarations.extend(
                     struct_
                         .fields
                         .iter()
-                        .filter(|field| field.visibility == Visibility::Nocter)
-                        .map(|field| field.span),
+                        .map(|field| (field.visibility, field.span)),
                 );
             }
-            Item::Enum(enum_) if enum_.visibility == Visibility::Nocter => {
-                spans.push(enum_.span);
-            }
-            Item::Interface(interface) if interface.visibility == Visibility::Nocter => {
-                spans.push(interface.span);
+            Item::Enum(enum_) => declarations.push((enum_.visibility, enum_.span)),
+            Item::Interface(interface) => {
+                declarations.push((interface.visibility, interface.span));
+                declarations.extend(
+                    interface
+                        .methods
+                        .iter()
+                        .map(|method| (method.visibility, method.span)),
+                );
             }
             Item::Impl(impl_) => {
-                spans.extend(impl_.members.iter().filter_map(|member| match member {
-                    ImplMember::Method(method) if method.visibility == Visibility::Nocter => {
-                        Some(method.span)
-                    }
-                    _ => None,
-                }));
+                declarations.extend(impl_.members.iter().filter_map(|member| match member {
+                    ImplMember::Method(method) => Some((method.visibility, method.span)),
+                    ImplMember::Drop(_) => None,
+                }))
             }
-            _ => {}
+            Item::Construct(construct) => declarations.extend(construct.members.iter().map(
+                |member| match &member.declaration {
+                    crate::ast::ConstructMemberDecl::Function(function) => {
+                        (function.visibility, function.span)
+                    }
+                    crate::ast::ConstructMemberDecl::Literal(literal) => {
+                        (literal.visibility, literal.span)
+                    }
+                },
+            )),
+            Item::Coerce(coerce) => declarations.extend(
+                coerce
+                    .entries
+                    .iter()
+                    .map(|entry| (entry.visibility, entry.span)),
+            ),
+            Item::Test(_) => {}
         }
     }
-
-    spans
-}
-
-fn source_is_inside_active_nocter_home(
-    sources: &SourceMap,
-    source: SourceId,
-    options: &FrontendOptions,
-    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
-) -> bool {
-    let Ok(home) = active_nocter_home(options, resolved_nocter_home) else {
-        return false;
-    };
-
-    let Some(source_path) = sources
-        .get(source)
-        .and_then(|file| file.absolute_path())
-        .map(|path| canonicalize_existing(path))
-    else {
-        return false;
-    };
-
-    source_path.starts_with(canonicalize_existing(&home))
+    declarations
 }
 
 fn validate_primitive_declarations(
@@ -627,27 +663,23 @@ fn validate_primitive_declarations(
             .collect();
     };
 
-    let Some(source_path) = sources
-        .get(source)
-        .and_then(|file| file.absolute_path())
-        .map(|path| canonicalize_existing(path))
-    else {
+    let scopes = crate::source_scopes::SourceScopeMap::new(
+        sources,
+        [source],
+        options.package_graph.as_ref(),
+        Some(&home.join("std")),
+    );
+    if !scopes.is_standard_library(source) {
         return primitives
             .into_iter()
             .map(|primitive| {
                 primitive_outside_nocter_home_diagnostic(sources, primitive.span, &options.target)
             })
             .collect();
-    };
-
-    let Some(module_path) = primitive_module_path(&source_path, &home, &options.target) else {
-        return primitives
-            .into_iter()
-            .map(|primitive| {
-                primitive_outside_nocter_home_diagnostic(sources, primitive.span, &options.target)
-            })
-            .collect();
-    };
+    }
+    let module_path = scopes
+        .standard_library_module_path(source)
+        .expect("standard-library authority includes a module path");
 
     primitives
         .into_iter()
@@ -664,23 +696,4 @@ fn validate_primitive_declarations(
                 })
         })
         .collect()
-}
-
-fn primitive_module_path(source_path: &Path, home: &Path, _target: &str) -> Option<String> {
-    let home = canonicalize_existing(home);
-    let common_std = home.join("std");
-
-    source_path
-        .strip_prefix(common_std)
-        .ok()
-        .and_then(std_relative_module_path)
-}
-
-fn std_relative_module_path(relative_path: &Path) -> Option<String> {
-    let logical = crate::source_layout::logical_module_path(relative_path)?;
-    let segments = logical
-        .iter()
-        .map(|segment| segment.to_str().map(str::to_string))
-        .collect::<Option<Vec<_>>>()?;
-    Some(format!("std/{}", segments.join("/")))
 }

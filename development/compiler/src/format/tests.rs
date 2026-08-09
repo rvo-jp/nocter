@@ -227,12 +227,12 @@ pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
 #[test]
 fn formats_type_and_data_declarations() {
     assert_formats_stably(
-        r#"pub(nocter) type Path= [u8]
+        r#"pub(/) type Path= [u8]
 copy struct Pair<T> {pub left:T,right:T}
 enum AppError {missing_path,open_failed(path:&str)}
 "#,
         concat!(
-            "pub(nocter) type Path = [u8]\n",
+            "pub(/) type Path = [u8]\n",
             "\n",
             "copy struct Pair<T> {\n",
             "    pub left: T,\n",
@@ -251,11 +251,11 @@ enum AppError {missing_path,open_failed(path:&str)}
 fn formats_target_directive_on_primitive() {
     assert_formats_stably(
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
+pub(/) primitive write_text_raw(fd:i32,text:&str):void!
 "#,
         concat!(
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!\n",
+            "pub(/) primitive write_text_raw(fd: i32, text: &str): void!\n",
         ),
     );
 }
@@ -264,11 +264,11 @@ pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 fn formats_target_directive_on_function() {
     assert_formats_stably(
         r#"#target: "arm64-darwin"
-pub(nocter) func free_pages(address:usize,size:usize):void{return}
+pub(/) func free_pages(address:usize,size:usize):void{return}
 "#,
         concat!(
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) func free_pages(address: usize, size: usize): void {\n",
+            "pub(/) func free_pages(address: usize, size: usize): void {\n",
             "    return\n",
             "}\n",
         ),
@@ -279,31 +279,31 @@ pub(nocter) func free_pages(address:usize,size:usize):void{return}
 fn formats_target_directive_on_type_declarations() {
     assert_formats_stably(
         r#"#target: "arm64-darwin"
-pub(nocter) type RawWord=usize
+pub(/) type RawWord=usize
 #target: "arm64-darwin"
-pub(nocter) copy struct SyscallResult {pub value:usize,errno:i32}
+pub(/) copy struct SyscallResult {pub value:usize,errno:i32}
 #target: "arm64-darwin"
-pub(nocter) enum PlatformError {interrupted}
+pub(/) enum PlatformError {interrupted}
 #target: "arm64-darwin"
-pub(nocter) interface PlatformContract {pub method &self.code():i32}
+pub(/) interface PlatformContract {pub method &self.code():i32}
 "#,
         concat!(
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) type RawWord = usize\n",
+            "pub(/) type RawWord = usize\n",
             "\n",
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) copy struct SyscallResult {\n",
+            "pub(/) copy struct SyscallResult {\n",
             "    pub value: usize,\n",
             "    errno: i32,\n",
             "}\n",
             "\n",
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) enum PlatformError {\n",
+            "pub(/) enum PlatformError {\n",
             "    interrupted,\n",
             "}\n",
             "\n",
             "#target: \"arm64-darwin\"\n",
-            "pub(nocter) interface PlatformContract {\n",
+            "pub(/) interface PlatformContract {\n",
             "    pub method &self.code(): i32\n",
             "}\n",
         ),
@@ -407,6 +407,26 @@ fn canonical_type_notation_preserves_prefix_and_postfix_structure() {
             "\n",
             "func borrow_callback(callback: func(): Item): &(func(): Item) {\n",
             "    return &callback\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_ancestor_visibility_without_named_scopes() {
+    assert_formats_stably(
+        "pub(./) func child():void{return}\npub(../../) func ancestor():void{return}\npub(/) func package():void{return}\n",
+        concat!(
+            "pub(./) func child(): void {\n",
+            "    return\n",
+            "}\n",
+            "\n",
+            "pub(../../) func ancestor(): void {\n",
+            "    return\n",
+            "}\n",
+            "\n",
+            "pub(/) func package(): void {\n",
+            "    return\n",
             "}\n",
         ),
     );

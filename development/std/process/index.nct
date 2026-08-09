@@ -32,22 +32,22 @@ use std/string.bytes as string_bytes
 use std/vec.Vec
 
 #target: "arm64-darwin"
-pub(nocter) primitive exit_raw(code: i32): never
+pub(/) primitive exit_raw(code: i32): never
 
 #target: "arm64-darwin"
-pub(nocter) primitive arg_count_raw(): usize
+pub(/) primitive arg_count_raw(): usize
 
 #target: "arm64-darwin"
-pub(nocter) primitive arg_raw(index: usize): &str
+pub(/) primitive arg_raw(index: usize): &str
 
 #target: "arm64-darwin"
-pub(nocter) primitive env_count_raw(): usize
+pub(/) primitive env_count_raw(): usize
 
 #target: "arm64-darwin"
-pub(nocter) primitive env_name_raw(index: usize): &str
+pub(/) primitive env_name_raw(index: usize): &str
 
 #target: "arm64-darwin"
-pub(nocter) primitive env_value_raw(index: usize): &str
+pub(/) primitive env_value_raw(index: usize): &str
 
 pub copy struct EnvironmentEntry {
     pub name: &str
@@ -55,7 +55,7 @@ pub copy struct EnvironmentEntry {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func open_current_directory(): usize! {
+pub(/) func open_current_directory(): usize! {
     let allocation_size: usize = 2
     let address: usize = alloc_pages(allocation_size)?
     copy_str_to_ptr(from_addr(address), 0, ".")
@@ -70,7 +70,7 @@ pub(nocter) func open_current_directory(): usize! {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func open_current_directory_aborting(): usize! {
+pub(/) func open_current_directory_aborting(): usize! {
     let allocation_size: usize = 2
     var allocator = page_allocator()
     var path = alloc(&+allocator, allocation_size, 1)
@@ -86,13 +86,13 @@ pub(nocter) func open_current_directory_aborting(): usize! {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func close_fd_word(fd: usize): void {
+pub(/) func close_fd_word(fd: usize): void {
     let result = syscall1(darwin_sys_close(), fd)
     return
 }
 
 #target: "arm64-darwin"
-pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
+pub(/) func cwd_path_len(buffer: &+RawBuffer): usize! {
     let raw_bytes = raw_bytes_mut(buffer)
     var index: usize = 0
     while index < buffer.len {
@@ -105,7 +105,7 @@ pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
 }
 
 #target: "arm64-darwin"
-pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
+pub(/) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     let result = syscall3(
         darwin_sys_fcntl(),
         fd,
@@ -218,7 +218,7 @@ pub func try_cwd(allocator: &+TryAllocator): String! {
     return move value
 }
 
-pub(nocter) func valid_environment_name(name: &str): bool {
+pub(/) func valid_environment_name(name: &str): bool {
     if name.len() == 0 || !valid_utf8(name) {
         return false
     }
@@ -233,7 +233,7 @@ pub(nocter) func valid_environment_name(name: &str): bool {
     return true
 }
 
-pub(nocter) func valid_utf8(value: &str): bool {
+pub(/) func valid_utf8(value: &str): bool {
     let value_bytes = string_bytes(value)
     var index: usize = 0
     while index < value_bytes.len() {
@@ -284,7 +284,7 @@ pub(nocter) func valid_utf8(value: &str): bool {
     return true
 }
 
-pub(nocter) func utf8_continuation(value: u8): bool {
+pub(/) func utf8_continuation(value: u8): bool {
     return value >= 128 && value <= 191
 }
 

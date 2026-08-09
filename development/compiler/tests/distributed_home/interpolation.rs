@@ -170,7 +170,7 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
     copy_tree(&distributed_home(), &home);
     let mem_module = home.join("std/mem/index.nct");
     let mem_source = fs::read_to_string(&mem_module).unwrap();
-    let original = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    let original = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
@@ -182,7 +182,7 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
     try_grow(&+allocator, buffer, new_size)?
     return
 }"#;
-    let failing = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    let failing = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     return Error.new("test.out_of_memory", "deterministic interpolation failure")
 }"#;
     assert!(mem_source.contains(original));

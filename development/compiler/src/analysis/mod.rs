@@ -54,6 +54,7 @@ use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput};
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
+use crate::source_scopes::SourceScopeMap;
 use crate::typecheck::{
     TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
     collect_typecheck_facts,
@@ -70,6 +71,7 @@ pub(crate) struct CompileUnit {
     nocter_home: Option<PathBuf>,
     trusted_declarations: TrustedDeclarationFacts,
     callable_bodies: CallableBodyIndex,
+    source_scopes: SourceScopeMap,
 }
 
 impl CompileUnit {
@@ -88,6 +90,7 @@ impl CompileUnit {
             nocter_home,
             trusted_declarations: TrustedDeclarationFacts::default(),
             callable_bodies: CallableBodyIndex::default(),
+            source_scopes: SourceScopeMap::default(),
         }
     }
 
@@ -101,6 +104,11 @@ impl CompileUnit {
 
     pub(crate) fn with_callable_bodies(mut self, callable_bodies: CallableBodyIndex) -> Self {
         self.callable_bodies = callable_bodies;
+        self
+    }
+
+    pub(crate) fn with_source_scopes(mut self, source_scopes: SourceScopeMap) -> Self {
+        self.source_scopes = source_scopes;
         self
     }
 }
@@ -199,6 +207,7 @@ fn analyze_compile_unit_with_root_policy(
                 &unit.import_sources,
                 &unit.prelude_sources,
                 &unit.callable_bodies,
+                &unit.source_scopes,
             );
             resolved.trusted_declarations = unit.trusted_declarations.clone();
             resolved.diagnostics.retain(|diagnostic| {

@@ -5,10 +5,56 @@ use super::support::{
 use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
+fn parses_only_ancestor_based_visibility_scopes() {
+    let output = parse_text(
+        r#"pub(./) func descendants(): void { return }
+pub(../) func parent_tree(): void { return }
+pub(../../) func grandparent_tree(): void { return }
+pub(/) func package_wide(): void { return }
+pub func universal(): void { return }
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let visibilities = ast
+        .items
+        .iter()
+        .map(|item| match item {
+            Item::Function(function) => function.visibility,
+            _ => panic!("expected function"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        visibilities,
+        vec![
+            Visibility::ModuleTree(0),
+            Visibility::ModuleTree(1),
+            Visibility::ModuleTree(2),
+            Visibility::Package,
+            Visibility::Public,
+        ]
+    );
+
+    for invalid in [
+        "pub(nocter) func value(): void { return }\n",
+        "pub(/internal) func value(): void { return }\n",
+        "pub(std/io) func value(): void { return }\n",
+        "pub(./internal) func value(): void { return }\n",
+    ] {
+        let output = parse_text(invalid);
+        assert!(output.ast.is_none(), "accepted `{invalid}`");
+        assert!(
+            !output.diagnostics.is_empty(),
+            "missing diagnostic for `{invalid}`"
+        );
+    }
+}
+
+#[test]
 fn rejects_removed_result_allocation_modifiers_without_reserving_alloc() {
     for source in [
         "pub alloc func copy(): Text { return make() }\n",
-        "pub(nocter) alloc primitive make_text(): Text\n",
+        "pub(/) alloc primitive make_text(): Text\n",
         "interface Factory { pub alloc method &self.make(): Text }\n",
         "impl Factory for Builder { alloc method &self.make(): Text { return make() } }\n",
     ] {
@@ -1237,7 +1283,7 @@ pub enum IOError {
     denied
 }
 
-pub(nocter) primitive addr<T>(pointer: *T): usize
+pub(/) primitive addr<T>(pointer: *T): usize
 
 pub func write(file: &+File, text: &str): void! {
     return
@@ -1274,7 +1320,7 @@ func main(): i32 {
     let Item::Primitive(primitive) = &ast.items[3] else {
         panic!("expected primitive declaration");
     };
-    assert_eq!(primitive.visibility, Visibility::Nocter);
+    assert_eq!(primitive.visibility, Visibility::Package);
     assert_eq!(primitive.generics.parameters.len(), 1);
     assert!(matches!(
         &primitive.parameters.parameters[0].ty,
@@ -1326,7 +1372,7 @@ fn diagnoses_embedding_declarations_as_deferred() {
 fn parses_target_directive_on_primitive_declaration() {
     let (sources, output) = parse_text_with_sources(
         r#"#target: "arm64-darwin"
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
 
@@ -1376,21 +1422,21 @@ func main(): i32 {
 fn parses_target_directive_on_type_declarations() {
     let (sources, output) = parse_text_with_sources(
         r#"#target: "arm64-darwin"
-pub(nocter) type RawWord = usize
+pub(/) type RawWord = usize
 
 #target: "arm64-darwin"
-pub(nocter) copy struct SyscallResult {
+pub(/) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
 #target: "arm64-darwin"
-pub(nocter) enum PlatformError {
+pub(/) enum PlatformError {
     interrupted
 }
 
 #target: "arm64-darwin"
-pub(nocter) interface PlatformContract {
+pub(/) interface PlatformContract {
     pub method &self.code(): i32
 }
 "#,

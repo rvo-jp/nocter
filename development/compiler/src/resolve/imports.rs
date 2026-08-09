@@ -2,7 +2,7 @@ use super::body::Scope;
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
     builtin_name_reuse_diagnostic, missing_import_diagnostic, restricted_import_diagnostic,
-    unloaded_import_diagnostic,
+    unloaded_import_diagnostic, widening_reexport_diagnostic,
 };
 use super::module_index::is_relative_module_path;
 use super::signatures::{
@@ -28,6 +28,17 @@ use qualification::*;
 use symbols::*;
 
 impl Resolver<'_> {
+    fn filter_importable_members_for_use(
+        &self,
+        imported: ImportableSymbol,
+        use_source: SourceId,
+    ) -> ImportableSymbol {
+        let member_access = self
+            .output
+            .source_access(imported.declaration_span.source, use_source);
+        filter_importable_symbol_for_access(imported, member_access)
+    }
+
     /// Qualifies the signatures carried by an implicitly loaded built-in type
     /// surface exactly as an explicit import would. The surface itself is
     /// globally available, but every type mentioned by its API still belongs
