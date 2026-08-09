@@ -156,7 +156,7 @@
 <span class="token-comment">//! Raw pointers are address-carrying values. They do not own memory, do not</span>
 <span class="token-comment">//! extend lifetimes, and do not grant dereference permission. These declarations</span>
 <span class="token-comment">//! are target-independent core primitives, separate from OS target primitives</span>
-<span class="token-comment">//! such as `std/os.syscall0`.</span>
+<span class="token-comment">//! such as `std/internal/os.syscall0`.</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> addr<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 

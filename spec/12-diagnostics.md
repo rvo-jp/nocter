@@ -58,6 +58,14 @@ Spanless CLI diagnostic codes:
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
 - `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
 
+Source-backed callable contract diagnostics:
+
+- `E0250`: a bodyless public callable contract has no implementation body.
+- `E0251`: the selected private implementation body does not exactly match its public contract.
+- `E0252`: more than one private implementation body matches the same public contract.
+- `E0253`: body omission is used outside a public callable contract in `index.nct`, or on a callable
+  form that requires an inline body.
+
 ## Source And Span Model
 
 Compiler source identity and source positions are byte-based internally.

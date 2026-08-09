@@ -176,7 +176,30 @@
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>store_value_to_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>take_value_at_ptr
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>sequence<span class="token-operator">.</span><span class="token-type">Sequence</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec_into_iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">VecIntoIter</span><span class="token-operator">,</span> vec_into_iter_from_raw_parts<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>into_iter
+
+<span class="token-comment">/// A forward iterator that owns a Vec allocation and its remaining elements.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    ptr<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>
+    storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
+    next_index<span class="token-operator">:</span> <span class="token-type">usize</span>
+    end_index<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> vec_into_iter_from_raw_parts<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
+    pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span><span class="token-operator">,</span>
+    storage<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
+    item_count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> remaining<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> next<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span>
+
+<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the number of owned elements not yet yielded.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
 
 <span class="token-comment">/// An owning, growable sequence with an initialized prefix of elements.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

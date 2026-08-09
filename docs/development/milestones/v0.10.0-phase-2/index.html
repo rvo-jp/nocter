@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.10.0 Phase 2 - Nocter</title>
-    <meta name="description" content="Status: In progress.">
+    <meta name="description" content="Status: Completed on 2026-08-09.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.10.0-phase-2/">
@@ -13,19 +13,19 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.10.0 Phase 2 - Nocter">
-    <meta property="og:description" content="Status: In progress.">
+    <meta property="og:description" content="Status: Completed on 2026-08-09.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.10.0-phase-2/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-09">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.10.0 Phase 2 - Nocter">
-    <meta name="twitter:description" content="Status: In progress.">
+    <meta name="twitter:description" content="Status: Completed on 2026-08-09.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 2 - Nocter","description":"Status: In progress.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 2","item":"https://nocter.dev/development/milestones/v0.10.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.10.0 Phase 2 - Nocter","description":"Status: Completed on 2026-08-09.","url":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.10.0-phase-2/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.10.0 Phase 2","item":"https://nocter.dev/development/milestones/v0.10.0-phase-2/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -120,8 +120,8 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/milestones/</p>
             <ul class="directory-toc-list">
+                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
                 <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -129,7 +129,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.10.0-phase-2.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-10-0-phase-2">Nocter v0.10.0 Phase 2</h1><p><strong>Status:</strong> In progress.</p><h2 id="purpose">Purpose</h2><p>Phase 2 completes the directory-module model by separating a public callable contract in <code>index.nct</code> from its executable body in an explicitly imported implementation source. The public root remains the sole API authority without forcing growing standard-library implementations back into one large file.</p><p>This is a semantic declaration/body relationship. It is not a wrapper convention, textual inclusion, source-order rule, duplicate symbol exception, or separate-compilation boundary.</p><h2 id="source-contract">Source Contract</h2><p>A public callable in a module root may omit its body:</p><pre><code class="language-nct"><span class="token-comment">// index.nct</span>
+                <h1 id="nocter-v0-10-0-phase-2">Nocter v0.10.0 Phase 2</h1><p><strong>Status:</strong> Completed on 2026-08-09.</p><h2 id="purpose">Purpose</h2><p>Phase 2 completes the directory-module model by separating a public callable contract in <code>index.nct</code> from its executable body in an explicitly imported implementation source. The public root remains the sole API authority without forcing growing standard-library implementations back into one large file.</p><p>This is a semantic declaration/body relationship. It is not a wrapper convention, textual inclusion, source-order rule, duplicate symbol exception, or separate-compilation boundary.</p><h2 id="source-contract">Source Contract</h2><p>A public callable in a module root may omit its body:</p><pre><code class="language-nct"><span class="token-comment">// index.nct</span>
 <span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>operations
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Value</span><span class="token-operator">!</span>
@@ -162,7 +162,22 @@
   tokens, and diagnostics preserve the two source-backed locations</li><li>the standard library uses the normalized module/source layout without compatibility re-exports
   from removed paths</li><li><code>std/vec/index.nct</code>, <code>std/string/index.nct</code>, and <code>std/io/index.nct</code> present their public contracts
   without retaining private implementation bodies that belong in focused sources</li><li>public specification and compiler-development documentation identify one current source of truth</li><li>the complete compiler verification suite, documentation generation, public examples, formatting,
-  warnings-denied Clippy, and <code>git diff --check</code> pass</li></ul><p>Phase 2 does not add wildcard source discovery, overloads, separate compilation, header generation, dynamic linking, ABI-stable libraries, or new practical standard-library APIs.</p>
+  warnings-denied Clippy, and <code>git diff --check</code> pass</li></ul><p>Phase 2 does not add wildcard source discovery, overloads, separate compilation, header generation, dynamic linking, ABI-stable libraries, or new practical standard-library APIs.</p><h2 id="completion-record">Completion Record</h2><ul><li>One <code>CallableBodyIndex</code> matches bodyless root contracts to private bodies for functions,
+  associated functions, inherent methods, construction functions, typed literals, and coercions.
+  Stable <code>E0250</code> through <code>E0253</code> diagnostics cover missing, mismatched, duplicate, and invalid
+  bodyless declarations.</li><li>The index owns callable and input identity. Receivers, parameters, and literal captures in a
+  physical body map to the public contract before result-provenance and retained-mutation summaries
+  cross a call boundary.</li><li>Resolver, type checking, recursive generic specialization, buildability, native lowering, drop
+  discovery, and trusted declaration lookup consume the composed module and shared body relation.
+  A regression test builds a source-backed generic body that reaches another generic call.</li><li>LSP definition, implementation, references, rename, hover, completion, signature help, semantic
+  tokens, and diagnostics retain the public contract and physical body as two locations of one
+  semantic callable.</li><li>Standard-library public contracts now live in their conceptual module roots. Focused sources are
+  <code>std/string/search.nct</code>, <code>std/string/views.nct</code>, <code>std/vec/into_iter.nct</code>, <code>std/io/core.nct</code>, and
+  <code>std/iter/{core,ops,sources}.nct</code>. <code>std/io/buffer</code> and <code>std/internal/os</code> are genuine child
+  modules. Removed module paths have no compatibility re-export.</li><li>The complete library suite passed 2,370 tests with warnings-denied Clippy. The normalized
+  installed-home suite passed all 225 tests, including native execution, ownership, region,
+  provenance, LSP, and callable-contract audit coverage. Public examples, source corpus, CLI
+  suites, formatting, documentation generation, and <code>git diff --check</code> complete the final gate.</li></ul>
             </div>
         </main>
     </div>

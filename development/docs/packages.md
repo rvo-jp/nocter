@@ -55,6 +55,31 @@ External, package-absolute, dependency, and standard-library imports resolve dir
 only. Their public surface is therefore rooted in `index.nct`; physical implementation files never
 become importable identities.
 
+## Callable Contract Composition
+
+`CallableBodyIndex` is built once after source composition and before symbol collection. It joins a
+bodyless public callable in `index.nct` to one signature-identical private body in a reachable
+source. Matching uses directory-module identity and canonical authored callable structure; later
+stages do not repeat the match by name, path, or presentation text.
+
+The index records two related identity layers:
+
+- callable declaration and implementation spans share the public contract as their canonical
+  callable identity
+- implementation receiver, parameter, and literal-capture spans map to their corresponding public
+  input identities
+
+The second mapping is required because provenance and retained-mutation summaries cross the
+callable boundary. Their body-local evidence retains physical source spans while their exported
+summary keys and input origins use contract identities. Type checking, specialization,
+buildability, and lowering inspect the physical body through the shared relation. Symbol surfaces,
+calls, presentation, references, and rename use the contract identity. Definition and
+implementation navigation select the appropriate side explicitly.
+
+Source-backed callables do not form a separate compilation unit. All composed ASTs and their
+resolved facts remain available to whole-module analysis, including recursive generic
+specialization and drop dependency discovery.
+
 ## Responsibility Boundaries
 
 `package/graph.rs` owns graph traversal, cycles, scoped aliases, and the CLI/LSP snapshot.

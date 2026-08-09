@@ -233,11 +233,10 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 Resource destruction uses a dedicated `drop` member inside an inherent `impl`, not a `Drop` interface.
 
 ```nct
-use std/os as os
-
 impl File {
     drop &+self {
-        os.close(self.fd).ignore()
+        close(self)
+        return
     }
 }
 ```

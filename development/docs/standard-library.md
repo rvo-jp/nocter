@@ -13,19 +13,19 @@ defined by the responsibility-specific chapters indexed by
 | allocation layout, raw storage, allocator policy | `std/mem` |
 | owned UTF-8 storage | `std/string` |
 | built-in UTF-8 view methods and representation queries | `std/str` |
-| shared UTF-8 byte search | `std/string_search` |
-| validated borrowed text ranges and cursors | `std/string_views` |
+| shared UTF-8 byte search | `std/string/search.nct` |
+| validated borrowed text ranges and cursors | `std/string/views.nct` |
 | generic initialized-prefix storage | `std/vec` |
 | built-in slice methods and representation queries | `std/slice` |
-| iterator protocols and stateless operations | `std/iter/core`, `std/iter/ops` |
-| stateful iterator adapters | focused modules under `std/iter/` |
-| portable byte-stream protocols and derived operations | `std/io/core` |
+| iterator public contracts | `std/iter/index.nct` |
+| iterator adapters and terminal operations | `std/iter/core.nct`, `ops.nct`, and `sources.nct` |
+| portable byte-stream contracts and derived operations | `std/io/index.nct` and `core.nct` |
 | OS-independent file ownership | `std/io` |
-| buffered byte state | `std/io_buffer` |
+| buffered byte state | child module `std/io/buffer` |
 | path validation and lexical operations | `std/path` |
 | numeric parsing and formatting | `std/num`, `std/fmt` |
 | process-state validation and ownership | `std/process` |
-| target-specific system boundary | target-gated declarations in `std/os` |
+| target-specific system boundary | target-gated declarations in `std/internal/os` |
 
 The compiler does not infer behavior from public names such as `String`, `Vec`, `File`, `Iterator`,
 or `Allocator`. Trusted primitives and protocol roles are resolved to validated declaration
@@ -61,13 +61,13 @@ implementations; they are not public forwarding APIs.
 
 ## Borrowed Text Views
 
-`std/string_views` owns UTF-8 boundary validation, borrowed range operations, and the `SplitIter`
-and `LinesIter` state machines. `std/string` re-exports their public declarations as the stable
-facade. Shared byte search lives in `std/string_search`; owned and borrowed algorithms do not carry
+`std/string/index.nct` owns the public contracts for UTF-8 ranges, `SplitIter`, and `LinesIter`.
+`views.nct` supplies their validation and state-machine bodies without defining another module or
+public surface. Shared byte search lives in `search.nct`; owned and borrowed algorithms do not carry
 divergent copies of the same loop.
 
 Ordinary source validates every public range before calling
-`std/string_views.str_subview_unchecked`. That declaration is a closed `pub(nocter)` primitive and
+`std/string.str_subview_unchecked`. That declaration is a closed `pub(nocter)` primitive and
 has one compiler-owned `BorrowedProjection { source: 0 }` role. The role is attached only when the
 owning module, visibility, declaration kind, generic arity, parameter names and types, return type,
 target, and `from text` clause match exactly. Typecheck instantiates the source argument's resolved
@@ -133,9 +133,11 @@ EOF, I/O failure, protocol violation, allocation, and text validation as separat
 
 ## Iterator Architecture
 
-Protocol declarations live in `std/iter/core`. Stateful adapters live beside their state machines;
-terminal operations that need no new state live in `std/iter/ops`. This prevents the core protocol
-module from owning unrelated algorithms or creating module cycles.
+Protocol declarations and public adapter contracts live in `std/iter/index.nct`. Stateful adapter
+bodies live in `core.nct`, zero- and one-element sources live in `sources.nct`, and terminal
+operations live in `ops.nct`. These are implementation sources of one module, not importable child
+modules. This keeps the complete public surface in the module root without mixing implementation
+state machines into it.
 
 Adapters own their sources and callbacks as ordinary values. They allocate nothing unless a public
 collection operation explicitly builds an owned collection. Early exit drops the current yielded

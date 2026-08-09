@@ -2,13 +2,22 @@
 
 ## Current Task
 
-v0.10.0 Phase 2 is active under
-[`milestones/v0.10.0-phase-2.md`](milestones/v0.10.0-phase-2.md). Implement one source-backed
-`CallableBodyIndex` that joins public contracts in `index.nct` to private bodies in composed
-sources, then normalize standard-library module boundaries. v0.9.0 remains published and audited
-under [`releases/v0.9.0.md`](releases/v0.9.0.md).
+No implementation phase is active. v0.10.0 Phase 2 completed under
+[`milestones/v0.10.0-phase-2.md`](milestones/v0.10.0-phase-2.md). A release-stabilization phase or
+further feature phase requires a new explicit plan. v0.9.0 remains published and audited under
+[`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
+
+- v0.10.0 Phase 2 adds one source-backed callable identity model for root contracts and focused
+  implementation sources, including canonical receiver, parameter, and literal-capture identities
+- recursive specialization, provenance, retained mutations, buildability, native lowering, and LSP
+  navigation preserve the public contract while using physical body spans for implementation work
+- standard-library public surfaces now live in `std/string`, `std/vec`, `std/io`, and `std/iter`;
+  focused `.nct` sources hold implementations, while `std/io/buffer` and `std/internal/os` remain
+  genuine child modules
+- all 2,370 library tests, all 225 installed-home tests, warnings-denied Clippy, documentation
+  generation, public examples, source corpus, CLI suites, formatting, and diff checks passed
 
 - v0.10.0 Phase 1 replaces file-defined modules with directory-defined modules rooted at
   `index.nct`; `nocter.nct` now contains package documentation and directives only
@@ -175,5 +184,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Complete every v0.10.0 Phase 1 gate without retaining a file-module compatibility path. The
-published v0.9.0 archive and its evidence are immutable.
+Stop at the completed v0.10.0 Phase 2 boundary. Do not begin release qualification or Phase 3
+without a new plan. The published v0.9.0 archive and its evidence are immutable.

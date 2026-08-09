@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/vec_into_iter/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/vec_into_iter/index.nct.">
+    <title>development/std/vec/into_iter.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/vec/into_iter.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/vec_into_iter/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/vec/into_iter/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/vec_into_iter/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/vec_into_iter/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/vec_into_iter/index/">
+    <meta property="og:title" content="development/std/vec/into_iter.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/vec/into_iter.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/vec/into_iter/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-08">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/vec_into_iter/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/vec_into_iter/index.nct.">
+    <meta name="twitter:title" content="development/std/vec/into_iter.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/vec/into_iter.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/vec_into_iter/index.nct - Nocter","description":"Nocter source code for development/std/vec_into_iter/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/vec_into_iter/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Vec_into_iter","item":"https://nocter.dev/development/std/vec_into_iter/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/vec_into_iter/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/vec/into_iter.nct - Nocter","description":"Nocter source code for development/std/vec/into_iter.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/vec/into_iter/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Vec","item":"https://nocter.dev/development/std/vec/"},{"@type":"ListItem","position":5,"name":"Into_iter","item":"https://nocter.dev/development/std/vec/into_iter/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -148,38 +148,22 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/vec_into_iter/index.nct</span>
+                <span class="markdown-path-text">/development/std/vec/into_iter.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning iteration for Vec storage.</span>
+                <h1>into_iter.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning iteration for Vec storage.</span>
 <span class="token-comment">//!</span>
 <span class="token-comment">//! VecIntoIter holds the original allocation and the still-initialized range.</span>
 <span class="token-comment">//! Yielding advances the front before transferring an element. Drop destroys</span>
 <span class="token-comment">//! only the unconsumed suffix in reverse order; RawBuffer then releases storage</span>
 <span class="token-comment">//! exactly once through its allocator provenance.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>drop_value_at_ptr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>from_addr
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>pointee_size
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span>take_value_at_ptr
-
-<span class="token-comment">/// A forward iterator that owns a Vec allocation and its remaining elements.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    ptr<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>
-    storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
-    next_index<span class="token-operator">:</span> <span class="token-type">usize</span>
-    end_index<span class="token-operator">:</span> <span class="token-type">usize</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> vec_into_iter_from_raw_parts<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
+<span class="token-keyword">func</span> vec_into_iter_from_raw_parts<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
     pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span><span class="token-operator">,</span>
     storage<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
-    len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    item_count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> storage_address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> owned_storage_address<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>storage<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
     <span class="token-keyword">let</span> storage_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>len
     <span class="token-keyword">let</span> storage_align<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>align
     <span class="token-keyword">let</span> allocator_state<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> storage<span class="token-operator">.</span>allocator_state
@@ -189,22 +173,22 @@
     <span class="token-keyword">return</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
         ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-function">addr</span><span class="token-operator">(</span>pointer<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
         storage<span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>storage_address<span class="token-operator">)</span><span class="token-operator">,</span>
+            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>owned_storage_address<span class="token-operator">)</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> storage_len<span class="token-operator">,</span>
             align<span class="token-operator">:</span> storage_align<span class="token-operator">,</span>
             allocator_state<span class="token-operator">:</span> allocator_state<span class="token-operator">,</span>
             allocator_kind<span class="token-operator">:</span> allocator_kind<span class="token-operator">,</span>
         <span class="token-operator">}</span><span class="token-operator">,</span>
         next_index<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-        end_index<span class="token-operator">:</span> len<span class="token-operator">,</span>
+        end_index<span class="token-operator">:</span> item_count<span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> remaining<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> remaining<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> iterator<span class="token-operator">.</span>end_index - iterator<span class="token-operator">.</span>next_index
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> next<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> next<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> iterator<span class="token-operator">.</span>next_index <span class="token-operator">&gt;</span><span class="token-operator">=</span> iterator<span class="token-operator">.</span>end_index <span class="token-operator">{</span>
         <span class="token-keyword">return</span> none
     <span class="token-operator">}</span>
@@ -216,7 +200,7 @@
 
 <span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns the number of owned elements not yet yielded.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">remaining</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 

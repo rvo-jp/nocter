@@ -118,14 +118,14 @@ weakening. `ptr()` returns a raw pointer and does not grant dereference permissi
 Trusted standard-library implementation example:
 
 ```nct
-use std/ptr as ptr
-use std/os as os
+use std/ptr.addr
+use std/internal/os.syscall3
 
 let bytes = text.bytes()
-let result = os.syscall3(
+let result = syscall3(
     SYS_write,
     fd as usize,
-    ptr.addr(bytes.ptr()),
+    addr(bytes.ptr()),
     bytes.len(),
 )
 ```
@@ -134,7 +134,7 @@ User project modules must not call syscall primitives directly.
 
 ### Pointer Intrinsics
 
-The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/os.syscall0` under `#target: "arm64-darwin"`.
+The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/internal/os.syscall0` under `#target: "arm64-darwin"`.
 
 The compiler validates them by module path, name, and exact signature:
 

@@ -90,7 +90,7 @@ drop-kind, partial-initialization, scope-mark, and region cleanup machinery as s
 | source loan, item move, and loop state | `typecheck/ownership` consuming the plan |
 | provenance and region constraints | existing provenance/region analyses consuming the plan |
 | iterator, step, branch, and cleanup lowering | `ir/lower/collection_for` |
-| standard interfaces and concrete conformances | `std/iter`, `std/vec`, and `std/vec_into_iter` |
+| standard interfaces and concrete conformances | `std/iter` and `std/vec`, with focused implementation sources |
 | hover, completion, and semantic presentation | `analysis/iteration`; protocol conversion in `driver/lsp` |
 
 New responsibilities use focused modules. Existing exhaustive AST visitors gain collection-for

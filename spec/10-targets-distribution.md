@@ -38,13 +38,13 @@ Rules:
 Current target-specific standard-library boundary:
 
 ```text
-~/.nocter/std/os/index.nct
+~/.nocter/std/internal/os/index.nct
 ```
 
 Future target-specific boundaries should keep stable ordinary modules under `std/` and use `#target: "..."` on target-dependent type, helper, and primitive declarations, such as:
 
 ```text
-~/.nocter/std/os/index.nct
+~/.nocter/std/internal/os/index.nct
 ~/.nocter/std/io/index.nct
 ~/.nocter/std/process/index.nct
 ```
@@ -101,7 +101,7 @@ The installed layout is:
         fmt/index.nct
         io/index.nct
         mem/index.nct
-        os/index.nct
+        internal/os/index.nct
         process/index.nct
         ptr/index.nct
         string/index.nct
@@ -112,7 +112,7 @@ The `host` part in the archive name identifies the environment that runs the `no
 
 The installed Nocter home contains standard-library directory modules under `std/`. Target-dependent type, helper, and primitive declarations in those modules use `#target: "..."`; ordinary public wrapper functions remain normal functions. The public standard-library surface is specified in [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md).
 
-Because cross compilation beyond `arm64-darwin` is not implemented, the default active target is the host target. The `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os/index.nct` contains the `#target: "arm64-darwin"` primitive boundary for that target.
+Because cross compilation beyond `arm64-darwin` is not implemented, the default active target is the host target. The `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/internal/os/index.nct` contains the `#target: "arm64-darwin"` primitive boundary for that target.
 
 ## Release Metadata
 

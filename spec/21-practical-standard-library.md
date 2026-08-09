@@ -53,7 +53,7 @@ collector and validates the complete result as UTF-8 before returning an indepen
 `String`.
 
 `Writer.write_text` is a default adapter from UTF-8 text to the complete-byte `write` contract.
-`BufReader` and `BufWriter` in `std/io_buffer` own their buffering storage and receive these common
+`BufReader` and `BufWriter` in `std/io/buffer` own their buffering storage and receive these common
 operations through static interface dispatch. A buffered writer reports I/O failure only through
 an explicit `flush` or `close`; dropping it discards unflushed bytes because destruction cannot
 return an error. Successful flush clears the buffer only after the underlying write succeeds.

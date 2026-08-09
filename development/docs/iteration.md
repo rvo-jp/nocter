@@ -111,5 +111,6 @@ ordinary non-iterator calls.
   scalar or aggregate drop tracking
 - optional aggregate failure branches mark uninitialized destinations inactive before lowering
   `break`, `return`, and other fallback control flow
-- distributed `std/iter`, `std/vec_into_iter`, `std/vec`, and `std/string` contain the public API;
+- distributed `std/iter`, `std/vec`, and `std/string` contain the public API, with owning iterator
+  bodies in `std/vec/into_iter.nct`;
   compiler and backend code contain no iterator-name dispatch

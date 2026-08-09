@@ -58,7 +58,7 @@ Standard-library error codes use stable dotted names such as `"std.io.not_found"
 define its own prefixes. Public standard-library APIs return `error` through `T!`; target-specific
 raw error records do not cross the public boundary.
 
-`std/os` converts target results through an internal common model:
+`std/internal/os` converts target results through an internal common model:
 
 ```text
 target result -> target raw error -> OSError -> public error

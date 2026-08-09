@@ -85,10 +85,11 @@ nested moved captures and adapter sources receive the same generated cleanup as 
 
 ## Standard Iterator Chain
 
-The `Iterator<T>` interface owns cardinality-independent defaults. `std/iter/core` owns `MapIter`
-and `FilterIter` beside those defaults because Nocter requires inherent implementations to share
-their declaration module and moving them elsewhere would create a module cycle. Existing range,
-take, skip, chain, enumerate, and terminal free-function surfaces remain in focused Phase 9 modules.
+The `Iterator<T>` interface and adapter types have their public declarations in
+`std/iter/index.nct`. `core.nct` supplies `MapIter`, `FilterIter`, range, chain, and enumerate
+implementations in the same directory module; `ops.nct` supplies terminal free-function bodies.
+Source-backed callable contracts preserve one module identity without turning these focused files
+into public child modules.
 
 Exact-size-only defaults live on `ExactSizeIterator<T>`. `map` preserves exact size when its source
 is exact. `filter` never claims exact size. Every adapter owns its source and callback, allocates

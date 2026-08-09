@@ -129,6 +129,51 @@ interface members, public construction or coercion entries, or `pub use`. Implem
 are private parts of the module. This keeps the complete external surface readable in
 `index.nct`.
 
+## Public Callable Contracts and Bodies
+
+A public callable in `index.nct` may omit its body when one explicitly imported source of the same
+module supplies the body:
+
+```nct
+// index.nct
+use ./parse
+
+pub func parse(text: &str): Value!
+
+impl Value {
+    pub method &self.render(): String
+}
+```
+
+```nct
+// parse.nct
+func parse(text: &str): Value! {
+    ...
+}
+
+impl Value {
+    method &self.render(): String {
+        ...
+    }
+}
+```
+
+The body declaration is private and does not define a second callable. The compiler joins it to
+the public contract by directory-module identity, callable kind, owner, name, generic parameters
+and bounds, receiver, parameter names and types, result type, and authored `from` clause. These
+parts must have identical canonical source notation. Missing, mismatched, and duplicate bodies are
+errors independent of source traversal order.
+
+This rule applies to top-level and associated functions, inherent methods, construction functions,
+typed literals, and coercion entries. A construction implementation does not repeat `default`.
+Interface requirements and interface implementation methods keep their conformance model;
+interface default methods remain inline, and `drop` always has an inline body.
+
+Calls, imports, hover, completion, signature help, definition, and public diagnostics use the
+contract in `index.nct`. Body checking and body diagnostics retain the implementation source.
+Definition navigation selects the contract; implementation navigation selects the body. References
+and rename treat both declarations and all uses as one semantic callable.
+
 ## Re-exports
 
 A public re-export can expose a child module namespace or selected public names:

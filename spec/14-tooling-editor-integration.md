@@ -66,7 +66,7 @@ Examples:
 
 Internal canonical identities may contain package/module qualification. User presentation chooses
 the shortest unambiguous visible spelling and must not leak storage paths such as
-`std/iter/core.Type` into ordinary signatures.
+`std/iter.Type` into ordinary signatures.
 
 ## Semantic Tokens
 

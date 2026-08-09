@@ -107,7 +107,7 @@ can reject local or region escapes without incorrectly making scratch inputs par
 fallible signature.
 
 v0.9.0 Phase 2 adds one typed borrowed-projection role for validated string subviews. The exact
-restricted declaration in `std/string_views` records its source parameter by resolved index.
+restricted declaration in `std/string` records its source parameter by resolved index.
 Expression provenance substitutes the call argument's existing shaped provenance directly. It
 does not inspect pointer values, search for the primitive spelling, or manufacture a static origin.
 Allocation analysis classifies the projection as allocation-free.

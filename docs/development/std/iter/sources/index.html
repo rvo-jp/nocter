@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/string_search/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/string_search/index.nct.">
+    <title>development/std/iter/sources.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/iter/sources.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/string_search/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/iter/sources/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/string_search/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/string_search/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/string_search/index/">
+    <meta property="og:title" content="development/std/iter/sources.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/iter/sources.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/iter/sources/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-08">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/string_search/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/string_search/index.nct.">
+    <meta name="twitter:title" content="development/std/iter/sources.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/iter/sources.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/string_search/index.nct - Nocter","description":"Nocter source code for development/std/string_search/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/string_search/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"String_search","item":"https://nocter.dev/development/std/string_search/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/string_search/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/iter/sources.nct - Nocter","description":"Nocter source code for development/std/iter/sources.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/iter/sources/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Iter","item":"https://nocter.dev/development/std/iter/"},{"@type":"ListItem","position":5,"name":"Sources","item":"https://nocter.dev/development/std/iter/sources/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -148,38 +148,61 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/string_search/index.nct</span>
+                <span class="markdown-path-text">/development/std/iter/sources.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Shared allocation-free byte search for UTF-8 string modules.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Matching operates on bytes, but every successful match of a non-empty,</span>
-<span class="token-comment">//! well-formed UTF-8 needle begins at a UTF-8 boundary in the haystack.</span>
+                <h1>sources.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Zero- and one-element owning iterators.</span>
 
-<span class="token-comment">/// Returns the first byte offset of `needle` at or after `start`.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">find_from_bytes</span><span class="token-operator">(</span>
-    text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> start <span class="token-operator">&gt;</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> none <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> start <span class="token-operator">}</span>
-    <span class="token-keyword">var</span> candidate<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> start
-    while candidate <span class="token-operator">+</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span><span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">var</span> matched<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">var</span> equal<span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">=</span> true
-        while matched <span class="token-operator">&lt;</span> needle<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> actual<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> text<span class="token-operator">[</span>candidate <span class="token-operator">+</span> matched<span class="token-operator">]</span>
-            <span class="token-keyword">let</span> expected<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> needle<span class="token-operator">[</span>matched<span class="token-operator">]</span>
-            <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-                equal <span class="token-operator">=</span> false
-            <span class="token-operator">}</span>
-            matched <span class="token-operator">=</span> matched <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> equal <span class="token-operator">{</span> <span class="token-keyword">return</span> candidate <span class="token-operator">}</span>
-        candidate <span class="token-operator">=</span> candidate <span class="token-operator">+</span> <span class="token-number">1</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_ref_mut<span class="token-operator">,</span> store_value_to_ptr<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
+
+<span class="token-comment">/// Constructs an empty iterator.</span>
+<span class="token-keyword">func</span> empty<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span> exhausted<span class="token-operator">:</span> true <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ExactSizeIterator</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns zero because no item can be yielded.</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> none
+<span class="token-operator">}</span>
+
+<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Iterator</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">EmptyIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns `none` for every call.</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> none
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Constructs an iterator that yields `item` once.</span>
+<span class="token-keyword">func</span> once<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>item<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+        item<span class="token-operator">:</span> <span class="token-keyword">move</span> item<span class="token-operator">,</span>
+        remaining<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ExactSizeIterator</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns one while the item remains and zero after it is yielded.</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>remaining
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Iterator</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">OnceIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Transfers the owned item once, then returns `none`.</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> self<span class="token-operator">.</span>remaining <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> none
+        <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> empty_value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">=</span> none
+        <span class="token-keyword">let</span> pointer <span class="token-operator">=</span> <span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>item<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> previous<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
+        <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-keyword">move</span> empty_value<span class="token-operator">)</span>
+        self<span class="token-operator">.</span>remaining <span class="token-operator">=</span> <span class="token-number">0</span>
+        <span class="token-keyword">let</span> item <span class="token-operator">=</span> previous<span class="token-operator">?</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> item
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>
