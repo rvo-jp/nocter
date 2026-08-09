@@ -4,10 +4,11 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The current milestone record is [v0.11.0](v0.11.0.md). Its planned Phase 0 introduces an intrinsic
-`copy` generic requirement and callable requirement clauses through one resolved requirement model,
-then migrates standard-library copying contracts such as `Vec.from_slice` away from
-implementation-only rejection.
+The current milestone record is [v0.11.0](v0.11.0.md). Phase 0 completed intrinsic `copy` generic
+requirements, callable requirement clauses, and standard-library copy-contract migration. Phase 1
+completed required interface associated types, exact conformance bindings, semantic projections,
+and compiler-backed editor integration. A later phase must design associated-type equality before
+migrating the iterator interfaces.
 
 [v0.10.0](v0.10.0.md) is complete and historical. Phase 0 completed native value capabilities,
 Phase 1 completed directory modules and explicit source composition, Phase 2 completed
