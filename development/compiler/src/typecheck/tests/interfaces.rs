@@ -51,11 +51,29 @@ copy struct Numbers {
     value: i32
 }
 
+copy struct Box<T> {
+    value: T
+}
+
 impl Source for Numbers {
     type Item = i32
 }
 
+impl<T> Source for Box<T> {
+    type Item = T
+}
+
+type NumberAlias = Numbers
+
 func concrete(value: Numbers.Item): i32 {
+    return value
+}
+
+func concrete_generic(value: Box<i32>.Item): i32 {
+    return value
+}
+
+func aliased(value: NumberAlias.Item): i32 {
     return value
 }
 
@@ -65,7 +83,7 @@ func nested<S>(value: Pair<S.Item>): Pair<S.Item> where S: Source {
 
 func main(): i32 {
     let pair = Pair<i32> { first: 20, second: 22 }
-    return concrete(pair.first + pair.second)
+    return concrete(pair.first) + concrete_generic(aliased(pair.second))
 }
 "#,
     );
