@@ -7,12 +7,13 @@ use super::diagnostics::{
     copy_requirement_not_satisfied_diagnostic, field_called_as_method_diagnostic,
     generic_bound_not_satisfied_diagnostic, method_readwrite_receiver_requires_var_diagnostic,
     method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
+    type_equality_not_satisfied_diagnostic,
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
     implemented_interface_types, interface_symbol_for_bound,
-    interface_symbols_for_generic_parameter, type_satisfies_interface_bound,
-    type_symbol_substitutions,
+    interface_symbols_for_constrained_type, interface_symbols_for_generic_parameter,
+    type_satisfies_interface_bound, type_symbol_substitutions,
 };
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
@@ -227,10 +228,9 @@ pub(super) fn resolved_method_call<'a>(
     let receiver_type = expression_type(&member.object, resolved, environment);
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
     match &self_type {
-        Type::Parameter(parameter) => {
+        Type::Parameter(_) | Type::Projection { .. } => {
             let mut candidates =
-                bounded_method_candidates(parameter, &self_type, member, environment, resolved)
-                    .into_iter();
+                bounded_method_candidates(&self_type, member, environment, resolved).into_iter();
             let (owner, method) = candidates.next()?;
             candidates.next().is_none().then_some(ResolvedMethodCall {
                 owner,
@@ -671,6 +671,41 @@ fn check_generic_interface_bounds(
             ));
         }
     }
+
+    let Some(clause) = signature.signature.where_clause.as_ref() else {
+        return;
+    };
+    let specialized_self_type = signature
+        .self_type
+        .as_ref()
+        .map(|ty| ty.substitute_parameters(substitutions));
+    for equality in clause.equalities() {
+        let left = type_expr_to_type_with_substitutions(
+            &equality.left,
+            resolved,
+            specialized_self_type.as_ref(),
+            substitutions,
+        );
+        let right = type_expr_to_type_with_substitutions(
+            &equality.right,
+            resolved,
+            specialized_self_type.as_ref(),
+            substitutions,
+        );
+        if left.is_unknown_or_unresolved()
+            || right.is_unknown_or_unresolved()
+            || environment.types_equal(&left, &right)
+        {
+            continue;
+        }
+        diagnostics.push(type_equality_not_satisfied_diagnostic(
+            sources,
+            call.span,
+            &left,
+            &right,
+            equality.span,
+        ));
+    }
 }
 
 fn type_satisfies_bound_in_environment(
@@ -841,9 +876,8 @@ pub(super) fn check_unresolved_member_call(
     }
 
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
-    if let Type::Parameter(parameter) = &self_type {
-        let candidates =
-            bounded_method_candidates(parameter, &self_type, member, environment, resolved);
+    if matches!(self_type, Type::Parameter(_) | Type::Projection { .. }) {
+        let candidates = bounded_method_candidates(&self_type, member, environment, resolved);
         if candidates.len() > 1 {
             diagnostics.push(ambiguous_generic_bound_method_diagnostic(
                 sources,
@@ -958,13 +992,12 @@ fn receiver_coercion_ambiguity_diagnostic(
 }
 
 fn bounded_method_candidates<'a>(
-    parameter: &str,
     self_type: &Type,
     member: &MemberExpr,
     environment: &TypeEnvironment,
     resolved: &'a ResolveOutput,
 ) -> Vec<(&'a TypeSymbol, &'a MethodSignature)> {
-    interface_symbols_for_generic_parameter(parameter, environment, resolved)
+    interface_symbols_for_constrained_type(self_type, environment, resolved)
         .into_iter()
         .filter_map(|(owner, _)| {
             owner

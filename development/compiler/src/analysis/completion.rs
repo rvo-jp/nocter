@@ -129,11 +129,11 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                     && offset <= parameter.span.end
             })
     }
-    fn clause(clause: Option<&crate::ast::CallableRequirementClause>, offset: usize) -> bool {
+    fn clause(clause: Option<&crate::ast::WhereClause>, offset: usize) -> bool {
         clause.is_some_and(|clause| {
             clause.span.start <= offset
                 && offset <= clause.span.end
-                && !clause.requirements.iter().any(|requirement| {
+                && !clause.generic_requirements().any(|requirement| {
                     requirement.copy_span.is_some()
                         && requirement.span.start <= offset
                         && offset <= requirement.span.end
@@ -162,6 +162,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
         }
         Item::Impl(impl_) => {
             generics(&impl_.generics, offset)
+                || clause(impl_.requirements.as_ref(), offset)
                 || impl_.members.iter().any(
                     |member| matches!(member, ImplMember::Method(member) if method(member, offset)),
                 )

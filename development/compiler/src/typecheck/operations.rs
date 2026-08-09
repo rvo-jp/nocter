@@ -257,7 +257,28 @@ pub(super) fn check_otherwise_expression(
 }
 
 pub(super) fn is_assignable(expected: &Type, actual: &Type) -> bool {
+    is_assignable_with(expected, actual, &|left, right| left == right)
+}
+
+pub(super) fn is_assignable_in_environment(
+    expected: &Type,
+    actual: &Type,
+    environment: &TypeEnvironment,
+) -> bool {
+    is_assignable_with(expected, actual, &|left, right| {
+        environment.types_equal(left, right)
+    })
+}
+
+fn is_assignable_with(
+    expected: &Type,
+    actual: &Type,
+    types_equal: &impl Fn(&Type, &Type) -> bool,
+) -> bool {
     if actual == &Type::Never {
+        return true;
+    }
+    if types_equal(expected, actual) {
         return true;
     }
 
@@ -270,10 +291,10 @@ pub(super) fn is_assignable(expected: &Type, actual: &Type) -> bool {
         }
         (Type::Optional(_), Type::None) => true,
         (Type::Optional(expected_inner), Type::Optional(actual_inner)) => {
-            is_assignable(expected_inner, actual_inner)
+            is_assignable_with(expected_inner, actual_inner, types_equal)
         }
-        (Type::Optional(inner), actual) => is_assignable(inner, actual),
-        _ => expected == actual,
+        (Type::Optional(inner), actual) => is_assignable_with(inner, actual, types_equal),
+        _ => false,
     }
 }
 
@@ -295,17 +316,17 @@ pub(super) fn is_expression_assignable(
                 resolved,
                 environment,
             );
-            is_assignable(expected, &actual)
+            is_assignable_in_environment(expected, &actual, environment)
         }
         (Type::Optional(_), Expr::NoneLiteral(_)) => true,
         (Type::Optional(inner), _) => {
             let actual = expression_type(expression, resolved, environment);
-            is_assignable(expected, &actual)
+            is_assignable_in_environment(expected, &actual, environment)
                 || is_expression_assignable(inner, expression, resolved, environment)
         }
         (Type::Fallible { success, .. }, _) => {
             let actual = expression_type(expression, resolved, environment);
-            is_assignable(expected, &actual)
+            is_assignable_in_environment(expected, &actual, environment)
                 || is_expression_assignable(success, expression, resolved, environment)
         }
         (_, Expr::IntegerLiteral(literal)) if is_integer_type(expected) => {
@@ -344,7 +365,7 @@ pub(super) fn is_expression_assignable(
             enum_variant_expression_is_assignable(expected, expression, resolved, environment)
                 .unwrap_or_else(|| {
                     let actual = expression_type(expression, resolved, environment);
-                    is_assignable(expected, &actual)
+                    is_assignable_in_environment(expected, &actual, environment)
                         || super::conversions::select_expression_conversion(
                             super::conversions::ConversionMode::Contextual,
                             expected,
@@ -429,7 +450,7 @@ pub(super) fn block_result_is_assignable(
     }
 
     let actual = block_result_type(block, resolved, &result_environment);
-    actual == Type::Never || is_assignable(expected, &actual)
+    actual == Type::Never || is_assignable_in_environment(expected, &actual, &result_environment)
 }
 
 fn generic_call_return_is_assignable(
@@ -479,7 +500,7 @@ fn generic_call_return_is_assignable(
         specialized_self_type.as_ref(),
         &substitutions,
     );
-    is_assignable(expected, &actual)
+    is_assignable_in_environment(expected, &actual, environment)
 }
 
 pub(super) fn is_bool_type(ty: &Type) -> bool {

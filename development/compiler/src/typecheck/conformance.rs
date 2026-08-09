@@ -125,6 +125,27 @@ fn specialize_conformance(
         }
     }
 
+    if let Some(clause) = &conformance.where_clause {
+        for equality in clause.equalities() {
+            let left = type_expr_to_type_with_substitutions(
+                &equality.left,
+                resolved,
+                Some(actual),
+                &substitutions,
+            );
+            let right = type_expr_to_type_with_substitutions(
+                &equality.right,
+                resolved,
+                Some(actual),
+                &substitutions,
+            );
+            if left.is_unknown_or_unresolved() || right.is_unknown_or_unresolved() || left != right
+            {
+                return None;
+            }
+        }
+    }
+
     let interface = type_expr_to_type_with_substitutions(
         &conformance.interface_ty,
         resolved,

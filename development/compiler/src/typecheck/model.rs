@@ -356,6 +356,7 @@ pub(super) struct TypeEnvironment {
     self_type: Option<Type>,
     generic_parameters: HashSet<String>,
     generic_requirements: HashMap<String, crate::resolve::GenericRequirements>,
+    type_equalities: Vec<(Type, Type)>,
 }
 
 impl TypeEnvironment {
@@ -366,6 +367,7 @@ impl TypeEnvironment {
             self_type: Some(self_type),
             generic_parameters: HashSet::new(),
             generic_requirements: HashMap::new(),
+            type_equalities: Vec::new(),
         }
     }
 
@@ -379,6 +381,7 @@ impl TypeEnvironment {
             self_type: self.self_type.clone(),
             generic_parameters: self.generic_parameters.clone(),
             generic_requirements: self.generic_requirements.clone(),
+            type_equalities: self.type_equalities.clone(),
         }
     }
 
@@ -427,14 +430,15 @@ impl TypeEnvironment {
         }
     }
 
-    pub(super) fn apply_callable_requirements(
+    pub(super) fn apply_where_clause(
         &mut self,
-        clause: Option<&crate::ast::CallableRequirementClause>,
+        clause: Option<&crate::ast::WhereClause>,
+        resolved: &crate::resolve::ResolveOutput,
     ) {
         let Some(clause) = clause else {
             return;
         };
-        for authored in &clause.requirements {
+        for authored in clause.generic_requirements() {
             if !self.generic_parameters.contains(&authored.name) {
                 continue;
             }
@@ -450,6 +454,13 @@ impl TypeEnvironment {
                     bound.clone(),
                 ));
             }
+        }
+        for equality in clause.equalities() {
+            let left =
+                super::type_expr::type_expr_to_type_in_environment(&equality.left, resolved, self);
+            let right =
+                super::type_expr::type_expr_to_type_in_environment(&equality.right, resolved, self);
+            self.type_equalities.push((left, right));
         }
     }
 
@@ -474,12 +485,132 @@ impl TypeEnvironment {
         self.self_type.as_ref()
     }
 
+    pub(super) fn types_equal(&self, left: &Type, right: &Type) -> bool {
+        types_equal_with_relations(left, right, &self.type_equalities, &mut Vec::new())
+    }
+
     pub(super) fn generic_parameter_substitutions(&self) -> HashMap<String, Type> {
         self.generic_parameters
             .iter()
             .map(|name| (name.clone(), Type::Parameter(name.clone())))
             .collect()
     }
+}
+
+fn types_equal_with_relations(
+    left: &Type,
+    right: &Type,
+    relations: &[(Type, Type)],
+    active: &mut Vec<(Type, Type)>,
+) -> bool {
+    if left == right || relation_connects(left, right, relations) {
+        return true;
+    }
+    if active
+        .iter()
+        .any(|(active_left, active_right)| active_left == left && active_right == right)
+    {
+        return false;
+    }
+    active.push((left.clone(), right.clone()));
+    let equal = match (left, right) {
+        (Type::ArrayData { element: left }, Type::ArrayData { element: right })
+        | (Type::Pointer(left), Type::Pointer(right))
+        | (Type::Optional(left), Type::Optional(right)) => {
+            types_equal_with_relations(left, right, relations, active)
+        }
+        (
+            Type::View {
+                is_readwrite: left_mode,
+                element: left,
+            },
+            Type::View {
+                is_readwrite: right_mode,
+                element: right,
+            },
+        ) => left_mode == right_mode && types_equal_with_relations(left, right, relations, active),
+        (
+            Type::Borrow {
+                is_readwrite: left_mode,
+                inner: left,
+            },
+            Type::Borrow {
+                is_readwrite: right_mode,
+                inner: right,
+            },
+        ) => left_mode == right_mode && types_equal_with_relations(left, right, relations, active),
+        (
+            Type::Array {
+                element: left,
+                length: left_length,
+            },
+            Type::Array {
+                element: right,
+                length: right_length,
+            },
+        ) => {
+            left_length == right_length
+                && types_equal_with_relations(left, right, relations, active)
+        }
+        (
+            Type::Fallible {
+                success: left_success,
+                error: left_error,
+            },
+            Type::Fallible {
+                success: right_success,
+                error: right_error,
+            },
+        ) => {
+            types_equal_with_relations(left_success, right_success, relations, active)
+                && types_equal_with_relations(left_error, right_error, relations, active)
+        }
+        (
+            Type::Generic {
+                name: left_name,
+                arguments: left_arguments,
+            },
+            Type::Generic {
+                name: right_name,
+                arguments: right_arguments,
+            },
+        ) => {
+            left_name == right_name
+                && left_arguments.len() == right_arguments.len()
+                && left_arguments
+                    .iter()
+                    .zip(right_arguments)
+                    .all(|(left, right)| types_equal_with_relations(left, right, relations, active))
+        }
+        _ => false,
+    };
+    active.pop();
+    equal
+}
+
+fn relation_connects(left: &Type, right: &Type, relations: &[(Type, Type)]) -> bool {
+    let mut reached = vec![left.clone()];
+    let mut cursor = 0;
+    while cursor < reached.len() {
+        let current = reached[cursor].clone();
+        if &current == right {
+            return true;
+        }
+        for (relation_left, relation_right) in relations {
+            let next = if relation_left == &current {
+                relation_right
+            } else if relation_right == &current {
+                relation_left
+            } else {
+                continue;
+            };
+            if !reached.contains(next) {
+                reached.push(next.clone());
+            }
+        }
+        cursor += 1;
+    }
+    false
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

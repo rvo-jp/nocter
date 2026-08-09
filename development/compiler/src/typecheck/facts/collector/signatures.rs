@@ -40,13 +40,13 @@ impl TypecheckFactCollector<'_> {
                     );
                 }
                 self.collect_generic_param_type_references(&function.generics);
-                self.collect_callable_requirement_type_references(function.requirements.as_ref());
+                self.collect_where_clause_type_references(function.requirements.as_ref());
                 self.collect_parameter_type_references(&function.parameters.parameters);
                 self.collect_type_expr_references(&function.return_type);
             }
             Item::Primitive(primitive) => {
                 self.collect_generic_param_type_references(&primitive.generics);
-                self.collect_callable_requirement_type_references(primitive.requirements.as_ref());
+                self.collect_where_clause_type_references(primitive.requirements.as_ref());
                 self.collect_parameter_type_references(&primitive.parameters.parameters);
                 self.collect_type_expr_references(&primitive.return_type);
             }
@@ -68,6 +68,11 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Interface(interface) => {
                 self.collect_generic_param_type_references(&interface.generics);
+                for associated in &interface.associated_types {
+                    for bound in &associated.bounds {
+                        self.collect_type_expr_references(bound);
+                    }
+                }
                 self.with_associated_type_scope(
                     interface
                         .associated_types
@@ -88,6 +93,7 @@ impl TypecheckFactCollector<'_> {
                     self.collect_type_expr_references(interface_ty);
                 }
                 self.collect_type_expr_references(&impl_.target_ty);
+                self.collect_where_clause_type_references(impl_.requirements.as_ref());
                 let associated_types = impl_
                     .interface_ty
                     .as_ref()
@@ -139,18 +145,15 @@ impl TypecheckFactCollector<'_> {
                 for (_, function) in construct.functions() {
                     self.with_generic_scope(&function.generics, |collector| {
                         collector.collect_generic_param_type_references(&function.generics);
-                        collector.collect_callable_requirement_type_references(
-                            function.requirements.as_ref(),
-                        );
+                        collector
+                            .collect_where_clause_type_references(function.requirements.as_ref());
                         collector
                             .collect_parameter_type_references(&function.parameters.parameters);
                         collector.collect_type_expr_references(&function.return_type);
                     });
                 }
                 for (_, literal) in construct.literals() {
-                    self.collect_callable_requirement_type_references(
-                        literal.requirements.as_ref(),
-                    );
+                    self.collect_where_clause_type_references(literal.requirements.as_ref());
                     self.collect_parameter_type_references(&literal.parameters.parameters);
                     if let Some(capture) = &literal.capture {
                         self.collect_type_expr_references(&capture.element_type);
@@ -173,16 +176,16 @@ impl TypecheckFactCollector<'_> {
         method: &MethodDecl,
     ) {
         self.collect_generic_param_type_references(&method.generics);
-        self.collect_callable_requirement_type_references(method.requirements.as_ref());
+        self.collect_where_clause_type_references(method.requirements.as_ref());
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
     }
 
-    fn collect_callable_requirement_type_references(
-        &mut self,
-        clause: Option<&crate::ast::CallableRequirementClause>,
-    ) {
-        for requirement in clause.into_iter().flat_map(|clause| &clause.requirements) {
+    fn collect_where_clause_type_references(&mut self, clause: Option<&crate::ast::WhereClause>) {
+        let Some(clause) = clause else {
+            return;
+        };
+        for requirement in clause.generic_requirements() {
             if let Some(declaration) = self.generic_parameter_declaration(&requirement.name)
                 && let Some(parameter) = self
                     .facts
@@ -207,6 +210,10 @@ impl TypecheckFactCollector<'_> {
             for bound in &requirement.bounds {
                 self.collect_type_expr_references(bound);
             }
+        }
+        for equality in clause.equalities() {
+            self.collect_type_expr_references(&equality.left);
+            self.collect_type_expr_references(&equality.right);
         }
     }
 

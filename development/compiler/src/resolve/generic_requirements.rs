@@ -5,7 +5,7 @@
 //! from arbitrary type syntax. Nominal requirements remain subject to interface validation during
 //! type checking; preserving that invalid form lets diagnostics point at the authored bound.
 
-use crate::ast::{CallableRequirementClause, GenericParam, TypeExpr};
+use crate::ast::{GenericParam, TypeExpr, WhereClause};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,15 +77,11 @@ impl GenericRequirements {
         Self { requirements }
     }
 
-    pub fn extend_from_clause(
-        &mut self,
-        parameter: &str,
-        clause: Option<&CallableRequirementClause>,
-    ) {
+    pub fn extend_from_clause(&mut self, parameter: &str, clause: Option<&WhereClause>) {
         let Some(clause) = clause else {
             return;
         };
-        for authored in &clause.requirements {
+        for authored in clause.generic_requirements() {
             if authored.name != parameter {
                 continue;
             }

@@ -150,7 +150,7 @@ fn callable(
     parameters: &[Parameter],
     return_type: &crate::ast::TypeExpr,
     result_provenance: Option<&crate::ast::ResultProvenanceClause>,
-    requirements: Option<&crate::ast::CallableRequirementClause>,
+    requirements: Option<&crate::ast::WhereClause>,
 ) -> String {
     CallablePresentation::new(
         kind,
@@ -161,23 +161,30 @@ fn callable(
         super::result_origin_labels(result_provenance),
         requirements
             .into_iter()
-            .flat_map(|clause| &clause.requirements)
-            .map(|requirement| {
-                let copy = if requirement.copy_span.is_some() {
-                    "copy "
-                } else {
-                    ""
-                };
-                let bounds = requirement
-                    .bounds
-                    .iter()
-                    .map(crate::ast::canonical_type_expr)
-                    .collect::<Vec<_>>();
-                if bounds.is_empty() {
-                    format!("{copy}{}", requirement.name)
-                } else {
-                    format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
+            .flat_map(|clause| &clause.predicates)
+            .map(|predicate| match predicate {
+                crate::ast::WherePredicate::Generic(requirement) => {
+                    let copy = if requirement.copy_span.is_some() {
+                        "copy "
+                    } else {
+                        ""
+                    };
+                    let bounds = requirement
+                        .bounds
+                        .iter()
+                        .map(crate::ast::canonical_type_expr)
+                        .collect::<Vec<_>>();
+                    if bounds.is_empty() {
+                        format!("{copy}{}", requirement.name)
+                    } else {
+                        format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
+                    }
                 }
+                crate::ast::WherePredicate::Equality(equality) => format!(
+                    "{} = {}",
+                    crate::ast::canonical_type_expr(&equality.left),
+                    crate::ast::canonical_type_expr(&equality.right)
+                ),
             })
             .collect(),
     )

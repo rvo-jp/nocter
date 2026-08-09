@@ -265,10 +265,10 @@ pub(super) fn compatible_block_result_type_with_environments(
     if else_type.is_unknown_or_unresolved() {
         return then_type;
     }
-    if super::operations::is_assignable(&then_type, &else_type) {
+    if super::operations::is_assignable_in_environment(&then_type, &else_type, then_environment) {
         return then_type;
     }
-    if super::operations::is_assignable(&else_type, &then_type) {
+    if super::operations::is_assignable_in_environment(&else_type, &then_type, else_environment) {
         return else_type;
     }
 

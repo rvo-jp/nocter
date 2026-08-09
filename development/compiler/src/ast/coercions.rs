@@ -33,6 +33,7 @@ impl CoerceDecl {
             generics: self.generics.clone(),
             interface_ty: None,
             target_ty: self.target.clone(),
+            requirements: None,
             members: self
                 .entries
                 .iter()

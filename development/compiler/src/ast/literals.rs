@@ -1,6 +1,6 @@
 use super::{
-    Block, CallableRequirementClause, Expr, LiteralExpr, ParameterList, ResultProvenanceClause,
-    TypeExpr, Visibility,
+    Block, Expr, LiteralExpr, ParameterList, ResultProvenanceClause, TypeExpr, Visibility,
+    WhereClause,
 };
 use crate::source::ByteSpan;
 
@@ -22,7 +22,7 @@ pub struct LiteralDecl {
     pub capture: Option<LiteralCapture>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub requirements: Option<CallableRequirementClause>,
+    pub requirements: Option<WhereClause>,
     pub body: Option<Block>,
 }
 

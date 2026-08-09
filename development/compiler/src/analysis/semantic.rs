@@ -408,13 +408,12 @@ fn collect_item_generic_requirement_keyword_spans(
                 .filter_map(|parameter| parameter.copy_span),
         );
     }
-    fn clause(clause: Option<&crate::ast::CallableRequirementClause>, spans: &mut Vec<ByteSpan>) {
+    fn clause(clause: Option<&crate::ast::WhereClause>, spans: &mut Vec<ByteSpan>) {
         if let Some(clause) = clause {
             spans.push(clause.keyword_span);
             spans.extend(
                 clause
-                    .requirements
-                    .iter()
+                    .generic_requirements()
                     .filter_map(|requirement| requirement.copy_span),
             );
         }
@@ -443,6 +442,7 @@ fn collect_item_generic_requirement_keyword_spans(
         }
         crate::ast::Item::Impl(impl_) => {
             generics(&impl_.generics, spans);
+            clause(impl_.requirements.as_ref(), spans);
             for member in &impl_.members {
                 if let crate::ast::ImplMember::Method(member) = member {
                     method(member, spans);

@@ -140,7 +140,7 @@ pub struct FunctionDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub requirements: Option<CallableRequirementClause>,
+    pub requirements: Option<WhereClause>,
     pub body: Option<Block>,
 }
 
@@ -162,7 +162,7 @@ pub struct PrimitiveDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub requirements: Option<CallableRequirementClause>,
+    pub requirements: Option<WhereClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,6 +240,7 @@ pub struct AssociatedTypeDecl {
     pub span: ByteSpan,
     pub name: String,
     pub name_span: ByteSpan,
+    pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,6 +249,7 @@ pub struct ImplDecl {
     pub generics: GenericParamList,
     pub interface_ty: Option<TypeExpr>,
     pub target_ty: TypeExpr,
+    pub requirements: Option<WhereClause>,
     pub members: Vec<ImplMember>,
 }
 
@@ -286,7 +288,7 @@ pub struct MethodDecl {
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
-    pub requirements: Option<CallableRequirementClause>,
+    pub requirements: Option<WhereClause>,
     pub body: Option<Block>,
 }
 

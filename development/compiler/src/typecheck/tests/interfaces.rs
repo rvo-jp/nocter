@@ -171,6 +171,149 @@ func main(): void {
 }
 
 #[test]
+fn associated_type_bounds_enable_projected_method_calls() {
+    let diagnostics = check_text(
+        r#"interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
+}
+
+interface Iterable {
+    pub type Iter: Iterator
+    pub method &self.iter(): Self.Iter
+}
+
+func first<S: Iterable>(source: &S): S.Iter.Item? {
+    var iterator = source.iter()
+    return iterator.next()
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_an_associated_binding_that_violates_its_bound() {
+    let diagnostics = check_text(
+        r#"interface Iterator {
+    pub type Item
+}
+
+interface Iterable {
+    pub type Iter: Iterator
+    pub method &self.iter(): Self.Iter
+}
+
+copy struct Bad {
+    value: i32
+}
+
+impl Iterable for Bad {
+    type Iter = i32
+
+    method &self.iter(): i32 {
+        return self.value
+    }
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0468"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn where_equality_makes_projected_types_interchangeable() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+}
+
+func align<L: Source, R: Source>(value: R.Item): L.Item where R.Item = L.Item {
+    return value
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn rejects_where_equality_without_an_associated_projection() {
+    let diagnostics = check_text(
+        r#"func invalid<T, U>(value: T): U where T = U {
+    return value
+}
+
+func main(): void {
+    return
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0466"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn rejects_call_whose_associated_types_violate_where_equality() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+}
+
+copy struct Integers { marker: i32 }
+copy struct Flags { marker: i32 }
+
+impl Source for Integers {
+    type Item = i32
+}
+
+impl Source for Flags {
+    type Item = bool
+}
+
+func pair<L: Source, R: Source>(left: L, right: R): void where R.Item = L.Item {
+    return
+}
+
+func main(): void {
+    pair(Integers { marker: 0 }, Flags { marker: 0 })
+    return
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0469"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn accepts_interface_default_without_inherent_implementation() {
     let diagnostics = check_text(
         r#"interface Value {

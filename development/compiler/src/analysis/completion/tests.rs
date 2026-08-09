@@ -1304,7 +1304,7 @@ func project<S: Source>(source: S): S. {
 }
 
 #[test]
-fn completion_uses_callable_requirements_for_associated_types() {
+fn completion_uses_where_clause_for_associated_types() {
     let text = r#"interface Source {
     pub type Item
 }
@@ -1316,7 +1316,7 @@ func project<S>(source: S): S. where S: Source {
     let offset = text.find("S. where").unwrap() + "S.".len();
 
     let items = completion_items_for_text_at_offset(text, offset)
-        .expect("expected associated type completion from callable requirement");
+        .expect("expected associated type completion from where clause");
 
     assert_eq!(
         items

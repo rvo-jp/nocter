@@ -162,6 +162,9 @@ fn qualify_type_symbol(
                 }
             }
         }
+        if let Some(clause) = &mut conformance.where_clause {
+            qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
+        }
         for binding in &mut conformance.associated_types {
             qualify_type_expr(
                 &mut binding.value,
@@ -185,6 +188,13 @@ fn qualify_type_symbol(
                 local_type_names,
                 imported_type_names,
             );
+        }
+    }
+    for associated in &mut symbol.associated_types {
+        for requirement in associated.requirements.iter_mut() {
+            if let Some(bound) = requirement.type_expr_mut() {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
         }
     }
     for literal in &mut symbol.literals {
@@ -264,12 +274,8 @@ fn qualify_function_signature(
             }
         }
     }
-    if let Some(clause) = &mut signature.callable_requirements {
-        for requirement in &mut clause.requirements {
-            for bound in &mut requirement.bounds {
-                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
-            }
-        }
+    if let Some(clause) = &mut signature.where_clause {
+        qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
     }
     for parameter in &mut signature.parameters {
         qualify_parameter_signature(
@@ -285,6 +291,37 @@ fn qualify_function_signature(
         local_type_names,
         imported_type_names,
     );
+}
+
+fn qualify_where_clause(
+    clause: &mut crate::ast::WhereClause,
+    import_path: &str,
+    local_type_names: &[String],
+    imported_type_names: &[ImportedTypeName],
+) {
+    for predicate in &mut clause.predicates {
+        match predicate {
+            crate::ast::WherePredicate::Generic(requirement) => {
+                for bound in &mut requirement.bounds {
+                    qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+                }
+            }
+            crate::ast::WherePredicate::Equality(equality) => {
+                qualify_type_expr(
+                    &mut equality.left,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+                qualify_type_expr(
+                    &mut equality.right,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+        }
+    }
 }
 
 fn qualify_parameter_signature(

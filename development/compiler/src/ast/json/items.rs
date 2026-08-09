@@ -137,7 +137,14 @@ impl Item {
                         "associated_type_decl",
                         associated_type.name.clone(),
                         json_span(sources, associated_type.span),
-                        vec![visibility_json(Visibility::Public)],
+                        std::iter::once(visibility_json(Visibility::Public))
+                            .chain(
+                                associated_type
+                                    .bounds
+                                    .iter()
+                                    .map(|bound| bound.to_json(sources)),
+                            )
+                            .collect(),
                     )
                 }));
                 children.extend(item.methods.iter().map(|method| method.to_json(sources)));
@@ -162,6 +169,9 @@ impl Item {
                     json_span(sources, item.target_ty.span()),
                     vec![item.target_ty.to_json(sources)],
                 ));
+                if let Some(clause) = &item.requirements {
+                    children.push(clause.to_json(sources));
+                }
                 children.extend(item.members.iter().map(|member| member.to_json(sources)));
                 JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
             }
@@ -391,35 +401,45 @@ impl GenericParam {
     }
 }
 
-impl CallableRequirementClause {
+impl WhereClause {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::new(
-            "callable_requirement_clause",
+            "where_clause",
             json_span(sources, self.span),
-            self.requirements
+            self.predicates
                 .iter()
-                .map(|requirement| {
-                    let mut children = requirement
-                        .bounds
-                        .iter()
-                        .map(|bound| bound.to_json(sources))
-                        .collect::<Vec<_>>();
-                    if let Some(span) = requirement.copy_span {
-                        children.insert(
-                            0,
-                            JsonAstNode::new(
-                                "copy_requirement",
-                                json_span(sources, span),
-                                Vec::new(),
-                            ),
-                        );
+                .map(|predicate| match predicate {
+                    crate::ast::WherePredicate::Generic(requirement) => {
+                        let mut children = requirement
+                            .bounds
+                            .iter()
+                            .map(|bound| bound.to_json(sources))
+                            .collect::<Vec<_>>();
+                        if let Some(span) = requirement.copy_span {
+                            children.insert(
+                                0,
+                                JsonAstNode::new(
+                                    "copy_requirement",
+                                    json_span(sources, span),
+                                    Vec::new(),
+                                ),
+                            );
+                        }
+                        JsonAstNode::with_value(
+                            "generic_requirement",
+                            requirement.name.clone(),
+                            json_span(sources, requirement.span),
+                            children,
+                        )
                     }
-                    JsonAstNode::with_value(
-                        "generic_requirement",
-                        requirement.name.clone(),
-                        json_span(sources, requirement.span),
-                        children,
-                    )
+                    crate::ast::WherePredicate::Equality(equality) => JsonAstNode::new(
+                        "type_equality_predicate",
+                        json_span(sources, equality.span),
+                        vec![
+                            equality.left.to_json(sources),
+                            equality.right.to_json(sources),
+                        ],
+                    ),
                 })
                 .collect(),
         )

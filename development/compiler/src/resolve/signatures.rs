@@ -292,6 +292,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
                 name: associated_type.name.clone(),
                 name_span: associated_type.name_span,
                 declaration_span: associated_type.span,
+                requirements: GenericRequirements::from_bounds(&associated_type.bounds),
             })
             .collect(),
         associated_functions: Vec::new(),
@@ -452,7 +453,7 @@ fn method_callable_signature(
     parameters: &[Parameter],
     return_type: TypeExpr,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
-    requirements: Option<&crate::ast::CallableRequirementClause>,
+    requirements: Option<&crate::ast::WhereClause>,
 ) -> FunctionSignature {
     let generic_parameters = owner_generics
         .parameters
@@ -472,7 +473,7 @@ fn method_callable_signature(
                 resolved
             })
             .collect(),
-        callable_requirements: requirements.cloned(),
+        where_clause: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
         result_provenance,
@@ -484,7 +485,7 @@ fn callable_signature(
     parameters: &[Parameter],
     return_type: TypeExpr,
     result_provenance: Option<crate::ast::ResultProvenanceClause>,
-    requirements: Option<&crate::ast::CallableRequirementClause>,
+    requirements: Option<&crate::ast::WhereClause>,
 ) -> FunctionSignature {
     FunctionSignature {
         generic_parameters: generics
@@ -501,7 +502,7 @@ fn callable_signature(
                 resolved
             })
             .collect(),
-        callable_requirements: requirements.cloned(),
+        where_clause: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
         result_provenance,

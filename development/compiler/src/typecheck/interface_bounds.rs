@@ -20,6 +20,45 @@ pub(super) fn interface_symbols_for_generic_parameter<'a>(
         .collect()
 }
 
+/// Returns interface contracts known from the lexical predicate environment.
+/// Concrete conformances are intentionally handled by `implemented_interface_types`;
+/// this function is for types whose capabilities exist only because a declaration
+/// constrained them, including associated type projections.
+pub(super) fn interface_symbols_for_constrained_type<'a>(
+    ty: &Type,
+    environment: &TypeEnvironment,
+    resolved: &'a ResolveOutput,
+) -> Vec<(&'a TypeSymbol, Type)> {
+    match ty {
+        Type::Parameter(parameter) => {
+            interface_symbols_for_generic_parameter(parameter, environment, resolved)
+        }
+        Type::Projection { base, member } => {
+            interface_symbols_for_constrained_type(base, environment, resolved)
+                .into_iter()
+                .filter_map(|(owner, interface_type)| {
+                    let associated = owner
+                        .associated_types
+                        .iter()
+                        .find(|associated| associated.name == *member)?;
+                    let substitutions = type_symbol_substitutions(owner, &interface_type);
+                    Some(
+                        associated
+                            .requirements
+                            .type_bounds()
+                            .filter_map(|bound| {
+                                interface_symbol_for_bound(bound, &substitutions, resolved)
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .flatten()
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
 pub(super) fn interface_symbol_for_bound<'a>(
     bound: &TypeExpr,
     substitutions: &HashMap<String, Type>,

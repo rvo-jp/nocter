@@ -7,6 +7,7 @@ impl Parser<'_> {
         let first_ty = self.parse_type()?;
         if self.match_keyword(Keyword::For).is_some() {
             let target_ty = self.parse_type()?;
+            let requirements = self.parse_where_clause()?;
             let (members, end) = self.parse_interface_impl_members()?;
 
             return Ok(Item::Impl(ImplDecl {
@@ -14,10 +15,12 @@ impl Parser<'_> {
                 generics,
                 interface_ty: Some(first_ty),
                 target_ty,
+                requirements,
                 members,
             }));
         }
         let target_ty = first_ty;
+        let requirements = self.parse_where_clause()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
         let mut has_drop_member = false;
@@ -65,6 +68,7 @@ impl Parser<'_> {
             generics,
             interface_ty: None,
             target_ty,
+            requirements,
             members,
         }))
     }
@@ -174,10 +178,23 @@ impl Parser<'_> {
     fn parse_associated_type_decl(&mut self) -> ParseResult<AssociatedTypeDecl> {
         let start = self.expect_keyword(Keyword::Type, "`type`")?;
         let name = self.expect_name_identifier("expected associated type name after `type`")?;
+        let mut bounds = Vec::new();
+        if self.match_punctuation(":").is_some() {
+            loop {
+                bounds.push(self.parse_type()?);
+                if self.match_punctuation("+").is_none() {
+                    break;
+                }
+            }
+        }
+        let end = bounds
+            .last()
+            .map_or(name.span.end, |bound| bound.span().end);
         Ok(AssociatedTypeDecl {
-            span: self.span(start.span.start, name.span.end),
+            span: self.span(start.span.start, end),
             name: name.value,
             name_span: name.span,
+            bounds,
         })
     }
 
@@ -221,7 +238,7 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let requirements = self.parse_callable_requirement_clause()?;
+        let requirements = self.parse_where_clause()?;
         let body = if self.at_punctuation("{") {
             Some(self.parse_block()?)
         } else {

@@ -1418,7 +1418,7 @@ fn resolved_function_signature(
     ResolvedFunctionSignature {
         generic_parameters: Vec::new(),
         generic_parameter_requirements: Vec::new(),
-        callable_requirements: None,
+        where_clause: None,
         parameters: parameters
             .iter()
             .map(|parameter| ParameterSignature {

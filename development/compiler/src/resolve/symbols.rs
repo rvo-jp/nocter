@@ -562,7 +562,7 @@ pub enum SymbolKind {
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
     pub generic_parameter_requirements: Vec<GenericRequirements>,
-    pub callable_requirements: Option<crate::ast::CallableRequirementClause>,
+    pub where_clause: Option<crate::ast::WhereClause>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
@@ -594,6 +594,7 @@ pub struct AssociatedTypeSignature {
     pub name: String,
     pub name_span: ByteSpan,
     pub declaration_span: ByteSpan,
+    pub requirements: GenericRequirements,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -635,6 +636,7 @@ pub struct InterfaceConformance {
     pub declaration_span: ByteSpan,
     pub generic_parameters: Vec<String>,
     pub generic_parameter_requirements: Vec<GenericRequirements>,
+    pub where_clause: Option<crate::ast::WhereClause>,
     pub interface_ty: TypeExpr,
     pub target_ty: TypeExpr,
     pub associated_types: Vec<AssociatedTypeBindingSignature>,

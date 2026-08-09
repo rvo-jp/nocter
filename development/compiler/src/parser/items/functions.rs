@@ -45,7 +45,7 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let requirements = self.parse_callable_requirement_clause()?;
+        let requirements = self.parse_where_clause()?;
         let body = self
             .at_punctuation("{")
             .then(|| self.parse_block())
@@ -100,7 +100,7 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let requirements = self.parse_callable_requirement_clause()?;
+        let requirements = self.parse_where_clause()?;
         let end = requirements.as_ref().map_or_else(
             || {
                 result_provenance

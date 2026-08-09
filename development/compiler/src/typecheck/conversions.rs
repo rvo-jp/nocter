@@ -61,7 +61,9 @@ fn select_conversion(
     if source.is_unknown_or_unresolved() || target.is_unknown_or_unresolved() {
         return Err(ConversionRejection::Unsupported);
     }
-    if mode == ConversionMode::Contextual && super::operations::is_assignable(target, source) {
+    if mode == ConversionMode::Contextual
+        && super::operations::is_assignable_in_environment(target, source, environment)
+    {
         return Ok(selected(source, target, SelectedConversionKind::Exact));
     }
     if borrow_capability_can_weaken(source, target) {

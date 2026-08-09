@@ -194,6 +194,14 @@ impl<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
 }
 
 #[test]
+fn formats_associated_type_bounds_stably() {
+    assert_formats_stably(
+        "interface Iterator {}\ninterface Source { pub type Iter:Iterator+&+func():i32 }\n",
+        "interface Iterator {}\n\ninterface Source {\n    pub type Iter: Iterator + &+func(): i32\n}\n",
+    );
+}
+
+#[test]
 fn formats_generic_interface_bounds_stably() {
     assert_formats_stably(
         r#"func measure<T:Measure+Display>(value:&T):i32{return value.measure()}

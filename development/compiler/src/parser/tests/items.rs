@@ -24,6 +24,7 @@ impl<T> Source for Buffer<T> {
         panic!("expected interface");
     };
     assert_eq!(interface.associated_types[0].name, "Item");
+    assert!(interface.associated_types[0].bounds.is_empty());
     assert!(matches!(
         &interface.methods[0].return_type,
         TypeExpr::Optional(optional)
@@ -40,6 +41,31 @@ impl<T> Source for Buffer<T> {
             if binding.name == "Item"
                 && matches!(&binding.value, TypeExpr::Reference(reference) if reference.name == "T")
     ));
+}
+
+#[test]
+fn parses_associated_type_capability_bounds() {
+    let output = parse_text(
+        r#"interface Iterator {}
+interface Source {
+    pub type Iter: Iterator + &+func(): i32
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+
+    let Item::Interface(source) = &ast.items[1] else {
+        panic!("expected interface");
+    };
+    let associated = &source.associated_types[0];
+    assert_eq!(associated.name, "Iter");
+    assert_eq!(associated.bounds.len(), 2);
+    assert!(matches!(
+        &associated.bounds[0],
+        TypeExpr::Reference(reference) if reference.name == "Iterator"
+    ));
+    assert!(matches!(&associated.bounds[1], TypeExpr::Callable(_)));
 }
 
 #[test]
@@ -1187,9 +1213,36 @@ fn parses_callable_where_copy_requirement() {
     };
     assert!(function.generics.parameters[0].copy_span.is_none());
     let clause = function.requirements.as_ref().expect("where clause");
-    assert_eq!(clause.requirements.len(), 1);
-    assert_eq!(clause.requirements[0].name, "T");
-    assert!(clause.requirements[0].copy_span.is_some());
+    let requirements = clause.generic_requirements().collect::<Vec<_>>();
+    assert_eq!(requirements.len(), 1);
+    assert_eq!(requirements[0].name, "T");
+    assert!(requirements[0].copy_span.is_some());
+}
+
+#[test]
+fn parses_projected_type_equality_on_impl() {
+    let output = parse_text(
+        r#"impl<L, R> Pair for Zip<L, R> where R.Item = L.Item {
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Impl(impl_) = &ast.items[0] else {
+        panic!("expected impl");
+    };
+    let clause = impl_.requirements.as_ref().expect("where clause");
+    let equalities = clause.equalities().collect::<Vec<_>>();
+    assert_eq!(equalities.len(), 1);
+    assert_eq!(
+        crate::ast::canonical_type_expr(&equalities[0].left),
+        "R.Item"
+    );
+    assert_eq!(
+        crate::ast::canonical_type_expr(&equalities[0].right),
+        "L.Item"
+    );
 }
 
 #[test]

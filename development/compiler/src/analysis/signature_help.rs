@@ -302,8 +302,8 @@ fn callable_value_signature_info(
             .collect(),
         return_label,
         crate::analysis::presentation::result_origin_labels(signature.result_provenance.as_ref()),
-        crate::analysis::presentation::callable_requirement_labels(
-            signature.callable_requirements.as_ref(),
+        crate::analysis::presentation::where_predicate_labels(
+            signature.where_clause.as_ref(),
             &file.resolved,
         ),
     )
