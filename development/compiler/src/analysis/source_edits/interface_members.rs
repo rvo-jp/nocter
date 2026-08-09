@@ -107,4 +107,49 @@ impl Printable for User {}
             edited
         );
     }
+
+    #[test]
+    fn generated_method_preserves_associated_type_projection() {
+        let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+struct Number { value: i32 }
+impl Source for Number {
+    type Item = i32
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().unwrap();
+        let offset = text.find("for Number").unwrap() + 4;
+        let edit = plan_missing_interface_members(file, offset).unwrap();
+
+        assert!(edit.new_text.contains("method &self.get(): Self.Item"));
+
+        let mut edited = text.to_string();
+        edited.insert_str(edit.offset, &edit.new_text);
+        let (_sources, analysis) = analyze_text(&edited);
+        assert!(
+            analysis
+                .diagnostics()
+                .iter()
+                .all(|diagnostic| diagnostic.code != "E0425"),
+            "{edited}"
+        );
+    }
+
+    #[test]
+    fn missing_associated_binding_has_no_guessed_source_edit() {
+        let text = r#"interface Source {
+    pub type Item
+}
+struct Number { value: i32 }
+impl Source for Number {}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().unwrap();
+        let offset = text.find("for Number").unwrap() + 4;
+
+        assert!(plan_missing_interface_members(file, offset).is_none());
+    }
 }
