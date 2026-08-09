@@ -2,12 +2,12 @@
 
 ## Current Task
 
-v0.10.0 Phase 3 is complete under
-[`milestones/v0.10.0-phase-3.md`](milestones/v0.10.0-phase-3.md). Ancestor-based `pub(...)`
-visibility and one implicit, validated `std` toolchain package now share semantic package and module
-identity across compilation and LSP analysis. Stop at this completion boundary. v0.9.0 remains
-published and audited under
-[`releases/v0.9.0.md`](releases/v0.9.0.md).
+v0.10.0 stabilization and local qualification are active under
+[`releases/v0.10.0.md`](releases/v0.10.0.md). The feature scope is frozen at the completed Phase 3
+boundary. The contract audit closed the implicit-standard-package omission and namespace-ordering
+defects in commit `f1d7e4b4`; candidate identity is now v0.10.0. Stop after deterministic local
+archive qualification. Do not publish without separate authorization. v0.9.0 remains the latest
+published and audited release under [`releases/v0.9.0.md`](releases/v0.9.0.md).
 
 ## Completed Checkpoint
 
@@ -200,5 +200,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the completed v0.10.0 Phase 3 boundary. Do not begin release qualification or another
-phase without a new plan. The published v0.9.0 archive and its evidence are immutable.
+Complete v0.10.0 incremental and clean repository verification, deterministic two-build local
+archive qualification, and the qualification evidence record. Stop before tagging, pushing,
+GitHub publication, asset upload, or changing published download links. The published v0.9.0
+archive and its evidence are immutable.

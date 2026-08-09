@@ -47,7 +47,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the completed v0.10.0 Phase 2 candidate language. The published compatibility
+This working tree specifies the completed v0.10.0 Phase 3 candidate language. The published compatibility
 boundary remains v0.9.0 until v0.10.0 is qualified and released. The
 [release index](../releases/README.md) owns publication and download status, and repository tags
 preserve the exact specification for every published release.
