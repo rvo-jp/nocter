@@ -105,7 +105,7 @@ fn unsaved_package_manifest_overlay_drives_the_shared_graph() {
         .dependency_names(graph.root_package().id())
         .collect::<Vec<_>>();
 
-    assert_eq!(aliases, vec!["math"]);
+    assert_eq!(aliases, vec!["math", "std"]);
     assert!(!Arc::ptr_eq(
         &before.document_snapshot(&app_uri).unwrap().analysis,
         &snapshot.document_snapshot(&app_uri).unwrap().analysis,
@@ -372,6 +372,8 @@ fn deleting_a_symlinked_dependency_rebuilds_its_importer() {
 #[test]
 fn nested_packages_receive_distinct_graph_snapshots() {
     let project = TempProject::new("nested-packages");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
     let root_package = project.write("nocter.nct", "#name: \"root\"\n");
     let root_source = project.write("index.nct", "pub func root(): i32 { 1 }\n");
     let nested_package = project.write("nested/nocter.nct", "#name: \"nested\"\n");
@@ -518,6 +520,7 @@ impl TempProject {
 
     fn write_nocter_home(&self) -> PathBuf {
         let home = self.root.join(".nocter");
+        crate::test_files::write_standard_package(&home).unwrap();
         fs::create_dir_all(home.join("std/prelude")).unwrap();
         fs::create_dir_all(home.join("std/str")).unwrap();
         fs::create_dir_all(home.join("std/slice")).unwrap();

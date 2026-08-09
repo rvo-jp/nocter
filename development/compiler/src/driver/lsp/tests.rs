@@ -5004,7 +5004,9 @@ pub(super) struct NocterHomeEnv {
 
 impl NocterHomeEnv {
     pub(super) fn set(home: &Path) -> Self {
-        let guard = NOCTER_HOME_ENV_LOCK.lock().unwrap();
+        let guard = NOCTER_HOME_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let previous = std::env::var_os("NOCTER_HOME");
         // Exercise the same process-level home resolution path as the CLI.
         unsafe {
@@ -5058,6 +5060,7 @@ impl TempProject {
 
     fn write_nocter_home(&self) -> PathBuf {
         let home = self.root.join(".nocter");
+        crate::test_files::write_standard_package(&home).unwrap();
         std::fs::create_dir_all(home.join("std/prelude")).unwrap();
         crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
         write_builtin_view_surfaces(&home);

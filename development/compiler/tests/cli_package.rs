@@ -62,11 +62,42 @@ fn graph_json_is_deterministic_and_exposes_dependency_identity() {
     assert_eq!(first.stdout, second.stdout);
     let value: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
     assert_eq!(value["format"], 1);
-    assert_eq!(value["packages"].as_array().unwrap().len(), 2);
+    let packages = value["packages"].as_array().unwrap();
+    assert_eq!(packages.len(), 3);
+    assert!(packages.iter().any(|package| package["name"] == "std"));
     assert!(text(&first.stdout).contains("\"source\":\"path\""));
     assert_eq!(
         fs::read(project.root.join("nocter.nct")).unwrap(),
         manifest_before
+    );
+}
+
+#[test]
+fn graph_requires_a_versioned_toolchain_standard_library() {
+    let project = TempPackage::new("graph-versioned-std");
+    project.write("nocter.nct", "#name: \"root\"\n");
+    fs::remove_file(project.home.join("VERSION")).unwrap();
+
+    let output = project.nocter(["graph"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0801]"), "{stderr}");
+    assert!(stderr.contains("VERSION"), "{stderr}");
+}
+
+#[test]
+fn graph_requires_the_selected_standard_package_sources() {
+    let project = TempPackage::new("graph-std-package-sources");
+    project.write("nocter.nct", "#name: \"root\"\n");
+    fs::remove_file(project.home.join("std/nocter.nct")).unwrap();
+
+    let output = project.nocter(["graph"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0801]"), "{stderr}");
+    assert!(
+        stderr.contains("standard-library package is missing") && stderr.contains("std/nocter.nct"),
+        "{stderr}"
     );
 }
 

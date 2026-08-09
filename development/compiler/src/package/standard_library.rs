@@ -8,17 +8,17 @@ pub(crate) const STANDARD_LIBRARY_ALIAS: &str = "std";
 #[derive(Debug, Clone)]
 pub(crate) struct StandardLibrarySelection {
     root: PathBuf,
-    expected_version: Option<String>,
+    expected_version: String,
 }
 
 impl StandardLibrarySelection {
-    pub(crate) fn active() -> Option<Self> {
-        let home = crate::home::resolve_nocter_home().ok()?;
-        let expected_version = crate::home::read_nocter_home_version(&home).ok();
-        Some(Self::new(home.join("std"), expected_version))
+    pub(crate) fn active() -> Result<Self, String> {
+        let home = crate::home::resolve_nocter_home()?;
+        let expected_version = crate::home::read_nocter_home_version(&home)?;
+        Ok(Self::new(home.join("std"), expected_version))
     }
 
-    pub(crate) fn new(root: PathBuf, expected_version: Option<String>) -> Self {
+    pub(crate) fn new(root: PathBuf, expected_version: String) -> Self {
         Self {
             root,
             expected_version,
@@ -29,8 +29,12 @@ impl StandardLibrarySelection {
         &self.root
     }
 
-    pub(crate) fn expected_version(&self) -> Option<&str> {
-        self.expected_version.as_deref()
+    pub(crate) fn expected_version(&self) -> &str {
+        &self.expected_version
+    }
+
+    pub(crate) fn package_id(&self) -> super::PackageId {
+        super::PackageId::standard_library(&self.root, Some(&self.expected_version))
     }
 }
 

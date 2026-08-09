@@ -201,7 +201,7 @@ fn package_scope(
     if let Some(root) = standard_library_root.filter(|root| path.starts_with(root)) {
         let root = canonicalize(root);
         let package = graph
-            .and_then(PackageGraph::standard_library)
+            .map(PackageGraph::standard_library)
             .filter(|package| path.starts_with(package.root()))
             .map(|package| package.id().clone())
             .unwrap_or_else(|| PackageId::standard_library(&root, None));

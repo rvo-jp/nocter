@@ -1325,6 +1325,7 @@ fn make_temp_project(name: &str) -> PathBuf {
 
 fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
+    crate::test_files::write_standard_package(&home).unwrap();
     fs::create_dir_all(home.join("std/prelude")).unwrap();
     crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
     write_builtin_view_surfaces(&home);

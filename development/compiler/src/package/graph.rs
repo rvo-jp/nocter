@@ -10,7 +10,7 @@ use crate::diagnostics::Diagnostic;
 use crate::package::standard_library::{
     STANDARD_LIBRARY_ALIAS, StandardLibrarySelection, validation_errors,
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const PACKAGE_GRAPH_ERROR: &str = "E0801";
@@ -24,9 +24,9 @@ pub struct PackageGraphOptions {
 #[derive(Debug, Clone)]
 pub struct PackageGraph {
     root: PackageId,
-    standard_library: Option<PackageId>,
+    standard_library: PackageId,
     packages: BTreeMap<PackageId, SourcePackage>,
-    namespaces: HashMap<(PackageId, String), PackageId>,
+    namespaces: BTreeMap<(PackageId, String), PackageId>,
 }
 
 impl PackageGraph {
@@ -40,14 +40,14 @@ impl PackageGraph {
         self.packages.values()
     }
 
-    pub fn standard_library(&self) -> Option<&SourcePackage> {
-        self.standard_library
-            .as_ref()
-            .and_then(|id| self.packages.get(id))
+    pub fn standard_library(&self) -> &SourcePackage {
+        self.packages
+            .get(&self.standard_library)
+            .expect("package graph standard library must exist")
     }
 
     pub fn is_standard_library_package(&self, id: &PackageId) -> bool {
-        self.standard_library.as_ref() == Some(id)
+        &self.standard_library == id
     }
 
     pub fn package_containing(&self, source: &Path) -> Option<&SourcePackage> {
@@ -138,16 +138,23 @@ fn load_package_graph_impl(
     options: PackageGraphOptions,
     overlay: &super::PackageSourceOverlay,
     write_lock: bool,
-    standard_library: Option<StandardLibrarySelection>,
+    standard_library: Result<StandardLibrarySelection, String>,
 ) -> PackageGraphLoad {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let root_id = standard_library.as_ref().ok().and_then(|selection| {
+        let standard_root = selection
+            .root()
+            .canonicalize()
+            .unwrap_or_else(|_| selection.root().to_path_buf());
+        (root == standard_root).then(|| selection.package_id())
+    });
     let store = PackageStore::new(&root);
     let mut builder = GraphBuilder {
         options,
         overlay,
         store,
         packages: BTreeMap::new(),
-        namespaces: HashMap::new(),
+        namespaces: BTreeMap::new(),
         visiting: HashSet::new(),
         package_files: HashSet::new(),
         diagnostics: Vec::new(),
@@ -155,7 +162,7 @@ fn load_package_graph_impl(
         lock_changed: false,
         standard_library,
     };
-    let root_id = builder.visit(&root, None, true);
+    let root_id = builder.visit(&root, root_id, true);
     if !builder.diagnostics.is_empty() {
         return PackageGraphLoad {
             graph: None,
@@ -175,14 +182,14 @@ fn load_package_graph_impl(
             package_files: builder.package_files,
         };
     }
-    if let Some(standard_library) = &standard_library {
-        let package_ids = builder.packages.keys().cloned().collect::<Vec<_>>();
-        for package in package_ids {
-            builder.namespaces.insert(
-                (package, STANDARD_LIBRARY_ALIAS.to_string()),
-                standard_library.clone(),
-            );
-        }
+    let standard_library = standard_library
+        .expect("successful package graph construction must attach the toolchain standard library");
+    let package_ids = builder.packages.keys().cloned().collect::<Vec<_>>();
+    for package in package_ids {
+        builder.namespaces.insert(
+            (package, STANDARD_LIBRARY_ALIAS.to_string()),
+            standard_library.clone(),
+        );
     }
     if write_lock {
         builder.commit_locks();
@@ -213,20 +220,40 @@ struct GraphBuilder<'a> {
     overlay: &'a super::PackageSourceOverlay,
     store: PackageStore,
     packages: BTreeMap<PackageId, SourcePackage>,
-    namespaces: HashMap<(PackageId, String), PackageId>,
+    namespaces: BTreeMap<(PackageId, String), PackageId>,
     visiting: HashSet<PathBuf>,
     package_files: HashSet<PathBuf>,
     diagnostics: Vec<Diagnostic>,
     pending_lock_writes: Vec<(PathBuf, Vec<LockedDependency>)>,
     lock_changed: bool,
-    standard_library: Option<StandardLibrarySelection>,
+    standard_library: Result<StandardLibrarySelection, String>,
 }
 
 impl GraphBuilder<'_> {
     fn attach_standard_library(&mut self) -> Option<PackageId> {
-        let selection = self.standard_library.clone()?;
+        let selection = match self.standard_library.clone() {
+            Ok(selection) => selection,
+            Err(error) => {
+                self.error(error);
+                return None;
+            }
+        };
         let root = selection.root().to_path_buf();
-        if !root.join("nocter.nct").is_file() || !root.join("index.nct").is_file() {
+        let package_file = root.join("nocter.nct");
+        let root_source = root.join("index.nct");
+        if !package_file.is_file() {
+            self.error(format!(
+                "toolchain standard-library package is missing `{}`",
+                package_file.display()
+            ));
+        }
+        if !root_source.is_file() {
+            self.error(format!(
+                "toolchain standard-library package is missing `{}`",
+                root_source.display()
+            ));
+        }
+        if !self.diagnostics.is_empty() {
             return None;
         }
         let root = root.canonicalize().unwrap_or(root);
@@ -239,7 +266,7 @@ impl GraphBuilder<'_> {
             .map(|(id, package)| (id.clone(), package.clone()))
         {
             return self
-                .validate_standard_library_package(&package, selection.expected_version())
+                .validate_standard_library_package(&package, Some(selection.expected_version()))
                 .then_some(id);
         }
         let probe = load_package_with_id_and_overlay(&root, None, Some(self.overlay));
@@ -250,10 +277,10 @@ impl GraphBuilder<'_> {
         let probe = probe
             .package
             .expect("successful standard-library package load");
-        if !self.validate_standard_library_package(&probe, selection.expected_version()) {
+        if !self.validate_standard_library_package(&probe, Some(selection.expected_version())) {
             return None;
         }
-        let id = PackageId::standard_library(&root, probe.version());
+        let id = selection.package_id();
         let load = load_package_with_id_and_overlay(&root, Some(id.clone()), Some(self.overlay));
         if !load.diagnostics.is_empty() {
             self.diagnostics.extend(load.diagnostics);
@@ -513,15 +540,15 @@ mod tests {
             PackageGraphOptions::default(),
             &super::super::PackageSourceOverlay::default(),
             false,
-            Some(StandardLibrarySelection::new(
+            Ok(StandardLibrarySelection::new(
                 standard_library.clone(),
-                Some("0.9.0".to_string()),
+                "0.9.0".to_string(),
             )),
         );
         assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
         let graph = load.graph.unwrap();
         let root = graph.root_package();
-        let std = graph.standard_library().expect("std package");
+        let std = graph.standard_library();
         assert_eq!(std.root(), standard_library.canonicalize().unwrap());
         assert_eq!(graph.dependency(root.id(), "std"), Some(std));
         assert_eq!(graph.packages().count(), 2);
@@ -531,9 +558,9 @@ mod tests {
             PackageGraphOptions::default(),
             &super::super::PackageSourceOverlay::default(),
             false,
-            Some(StandardLibrarySelection::new(
+            Ok(StandardLibrarySelection::new(
                 standard_library.clone(),
-                Some("0.10.0".to_string()),
+                "0.10.0".to_string(),
             )),
         );
         assert!(mismatch.graph.is_none());
@@ -556,15 +583,19 @@ mod tests {
             PackageGraphOptions::default(),
             &super::super::PackageSourceOverlay::default(),
             false,
-            Some(StandardLibrarySelection::new(
+            Ok(StandardLibrarySelection::new(
                 standard_library.clone(),
-                Some("0.9.0".to_string()),
+                "0.9.0".to_string(),
             )),
         );
         assert!(load.diagnostics.is_empty(), "{:?}", load.diagnostics);
         let graph = load.graph.unwrap();
         let root = graph.root_package();
         assert!(graph.is_standard_library_package(root.id()));
+        assert_eq!(
+            root.id(),
+            &PackageId::standard_library(&standard_library, Some("0.9.0"))
+        );
         assert_eq!(graph.dependency(root.id(), "std"), Some(root));
         assert_eq!(graph.packages().count(), 1);
         fs::remove_dir_all(sandbox).unwrap();
@@ -575,18 +606,23 @@ mod tests {
         let sandbox = temp_directory("reserved-std-dependency");
         let package = sandbox.join("app");
         let fake = package.join("fake");
+        let standard_library = sandbox.join("home/std");
         write_package(
             &package,
             "#name: \"app\"\n#dependencies: { std: { path: \"./fake\" } }\n",
         );
         write_package(&fake, "#name: \"fake\"\n");
+        write_package(&standard_library, "#name: \"std\"\n#version: \"0.9.0\"\n");
 
         let load = load_package_graph_impl(
             &package,
             PackageGraphOptions::default(),
             &super::super::PackageSourceOverlay::default(),
             false,
-            None,
+            Ok(StandardLibrarySelection::new(
+                standard_library,
+                "0.9.0".to_string(),
+            )),
         );
         assert!(load.graph.is_none());
         assert!(load.diagnostics.iter().any(|diagnostic| {
@@ -594,6 +630,37 @@ mod tests {
                 .message
                 .contains("dependency name `std` is reserved")
         }));
+        fs::remove_dir_all(sandbox).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_graph_when_the_selected_standard_package_is_missing() {
+        let sandbox = temp_directory("missing-implicit-std");
+        let package = sandbox.join("app");
+        let standard_library = sandbox.join("home/std");
+        write_package(&package, "#name: \"app\"\n");
+
+        let load = load_package_graph_impl(
+            &package,
+            PackageGraphOptions::default(),
+            &super::super::PackageSourceOverlay::default(),
+            false,
+            Ok(StandardLibrarySelection::new(
+                standard_library,
+                "0.9.0".to_string(),
+            )),
+        );
+
+        assert!(load.graph.is_none());
+        assert_eq!(
+            load.diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic
+                    .message
+                    .contains("standard-library package is missing"))
+                .count(),
+            2
+        );
         fs::remove_dir_all(sandbox).unwrap();
     }
 

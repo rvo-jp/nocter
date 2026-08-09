@@ -5,6 +5,17 @@ use std::path::Path;
 /// deliberately minimal test home.
 pub(crate) fn write_builtin_type_surfaces(home: &Path) {
     let std = home.join("std");
+    fs::create_dir_all(&std).unwrap();
+    fs::write(home.join("VERSION"), env!("CARGO_PKG_VERSION")).unwrap();
+    fs::write(
+        std.join("nocter.nct"),
+        format!(
+            "#name: \"std\"\n#version: \"{}\"\n",
+            env!("CARGO_PKG_VERSION")
+        ),
+    )
+    .unwrap();
+    fs::write(std.join("index.nct"), "//! Test standard library.\n").unwrap();
     fs::create_dir_all(std.join("str")).unwrap();
     fs::create_dir_all(std.join("slice")).unwrap();
     fs::write(
