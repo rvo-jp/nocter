@@ -6,76 +6,32 @@
 # Nocter
 
 Nocter is a statically typed, value-centered systems language for building
-native executables from `.nct` source files.
+native executables directly from `.nct` source files.
 
-## Why Nocter Exists
+It favors explicit contracts, private-by-default modules, deterministic
+resource cleanup, and one canonical form for each language concept. Nocter uses
+`struct`, `enum`, `interface`, `func`, and `method` without class inheritance,
+implicit conformance, garbage collection, or hidden runtime machinery.
 
-Nocter exists because trying a programming language should not require accepting
-a large toolchain, a package-manager commitment, or a pile of system-wide
-dependencies.
+Recoverable failure and absence are represented by `T!` and `T?`, while
+borrowing and mutation capabilities remain visible through `&T` and `&+T`.
 
-Normal Nocter builds should compile `.nct` source directly to native executable
-output without requiring LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or
-an external runtime library from the user.
-
-A language should be easy to try and easy to leave. The intended Nocter release
-shape is one `.nocter/` directory containing the compiler, metadata, and the
-standard library. Installing Nocter should mean unpacking that directory and
-placing a `nocter` symlink in a directory already on `PATH`. Uninstalling
-Nocter should mean deleting the symlink and that one `.nocter/` directory.
-
-Nocter also comes from frustration with APIs that require users to inspect
-private implementation details before they can use the public surface safely.
-Public API should be explicit, narrow, and sufficient. Private details should
-stay private by default.
-
-Nocter avoids adding many spellings for the same idea. Extra syntax can make a
-language feel convenient in isolation, but it increases what humans and AI
-assistants must remember. Nocter favors one clear form, source-backed
-diagnostics, and formatting rules over a wide menu of equivalent forms.
-
-These motivations become three design pillars:
-
-- **Simplicity**: small distribution shape, low toolchain dependency, and one
-  canonical source style.
-- **Encapsulation**: public API is the exception; private implementation is the
-  default.
-- **Foolproof design**: the language should guide ordinary code toward correct
-  use and diagnose misuse before backend lowering or runtime execution.
-
-The longer rationale lives in
-[Design Principles](spec/00-design-principles.md).
-
-## Language Direction
-
-Nocter is designed around values, modules, explicit contracts, and deterministic
-resource handling.
-
-- `struct`, `enum`, `func`, `impl`, and `method` form the value-oriented core.
-- Declarations are private unless marked `pub`.
-- `interface` describes public capability and can provide reusable default
-  methods derived from that capability without adding state or implicit
-  conformance.
-- `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
-- `T!` represents recoverable failure.
-- `T?` represents absence.
-- postfix `?` propagates both `T!` and `T?` early.
-- `otherwise` is the single optional fallback form.
-- `if` and `match` are value-producing expressions.
-- `drop` provides deterministic cleanup instead of a runtime GC.
-
-Nocter deliberately avoids class inheritance, implicit
-interface conformance, and hidden runtime machinery in its core direction.
-
-The normative language definition lives in
-[spec/](spec/README.md).
+See the [language specification](spec/README.md) and
+[design principles](spec/00-design-principles.md).
 
 ## One Directory Install
 
 [Download nocter-v0.9.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.9.0/nocter-v0.9.0-arm64-darwin.tar.gz)
 
-Nocter release archives are designed to unpack to a single `.nocter/`
-directory:
+Nocter compiles source directly to native executables without requiring LLVM,
+`clang`, `as`, `ld`, Xcode Command Line Tools, or an external runtime library
+from the user.
+
+The compiler, metadata, and standard library live in one `.nocter/` directory.
+Installation consists of unpacking that directory and adding a symlink;
+uninstallation consists of removing both.
+
+Release archives have this structure:
 
 ```text
 .nocter/
@@ -161,13 +117,13 @@ module, use package mode as demonstrated by
 ## Current Status
 
 The v0.9.0 compiler parses, checks, builds, and runs the supported language on
-`arm64-darwin`. It emits ARM64 Mach-O executables directly.
+`arm64-darwin` and emits ARM64 Mach-O executables directly. Unsupported runtime
+forms are rejected with source-backed diagnostics before machine code is
+emitted.
 
-The buildable subset is intentionally narrower than the checkable language.
-Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The [language specification](spec/README.md) describes
-the current v0.9.0 language; the `v0.9.0` repository tag preserves the exact
-published compiler, standard library, specification, and packaging inputs.
+The [language specification](spec/README.md) describes the current v0.9.0
+language. The `v0.9.0` repository tag preserves the exact published compiler,
+standard library, specification, and packaging inputs.
 
 ## Learn More
 
@@ -176,8 +132,6 @@ published compiler, standard library, specification, and packaging inputs.
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
 - [Design Principles](spec/00-design-principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
-- [Generics, Interfaces, and Methods](spec/08-generics-interfaces-embedding-methods.md): explicit
-  capability contracts, static conformance, method lookup, and unsupported composition syntax.
 - [Release Index](releases/README.md): published downloads, supported targets, and version history.
 - [Contributor Documentation](development/README.md): development setup,
   compiler architecture, milestone plans, tests, and maintenance policy.
