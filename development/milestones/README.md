@@ -7,8 +7,8 @@ state. Public language behavior belongs in `spec/`; compiler architecture belong
 The current milestone record is [v0.11.0](v0.11.0.md). Phase 0 completed intrinsic `copy` generic
 requirements, callable requirement clauses, and standard-library copy-contract migration. Phase 1
 completed required interface associated types, exact conformance bindings, semantic projections,
-and compiler-backed editor integration. A later phase must design associated-type equality before
-migrating the iterator interfaces.
+and compiler-backed editor integration. Phase 2 is implementing associated type bounds and equality
+predicates, then migrating the iterator interfaces away from courier generic parameters.
 
 [v0.10.0](v0.10.0.md) is complete and historical. Phase 0 completed native value capabilities,
 Phase 1 completed directory modules and explicit source composition, Phase 2 completed
