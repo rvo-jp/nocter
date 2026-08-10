@@ -205,7 +205,7 @@ fn run_command_uses_composed_outcome_abi_for_specialized_methods() {
     value: T
 }
 
-instance<T> Holder<T> {
+instance Holder<T> {
     method &self.get(): T?! {
         return self.value
     }

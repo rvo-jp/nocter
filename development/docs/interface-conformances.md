@@ -11,7 +11,7 @@ presentation. An `InstanceDecl` owns inherent methods and destruction separately
 ## Canonical Source Model
 
 ```nct
-conform<T> Iterator for Counter<T> {
+conform Iterator for Counter<T> {
     type Item = T
 
     method &+self.next(): T? {

@@ -538,7 +538,7 @@ fn lowers_concrete_generic_explicit_drop_to_drop_member_call() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     drop &+self {
         return
     }
@@ -739,7 +739,7 @@ fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     drop &+self {
         return
     }
@@ -822,7 +822,7 @@ struct Box<T> {
     size: usize
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     drop &+self {
         self.size = pointee_size(self.ptr)
         return

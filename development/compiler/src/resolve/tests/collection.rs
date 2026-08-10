@@ -11,7 +11,7 @@ fn collects_source_declared_builtin_method_surfaces_outside_the_symbol_table() {
     }
 }
 
-instance<T> [T] {
+instance [T] {
     pub method &self.count(): usize {
         return 2
     }

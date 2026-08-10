@@ -287,6 +287,9 @@ fn where_predicate_labels_with(
                     .collect::<Vec<_>>();
                 format!("{}: {}", requirement.name, bounds.join(" + "))
             }
+            crate::ast::WherePredicate::Refinement(refinement) => {
+                format!("{} = {}", refinement.name, type_label(&refinement.value))
+            }
             crate::ast::WherePredicate::Equality(equality) => format!(
                 "{} = {}",
                 type_label(&equality.left),

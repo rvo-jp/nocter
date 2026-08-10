@@ -173,7 +173,7 @@ fn formats_interface_default_methods_stably() {
 fn formats_associated_types_before_interface_methods_stably() {
     assert_formats_stably(
         r#"interface Source{pub method &+self.next():Self.Item? pub type Item}
-conform<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
+conform Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
 "#,
         concat!(
             "interface Source {\n",
@@ -182,7 +182,7 @@ conform<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
             "    pub method &+self.next(): Self.Item?\n",
             "}\n",
             "\n",
-            "conform<T> Source for Buffer<T> {\n",
+            "conform Source for Buffer<T> {\n",
             "    method &+self.next(): T? {\n",
             "        return none\n",
             "    }\n",
@@ -584,9 +584,9 @@ fn formats_method_generic_parameters_stably() {
 #[test]
 fn formats_generic_conformanceementations_with_members_stably() {
     assert_formats_stably(
-        "conform<T> Source<T> for Box<T> where T:Readable{method &self.read():T{return self.value}}\n",
+        "conform Source<T> for Box<T> where T:Readable{method &self.read():T{return self.value}}\n",
         concat!(
-            "conform<T> Source<T> for Box<T> where T: Readable {\n",
+            "conform Source<T> for Box<T> where T: Readable {\n",
             "    method &self.read(): T {\n",
             "        return self.value\n",
             "    }\n",

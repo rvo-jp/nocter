@@ -41,7 +41,17 @@ pub struct CopyRequirementPredicate {
 pub enum WherePredicate {
     Copy(CopyRequirementPredicate),
     Generic(GenericRequirementPredicate),
+    Refinement(BinderRefinementPredicate),
     Equality(TypeEqualityPredicate),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinderRefinementPredicate {
+    pub span: ByteSpan,
+    pub equals_span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub value: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +68,9 @@ impl WhereClause {
             .iter()
             .filter_map(|predicate| match predicate {
                 WherePredicate::Generic(requirement) => Some(requirement),
-                WherePredicate::Copy(_) | WherePredicate::Equality(_) => None,
+                WherePredicate::Copy(_)
+                | WherePredicate::Refinement(_)
+                | WherePredicate::Equality(_) => None,
             })
     }
 
@@ -67,7 +79,20 @@ impl WhereClause {
             .iter()
             .filter_map(|predicate| match predicate {
                 WherePredicate::Copy(requirement) => Some(requirement),
-                WherePredicate::Generic(_) | WherePredicate::Equality(_) => None,
+                WherePredicate::Generic(_)
+                | WherePredicate::Refinement(_)
+                | WherePredicate::Equality(_) => None,
+            })
+    }
+
+    pub fn refinements(&self) -> impl Iterator<Item = &BinderRefinementPredicate> {
+        self.predicates
+            .iter()
+            .filter_map(|predicate| match predicate {
+                WherePredicate::Refinement(refinement) => Some(refinement),
+                WherePredicate::Copy(_)
+                | WherePredicate::Generic(_)
+                | WherePredicate::Equality(_) => None,
             })
     }
 
@@ -76,7 +101,9 @@ impl WhereClause {
             .iter()
             .filter_map(|predicate| match predicate {
                 WherePredicate::Equality(equality) => Some(equality),
-                WherePredicate::Copy(_) | WherePredicate::Generic(_) => None,
+                WherePredicate::Copy(_)
+                | WherePredicate::Generic(_)
+                | WherePredicate::Refinement(_) => None,
             })
     }
 }

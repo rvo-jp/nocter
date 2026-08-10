@@ -138,7 +138,7 @@ pub(in crate::typecheck) fn duplicate_conformance_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0424",
         format!(
-            "`{}` already declares conformance to interface `{}`",
+            "conformance patterns for `{}` and interface `{}` overlap",
             target_symbol.canonical_name, interface_symbol.canonical_name
         ),
     );
@@ -148,11 +148,14 @@ pub(in crate::typecheck) fn duplicate_conformance_diagnostic(
         .map(Box::new);
     if let Ok(span) = sources.span_to_json(first_span) {
         diagnostic.notes.push(DiagnosticNote {
-            message: "first conformance declaration is here".to_string(),
+            message: "the overlapping conformance pattern is declared here".to_string(),
             span: Some(span),
         });
     }
-    diagnostic.help = Some("keep a single `conform Interface for Type` declaration".to_string());
+    diagnostic.help = Some(
+        "make the patterns disjoint or keep one conformance; Nocter does not rank a refined pattern above a general pattern"
+            .to_string(),
+    );
     diagnostic
 }
 

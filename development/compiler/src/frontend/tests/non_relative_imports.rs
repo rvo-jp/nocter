@@ -1444,7 +1444,7 @@ pub func len<T>(values: &Vec<T>): usize {
     return values.len
 }
 
-instance<T> Vec<T> {
+instance Vec<T> {
     pub method &self.len(): usize {
         return len(self)
     }

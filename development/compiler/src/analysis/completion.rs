@@ -127,6 +127,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                     let span = match predicate {
                         crate::ast::WherePredicate::Copy(requirement) => requirement.span,
                         crate::ast::WherePredicate::Generic(requirement) => requirement.span,
+                        crate::ast::WherePredicate::Refinement(refinement) => refinement.span,
                         crate::ast::WherePredicate::Equality(equality) => equality.span,
                     };
                     span.start < offset && offset <= span.end

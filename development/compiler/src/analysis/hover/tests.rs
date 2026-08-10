@@ -647,7 +647,7 @@ pub func filter<T, I>(source: I): I from source where I: Stream<T> {
     return source
 }
 
-conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
+conform ExactSizeStream<U> for EnumerateIter<T, I> where U = Indexed<T>, I: ExactSizeStream<T> {}
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -676,8 +676,7 @@ conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: Exact
         "ExactSizeStream"
     );
 
-    let implemented_offset =
-        text.rfind("conform<T, I> ExactSizeStream").unwrap() + "conform<T, I> ".len();
+    let implemented_offset = text.rfind("conform ExactSizeStream").unwrap() + "conform ".len();
     let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
         .expect("expected implemented-interface hover");
     assert_eq!(implemented.label, "interface ExactSizeStream<Indexed<T>>");
@@ -876,7 +875,7 @@ fn workspace_hover_presents_conformance_member_with_concrete_receiver() {
 
 struct Box<T> { value: T }
 
-conform<T> Lookup<T> for Box<T> {
+conform Lookup<T> for Box<T> {
     method &self.get(): &T from self {
         return &self.value
     }

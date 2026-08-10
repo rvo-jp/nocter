@@ -1526,7 +1526,7 @@ fn build_command_accepts_specialized_composed_outcome_method_return() {
     value: T
 }
 
-instance<T> Holder<T> {
+instance Holder<T> {
     pub method &self.make(): T?! from self {
         return self.value
     }

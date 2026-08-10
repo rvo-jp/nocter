@@ -558,6 +558,27 @@ fn infer_substitutions_from_type_equalities(
             .self_type
             .as_ref()
             .map(|ty| ty.substitute_parameters(substitutions));
+        for refinement in clause.refinements() {
+            let value = type_expr_to_type_with_substitutions(
+                &refinement.value,
+                resolved,
+                self_type.as_ref(),
+                substitutions,
+            );
+            if !value.is_unknown_or_unresolved() {
+                infer_type_expr_substitutions(
+                    &TypeExpr::Reference(crate::ast::TypeReference {
+                        span: refinement.name_span,
+                        name: refinement.name.clone(),
+                    }),
+                    &value,
+                    resolved,
+                    self_type.as_ref(),
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
         for equality in clause.equalities() {
             let left = type_expr_to_type_with_substitutions(
                 &equality.left,
@@ -739,6 +760,27 @@ fn check_generic_interface_bounds(
     let Some(clause) = signature.signature.where_clause.as_ref() else {
         return;
     };
+    for refinement in clause.refinements() {
+        let Some(actual) = substitutions.get(&refinement.name) else {
+            continue;
+        };
+        let expected = type_expr_to_type_with_substitutions(
+            &refinement.value,
+            resolved,
+            specialized_self_type.as_ref(),
+            substitutions,
+        );
+        if expected.is_unknown_or_unresolved() || environment.types_equal(actual, &expected) {
+            continue;
+        }
+        diagnostics.push(type_equality_not_satisfied_diagnostic(
+            sources,
+            call.span,
+            actual,
+            &expected,
+            refinement.span,
+        ));
+    }
     for equality in clause.equalities() {
         let left = type_expr_to_type_with_substitutions(
             &equality.left,
@@ -876,6 +918,23 @@ pub(super) fn method_applies_to_receiver(
     );
     let expected =
         type_expr_to_type_with_substitutions(owner_target_ty, resolved, None, &substitutions);
+
+    if let Some(clause) = &method.signature.where_clause {
+        for refinement in clause.refinements() {
+            let Some(actual) = substitutions.get(&refinement.name) else {
+                return false;
+            };
+            let refined = type_expr_to_type_with_substitutions(
+                &refinement.value,
+                resolved,
+                Some(receiver_type),
+                &substitutions,
+            );
+            if refined.is_unknown_or_unresolved() || actual != &refined {
+                return false;
+            }
+        }
+    }
 
     !expected.is_unknown_or_unresolved() && expected == *receiver_type
 }

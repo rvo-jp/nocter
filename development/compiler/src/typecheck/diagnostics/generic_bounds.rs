@@ -232,6 +232,42 @@ pub(in crate::typecheck) fn duplicate_type_equality_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn duplicate_binder_refinement_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    span: ByteSpan,
+    first_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0468",
+        format!("declaration pattern binder `{name}` is refined more than once"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the first refinement is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("keep one `where Binder = Type` predicate for this binder".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn recursive_binder_refinement_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0469",
+        format!("declaration pattern binder `{name}` cannot be refined in terms of itself"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help =
+        Some("use a finite type that does not contain the refined binder".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn associated_type_bound_not_satisfied_diagnostic(
     sources: &SourceMap,
     interface: &TypeSymbol,

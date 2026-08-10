@@ -33,6 +33,12 @@ Two conformances conflict when both their interface and target patterns can matc
 pair. Inherent declarations conflict only when overlapping target patterns export the same method
 name or both export destruction.
 
+Destruction is intentionally uniform across a nominal family. An instance containing `drop`
+cannot have a predicate and must mention every target slot through one distinct binder. Allowing a
+type's need for destruction to vary by refinement would make generic ownership and ABI decisions
+conditional; Phase 5 rejects that model instead of approximating it. Refined method-only instances
+remain ordinary patterns.
+
 Nocter rejects overlap rather than selecting the more concrete declaration. This keeps lookup,
 ownership, lowering, and editor results independent of declaration and import order.
 

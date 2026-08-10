@@ -3,9 +3,11 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn parse_instance_decl(&mut self) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Instance, "`instance`")?;
-        let generics = self.parse_generic_param_list()?;
+        self.reject_declaration_pattern_prefix("instance")?;
         let target_ty = self.parse_type()?;
-        let requirements = self.parse_where_clause()?;
+        let generics = self.declaration_pattern_parameters(&[&target_ty])?;
+        let mut requirements = self.parse_where_clause()?;
+        self.classify_declaration_pattern_refinements(&mut requirements, &generics);
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
         let mut has_drop_member = false;

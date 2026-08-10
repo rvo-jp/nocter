@@ -1000,7 +1000,7 @@ struct Box<T> {
     value: T
 }
 
-instance<T> Box<T> {
+instance Box<T> {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -1602,7 +1602,7 @@ fn accepts_reachable_generic_function_body_method_call_with_concrete_arguments()
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -2050,7 +2050,7 @@ fn accepts_reachable_concrete_generic_instance_method() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     method &self.read(): i32 {
         return self.value
     }
@@ -2075,7 +2075,7 @@ fn accepts_reachable_generic_instance_method_with_concrete_receiver() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -2373,7 +2373,7 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
     let slice_source = sources.add_source(
         "std/slice/index.nct",
         None,
-        "instance<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let lexed = lex(&sources, source);
     assert!(

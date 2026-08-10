@@ -297,7 +297,7 @@ pub func next<T>(iterator: &+ViewIter<T>): &T? {
     return &iterator.view[index]
 }
 
-instance<T> ViewIter<T> {
+instance ViewIter<T> {
     /// Returns the number of elements not yet yielded.
     pub method &self.remaining(): usize {
         return remaining(self)
@@ -305,14 +305,14 @@ instance<T> ViewIter<T> {
 
 }
 
-conform<T> ExactSizeIterator for ViewIter<T> {
+conform ExactSizeIterator for ViewIter<T> {
     /// Implements exact-size iteration for compiler-owned element packs.
     method &self.remaining_len(): usize {
         return remaining(self)
     }
 }
 
-conform<T> Iterator for ViewIter<T> {
+conform Iterator for ViewIter<T> {
     type Item = &T
     /// Advances and returns a readonly borrow, or `none` at exhaustion.
     method &+self.next(): &T? {

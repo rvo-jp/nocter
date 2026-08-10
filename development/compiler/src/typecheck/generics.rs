@@ -1,11 +1,13 @@
 use super::diagnostics::{
-    duplicate_callable_parameter_name_diagnostic, duplicate_copy_requirement_diagnostic,
-    duplicate_generic_bound_diagnostic, duplicate_type_equality_diagnostic,
-    generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
-    invalid_callable_provenance_origin_diagnostic, invalid_type_equality_diagnostic,
-    multiple_callable_bounds_diagnostic, nominal_type_equality_not_satisfied_diagnostic,
-    nominal_type_requirement_not_satisfied_diagnostic, self_type_outside_context_diagnostic,
-    unknown_where_parameter_diagnostic, unresolved_type_reference_diagnostic,
+    duplicate_binder_refinement_diagnostic, duplicate_callable_parameter_name_diagnostic,
+    duplicate_copy_requirement_diagnostic, duplicate_generic_bound_diagnostic,
+    duplicate_type_equality_diagnostic, generic_bound_not_interface_diagnostic,
+    generic_type_argument_count_diagnostic, invalid_callable_provenance_origin_diagnostic,
+    invalid_type_equality_diagnostic, multiple_callable_bounds_diagnostic,
+    nominal_type_equality_not_satisfied_diagnostic,
+    nominal_type_requirement_not_satisfied_diagnostic, recursive_binder_refinement_diagnostic,
+    self_type_outside_context_diagnostic, unknown_where_parameter_diagnostic,
+    unresolved_type_reference_diagnostic,
 };
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
@@ -456,6 +458,39 @@ fn check_where_clause(
         }
     }
 
+    let mut seen_refinements = HashMap::new();
+    let refinements = clause
+        .refinements()
+        .map(|refinement| (refinement.name.as_str(), &refinement.value))
+        .collect::<HashMap<_, _>>();
+    for refinement in clause.refinements() {
+        check_type_expr(sources, &refinement.value, resolved, scope, diagnostics);
+        if let Some(first_span) = seen_refinements.insert(refinement.name.as_str(), refinement.span)
+        {
+            diagnostics.push(duplicate_binder_refinement_diagnostic(
+                sources,
+                &refinement.name,
+                refinement.span,
+                first_span,
+            ));
+        }
+        if type_expr_mentions_parameter(&refinement.value, &refinement.name)
+            || type_expr_mentions_parameter(&refinement.value, "Self")
+            || refinement_dependency_reaches(
+                &refinement.name,
+                &refinement.value,
+                &refinements,
+                &mut std::collections::HashSet::new(),
+            )
+        {
+            diagnostics.push(recursive_binder_refinement_diagnostic(
+                sources,
+                &refinement.name,
+                refinement.span,
+            ));
+        }
+    }
+
     let mut seen_equalities = HashMap::<(String, String), ByteSpan>::new();
     for equality in clause.equalities() {
         check_type_expr(sources, &equality.left, resolved, scope, diagnostics);
@@ -483,6 +518,64 @@ fn check_where_clause(
                 equality.span,
                 first_span,
             ));
+        }
+    }
+}
+
+fn refinement_dependency_reaches(
+    target: &str,
+    value: &TypeExpr,
+    refinements: &HashMap<&str, &TypeExpr>,
+    visited: &mut std::collections::HashSet<String>,
+) -> bool {
+    let mut references = Vec::new();
+    collect_type_expr_reference_names(value, &mut references);
+    references.into_iter().any(|reference| {
+        if reference == target {
+            return true;
+        }
+        let Some(next) = refinements.get(reference.as_str()) else {
+            return false;
+        };
+        visited.insert(reference.clone())
+            && refinement_dependency_reaches(target, next, refinements, visited)
+    })
+}
+
+fn collect_type_expr_reference_names(ty: &TypeExpr, names: &mut Vec<String>) {
+    match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &callable.parameters {
+                collect_type_expr_reference_names(&parameter.ty, names);
+            }
+            collect_type_expr_reference_names(&callable.return_type, names);
+        }
+        TypeExpr::Closure(closure) => {
+            for capture in &closure.captures {
+                collect_type_expr_reference_names(&capture.ty, names);
+            }
+            for parameter in &closure.parameters {
+                collect_type_expr_reference_names(parameter, names);
+            }
+            collect_type_expr_reference_names(&closure.return_type, names);
+        }
+        TypeExpr::Reference(reference) => names.push(reference.name.clone()),
+        TypeExpr::Generic(generic) => {
+            for argument in &generic.arguments {
+                collect_type_expr_reference_names(argument, names);
+            }
+        }
+        TypeExpr::Projection(projection) => {
+            collect_type_expr_reference_names(&projection.base, names)
+        }
+        TypeExpr::Pointer(pointer) => collect_type_expr_reference_names(&pointer.inner, names),
+        TypeExpr::Borrow(borrow) => collect_type_expr_reference_names(&borrow.inner, names),
+        TypeExpr::View(view) => collect_type_expr_reference_names(&view.element, names),
+        TypeExpr::Array(array) => collect_type_expr_reference_names(&array.element, names),
+        TypeExpr::Optional(optional) => collect_type_expr_reference_names(&optional.inner, names),
+        TypeExpr::Fallible(fallible) => {
+            collect_type_expr_reference_names(&fallible.success, names);
+            collect_type_expr_reference_names(&fallible.error, names);
         }
     }
 }
@@ -516,6 +609,46 @@ fn type_expr_contains_projection(ty: &TypeExpr) -> bool {
                 || type_expr_contains_projection(&fallible.error)
         }
         TypeExpr::Reference(_) => false,
+    }
+}
+
+fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
+    match ty {
+        TypeExpr::Callable(callable) => {
+            callable
+                .parameters
+                .iter()
+                .any(|value| type_expr_mentions_parameter(&value.ty, parameter))
+                || type_expr_mentions_parameter(&callable.return_type, parameter)
+        }
+        TypeExpr::Closure(closure) => {
+            closure
+                .captures
+                .iter()
+                .any(|value| type_expr_mentions_parameter(&value.ty, parameter))
+                || closure
+                    .parameters
+                    .iter()
+                    .any(|value| type_expr_mentions_parameter(value, parameter))
+                || type_expr_mentions_parameter(&closure.return_type, parameter)
+        }
+        TypeExpr::Reference(reference) => reference.name == parameter,
+        TypeExpr::Generic(generic) => generic
+            .arguments
+            .iter()
+            .any(|value| type_expr_mentions_parameter(value, parameter)),
+        TypeExpr::Projection(projection) => {
+            type_expr_mentions_parameter(&projection.base, parameter)
+        }
+        TypeExpr::Pointer(pointer) => type_expr_mentions_parameter(&pointer.inner, parameter),
+        TypeExpr::Borrow(borrow) => type_expr_mentions_parameter(&borrow.inner, parameter),
+        TypeExpr::View(view) => type_expr_mentions_parameter(&view.element, parameter),
+        TypeExpr::Array(array) => type_expr_mentions_parameter(&array.element, parameter),
+        TypeExpr::Optional(optional) => type_expr_mentions_parameter(&optional.inner, parameter),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_mentions_parameter(&fallible.success, parameter)
+                || type_expr_mentions_parameter(&fallible.error, parameter)
+        }
     }
 }
 

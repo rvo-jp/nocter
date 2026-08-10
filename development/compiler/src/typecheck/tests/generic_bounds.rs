@@ -456,7 +456,7 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Lookup<T> for Box<T> {
+conform Lookup<T> for Box<T> {
     method &self.get(): &T from self {
         return &self.value
     }
@@ -499,7 +499,7 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Lookup<T> for Box<T> {
+conform Lookup<T> for Box<T> {
     method &self.get(): &T {
         return &self.value
     }
@@ -617,7 +617,7 @@ struct Input {
     value: i32
 }
 
-conform Source<i32> for Input {
+conform Source<T> for Input where T = i32 {
     method &+self.next(): i32? {
         return none
     }
@@ -627,7 +627,7 @@ struct Adapter<T, I> {
     input: I
 }
 
-conform<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
+conform Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
@@ -664,7 +664,7 @@ struct Adapter<T, I> {
     input: I
 }
 
-conform<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
+conform Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }

@@ -12,7 +12,7 @@ struct Buffer<T> {
     marker: i32,
 }
 
-conform<T> Source for Buffer<T> {
+conform Source for Buffer<T> {
     type Item = T
 
     method &+self.next(): T? {
@@ -59,7 +59,7 @@ conform Source for Numbers {
     type Item = i32
 }
 
-conform<T> Source for Box<T> {
+conform Source for Box<T> {
     type Item = T
 }
 
@@ -567,7 +567,7 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Source<T> for Box<T> {
+conform Source<T> for Box<T> {
     method self.get(): T from self {
         return self.value
     }
@@ -593,7 +593,7 @@ struct Constant {
     value: i32
 }
 
-conform Source<i32> for Constant {
+conform Source<T> for Constant where T = i32 {
     method self.get(): i32 {
         return self.value
     }
@@ -950,7 +950,7 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Source<T> for Box<T> {
+conform Source<T> for Box<T> {
     method self.get(): i32 {
         return 0
     }
@@ -1010,12 +1010,12 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Source<T> for Box<T> {
+conform Source<T> for Box<T> {
     method self.get(): T from self {
         return self.value
     }
 }
-conform<U> Source<U> for Box<U> {
+conform Source<U> for Box<U> {
     method self.get(): U from self {
         return self.value
     }
@@ -1048,6 +1048,88 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0422");
+}
+
+#[test]
+fn disjoint_refined_conformances_select_the_matching_contract() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub type Item
+}
+
+copy struct Box<T> { value: T }
+
+conform Value for Box<T> where T = i32 { type Item = i32 }
+conform Value for Box<U> where U = u32 { type Item = u32 }
+
+func read_i32(value: Box<i32>.Item): i32 { return value }
+func read_u32(value: Box<u32>.Item): u32 { return value }
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_overlapping_generic_and_refined_conformances() {
+    let diagnostics = check_text(
+        r#"interface Value { pub type Item }
+copy struct Box<T> { value: T }
+
+conform Value for Box<T> { type Item = T }
+conform Value for Box<U> where U = i32 { type Item = i32 }
+
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0424"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_duplicate_and_recursive_declaration_pattern_refinements() {
+    let duplicate = check_text(
+        r#"struct Box<T> { value: T }
+instance Box<T> where T = i32, T = u32 {}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        duplicate
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0468"),
+        "{duplicate:?}"
+    );
+
+    let recursive = check_text(
+        r#"struct Box<T> { value: T }
+instance Box<T> where T = Box<T> {}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        recursive
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0469"),
+        "{recursive:?}"
+    );
+
+    let mutual = check_text(
+        r#"struct Pair<T, U> { left: T, right: U }
+instance Pair<T, U> where T = U, U = T {}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        mutual
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0469"),
+        "{mutual:?}"
+    );
 }
 
 #[test]

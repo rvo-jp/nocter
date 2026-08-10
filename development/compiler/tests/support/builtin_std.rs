@@ -38,7 +38,7 @@ instance str {
         std.join("slice/index.nct"),
         r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 
-instance<T> [T] {
+instance [T] {
     pub method &self.len(): usize {
         return slice_len_raw(self)
     }

@@ -106,7 +106,7 @@ instance View {
         return Iter<u8> { marker: 0 }
     }
 }
-conform<T> Iterator for Iter<T> {
+conform Iterator for Iter<T> {
     type Item = &T
     method &+self.next(): &T? { return none }
 }

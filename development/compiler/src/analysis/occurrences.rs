@@ -620,14 +620,13 @@ mod tests {
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
+conform ExactSizeStream<U> for EnumerateIter<T, I> where U = Indexed<T>, I: ExactSizeStream<T> {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let declaration_offset = text.find("ExactSizeStream<T> {}").unwrap();
         let bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
-        let target_offset =
-            text.rfind("conform<T, I> ExactSizeStream").unwrap() + "conform<T, I> ".len();
+        let target_offset = text.rfind("conform ExactSizeStream").unwrap() + "conform ".len();
 
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let bound = file.occurrences.at_offset(bound_offset).unwrap();

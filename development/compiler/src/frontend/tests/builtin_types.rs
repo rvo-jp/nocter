@@ -84,7 +84,7 @@ fn check_rejects_malformed_standard_builtin_instance() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        r#"instance<T> str {
+        r#"instance str {
     pub method self.consume(): usize { return 0 }
 }
 "#,
@@ -115,7 +115,7 @@ fn check_resolves_types_imported_by_builtin_method_signatures() {
     pub marker: usize
 }
 
-instance<T> Iter<T> {
+instance Iter<T> {
     pub method &self.value(): usize { return self.marker }
 }
 "#,

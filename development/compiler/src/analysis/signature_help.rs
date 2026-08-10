@@ -627,7 +627,7 @@ func main(): i32 {
     fn presents_method_receiver_as_mode_and_specialized_owner() {
         let text = r#"struct Box<T> { value: T }
 
-instance<T> Box<T> {
+instance Box<T> {
     method &self.replace(value: T): T {
         return value
     }

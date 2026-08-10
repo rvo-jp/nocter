@@ -8,7 +8,7 @@ use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_sub
 use crate::ast::{AstFile, ConformanceDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
-use crate::source::{ByteSpan, SourceMap};
+use crate::source::SourceMap;
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn check_conformances(
@@ -17,7 +17,7 @@ pub(super) fn check_conformances(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut seen = HashMap::<(String, String), ByteSpan>::new();
+    let mut seen = Vec::<&ConformanceDecl>::new();
 
     for conformance_decl in ast.items.iter().filter_map(|item| match item {
         Item::Conformance(conformance_decl) => Some(conformance_decl),
@@ -27,12 +27,12 @@ pub(super) fn check_conformances(
     }
 }
 
-fn check_conformance(
+fn check_conformance<'a>(
     sources: &SourceMap,
-    conformance_decl: &ConformanceDecl,
+    conformance_decl: &'a ConformanceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
-    seen: &mut HashMap<(String, String), ByteSpan>,
+    seen: &mut Vec<&'a ConformanceDecl>,
 ) {
     let conformance_substitutions = generic_parameter_substitutions(&conformance_decl.generics);
     let Some((interface_symbol, interface_type)) = resolve_interface_symbol(
@@ -54,22 +54,34 @@ fn check_conformance(
         return;
     };
 
-    let key = conformance_key(&interface_type, &target_type);
-    match seen.entry(key) {
-        std::collections::hash_map::Entry::Occupied(first) => {
-            diagnostics.push(duplicate_conformance_diagnostic(
-                sources,
-                conformance_decl,
-                interface_symbol,
-                target_symbol,
-                *first.get(),
-            ));
-            return;
-        }
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(conformance_decl.span);
-        }
+    if let Some(first) = seen.iter().copied().find(|first| {
+        crate::ast::declaration_patterns_overlap(
+            &[&first.interface_ty, &first.target_ty],
+            first
+                .generics
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.name),
+            first.requirements.as_ref(),
+            &[&conformance_decl.interface_ty, &conformance_decl.target_ty],
+            conformance_decl
+                .generics
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.name),
+            conformance_decl.requirements.as_ref(),
+        )
+    }) {
+        diagnostics.push(duplicate_conformance_diagnostic(
+            sources,
+            conformance_decl,
+            interface_symbol,
+            target_symbol,
+            first.span,
+        ));
+        return;
     }
+    seen.push(conformance_decl);
 
     super::conformance_members::check_conformance_members(
         sources,
@@ -144,77 +156,6 @@ fn symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a Typ
     let canonical_name = ty.nominal_name()?;
 
     resolved.type_symbol_by_canonical_name(canonical_name)
-}
-
-fn conformance_key(interface_type: &Type, target_type: &Type) -> (String, String) {
-    let mut parameters = HashMap::new();
-    (
-        conformance_key_type(interface_type, &mut parameters),
-        conformance_key_type(target_type, &mut parameters),
-    )
-}
-
-fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> String {
-    match ty {
-        Type::Callable(_) => ty.display(),
-        Type::Closure(closure) => closure.identity_name(),
-        Type::I32 => "i32".to_string(),
-        Type::Primitive(name) => name.clone(),
-        Type::StrData => "str".to_string(),
-        Type::Str => "&str".to_string(),
-        Type::Error => "error".to_string(),
-        Type::Void => "void".to_string(),
-        Type::Never => "never".to_string(),
-        Type::None => "none".to_string(),
-        Type::ArrayData { element } => {
-            format!("[{}]", conformance_key_type(element, parameters))
-        }
-        Type::View {
-            is_readwrite,
-            element,
-        } => format!(
-            "&{}[{}]",
-            if *is_readwrite { "+" } else { "" },
-            conformance_key_type(element, parameters)
-        ),
-        Type::Array { element, length } => {
-            format!("[{}; {length}]", conformance_key_type(element, parameters))
-        }
-        Type::Pointer(inner) => format!("*({})", conformance_key_type(inner, parameters)),
-        Type::Borrow {
-            is_readwrite,
-            inner,
-        } => format!(
-            "&{}({})",
-            if *is_readwrite { "+" } else { "" },
-            conformance_key_type(inner, parameters)
-        ),
-        Type::Optional(inner) => format!("{}?", conformance_key_type(inner, parameters)),
-        Type::Fallible { success, error } => format!(
-            "{}!{}",
-            conformance_key_type(success, parameters),
-            conformance_key_type(error, parameters)
-        ),
-        Type::Named(name) => name.clone(),
-        Type::Generic { name, arguments } => {
-            let arguments = arguments
-                .iter()
-                .map(|argument| conformance_key_type(argument, parameters))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{name}<{arguments}>")
-        }
-        Type::Projection { base, member } => {
-            format!("{}.{member}", conformance_key_type(base, parameters))
-        }
-        Type::Parameter(name) => {
-            let next = parameters.len();
-            let index = *parameters.entry(name.clone()).or_insert(next);
-            format!("${index}")
-        }
-        Type::Unresolved(name) => name.clone(),
-        Type::Unknown => "<unknown>".to_string(),
-    }
 }
 
 pub(super) fn type_symbol_generic_substitutions(

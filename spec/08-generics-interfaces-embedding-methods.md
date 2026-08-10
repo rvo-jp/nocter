@@ -43,7 +43,7 @@ contracts are invalid.
 implicit copies of `T` only when its contract contains `where copy T`. A concrete call satisfies the
 requirement only when its substituted type is copyable under the ownership rules.
 
-Callables can refine a generic parameter inherited from a surrounding `construct`, `instance`,
+Callables can further constrain a generic parameter inherited from a surrounding `construct`, `instance`,
 `conform`, or `interface` scope:
 
 ```nct
@@ -62,12 +62,39 @@ that declaration. Duplicate `copy` requirements, duplicate interface bounds, and
 contracts are invalid. `copy` is unavailable after `:` and is invalid inside a type expression such
 as `&[copy T]`.
 
-A type equality requires at least one associated projection. Equality is symmetric and transitive,
+A general type equality requires at least one associated projection. Equality is symmetric and transitive,
 expands aliases, and applies recursively beneath existing type constructors. A generic body may
 rely only on equalities in its lexical predicate environment. A concrete call or conditional
 conformance must prove every specialized equality. Cycles that cannot normalize to a finite type,
 unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
 `conform Interface for Type` clause uses the same predicate model and places `where` after the target.
+
+`instance` and `conform` do not have a prefix generic parameter list. Their interface and target
+headers are declaration type patterns. Each generic argument slot contains a bare binder name; its
+first occurrence declares the binder and later occurrences reuse the same identity:
+
+```nct
+instance Pair<L, R> { ... }
+conform Comparable<T> for Pair<T, T> { ... }
+```
+
+Concrete and nested types do not appear directly in a pattern slot. A declaration introduces a
+binder and applies a directed refinement after the header:
+
+```nct
+instance Vec<T> where T = i32 { ... }
+conform Printable for Pair<L, R> where L = String, R = Vec<String> { ... }
+```
+
+In this context, `where T = Type` is a binder refinement rather than symmetric projection
+equality. The left operand must be a binder declared by the same pattern, the right operand cannot
+contain that binder, and one binder cannot have two refinements. Refinements affect method and
+conformance applicability. Overlapping patterns are rejected; a more concrete refinement never
+wins by ranking or source order.
+
+`drop` is uniform across every specialization of a nominal type. An instance containing `drop`
+must use each target slot through one distinct binder and cannot have a `where` predicate. This
+keeps generic ownership and ABI behavior independent of conditional method availability.
 
 ```nct
 func inspect<T>(value: &T): i32 where T: Readable<i32> {
@@ -75,7 +102,8 @@ func inspect<T>(value: &T): i32 where T: Readable<i32> {
 }
 ```
 
-Generic implementation uses monomorphization. Predicate equality is compile-time only and creates
+Generic implementation uses monomorphization. Predicate equality and binder refinement are
+compile-time only and create
 no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime generic metadata,
 interface objects, interface inheritance, higher-kinded types, generic associated types, or general
 const generics.
@@ -159,7 +187,7 @@ pub interface Source {
     pub method &+self.next(): Self.Item?
 }
 
-conform<T> Source for BufferSource<T> {
+conform Source for BufferSource<T> {
     type Item = T
 
     method &+self.next(): T? {
@@ -235,7 +263,7 @@ Generic conformance parameters may carry bounds. A conditional conformance exist
 target only when every specialized bound is satisfied:
 
 ```nct
-conform<I> Iterator for TakeIter<I> where I: Iterator {
+conform Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -248,7 +276,7 @@ conform<I> Iterator for TakeIter<I> where I: Iterator {
 }
 ```
 
-Identical normalized target/interface patterns are rejected rather than ranked. Nocter does not
+Overlapping normalized target/interface patterns are rejected rather than ranked. Nocter does not
 perform overlap specialization.
 
 ## Method Lookup

@@ -40,7 +40,7 @@ fn check_text(text: &str) -> Vec<Diagnostic> {
     let slice_source = sources.add_source(
         "std/slice/index.nct",
         None,
-        "instance<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let ast = parse_test_source(&sources, source);
     let str_ast = parse_test_source(&sources, str_source);

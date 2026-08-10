@@ -492,7 +492,7 @@ fn build_command_lowers_concrete_generic_scope_end_drop() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     drop &+self {
         return
     }

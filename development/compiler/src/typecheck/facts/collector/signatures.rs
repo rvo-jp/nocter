@@ -108,7 +108,10 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Conformance(conformance) => {
                 self.collect_generic_param_type_references(&conformance.generics);
-                self.collect_type_expr_references(&conformance.interface_ty);
+                self.collect_declaration_pattern_type_references(
+                    &conformance.interface_ty,
+                    conformance.requirements.as_ref(),
+                );
                 self.collect_type_expr_references(&conformance.target_ty);
                 self.collect_where_clause_type_references(conformance.requirements.as_ref());
                 let associated_types = match &conformance.interface_ty {
@@ -246,6 +249,39 @@ impl TypecheckFactCollector<'_> {
         for equality in clause.equalities() {
             self.collect_type_expr_references(&equality.left);
             self.collect_type_expr_references(&equality.right);
+        }
+        for refinement in clause.refinements() {
+            self.record_type_reference(
+                &refinement.name,
+                refinement.name_span,
+                TypeExpr::Reference(TypeReference {
+                    span: refinement.name_span,
+                    name: refinement.name.clone(),
+                }),
+            );
+            self.collect_type_expr_references(&refinement.value);
+        }
+    }
+
+    fn collect_declaration_pattern_type_references(
+        &mut self,
+        ty: &TypeExpr,
+        clause: Option<&crate::ast::WhereClause>,
+    ) {
+        let substitutions = clause
+            .into_iter()
+            .flat_map(crate::ast::WhereClause::refinements)
+            .map(|refinement| (refinement.name.clone(), refinement.value.clone()))
+            .collect();
+        match ty {
+            TypeExpr::Generic(generic) => {
+                let contextual = crate::ast::substitute_type_expr_parameters(ty, &substitutions);
+                self.record_type_reference(&generic.name, generic.name_span, contextual);
+                for argument in &generic.arguments {
+                    self.collect_type_expr_references(argument);
+                }
+            }
+            _ => self.collect_type_expr_references(ty),
         }
     }
 

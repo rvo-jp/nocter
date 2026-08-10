@@ -440,6 +440,12 @@ impl WhereClause {
                             children,
                         )
                     }
+                    crate::ast::WherePredicate::Refinement(refinement) => JsonAstNode::with_value(
+                        "binder_refinement_predicate",
+                        refinement.name.clone(),
+                        json_span(sources, refinement.span),
+                        vec![refinement.value.to_json(sources)],
+                    ),
                     crate::ast::WherePredicate::Equality(equality) => JsonAstNode::new(
                         "type_equality_predicate",
                         json_span(sources, equality.span),

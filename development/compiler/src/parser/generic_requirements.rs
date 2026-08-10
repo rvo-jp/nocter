@@ -69,6 +69,7 @@ impl Parser<'_> {
             .map_or(keyword.span.end, |predicate| match predicate {
                 WherePredicate::Copy(requirement) => requirement.span.end,
                 WherePredicate::Generic(requirement) => requirement.span.end,
+                WherePredicate::Refinement(refinement) => refinement.span.end,
                 WherePredicate::Equality(equality) => equality.span.end,
             });
         Ok(Some(WhereClause {

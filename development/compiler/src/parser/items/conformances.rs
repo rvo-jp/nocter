@@ -3,11 +3,13 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn parse_conformance_decl(&mut self) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Conform, "`conform`")?;
-        let generics = self.parse_generic_param_list()?;
+        self.reject_declaration_pattern_prefix("conform")?;
         let interface_ty = self.parse_type()?;
         self.expect_keyword(Keyword::For, "`for` after interface type")?;
         let target_ty = self.parse_type()?;
-        let requirements = self.parse_where_clause()?;
+        let generics = self.declaration_pattern_parameters(&[&interface_ty, &target_ty])?;
+        let mut requirements = self.parse_where_clause()?;
+        self.classify_declaration_pattern_refinements(&mut requirements, &generics);
         let (members, end) = self.parse_conformance_members()?;
         Ok(Item::Conformance(ConformanceDecl {
             span: self.span(start.span.start, end),

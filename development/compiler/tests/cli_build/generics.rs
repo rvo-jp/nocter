@@ -58,7 +58,7 @@ fn build_command_lowers_generic_impl_method_with_concrete_receiver() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -87,7 +87,7 @@ fn build_command_lowers_generic_function_body_method_call_with_concrete_argument
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -120,7 +120,7 @@ fn build_command_lowers_concrete_generic_impl_method() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     method &self.read(): i32 {
         return self.value
     }

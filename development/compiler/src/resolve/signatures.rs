@@ -110,6 +110,7 @@ pub(super) fn instance_method_signatures(
             method,
             &instance.target_ty,
             &instance.generics,
+            instance.requirements.as_ref(),
         )),
         InstanceMember::Drop(_) => None,
     })
@@ -127,6 +128,7 @@ pub(super) fn conformance_method_signatures(
                 method,
                 &conformance.target_ty,
                 &conformance.generics,
+                conformance.requirements.as_ref(),
             )),
         })
 }
@@ -150,37 +152,63 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     instance: &InstanceDecl,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    let mut seen = HashMap::<&str, ByteSpan>::new();
+    let mut fixed_names = HashMap::<&str, ByteSpan>::new();
     for variant in &type_symbol.variants {
-        seen.entry(variant.name.as_str())
+        fixed_names
+            .entry(variant.name.as_str())
             .or_insert(variant.name_span);
     }
     for function in &type_symbol.associated_functions {
-        seen.entry(function.name.as_str())
+        fixed_names
+            .entry(function.name.as_str())
             .or_insert(function.name_span);
     }
-    for method in &type_symbol.methods {
-        seen.entry(method.name.as_str()).or_insert(method.name_span);
-    }
+    let mut current_methods = HashMap::<&str, ByteSpan>::new();
 
     for member in &instance.members {
         let (name, span) = match member {
             InstanceMember::Method(method) => (method.name.as_str(), method.name_span),
             InstanceMember::Drop(_) => continue,
         };
-        match seen.entry(name) {
-            std::collections::hash_map::Entry::Occupied(first) => {
-                diagnostics.push(duplicate_inherent_member_name_diagnostic(
-                    sources,
-                    target_name,
-                    name,
-                    *first.get(),
-                    span,
-                ));
-            }
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(span);
-            }
+        let first = fixed_names
+            .get(name)
+            .copied()
+            .or_else(|| current_methods.get(name).copied())
+            .or_else(|| {
+                type_symbol.methods.iter().find_map(|existing| {
+                    if existing.name != name {
+                        return None;
+                    }
+                    let target = existing.owner_target_ty.as_ref()?;
+                    crate::ast::declaration_patterns_overlap(
+                        &[target],
+                        existing
+                            .signature
+                            .generic_parameters
+                            .iter()
+                            .take(existing.owner_generic_count),
+                        existing.signature.where_clause.as_ref(),
+                        &[&instance.target_ty],
+                        instance
+                            .generics
+                            .parameters
+                            .iter()
+                            .map(|parameter| &parameter.name),
+                        instance.requirements.as_ref(),
+                    )
+                    .then_some(existing.name_span)
+                })
+            });
+        if let Some(first) = first {
+            diagnostics.push(duplicate_inherent_member_name_diagnostic(
+                sources,
+                target_name,
+                name,
+                first,
+                span,
+            ));
+        } else {
+            current_methods.insert(name, span);
         }
     }
 
@@ -325,7 +353,14 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
         methods: interface
             .methods
             .iter()
-            .map(|method| method_signature_inner(method, None, &interface.generics))
+            .map(|method| {
+                method_signature_inner(
+                    method,
+                    None,
+                    &interface.generics,
+                    interface.requirements.as_ref(),
+                )
+            })
             .collect(),
         interface_conformances: Vec::new(),
         drop_member: None,
@@ -453,16 +488,24 @@ fn method_signature_for_owner(
     method: &MethodDecl,
     target_ty: &TypeExpr,
     generics: &GenericParamList,
+    owner_requirements: Option<&crate::ast::WhereClause>,
 ) -> MethodSignature {
-    method_signature_inner(method, Some(target_ty.clone()), generics)
+    method_signature_inner(
+        method,
+        Some(target_ty.clone()),
+        generics,
+        owner_requirements,
+    )
 }
 
 fn method_signature_inner(
     method: &MethodDecl,
     owner_target_ty: Option<TypeExpr>,
     generics: &GenericParamList,
+    owner_requirements: Option<&crate::ast::WhereClause>,
 ) -> MethodSignature {
     let has_default_body = method.body.is_some() && owner_target_ty.is_none();
+    let requirements = merged_where_clause(owner_requirements, method.requirements.as_ref());
     MethodSignature {
         name: method.name.clone(),
         name_span: method.name_span,
@@ -478,8 +521,31 @@ fn method_signature_inner(
             &method.parameters.parameters,
             method.return_type.clone(),
             method.result_provenance.clone(),
-            method.requirements.as_ref(),
+            requirements.as_ref(),
         ),
+    }
+}
+
+fn merged_where_clause(
+    owner: Option<&crate::ast::WhereClause>,
+    member: Option<&crate::ast::WhereClause>,
+) -> Option<crate::ast::WhereClause> {
+    match (owner, member) {
+        (None, None) => None,
+        (Some(clause), None) | (None, Some(clause)) => Some(clause.clone()),
+        (Some(owner), Some(member)) => {
+            let mut predicates = owner.predicates.clone();
+            predicates.extend(member.predicates.clone());
+            Some(crate::ast::WhereClause {
+                span: crate::source::ByteSpan::new(
+                    owner.span.source,
+                    owner.span.start.min(member.span.start),
+                    owner.span.end.max(member.span.end),
+                ),
+                keyword_span: owner.keyword_span,
+                predicates,
+            })
+        }
     }
 }
 

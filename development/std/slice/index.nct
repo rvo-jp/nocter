@@ -8,7 +8,7 @@ use std/ptr.from_addr
 pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 
-instance<T> [T] {
+instance [T] {
     pub method &self.len(): usize {
         return slice_len_raw(self)
     }

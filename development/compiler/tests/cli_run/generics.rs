@@ -210,7 +210,7 @@ func identity<T>(value: T): T {
     return value
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_identity(): U {
         return identity(self.value)
     }
@@ -244,7 +244,7 @@ fn run_command_returns_generic_function_body_method_call_exit_code() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -282,7 +282,7 @@ fn run_command_returns_concrete_generic_impl_method_exit_code() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     method &self.read(): i32 {
         return self.value
     }
@@ -316,7 +316,7 @@ fn run_command_returns_generic_impl_method_with_concrete_receiver_exit_code() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -350,7 +350,7 @@ fn run_command_returns_generic_impl_method_multiple_concrete_receivers_exit_code
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -411,7 +411,7 @@ struct Adapter<T> {
     value: T
 }
 
-conform<T> Read for Adapter<T> where T: Read {
+conform Read for Adapter<T> where T: Read {
     method &self.read(): i32 {
         return self.value.read()
     }
@@ -660,7 +660,7 @@ copy struct Unit {
     marker: i32
 }
 
-conform Value<i32> for Unit {}
+conform Value<T> for Unit where T = i32 {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

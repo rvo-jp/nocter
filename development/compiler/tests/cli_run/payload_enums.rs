@@ -408,7 +408,7 @@ struct Box<T> {
     value: T
 }
 
-instance<T> Box<T> {
+instance Box<T> {
     drop &+self {
         exit(self.code)
     }

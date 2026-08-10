@@ -977,7 +977,7 @@ fn member_completion_specializes_generics_and_filters_receiver_capability() {
     value: T
 }
 
-instance<T> Box<T> {
+instance Box<T> {
     method &self.inspect(): void {
         return
     }
@@ -1111,7 +1111,7 @@ fn generic_method_completion_keeps_constraints_in_a_specialized_where_clause() {
 
 struct Box<T> { value: T }
 
-instance<T> Box<T> {
+instance Box<T> {
     method &self.map<U>(value: U): T where U: Reader<T> {
         return self.value
     }
@@ -1225,7 +1225,7 @@ coerce Buffer {
     pub &+self as &+[u8] { return self.write }
 }
 
-instance<T> [T] {
+instance [T] {
     pub method &self.len(): usize { return 1 }
     pub method &+self.clear(): void { return }
 }
@@ -1399,7 +1399,7 @@ func project<S>(source: S): S. where S: Source {
 fn method_presentation_matches_completion_hover_and_signature_help() {
     let text = r#"struct Box<T> { value: T }
 
-instance<T> Box<T> {
+instance Box<T> {
     method &self.replace(value: T): T {
         return value
     }

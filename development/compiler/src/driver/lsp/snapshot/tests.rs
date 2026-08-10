@@ -532,7 +532,7 @@ impl TempProject {
         .unwrap();
         crate::test_files::write(
             home.join("std/slice/index.nct"),
-            "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\ninstance<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
+            "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\ninstance [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
         )
         .unwrap();
         home

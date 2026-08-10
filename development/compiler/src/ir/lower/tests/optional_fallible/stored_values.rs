@@ -603,7 +603,7 @@ fn specializes_alias_method_and_generic_stored_outcomes() {
 
 copy struct Holder<T> { value: T }
 
-instance<T> Holder<T> {
+instance Holder<T> {
     method &self.get(): T? {
         return self.value
     }

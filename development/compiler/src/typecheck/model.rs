@@ -458,6 +458,18 @@ impl TypeEnvironment {
                 ));
             }
         }
+        for refinement in clause.refinements() {
+            if !self.generic_parameters.contains(&refinement.name) {
+                continue;
+            }
+            let left = Type::Parameter(refinement.name.clone());
+            let right = super::type_expr::type_expr_to_type_in_environment(
+                &refinement.value,
+                resolved,
+                self,
+            );
+            self.type_equalities.push((left, right));
+        }
         for equality in clause.equalities() {
             let left =
                 super::type_expr::type_expr_to_type_in_environment(&equality.left, resolved, self);

@@ -27,3 +27,4 @@ mod parameters;
 mod provenance;
 mod tests;
 pub(super) mod type_owners;
+mod type_patterns;

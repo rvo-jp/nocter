@@ -317,6 +317,14 @@ fn qualify_where_clause(
                     qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
                 }
             }
+            crate::ast::WherePredicate::Refinement(refinement) => {
+                qualify_type_expr(
+                    &mut refinement.value,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
             crate::ast::WherePredicate::Equality(equality) => {
                 qualify_type_expr(
                     &mut equality.left,

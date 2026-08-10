@@ -56,8 +56,11 @@ and construction APIs remain unconstrained.
 - `<T, U>` declares names and arity; `<copy T>` and `<T: Interface>` are rejected syntax.
 - `where T: Capability` is reserved for interface and structural callable conformance.
 - `where copy T` is the only intrinsic copy spelling; `where T: copy` is rejected.
-- `where Left = Right` relates types and requires at least one associated projection.
-- functions, methods, literals, nominal declarations, aliases, and impls all own the same clause
+- `where Left = Right` on an ordinary generic declaration relates types and requires at least one
+  associated projection. `instance` and `conform` classify `where Binder = Type` separately as a
+  directed declaration-pattern refinement; see
+  [Declaration Type Pattern Architecture](declaration-type-patterns.md).
+- functions, methods, literals, nominal declarations, aliases, instances, and conformances all own the same clause
   representation; no declaration kind carries an inline fallback.
 - associated type declarations may retain `pub type Item: Interface` because that bound constrains
   the type selected for the member, not a generic parameter.

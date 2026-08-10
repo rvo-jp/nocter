@@ -343,9 +343,7 @@ impl Formatter {
     }
 
     fn format_instance_decl(&mut self, item: &InstanceDecl) {
-        self.write("instance");
-        self.format_generics(&item.generics);
-        self.write(" ");
+        self.write("instance ");
         self.format_type(&item.target_ty);
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
@@ -379,9 +377,7 @@ impl Formatter {
     }
 
     fn format_conformance_decl(&mut self, item: &ConformanceDecl) {
-        self.write("conform");
-        self.format_generics(&item.generics);
-        self.write(" ");
+        self.write("conform ");
         self.format_type(&item.interface_ty);
         self.write(" for ");
         self.format_type(&item.target_ty);
@@ -536,6 +532,11 @@ impl Formatter {
                         }
                         self.format_type(bound);
                     }
+                }
+                crate::ast::WherePredicate::Refinement(refinement) => {
+                    self.write(&refinement.name);
+                    self.write(" = ");
+                    self.format_type(&refinement.value);
                 }
                 crate::ast::WherePredicate::Equality(equality) => {
                     self.format_type(&equality.left);

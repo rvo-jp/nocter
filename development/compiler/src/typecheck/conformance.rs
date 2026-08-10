@@ -95,6 +95,32 @@ fn specialize_conformance(
         &parameters,
         &mut substitutions,
     );
+    if let Some(clause) = &conformance.where_clause {
+        for _ in 0..conformance.generic_parameters.len().max(1) {
+            let before = substitutions.len();
+            for refinement in clause.refinements() {
+                let value = type_expr_to_type_with_substitutions(
+                    &refinement.value,
+                    resolved,
+                    Some(actual),
+                    &substitutions,
+                );
+                if value.is_unknown_or_unresolved() {
+                    continue;
+                }
+                match substitutions.get(&refinement.name) {
+                    Some(existing) if existing != &value => return None,
+                    Some(_) => {}
+                    None => {
+                        substitutions.insert(refinement.name.clone(), value);
+                    }
+                }
+            }
+            if substitutions.len() == before {
+                break;
+            }
+        }
+    }
     let specialized_target = type_expr_to_type_with_substitutions(
         &conformance.target_ty,
         resolved,
@@ -126,6 +152,18 @@ fn specialize_conformance(
     }
 
     if let Some(clause) = &conformance.where_clause {
+        for refinement in clause.refinements() {
+            let bound = substitutions.get(&refinement.name)?;
+            let expected = type_expr_to_type_with_substitutions(
+                &refinement.value,
+                resolved,
+                Some(actual),
+                &substitutions,
+            );
+            if expected.is_unknown_or_unresolved() || bound != &expected {
+                return None;
+            }
+        }
         for equality in clause.equalities() {
             let left = type_expr_to_type_with_substitutions(
                 &equality.left,

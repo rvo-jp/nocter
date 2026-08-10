@@ -1901,13 +1901,13 @@ struct Box<T> {
     value: T
 }
 
-conform<T> Read<T> for Box<T> {
+conform Read<T> for Box<T> {
     method &self.read(): &T from self {
         return &self.value
     }
 }
 
-conform<T> Measure for Box<T> {
+conform Measure for Box<T> {
     method &self.measure(): usize {
         return 1
     }

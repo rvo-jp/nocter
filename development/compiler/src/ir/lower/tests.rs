@@ -620,7 +620,7 @@ instance str {
     crate::test_files::write(
         home.join("std/slice/index.nct"),
         r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
-instance<T> [T] {
+instance [T] {
     pub method &self.len(): usize { return slice_len_raw(self) }
     pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 }
 }

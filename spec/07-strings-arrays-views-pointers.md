@@ -99,7 +99,7 @@ func address_of(value: &u8): usize {
 `&[T]`, `&+[T]`, and `&str` expose pointer and length methods.
 
 ```nct
-instance<T> [T] {
+instance [T] {
     pub method &self.ptr(): *T
     pub method &self.len(): usize
     pub method &self.is_empty(): bool
@@ -335,7 +335,7 @@ pub struct ViewIter<T> {
     ...
 }
 
-instance<T> ViewIter<T> {
+instance ViewIter<T> {
     pub method &+self.next(): &T?
 }
 ```

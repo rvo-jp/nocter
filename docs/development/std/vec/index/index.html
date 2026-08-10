@@ -194,7 +194,7 @@
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> next<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>iterator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span>
 
-instance<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+instance <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns the number of owned elements not yet yielded.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
@@ -589,7 +589,7 @@ coerce <span class="token-type">Vec</span><span class="token-operator">&lt;</spa
     <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.index_out_of_bounds"</span><span class="token-operator">,</span> <span class="token-string">"Vec insertion index is out of bounds"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-instance<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+instance <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">capacity</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">capacity</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -687,7 +687,7 @@ instance<span class="token-operator">&lt;</span><span class="token-type">T</span
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-conform<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Sequence</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform <span class="token-type">Sequence</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns the number of initialized elements.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">len</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
@@ -702,7 +702,7 @@ conform<span class="token-operator">&lt;</span><span class="token-type">T</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-conform<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Iterable</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform <span class="token-type">Iterable</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     type <span class="token-type">Iter</span> <span class="token-operator">=</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
 
     <span class="token-comment">/// Returns an allocation-free iterator over readonly element borrows.</span>
@@ -711,7 +711,7 @@ conform<span class="token-operator">&lt;</span><span class="token-type">T</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-conform<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">IntoIterator</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform <span class="token-type">IntoIterator</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     type <span class="token-type">Iter</span> <span class="token-operator">=</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span>
     <span class="token-comment">/// Transfers the allocation and every element into an owning iterator.</span>
     <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">into_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

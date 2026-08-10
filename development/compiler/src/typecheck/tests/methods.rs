@@ -34,6 +34,51 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn disjoint_refined_instances_select_methods_by_receiver_type() {
+    let diagnostics = check_text(
+        r#"copy struct Box<T> { value: T }
+
+instance Box<T> where T = i32 {
+    method self.marker(): i32 { return 1 }
+}
+
+instance Box<U> where U = u32 {
+    method self.marker(): u32 { return 2 }
+}
+
+func first(value: Box<i32>): i32 { return value.marker() }
+func second(value: Box<u32>): u32 { return value.marker() }
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_overlapping_generic_and_refined_instance_methods() {
+    let diagnostics = check_text(
+        r#"copy struct Box<T> { value: T }
+
+instance Box<T> {
+    method self.marker(): i32 { return 1 }
+}
+
+instance Box<U> where U = i32 {
+    method self.marker(): i32 { return 2 }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0413"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn accepts_one_step_receiver_coercion_to_a_source_declared_builtin_method() {
     let diagnostics = check_text(
         r#"struct Text {
@@ -75,7 +120,7 @@ coerce Buffer {
     pub &+self as &+[u8] { return self.write }
 }
 
-instance<T> [T] {
+instance [T] {
     pub method &self.count(): usize { return 1 }
     pub method &+self.clear(): void { return }
 }
@@ -225,7 +270,7 @@ fn accepts_generic_instance_method_body_and_call_return_type() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.value(): U {
         return self.value
     }
@@ -273,7 +318,7 @@ fn diagnoses_method_generic_reusing_an_instance_parameter() {
     value: T
 }
 
-instance<T> Box<T> {
+instance Box<T> {
     method &self.identity<T>(value: T): T {
         return value
     }
@@ -300,7 +345,7 @@ fn diagnoses_generic_instance_method_return_type_mismatch() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.bad(): i32 {
         return self.value
     }
@@ -325,7 +370,7 @@ fn diagnoses_method_call_from_non_matching_generic_owner_target() {
     value: T
 }
 
-instance Box<i32> {
+instance Box<T> where T = i32 {
     method self.value_i32(): i32 {
         return self.value
     }

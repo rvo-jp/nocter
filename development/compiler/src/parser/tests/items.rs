@@ -14,7 +14,7 @@ fn parses_required_associated_types_and_conformance_bindings() {
     pub method &+self.next(): Self.Item?
 }
 
-conform<T> Source for Buffer<T> {
+conform Source for Buffer<T> {
     type Item = T
     method &+self.next(): T? { return none }
 }
@@ -767,7 +767,7 @@ fn parses_generic_instance_parameters() {
     value: T
 }
 
-instance<U> Box<U> {
+instance Box<U> {
     method self.value(): U {
         return self.value
     }
@@ -1322,7 +1322,7 @@ fn rejects_copy_after_a_bound_colon() {
 #[test]
 fn parses_projected_type_equality_on_conformance() {
     let output = parse_text(
-        r#"conform<L, R> Pair for Zip<L, R> where R.Item = L.Item {
+        r#"conform Pair for Zip<L, R> where R.Item = L.Item {
 }
 "#,
     );
@@ -1796,4 +1796,69 @@ func main(): i32 {
     assert!(output.ast.is_none());
     assert_eq!(output.diagnostics.len(), 1);
     assert!(output.diagnostics[0].message.contains("top-level item"));
+}
+
+#[test]
+fn declaration_patterns_discover_ordered_binders_and_directed_refinements() {
+    let (sources, output) = parse_text_with_sources(
+        r#"interface Pair<L, R> {}
+struct Zip<L, R> { left: L, right: R }
+
+conform Pair<R, L> for Zip<L, R> where R = i32 {}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Conformance(conformance) = &ast.items[2] else {
+        panic!("expected conformance");
+    };
+    assert_eq!(
+        conformance
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.as_str())
+            .collect::<Vec<_>>(),
+        ["R", "L"]
+    );
+    let clause = conformance.requirements.as_ref().unwrap();
+    let refinement = clause.refinements().next().unwrap();
+    assert_eq!(refinement.name, "R");
+    assert!(matches!(
+        &refinement.value,
+        TypeExpr::Reference(reference) if reference.name == "i32"
+    ));
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "binder_refinement_predicate").is_some());
+}
+
+#[test]
+fn rejects_explicit_declaration_pattern_binder_prefixes() {
+    for source in ["instance<T> Box<T> {}", "conform<T> Source for Box<T> {}"] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none());
+        assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("parameters are declared by its type pattern")
+        );
+    }
+}
+
+#[test]
+fn rejects_concrete_and_nested_declaration_pattern_arguments() {
+    for source in [
+        "instance Box<i32> {}",
+        "conform Source<Vec<T>> for Box<T> {}",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none());
+        assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("pattern arguments must be bare binders")
+        );
+    }
 }

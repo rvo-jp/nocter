@@ -33,7 +33,7 @@ current working directory.
 ## Declaration Validation
 
 The resolver recognizes the built-in target syntax once and validates its complete shape before
-collecting methods. `instance str` has no generic parameters. `instance<T> [T]` has exactly one parameter,
+collecting methods. `instance str` has no generic parameters. `instance [T]` has exactly one parameter,
 and its element reference must name that parameter. Built-in instance blocks contain only
 public borrowed methods with bodies. They cannot implement interfaces, declare owned receivers,
 construct values, or attach unrelated members.

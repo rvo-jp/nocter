@@ -33,7 +33,7 @@ fn coercion_body_has_the_same_receiver_provenance_as_an_inherent_method() {
     let diagnostics = check_text(
         r#"
 struct Box<T> { value: T }
-instance<T> Box<T> {
+instance Box<T> {
     pub method &self.get(): &T from self { return &self.value }
 }
 func main(): i32 { return 0 }

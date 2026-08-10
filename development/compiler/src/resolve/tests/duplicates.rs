@@ -134,7 +134,7 @@ func main(): i32 {
     value: T
 }
 
-instance<error> Box<i32> {
+instance Box<T> where T = i32 {
     method self.value(): i32 {
         return self.value
     }
@@ -516,15 +516,16 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_instance_generic_parameter_names() {
+fn repeated_declaration_pattern_binders_share_one_identity() {
     let output = resolve_text(
-        r#"struct Box<T> {
-    value: T
+        r#"struct Pair<L, R> {
+    left: L
+    right: R
 }
 
-instance<T, T> Box<T> {
+instance Pair<T, T> {
     method self.value(): T {
-        return self.value
+        return self.left
     }
 }
 
@@ -534,8 +535,7 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert_eq!(output.diagnostics[0].code, "E0420");
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
 }
 
 #[test]
