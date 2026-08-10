@@ -59,6 +59,95 @@ pub(super) fn promote_loop_aggregate_state(
     })
 }
 
+pub(in crate::ir::lower) fn promote_expression_aggregate_state(
+    expression: &Expr,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !expression_contains_path_dependent_evaluation(expression) {
+        return Ok(Vec::new());
+    }
+    promote_matching_aggregate_state(context, |name, context| {
+        expression_contains_explicit_aggregate_move_matching(expression, context, &|moved, _| {
+            moved == name
+        })
+    })
+}
+
+fn expression_contains_path_dependent_evaluation(expression: &Expr) -> bool {
+    match expression {
+        Expr::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+            ) =>
+        {
+            true
+        }
+        Expr::Otherwise(_) | Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) => true,
+        Expr::ArrayLiteral(literal) => literal
+            .elements
+            .iter()
+            .any(expression_contains_path_dependent_evaluation),
+        Expr::TypedSequenceLiteral(literal) => {
+            literal
+                .elements
+                .iter()
+                .any(expression_contains_path_dependent_evaluation)
+                || literal.using.as_ref().is_some_and(|using| {
+                    expression_contains_path_dependent_evaluation(&using.allocator)
+                })
+        }
+        Expr::TypedStringLiteral(literal) => literal
+            .using
+            .as_ref()
+            .is_some_and(|using| expression_contains_path_dependent_evaluation(&using.allocator)),
+        Expr::StructLiteral(literal) => literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_path_dependent_evaluation(&field.value)),
+        Expr::Propagate(propagation) => {
+            expression_contains_path_dependent_evaluation(&propagation.expression)
+        }
+        Expr::Force(force) => expression_contains_path_dependent_evaluation(&force.expression),
+        Expr::Borrow(borrow) => expression_contains_path_dependent_evaluation(&borrow.expression),
+        Expr::Unary(unary) => expression_contains_path_dependent_evaluation(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_path_dependent_evaluation(&binary.left)
+                || expression_contains_path_dependent_evaluation(&binary.right)
+        }
+        Expr::TypeConversion(conversion) => {
+            expression_contains_path_dependent_evaluation(&conversion.expression)
+        }
+        Expr::Call(call) => {
+            expression_contains_path_dependent_evaluation(&call.callee)
+                || call
+                    .arguments
+                    .iter()
+                    .any(expression_contains_path_dependent_evaluation)
+        }
+        Expr::Member(member) => expression_contains_path_dependent_evaluation(&member.object),
+        Expr::Index(index) => {
+            expression_contains_path_dependent_evaluation(&index.object)
+                || expression_contains_path_dependent_evaluation(&index.index)
+        }
+        Expr::Group(group) => expression_contains_path_dependent_evaluation(&group.expression),
+        Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
+            if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                expression_contains_path_dependent_evaluation(&part.expression)
+            } else {
+                false
+            }
+        }),
+        Expr::Closure(_)
+        | Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => false,
+    }
+}
+
 fn promote_matching_aggregate_state(
     context: &mut LoweringContext,
     changes_state: impl Fn(&str, &LoweringContext) -> bool,
@@ -251,7 +340,7 @@ pub(super) fn record_assignment_runtime_initialization(
     }
 }
 
-pub(super) fn record_runtime_aggregate_transitions(
+pub(in crate::ir::lower) fn record_runtime_aggregate_transitions(
     instructions: &mut Vec<Instruction>,
     context: &LoweringContext,
 ) {

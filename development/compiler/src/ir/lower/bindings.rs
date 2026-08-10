@@ -139,6 +139,19 @@ pub(super) fn lower_local_binding_with_loop_control(
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions =
+        super::control_flow::promote_expression_aggregate_state(&statement.initializer, context)?;
+    let mut binding = lower_local_binding_without_runtime_state(statement, context, loop_control)?;
+    super::control_flow::record_runtime_aggregate_transitions(&mut binding, context);
+    instructions.extend(binding);
+    Ok(instructions)
+}
+
+fn lower_local_binding_without_runtime_state(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_interpolated_string_binding(statement, context)? {
         return Ok(instructions);
     }
@@ -227,6 +240,18 @@ pub(super) fn lower_local_binding_with_loop_control(
 }
 
 pub(super) fn lower_assignment(
+    statement: &AssignmentStmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions =
+        super::control_flow::promote_expression_aggregate_state(&statement.value, context)?;
+    let mut assignment = lower_assignment_without_runtime_state(statement, context)?;
+    super::control_flow::record_runtime_aggregate_transitions(&mut assignment, context);
+    instructions.extend(assignment);
+    Ok(instructions)
+}
+
+fn lower_assignment_without_runtime_state(
     statement: &AssignmentStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {

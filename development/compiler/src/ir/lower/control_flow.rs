@@ -61,10 +61,12 @@ use diagnostics::{
     attach_primary_span_if_absent, unsupported_nonterminal_if_diagnostic,
     unsupported_terminal_if_diagnostic,
 };
+pub(in crate::ir::lower) use drop_state::{
+    promote_expression_aggregate_state, record_runtime_aggregate_transitions,
+};
 use drop_state::{
     promote_if_aggregate_state, promote_loop_aggregate_state, promote_switch_aggregate_state,
     promote_while_aggregate_state, record_assignment_runtime_initialization,
-    record_runtime_aggregate_transitions,
 };
 pub(super) use exit_analysis::statement_exits_function;
 use exit_analysis::{expression_exits_function, statement_suffix_exits_function};

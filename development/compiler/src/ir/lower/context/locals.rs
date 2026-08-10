@@ -485,6 +485,12 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_moved(&mut self, name: &str) {
+        if self
+            .aggregate_local(name)
+            .is_some_and(|local| local.runtime_live.is_some())
+        {
+            return;
+        }
         self.update_aggregate_drop_obligation(name, DropObligation::Inactive);
     }
 

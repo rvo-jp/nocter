@@ -95,6 +95,34 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_transfers_outer_value_once_from_value_branch() {
+    let source = r#"use std/log.write
+
+struct File {
+    fd: i32
+}
+
+destruct File(&+self) {
+    write("drop\n")!
+    return
+}
+
+func main(): i32! {
+    var file = File { fd: 3 }
+    let code = if true {
+        var moved = move file
+        moved.fd
+    } else {
+        0
+    }
+    return code
+}
+"#;
+    assert_drop_program("cli-run-path-move-value-if", source, 3, 1);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_short_circuit_move_evaluation_state() {
     let source = r#"use std/log.write
 
@@ -113,15 +141,22 @@ func consume(file: File): bool {
 
 func main(): i32! {
     var skipped = File { fd: 4 }
-    if false && consume(move skipped) {
+    let skipped_code = if false && consume(move skipped) {
+        1
+    } else {
+        0
+    }
+    if skipped_code != 0 {
         return 1
     }
 
     var consumed = File { fd: 5 }
-    if true && consume(move consumed) {
-        return 9
+    let consumed_code = if true && consume(move consumed) {
+        9
+    } else {
+        2
     }
-    return 2
+    return consumed_code
 }
 "#;
     assert_drop_program("cli-run-path-move-short-circuit", source, 9, 2);

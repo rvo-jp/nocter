@@ -15,12 +15,12 @@ use super::context::{AggregateDrop, AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
-    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move_outside,
-    lower_aggregate_drop_instructions, lower_aggregate_return_expression,
-    lower_direct_aggregate_return_with_scope_drops, lower_never_expression,
-    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    append_scope_end_drops_before_exit, lower_aggregate_drop_instructions,
+    lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
+    lower_never_expression, lower_scope_end_drops_for_locals_since,
+    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses, tag_only_if_is_as_control_flow,
+    tag_only_switch_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_integer_literal_word, lower_str_literal, lower_u8_literal,

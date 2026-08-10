@@ -471,7 +471,9 @@ pub(in crate::ir::lower) fn lower_drop_statement(
         return Ok(Vec::new());
     };
 
-    context.mark_aggregate_local_dropped(&statement.name);
+    if local.runtime_live.is_none() {
+        context.mark_aggregate_local_dropped(&statement.name);
+    }
     let mut instructions = lower_aggregate_drop_instructions(
         &statement.name,
         local.slot_index,
@@ -720,15 +722,4 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
     }
-}
-
-pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_outside(
-    expression: &Expr,
-    context: &LoweringContext,
-    local_mark: usize,
-) -> bool {
-    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
-        context.aggregate_local(name).is_some()
-            && !context.aggregate_local_defined_since(name, local_mark)
-    })
 }

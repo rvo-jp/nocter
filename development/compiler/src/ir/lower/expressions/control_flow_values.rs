@@ -991,13 +991,10 @@ pub(super) fn lower_value_control_block_to_location_with_prologue(
     let local_mark = branch_context.local_mark();
     let mut instructions = prologue.apply(&mut branch_context)?;
     let (leading_instructions, ends_execution) =
-        lower_value_control_leading_statements(&block.statements, &mut branch_context, local_mark)?;
+        lower_value_control_leading_statements(&block.statements, &mut branch_context)?;
     instructions.extend(leading_instructions);
     if ends_execution {
         return Ok(instructions);
-    }
-    if expression_contains_explicit_aggregate_move_outside(result, &branch_context, local_mark) {
-        return Err(unsupported_value_control_expression_diagnostic());
     }
     instructions.extend(lower_result(result, &branch_context)?);
     mark_explicit_moves_in_expression(result, &mut branch_context);
@@ -1011,7 +1008,6 @@ pub(super) fn lower_value_control_block_to_location_with_prologue(
 pub(super) fn lower_value_control_leading_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
-    local_mark: usize,
 ) -> Result<(Vec<Instruction>, bool), Vec<Diagnostic>> {
     let mut instructions = Vec::new();
 
@@ -1019,33 +1015,12 @@ pub(super) fn lower_value_control_leading_statements(
         match statement {
             Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
-                if expression_contains_explicit_aggregate_move_outside(
-                    &statement.initializer,
-                    context,
-                    local_mark,
-                ) {
-                    return Err(unsupported_value_control_expression_diagnostic());
-                }
                 instructions.extend(lower_local_binding(statement, context)?);
             }
             Stmt::Assignment(statement) => {
-                if expression_contains_explicit_aggregate_move_outside(
-                    &statement.value,
-                    context,
-                    local_mark,
-                ) {
-                    return Err(unsupported_value_control_expression_diagnostic());
-                }
                 instructions.extend(lower_assignment(statement, context)?);
             }
             Stmt::Expression(statement) => {
-                if expression_contains_explicit_aggregate_move_outside(
-                    &statement.expression,
-                    context,
-                    local_mark,
-                ) {
-                    return Err(unsupported_value_control_expression_diagnostic());
-                }
                 if let Some(terminating_instructions) =
                     lower_never_expression(&statement.expression, context)?
                 {
