@@ -191,6 +191,7 @@ conform Source for NumberSource {
     type Item = i32
 }
 func project<S>(source: S): S.Item where S: Source { return source }
+func make(): some Source<Item = i32> { return NumberSource { value: 7 } }
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
@@ -198,7 +199,10 @@ func project<S>(source: S): S.Item where S: Source { return source }
 
         let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
 
-        assert_eq!(span_fragments(text, &spans), vec!["Item", "Item", "Item"]);
+        assert_eq!(
+            span_fragments(text, &spans),
+            vec!["Item", "Item", "Item", "Item"]
+        );
     }
 
     #[test]

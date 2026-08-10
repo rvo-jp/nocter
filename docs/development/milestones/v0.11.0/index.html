@@ -533,7 +533,23 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   aggregate exactly once without exposing or boxing it</li><li>associated method results and projections use declaration identities and normalized bindings</li><li>LSP hover, completion, signature help, navigation, rename, and semantic tokens present only the
   authored opaque contract</li><li>at least one distributed standard-library API uses an opaque iterator result while concrete
   adapters that remain useful as nameable state keep their public declarations</li><li>no compatibility grammar, witness-name recognition, required TODO, or deferred Phase 8 migration
-  marker remains, and the complete qualification matrix passes</li></ul><h3 id="phase-8-non-goals">Phase 8 Non-goals</h3><p>Phase 8 does not add runtime interface objects, <code>any Interface</code>, dynamic dispatch, heterogeneous containers, named opaque aliases, opaque fields or parameters, multiple advertised interfaces, interface inheritance, generic associated types, intrinsic-copy opaque contracts, binary-stable separate compilation, reflection, or user-visible witness inspection.</p>
+  marker remains, and the complete qualification matrix passes</li></ul><h3 id="phase-8-non-goals">Phase 8 Non-goals</h3><p>Phase 8 does not add runtime interface objects, <code>any Interface</code>, dynamic dispatch, heterogeneous containers, named opaque aliases, opaque fields or parameters, multiple advertised interfaces, interface inheritance, generic associated types, intrinsic-copy opaque contracts, binary-stable separate compilation, reflection, or user-visible witness inspection.</p><h3 id="phase-8-completion-record">Phase 8 Completion Record</h3><p>Completed on 2026-08-10.</p><ul><li><code>some Interface&lt;Name = Type&gt;</code> is a contextual, return-only type atom with exact source ranges,
+  canonical formatting, stable public AST JSON, and diagnostics for unsupported positions,
+  bodyless declarations, missing or inconsistent witnesses, conformance failures, and invalid
+  associated bindings</li><li>witness elaboration runs on a private analysis copy after initial resolution; authored interface
+  identity, declaration-scoped opaque identity, and concrete lowering witness remain independent
+  facts, and public serialization and notation cannot expose the witness</li><li>ordinary type checking exposes only advertised interface methods and associated projections;
+  generic specialization, optional and fallible results, imported calls, and default methods retain
+  the opaque identity while dispatching statically through the proven witness</li><li>one explicit type-level lowering view supplies layout, ABI, ownership, provenance, buildability,
+  cleanup, and IR consumers. Native results remain unboxed and move-only at the public boundary,
+  including exact-once destruction of hidden aggregates</li><li>hover, completion, inlay hints, signature help, semantic tokens, definition, references, and
+  rename present the authored opaque contract and share associated declaration identities without
+  offering witness-only members</li><li>distributed <code>str.lines()</code> now returns <code>some Iterator&lt;Item = &amp;str&gt;</code>; native execution proves
+  static method dispatch and distributed provenance tests prove that the opaque iterator retains
+  the source loan</li><li>implementation commits <code>9b80a74d</code>, <code>60875152</code>, and <code>b4111788</code> establish the plan,
+  representation, and semantic integration respectively</li><li><code>development/compiler/scripts/verify.sh</code> passed the full compiler, CLI, installed-home, public
+  example, source-corpus, formatting, and warnings-denied Clippy matrix. The final inventory is
+  3,527 passing tests; documentation generation produced 120 pages and <code>git diff --check</code> passed</li></ul>
             </div>
         </main>
     </div>

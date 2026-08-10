@@ -325,6 +325,11 @@ Required diagnostic families:
 - `return` without a value in a non-`void` function.
 - `return` with a value in a `void` function.
 - `return` value type mismatch when both expected and actual types are known.
+- Opaque result in an unsupported type position or bodyless contract.
+- Opaque result whose return paths select different witnesses, whose witness does not conform to
+  the advertised interface, or whose associated binding disagrees with the conformance.
+- Assignment between distinct declaration-scoped opaque result identities, even when their
+  rendered interface contracts are identical.
 - Non-`void` function reaching the end without an explicit return.
 - A re-export whose visibility boundary is wider than the imported declaration's boundary.
 - Reserved target requested before implementation.

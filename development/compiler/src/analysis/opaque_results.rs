@@ -89,12 +89,6 @@ fn elaborate_callable(
         return;
     };
     let Some(body) = body else {
-        diagnostics.push(opaque_diagnostic(
-            sources,
-            opaque.some_span,
-            "opaque result types require a callable body",
-            "declare a concrete result type for a bodyless contract",
-        ));
         return;
     };
 
@@ -341,7 +335,7 @@ fn opaque_diagnostic(
     message: &str,
     help: &str,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error("E0441", message);
+    let mut diagnostic = Diagnostic::error("E0459", message);
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(help.to_string());
     diagnostic
@@ -415,7 +409,7 @@ conform Value for Box<T> {
         let (_, analysis) = analyze_text(&source);
         assert!(
             analysis.diagnostics().iter().any(|diagnostic| {
-                diagnostic.code == "E0441" && diagnostic.message.contains("returns both")
+                diagnostic.code == "E0459" && diagnostic.message.contains("returns both")
             }),
             "{:?}",
             analysis.diagnostics()
@@ -443,14 +437,14 @@ conform Value for Box<T> {
         let (_, analysis) = analyze_text(&source);
         assert!(
             analysis.diagnostics().iter().any(|diagnostic| {
-                diagnostic.code == "E0441" && diagnostic.message.contains("does not conform")
+                diagnostic.code == "E0459" && diagnostic.message.contains("does not conform")
             }),
             "{:?}",
             analysis.diagnostics()
         );
         assert!(
             analysis.diagnostics().iter().any(|diagnostic| {
-                diagnostic.code == "E0441" && diagnostic.message.contains("binds `Item`")
+                diagnostic.code == "E0459" && diagnostic.message.contains("binds `Item`")
             }),
             "{:?}",
             analysis.diagnostics()
@@ -467,7 +461,7 @@ conform Value for Box<T> {
             .diagnostics()
             .iter()
             .filter(|diagnostic| {
-                diagnostic.code == "E0441"
+                diagnostic.code == "E0459"
                     && diagnostic.message.contains("body-bearing callable results")
             })
             .count();

@@ -73,6 +73,8 @@ Rules:
   contextually in `copy struct` and `where copy T` source forms.
 - `where` is not a reserved keyword. It is recognized contextually in declaration constraint
   clauses.
+- `some` is not a reserved keyword. It is emitted as an identifier token and recognized
+  contextually at the start of an opaque type atom in a callable result.
 - `destruct` is a reserved keyword for top-level destruction declarations.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
   an explicit drop statement only by its statement-position source form.
@@ -210,6 +212,8 @@ Keyword rules:
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
+  The parser recognizes `some` contextually only in the opaque result type form defined by
+  [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#static-opaque-results).
 - `default` is not reserved. The parser recognizes it contextually inside `construct` blocks.
 - `alloc` is emitted as an identifier token and has no contextual keyword classification.
 

@@ -143,6 +143,9 @@ Rules:
   conformance body.
 - A projected type uses no spaces around the dot: `Self.Item` or `S.Item`.
 - A type-equality predicate uses one space around `=`: `R.Item = L.Item`.
+- An opaque result is `some Interface` or `some Interface<Item = Type>`. Associated binding `=`
+  uses one space on each side, comma spacing follows ordinary generic arguments, and `?` or `!`
+  attaches to the complete opaque type without extra parentheses.
 
 Examples:
 

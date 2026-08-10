@@ -390,6 +390,11 @@ consume(text)      // error
 consume(move text) // OK
 ```
 
+Static opaque results written as `some Interface` are move-only at the public boundary. A caller
+cannot infer copyability from the hidden witness. Explicit `move` transfers an existing opaque
+binding, and normal scope, return, optional, fallible, and path-sensitive cleanup destroys the
+hidden value exactly once.
+
 ## Move Expressions
 
 `move` is a unary expression that explicitly transfers ownership from a binding.

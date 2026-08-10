@@ -2,21 +2,24 @@
 
 ## Current Task
 
-v0.11.0 Phase 8 is in progress. Implement the static opaque result type plan in
-`milestones/v0.11.0.md` through its complete qualification gate, then stop at that checkpoint.
+No active implementation task. v0.11.0 Phase 8 completed on 2026-08-10. Stop at this checkpoint
+until the next phase is selected explicitly.
 
-## Required Phase 8 Work
+## Completed Phase 8 Checkpoint
 
-- add return-only `some Interface<Name = Type>` syntax with exact source ranges and contextual
-  keyword behavior
-- keep authored interface identity, declaration-scoped opaque identity, and inferred concrete
-  lowering witness as separate facts
-- integrate advertised conformance and associated bindings with ordinary type checking while
-  routing layout, ABI, ownership cleanup, provenance, buildability, and IR through one lowering view
-- preserve the opaque public contract across formatting, AST JSON, imports, diagnostics, and every
-  LSP presentation/navigation surface
-- migrate one practical distributed standard-library iterator API and pass the complete
-  qualification matrix
+- return-only `some Interface<Name = Type>` has contextual-keyword parsing, exact source ranges,
+  canonical formatting, public AST JSON, and focused recovery diagnostics
+- authored interface identity, declaration-scoped opaque identity, and the inferred concrete
+  lowering witness remain separate; one lowering view serves layout, ABI, ownership, cleanup,
+  provenance, buildability, specialization, and IR without leaking witness members
+- conformance, associated bindings, generic substitution, optional/fallible outcomes, method
+  dispatch, and path-sensitive exactly-once destruction operate through the opaque public type
+- hover, completion, inlay hints, signature help, semantic tokens, definition, references, and
+  rename preserve the authored contract and associated declaration identities
+- `str.lines()` is the distributed standard-library pilot and returns
+  `some Iterator<Item = &str>` while retaining its source loan
+- all 3,527 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed; the generated website contains 120 pages
 
 ## Completed Phase 7 Checkpoint
 

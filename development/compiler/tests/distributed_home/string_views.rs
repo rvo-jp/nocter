@@ -33,6 +33,32 @@ func has_value(value: &str?): bool {
 }
 
 #[test]
+fn distributed_std_str_lines_opaque_result_keeps_source_loan_active() {
+    let project = TempProject::new("distributed-home-str-lines-opaque-loan");
+    let source = project.write_source(
+        "str_lines_opaque_loan.nct",
+        r#"func invalid(): usize {
+    var text = String "first\nsecond\n"
+    var lines = (&text as &str).lines()
+    text.push_str("third")
+    return lines.next()!.len()
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0434]"), "{stderr}");
+    assert!(
+        stderr.contains("text") && stderr.contains("lines"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn distributed_std_borrowed_text_view_surface_passes_check() {
     let project = TempProject::new("distributed-home-borrowed-text-view-check");
     let source = project.write_source(

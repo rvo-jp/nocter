@@ -1,4 +1,4 @@
-use super::support::parse_text;
+use super::support::{find_json_node, parse_text, parse_text_with_sources};
 use crate::ast::{Item, TypeExpr};
 
 #[test]
@@ -29,6 +29,19 @@ fn parses_opaque_result_type_with_interface_arguments_and_associated_bindings() 
 fn keeps_some_as_an_ordinary_value_identifier() {
     let output = parse_text("func value(some: i32): i32 { return some }\n");
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+}
+
+#[test]
+fn opaque_result_ast_json_keeps_public_contract_without_a_witness() {
+    let (sources, output) =
+        parse_text_with_sources("func values<T>(): some Source<T, Item = &T> { loop {} }\n");
+    let json = output.ast.expect("AST").to_json(&sources);
+    let opaque = find_json_node(&json, "opaque_type").expect("opaque type node");
+    assert_eq!(opaque.value.as_deref(), Some("some Source<T, Item = &T>"));
+    let binding =
+        find_json_node(opaque, "opaque_associated_type_binding").expect("associated binding node");
+    assert_eq!(binding.value.as_deref(), Some("Item"));
+    assert!(find_json_node(opaque, "opaque_witness").is_none());
 }
 
 #[test]

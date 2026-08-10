@@ -577,6 +577,38 @@ pub func identity<T>(value: T): T from value {
     }
 
     #[test]
+    fn presents_opaque_result_contract_without_witness() {
+        let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+struct Number { value: i32 }
+conform Source for Number {
+    type Item = i32
+    method &self.get(): i32 { return self.value }
+}
+func make(value: i32): some Source<Item = i32> {
+    return Number { value: value }
+}
+func read(): i32 {
+    let source = make(42)
+    return source.get()
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("42").expect("expected call argument");
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected signature help");
+
+        assert_eq!(
+            signature.label,
+            "func make(value: i32): some Source<Item = i32>"
+        );
+        assert!(!signature.label.contains("Number"));
+    }
+
+    #[test]
     fn presents_construct_function_generics_on_the_owner() {
         let text = r#"struct Bucket<T> { value: T }
 

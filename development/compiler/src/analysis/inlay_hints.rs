@@ -92,4 +92,32 @@ func label(): &str {
         let hints = inlay_hints_for_file_analysis(&sources, &analysis, file, 0..=text.len());
         assert!(hints.is_empty(), "{hints:?}");
     }
+
+    #[test]
+    fn inferred_opaque_binding_hint_hides_witness() {
+        let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+struct Number { value: i32 }
+conform Source for Number {
+    type Item = i32
+    method &self.get(): i32 { return self.value }
+}
+func make(): some Source<Item = i32> { return Number { value: 7 } }
+func read(): i32 {
+    let source = make()
+    return source.get()
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().unwrap();
+        let hints = inlay_hints_for_file_analysis(&sources, &analysis, file, 0..=text.len());
+        let source_hint = hints
+            .iter()
+            .find(|hint| hint.label.contains("some Source"))
+            .expect("expected opaque binding hint");
+        assert_eq!(source_hint.label, ": some Source<Item = i32>");
+        assert!(!source_hint.label.contains("Number"));
+    }
 }

@@ -227,6 +227,66 @@ where L: Iterator, R: Iterator, R.Item = L.Item {
 }
 ```
 
+## Static Opaque Results
+
+`some Interface` lets a body-bearing callable expose one interface while keeping its concrete
+result type out of the API:
+
+```nct
+pub func lines(text: &str): some Iterator<Item = &str> from text {
+    return LinesIter.new(text)
+}
+```
+
+This is static abstraction. It does not create an interface object, vtable, box, runtime type
+record, or allocation. The compiler selects one concrete witness from the callable body and uses
+that witness for layout, ABI, destruction, and statically dispatched interface calls. Callers see
+only the declared interface and its named associated-type bindings.
+
+```text
+OpaqueResult   = "some" InterfaceName ["<" OpaqueArgument ("," OpaqueArgument)* [","] ">"]
+OpaqueArgument = Type | Name "=" Type
+```
+
+Ordinary interface type arguments precede associated bindings when both are present:
+
+```nct
+func values<T>(): some Source<T, Item = &T> { ... }
+```
+
+Rules:
+
+- `some` is contextual at the start of a type atom. It remains an ordinary value identifier in
+  value position.
+- The advertised type must be one accessible nominal interface.
+- Every named binding must name one associated type declared by that interface. Duplicate and
+  unknown bindings are errors.
+- Every reachable value return and the callable body result must select the same concrete witness
+  after alias and projection normalization.
+- The witness must explicitly conform to the advertised interface, and every named associated
+  binding must equal the conformance's selected type.
+- The initial form is accepted only as the success payload of a body-bearing function, associated
+  function, inherent method, or body-bearing interface default method.
+- Parameters, fields, aliases, callable value types, primitives, construction literals, bodyless
+  interface requirements, conformance method contracts, coercions, and destruction declarations
+  cannot introduce opaque types.
+- `some Interface?` and `some Interface!` use the ordinary optional and fallible outer layers.
+- A `from` clause remains an independent storage-lifetime contract. `some` neither adds nor removes
+  an origin.
+- Each declaring callable creates a distinct opaque identity. Results from two declarations do not
+  become assignment-compatible merely because they use the same interface and witness.
+- Generic specialization substitutes the callable's type arguments into the interface bindings and
+  witness while preserving the declaration identity.
+- An opaque result is move-only at its public boundary. Hidden witness copyability is not an
+  advertised capability.
+- Member lookup, completion, and source navigation expose only interface members. Witness fields,
+  inherent methods, constructors, and concrete type names remain unavailable.
+
+The concrete witness is an implementation fact rather than an inferred spelling of the public
+contract. Changing it does not require caller source changes as long as the interface, associated
+bindings, provenance, and observable behavior remain valid. Dynamic interface values are not part
+of this feature.
+
 ## Explicit Conformance
 
 Conformance is declared with a mandatory body-bearing `conform` declaration:

@@ -406,7 +406,7 @@ fn contract_diagnostic(
     message: &str,
     help: &str,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error("E0441", message);
+    let mut diagnostic = Diagnostic::error("E0459", message);
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(help.to_string());
     diagnostic

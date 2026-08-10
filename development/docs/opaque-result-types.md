@@ -18,10 +18,11 @@ type conversion would leak its inherent methods and fields into user programs.
 
 ## Identity
 
-`OpaqueResultIdentity` is based on the semantic callable declaration span, not its spelling, source
-path, import alias, re-export, or selected body file. A generic call extends the identity with the
-same canonical substitution used for callable specialization. Two declarations never produce the
-same opaque type accidentally, even when both witnesses normalize to the same concrete type.
+`OpaqueResultIdentity` is based on the opaque node's source span inside the canonical semantic
+callable declaration, not its spelling, import alias, re-export, or selected body file. Generic
+substitution specializes the advertised interface and witness through the same callable
+specialization environment. Two declarations never produce the same opaque type accidentally,
+even when both witnesses normalize to the same concrete type.
 
 ## Witness Elaboration
 
@@ -30,7 +31,8 @@ concrete layout. It evaluates the types of explicit value returns and a callable
 defining generic environment. Outcome syntax contributes its success payload. All reachable
 candidate types must normalize to one concrete type.
 
-Elaboration records a fact instead of rewriting the authored result. Recursive inference cycles,
+Elaboration attaches a compiler-only witness to the opaque node in the analysis copy of the AST;
+it does not rewrite the authored or publicly serialized result. Recursive inference cycles,
 no-value bodies, unresolved candidates, and different normalized candidates are diagnostics. The
 witness then proves the advertised conformance and each associated binding through the existing
 conformance and projection-normalization services.

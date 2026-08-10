@@ -139,6 +139,12 @@ An associated type declaration owns the identity shared by its conformance bindi
 uses. Definition, references, and rename cross imports through that identity rather than treating
 each `Item` spelling as a separate symbol.
 
+In `some Interface<Item = T>`, semantic tokens classify only `some` as a contextual keyword. The
+interface and associated binding names use their declaration identities. Hover, signature help,
+completion, navigation, references, rename, and inlay text render the authored opaque contract and
+must not reveal the concrete witness. Member completion offers only the advertised interface
+surface.
+
 ## Diagnostics, Code Actions, and Hints
 
 Diagnostics are compiler results with stable codes, exact spans, related information, and optional

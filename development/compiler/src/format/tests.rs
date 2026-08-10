@@ -435,6 +435,20 @@ func maybe_open(path:&str):File?{return none}
 }
 
 #[test]
+fn formats_static_opaque_result_contracts_stably() {
+    assert_formats_stably(
+        r#"func values<T>():some Source<T,Item=&T>?{
+return none
+}
+"#,
+        r#"func values<T>(): some Source<T, Item = &T>? {
+    return none
+}
+"#,
+    );
+}
+
+#[test]
 fn canonical_type_notation_preserves_prefix_and_postfix_structure() {
     assert_formats_stably(
         concat!(

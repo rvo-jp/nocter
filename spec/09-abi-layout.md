@@ -324,6 +324,14 @@ Rules:
 - A primitive may internally use OS syscall conventions, but those conventions are not exposed as the source-level ABI.
 - The compiler validates primitive declarations against either the target-independent core primitive set or the active target's closed primitive set.
 
+### Static Opaque Result ABI
+
+`some Interface` has exactly the ABI, layout, alignment, return transport, and destruction behavior
+of its statically selected concrete witness. It adds no tag, pointer, vtable, metadata field,
+boxing, or allocation. Optional and fallible wrappers apply their normal representation to the
+witness payload. The witness is available to ABI and lowering only; source-level type checking and
+tooling retain the declaration-scoped opaque identity.
+
 ### ABI Stability
 
 The Nocter ABI is internal to the compiler. It is not a public binary-compatibility promise across compiler versions.
