@@ -2,8 +2,8 @@
 
 ## Current Task
 
-v0.11.0 Phase 5 is complete. Do not begin another source-language change until the next phase has
-a separate reviewed plan and completion gate.
+v0.11.0 Phase 6 is in progress. Complete the independent `destruct Type(&+self) { ... }`
+declaration migration and its qualification gate before beginning another language change.
 
 ## Completed Checkpoint
 
