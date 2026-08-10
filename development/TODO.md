@@ -2,9 +2,25 @@
 
 ## Current Task
 
-v0.11.0 stabilization is in progress. Preserve the completed Phase 0 through Phase 8 contracts,
-qualify the repository and local archive, record exact candidate evidence, and stop before any
-tag, push, GitHub Release, asset upload, or claim of publication.
+v0.11.0 stabilization and local qualification are complete under
+[`releases/v0.11.0.md`](releases/v0.11.0.md). The feature scope is frozen at the completed Phase 8
+boundary, and the deterministic archive passed the complete fresh-install matrix. Stop at this
+qualification boundary. Do not tag, push, create a GitHub Release, upload an asset, change public
+download links, or claim publication without separate authorization.
+
+## Completed Stabilization Checkpoint
+
+- candidate identity is `0.11.0` across Cargo metadata, the lockfile, installed `VERSION`, the
+  distribution manifest and archive name, `std/nocter.nct`, CLI output, and LSP initialization
+- incremental and clean verification each passed all 3,527 tests, formatting, warnings-denied
+  Clippy, public examples, source corpus, and the distributed installed-home suite
+- the clean run followed removal of 409 candidate build files totaling 559.7 MiB; documentation
+  generation produced 122 pages and `git diff --check` passed
+- the two-build archive comparison and complete isolated fresh-install matrix passed without
+  `NOCTER_HOME`
+- the retained 3,651,844-byte `arm64-darwin` candidate has SHA-256
+  `d2e1e11cdfdf666b0d3661cf44ad91fb5ffc92bd81bbb853245268a6288eedbb` and contains all 27
+  standard-library files
 
 ## Completed Phase 8 Checkpoint
 
@@ -316,7 +332,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan the next v0.11.0 phase before changing source syntax or expanding the standard-library
-surface. Reuse the completed requirement, associated-type, and iterator foundations; do not add
-name recognition, textual constraints, or API-specific solver paths. Keep the published v0.10.0
-archive, tag, and release evidence immutable.
+Stop at the locally qualified v0.11.0 candidate. Do not tag, push, create a GitHub Release, upload
+an asset, change public download links, or claim publication without separate authorization. Any
+compiler, standard-library, or packaging change invalidates the candidate and requires complete
+requalification. The published v0.10.0 archive, tag, and release evidence remain immutable.

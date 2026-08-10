@@ -47,8 +47,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the completed v0.11.0 candidate language. The published compatibility
-boundary remains v0.10.0 until v0.11.0 is qualified and released. The
+This working tree specifies the locally qualified v0.11.0 candidate language. The published
+compatibility boundary remains v0.10.0 until v0.11.0 is released. The
 [release index](../releases/README.md) owns publication and download status, and repository tags
 preserve the exact specification for every published release.
 

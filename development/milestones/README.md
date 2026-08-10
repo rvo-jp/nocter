@@ -8,7 +8,8 @@ The current milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 8 comple
 requirements, associated types and bounds, declaration-wide `where` clauses, separate `instance`
 and `conform` declarations, declaration type patterns, independent destruction declarations,
 path-sensitive aggregate cleanup for native control flow, and static opaque result types for
-interface-based APIs. No later phase is active.
+interface-based APIs. No later phase is active. The v0.11.0 candidate is locally qualified; its
+publication remains a separate authorized operation.
 
 [v0.10.0](v0.10.0.md) is complete and historical. Phase 0 completed native value capabilities,
 Phase 1 completed directory modules and explicit source composition, Phase 2 completed
