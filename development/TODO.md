@@ -2,11 +2,23 @@
 
 ## Current Task
 
-v0.11.0 Phase 5 is active. Complete declaration type patterns, directed binder refinement,
-structural overlap rejection, canonical tooling presentation, full source migration, and the
-qualification gate before beginning another source-language change.
+v0.11.0 Phase 5 is complete. Do not begin another source-language change until the next phase has
+a separate reviewed plan and completion gate.
 
 ## Completed Checkpoint
+
+- v0.11.0 Phase 5 replaces explicit `instance<T>` and `conform<T>` binder prefixes with
+  source-backed declaration type patterns and directed `where Binder = Type` refinement
+- one structural unifier drives alpha-renamed, repeated, refined, and canonical-name overlap;
+  disjoint patterns select exact methods and conformances while overlaps are rejected without
+  specialization ranking
+- conditional destruction is rejected explicitly so generic ownership and ABI behavior remain a
+  uniform property of each nominal type family
+- AST JSON, formatting, qualification, type checking, specialization, associated types, LSP
+  presentation and occurrences, the standard library, fixtures, specification, contributor docs,
+  and the generated website share the new model
+- all 3,491 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed; the generated website contains 117 pages
 
 - v0.11.0 Phase 4 replaces overloaded `impl` declarations with structurally separate `instance`
   behavior/destruction declarations and `conform` interface-proof declarations
