@@ -2,8 +2,9 @@
 
 ## Current Task
 
-No active implementation task. v0.11.0 Phase 8 completed on 2026-08-10. Stop at this checkpoint
-until the next phase is selected explicitly.
+v0.11.0 stabilization is in progress. Preserve the completed Phase 0 through Phase 8 contracts,
+qualify the repository and local archive, record exact candidate evidence, and stop before any
+tag, push, GitHub Release, asset upload, or claim of publication.
 
 ## Completed Phase 8 Checkpoint
 
