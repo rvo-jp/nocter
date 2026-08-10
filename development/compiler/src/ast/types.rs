@@ -33,6 +33,21 @@ pub(crate) fn substitute_type_expr_parameters(
             ));
             TypeExpr::Closure(closure)
         }
+        TypeExpr::Opaque(opaque) => {
+            let mut opaque = opaque.clone();
+            opaque.interface = Box::new(substitute_type_expr_parameters(
+                &opaque.interface,
+                substitutions,
+            ));
+            for binding in &mut opaque.associated_bindings {
+                binding.value = substitute_type_expr_parameters(&binding.value, substitutions);
+            }
+            opaque.witness = opaque
+                .witness
+                .as_ref()
+                .map(|witness| Box::new(substitute_type_expr_parameters(witness, substitutions)));
+            TypeExpr::Opaque(opaque)
+        }
         TypeExpr::Reference(reference) => substitutions
             .get(&reference.name)
             .cloned()

@@ -386,6 +386,17 @@ fn type_contains_parameter(ty: &TypeExpr, parameters: &HashSet<String>) -> bool 
                     .any(|parameter| type_contains_parameter(parameter, parameters))
                 || type_contains_parameter(&closure.return_type, parameters)
         }
+        TypeExpr::Opaque(opaque) => {
+            type_contains_parameter(&opaque.interface, parameters)
+                || opaque
+                    .associated_bindings
+                    .iter()
+                    .any(|binding| type_contains_parameter(&binding.value, parameters))
+                || opaque
+                    .witness
+                    .as_ref()
+                    .is_some_and(|witness| type_contains_parameter(witness, parameters))
+        }
         TypeExpr::Reference(reference) => parameters.contains(&reference.name),
         TypeExpr::Generic(generic) => generic
             .arguments

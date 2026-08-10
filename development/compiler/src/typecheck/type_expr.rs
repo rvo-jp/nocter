@@ -1,4 +1,4 @@
-use super::model::{CallableParameterType, CallableType, Type, TypeEnvironment};
+use super::model::{CallableParameterType, CallableType, OpaqueType, Type, TypeEnvironment};
 use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
 use std::collections::{HashMap, HashSet};
@@ -114,6 +114,7 @@ pub(super) fn infer_type_expr_substitutions(
                 substitutions,
             );
         }
+        TypeExpr::Opaque(_) => {}
         TypeExpr::Reference(reference) if reference.name == "Self" => {
             if let Some(expected_self) = self_type {
                 infer_type_substitutions(expected_self, actual, parameters, substitutions);
@@ -264,6 +265,41 @@ fn type_expr_to_type_inner(
             result_provenance: callable.result_provenance.clone(),
         }),
         TypeExpr::Closure(closure) => Type::Closure(closure.clone()),
+        TypeExpr::Opaque(opaque) => Type::Opaque(OpaqueType {
+            identity: opaque.some_span,
+            interface: Box::new(type_expr_to_type_inner(
+                &opaque.interface,
+                resolved,
+                self_type,
+                substitutions,
+                resolving_aliases,
+            )),
+            associated_bindings: opaque
+                .associated_bindings
+                .iter()
+                .map(|binding| {
+                    (
+                        binding.name.clone(),
+                        type_expr_to_type_inner(
+                            &binding.value,
+                            resolved,
+                            self_type,
+                            substitutions,
+                            resolving_aliases,
+                        ),
+                    )
+                })
+                .collect(),
+            witness: opaque.witness.as_ref().map(|witness| {
+                Box::new(type_expr_to_type_inner(
+                    witness,
+                    resolved,
+                    self_type,
+                    substitutions,
+                    resolving_aliases,
+                ))
+            }),
+        }),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "Self" => self_type
                 .cloned()

@@ -75,7 +75,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => false,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => false,
         TypeExpr::Projection(_) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             crate::typecheck::normalize_associated_type_expr(ty, resolved).is_some_and(|ty| {
@@ -240,6 +240,17 @@ where
                     .is_ok()
             });
         }
+        TypeExpr::Opaque(opaque) => {
+            let Some(witness) = &opaque.witness else {
+                return false;
+            };
+            return type_expr_has_supported_recursive_drop_with_resolver(
+                witness,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+        }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
@@ -392,7 +403,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Projection(_) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;

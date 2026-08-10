@@ -18,6 +18,9 @@ fn type_contains_readwrite_borrow_inner(
 ) -> bool {
     match ty {
         Type::Callable(_) => false,
+        Type::Opaque(opaque) => opaque.witness.as_ref().is_some_and(|witness| {
+            type_contains_readwrite_borrow_inner(witness, resolved, resolving_names)
+        }),
         Type::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
                 || (capture.mode == crate::ast::ClosureCaptureMode::Move
@@ -120,6 +123,9 @@ fn type_expr_contains_readwrite_borrow(
 ) -> bool {
     match ty {
         TypeExpr::Callable(_) => false,
+        TypeExpr::Opaque(opaque) => opaque.witness.as_ref().is_some_and(|witness| {
+            type_expr_contains_readwrite_borrow(witness, resolved, substitutions, resolving_names)
+        }),
         TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
                 || (capture.mode == crate::ast::ClosureCaptureMode::Move
@@ -208,6 +214,9 @@ pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
 ) -> bool {
     match ty {
         Type::Callable(_) => false,
+        Type::Opaque(opaque) => opaque.witness.as_ref().is_none_or(|witness| {
+            type_contains_borrow_like_inner(witness, resolved, resolving_names)
+        }),
         Type::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_borrow_like(
@@ -302,6 +311,9 @@ pub(in crate::typecheck) fn type_expr_contains_borrow_like(
 ) -> bool {
     match ty {
         TypeExpr::Callable(_) => false,
+        TypeExpr::Opaque(opaque) => opaque.witness.as_ref().is_none_or(|witness| {
+            type_expr_contains_borrow_like(witness, resolved, substitutions, resolving_names)
+        }),
         TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_borrow_like(

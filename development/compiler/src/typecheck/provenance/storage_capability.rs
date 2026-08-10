@@ -33,6 +33,10 @@ pub(in crate::typecheck) fn type_may_retain_fresh_result_storage(
     resolved: &ResolveOutput,
 ) -> bool {
     match ty {
+        Type::Opaque(opaque) => opaque
+            .witness
+            .as_ref()
+            .is_none_or(|witness| type_may_retain_fresh_result_storage(witness, resolved)),
         Type::Pointer(_) | Type::Borrow { .. } | Type::View { .. } => true,
         Type::Named(_) | Type::Generic { .. } => {
             type_contains_pointer(ty, resolved, &mut HashSet::new())
@@ -73,6 +77,10 @@ fn type_contains_pointer(
 ) -> bool {
     match ty {
         Type::Callable(_) => false,
+        Type::Opaque(opaque) => opaque
+            .witness
+            .as_ref()
+            .is_none_or(|witness| type_contains_pointer(witness, resolved, resolving_names)),
         Type::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_pointer(
@@ -164,6 +172,9 @@ fn type_expr_contains_pointer(
 ) -> bool {
     match ty {
         TypeExpr::Callable(_) => false,
+        TypeExpr::Opaque(opaque) => opaque.witness.as_ref().is_none_or(|witness| {
+            type_expr_contains_pointer(witness, resolved, substitutions, resolving_names)
+        }),
         TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_pointer(&capture.ty, resolved, substitutions, resolving_names)

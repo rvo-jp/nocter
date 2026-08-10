@@ -22,6 +22,25 @@ pub(crate) fn type_expr_notation(ty: &TypeExpr) -> TypeNotation {
                 .collect(),
         },
         TypeExpr::Closure(closure) => TypeNotation::Atom(closure.identity_name()),
+        TypeExpr::Opaque(opaque) => {
+            let (interface_name, interface_arguments) = match opaque.interface.as_ref() {
+                TypeExpr::Reference(reference) => (reference.name.clone(), Vec::new()),
+                TypeExpr::Generic(generic) => (
+                    generic.name.clone(),
+                    generic.arguments.iter().map(type_expr_notation).collect(),
+                ),
+                other => (canonical_type_expr(other), Vec::new()),
+            };
+            TypeNotation::Opaque {
+                interface_name,
+                interface_arguments,
+                associated_bindings: opaque
+                    .associated_bindings
+                    .iter()
+                    .map(|binding| (binding.name.clone(), type_expr_notation(&binding.value)))
+                    .collect(),
+            }
+        }
         TypeExpr::Reference(reference) => TypeNotation::Atom(reference.name.clone()),
         TypeExpr::Generic(generic) => TypeNotation::Generic {
             name: generic.name.clone(),

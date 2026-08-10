@@ -551,6 +551,12 @@ fn collect_type_expr_reference_names(ty: &TypeExpr, names: &mut Vec<String>) {
             }
             collect_type_expr_reference_names(&closure.return_type, names);
         }
+        TypeExpr::Opaque(opaque) => {
+            collect_type_expr_reference_names(&opaque.interface, names);
+            for binding in &opaque.associated_bindings {
+                collect_type_expr_reference_names(&binding.value, names);
+            }
+        }
         TypeExpr::Reference(reference) => names.push(reference.name.clone()),
         TypeExpr::Generic(generic) => {
             for argument in &generic.arguments {
@@ -590,6 +596,13 @@ fn type_expr_contains_projection(ty: &TypeExpr) -> bool {
                 || closure.parameters.iter().any(type_expr_contains_projection)
                 || type_expr_contains_projection(&closure.return_type)
         }
+        TypeExpr::Opaque(opaque) => {
+            type_expr_contains_projection(&opaque.interface)
+                || opaque
+                    .associated_bindings
+                    .iter()
+                    .any(|binding| type_expr_contains_projection(&binding.value))
+        }
         TypeExpr::Generic(generic) => generic.arguments.iter().any(type_expr_contains_projection),
         TypeExpr::Pointer(pointer) => type_expr_contains_projection(&pointer.inner),
         TypeExpr::Borrow(borrow) => type_expr_contains_projection(&borrow.inner),
@@ -623,6 +636,13 @@ fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
                     .iter()
                     .any(|value| type_expr_mentions_parameter(value, parameter))
                 || type_expr_mentions_parameter(&closure.return_type, parameter)
+        }
+        TypeExpr::Opaque(opaque) => {
+            type_expr_mentions_parameter(&opaque.interface, parameter)
+                || opaque
+                    .associated_bindings
+                    .iter()
+                    .any(|binding| type_expr_mentions_parameter(&binding.value, parameter))
         }
         TypeExpr::Reference(reference) => reference.name == parameter,
         TypeExpr::Generic(generic) => generic
@@ -882,6 +902,12 @@ fn check_type_expr(
                 check_type_expr(sources, parameter, resolved, scope, diagnostics);
             }
             check_type_expr(sources, &closure.return_type, resolved, scope, diagnostics);
+        }
+        TypeExpr::Opaque(opaque) => {
+            check_type_expr(sources, &opaque.interface, resolved, scope, diagnostics);
+            for binding in &opaque.associated_bindings {
+                check_type_expr(sources, &binding.value, resolved, scope, diagnostics);
+            }
         }
         TypeExpr::Reference(reference) => {
             if reference.name == "Self" {

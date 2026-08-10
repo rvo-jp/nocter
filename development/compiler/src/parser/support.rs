@@ -38,6 +38,10 @@ pub(super) fn with_type_span(ty: TypeExpr, span: ByteSpan) -> TypeExpr {
             ty.span = span;
             TypeExpr::Closure(ty)
         }
+        TypeExpr::Opaque(mut ty) => {
+            ty.span = span;
+            TypeExpr::Opaque(ty)
+        }
         TypeExpr::Reference(mut ty) => {
             ty.span = span;
             TypeExpr::Reference(ty)

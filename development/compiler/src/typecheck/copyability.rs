@@ -315,6 +315,7 @@ fn type_expr_is_copy_inner(
                 ),
             })
             .try_fold(true, |all, copy| copy.map(|copy| all && copy)),
+        TypeExpr::Opaque(_) => Some(false),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => Some(true),
@@ -432,6 +433,7 @@ fn type_is_copy_maybe_inner(
             resolving_names,
             environment,
         ),
+        Type::Opaque(_) => Some(false),
         Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => Some(true),
         Type::Borrow {
             is_readwrite: false,

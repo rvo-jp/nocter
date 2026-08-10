@@ -748,7 +748,7 @@ fn literal_owner<'a>(
     target: &TypeExpr,
 ) -> Option<ValueMemberOwner<'a>> {
     match target {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let self_ty = if symbol.generic_parameters.is_empty() {

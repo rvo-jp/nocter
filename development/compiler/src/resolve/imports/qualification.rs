@@ -404,6 +404,25 @@ fn qualify_type_expr(
                 imported_type_names,
             );
         }
+        TypeExpr::Opaque(opaque) => {
+            qualify_type_expr(
+                &mut opaque.interface,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+            for binding in &mut opaque.associated_bindings {
+                qualify_type_expr(
+                    &mut binding.value,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            if let Some(witness) = &mut opaque.witness {
+                qualify_type_expr(witness, import_path, local_type_names, imported_type_names);
+            }
+        }
         TypeExpr::Reference(reference) => {
             if local_type_names.iter().any(|name| name == &reference.name) {
                 reference.name = format!("{import_path}.{}", reference.name);

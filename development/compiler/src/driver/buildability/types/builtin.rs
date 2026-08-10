@@ -96,6 +96,25 @@ where
                 resolver,
             )
         }),
+        TypeExpr::Opaque(opaque) => {
+            type_expr_contains_unresolved_type_parameter_with_resolver(
+                &opaque.interface,
+                fallback_resolved,
+                resolver,
+            ) || opaque.associated_bindings.iter().any(|binding| {
+                type_expr_contains_unresolved_type_parameter_with_resolver(
+                    &binding.value,
+                    fallback_resolved,
+                    resolver,
+                )
+            }) || opaque.witness.as_ref().is_none_or(|witness| {
+                type_expr_contains_unresolved_type_parameter_with_resolver(
+                    witness,
+                    fallback_resolved,
+                    resolver,
+                )
+            })
+        }
         TypeExpr::Projection(_) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             crate::typecheck::normalize_associated_type_expr(ty, resolved).is_none_or(|ty| {

@@ -14,6 +14,11 @@ pub(crate) enum TypeNotation {
         base: Box<TypeNotation>,
         member: String,
     },
+    Opaque {
+        interface_name: String,
+        interface_arguments: Vec<TypeNotation>,
+        associated_bindings: Vec<(String, TypeNotation)>,
+    },
     Prefix {
         operator: PrefixOperator,
         inner: Box<TypeNotation>,
@@ -81,6 +86,29 @@ impl TypeNotation {
                 base.render_into(output, RenderContext::ProjectionOperand);
                 output.push('.');
                 output.push_str(member);
+            }
+            Self::Opaque {
+                interface_name,
+                interface_arguments,
+                associated_bindings,
+            } => {
+                output.push_str("some ");
+                output.push_str(interface_name);
+                if !interface_arguments.is_empty() || !associated_bindings.is_empty() {
+                    output.push('<');
+                    render_separated(interface_arguments, output, |ty, output| {
+                        ty.render_into(output, RenderContext::Root);
+                    });
+                    if !interface_arguments.is_empty() && !associated_bindings.is_empty() {
+                        output.push_str(", ");
+                    }
+                    render_separated(associated_bindings, output, |(name, ty), output| {
+                        output.push_str(name);
+                        output.push_str(" = ");
+                        ty.render_into(output, RenderContext::Root);
+                    });
+                    output.push('>');
+                }
             }
             Self::Prefix { operator, inner } => {
                 output.push_str(operator.source_text());

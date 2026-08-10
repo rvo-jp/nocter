@@ -45,6 +45,11 @@ fn collect_drop_dependencies(
 
     match ty {
         TypeExpr::Callable(_) => {}
+        TypeExpr::Opaque(opaque) => {
+            if let Some(witness) = &opaque.witness {
+                collect_drop_dependencies(analysis, file, witness, visiting, dependencies)
+            }
+        }
         TypeExpr::Array(array) => {
             collect_drop_dependencies(analysis, file, &array.element, visiting, dependencies)
         }

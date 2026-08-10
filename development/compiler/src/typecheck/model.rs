@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 pub(super) enum Type {
     Callable(CallableType),
     Closure(ClosureTypeExpr),
+    Opaque(OpaqueType),
     I32,
     Primitive(String),
     StrData,
@@ -51,6 +52,14 @@ pub(super) enum Type {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OpaqueType {
+    pub(super) identity: ByteSpan,
+    pub(super) interface: Box<Type>,
+    pub(super) associated_bindings: Vec<(String, Type)>,
+    pub(super) witness: Option<Box<Type>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CallableType {
     pub(super) span: ByteSpan,
     pub(super) capability: CallableCapability,
@@ -87,6 +96,19 @@ impl Type {
                     .collect(),
                 return_type: Box::new(callable.return_type.substitute_parameters(substitutions)),
                 result_provenance: callable.result_provenance.clone(),
+            }),
+            Type::Opaque(opaque) => Type::Opaque(OpaqueType {
+                identity: opaque.identity,
+                interface: Box::new(opaque.interface.substitute_parameters(substitutions)),
+                associated_bindings: opaque
+                    .associated_bindings
+                    .iter()
+                    .map(|(name, ty)| (name.clone(), ty.substitute_parameters(substitutions)))
+                    .collect(),
+                witness: opaque
+                    .witness
+                    .as_ref()
+                    .map(|witness| Box::new(witness.substitute_parameters(substitutions))),
             }),
             Type::ArrayData { element } => Type::ArrayData {
                 element: Box::new(element.substitute_parameters(substitutions)),
@@ -173,6 +195,28 @@ impl Type {
                     .collect(),
             },
             Type::Closure(closure) => atom(&closure.identity_name()),
+            Type::Opaque(opaque) => {
+                let (interface_name, interface_arguments) = match opaque.interface.as_ref() {
+                    Type::Named(name) => (display_name(name), Vec::new()),
+                    Type::Generic { name, arguments } => (
+                        display_name(name),
+                        arguments
+                            .iter()
+                            .map(|argument| argument.notation_with_name(display_name))
+                            .collect(),
+                    ),
+                    other => (other.notation_with_name(display_name).render(), Vec::new()),
+                };
+                TypeNotation::Opaque {
+                    interface_name,
+                    interface_arguments,
+                    associated_bindings: opaque
+                        .associated_bindings
+                        .iter()
+                        .map(|(name, ty)| (name.clone(), ty.notation_with_name(display_name)))
+                        .collect(),
+                }
+            }
             Type::I32 => atom("i32"),
             Type::Primitive(name) => atom(name),
             Type::StrData => atom("str"),
@@ -241,7 +285,9 @@ impl Type {
 
     pub(super) fn nominal_name(&self) -> Option<&str> {
         match self {
-            Type::Callable(_) | Type::Closure(_) | Type::Projection { .. } => None,
+            Type::Callable(_) | Type::Closure(_) | Type::Opaque(_) | Type::Projection { .. } => {
+                None
+            }
             Type::Named(name) | Type::Generic { name, .. } => Some(name),
             _ => None,
         }
@@ -254,6 +300,17 @@ impl Type {
     pub(super) fn is_unknown_or_unresolved(&self) -> bool {
         match self {
             Type::Callable(_) | Type::Closure(_) => false,
+            Type::Opaque(opaque) => {
+                opaque.interface.is_unknown_or_unresolved()
+                    || opaque
+                        .associated_bindings
+                        .iter()
+                        .any(|(_, ty)| ty.is_unknown_or_unresolved())
+                    || opaque
+                        .witness
+                        .as_ref()
+                        .is_some_and(|witness| witness.is_unknown_or_unresolved())
+            }
             Type::Unknown | Type::Unresolved(_) => true,
             Type::ArrayData { element } => element.is_unknown_or_unresolved(),
             Type::View { element, .. } => element.is_unknown_or_unresolved(),
@@ -281,6 +338,7 @@ impl Type {
     pub(super) fn first_unsized_part(&self) -> Option<&Type> {
         match self {
             Type::Callable(_) | Type::Closure(_) => None,
+            Type::Opaque(opaque) => opaque.witness.as_deref().and_then(Type::first_unsized_part),
             Type::StrData | Type::ArrayData { .. } => Some(self),
             Type::View { element, .. } | Type::Array { element, .. } => {
                 element.first_unsized_part()

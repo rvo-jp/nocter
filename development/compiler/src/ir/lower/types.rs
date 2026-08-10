@@ -28,6 +28,18 @@ pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> Typ
             TypeExpr::Callable(callable)
         }
         TypeExpr::Closure(_) => ty.clone(),
+        TypeExpr::Opaque(opaque) => {
+            let mut opaque = opaque.clone();
+            opaque.interface = Box::new(type_expr_with_self_type(&opaque.interface, self_ty));
+            for binding in &mut opaque.associated_bindings {
+                binding.value = type_expr_with_self_type(&binding.value, self_ty);
+            }
+            opaque.witness = opaque
+                .witness
+                .as_ref()
+                .map(|witness| Box::new(type_expr_with_self_type(witness, self_ty)));
+            TypeExpr::Opaque(opaque)
+        }
         TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
         TypeExpr::Reference(_) => ty.clone(),
         TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {

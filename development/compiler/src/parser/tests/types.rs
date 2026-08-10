@@ -2,6 +2,36 @@ use super::support::parse_text;
 use crate::ast::{Item, TypeExpr};
 
 #[test]
+fn parses_opaque_result_type_with_interface_arguments_and_associated_bindings() {
+    let output = parse_text("func values<T>(): some Source<T, Item = &T> { loop {} }\n");
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("AST");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let TypeExpr::Opaque(opaque) = &function.return_type else {
+        panic!("expected opaque result");
+    };
+    let TypeExpr::Generic(interface) = opaque.interface.as_ref() else {
+        panic!("expected generic interface");
+    };
+    assert_eq!(interface.name, "Source");
+    assert_eq!(interface.arguments.len(), 1);
+    assert_eq!(opaque.associated_bindings.len(), 1);
+    assert_eq!(opaque.associated_bindings[0].name, "Item");
+    assert_eq!(
+        crate::ast::canonical_type_expr(&function.return_type),
+        "some Source<T, Item = &T>"
+    );
+}
+
+#[test]
+fn keeps_some_as_an_ordinary_value_identifier() {
+    let output = parse_text("func value(some: i32): i32 { return some }\n");
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+}
+
+#[test]
 fn parses_function_with_fallible_return_type() {
     let output = parse_text(
         r#"use std/io.print

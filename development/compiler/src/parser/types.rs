@@ -2,8 +2,9 @@ use super::support::with_type_span;
 use super::{ParseResult, Parser};
 use crate::ast::{
     ArrayLength, ArrayType, BorrowType, CallableCapability, CallableTypeExpr,
-    CallableTypeParameter, FallibleType, GenericParam, GenericParamList, GenericType, OptionalType,
-    PointerType, ProjectedType, TypeExpr, TypeReference, ViewType,
+    CallableTypeParameter, FallibleType, GenericParam, GenericParamList, GenericType,
+    OpaqueAssociatedTypeBinding, OpaqueType, OptionalType, PointerType, ProjectedType, TypeExpr,
+    TypeReference, ViewType,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -57,6 +58,10 @@ impl Parser<'_> {
 
     pub(super) fn parse_type_atom(&mut self) -> ParseResult<TypeExpr> {
         self.reject_removed_result_allocation_modifier()?;
+
+        if self.at_identifier_text("some") {
+            return self.parse_opaque_type();
+        }
 
         if self.at_keyword(Keyword::Func) {
             return self.parse_callable_type(None, CallableCapability::Consuming);
@@ -174,6 +179,81 @@ impl Parser<'_> {
         Ok(TypeExpr::Reference(TypeReference {
             span: name.span,
             name: name.value,
+        }))
+    }
+
+    fn parse_opaque_type(&mut self) -> ParseResult<TypeExpr> {
+        let some = self.bump();
+        let name = self.expect_identifier("expected interface name after `some`")?;
+        let mut arguments = Vec::new();
+        let mut associated_bindings = Vec::new();
+        let mut end = name.span.end;
+
+        if self.match_punctuation("<").is_some() {
+            if self.at_punctuation(">") {
+                self.error_at(
+                    self.current().span,
+                    "opaque interface arguments cannot be empty",
+                );
+                return Err(());
+            }
+            loop {
+                if self.current().kind == crate::lexer::TokenKind::Identifier
+                    && self.next_is_punctuation("=")
+                {
+                    let binding_name =
+                        self.expect_identifier("expected associated type binding name")?;
+                    self.expect_punctuation("=", "`=`")?;
+                    let value = self.parse_type()?;
+                    associated_bindings.push(OpaqueAssociatedTypeBinding {
+                        span: self.span(binding_name.span.start, value.span().end),
+                        name: binding_name.value,
+                        name_span: binding_name.span,
+                        value,
+                    });
+                } else {
+                    if !associated_bindings.is_empty() {
+                        self.error_at(
+                            self.current().span,
+                            "interface type arguments must precede associated type bindings",
+                        );
+                        return Err(());
+                    }
+                    arguments.push(self.parse_type()?);
+                }
+
+                if self.match_punctuation(",").is_some() {
+                    if self.at_punctuation(">") {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+            let close = self.expect_punctuation(">", "`>`")?;
+            end = close.span.end;
+        }
+
+        let interface = if arguments.is_empty() {
+            TypeExpr::Reference(TypeReference {
+                span: name.span,
+                name: name.value,
+            })
+        } else {
+            TypeExpr::Generic(GenericType {
+                span: self.span(name.span.start, end),
+                name: name.value,
+                name_span: name.span,
+                arguments,
+            })
+        };
+
+        Ok(TypeExpr::Opaque(OpaqueType {
+            span: self.span(some.span.start, end),
+            some_span: some.span,
+            interface: Box::new(interface),
+            associated_bindings,
+            witness: None,
         }))
     }
 

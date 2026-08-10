@@ -321,6 +321,12 @@ impl TypecheckFactCollector<'_> {
                 }
                 self.collect_type_expr_references(&closure.return_type);
             }
+            TypeExpr::Opaque(opaque) => {
+                self.collect_type_expr_references(&opaque.interface);
+                for binding in &opaque.associated_bindings {
+                    self.collect_type_expr_references(&binding.value);
+                }
+            }
             TypeExpr::Reference(ty) => {
                 self.record_type_reference(&ty.name, ty.span, TypeExpr::Reference(ty.clone()));
             }

@@ -155,6 +155,16 @@ impl<'a, F: Fn(&str) -> String> TermBuilder<'a, F> {
                 Term::Node(format!("callable:{:?}", callable.capability), children)
             }
             TypeExpr::Closure(closure) => Term::Node(closure.identity_name(), Vec::new()),
+            TypeExpr::Opaque(opaque) => {
+                let mut children = vec![self.term(&opaque.interface)];
+                children.extend(
+                    opaque
+                        .associated_bindings
+                        .iter()
+                        .map(|binding| self.term(&binding.value)),
+                );
+                Term::Node("opaque".to_string(), children)
+            }
             TypeExpr::Reference(reference) => Term::Node(
                 format!("ref:{}", (self.normalize_name)(&reference.name)),
                 Vec::new(),

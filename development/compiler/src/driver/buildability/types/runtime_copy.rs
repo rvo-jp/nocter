@@ -138,6 +138,7 @@ where
 {
     match ty {
         TypeExpr::Callable(_) => false,
+        TypeExpr::Opaque(_) => false,
         TypeExpr::Projection(_) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             crate::typecheck::normalize_associated_type_expr(ty, resolved).is_some_and(|ty| {

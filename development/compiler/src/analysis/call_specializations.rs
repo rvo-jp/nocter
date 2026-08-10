@@ -727,6 +727,9 @@ fn infer_owner_substitutions(
         TypeExpr::Closure(expected) => {
             matches!(actual, TypeExpr::Closure(actual) if expected.span == actual.span)
         }
+        TypeExpr::Opaque(expected) => {
+            matches!(actual, TypeExpr::Opaque(actual) if expected.some_span == actual.some_span)
+        }
         TypeExpr::Reference(reference) if generic_parameters.contains(&reference.name) => {
             insert_owner_substitution(&reference.name, actual, substitutions)
         }

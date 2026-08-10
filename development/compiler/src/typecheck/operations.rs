@@ -289,6 +289,10 @@ fn is_assignable_with(
                 && expected.return_type == actual.return_type
                 && expected.result_provenance == actual.result_provenance
         }
+        (Type::Opaque(expected), actual) => expected
+            .witness
+            .as_deref()
+            .is_some_and(|witness| is_assignable_with(witness, actual, types_equal)),
         (Type::Optional(_), Type::None) => true,
         (Type::Optional(expected_inner), Type::Optional(actual_inner)) => {
             is_assignable_with(expected_inner, actual_inner, types_equal)

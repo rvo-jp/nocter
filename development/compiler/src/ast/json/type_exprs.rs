@@ -31,6 +31,23 @@ impl TypeExpr {
                     .map(|ty| ty.to_json(sources))
                     .collect(),
             ),
+            TypeExpr::Opaque(ty) => {
+                let mut children = vec![ty.interface.to_json(sources)];
+                children.extend(ty.associated_bindings.iter().map(|binding| {
+                    JsonAstNode::with_value(
+                        "opaque_associated_type_binding",
+                        binding.name.clone(),
+                        json_span(sources, binding.span),
+                        vec![binding.value.to_json(sources)],
+                    )
+                }));
+                JsonAstNode::with_value(
+                    "opaque_type",
+                    crate::ast::canonical_type_expr(self),
+                    json_span(sources, ty.span),
+                    children,
+                )
+            }
             TypeExpr::Reference(ty) => JsonAstNode::with_value(
                 "type_reference",
                 ty.name.clone(),

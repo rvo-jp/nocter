@@ -869,6 +869,17 @@ fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
                     .any(|ty| type_expr_mentions_parameter(ty, parameter))
                 || type_expr_mentions_parameter(&closure.return_type, parameter)
         }
+        TypeExpr::Opaque(opaque) => {
+            type_expr_mentions_parameter(&opaque.interface, parameter)
+                || opaque
+                    .associated_bindings
+                    .iter()
+                    .any(|binding| type_expr_mentions_parameter(&binding.value, parameter))
+                || opaque
+                    .witness
+                    .as_ref()
+                    .is_some_and(|witness| type_expr_mentions_parameter(witness, parameter))
+        }
         TypeExpr::Reference(reference) => reference.name == parameter,
         TypeExpr::Generic(generic) => {
             generic.name == parameter

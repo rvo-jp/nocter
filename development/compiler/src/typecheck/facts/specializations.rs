@@ -256,7 +256,7 @@ pub(super) fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a>(
     resolving_names: &mut HashSet<String>,
 ) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Projection(_) => {
             let normalized = super::super::normalize_associated_type_expr(ty, resolved)?;
             payload_enum_symbol_and_substitutions_for_type_expr_inner(
@@ -354,6 +354,15 @@ pub(super) fn collect_free_type_parameters_in_type_expr(
             }
             collect_free_type_parameters_in_type_expr(&closure.return_type, resolved, parameters);
         }
+        TypeExpr::Opaque(opaque) => {
+            collect_free_type_parameters_in_type_expr(&opaque.interface, resolved, parameters);
+            for binding in &opaque.associated_bindings {
+                collect_free_type_parameters_in_type_expr(&binding.value, resolved, parameters);
+            }
+            if let Some(witness) = &opaque.witness {
+                collect_free_type_parameters_in_type_expr(witness, resolved, parameters);
+            }
+        }
         TypeExpr::Reference(reference) => {
             if resolved
                 .type_symbol_by_reference_name(&reference.name)
@@ -431,6 +440,15 @@ pub(super) fn type_expr_contains_free_parameters(
             }) || closure.parameters.iter().any(|parameter| {
                 type_expr_contains_free_parameters(parameter, free_type_parameters)
             }) || type_expr_contains_free_parameters(&closure.return_type, free_type_parameters)
+        }
+        TypeExpr::Opaque(opaque) => {
+            type_expr_contains_free_parameters(&opaque.interface, free_type_parameters)
+                || opaque.associated_bindings.iter().any(|binding| {
+                    type_expr_contains_free_parameters(&binding.value, free_type_parameters)
+                })
+                || opaque.witness.as_ref().is_some_and(|witness| {
+                    type_expr_contains_free_parameters(witness, free_type_parameters)
+                })
         }
         TypeExpr::Reference(reference) => free_type_parameters.contains(&reference.name),
         TypeExpr::Generic(generic) => generic

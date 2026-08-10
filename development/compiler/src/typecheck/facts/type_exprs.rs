@@ -48,6 +48,40 @@ pub(super) fn type_to_type_expr_inner(
             }))
         }
         Type::Closure(closure) => Some(TypeExpr::Closure(closure.clone())),
+        Type::Opaque(opaque) => Some(TypeExpr::Opaque(crate::ast::OpaqueType {
+            span,
+            some_span: opaque.identity,
+            interface: Box::new(type_to_type_expr_inner(
+                &opaque.interface,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
+            associated_bindings: opaque
+                .associated_bindings
+                .iter()
+                .map(|(name, ty)| {
+                    Some(crate::ast::OpaqueAssociatedTypeBinding {
+                        span,
+                        name: name.clone(),
+                        name_span: span,
+                        value: type_to_type_expr_inner(
+                            ty,
+                            span,
+                            free_type_parameters.as_deref_mut(),
+                        )?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+            witness: if let Some(witness) = &opaque.witness {
+                Some(Box::new(type_to_type_expr_inner(
+                    witness,
+                    span,
+                    free_type_parameters.as_deref_mut(),
+                )?))
+            } else {
+                None
+            },
+        })),
         Type::I32 => Some(type_reference("i32", span)),
         Type::Primitive(name) => Some(type_reference(name, span)),
         Type::Named(name) => Some(type_reference(name, span)),

@@ -76,6 +76,14 @@ fn aggregate_drop_for_type_expr_inner<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    if let TypeExpr::Opaque(opaque) = ty {
+        return aggregate_drop_for_type_expr_inner(
+            opaque.witness.as_deref()?,
+            root_source,
+            fallback_resolved,
+            resolver,
+        );
+    }
     if let Some(array_drop) =
         array_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
     {
@@ -143,7 +151,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Projection(_) => {
             let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
                 ty,
@@ -409,7 +417,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Projection(_) => {
             let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
             payload_enum_symbol_and_substitutions_for_type_expr_inner(
@@ -536,7 +544,7 @@ where
 
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => return None,
         TypeExpr::Projection(_) => {
             let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
             return drop_glue_for_type_expr_inner(
@@ -673,7 +681,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
-        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Opaque(_) => return None,
         TypeExpr::Projection(_) => {
             let normalized = crate::typecheck::normalize_associated_type_expr(ty, resolved)?;
             return enum_symbol_for_type_expr_inner(

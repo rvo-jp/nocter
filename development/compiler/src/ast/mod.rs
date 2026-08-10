@@ -385,6 +385,7 @@ pub struct Parameter {
 pub enum TypeExpr {
     Callable(CallableTypeExpr),
     Closure(ClosureTypeExpr),
+    Opaque(OpaqueType),
     Reference(TypeReference),
     Generic(GenericType),
     Projection(ProjectedType),
@@ -394,6 +395,23 @@ pub enum TypeExpr {
     Array(ArrayType),
     Optional(OptionalType),
     Fallible(FallibleType),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueType {
+    pub span: ByteSpan,
+    pub some_span: ByteSpan,
+    pub interface: Box<TypeExpr>,
+    pub associated_bindings: Vec<OpaqueAssociatedTypeBinding>,
+    pub witness: Option<Box<TypeExpr>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueAssociatedTypeBinding {
+    pub span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub value: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -952,6 +970,7 @@ impl TypeExpr {
         match self {
             TypeExpr::Callable(ty) => ty.span,
             TypeExpr::Closure(ty) => ty.span,
+            TypeExpr::Opaque(ty) => ty.span,
             TypeExpr::Reference(ty) => ty.span,
             TypeExpr::Generic(ty) => ty.span,
             TypeExpr::Projection(ty) => ty.span,

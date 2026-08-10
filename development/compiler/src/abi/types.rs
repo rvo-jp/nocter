@@ -203,6 +203,18 @@ where
                 .collect::<Result<Vec<_>, AbiTypeError>>()?;
             Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
         }
+        TypeExpr::Opaque(opaque) => {
+            let Some(witness) = &opaque.witness else {
+                return Err(AbiTypeError::UnresolvedType(canonical_type_expr(ty)));
+            };
+            abi_type_kind_from_type_expr(
+                witness,
+                fallback_resolved,
+                resolver,
+                substitutions,
+                resolving_names,
+            )
+        }
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" => Ok(AbiTypeKind::Value(AbiType::Bool)),
             "u8" => Ok(AbiTypeKind::Value(AbiType::U8)),

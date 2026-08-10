@@ -66,7 +66,7 @@ fn type_reference_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
-        TypeExpr::Projection(_) => None,
+        TypeExpr::Projection(_) | TypeExpr::Opaque(_) => None,
         TypeExpr::Callable(_)
         | TypeExpr::Closure(_)
         | TypeExpr::Pointer(_)

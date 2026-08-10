@@ -421,6 +421,25 @@ fn value_member_owner<'a>(
 ) -> Option<ValueMemberOwner<'a>> {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
+        TypeExpr::Opaque(opaque) => {
+            let symbol = match opaque.interface.as_ref() {
+                TypeExpr::Reference(reference) => {
+                    resolved.type_symbol_by_reference_name(&reference.name)?
+                }
+                TypeExpr::Generic(generic) => {
+                    resolved.type_symbol_by_reference_name(&generic.name)?
+                }
+                _ => return None,
+            };
+            let mut substitutions = HashMap::from([("Self".to_string(), ty.clone())]);
+            for binding in &opaque.associated_bindings {
+                substitutions.insert(format!("Self.{}", binding.name), binding.value.clone());
+            }
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions,
+            })
+        }
         TypeExpr::Reference(reference) => {
             let symbol = if reference.name == "str" {
                 resolved
