@@ -14,7 +14,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   dependency graphs, exact locks, stores, and compiler boundaries
 - [Immutable LSP Snapshots](lsp-snapshots.md): editor generations, package contexts, source
   overlays, invalidation, and request consistency
-- [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
+- [Body-Bearing Interface Implementations](interface-conformances.md): canonical conformance
   member identity, lookup, validation, migration, and editor boundaries
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
   default selection, lowering reuse, and editor boundaries
@@ -84,6 +84,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Callable values, interface default methods, and iterator chains | `callable-default-methods.md` |
 | Generic requirement identity, copyability, and specialization | `generic-requirements.md` |
 | Associated type identity, projection normalization, and conformance bindings | `associated-types.md` |
+| Instance/conformance declaration ownership and member identity | `interface-conformances.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Built-in `str` and `[T]` method authority and compiler integration | `builtin-type-methods.md` |

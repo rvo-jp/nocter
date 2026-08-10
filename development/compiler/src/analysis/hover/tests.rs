@@ -666,17 +666,18 @@ conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: Exact
     assert_eq!(iterator.label, "interface Stream<T>");
     assert_eq!(&text[iterator.span.start..iterator.span.end], "Stream");
 
-    let impl_bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
-    let impl_bound = hover_for_file_analysis(&sources, &analysis, file, impl_bound_offset)
-        .expect("expected impl-bound hover");
-    assert_eq!(impl_bound.label, "interface ExactSizeStream<T>");
+    let conformance_bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
+    let conformance_bound =
+        hover_for_file_analysis(&sources, &analysis, file, conformance_bound_offset)
+            .expect("expected conformance-bound hover");
+    assert_eq!(conformance_bound.label, "interface ExactSizeStream<T>");
     assert_eq!(
-        &text[impl_bound.span.start..impl_bound.span.end],
+        &text[conformance_bound.span.start..conformance_bound.span.end],
         "ExactSizeStream"
     );
 
     let implemented_offset =
-        text.rfind("instance<T, I> ExactSizeStream").unwrap() + "instance<T, I> ".len();
+        text.rfind("conform<T, I> ExactSizeStream").unwrap() + "conform<T, I> ".len();
     let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
         .expect("expected implemented-interface hover");
     assert_eq!(implemented.label, "interface ExactSizeStream<Indexed<T>>");

@@ -66,7 +66,7 @@ Nocter should prefer modules, value types, inherent methods, and explicit interf
 
 Interfaces exist to describe public capability. Default methods may reuse behavior derived
 only from that capability; they cannot expose internal structure or add state. An interface member
-must be public, and conformance is explicit through forms such as `impl Printable for User` so
+must be public, and conformance is explicit through forms such as `conform Printable for User` so
 accidental shape matches do not silently become API commitments.
 
 Stored composition syntax is not part of the current language. Any future proposal must remain

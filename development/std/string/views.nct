@@ -68,7 +68,7 @@ func split_views(
     return SplitIter.new(text, separator)?
 }
 
-impl Iterator for SplitIter {
+conform Iterator for SplitIter {
     type Item = &str
     method &+self.next(): &str? {
         if self.finished { return none }
@@ -105,7 +105,7 @@ func lines(text: &str): LinesIter {
     return LinesIter.new(text)
 }
 
-impl Iterator for LinesIter {
+conform Iterator for LinesIter {
     type Item = &str
     method &+self.next(): &str? {
         if self.finished { return none }

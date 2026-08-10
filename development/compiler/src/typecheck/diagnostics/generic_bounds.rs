@@ -145,7 +145,7 @@ pub(in crate::typecheck) fn generic_bound_not_satisfied_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0447",
         format!(
-            "type `{}` does not implement interface `{}` required by this call",
+            "type `{}` does not conform to interface `{}` required by this call",
             actual.display(),
             bound.display()
         ),
@@ -261,7 +261,7 @@ pub(in crate::typecheck) fn associated_type_bound_not_satisfied_diagnostic(
         });
     }
     diagnostic.help = Some(
-        "bind the associated type to a type that implements the required interface".to_string(),
+        "bind the associated type to a type that conforms to the required interface".to_string(),
     );
     diagnostic
 }

@@ -219,7 +219,7 @@ func main(): i32 {
 }
 
 #[test]
-fn accepts_generic_impl_method_body_and_call_return_type() {
+fn accepts_generic_instance_method_body_and_call_return_type() {
     let diagnostics = check_text(
         r#"struct Box<T> {
     value: T
@@ -267,7 +267,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_method_generic_reusing_an_impl_parameter() {
+fn diagnoses_method_generic_reusing_an_instance_parameter() {
     let diagnostics = check_text(
         r#"struct Box<T> {
     value: T
@@ -294,7 +294,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_generic_impl_method_return_type_mismatch() {
+fn diagnoses_generic_instance_method_return_type_mismatch() {
     let diagnostics = check_text(
         r#"struct Box<T> {
     value: T
@@ -319,7 +319,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_method_call_from_non_matching_generic_impl_target() {
+fn diagnoses_method_call_from_non_matching_generic_owner_target() {
     let diagnostics = check_text(
         r#"struct Box<T> {
     value: T

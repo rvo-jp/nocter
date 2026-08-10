@@ -3,20 +3,20 @@ use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_sub
 use crate::resolve::{InterfaceConformance, ResolveOutput};
 use std::collections::{HashMap, HashSet};
 
-pub(super) fn implemented_interface_types(actual: &Type, resolved: &ResolveOutput) -> Vec<Type> {
+pub(super) fn conformed_interface_types(actual: &Type, resolved: &ResolveOutput) -> Vec<Type> {
     let mut active = HashSet::new();
-    implemented_interface_types_inner(actual, resolved, &mut active)
+    conformed_interface_types_inner(actual, resolved, &mut active)
         .into_iter()
         .map(|(_, interface)| interface)
         .collect()
 }
 
-pub(super) fn implemented_interface_conformances<'a>(
+pub(super) fn applicable_interface_conformances<'a>(
     actual: &Type,
     resolved: &'a ResolveOutput,
 ) -> Vec<(&'a InterfaceConformance, Type)> {
     let mut active = HashSet::new();
-    implemented_interface_types_inner(actual, resolved, &mut active)
+    conformed_interface_types_inner(actual, resolved, &mut active)
 }
 
 pub(super) fn type_satisfies_interface_bound(
@@ -46,14 +46,14 @@ fn satisfies_inner(
     if !active.insert(key.clone()) {
         return false;
     }
-    let satisfied = implemented_interface_types_inner(actual, resolved, active)
+    let satisfied = conformed_interface_types_inner(actual, resolved, active)
         .into_iter()
         .any(|(_, implemented)| implemented == *bound);
     active.remove(&key);
     satisfied
 }
 
-fn implemented_interface_types_inner<'a>(
+fn conformed_interface_types_inner<'a>(
     actual: &Type,
     resolved: &'a ResolveOutput,
     active: &mut HashSet<(String, String)>,

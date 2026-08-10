@@ -14,7 +14,7 @@ use std/vec.Vec
 pub(/) primitive str_len_raw(value: &str): usize
 pub(/) primitive str_ptr_addr_raw(value: &str): usize
 
-impl str {
+instance str {
     pub method &self.len(): usize {
         return str_len_raw(self)
     }

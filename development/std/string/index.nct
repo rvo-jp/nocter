@@ -384,7 +384,7 @@ pub func capacity_overflow(): error {
     return Error.new("std.string.capacity_overflow", "string capacity overflow")
 }
 
-impl String {
+instance String {
     pub method &self.capacity(): usize {
         return capacity(self)
     }

@@ -11,9 +11,9 @@ use super::diagnostics::{
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
-    implemented_interface_types, interface_symbol_for_bound,
-    interface_symbols_for_constrained_type, interface_symbols_for_generic_parameter,
-    type_satisfies_interface_bound, type_symbol_substitutions,
+    conformed_interface_types, interface_symbol_for_bound, interface_symbols_for_constrained_type,
+    interface_symbols_for_generic_parameter, type_satisfies_interface_bound,
+    type_symbol_substitutions,
 };
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
@@ -453,7 +453,7 @@ pub(super) fn infer_generic_substitutions(
                     .find(|(candidate, _)| candidate.canonical_name == owner.canonical_name)
                     .map(|(_, bound)| bound)
             }
-            _ => implemented_interface_types(&receiver_type, resolved)
+            _ => conformed_interface_types(&receiver_type, resolved)
                 .into_iter()
                 .find(|implemented| {
                     implemented.nominal_name() == Some(owner.canonical_name.as_str())
@@ -621,7 +621,7 @@ fn infer_substitutions_from_interface_bounds(
                     TypeExpr::Generic(generic) => generic.name.as_str(),
                     _ => continue,
                 };
-                for implemented in implemented_interface_types(&actual, resolved) {
+                for implemented in conformed_interface_types(&actual, resolved) {
                     let matches_interface = implemented
                         .nominal_name()
                         .and_then(|name| resolved.type_symbol_by_canonical_name(name))

@@ -2044,7 +2044,7 @@ func empty<T>(): T? {
 }
 
 #[test]
-fn accepts_reachable_concrete_generic_impl_method() {
+fn accepts_reachable_concrete_generic_instance_method() {
     let (sources, analysis) = analyze_text(
         r#"struct Box<T> {
     value: T
@@ -2069,7 +2069,7 @@ func main(): i32 {
 }
 
 #[test]
-fn accepts_reachable_generic_impl_method_with_concrete_receiver() {
+fn accepts_reachable_generic_instance_method_with_concrete_receiver() {
     let (sources, analysis) = analyze_text(
         r#"struct Box<T> {
     value: T

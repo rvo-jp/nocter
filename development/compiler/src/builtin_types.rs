@@ -25,7 +25,7 @@ impl BuiltinTypeOwner {
         }
     }
 
-    pub(crate) const fn implementation_module(self) -> &'static str {
+    pub(crate) const fn instance_module(self) -> &'static str {
         match self {
             Self::Str => STR_IMPLEMENTATION_MODULE,
             Self::Slice => SLICE_IMPLEMENTATION_MODULE,
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn every_builtin_owner_has_one_distinct_source_authority() {
-        let authorities = BuiltinTypeOwner::ALL.map(BuiltinTypeOwner::implementation_module);
+        let authorities = BuiltinTypeOwner::ALL.map(BuiltinTypeOwner::instance_module);
         assert_eq!(authorities, ["std/str", "std/slice"]);
         assert_ne!(authorities[0], authorities[1]);
     }

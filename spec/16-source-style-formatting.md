@@ -85,7 +85,7 @@ if path.len() == 0 {
 ```
 
 ```nct
-impl File {
+instance File {
     pub method &+self.write_text(text: &str): void! {
         ...
     }

@@ -450,7 +450,7 @@
     <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>iterator<span class="token-operator">.</span>view<span class="token-operator">[</span>index<span class="token-operator">]</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+instance<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns the number of elements not yet yielded.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">remaining</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
@@ -458,14 +458,14 @@
 
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Implements exact-size iteration for compiler-owned element packs.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">remaining</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+conform<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-type">Iterator</span> <span class="token-keyword">for</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     type <span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span>
     <span class="token-comment">/// Advances and returns a readonly borrow, or `none` at exhaustion.</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>

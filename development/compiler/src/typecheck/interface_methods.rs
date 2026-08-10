@@ -1,6 +1,6 @@
 //! Deterministic selection of methods owned by explicit interface conformances.
 
-use super::conformance::implemented_interface_conformances;
+use super::conformance::applicable_interface_conformances;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type};
 use super::visibility::member_visibility_is_accessible;
@@ -28,7 +28,7 @@ pub(super) fn candidates<'a>(
         .collect()
 }
 
-pub(super) fn implementation_for_interface<'a>(
+pub(super) fn conformance_method_for_interface<'a>(
     receiver: &Type,
     interface_canonical_name: &str,
     method_name: &str,
@@ -44,13 +44,13 @@ pub(super) fn implementation_for_interface<'a>(
     candidates.next().is_none().then_some(candidate.method)
 }
 
-pub(crate) fn implementation_for_interface_type_expr<'a>(
+pub(crate) fn conformance_method_for_interface_type_expr<'a>(
     receiver: &TypeExpr,
     interface_canonical_name: &str,
     method_name: &str,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a MethodSignature> {
-    implementation_for_interface(
+    conformance_method_for_interface(
         &type_expr_to_type(receiver, resolved),
         interface_canonical_name,
         method_name,
@@ -144,7 +144,7 @@ fn interface_method_candidates<'a>(
     else {
         return Vec::new();
     };
-    implemented_interface_conformances(receiver, resolved)
+    applicable_interface_conformances(receiver, resolved)
         .into_iter()
         .filter_map(|(conformance, interface_type)| {
             let contract_owner =

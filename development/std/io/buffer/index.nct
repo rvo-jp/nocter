@@ -47,7 +47,7 @@ pub func read(reader: &+BufReader, destination: &+[u8]): usize! {
     return written
 }
 
-impl Reader for BufReader {
+conform Reader for BufReader {
     method &+self.read(destination: &+[u8]): usize! { return read(self, destination)? }
 }
 
@@ -96,11 +96,11 @@ pub func close(writer: &+BufWriter): void! {
     return
 }
 
-impl BufWriter {
+instance BufWriter {
     pub method &+self.close(): void! { close(self)? return }
 }
 
-impl Writer for BufWriter {
+conform Writer for BufWriter {
     method &+self.write(bytes: &[u8]): void! { write(self, bytes)? return }
     method &+self.flush(): void! { flush(self)? return }
 }

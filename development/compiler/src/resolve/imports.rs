@@ -6,8 +6,8 @@ use super::diagnostics::{
 };
 use super::module_index::is_relative_module_path;
 use super::signatures::{
-    alias_type_symbol, attach_inherent_impl_members_to_symbol, enum_type_symbol,
-    function_signature, interface_type_symbol, primitive_signature, struct_type_symbol,
+    alias_type_symbol, attach_instance_members_to_symbol, enum_type_symbol, function_signature,
+    interface_type_symbol, primitive_signature, struct_type_symbol,
 };
 use super::{
     FunctionSignature, ImportAccess, ImportedSymbol, ImportedSymbolKind, MethodSignature,

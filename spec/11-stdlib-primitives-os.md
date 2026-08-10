@@ -166,7 +166,7 @@ Rules:
 
 - The directive applies only to the immediately following function, primitive, or type
   declaration.
-- It does not apply to `use`, `test`, `construct`, or `impl` declarations.
+- It does not apply to `use`, `test`, `construct`, `instance`, or `conform` declarations.
 - The declaration participates in name resolution and compilation only when the selected target
   matches exactly.
 - A target-independent declaration has no `#target` directive.

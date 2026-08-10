@@ -53,7 +53,7 @@ receiver explicitly conforms, or from the bounds of a generic receiver. Two appl
 with the same name are ambiguous across those categories. Declaration or import order never selects
 one. The selected declaration is statically specialized and called directly.
 
-A required method is implemented in the body of `impl Interface for Type { ... }`. A conformance
+A required method is implemented in the body of `conform Interface for Type { ... }`. A conformance
 member with the same name as a default is its explicit override. Inherent methods neither satisfy
 required methods nor override defaults. A default method cannot itself establish conformance.
 

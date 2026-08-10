@@ -253,7 +253,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_inherent_method_names_across_impls() {
+fn diagnoses_duplicate_inherent_method_names_across_instances() {
     let output = resolve_text(
         r#"struct File {
     fd: i32
@@ -353,7 +353,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_inherent_drop_members_across_impls() {
+fn diagnoses_duplicate_inherent_drop_members_across_instances() {
     let output = resolve_text(
         r#"struct File {
     fd: i32
@@ -516,7 +516,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_impl_generic_parameter_names() {
+fn diagnoses_duplicate_instance_generic_parameter_names() {
     let output = resolve_text(
         r#"struct Box<T> {
     value: T

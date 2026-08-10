@@ -275,7 +275,7 @@ pub(super) fn method_specialization_context_substitutions(
     resolved_sources: &ResolvedSources<'_>,
 ) -> HashMap<String, TypeExpr> {
     let mut substitutions =
-        impl_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
+        method_owner_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
     crate::typecheck::extend_associated_type_substitutions_with_resolver(
         &mut substitutions,

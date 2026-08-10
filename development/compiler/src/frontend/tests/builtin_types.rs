@@ -55,7 +55,7 @@ func title(): &str {
 }
 
 #[test]
-fn check_rejects_project_owned_builtin_implementation() {
+fn check_rejects_project_owned_builtin_instance() {
     let root = make_temp_project("project-builtin-impl");
     let home = make_nocter_home(&root);
     crate::test_files::write(
@@ -79,7 +79,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn check_rejects_malformed_standard_builtin_implementation() {
+fn check_rejects_malformed_standard_builtin_instance() {
     let root = make_temp_project("malformed-standard-builtin-impl");
     let home = make_nocter_home(&root);
     crate::test_files::write(

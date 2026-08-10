@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use super::conformance::interface_conformance;
 use super::diagnostics::duplicate_inherent_member_name_diagnostic;
 
-pub(super) fn attach_inherent_impl_members_to_symbol(
+pub(super) fn attach_instance_members_to_symbol(
     symbol: &mut TypeSymbol,
     ast: &AstFile,
     type_name: &str,

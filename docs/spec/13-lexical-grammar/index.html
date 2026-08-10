@@ -185,14 +185,15 @@ break
 catch
 continue
 construct
+conform
 else
 enum
 false
 for
 func
 if
-impl
 in
+instance
 interface
 is
 let
@@ -228,7 +229,7 @@ byte_literal
 newline
 punctuation
 eof
-</code></pre><p>Keyword rules:</p><ul><li>Reserved keywords are emitted as keyword tokens.</li><li><code>nocter</code> is emitted as an identifier token.</li><li><code>drop</code> is emitted as an identifier token; the parser treats <code>drop &amp;+self { ... }</code> in an inherent <code>impl</code> block and <code>drop name</code> in statement position as contextual source forms.</li><li><code>Self</code> may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where <a href="../02-values-types/index.html#self-type-syntax">Values and Types</a> allows it.</li><li><code>error</code> is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.</li><li><code>ok</code>, <code>some</code>, <code>unsafe</code>, and <code>trusted</code> are not reserved and are emitted as identifier tokens.</li><li><code>default</code> is not reserved. The parser recognizes it contextually inside <code>construct</code> blocks.</li><li><code>alloc</code> is emitted as an identifier token and has no contextual keyword classification.</li></ul><p>Newline rules:</p><ul><li>A normalized LF line ending is emitted as a <code>newline</code> token.</li><li>Parser rules decide whether a newline can separate statements.</li><li>The terminating newline after a line comment is emitted as a <code>newline</code> token.</li><li>LF bytes inside a block comment are emitted as <code>newline</code> tokens so block comments can preserve statement separation.</li><li>Comment text itself is not emitted as tokens.</li><li>Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.</li><li>Newlines inside single-line string literals and byte literals are lexical errors.</li><li>Newlines inside multi-line string literals are literal content and are not emitted as statement-separating <code>newline</code> tokens.</li></ul><p>EOF rules:</p><ul><li>The lexer emits exactly one EOF token.</li><li>EOF span is empty at the end of the normalized source text.</li></ul><p>Examples of single lexical tokens:</p><pre><code class="language-text">&amp;+
+</code></pre><p>Keyword rules:</p><ul><li>Reserved keywords are emitted as keyword tokens.</li><li><code>nocter</code> is emitted as an identifier token.</li><li><code>drop</code> is emitted as an identifier token; the parser treats <code>drop &amp;+self { ... }</code> in an <code>instance</code> block and <code>drop name</code> in statement position as contextual source forms.</li><li><code>Self</code> may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where <a href="../02-values-types/index.html#self-type-syntax">Values and Types</a> allows it.</li><li><code>error</code> is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.</li><li><code>ok</code>, <code>some</code>, <code>unsafe</code>, and <code>trusted</code> are not reserved and are emitted as identifier tokens.</li><li><code>default</code> is not reserved. The parser recognizes it contextually inside <code>construct</code> blocks.</li><li><code>alloc</code> is emitted as an identifier token and has no contextual keyword classification.</li></ul><p>Newline rules:</p><ul><li>A normalized LF line ending is emitted as a <code>newline</code> token.</li><li>Parser rules decide whether a newline can separate statements.</li><li>The terminating newline after a line comment is emitted as a <code>newline</code> token.</li><li>LF bytes inside a block comment are emitted as <code>newline</code> tokens so block comments can preserve statement separation.</li><li>Comment text itself is not emitted as tokens.</li><li>Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.</li><li>Newlines inside single-line string literals and byte literals are lexical errors.</li><li>Newlines inside multi-line string literals are literal content and are not emitted as statement-separating <code>newline</code> tokens.</li></ul><p>EOF rules:</p><ul><li>The lexer emits exactly one EOF token.</li><li>EOF span is empty at the end of the normalized source text.</li></ul><p>Examples of single lexical tokens:</p><pre><code class="language-text">&amp;+
 ..&lt;
 ...
 ==

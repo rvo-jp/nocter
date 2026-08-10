@@ -1,4 +1,4 @@
-pub(super) use super::conformance::{implemented_interface_types, type_satisfies_interface_bound};
+pub(super) use super::conformance::{conformed_interface_types, type_satisfies_interface_bound};
 use super::model::{Type, TypeEnvironment};
 use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::TypeExpr;
@@ -21,7 +21,7 @@ pub(super) fn interface_symbols_for_generic_parameter<'a>(
 }
 
 /// Returns interface contracts known from the lexical predicate environment.
-/// Concrete conformances are intentionally handled by `implemented_interface_types`;
+/// Concrete conformances are intentionally handled by `conformed_interface_types`;
 /// this function is for types whose capabilities exist only because a declaration
 /// constrained them, including associated type projections.
 pub(super) fn interface_symbols_for_constrained_type<'a>(

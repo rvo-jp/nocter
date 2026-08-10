@@ -22,7 +22,7 @@ pub(super) fn enqueue_builtin_instance_sources(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for owner in BuiltinTypeOwner::ALL {
-        let module = owner.implementation_module();
+        let module = owner.instance_module();
         let path = module_path(root, module);
         let canonical = match resolve_import_path(
             sources,
@@ -82,7 +82,7 @@ pub(super) fn validate_builtin_instance_authority(
             BuiltinTypeOwner::from_instance_target(&instance.target_ty).map(|owner| {
                 (
                     owner.canonical_name(),
-                    owner.implementation_module(),
+                    owner.instance_module(),
                     instance.target_ty.span(),
                 )
             })

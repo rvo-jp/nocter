@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-09">
+    <meta property="article:modified_time" content="2026-08-10">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/index.nct - Nocter">
@@ -461,7 +461,7 @@
     <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
+instance <span class="token-type">Allocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">alloc</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">alloc</span><span class="token-operator">(</span>self<span class="token-operator">,</span> size<span class="token-operator">,</span> align<span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -477,7 +477,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
+instance <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">try_alloc</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span>self<span class="token-operator">,</span> size<span class="token-operator">,</span> align<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
@@ -494,7 +494,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
+instance <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">bytes</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -525,7 +525,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">impl</span> <span class="token-type">Layout</span> <span class="token-operator">{</span>
+instance <span class="token-type">Layout</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">size</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">layout_size</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>

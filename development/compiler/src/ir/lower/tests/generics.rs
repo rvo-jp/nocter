@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn lowers_concrete_generic_impl_method_call() {
+fn lowers_concrete_generic_instance_method_call() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T
@@ -337,7 +337,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_generic_impl_method_body_function_call_with_concrete_receiver() {
+fn lowers_generic_instance_method_body_function_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T
@@ -549,7 +549,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_generic_impl_method_call_with_concrete_receiver() {
+fn lowers_generic_instance_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T
@@ -599,7 +599,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_generic_impl_method_for_multiple_concrete_receivers() {
+fn lowers_generic_instance_method_for_multiple_concrete_receivers() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T

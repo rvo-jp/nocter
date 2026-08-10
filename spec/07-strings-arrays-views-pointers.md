@@ -99,13 +99,13 @@ func address_of(value: &u8): usize {
 `&[T]`, `&+[T]`, and `&str` expose pointer and length methods.
 
 ```nct
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.ptr(): *T
     pub method &self.len(): usize
     pub method &self.is_empty(): bool
 }
 
-impl str {
+instance str {
     pub method &self.ptr(): *u8
     pub method &self.len(): usize
     pub method &self.is_empty(): bool
@@ -322,7 +322,7 @@ Representative collection operations:
 - readonly borrow iteration through ordinary `iter()` and `next()` methods
 
 The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and
-`&+[T]`. The active Nocter home exclusively owns inherent implementations for built-in `[T]`.
+`&+[T]`. The active Nocter home exclusively owns `instance` declarations for built-in `[T]`.
 `Vec<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `iter`, and `next` remain declaration-resolved API
 surface; the compiler does not infer their public behavior from member spelling.
 
@@ -335,7 +335,7 @@ pub struct ViewIter<T> {
     ...
 }
 
-impl<T> ViewIter<T> {
+instance<T> ViewIter<T> {
     pub method &+self.next(): &T?
 }
 ```
@@ -429,7 +429,7 @@ func open(path: &str): File! {
 Representative current method surface:
 
 ```nct
-impl str {
+instance str {
     pub method &self.len(): usize
     pub method &self.is_empty(): bool
     pub method &self.ptr(): *u8
@@ -443,7 +443,7 @@ impl str {
     pub method &self.bytes_iter(): ViewIter<u8>
 }
 
-impl String {
+instance String {
     pub method &self.capacity(): usize
     pub method &+self.reserve(additional: usize): void
     pub method &+self.try_reserve(additional: usize): void!

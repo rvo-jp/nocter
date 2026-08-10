@@ -71,7 +71,7 @@ pub(crate) use facts::{
     type_symbol_presentation_label,
 };
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
-pub(crate) use interface_methods::implementation_for_interface_type_expr;
+pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name,
@@ -138,7 +138,7 @@ pub(crate) fn concrete_associated_types(
     resolved: &ResolveOutput,
 ) -> Vec<(String, String, crate::source::ByteSpan)> {
     let ty = type_expr::type_expr_to_type(ty, resolved);
-    let mut entries = conformance::implemented_interface_conformances(&ty, resolved)
+    let mut entries = conformance::applicable_interface_conformances(&ty, resolved)
         .into_iter()
         .filter_map(|(_, interface)| {
             resolved.type_symbol_by_canonical_name(interface.nominal_name()?)

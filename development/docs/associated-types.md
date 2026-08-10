@@ -55,10 +55,10 @@ Conformance checking validates the declaration set before method signatures:
 - each required declaration has exactly one binding
 - no binding names an absent declaration
 - duplicate declarations and duplicate bindings are rejected
-- inherent implementations cannot carry bindings
+- `instance` declarations cannot carry bindings
 - every binding satisfies the associated declaration's resolved capability set
 
-Method compatibility substitutes the target type, interface arguments, impl parameters, and the
+Method compatibility substitutes the target type, interface arguments, conformance parameters, and the
 validated associated bindings into the interface method signature. This permits an interface
 result such as `Self.Item` to match a concrete implementation result such as `i32` without textual
 equivalence. Conditional conformance and concrete specialization prove the shared `where`

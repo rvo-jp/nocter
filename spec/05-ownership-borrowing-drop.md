@@ -72,7 +72,7 @@ inspect(&file)
 Method receiver borrows are automatic:
 
 ```nct
-impl File {
+instance File {
     pub method &+self.write_text(text: &str): void! {
         ...
     }
@@ -230,10 +230,10 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 
 ## Drop
 
-Resource destruction uses a dedicated `drop` member inside an inherent `impl`, not a `Drop` interface.
+Resource destruction uses a dedicated `drop` member inside an `instance`, not a `Drop` interface.
 
 ```nct
-impl File {
+instance File {
     drop &+self {
         close(self)
         return
@@ -241,7 +241,7 @@ impl File {
 }
 ```
 
-The destructor member is the contextual `drop &+self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an inherent `impl` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
+The destructor member is the contextual `drop &+self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an `instance` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
 
 A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
@@ -251,8 +251,8 @@ Rules:
 - A `drop` member has the source form `drop &+self { ... }`.
 - `self` is the fixed drop receiver name and is scoped to the drop body.
 - The drop receiver type is always exactly `&+Self`.
-- A `drop` member can appear only in an inherent `impl Type` block. Interface
-  implementation declarations contain method bodies but cannot contain `drop` members.
+- A `drop` member can appear only in an `instance Type` block. `conform` declarations contain
+  method bodies but cannot contain `drop` members.
 - A `drop` member has no return type annotation.
 - A `drop` member always returns no value.
 - A `drop` member cannot be fallible.

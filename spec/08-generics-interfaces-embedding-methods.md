@@ -43,8 +43,8 @@ contracts are invalid.
 implicit copies of `T` only when its contract contains `where copy T`. A concrete call satisfies the
 requirement only when its substituted type is copyable under the ownership rules.
 
-Callables can refine a generic parameter inherited from a surrounding `construct`, `impl`, or
-`interface` scope:
+Callables can refine a generic parameter inherited from a surrounding `construct`, `instance`,
+`conform`, or `interface` scope:
 
 ```nct
 construct Buffer<T> {
@@ -55,8 +55,9 @@ construct Buffer<T> {
 ```
 
 The clause follows result provenance and precedes a callable body. On a struct, enum, or interface,
-it follows the generic parameter list and precedes the body. On an impl, it follows the target. On a
-type alias, it follows the aliased type. A requirement target must be a generic parameter visible to
+it follows the generic parameter list and precedes the body. On an `instance`, it follows the
+target. On a `conform`, it follows the conformance target. On a type alias, it follows the aliased
+type. A requirement target must be a generic parameter visible to
 that declaration. Duplicate `copy` requirements, duplicate interface bounds, and multiple callable
 contracts are invalid. `copy` is unavailable after `:` and is invalid inside a type expression such
 as `&[copy T]`.
@@ -66,7 +67,7 @@ expands aliases, and applies recursively beneath existing type constructors. A g
 rely only on equalities in its lexical predicate environment. A concrete call or conditional
 conformance must prove every specialized equality. Cycles that cannot normalize to a finite type,
 unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
-`impl Interface for Type` clause uses the same predicate model and places `where` after the target.
+`conform Interface for Type` clause uses the same predicate model and places `where` after the target.
 
 ```nct
 func inspect<T>(value: &T): i32 where T: Readable<i32> {
@@ -79,21 +80,21 @@ no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime 
 interface objects, interface inheritance, higher-kinded types, generic associated types, or general
 const generics.
 
-## Inherent Implementations
+## Instances
 
-An inherent `impl` associates receiver methods and `drop` with a nominal type. It does not create a
+An `instance` declaration associates receiver methods and `drop` with a nominal type. It does not create a
 class or introduce inheritance.
 
 ```nct
-impl WordStats {
+instance WordStats {
     pub method &+self.add_word(): void {
         self.words += 1
     }
 }
 ```
 
-The target must be a nominal `struct` or `enum`; a type alias cannot own an `impl`. Generic impl
-parameters are in scope for the target, members, and member bodies.
+The target must be a nominal `struct` or `enum`; a type alias cannot own an `instance`. Generic
+instance parameters are in scope for the target, members, and member bodies.
 
 Functions that directly create the nominal owner belong to its `construct` declaration. Other
 associated functions are qualified top-level declarations. Construction behavior is specified in
@@ -158,7 +159,7 @@ pub interface Source {
     pub method &+self.next(): Self.Item?
 }
 
-impl<T> Source for BufferSource<T> {
+conform<T> Source for BufferSource<T> {
     type Item = T
 
     method &+self.next(): T? {
@@ -176,8 +177,8 @@ ProjectedType             = TypeAtom "." Name
 Every associated type is required and public. A declaration may require ordinary interface or
 callable capabilities from its selected type. A conformance binds each declaration exactly once,
 cannot bind an undeclared name, and must satisfy every declared capability. Bindings omit `pub`
-because their visibility and identity come from the interface declaration. Inherent
-implementations cannot contain associated type bindings. Associated type names use a namespace
+because their visibility and identity come from the interface declaration. `instance`
+declarations cannot contain associated type bindings. Associated type names use a namespace
 separate from interface method names.
 
 `Self.Name` selects a declaration on the current interface. `T.Name` requires one unambiguous
@@ -199,17 +200,17 @@ where L: Iterator, R: Iterator, R.Item = L.Item {
 
 ## Explicit Conformance
 
-Conformance is declared with a mandatory body-bearing implementation:
+Conformance is declared with a mandatory body-bearing `conform` declaration:
 
 ```nct
-impl Printable for User {
+conform Printable for User {
     method &self.print(): i32 {
         return 0
     }
 }
 ```
 
-The implementation body owns every required member implementation. Members omit `pub` because the
+The conformance body owns every required member implementation. Members omit `pub` because the
 interface declaration owns visibility. A default may be omitted or overridden by a same-name
 member. An inherent method never establishes or overrides interface conformance.
 
@@ -234,7 +235,7 @@ Generic conformance parameters may carry bounds. A conditional conformance exist
 target only when every specialized bound is satisfied:
 
 ```nct
-impl<I> Iterator for TakeIter<I> where I: Iterator {
+conform<I> Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {

@@ -11,7 +11,7 @@ func map<U, I, F>(
     }
 }
 
-impl<U, I, F> Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item): U {
+conform<U, I, F> Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item): U {
     type Item = U
 
     /// Advances the source once and transforms the yielded item once.
@@ -21,7 +21,7 @@ impl<U, I, F> Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item)
     }
 }
 
-impl<U, I, F> ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(I.Item): U {
+conform<U, I, F> ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(I.Item): U {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
@@ -39,7 +39,7 @@ func filter<I, F>(
     }
 }
 
-impl<I, F> Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
+conform<I, F> Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
     type Item = I.Item
 
     /// Advances until the predicate accepts an item or the source is exhausted.
@@ -62,7 +62,7 @@ func take<I>(source: I, limit: usize): TakeIter<I> where I: Iterator {
     }
 }
 
-impl<I> Iterator for TakeIter<I> where I: Iterator {
+conform<I> Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -78,7 +78,7 @@ impl<I> Iterator for TakeIter<I> where I: Iterator {
     }
 }
 
-impl<I> ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
+conform<I> ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining < self.remaining {
@@ -96,7 +96,7 @@ func skip<I>(source: I, amount: usize): SkipIter<I> where I: Iterator {
     }
 }
 
-impl<I> Iterator for SkipIter<I> where I: Iterator {
+conform<I> Iterator for SkipIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -111,7 +111,7 @@ impl<I> Iterator for SkipIter<I> where I: Iterator {
     }
 }
 
-impl<I> ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {
+conform<I> ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining <= self.remaining_to_skip {
@@ -133,7 +133,7 @@ func chain<L, R>(
     }
 }
 
-impl<L, R> Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
+conform<L, R> Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
     type Item = L.Item
 
     method &+self.next(): L.Item? {
@@ -148,7 +148,7 @@ impl<L, R> Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item =
     }
 }
 
-impl<L, R> ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {
+conform<L, R> ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {
     method &self.remaining_len(): usize {
         return self.left.remaining_len() + self.right.remaining_len()
     }
@@ -162,7 +162,7 @@ func enumerate<I>(source: I): EnumerateIter<I> where I: Iterator {
     }
 }
 
-impl<I> Iterator for EnumerateIter<I> where I: Iterator {
+conform<I> Iterator for EnumerateIter<I> where I: Iterator {
     type Item = Indexed<I.Item>
 
     method &+self.next(): Indexed<I.Item>? {
@@ -176,7 +176,7 @@ impl<I> Iterator for EnumerateIter<I> where I: Iterator {
     }
 }
 
-impl<I> ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {
+conform<I> ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }

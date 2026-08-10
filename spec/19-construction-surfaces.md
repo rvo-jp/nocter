@@ -53,8 +53,8 @@ Rules:
   target type.
 
 Public functions that do not directly produce the target remain ordinary functions. Receiver
-methods and drop members remain in `impl`; interface implementation members remain in
-`impl Interface for Type`.
+methods and drop members remain in `instance`; interface conformance members remain in
+`conform Interface for Type`.
 
 ## Default Construction Entry
 

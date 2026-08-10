@@ -259,7 +259,7 @@ pub(in crate::typecheck) fn interface_method_signature_mismatch_diagnostic(
     }
     if let Ok(span) = sources.span_to_json(actual.name_span) {
         diagnostic.notes.push(DiagnosticNote {
-            message: format!("implementing signature is `{found}`"),
+            message: format!("conformance signature is `{found}`"),
             span: Some(span),
         });
     }

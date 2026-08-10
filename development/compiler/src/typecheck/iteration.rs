@@ -2,10 +2,8 @@
 
 use super::copyability::non_copy_owned_type_kind_in_environment;
 use super::expressions::expression_type;
-use super::interface_bounds::{
-    implemented_interface_types, interface_symbols_for_constrained_type,
-};
-use super::interface_methods::implementation_for_interface;
+use super::interface_bounds::{conformed_interface_types, interface_symbols_for_constrained_type};
+use super::interface_methods::conformance_method_for_interface;
 use super::model::{Type, TypeEnvironment};
 use crate::ast::{CollectionForStmt, Expr, MethodReceiverMode, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -81,7 +79,7 @@ pub(super) fn resolve_sequence_spread(
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let source_type = expression_type(&unary.operand, resolved, environment);
             let iteration = if let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
+                conformed_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             {
                 resolve_direct_iteration(
                     source_type,
@@ -114,7 +112,7 @@ pub(super) fn resolve_sequence_spread(
             )?,
         ),
     };
-    let _exact_interface = implemented_protocol_type(
+    let _exact_interface = conformed_protocol_type(
         &iteration.iterator_type,
         &runtime.exact_size,
         resolved,
@@ -183,7 +181,7 @@ pub(super) fn resolve_collection_iteration(
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let source_type = expression_type(&unary.operand, resolved, environment);
             if let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
+                conformed_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             {
                 resolve_direct_iteration(
                     source_type,
@@ -206,7 +204,7 @@ pub(super) fn resolve_collection_iteration(
         expression => {
             let source_type = expression_type(expression, resolved, environment);
             let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
+                conformed_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             else {
                 return Err(CollectionIterationError::AmbiguousCollection(source_type));
             };
@@ -234,12 +232,12 @@ fn resolve_converted_iteration(
         return Err(CollectionIterationError::UnresolvedSource);
     }
     let _conversion_interface =
-        implemented_protocol_type(&source_type, conversion_protocol, resolved, environment)
+        conformed_protocol_type(&source_type, conversion_protocol, resolved, environment)
             .ok_or_else(|| CollectionIterationError::MissingConversion(source_type.clone()))?;
     let iterator_type = protocol_associated_type(&source_type, conversion_protocol, resolved)
         .ok_or(CollectionIterationError::MalformedConformance)?;
     let _iterator_interface =
-        implemented_protocol_type(&iterator_type, &runtime.iterator, resolved, environment)
+        conformed_protocol_type(&iterator_type, &runtime.iterator, resolved, environment)
             .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
     let item_type = protocol_associated_type(&iterator_type, &runtime.iterator, resolved)
         .ok_or(CollectionIterationError::MalformedConformance)?;
@@ -293,7 +291,7 @@ fn protocol_associated_type(
     ))
 }
 
-fn implemented_protocol_type(
+fn conformed_protocol_type(
     actual: &Type,
     protocol: &IterationProtocol,
     resolved: &ResolveOutput,
@@ -305,7 +303,7 @@ fn implemented_protocol_type(
             .map(|(_, bound)| bound)
             .find(|bound| protocol_type_matches(bound, protocol, resolved));
     }
-    implemented_interface_types(actual, resolved)
+    conformed_interface_types(actual, resolved)
         .into_iter()
         .find(|implemented| protocol_type_matches(implemented, protocol, resolved))
 }
@@ -337,7 +335,7 @@ fn resolve_concrete_method(
             .ok_or(CollectionIterationError::MalformedConformance)?;
         return Ok(iteration_method(receiver_type, method));
     }
-    let method = implementation_for_interface(
+    let method = conformance_method_for_interface(
         receiver_type,
         &protocol.interface_canonical_name,
         &protocol.method_name,
@@ -416,14 +414,14 @@ fn iteration_diagnostic(
         ),
         CollectionIterationError::MissingConversion(actual) => (
             format!(
-                "type `{}` does not implement the selected collection iteration protocol",
+                "type `{}` does not conform to the selected collection iteration protocol",
                 actual.display()
             ),
             "add the matching explicit standard iteration interface conformance".to_string(),
         ),
         CollectionIterationError::MissingIterator(actual) => (
             format!(
-                "collection conversion produces `{}`, which does not implement the iterator protocol",
+                "collection conversion produces `{}`, which does not conform to the iterator protocol",
                 actual.display()
             ),
             "make the concrete conversion result explicitly conform to the trusted iterator interface"
@@ -434,7 +432,7 @@ fn iteration_diagnostic(
                 "spread iterator `{}` does not provide an exact remaining element count",
                 actual.display()
             ),
-            "implement the validated `ExactSizeIterator` interface; Nocter does not buffer unknown-size spread input"
+            "conform to the validated `ExactSizeIterator` interface; Nocter does not buffer unknown-size spread input"
                 .to_string(),
         ),
         CollectionIterationError::CopyRequiresReadonlyItem(actual) => (
@@ -448,7 +446,7 @@ fn iteration_diagnostic(
         ),
         CollectionIterationError::MalformedConformance => (
             "collection iteration conformance does not match its validated protocol shape".to_string(),
-            "fix the interface implementation before using it in a collection loop".to_string(),
+            "fix the interface conformance before using it in a collection loop".to_string(),
         ),
     };
     let mut diagnostic = Diagnostic::error(code, message);

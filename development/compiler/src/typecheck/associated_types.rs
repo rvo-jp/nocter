@@ -1,6 +1,6 @@
 //! Resolution and normalization for interface-owned associated types.
 
-use super::conformance::implemented_interface_conformances;
+use super::conformance::applicable_interface_conformances;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use crate::resolve::ResolveOutput;
@@ -129,7 +129,7 @@ fn projection_contract_for_interface<'a>(
     let associated = interface.associated_types.iter().find(|associated| {
         associated.name == member && associated.name_span == associated_declaration
     })?;
-    let mut candidates = implemented_interface_conformances(base, resolved)
+    let mut candidates = applicable_interface_conformances(base, resolved)
         .into_iter()
         .filter(|(_, interface_type)| {
             interface_type.nominal_name() == Some(interface_canonical_name)
@@ -147,7 +147,7 @@ pub(super) fn concrete_projection_contract<'a>(
     &'a crate::resolve::InterfaceConformance,
     &'a crate::resolve::AssociatedTypeSignature,
 )> {
-    let mut candidates = implemented_interface_conformances(base, resolved)
+    let mut candidates = applicable_interface_conformances(base, resolved)
         .into_iter()
         .filter_map(|(conformance, interface_type)| {
             let interface =

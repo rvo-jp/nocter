@@ -102,14 +102,15 @@ break
 catch
 continue
 construct
+conform
 else
 enum
 false
 for
 func
 if
-impl
 in
+instance
 interface
 is
 let
@@ -201,7 +202,7 @@ Keyword rules:
 
 - Reserved keywords are emitted as keyword tokens.
 - `nocter` is emitted as an identifier token.
-- `drop` is emitted as an identifier token; the parser treats `drop &+self { ... }` in an inherent `impl` block and `drop name` in statement position as contextual source forms.
+- `drop` is emitted as an identifier token; the parser treats `drop &+self { ... }` in an `instance` block and `drop name` in statement position as contextual source forms.
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.

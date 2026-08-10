@@ -28,7 +28,7 @@ pub(in crate::ir::lower) fn method_parameters(
         span: method.receiver.span,
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
-        ty: type_expr_with_impl_substitutions(
+        ty: type_expr_with_owner_substitutions(
             &type_expr_with_self_type(&method.receiver.implicit_parameter().ty, self_ty),
             substitutions,
         ),
@@ -42,13 +42,13 @@ pub(in crate::ir::lower) fn method_parameters(
                 span: parameter.span,
                 name: parameter.name.clone(),
                 name_span: parameter.name_span,
-                ty: type_expr_with_impl_substitutions(&parameter.ty, substitutions),
+                ty: type_expr_with_owner_substitutions(&parameter.ty, substitutions),
             }),
     );
     parameters
 }
 
-pub(super) fn type_expr_with_impl_substitutions(
+pub(super) fn type_expr_with_owner_substitutions(
     ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> TypeExpr {

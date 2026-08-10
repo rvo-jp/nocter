@@ -310,15 +310,15 @@ type syntax group a type without creating a new type.
 
 `Self` is type-position syntax, not an ordinary user-defined name.
 
-`Self` is valid only in type positions owned by a type or interface declaration: an inherent or
-interface `impl`, an interface member signature or default body, a `construct` entry, or a
+`Self` is valid only in type positions owned by a type or interface declaration: an `instance` or
+`conform` declaration, an interface member signature or default body, a `construct` entry, or a
 qualified associated function such as `func File.open`.
 
 Meaning:
 
-- In `impl File { ... }`, `Self` means `File`.
+- In `instance File { ... }`, `Self` means `File`.
 - In `interface Source { ... }`, `Self` means the eventual conforming type.
-- In `impl Source for File { ... }`, `Self` means `File`.
+- In `conform Source for File { ... }`, `Self` means `File`.
 - In `func File.open(...)`, `Self` means `File`.
 
 Rules:
@@ -421,10 +421,10 @@ pub copy struct UserId {
 ```
 
 ```nct
-impl Count {
+instance Count {
     ...
 }
-// error: impl target must be a nominal type, not a type alias
+// error: instance target must be a nominal type, not a type alias
 ```
 
 ### Integer Literals

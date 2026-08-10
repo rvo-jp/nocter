@@ -314,7 +314,7 @@ func main(): void {
 }
 
 #[test]
-fn accepts_interface_default_without_inherent_implementation() {
+fn accepts_interface_default_without_instance_method() {
     let diagnostics = check_text(
         r#"interface Value {
     pub method &self.value(): i32 {
@@ -633,7 +633,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn accepts_explicit_implementation_of_elided_interface_origin() {
+fn accepts_explicit_conformance_of_elided_interface_origin() {
     let diagnostics = check_text(
         r#"interface Source {
     pub method &self.get(): &i32
@@ -655,7 +655,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn accepts_elided_interface_origin_in_implementation_body() {
+fn accepts_elided_interface_origin_in_conformance_body() {
     let diagnostics = check_text(
         r#"interface Source {
     pub method &self.get(): &i32
@@ -677,7 +677,7 @@ func main(): i32 { return 0 }
 }
 
 #[test]
-fn diagnoses_elided_implementation_that_selects_an_ambiguous_origin() {
+fn diagnoses_elided_conformance_that_selects_an_ambiguous_origin() {
     let diagnostics = check_text(
         r#"interface Source {
     pub method &self.get(other: &Self): &Self from self

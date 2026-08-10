@@ -60,7 +60,7 @@ impl Resolver<'_> {
             let mut methods = instance_method_signatures(&instance).collect::<Vec<_>>();
             self.prepare_builtin_surface_methods(
                 ast,
-                owner.implementation_module(),
+                owner.instance_module(),
                 methods.as_mut_slice(),
             );
 
@@ -129,7 +129,7 @@ fn builtin_instance_shape(
                     && method.receiver.mode != MethodReceiverMode::Owned
         )
     }) {
-        return Err("built-in implementations contain only public borrowed methods with bodies");
+        return Err("built-in instances contain only public borrowed methods with bodies");
     }
     Ok(())
 }

@@ -165,7 +165,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
-                let Some((file, impl_, method)) =
+                let Some((file, owner, method)) =
                     method_body_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
@@ -173,7 +173,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if method.body.is_none() {
                     continue;
                 }
-                let context_substitutions = impl_.map_or_else(
+                let context_substitutions = owner.map_or_else(
                     || {
                         let mut substitutions = specialization.substitutions.clone();
                         substitutions.insert("Self".to_string(), specialization.self_ty.clone());
@@ -184,9 +184,9 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                         );
                         substitutions
                     },
-                    |impl_| {
+                    |owner| {
                         method_specialization_context_substitutions(
-                            impl_,
+                            owner,
                             &specialization,
                             &file.resolved,
                             analysis,
@@ -227,7 +227,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
                     continue;
                 }
-                let Some((file, _impl_, drop_)) =
+                let Some((file, _owner, drop_)) =
                     drop_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
@@ -272,7 +272,7 @@ fn redirect_interface_method_specialization(
     else {
         return specialization;
     };
-    let Some(actual_method) = crate::typecheck::implementation_for_interface_type_expr(
+    let Some(actual_method) = crate::typecheck::conformance_method_for_interface_type_expr(
         &specialization.self_ty,
         interface_name,
         method_name,
@@ -285,18 +285,19 @@ fn redirect_interface_method_specialization(
     else {
         return specialization;
     };
-    let Some(impl_substitutions) = impl_substitutions_for_self_ty(owner, &specialization.self_ty)
+    let Some(owner_substitutions) =
+        method_owner_substitutions_for_self_ty(owner, &specialization.self_ty)
     else {
         return specialization;
     };
     specialization.declaration_span = actual_method.name_span;
-    let runtime_self_ty = substitute_type_expr_parameters(owner.target_ty(), &impl_substitutions);
+    let runtime_self_ty = substitute_type_expr_parameters(owner.target_ty(), &owner_substitutions);
     specialization.target_name = format!(
         "{}.{}",
         canonical_type_expr(&runtime_self_ty),
         specialization.method_name
     );
-    specialization.substitutions.extend(impl_substitutions);
+    specialization.substitutions.extend(owner_substitutions);
     specialization
 }
 
@@ -542,7 +543,7 @@ fn iteration_method_call_specialization(
             .is_some()
             .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
     };
-    let substitutions = impl_substitutions_for_self_ty(owner, &method.self_ty)?;
+    let substitutions = method_owner_substitutions_for_self_ty(owner, &method.self_ty)?;
     let generic_parameters = owner
         .generics()
         .parameters
@@ -643,7 +644,7 @@ fn drop_specialization_from_typecheck_fact(
 ) -> Option<DropSpecialization> {
     let (_file, instance, _drop_) =
         drop_declaration_for_span(analysis, specialization.declaration_span)?;
-    let substitutions = impl_substitutions_for_self_ty(instance, &specialization.self_ty)?;
+    let substitutions = method_owner_substitutions_for_self_ty(instance, &specialization.self_ty)?;
     let self_ty = substitute_type_expr_parameters(&instance.target_ty, &substitutions);
     Some(DropSpecialization {
         declaration_span: specialization.declaration_span,
@@ -660,7 +661,7 @@ fn method_specialization_context_substitutions(
     analysis: &CompileUnitAnalysis,
 ) -> HashMap<String, TypeExpr> {
     let mut substitutions =
-        impl_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
+        method_owner_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
     crate::typecheck::extend_associated_type_substitutions_with_resolver(
         &mut substitutions,
@@ -670,7 +671,7 @@ fn method_specialization_context_substitutions(
     substitutions
 }
 
-pub(crate) fn impl_substitutions_for_self_ty(
+pub(crate) fn method_owner_substitutions_for_self_ty(
     owner: &(impl MethodOwnerDecl + ?Sized),
     self_ty: &TypeExpr,
 ) -> Option<HashMap<String, TypeExpr>> {
@@ -681,7 +682,7 @@ pub(crate) fn impl_substitutions_for_self_ty(
         .map(|parameter| parameter.name.clone())
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
-    infer_impl_substitutions(
+    infer_owner_substitutions(
         owner.target_ty(),
         self_ty,
         &generic_parameters,
@@ -690,7 +691,7 @@ pub(crate) fn impl_substitutions_for_self_ty(
     .then_some(substitutions)
 }
 
-fn infer_impl_substitutions(
+fn infer_owner_substitutions(
     expected: &TypeExpr,
     actual: &TypeExpr,
     generic_parameters: &HashSet<String>,
@@ -708,14 +709,14 @@ fn infer_impl_substitutions(
                     .iter()
                     .zip(&actual.parameters)
                     .all(|(expected, actual)| {
-                        infer_impl_substitutions(
+                        infer_owner_substitutions(
                             &expected.ty,
                             &actual.ty,
                             generic_parameters,
                             substitutions,
                         )
                     })
-                && infer_impl_substitutions(
+                && infer_owner_substitutions(
                     &expected.return_type,
                     &actual.return_type,
                     generic_parameters,
@@ -726,7 +727,7 @@ fn infer_impl_substitutions(
             matches!(actual, TypeExpr::Closure(actual) if expected.span == actual.span)
         }
         TypeExpr::Reference(reference) if generic_parameters.contains(&reference.name) => {
-            insert_impl_substitution(&reference.name, actual, substitutions)
+            insert_owner_substitution(&reference.name, actual, substitutions)
         }
         TypeExpr::Reference(expected) => match actual {
             TypeExpr::Reference(actual) => type_names_match(&expected.name, &actual.name),
@@ -740,7 +741,7 @@ fn infer_impl_substitutions(
                 && expected.arguments.len() == actual.arguments.len()
                 && expected.arguments.iter().zip(actual.arguments.iter()).all(
                     |(expected, actual)| {
-                        infer_impl_substitutions(
+                        infer_owner_substitutions(
                             expected,
                             actual,
                             generic_parameters,
@@ -754,7 +755,7 @@ fn infer_impl_substitutions(
                 return false;
             };
             expected.name == actual.name
-                && infer_impl_substitutions(
+                && infer_owner_substitutions(
                     &expected.base,
                     &actual.base,
                     generic_parameters,
@@ -765,7 +766,7 @@ fn infer_impl_substitutions(
             let TypeExpr::Pointer(actual) = actual else {
                 return false;
             };
-            infer_impl_substitutions(
+            infer_owner_substitutions(
                 &expected.inner,
                 &actual.inner,
                 generic_parameters,
@@ -777,7 +778,7 @@ fn infer_impl_substitutions(
                 return false;
             };
             expected.is_readwrite == actual.is_readwrite
-                && infer_impl_substitutions(
+                && infer_owner_substitutions(
                     &expected.inner,
                     &actual.inner,
                     generic_parameters,
@@ -789,7 +790,7 @@ fn infer_impl_substitutions(
                 return false;
             };
             expected.is_readwrite == actual.is_readwrite
-                && infer_impl_substitutions(
+                && infer_owner_substitutions(
                     &expected.element,
                     &actual.element,
                     generic_parameters,
@@ -801,7 +802,7 @@ fn infer_impl_substitutions(
                 return false;
             };
             expected.length.value == actual.length.value
-                && infer_impl_substitutions(
+                && infer_owner_substitutions(
                     &expected.element,
                     &actual.element,
                     generic_parameters,
@@ -812,7 +813,7 @@ fn infer_impl_substitutions(
             let TypeExpr::Optional(actual) = actual else {
                 return false;
             };
-            infer_impl_substitutions(
+            infer_owner_substitutions(
                 &expected.inner,
                 &actual.inner,
                 generic_parameters,
@@ -823,12 +824,12 @@ fn infer_impl_substitutions(
             let TypeExpr::Fallible(actual) = actual else {
                 return false;
             };
-            infer_impl_substitutions(
+            infer_owner_substitutions(
                 &expected.success,
                 &actual.success,
                 generic_parameters,
                 substitutions,
-            ) && infer_impl_substitutions(
+            ) && infer_owner_substitutions(
                 &expected.error,
                 &actual.error,
                 generic_parameters,
@@ -838,7 +839,7 @@ fn infer_impl_substitutions(
     }
 }
 
-fn insert_impl_substitution(
+fn insert_owner_substitution(
     name: &str,
     ty: &TypeExpr,
     substitutions: &mut HashMap<String, TypeExpr>,

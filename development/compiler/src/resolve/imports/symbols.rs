@@ -1,11 +1,11 @@
 use super::*;
 
-pub(super) fn type_alias_symbol_with_impl_members(
+pub(super) fn type_alias_symbol_with_instance_members(
     ast: &AstFile,
     alias: &TypeAliasDecl,
 ) -> TypeSymbol {
     let mut symbol = alias_type_symbol(alias);
-    attach_inherent_impl_members_to_symbol(&mut symbol, ast, &alias.name);
+    attach_instance_members_to_symbol(&mut symbol, ast, &alias.name);
     symbol
 }
 

@@ -528,7 +528,7 @@ construct Text{pub default func new():Self{return make()}pub literal ""(text:&st
 }
 
 #[test]
-fn formats_imports_impls_and_literals_stably() {
+fn formats_imports_instances_conformances_and_literals_stably() {
     assert_formats_stably(
         r#"use std/io
 use std/io.{print as write,File}

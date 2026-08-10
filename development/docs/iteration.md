@@ -32,7 +32,7 @@ pub struct ViewIter<T> {
     next: usize
 }
 
-impl<T> ViewIter<T> {
+instance<T> ViewIter<T> {
     pub method &+self.next(): &T? { ... }
 }
 ```

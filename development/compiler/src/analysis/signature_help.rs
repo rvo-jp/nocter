@@ -1,7 +1,7 @@
 //! Resolved callable presentation for hover and LSP signature help.
 
 use super::call_sites::{CallCursorRegion, call_at_offset};
-use super::call_specializations::impl_substitutions_for_self_ty;
+use super::call_specializations::method_owner_substitutions_for_self_ty;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     CallExpr, ConstructMemberDecl, Expr, FunctionDecl, Item, MethodDecl, MethodOwnerDecl,
@@ -112,10 +112,10 @@ fn signature_info_for_call(
         && let Some(specialization) = file.typecheck_facts.method_call_specialization(member_span)
     {
         if let CallableDeclaration::Method { owner, .. } = declaration
-            && let Some(impl_substitutions) =
-                impl_substitutions_for_self_ty(owner, &specialization.self_ty)
+            && let Some(owner_substitutions) =
+                method_owner_substitutions_for_self_ty(owner, &specialization.self_ty)
         {
-            substitutions.extend(impl_substitutions);
+            substitutions.extend(owner_substitutions);
         }
         substitutions.extend(specialization.substitutions.clone());
         substitutions.insert("Self".to_string(), specialization.self_ty.clone());

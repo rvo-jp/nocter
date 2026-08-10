@@ -797,7 +797,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_generic_impl_drop_with_concrete_self_type_substitutions() {
+fn lowers_generic_instance_drop_with_concrete_self_type_substitutions() {
     let ir = lower_text_with_nocter_home_files(
         r#"use std/box_test.run
 

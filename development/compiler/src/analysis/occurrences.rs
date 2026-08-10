@@ -614,7 +614,7 @@ mod tests {
     use crate::ast::canonical_type_expr;
 
     #[test]
-    fn impl_bounds_and_targets_share_one_interface_identity() {
+    fn conformance_bounds_and_targets_share_one_interface_identity() {
         let text = r#"interface ExactSizeStream<T> {}
 
 struct Indexed<T> { value: T }
@@ -627,7 +627,7 @@ conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: Exact
         let declaration_offset = text.find("ExactSizeStream<T> {}").unwrap();
         let bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
         let target_offset =
-            text.rfind("instance<T, I> ExactSizeStream").unwrap() + "instance<T, I> ".len();
+            text.rfind("conform<T, I> ExactSizeStream").unwrap() + "conform<T, I> ".len();
 
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let bound = file.occurrences.at_offset(bound_offset).unwrap();

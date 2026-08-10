@@ -57,7 +57,7 @@ pub func invalid_path(): error {
     return Error.new("std.path.invalid_path", "UTF-8 path contains a NUL byte")
 }
 
-impl Utf8Path {
+instance Utf8Path {
     pub method &self.view(): &str { return view(self) }
     pub method &self.is_absolute(): bool { return is_absolute(self) }
     pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }

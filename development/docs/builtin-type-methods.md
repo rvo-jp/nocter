@@ -8,17 +8,17 @@ types. Public method behavior belongs in the [string and view specification](../
 
 `str` and `[T]` are compiler type identities, not nominal declarations injected into the prelude.
 One compiler-level `BuiltinTypeOwner` registry owns each identity's canonical spelling and
-implementation module. Frontend loading, authority validation, resolver collection, trusted
+instance module. Frontend loading, authority validation, resolver collection, trusted
 primitive validation, type checking, and editor analysis consume that registry instead of
 repeating owner or path tables.
 
 Their inherent methods nevertheless require ordinary source identities for type checking,
 lowering, diagnostics, and editor navigation. The resolver therefore stores a
 `BuiltinTypeSurface` beside the nominal symbol table. A surface records its registry owner,
-implementation span, generic shape, and source-derived method signatures; it does not create a
+instance span, generic shape, and source-derived method signatures; it does not create a
 constructible struct, fields, coercions, `drop`, or a source-visible type name.
 
-The active Nocter home owns exactly one implementation unit per built-in owner:
+The active Nocter home owns exactly one instance unit per built-in owner:
 
 | Owner | Authority |
 |---|---|
@@ -26,15 +26,15 @@ The active Nocter home owns exactly one implementation unit per built-in owner:
 | `[T]` | `std/slice` |
 
 The frontend loads both units for every package analysis. Loading does not inject value imports.
-Project files and other standard modules cannot declare competing built-in implementations.
+Project files and other standard modules cannot declare competing built-in instances.
 Authority validation uses the canonical installed module path rather than a textual prefix or the
 current working directory.
 
 ## Declaration Validation
 
 The resolver recognizes the built-in target syntax once and validates its complete shape before
-collecting methods. `impl str` has no generic parameters. `impl<T> [T]` has exactly one parameter,
-and its element reference must name that parameter. Built-in implementation blocks contain only
+collecting methods. `instance str` has no generic parameters. `instance<T> [T]` has exactly one parameter,
+and its element reference must name that parameter. Built-in instance blocks contain only
 public borrowed methods with bodies. They cannot implement interfaces, declare owned receivers,
 construct values, or attach unrelated members.
 
@@ -97,7 +97,7 @@ member is created for editor convenience.
 Unit fixtures that deliberately construct a minimal Nocter home use one shared helper to install
 valid built-in surfaces. Distributed-home tests use the packaged sources and cover direct views,
 owning-type receiver coercion, pointer identity, capability selection, ownership conflicts, and
-editor declaration identity. A missing implementation unit is an invalid installation rather than
+editor declaration identity. A missing instance unit is an invalid installation rather than
 a signal to restore compiler-invented methods.
 
 `std/string` and `std/vec` retain private raw-view helpers because their coercion and interface

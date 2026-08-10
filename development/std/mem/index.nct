@@ -308,7 +308,7 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     return slice_from_raw_parts_mut(buffer.ptr, len)
 }
 
-impl Allocator {
+instance Allocator {
     pub method &+self.alloc(size: usize, align: usize): RawBuffer {
         return alloc(self, size, align)
     }
@@ -324,7 +324,7 @@ impl Allocator {
     }
 }
 
-impl TryAllocator {
+instance TryAllocator {
     pub method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
         return try_alloc(self, size, align)?
     }
@@ -341,7 +341,7 @@ impl TryAllocator {
     }
 }
 
-impl RawBuffer {
+instance RawBuffer {
     pub method &self.bytes(): &[u8] {
         return bytes(self)
     }
@@ -372,7 +372,7 @@ impl RawBuffer {
     }
 }
 
-impl Layout {
+instance Layout {
     pub method &self.size(): usize {
         return layout_size(self)
     }

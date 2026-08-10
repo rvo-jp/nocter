@@ -7,14 +7,14 @@ func empty<T>(): EmptyIter<T> {
     return EmptyIter<T> { exhausted: true }
 }
 
-impl<T> ExactSizeIterator for EmptyIter<T> {
+conform<T> ExactSizeIterator for EmptyIter<T> {
     /// Returns zero because no item can be yielded.
     method &self.remaining_len(): usize {
         return 0
     }
 }
 
-impl<T> Iterator for EmptyIter<T> {
+conform<T> Iterator for EmptyIter<T> {
     type Item = T
 
     /// Returns `none` for every call.
@@ -31,14 +31,14 @@ func once<T>(item: T): OnceIter<T> {
     }
 }
 
-impl<T> ExactSizeIterator for OnceIter<T> {
+conform<T> ExactSizeIterator for OnceIter<T> {
     /// Returns one while the item remains and zero after it is yielded.
     method &self.remaining_len(): usize {
         return self.remaining
     }
 }
 
-impl<T> Iterator for OnceIter<T> {
+conform<T> Iterator for OnceIter<T> {
     type Item = T
     /// Transfers the owned item once, then returns `none`.
     method &+self.next(): T? {

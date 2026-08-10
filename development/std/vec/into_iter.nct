@@ -45,7 +45,7 @@ func next<T>(iterator: &+VecIntoIter<T>): T? {
     return take_value_at_ptr(iterator.ptr, index * element_size)
 }
 
-impl<T> VecIntoIter<T> {
+instance<T> VecIntoIter<T> {
     /// Returns the number of owned elements not yet yielded.
     method &self.remaining(): usize {
         return remaining(self)
@@ -62,14 +62,14 @@ impl<T> VecIntoIter<T> {
     }
 }
 
-impl<T> ExactSizeIterator for VecIntoIter<T> {
+conform<T> ExactSizeIterator for VecIntoIter<T> {
     /// Implements exact-size iteration for compiler-owned element packs.
     method &self.remaining_len(): usize {
         return remaining(self)
     }
 }
 
-impl<T> Iterator for VecIntoIter<T> {
+conform<T> Iterator for VecIntoIter<T> {
     type Item = T
     /// Transfers the next element, or returns `none` at exhaustion.
     method &+self.next(): T? {

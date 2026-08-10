@@ -2,10 +2,23 @@
 
 ## Current Task
 
-v0.11.0 Phase 3 is complete. Do not begin another source-language change until the next phase has a
+v0.11.0 Phase 4 is complete. Do not begin another source-language change until the next phase has a
 separate reviewed plan and completion gate.
 
 ## Completed Checkpoint
+
+- v0.11.0 Phase 4 replaces overloaded `impl` declarations with structurally separate `instance`
+  behavior/destruction declarations and `conform` interface-proof declarations
+- distinct AST member enums make associated bindings in instances and drop members in
+  conformances unrepresentable; shared method-body consumers use a read-only owner view rather
+  than an optional interface discriminator
+- resolver, type checking, ownership, provenance, specialization, buildability, lowering,
+  formatting, AST JSON, callable identity, and LSP/editor analysis consume the authored
+  declaration kind
+- the standard library, fixtures, active specification, contributor docs, and generated website
+  use the new syntax; obsolete `impl` receives a directional removal diagnostic only
+- all 3,482 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed; the generated website contains 116 pages
 
 - v0.11.0 Phase 3 makes generic parameter lists name-only and moves intrinsic copy, interface,
   callable, and equality constraints into one declaration-wide `where` clause model

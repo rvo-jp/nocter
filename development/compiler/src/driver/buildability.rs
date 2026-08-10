@@ -3,7 +3,7 @@ use crate::abi::{
 };
 use crate::analysis::{
     CompileUnitAnalysis, FileAnalysis,
-    call_specializations::{collect_call_specializations, impl_substitutions_for_self_ty},
+    call_specializations::{collect_call_specializations, method_owner_substitutions_for_self_ty},
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,

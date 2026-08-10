@@ -279,7 +279,7 @@ fn collect_file_callables(
                         diagnostics.push(invalid_bodyless_diagnostic(
                             sources,
                             method.span,
-                            "interface implementation methods require an inline body",
+                            "conformance methods require an inline body",
                         ));
                     }
                 }

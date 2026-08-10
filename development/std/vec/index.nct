@@ -41,7 +41,7 @@ pub func remaining<T>(iterator: &VecIntoIter<T>): usize
 
 pub func next<T>(iterator: &+VecIntoIter<T>): T?
 
-impl<T> VecIntoIter<T> {
+instance<T> VecIntoIter<T> {
     /// Returns the number of owned elements not yet yielded.
     pub method &self.remaining(): usize
 }
@@ -436,7 +436,7 @@ pub func index_out_of_bounds(): error {
     return Error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")
 }
 
-impl<T> Vec<T> {
+instance<T> Vec<T> {
     pub method &self.capacity(): usize {
         return capacity(self)
     }
@@ -534,7 +534,7 @@ impl<T> Vec<T> {
     }
 }
 
-impl<T> Sequence<T> for Vec<T> {
+conform<T> Sequence<T> for Vec<T> {
     /// Returns the number of initialized elements.
     method &self.len(): usize {
         return len(self)
@@ -549,7 +549,7 @@ impl<T> Sequence<T> for Vec<T> {
     }
 }
 
-impl<T> Iterable for Vec<T> {
+conform<T> Iterable for Vec<T> {
     type Iter = ViewIter<T>
 
     /// Returns an allocation-free iterator over readonly element borrows.
@@ -558,7 +558,7 @@ impl<T> Iterable for Vec<T> {
     }
 }
 
-impl<T> IntoIterator for Vec<T> {
+conform<T> IntoIterator for Vec<T> {
     type Iter = VecIntoIter<T>
     /// Transfers the allocation and every element into an owning iterator.
     method self.into_iter(): VecIntoIter<T> {

@@ -258,7 +258,7 @@ pub func close(file: &+File): void {
     return
 }
 
-impl File {
+instance File {
     pub method &+self.close(): void {
         close(self)
         return
@@ -270,11 +270,11 @@ impl File {
     }
 }
 
-impl Reader for File {
+conform Reader for File {
     method &+self.read(buffer: &+[u8]): usize! { return read(self, buffer)? }
 }
 
-impl Writer for File {
+conform Writer for File {
     method &+self.write(bytes: &[u8]): void! { write(self, bytes)? return }
     method &+self.flush(): void! { return }
 }

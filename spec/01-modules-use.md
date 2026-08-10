@@ -139,7 +139,7 @@ use ./parse
 
 pub func parse(text: &str): Value!
 
-impl Value {
+instance Value {
     pub method &self.render(): String
 }
 ```
@@ -150,7 +150,7 @@ func parse(text: &str): Value! {
     ...
 }
 
-impl Value {
+instance Value {
     method &self.render(): String {
         ...
     }
@@ -165,7 +165,7 @@ errors independent of source traversal order.
 
 This rule applies to top-level and associated functions, inherent methods, construction functions,
 typed literals, and coercion entries. A construction implementation does not repeat `default`.
-Interface requirements and interface implementation methods keep their conformance model;
+Interface requirements and conformance methods keep their conformance model;
 interface default methods remain inline, and `drop` always has an inline body.
 
 Calls, imports, hover, completion, signature help, definition, and public diagnostics use the
@@ -432,7 +432,7 @@ Rules:
 - names, dependency aliases, and arbitrary module paths are not valid inside `pub(...)`
 - a re-export may narrow a boundary but cannot widen it
 - enum variants follow their enum's visibility
-- `impl` blocks are not themselves marked public
+- `instance` and `conform` declarations are not themselves marked public
 - there is no `private` keyword, friend namespace, or named visibility scope
 
 Visibility grants source access only. The exact implicit `std` package identity separately grants

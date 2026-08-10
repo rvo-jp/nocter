@@ -181,7 +181,7 @@ conform Measure for Count {
         panic!("expected one conformance: {count:?}");
     };
     let [method] = conformance.methods.as_slice() else {
-        panic!("expected one implementation member: {conformance:?}");
+        panic!("expected one conformance member: {conformance:?}");
     };
     assert_eq!(method.name, "measure");
     assert!(!method.has_default_body);
