@@ -4,11 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The current milestone record is [v0.11.0](v0.11.0.md). Phase 0 completed intrinsic `copy` generic
-requirements, callable requirement clauses, and standard-library copy-contract migration. Phase 1
-completed required interface associated types, exact conformance bindings, semantic projections,
-and compiler-backed editor integration. Phase 2 is implementing associated type bounds and equality
-predicates, then migrating the iterator interfaces away from courier generic parameters.
+The current milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 6 completed unified generic
+requirements, associated types and bounds, declaration-wide `where` clauses, separate `instance`
+and `conform` declarations, declaration type patterns, and independent destruction declarations.
+Phase 7 is implementing path-sensitive aggregate cleanup for native control flow.
 
 [v0.10.0](v0.10.0.md) is complete and historical. Phase 0 completed native value capabilities,
 Phase 1 completed directory modules and explicit source composition, Phase 2 completed

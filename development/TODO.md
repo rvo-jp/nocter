@@ -2,7 +2,20 @@
 
 ## Current Task
 
-v0.11.0 Phase 6 is complete. Stop at this checkpoint before selecting the next milestone.
+v0.11.0 Phase 7 is in progress. Implement the path-sensitive aggregate cleanup plan in
+`milestones/v0.11.0.md` through its complete qualification gate, then stop at that checkpoint.
+
+## Required Phase 7 Work
+
+- add one optional runtime live flag to the aggregate-local/pending-drop model, with idempotent
+  promotion before path-sensitive control flow
+- route complete and partial cleanup through the common flag-aware pending-drop boundary
+- emit move, explicit-drop, initialization, and reinitialization transitions at their real IR
+  evaluation points, including short-circuit condition operands
+- remove aggregate condition and non-terminal outer move/drop buildability exceptions only after
+  lowering and native exactly-once destruction tests cover them
+- update the milestone completion record and this handoff after the complete verification matrix
+  passes
 
 ## Completed Checkpoint
 

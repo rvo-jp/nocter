@@ -18,6 +18,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   member identity, lookup, validation, migration, and editor boundaries
 - [Destruction Declarations](destruction-declarations.md): independent destructor identity,
   type-family uniqueness, cleanup integration, and editor traversal
+- [Path-Sensitive Aggregate Cleanup](control-flow-drop-state.md): promoted runtime live state,
+  ownership transitions, control-flow joins, and common cleanup lowering
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
   default selection, lowering reuse, and editor boundaries
 - [Borrow Coercions](borrow-coercions.md): type-owned view declarations, contextual plans,
@@ -88,6 +90,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Associated type identity, projection normalization, and conformance bindings | `associated-types.md` |
 | Instance/conformance declaration ownership and member identity | `interface-conformances.md` |
 | Independent destruction declarations and cleanup identity | `destruction-declarations.md` |
+| Path-sensitive aggregate cleanup and runtime live state | `control-flow-drop-state.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Built-in `str` and `[T]` method authority and compiler integration | `builtin-type-methods.md` |
