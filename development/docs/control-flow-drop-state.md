@@ -5,6 +5,13 @@ v0.11.0 Phase 7. Public move, drop, and assignment rules remain in the
 [ownership specification](../../spec/05-ownership-borrowing-drop.md); this document defines how accepted programs
 reach native IR without duplicating ownership analysis.
 
+## Completion Status
+
+Phase 7 completed on 2026-08-10. Native lowering now uses this model for non-terminal branches,
+matches, loops, value control flow, and short-circuit conditions. The obsolete aggregate-specific
+buildability rejections were removed after focused IR and native exactly-once cleanup tests covered
+their accepted programs.
+
 ## Responsibility Boundary
 
 Type checking and ownership analysis decide whether a source operation is legal on every reachable
@@ -96,5 +103,6 @@ and the absence of flags in straight-line code. Native tests must use observable
 cover taken and untaken `if`/`match` paths, loop zero/one/multiple execution, move arguments,
 bindings, assignments, explicit drop, reinitialization, early exits, and imported alias types.
 
-The complete phase gate is the repository verification script, documentation generation, and a
-clean diff check.
+The completed phase gate passed all 3,502 tests through the repository verification script,
+warnings-denied Clippy, formatting, documentation generation, and a clean diff check. The generated
+website contains 119 pages.

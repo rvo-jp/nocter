@@ -486,7 +486,22 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   duplicate cleanup</li><li>taken, untaken, repeated, <code>break</code>, <code>continue</code>, and return paths destroy each live non-copy value
   exactly once and never destroy a moved value</li><li>the common pending-drop path, rather than syntax-specific cleanup copies, owns flag guarding</li><li>straight-line aggregate IR remains free of unnecessary runtime live flags</li><li>focused IR tests expose promotion and transition placement, native tests observe destructor
   counts, and imported aliases resolve through semantic type identity</li><li>no aggregate control-flow compatibility diagnostic, required TODO, or deferred migration marker
-  remains, and the complete qualification matrix passes</li></ul><h3 id="phase-7-non-goals">Phase 7 Non-goals</h3><p>Phase 7 does not add partial field or index moves, conditional destruction declarations, destructor failure or unwinding, exception handling, borrow lifetime syntax, a general SSA conversion, runtime ownership checks, or new source syntax. It does not promote unrelated native gaps such as temporary read-write borrows or opaque generic layout.</p>
+  remains, and the complete qualification matrix passes</li></ul><h3 id="phase-7-non-goals">Phase 7 Non-goals</h3><p>Phase 7 does not add partial field or index moves, conditional destruction declarations, destructor failure or unwinding, exception handling, borrow lifetime syntax, a general SSA conversion, runtime ownership checks, or new source syntax. It does not promote unrelated native gaps such as temporary read-write borrows or opaque generic layout.</p><h3 id="phase-7-completion-record">Phase 7 Completion Record</h3><p>Completed on 2026-08-10.</p><ul><li>destructor-bearing move-only aggregate locals gain one optional runtime live flag only when a
+  path-sensitive whole-value operation requires it; promotion is idempotent and straight-line IR
+  retains its prior zero-cost static cleanup model</li><li><code>PendingAggregateDrop</code> carries the flag into the existing complete and partial cleanup programs,
+  so normal exits, early exits, propagation, loop control, and replacement cannot grow independent
+  guarded-destruction implementations</li><li>one lowering-owned transition pass records whole-value call transfers, aggregate copies,
+  initialization, reinitialization, and explicit destruction at their executed IR positions; it
+  recurses into short-circuit and value-control instructions without clearing skipped moves</li><li>parent contexts promote affected outer locals before non-terminal <code>if</code>, <code>match</code>, <code>while</code>, and
+  <code>loop</code> lowering. Branch clones share the same runtime location instead of attempting to merge
+  cloned static <code>DropObligation</code> values</li><li>aggregate-specific buildability modules for control-flow conditions, outer moves, explicit
+  drops, and binding restrictions were deleted. Ownership remains the source of legality and
+  native lowering now represents every accepted whole-aggregate case in this phase's scope</li><li>focused IR tests cover promotion, transition order, guarded cleanup, idempotence, aliases, value
+  control flow, short-circuit evaluation, and the absence of flags from straight-line aggregates;
+  native tests observe exactly-once destruction across taken, untaken, zero-iteration, transfer,
+  explicit-drop, match, loop, and value-branch paths</li><li><code>development/compiler/scripts/verify.sh</code> passed the full compiler, CLI, installed-home, public
+  example, source-corpus, formatting, and warnings-denied Clippy matrix. The final inventory is
+  3,502 passing tests; documentation generation produced 119 pages and <code>git diff --check</code> passed</li></ul>
             </div>
         </main>
     </div>

@@ -2,22 +2,22 @@
 
 ## Current Task
 
-v0.11.0 Phase 7 is in progress. Implement the path-sensitive aggregate cleanup plan in
-`milestones/v0.11.0.md` through its complete qualification gate, then stop at that checkpoint.
+v0.11.0 Phase 7 is complete. Stop at this checkpoint before selecting the next milestone scope.
 
-## Required Phase 7 Work
+## Completed Phase 7 Checkpoint
 
-- add one optional runtime live flag to the aggregate-local/pending-drop model, with idempotent
-  promotion before path-sensitive control flow
-- route complete and partial cleanup through the common flag-aware pending-drop boundary
-- emit move, explicit-drop, initialization, and reinitialization transitions at their real IR
-  evaluation points, including short-circuit condition operands
-- remove aggregate condition and non-terminal outer move/drop buildability exceptions only after
-  lowering and native exactly-once destruction tests cover them
-- update the milestone completion record and this handoff after the complete verification matrix
-  passes
+- one optional runtime live flag now extends the aggregate-local and pending-drop model only when
+  a destructor-bearing move-only aggregate crosses path-sensitive control flow
+- complete cleanup, partial cleanup, explicit destruction, transfer, initialization, and
+  reinitialization share the same flag-aware lowering boundary and real evaluation order
+- non-terminal branches, matches, loops, value control flow, and short-circuit conditions no
+  longer require aggregate-specific buildability rejection paths
+- focused IR tests preserve flag placement and straight-line zero-cost behavior; native tests
+  observe exactly-once destruction on executed and skipped paths
+- all 3,502 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed; the generated website contains 119 pages
 
-## Completed Checkpoint
+## Earlier Completed Checkpoints
 
 - v0.11.0 Phase 6 separates unique type-family destruction from callable `instance` behavior with
   the independent `destruct TypePattern(&+self) { ... }` declaration
