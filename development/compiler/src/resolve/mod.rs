@@ -1,6 +1,7 @@
 //! Import resolution, visibility, and name lookup.
 
 mod body;
+mod builtin_conformances;
 mod builtin_instances;
 mod builtins;
 mod closures;
@@ -15,8 +16,12 @@ mod literals;
 mod module_index;
 mod regions;
 mod signatures;
+mod standard_conformances;
 mod symbols;
 mod type_surfaces;
+
+#[cfg(test)]
+pub(crate) use builtin_conformances::attach_test_builtin_conformances;
 
 #[cfg(test)]
 mod tests;
@@ -117,6 +122,8 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
 
     resolver.collect_top_level_symbols(&module_ast);
     resolver.collect_builtin_instance_surfaces(&module_ast);
+    resolver.collect_builtin_conformance_surfaces();
+    resolver.collect_standard_nominal_conformance_surfaces();
     resolver.resolve_callable_bodies(root);
     resolver.output
 }

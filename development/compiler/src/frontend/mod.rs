@@ -22,7 +22,10 @@ use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 
-use builtin_instances::{enqueue_builtin_instance_sources, validate_builtin_instance_authority};
+use builtin_instances::{
+    enqueue_builtin_instance_sources, validate_builtin_conformance_authority,
+    validate_builtin_instance_authority,
+};
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
@@ -130,6 +133,14 @@ pub(crate) fn load_compile_unit_with_trace(
         ));
 
         diagnostics.extend(validate_builtin_instance_authority(
+            sources,
+            source,
+            &ast,
+            options,
+            &mut resolved_nocter_home,
+        ));
+
+        diagnostics.extend(validate_builtin_conformance_authority(
             sources,
             source,
             &ast,

@@ -68,10 +68,7 @@ fn conformed_interface_types_inner<'a>(
             .map(|(conformance, _)| (conformance, opaque.interface.as_ref().clone()))
             .collect();
     }
-    let Some(symbol) = actual
-        .nominal_name()
-        .and_then(|name| resolved.type_symbol_by_canonical_name(name))
-    else {
+    let Some(symbol) = super::builtin_types::symbol_for_type(actual, resolved) else {
         return Vec::new();
     };
 

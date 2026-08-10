@@ -5,6 +5,7 @@ mod arrays;
 mod associated_types;
 mod bindings;
 mod body;
+mod builtin_types;
 mod callables;
 mod calls;
 mod closures;
@@ -34,6 +35,7 @@ mod opaque_results;
 mod operations;
 mod ownership;
 mod places;
+mod protocol_methods;
 mod provenance;
 mod provenance_contracts;
 mod regions;
@@ -65,11 +67,11 @@ pub(crate) use facts::{
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckConversionKind, TypecheckConversionPlan,
-    TypecheckFacts, TypecheckInterpolationPlan, TypecheckIterationMethod,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
-    collect_typecheck_facts, drop_type_specialization_from_self_ty, type_expr_presentation_label,
-    type_symbol_presentation_label,
+    TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
+    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
+    type_expr_presentation_label, type_symbol_presentation_label,
 };
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::conformance_method_for_interface_type_expr;

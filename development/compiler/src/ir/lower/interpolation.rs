@@ -9,9 +9,7 @@ use super::aggregates::{
 };
 use super::context::LoweringContext;
 use super::expressions::{
-    TemporaryAllocator, lower_bool_expression_to_value, lower_i32_expression_to_word,
-    lower_integer_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
-    lower_usize_expression_to_word,
+    TemporaryAllocator, lower_borrow_source_from_expression, lower_str_expression_to_value,
 };
 use super::functions::{
     lower_aggregate_drop_instructions_at_location, lower_aggregate_return_expression_to_location,
@@ -19,10 +17,10 @@ use super::functions::{
 use crate::ast::{BindingStmt, Expr, InterpolatedStringExpr, InterpolatedStringPart};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BorrowArgument, BorrowSource, Instruction, ScalarArgument, StrValue,
+    AggregateLocation, BorrowArgument, BorrowSource, Instruction, ScalarArgument, StrValue, Type,
     UsizeValue,
 };
-use crate::semantics::InterpolationInputKind;
+use crate::typecheck::TypecheckInterpolationPart;
 
 pub(super) fn lower_interpolated_string_binding(
     statement: &BindingStmt,
@@ -147,147 +145,182 @@ pub(in crate::ir::lower) fn lower_interpolated_string_to_slot(
     );
 
     for (part, planned) in interpolated.parts.iter().zip(plan.parts.iter()) {
+        let formatter_plan = &planned.formatter;
         let formatter = context
-            .runtime_callable_target(&planned.formatter)
+            .protocol_method_target(formatter_plan)
             .ok_or_else(|| interpolation_diagnostic("a formatter target is unavailable"))?;
-        let mut cleanup = Vec::new();
-        let value = match (part, planned.input) {
-            (InterpolatedStringPart::Text(text), InterpolationInputKind::Str) => {
-                ScalarArgument::Str(StrValue::StaticBytes(text.value.as_bytes().to_vec()))
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::Str) => {
-                let mut temporaries = TemporaryAllocator::new(context)?;
-                let lowered =
-                    lower_str_expression_to_value(&part.expression, context, &mut temporaries)?;
-                instructions.extend(lowered.instructions);
-                ScalarArgument::Str(lowered.value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::I32) => {
-                let (lowered, value) = lower_i32_expression_to_word(&part.expression, context)?;
-                instructions.extend(lowered);
-                ScalarArgument::I32(value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::U8) => {
-                let (lowered, value) = lower_u8_expression_to_word(&part.expression, context)?;
-                instructions.extend(lowered);
-                ScalarArgument::U8(value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::Usize) => {
-                let (lowered, value) = lower_usize_expression_to_word(&part.expression, context)?;
-                instructions.extend(lowered);
-                ScalarArgument::Usize(value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::Integer(kind)) => {
-                let mut temporaries = TemporaryAllocator::new(context)?;
-                let lowered = lower_integer_expression_to_value(
-                    &part.expression,
-                    kind,
-                    context,
-                    &mut temporaries,
-                )?;
-                instructions.extend(lowered.instructions);
-                ScalarArgument::Usize(lowered.value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::Bool) => {
-                let lowered = lower_bool_expression_to_value(&part.expression, context, "E8015")?;
-                instructions.extend(lowered.instructions);
-                ScalarArgument::Bool(lowered.value)
-            }
-            (InterpolatedStringPart::Expression(part), InterpolationInputKind::String) => {
-                let (source, mut lowered, mut drops) = lower_string_expression_to_borrow_source(
-                    &part.expression,
-                    &return_type,
-                    context,
-                )?;
-                instructions.append(&mut lowered);
-                cleanup.append(&mut drops);
-                ScalarArgument::Borrow(BorrowArgument { source })
-            }
-            _ => {
-                return Err(interpolation_diagnostic(
-                    "a parsed part does not match its trusted lowering plan",
-                ));
-            }
-        };
+        let (mut receiver_instructions, receiver, cleanup) =
+            lower_format_receiver(part, planned, &formatter, context)?;
+        instructions.append(&mut receiver_instructions);
         instructions.push(Instruction::CallVoid {
             target: formatter,
             arguments: vec![
+                receiver,
                 ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(slot_index),
                 }),
-                value,
             ],
         });
-        instructions.append(&mut cleanup);
+        instructions.extend(cleanup);
     }
 
     Ok(instructions)
 }
 
-fn lower_string_expression_to_borrow_source(
-    expression: &Expr,
-    string_ir_type: &crate::ir::Type,
+fn lower_format_receiver(
+    part: &InterpolatedStringPart,
+    planned: &TypecheckInterpolationPart,
+    formatter: &crate::ir::CallTarget,
     context: &LoweringContext,
-) -> Result<(BorrowSource, Vec<Instruction>, Vec<Instruction>), Vec<Diagnostic>> {
-    match unwrap_group(expression) {
-        Expr::Identifier(identifier) => {
-            let local = context.aggregate_local(&identifier.name).ok_or_else(|| {
-                interpolation_diagnostic("the String value has no aggregate storage")
-            })?;
+) -> Result<(Vec<Instruction>, ScalarArgument, Vec<Instruction>), Vec<Diagnostic>> {
+    let parameters = context
+        .call_parameter_types(formatter)
+        .ok_or_else(|| interpolation_diagnostic("the formatter ABI is unavailable"))?;
+    let [receiver_type, output_type] = parameters else {
+        return Err(interpolation_diagnostic(
+            "the formatter ABI does not contain receiver and output parameters",
+        ));
+    };
+    if !matches!(
+        output_type,
+        Type::Borrow {
+            is_readwrite: true,
+            inner,
+        } if matches!(inner.as_ref(), Type::Aggregate { .. } | Type::DirectAggregate { .. })
+    ) {
+        return Err(interpolation_diagnostic(
+            "the formatter output parameter is not a readwrite String borrow",
+        ));
+    }
+
+    match (part, receiver_type) {
+        (InterpolatedStringPart::Text(text), Type::Str) => Ok((
+            Vec::new(),
+            ScalarArgument::Str(StrValue::StaticBytes(text.value.as_bytes().to_vec())),
+            Vec::new(),
+        )),
+        (InterpolatedStringPart::Expression(part), Type::Str) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_str_expression_to_value(&part.expression, context, &mut temporaries)?;
             Ok((
-                BorrowSource::AggregateSlot(local.slot_index),
-                Vec::new(),
+                lowered.instructions,
+                ScalarArgument::Str(lowered.value),
                 Vec::new(),
             ))
         }
-        expression => {
-            let ty = context
-                .expression_type_expr(expression.span())
-                .ok_or_else(|| interpolation_diagnostic("a String expression has no type fact"))?;
-            let value = context.abi_value_for_type_expr(&ty).ok_or_else(|| {
-                interpolation_diagnostic("a String expression has no aggregate ABI layout")
-            })?;
-            let drop_kind = context.aggregate_drop_for_type_expr(&ty).ok_or_else(|| {
-                interpolation_diagnostic("a temporary String has no trusted drop glue")
-            })?;
-            let (_, resolved) = context
-                .resolved_calls()
-                .ok_or_else(|| interpolation_diagnostic("resolution facts are unavailable"))?;
-            let mut temporaries = TemporaryAllocator::new(context)?;
-            let slot_index = temporaries.next_aggregate_slot();
-            let mut local_context = context.clone();
-            if !local_context.register_or_complete_temporary_aggregate_drop(
-                slot_index,
-                value.layout,
-                drop_kind.clone(),
-            ) {
-                return Err(interpolation_diagnostic(
-                    "a temporary String drop state could not be registered",
-                ));
+        (
+            InterpolatedStringPart::Expression(part),
+            Type::Borrow {
+                is_readwrite: false,
+                inner,
+            },
+        ) => {
+            if matches!(
+                inner.as_ref(),
+                Type::Aggregate { .. } | Type::DirectAggregate { .. }
+            ) && !format_receiver_is_stable_place(&part.expression)
+            {
+                return lower_temporary_aggregate_format_receiver(
+                    &part.expression,
+                    &planned.accepted_type,
+                    inner,
+                    context,
+                );
             }
-            let mut instructions = vec![Instruction::ReserveAggregateSlot {
-                slot_index,
-                layout: value.layout,
-            }];
-            instructions.extend(lower_aggregate_return_expression_to_location(
-                expression,
-                string_ir_type,
-                AggregateLocation::Slot(slot_index),
-                context.function_name(),
-                resolved,
-                &local_context,
-            )?);
-            let drops = lower_aggregate_drop_instructions_at_location(
-                "temporary interpolation String",
-                AggregateLocation::Slot(slot_index),
-                0,
-                value.layout,
-                &drop_kind,
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let parameter_type = Type::Borrow {
+                is_readwrite: false,
+                inner: inner.clone(),
+            };
+            let (instructions, source) = lower_borrow_source_from_expression(
+                &part.expression,
+                inner,
+                false,
+                &parameter_type,
+                &planned.formatter.target_name,
                 context,
+                &mut temporaries,
             )?;
-            Ok((BorrowSource::AggregateSlot(slot_index), instructions, drops))
+            Ok((
+                instructions,
+                ScalarArgument::Borrow(BorrowArgument { source }),
+                Vec::new(),
+            ))
         }
+        _ => Err(interpolation_diagnostic(
+            "a parsed part does not match its resolved formatter receiver",
+        )),
     }
+}
+
+fn lower_temporary_aggregate_format_receiver(
+    expression: &Expr,
+    accepted_type: &crate::ast::TypeExpr,
+    receiver_type: &Type,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, ScalarArgument, Vec<Instruction>), Vec<Diagnostic>> {
+    let layout = match receiver_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => {
+            return Err(interpolation_diagnostic(
+                "a temporary format receiver has no aggregate layout",
+            ));
+        }
+    };
+    let (_, resolved) = context
+        .resolved_calls()
+        .ok_or_else(|| interpolation_diagnostic("resolution facts are unavailable"))?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let drop_kind = context.aggregate_drop_for_type_expr(accepted_type);
+    let mut local_context = context.clone();
+    if let Some(drop_kind) = &drop_kind
+        && !local_context.register_or_complete_temporary_aggregate_drop(
+            slot_index,
+            layout,
+            drop_kind.clone(),
+        )
+    {
+        return Err(interpolation_diagnostic(
+            "a temporary format receiver drop state could not be registered",
+        ));
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    instructions.extend(lower_aggregate_return_expression_to_location(
+        expression,
+        receiver_type,
+        AggregateLocation::Slot(slot_index),
+        context.function_name(),
+        resolved,
+        &local_context,
+    )?);
+    let cleanup = if let Some(drop_kind) = &drop_kind {
+        lower_aggregate_drop_instructions_at_location(
+            "temporary interpolation format receiver",
+            AggregateLocation::Slot(slot_index),
+            0,
+            layout,
+            drop_kind,
+            context,
+        )?
+    } else {
+        Vec::new()
+    };
+    Ok((
+        instructions,
+        ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(slot_index),
+        }),
+        cleanup,
+    ))
+}
+
+fn format_receiver_is_stable_place(expression: &Expr) -> bool {
+    matches!(
+        unwrap_group(expression),
+        Expr::Identifier(_) | Expr::Member(_) | Expr::Index(_)
+    )
 }
 
 fn interpolation_diagnostic(detail: &str) -> Vec<Diagnostic> {

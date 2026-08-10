@@ -112,7 +112,7 @@ pub(super) fn lower_tracked_spread_argument_source(
                 .ok_or_else(|| spread_argument_diagnostic("conversion plan is unavailable"))?;
             let target = evaluation
                 .context()
-                .iteration_method_target(conversion)
+                .protocol_method_target(conversion)
                 .ok_or_else(|| spread_argument_diagnostic("conversion target is unavailable"))?;
             let return_type = evaluation
                 .context()

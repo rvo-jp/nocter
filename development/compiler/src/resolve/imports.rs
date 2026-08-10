@@ -10,8 +10,8 @@ use super::signatures::{
     function_signature, interface_type_symbol, primitive_signature, struct_type_symbol,
 };
 use super::{
-    FunctionSignature, ImportAccess, ImportedSymbol, ImportedSymbolKind, MethodSignature,
-    ParameterSignature, Resolver, SymbolId, SymbolKind, TypeSymbol,
+    FunctionSignature, ImportAccess, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    MethodSignature, ParameterSignature, Resolver, SymbolId, SymbolKind, TypeSymbol,
 };
 use crate::ast::{AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, Visibility};
 use crate::source::{ByteSpan, SourceId};
@@ -54,6 +54,29 @@ impl Resolver<'_> {
         for method in methods {
             qualify_method_signature(method, module_path, &local_type_names, &imported_type_names);
         }
+        self.collect_hidden_imported_type_symbols(
+            ast,
+            module_path,
+            self.output.access,
+            &local_type_names,
+        );
+        self.collect_hidden_imported_type_dependencies(&imported_type_names);
+    }
+
+    pub(super) fn prepare_external_conformance(
+        &mut self,
+        ast: &AstFile,
+        module_path: &str,
+        conformance: &mut InterfaceConformance,
+    ) {
+        let local_type_names = type_decl_names(ast);
+        let imported_type_names = self.imported_type_names(ast);
+        qualify_interface_conformance(
+            conformance,
+            module_path,
+            &local_type_names,
+            &imported_type_names,
+        );
         self.collect_hidden_imported_type_symbols(
             ast,
             module_path,

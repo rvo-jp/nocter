@@ -7,6 +7,7 @@ mod control_flow;
 mod destructors;
 mod entry;
 mod fallible;
+mod format_support;
 mod generic_bounds;
 mod interfaces;
 mod literals;

@@ -58,7 +58,9 @@ impl Resolver<'_> {
             let mut methods = instance_method_signatures(&instance).collect::<Vec<_>>();
             self.prepare_builtin_surface_methods(
                 ast,
-                owner.instance_module(),
+                owner
+                    .instance_module()
+                    .expect("instance owner must name its source authority"),
                 methods.as_mut_slice(),
             );
 
@@ -117,6 +119,9 @@ fn builtin_instance_shape(
             }
         }
         BuiltinTypeOwner::Str => {}
+        BuiltinTypeOwner::Bool | BuiltinTypeOwner::Integer(_) => {
+            return Err("scalar built-in types do not define inherent instance surfaces");
+        }
     }
     if instance.methods.iter().any(|method| {
         method.body.is_none()
@@ -150,31 +155,40 @@ fn invalid_builtin_instance_diagnostic(
 }
 
 fn empty_builtin_symbol(owner: BuiltinTypeOwner, instance: &InstanceDecl) -> TypeSymbol {
+    let mut symbol = empty_builtin_type_symbol(owner);
+    symbol.generic_parameters = instance
+        .generics
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name.clone())
+        .collect();
+    symbol.generic_parameter_requirements = instance
+        .generics
+        .parameters
+        .iter()
+        .map(|parameter| {
+            super::GenericRequirements::for_parameter(
+                &parameter.name,
+                instance.requirements.as_ref(),
+            )
+        })
+        .collect();
+    symbol.where_clause = instance.requirements.clone();
+    symbol.generic_arity = instance.generics.parameters.len();
+    symbol
+}
+
+pub(super) fn empty_builtin_type_symbol(owner: BuiltinTypeOwner) -> TypeSymbol {
     TypeSymbol {
         // The surface is kept outside the nominal symbol table. `Struct` here
         // only reuses the common method container; it never grants fields,
         // construction, coercion ownership, or drop.
         kind: TypeSymbolKind::Struct,
         canonical_name: owner.canonical_name().to_string(),
-        generic_parameters: instance
-            .generics
-            .parameters
-            .iter()
-            .map(|parameter| parameter.name.clone())
-            .collect(),
-        generic_parameter_requirements: instance
-            .generics
-            .parameters
-            .iter()
-            .map(|parameter| {
-                super::GenericRequirements::for_parameter(
-                    &parameter.name,
-                    instance.requirements.as_ref(),
-                )
-            })
-            .collect(),
-        where_clause: instance.requirements.clone(),
-        generic_arity: instance.generics.parameters.len(),
+        generic_parameters: Vec::new(),
+        generic_parameter_requirements: Vec::new(),
+        where_clause: None,
+        generic_arity: 0,
         is_copy: false,
         alias_target: None,
         fields: Vec::new(),

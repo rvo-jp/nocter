@@ -162,9 +162,7 @@ fn resolve_target_symbol<'a>(
 }
 
 fn symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {
-    let canonical_name = ty.nominal_name()?;
-
-    resolved.type_symbol_by_canonical_name(canonical_name)
+    super::builtin_types::symbol_for_type(ty, resolved)
 }
 
 pub(super) fn type_symbol_generic_substitutions(

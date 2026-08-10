@@ -1,6 +1,5 @@
 //! Compiler-owned semantic roles attached to validated trusted declarations.
 
-use crate::integer::IntegerType;
 use crate::source::ByteSpan;
 use std::collections::HashMap;
 
@@ -48,17 +47,6 @@ pub(crate) enum TrustedDeclarationRole {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum InterpolationInputKind {
-    Str,
-    String,
-    I32,
-    U8,
-    Usize,
-    Integer(IntegerType),
-    Bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RuntimeCallable {
     pub(crate) declaration: ByteSpan,
@@ -69,7 +57,10 @@ pub(crate) struct RuntimeCallable {
 pub(crate) struct InterpolationRuntime {
     pub(crate) string_type_declaration: ByteSpan,
     pub(crate) constructor: RuntimeCallable,
-    formatters: HashMap<InterpolationInputKind, RuntimeCallable>,
+    pub(crate) format_interface_declaration: ByteSpan,
+    pub(crate) format_interface_canonical_name: String,
+    pub(crate) format_method_declaration: ByteSpan,
+    pub(crate) format_method_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,17 +91,19 @@ impl InterpolationRuntime {
     pub(crate) fn new(
         string_type_declaration: ByteSpan,
         constructor: RuntimeCallable,
-        formatters: HashMap<InterpolationInputKind, RuntimeCallable>,
+        format_interface_declaration: ByteSpan,
+        format_interface_canonical_name: String,
+        format_method_declaration: ByteSpan,
+        format_method_name: String,
     ) -> Self {
         Self {
             string_type_declaration,
             constructor,
-            formatters,
+            format_interface_declaration,
+            format_interface_canonical_name,
+            format_method_declaration,
+            format_method_name,
         }
-    }
-
-    pub(crate) fn formatter(&self, kind: InterpolationInputKind) -> Option<&RuntimeCallable> {
-        self.formatters.get(&kind)
     }
 }
 

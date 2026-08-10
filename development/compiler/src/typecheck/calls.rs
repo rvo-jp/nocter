@@ -1186,20 +1186,7 @@ fn inherent_method_owner_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
-    let builtin = match ty {
-        Type::StrData => Some(crate::builtin_types::BuiltinTypeOwner::Str),
-        Type::ArrayData { .. } => Some(crate::builtin_types::BuiltinTypeOwner::Slice),
-        _ => None,
-    };
-    if let Some(owner) = builtin {
-        return resolved
-            .builtin_type_surface(owner)
-            .map(|surface| &surface.symbol);
-    }
-    let canonical_name = ty.nominal_name()?;
-
-    resolved
-        .type_symbol_by_canonical_name(canonical_name)
+    super::builtin_types::symbol_for_type(ty, resolved)
         .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
 }
 

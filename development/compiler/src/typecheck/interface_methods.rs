@@ -139,9 +139,7 @@ fn interface_method_candidates<'a>(
     resolved: &'a ResolveOutput,
 ) -> Vec<InterfaceMethodCandidate<'a>> {
     let concrete_receiver = receiver.opaque_lowering_view();
-    let Some(receiver_owner) = concrete_receiver
-        .nominal_name()
-        .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+    let Some(receiver_owner) = super::builtin_types::symbol_for_type(concrete_receiver, resolved)
     else {
         return Vec::new();
     };

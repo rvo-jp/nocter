@@ -1,10 +1,10 @@
 //! Validated ordinary standard-library declarations used by interpolation lowering.
 
-use crate::ast::{AstFile, FunctionDecl, Item, StructDecl, canonical_type_expr};
-use crate::integer::IntegerType;
-use crate::semantics::{
-    InterpolationInputKind, InterpolationRuntime, RuntimeCallable, TrustedDeclarationFacts,
+use crate::ast::{
+    AstFile, FunctionDecl, InterfaceDecl, Item, MethodDecl, MethodReceiverMode, StructDecl,
+    Visibility, canonical_type_expr,
 };
+use crate::semantics::{InterpolationRuntime, RuntimeCallable, TrustedDeclarationFacts};
 use std::collections::HashMap;
 
 pub(crate) fn attach_interpolation_runtime(
@@ -31,67 +31,51 @@ fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<Interpol
         &[("requested_capacity", "usize")],
         "String",
     )?;
-
-    let expected = [
-        (InterpolationInputKind::Str, "append_str", "&str"),
-        (InterpolationInputKind::String, "append_string", "&String"),
-        (InterpolationInputKind::I32, "append_i32", "i32"),
-        (InterpolationInputKind::U8, "append_u8", "u8"),
-        (InterpolationInputKind::Usize, "append_usize", "usize"),
-        (
-            InterpolationInputKind::Integer(IntegerType::I8),
-            "append_i8",
-            "i8",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::I16),
-            "append_i16",
-            "i16",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::I64),
-            "append_i64",
-            "i64",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::Isize),
-            "append_isize",
-            "isize",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::U16),
-            "append_u16",
-            "u16",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::U32),
-            "append_u32",
-            "u32",
-        ),
-        (
-            InterpolationInputKind::Integer(IntegerType::U64),
-            "append_u64",
-            "u64",
-        ),
-        (InterpolationInputKind::Bool, "append_bool", "bool"),
-    ];
-    let mut formatters = HashMap::new();
-    for (kind, name, input) in expected {
-        let function = find_function(
-            fmt_module,
-            name,
-            None,
-            &[("out", "&+String"), ("value", input)],
-            "void",
-        )?;
-        formatters.insert(kind, runtime_callable(function));
-    }
+    let format_interface = find_format_interface(fmt_module)?;
+    let format_method = format_interface
+        .methods
+        .iter()
+        .find(|method| format_method_shape_matches(method))?;
 
     Some(InterpolationRuntime::new(
         string.span,
         runtime_callable(constructor),
-        formatters,
+        format_interface.name_span,
+        "std/fmt.Format".to_string(),
+        format_method.name_span,
+        format_method.name.clone(),
     ))
+}
+
+fn find_format_interface(ast: &AstFile) -> Option<&InterfaceDecl> {
+    ast.items.iter().find_map(|item| match item {
+        Item::Interface(interface)
+            if interface.name == "Format"
+                && interface.visibility == Visibility::Public
+                && interface.target.is_none()
+                && interface.generics.parameters.is_empty()
+                && interface.requirements.is_none()
+                && interface.associated_types.is_empty()
+                && interface.methods.len() == 1 =>
+        {
+            Some(interface)
+        }
+        _ => None,
+    })
+}
+
+fn format_method_shape_matches(method: &MethodDecl) -> bool {
+    method.name == "format_into"
+        && method.visibility == Visibility::Public
+        && method.receiver.mode == MethodReceiverMode::ReadonlyBorrow
+        && method.generics.parameters.is_empty()
+        && method.requirements.is_none()
+        && method.parameters.parameters.len() == 1
+        && method.parameters.parameters[0].name == "output"
+        && canonical_type_expr(&method.parameters.parameters[0].ty) == "&+String"
+        && canonical_type_expr(&method.return_type) == "void"
+        && method.result_provenance.is_none()
+        && method.body.is_none()
 }
 
 fn owned_string_shape_matches(declaration: &StructDecl) -> bool {
@@ -175,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn validates_complete_interpolation_runtime_by_shape() {
+    fn validates_interpolation_runtime_contract_by_shape() {
         let mut sources = SourceMap::new();
         let string = parse_text(
             &mut sources,
@@ -185,19 +169,9 @@ mod tests {
         let fmt = parse_text(
             &mut sources,
             "fmt.nct",
-            r#"func append_str(out: &+String, value: &str): void {}
-func append_string(out: &+String, value: &String): void {}
-func append_i32(out: &+String, value: i32): void {}
-func append_u8(out: &+String, value: u8): void {}
-func append_usize(out: &+String, value: usize): void {}
-func append_i8(out: &+String, value: i8): void {}
-func append_i16(out: &+String, value: i16): void {}
-func append_i64(out: &+String, value: i64): void {}
-func append_isize(out: &+String, value: isize): void {}
-func append_u16(out: &+String, value: u16): void {}
-func append_u32(out: &+String, value: u32): void {}
-func append_u64(out: &+String, value: u64): void {}
-func append_bool(out: &+String, value: bool): void {}
+            r#"pub interface Format {
+    pub method &self.format_into(output: &+String): void
+}
 "#,
         );
         let modules = HashMap::from([
@@ -208,12 +182,8 @@ func append_bool(out: &+String, value: bool): void {}
         let runtime = interpolation_runtime(&modules).expect("expected runtime");
 
         assert_eq!(runtime.constructor.target_name, "String.with_capacity");
-        assert_eq!(
-            runtime
-                .formatter(InterpolationInputKind::U8)
-                .map(|callable| callable.target_name.as_str()),
-            Some("append_u8")
-        );
+        assert_eq!(runtime.format_interface_canonical_name, "std/fmt.Format");
+        assert_eq!(runtime.format_method_name, "format_into");
     }
 
     #[test]
@@ -223,7 +193,7 @@ func append_bool(out: &+String, value: bool): void {}
         let fmt = parse_text(
             &mut sources,
             "fmt.nct",
-            "func append_str(value: &str): void {}\n",
+            "pub interface Format { pub method self.format_into(output: &+String): void }\n",
         );
         let modules = HashMap::from([
             ("std/string".to_string(), &string),

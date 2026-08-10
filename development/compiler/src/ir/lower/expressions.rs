@@ -64,6 +64,7 @@ pub(in crate::ir::lower) use borrow_values::*;
 use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
+pub(in crate::ir::lower) use calls::lower_borrow_source_from_expression;
 pub(super) use closure_captures::*;
 pub(in crate::ir::lower) use coercions::*;
 use control_flow_values::*;
@@ -110,8 +111,8 @@ use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
     lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,
     lower_arg_count_raw_primitive_call_to_word, lower_arg_raw_primitive_call_to_value,
-    lower_bool_normal_call, lower_borrow_normal_call, lower_borrow_source_from_expression,
-    lower_call_arguments, lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
+    lower_bool_normal_call, lower_borrow_normal_call, lower_call_arguments,
+    lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
     lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call,
     lower_drop_value_at_ptr_primitive_call, lower_env_count_raw_primitive_call_to_word,
     lower_env_entry_raw_primitive_call_to_value, lower_exit_raw_primitive_call,

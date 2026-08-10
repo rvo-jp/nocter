@@ -1,24 +1,26 @@
 use super::check;
 use crate::ast::Item;
 use crate::diagnostics::Diagnostic;
-use crate::integer::IntegerType;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
 use crate::semantics::{
-    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, InterpolationInputKind,
-    InterpolationRuntime, RuntimeCallable, TrustedDeclarationRole,
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole,
 };
 use crate::source::SourceMap;
-use std::collections::HashMap;
 
 fn check_text(text: &str) -> Vec<Diagnostic> {
     check_text_with_trusted_allocator(text, true)
 }
 
 fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<Diagnostic> {
+    let text = if text.contains("struct String") {
+        super::format_support::append_test_format_contract(text)
+    } else {
+        text.to_string()
+    };
     let mut sources = SourceMap::new();
-    let source = sources.add_source("app.nct", None, text);
+    let source = sources.add_source("app.nct", None, &text);
     let lexed = lex(&sources, source);
     assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
     let parsed = parse(&sources, source, &lexed.tokens);
@@ -55,39 +57,8 @@ fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<D
             }
         }
     }
-    if let Some(string_span) = ast.items.iter().find_map(|item| match item {
-        Item::Struct(struct_) if struct_.name == "String" => Some(struct_.span),
-        _ => None,
-    }) {
-        let callable = RuntimeCallable {
-            declaration: string_span,
-            target_name: "test".to_string(),
-        };
-        let formatters = [
-            InterpolationInputKind::Str,
-            InterpolationInputKind::String,
-            InterpolationInputKind::I32,
-            InterpolationInputKind::U8,
-            InterpolationInputKind::Usize,
-            InterpolationInputKind::Integer(IntegerType::I8),
-            InterpolationInputKind::Integer(IntegerType::I16),
-            InterpolationInputKind::Integer(IntegerType::I64),
-            InterpolationInputKind::Integer(IntegerType::Isize),
-            InterpolationInputKind::Integer(IntegerType::U16),
-            InterpolationInputKind::Integer(IntegerType::U32),
-            InterpolationInputKind::Integer(IntegerType::U64),
-            InterpolationInputKind::Bool,
-        ]
-        .into_iter()
-        .map(|kind| (kind, callable.clone()))
-        .collect::<HashMap<_, _>>();
-        resolved
-            .trusted_declarations
-            .set_interpolation_runtime(InterpolationRuntime::new(
-                string_span,
-                callable,
-                formatters,
-            ));
+    if text.contains("struct String") {
+        super::format_support::attach_test_format_runtime(&ast, &mut resolved);
     }
     let mut diagnostics = resolved.diagnostics.clone();
     diagnostics.extend(check(&sources, &ast, &resolved));

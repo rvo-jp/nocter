@@ -221,7 +221,7 @@ impl<'a> LoweringContext<'a> {
             .as_ref()?
             .typecheck_facts
             .interpolation_plan(expression_span)
-            .cloned()
+            .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
     }
 
     pub(in crate::ir::lower) fn collection_for_plan(
@@ -246,9 +246,9 @@ impl<'a> LoweringContext<'a> {
             .with_context_substitutions(&self.generic_substitutions)
     }
 
-    pub(in crate::ir::lower) fn iteration_method_target(
+    pub(in crate::ir::lower) fn protocol_method_target(
         &self,
-        method: &crate::typecheck::TypecheckIterationMethod,
+        method: &crate::typecheck::TypecheckProtocolMethod,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
         if let Some(target) = self
@@ -256,6 +256,16 @@ impl<'a> LoweringContext<'a> {
             .unique_target_for_name(&method.target_name)
         {
             return Some(target.clone());
+        }
+        if let Some(target_name) = self
+            .function_names
+            .name_for_declaration(method.declaration_span)
+        {
+            return Some(call_target_for_source(
+                method.declaration_span.source,
+                resolution.root_source,
+                target_name.clone(),
+            ));
         }
         Some(call_target_for_source(
             method.declaration_span.source,

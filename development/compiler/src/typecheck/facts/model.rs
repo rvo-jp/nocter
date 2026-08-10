@@ -65,6 +65,14 @@ impl TypecheckFacts {
         self.interpolation_plans.get(&expression_span)
     }
 
+    pub(crate) fn interpolation_plans(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &TypecheckInterpolationPlan)> {
+        self.interpolation_plans
+            .iter()
+            .map(|(span, plan)| (*span, plan))
+    }
+
     pub(crate) fn collection_for_plan(
         &self,
         statement_span: ByteSpan,
@@ -355,6 +363,7 @@ pub(crate) struct TypecheckClosurePlan {
 pub(crate) struct TypecheckInterpolationPlan {
     pub(crate) string_type_declaration: ByteSpan,
     pub(crate) constructor: crate::semantics::RuntimeCallable,
+    pub(crate) format_interface_declaration: ByteSpan,
     pub(crate) parts: Vec<TypecheckInterpolationPart>,
 }
 
@@ -362,8 +371,38 @@ pub(crate) struct TypecheckInterpolationPlan {
 pub(crate) struct TypecheckInterpolationPart {
     pub(crate) span: ByteSpan,
     pub(crate) expression_span: Option<ByteSpan>,
-    pub(crate) input: crate::semantics::InterpolationInputKind,
-    pub(crate) formatter: crate::semantics::RuntimeCallable,
+    pub(crate) accepted_type: TypeExpr,
+    pub(crate) formatter: TypecheckProtocolMethod,
+}
+
+impl TypecheckInterpolationPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            string_type_declaration: self.string_type_declaration,
+            constructor: self.constructor.clone(),
+            format_interface_declaration: self.format_interface_declaration,
+            parts: self
+                .parts
+                .iter()
+                .map(|part| {
+                    Some(TypecheckInterpolationPart {
+                        span: part.span,
+                        expression_span: part.expression_span,
+                        accepted_type: substitute_type_expr_parameters(
+                            &part.accepted_type,
+                            context_substitutions,
+                        ),
+                        formatter: part
+                            .formatter
+                            .with_context_substitutions(context_substitutions)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -374,7 +413,7 @@ pub(crate) enum TypecheckCollectionForSourceMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TypecheckIterationMethod {
+pub(crate) struct TypecheckProtocolMethod {
     pub(crate) declaration_span: ByteSpan,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
@@ -383,7 +422,25 @@ pub(crate) struct TypecheckIterationMethod {
     pub(super) free_type_parameters: HashSet<String>,
 }
 
-impl TypecheckIterationMethod {
+impl TypecheckProtocolMethod {
+    pub(crate) fn new(
+        declaration_span: ByteSpan,
+        target_name: String,
+        self_ty: TypeExpr,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        method_name: String,
+        free_type_parameters: HashSet<String>,
+    ) -> Self {
+        Self {
+            declaration_span,
+            target_name,
+            self_ty,
+            receiver_mode,
+            method_name,
+            free_type_parameters,
+        }
+    }
+
     pub(crate) fn with_context_substitutions(
         &self,
         context_substitutions: &HashMap<String, TypeExpr>,
@@ -427,8 +484,8 @@ pub(crate) struct TypecheckCollectionForPlan {
     pub(crate) source_type: TypeExpr,
     pub(crate) iterator_type: TypeExpr,
     pub(crate) item_type: TypeExpr,
-    pub(crate) conversion: Option<TypecheckIterationMethod>,
-    pub(crate) step: TypecheckIterationMethod,
+    pub(crate) conversion: Option<TypecheckProtocolMethod>,
+    pub(crate) step: TypecheckProtocolMethod,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -449,9 +506,9 @@ pub(crate) struct TypecheckSequenceSpreadPlan {
     pub(crate) iterator_type: TypeExpr,
     pub(crate) iterator_item_type: TypeExpr,
     pub(crate) pack_item_type: TypeExpr,
-    pub(crate) conversion: Option<TypecheckIterationMethod>,
-    pub(crate) exact_size: TypecheckIterationMethod,
-    pub(crate) step: TypecheckIterationMethod,
+    pub(crate) conversion: Option<TypecheckProtocolMethod>,
+    pub(crate) exact_size: TypecheckProtocolMethod,
+    pub(crate) step: TypecheckProtocolMethod,
 }
 
 impl TypecheckSequenceSpreadPlan {

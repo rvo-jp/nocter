@@ -153,52 +153,12 @@ fn qualify_type_symbol(
         );
     }
     for conformance in &mut symbol.interface_conformances {
-        qualify_type_expr(
-            &mut conformance.interface_ty,
+        qualify_interface_conformance(
+            conformance,
             import_path,
             local_type_names,
             imported_type_names,
         );
-        qualify_type_expr(
-            &mut conformance.target_ty,
-            import_path,
-            local_type_names,
-            imported_type_names,
-        );
-        for requirements in &mut conformance.generic_parameter_requirements {
-            for requirement in requirements.iter_mut() {
-                if let Some(bound) = requirement.type_expr_mut() {
-                    qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
-                }
-            }
-        }
-        if let Some(clause) = &mut conformance.where_clause {
-            qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
-        }
-        for binding in &mut conformance.associated_types {
-            qualify_type_expr(
-                &mut binding.value,
-                import_path,
-                local_type_names,
-                imported_type_names,
-            );
-        }
-        for method in &mut conformance.methods {
-            if let Some(owner_target_ty) = &mut method.owner_target_ty {
-                qualify_type_expr(
-                    owner_target_ty,
-                    import_path,
-                    local_type_names,
-                    imported_type_names,
-                );
-            }
-            qualify_function_signature(
-                &mut method.signature,
-                import_path,
-                local_type_names,
-                imported_type_names,
-            );
-        }
     }
     for associated in &mut symbol.associated_types {
         for requirement in associated.requirements.iter_mut() {
@@ -242,6 +202,60 @@ fn qualify_type_symbol(
     if let Some(destructor) = &mut symbol.destructor {
         qualify_parameter_signature(
             &mut destructor.binding,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+    }
+}
+
+pub(super) fn qualify_interface_conformance(
+    conformance: &mut crate::resolve::InterfaceConformance,
+    import_path: &str,
+    local_type_names: &[String],
+    imported_type_names: &[ImportedTypeName],
+) {
+    qualify_type_expr(
+        &mut conformance.interface_ty,
+        import_path,
+        local_type_names,
+        imported_type_names,
+    );
+    qualify_type_expr(
+        &mut conformance.target_ty,
+        import_path,
+        local_type_names,
+        imported_type_names,
+    );
+    for requirements in &mut conformance.generic_parameter_requirements {
+        for requirement in requirements.iter_mut() {
+            if let Some(bound) = requirement.type_expr_mut() {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
+        }
+    }
+    if let Some(clause) = &mut conformance.where_clause {
+        qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
+    }
+    for binding in &mut conformance.associated_types {
+        qualify_type_expr(
+            &mut binding.value,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+    }
+    for method in &mut conformance.methods {
+        if let Some(owner_target_ty) = &mut method.owner_target_ty {
+            qualify_type_expr(
+                owner_target_ty,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        qualify_function_signature(
+            &mut method.signature,
             import_path,
             local_type_names,
             imported_type_names,

@@ -24,7 +24,7 @@ pub(in crate::typecheck) fn interpolated_string_part_type_unsupported_diagnostic
     let mut diagnostic = Diagnostic::error(
         "E0379",
         format!(
-            "string interpolation expression has type `{}`, but v0.3.0 Phase 3 supports `&str`, `String`, `i32`, `u8`, `usize`, and `bool` values",
+            "string interpolation expression has type `{}`, which does not conform to `std/fmt.Format`",
             actual.display()
         ),
     );
@@ -32,7 +32,9 @@ pub(in crate::typecheck) fn interpolated_string_part_type_unsupported_diagnostic
         .span_to_json(part.expression.span())
         .ok()
         .map(Box::new);
-    diagnostic.help =
-        Some("convert the value to a supported string interpolation input first".to_string());
+    diagnostic.help = Some(
+        "import `std/fmt.Format` and add `conform Format for Type`, or convert the value to a type that already conforms"
+            .to_string(),
+    );
     diagnostic
 }

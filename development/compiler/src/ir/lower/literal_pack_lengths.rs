@@ -42,7 +42,7 @@ pub(super) fn lower_runtime_length_initialization(
             continue;
         };
         let target = context
-            .iteration_method_target(&plan.exact_size)
+            .protocol_method_target(&plan.exact_size)
             .ok_or_else(|| length_diagnostic("the exact-size target is unavailable"))?;
         let receiver =
             receiver_expression(&plan.exact_size, iterator_parameter_name, plan.spread_span);

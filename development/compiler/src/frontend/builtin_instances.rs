@@ -21,8 +21,10 @@ pub(super) fn enqueue_builtin_instance_sources(
     queue: &mut VecDeque<SourceId>,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    for owner in BuiltinTypeOwner::ALL {
-        let module = owner.instance_module();
+    for owner in BuiltinTypeOwner::INSTANCE_OWNERS {
+        let module = owner
+            .instance_module()
+            .expect("instance owner must name its source authority");
         let path = module_path(root, module);
         let canonical = match resolve_import_path(
             sources,
@@ -65,6 +67,46 @@ pub(super) fn enqueue_builtin_instance_sources(
     diagnostics
 }
 
+pub(super) fn validate_builtin_conformance_authority(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &AstFile,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Vec<Diagnostic> {
+    let is_standard_library =
+        trusted_module_path(sources, source, options, resolved_nocter_home).is_some();
+    if is_standard_library {
+        return Vec::new();
+    }
+
+    ast.items
+        .iter()
+        .filter_map(|item| {
+            let Item::Conformance(conformance) = item else {
+                return None;
+            };
+            BuiltinTypeOwner::from_conformance_target(&conformance.target_ty)
+                .map(|owner| (owner, conformance.target_ty.span()))
+        })
+        .map(|(owner, span)| {
+            let mut diagnostic = Diagnostic::error(
+                "E0416",
+                format!(
+                    "conformances for built-in type `{}` are owned by the standard library package",
+                    owner.canonical_name()
+                ),
+            );
+            diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+            diagnostic.help = Some(
+                "define the conformance for a project-owned type; built-in conformances are supplied by the active Nocter home"
+                    .to_string(),
+            );
+            diagnostic
+        })
+        .collect()
+}
+
 pub(super) fn validate_builtin_instance_authority(
     sources: &SourceMap,
     source: SourceId,
@@ -82,7 +124,9 @@ pub(super) fn validate_builtin_instance_authority(
             BuiltinTypeOwner::from_instance_target(&instance.target_ty).map(|owner| {
                 (
                     owner.canonical_name(),
-                    owner.instance_module(),
+                    owner
+                        .instance_module()
+                        .expect("instance owner must name its source authority"),
                     instance.target_ty.span(),
                 )
             })

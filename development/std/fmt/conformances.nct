@@ -1,0 +1,97 @@
+//! Standard formatting conformances for compiler built-in and owning text types.
+
+conform Format for str {
+    method &self.format_into(output: &+String): void {
+        append_str(output, self)
+        return
+    }
+}
+
+conform Format for String {
+    method &self.format_into(output: &+String): void {
+        append_string(output, self)
+        return
+    }
+}
+
+conform Format for bool {
+    method &self.format_into(output: &+String): void {
+        append_bool(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for i8 {
+    method &self.format_into(output: &+String): void {
+        append_i8(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for i16 {
+    method &self.format_into(output: &+String): void {
+        append_i16(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for i32 {
+    method &self.format_into(output: &+String): void {
+        append_i32(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for i64 {
+    method &self.format_into(output: &+String): void {
+        append_i64(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for isize {
+    method &self.format_into(output: &+String): void {
+        append_isize(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for u8 {
+    method &self.format_into(output: &+String): void {
+        append_u8(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for u16 {
+    method &self.format_into(output: &+String): void {
+        append_u16(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for u32 {
+    method &self.format_into(output: &+String): void {
+        append_u32(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for u64 {
+    method &self.format_into(output: &+String): void {
+        append_u64(output, copy_value(self))
+        return
+    }
+}
+
+conform Format for usize {
+    method &self.format_into(output: &+String): void {
+        append_usize(output, copy_value(self))
+        return
+    }
+}
+
+func copy_value<T>(value: &T): T where copy T {
+    let pointer: *T = from_ref(value)
+    return slice_from_raw_parts_value(pointer, 1)[0]
+}

@@ -28,7 +28,7 @@ use crate::ir::{
 use crate::outcomes::{OutcomeLayer, storage::outcome_storage_layout};
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::{
-    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckIterationMethod,
+    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckProtocolMethod,
     TypecheckScalarViewKind,
 };
 
@@ -386,7 +386,7 @@ fn materialize_iterator(
                 .conversion
                 .as_ref()
                 .ok_or_else(|| iteration_diagnostic("the collection conversion plan is missing"))?;
-            let target = context.iteration_method_target(conversion).ok_or_else(|| {
+            let target = context.protocol_method_target(conversion).ok_or_else(|| {
                 iteration_diagnostic("the collection conversion target is unavailable")
             })?;
             let return_type = context.call_return_type(&target).cloned().ok_or_else(|| {
@@ -436,7 +436,7 @@ fn lower_step_call(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let target = context
-        .iteration_method_target(&plan.step)
+        .protocol_method_target(&plan.step)
         .ok_or_else(|| iteration_diagnostic("the iterator step target is unavailable"))?;
     let receiver = receiver_expression(&plan.step, iterator_name, statement.name_span);
     let call = synthetic_call(statement.span, &plan.step.target_name, vec![receiver]);
@@ -589,7 +589,7 @@ fn define_item_binding(
 }
 
 pub(in crate::ir::lower) fn receiver_expression(
-    method: &TypecheckIterationMethod,
+    method: &TypecheckProtocolMethod,
     name: &str,
     span: ByteSpan,
 ) -> Expr {
@@ -616,7 +616,7 @@ pub(in crate::ir::lower) fn receiver_expression(
 }
 
 pub(in crate::ir::lower) fn receiver_parameter_type(
-    method: &TypecheckIterationMethod,
+    method: &TypecheckProtocolMethod,
     span: ByteSpan,
 ) -> TypeExpr {
     match method.receiver_mode {

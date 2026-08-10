@@ -44,11 +44,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                     plan.constructor.target_name.clone(),
                 ));
                 for part in &plan.parts {
-                    queue.push_back(call_target_for_source(
-                        part.formatter.declaration.source,
-                        root_source,
-                        part.formatter.target_name.clone(),
-                    ));
+                    if let Some(formatter) = part
+                        .formatter
+                        .with_context_substitutions(generic_substitutions)
+                    {
+                        let target_name = names
+                            .get(&formatter.declaration_span)
+                            .cloned()
+                            .unwrap_or(formatter.target_name);
+                        queue.push_back(call_target_for_source(
+                            formatter.declaration_span.source,
+                            root_source,
+                            target_name,
+                        ));
+                    }
                 }
             }
             for part in &expression.parts {

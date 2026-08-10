@@ -254,7 +254,15 @@ impl ResolveOutput {
             .or_else(|| {
                 self.builtin_type_surfaces
                     .values()
-                    .flat_map(|surface| &surface.symbol.methods)
+                    .flat_map(|surface| {
+                        surface.symbol.methods.iter().chain(
+                            surface
+                                .symbol
+                                .interface_conformances
+                                .iter()
+                                .flat_map(|conformance| &conformance.methods),
+                        )
+                    })
                     .find(|method| method.name_span == name_span)
             })
     }

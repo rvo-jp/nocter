@@ -95,29 +95,37 @@ impl TypecheckFactCollector<'_> {
         };
         let mut parts = Vec::with_capacity(expression.parts.len());
         for part in &expression.parts {
-            let (span, expression_span, input) = match part {
-                crate::ast::InterpolatedStringPart::Text(text) => (
-                    text.span,
-                    None,
-                    crate::semantics::InterpolationInputKind::Str,
-                ),
+            let (span, expression_span, ty) = match part {
+                crate::ast::InterpolatedStringPart::Text(text) => {
+                    (text.span, None, crate::typecheck::model::Type::Str)
+                }
                 crate::ast::InterpolatedStringPart::Expression(part) => {
                     let ty = expression_type(&part.expression, self.resolved, environment);
-                    let Some(input) =
-                        crate::typecheck::strings::interpolation_input_kind(&ty, self.resolved)
-                    else {
-                        return;
-                    };
-                    (part.span, Some(part.expression_span), input)
+                    (part.span, Some(part.expression_span), ty)
                 }
             };
-            let Some(formatter) = runtime.formatter(input).cloned() else {
+            let Some(formatter) = crate::typecheck::strings::interpolation_format_method(
+                &ty,
+                expression_span.unwrap_or(span),
+                self.resolved,
+                environment,
+            ) else {
+                return;
+            };
+            let mut free_type_parameters = std::collections::HashSet::new();
+            let Some(accepted_type) =
+                crate::typecheck::facts::type_to_type_expr_allowing_parameters(
+                    &ty,
+                    span,
+                    &mut free_type_parameters,
+                )
+            else {
                 return;
             };
             parts.push(TypecheckInterpolationPart {
                 span,
                 expression_span,
-                input,
+                accepted_type,
                 formatter,
             });
         }
@@ -126,6 +134,7 @@ impl TypecheckFactCollector<'_> {
             TypecheckInterpolationPlan {
                 string_type_declaration: runtime.string_type_declaration,
                 constructor: runtime.constructor.clone(),
+                format_interface_declaration: runtime.format_interface_declaration,
                 parts,
             },
         );

@@ -64,6 +64,20 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Coercion(plan));
             }
         }
+        for (_, plan) in file.typecheck_facts.interpolation_plans() {
+            for part in &plan.parts {
+                let Some(specialization) =
+                    protocol_method_call_specialization(analysis, &part.formatter)
+                else {
+                    continue;
+                };
+                if let Some(specialization) =
+                    specialization.with_context_substitutions(&HashMap::new())
+                {
+                    queue.push_back(PendingCallSpecialization::Method(specialization));
+                }
+            }
+        }
         for (_, fact) in file.typecheck_facts.callable_call_entries() {
             if let Some(specialization) = fact
                 .specialization
@@ -74,7 +88,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         }
         for (_, plan) in file.typecheck_facts.collection_for_plans() {
             for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
-                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                let Some(specialization) = protocol_method_call_specialization(analysis, method)
                 else {
                     continue;
                 };
@@ -87,7 +101,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         }
         for (_, plan) in file.typecheck_facts.sequence_spread_plans() {
             for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
-                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                let Some(specialization) = protocol_method_call_specialization(analysis, method)
                 else {
                     continue;
                 };
@@ -481,13 +495,29 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
+    for (expression_span, plan) in file.typecheck_facts.interpolation_plans() {
+        if !span_contains(span, expression_span) {
+            continue;
+        }
+        for part in &plan.parts {
+            let Some(specialization) =
+                protocol_method_call_specialization(analysis, &part.formatter)
+            else {
+                continue;
+            };
+            if let Some(specialization) =
+                specialization.with_context_substitutions(context_substitutions)
+            {
+                queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+    }
     for (statement_span, plan) in file.typecheck_facts.collection_for_plans() {
         if !span_contains(span, *statement_span) {
             continue;
         }
         for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
-            let Some(specialization) = iteration_method_call_specialization(analysis, method)
-            else {
+            let Some(specialization) = protocol_method_call_specialization(analysis, method) else {
                 continue;
             };
             if let Some(specialization) =
@@ -502,8 +532,7 @@ fn enqueue_call_specializations_from_span(
             continue;
         }
         for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
-            let Some(specialization) = iteration_method_call_specialization(analysis, method)
-            else {
+            let Some(specialization) = protocol_method_call_specialization(analysis, method) else {
                 continue;
             };
             if let Some(specialization) =
@@ -532,9 +561,9 @@ fn enqueue_drop_dependencies_for_type(
     }
 }
 
-fn iteration_method_call_specialization(
+fn protocol_method_call_specialization(
     analysis: &CompileUnitAnalysis,
-    method: &crate::typecheck::TypecheckIterationMethod,
+    method: &crate::typecheck::TypecheckProtocolMethod,
 ) -> Option<MethodCallSpecialization> {
     let Some((_file, Some(owner), _declaration)) =
         method_declaration_for_span(analysis, method.declaration_span)

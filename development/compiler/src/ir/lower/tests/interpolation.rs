@@ -32,12 +32,12 @@ fn lowers_interpolation_through_trusted_constructor_and_formatters() {
         &called_names[..7],
         [
             "String.with_capacity",
-            "append_str",
-            "append_i32",
-            "append_str",
-            "append_u8",
-            "append_str",
-            "append_bool",
+            "str.format_into",
+            "i32.format_into",
+            "str.format_into",
+            "u8.format_into",
+            "str.format_into",
+            "bool.format_into",
         ]
     );
     assert_eq!(called_names.last(), Some(&"RawBuffer.drop"));

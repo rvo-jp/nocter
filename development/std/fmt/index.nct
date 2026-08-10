@@ -5,7 +5,14 @@
 
 use std/mem.allocation_abort_raw
 use std/error.Error
+use std/ptr.{from_ref, slice_from_raw_parts_value}
 use std/string.{String, try_push_str}
+use ./conformances
+
+/// Appends the ordinary textual representation of a value.
+pub interface Format {
+    pub method &self.format_into(output: &+String): void
+}
 
 pub func try_append_str(out: &+String, value: &str): void! {
     try_push_str(out, value)?

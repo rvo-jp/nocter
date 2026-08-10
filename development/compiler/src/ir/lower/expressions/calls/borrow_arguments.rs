@@ -189,7 +189,9 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             let instructions = lower_borrow_normal_call(call, destination, context, temporaries)?;
             Ok((instructions, BorrowSource::BorrowLocal(destination)))
         }
-        Expr::Propagate(propagation) => {
+        Expr::Propagate(propagation)
+            if outcome_call_success_returns_borrow(&propagation.expression, context) =>
+        {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -203,7 +205,7 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
                 temporaries,
             )
         }
-        Expr::Force(force) => {
+        Expr::Force(force) if outcome_call_success_returns_borrow(&force.expression, context) => {
             let Expr::Call(call) = unwrap_group(&force.expression) else {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -212,7 +214,7 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
             };
             lower_outcome_borrow_call_source(call, OutcomeFailureMode::Trap, context, temporaries)
         }
-        Expr::Catch(catch) => {
+        Expr::Catch(catch) if outcome_call_success_returns_borrow(&catch.expression, context) => {
             let Expr::Call(call) = unwrap_group(&catch.expression) else {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -254,6 +256,17 @@ fn call_returns_borrow(call: &CallExpr, context: &LoweringContext) -> bool {
         .direct_call_target_and_name(call)
         .and_then(|(target, _)| context.call_return_type(&target))
         .is_some_and(|return_type| matches!(return_type, Type::Borrow { .. }))
+}
+
+fn outcome_call_success_returns_borrow(expression: &Expr, context: &LoweringContext) -> bool {
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return false;
+    };
+    context
+        .direct_call_target_and_name(call)
+        .and_then(|(target, _)| context.call_return_type(&target))
+        .and_then(Type::single_outcome)
+        .is_some_and(|(_, success)| matches!(success, Type::Borrow { .. }))
 }
 
 fn lower_outcome_borrow_call_source(
@@ -492,6 +505,16 @@ fn lower_borrow_source_from_identifier(
                 parameter_type,
             )),
         },
+        Type::Integer(kind) => match (
+            context.integer_kind(identifier_name),
+            context.usize_location(identifier_name),
+        ) {
+            (Some(actual), Some(location)) if actual == *kind => Ok(BorrowSource::Usize(location)),
+            _ => Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            )),
+        },
         Type::Bool => match context.bool_location(identifier_name) {
             Some(BoolLocation::Local(index)) => Ok(BorrowSource::Bool(BoolLocation::Local(index))),
             Some(BoolLocation::Parameter(index)) => {
@@ -621,6 +644,17 @@ fn lower_readonly_temporary_borrow_source(
         }
         Type::Usize => {
             let lowered = lower_usize_expression_to_value(expression, context, temporaries)?;
+            let destination = temporaries.next_usize()?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok((instructions, BorrowSource::Usize(destination)))
+        }
+        Type::Integer(kind) => {
+            let lowered =
+                lower_integer_expression_to_value(expression, *kind, context, temporaries)?;
             let destination = temporaries.next_usize()?;
             let mut instructions = lowered.instructions;
             instructions.push(Instruction::SetUsize {

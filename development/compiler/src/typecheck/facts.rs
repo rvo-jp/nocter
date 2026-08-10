@@ -59,8 +59,8 @@ pub(crate) use model::{
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
     TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
     TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts, TypecheckInterpolationPart,
-    TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
-    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
+    TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckProtocolMethod, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
     TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;

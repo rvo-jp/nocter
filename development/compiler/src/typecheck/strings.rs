@@ -1,13 +1,13 @@
+use super::calls::method_self_type_for_receiver;
 use super::diagnostics::{
     interpolated_string_part_type_unsupported_diagnostic,
     interpolation_runtime_unavailable_diagnostic,
 };
 use super::expressions::expression_type;
+use super::facts::TypecheckProtocolMethod;
 use super::model::{Type, TypeEnvironment};
-use super::operations::is_bool_type;
 use crate::ast::{InterpolatedStringExpr, InterpolatedStringPart};
 use crate::diagnostics::Diagnostic;
-use crate::integer::IntegerType;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 
@@ -33,6 +33,13 @@ pub(super) fn check_interpolated_string_expression(
         return;
     }
 
+    if interpolation_format_method(&Type::Str, expression.span, resolved, environment).is_none() {
+        diagnostics.push(interpolation_runtime_unavailable_diagnostic(
+            sources, expression,
+        ));
+        return;
+    }
+
     for part in &expression.parts {
         let InterpolatedStringPart::Expression(part) = part else {
             continue;
@@ -42,7 +49,9 @@ pub(super) fn check_interpolated_string_expression(
             continue;
         }
 
-        if interpolation_input_kind(&actual, resolved).is_none() {
+        if interpolation_format_method(&actual, part.expression_span, resolved, environment)
+            .is_none()
+        {
             diagnostics.push(interpolated_string_part_type_unsupported_diagnostic(
                 sources, part, &actual,
             ));
@@ -56,41 +65,22 @@ fn string_type(resolved: &ResolveOutput) -> Type {
         .unwrap_or_else(|| Type::Unresolved("String".to_string()))
 }
 
-pub(super) fn interpolation_input_kind(
+pub(super) fn interpolation_format_method(
     ty: &Type,
+    span: crate::source::ByteSpan,
     resolved: &ResolveOutput,
-) -> Option<crate::semantics::InterpolationInputKind> {
-    use crate::semantics::InterpolationInputKind;
-
-    if matches!(ty, Type::Str) {
-        return Some(InterpolationInputKind::Str);
-    }
-    if matches!(ty, Type::I32) {
-        return Some(InterpolationInputKind::I32);
-    }
-    if matches!(ty, Type::Primitive(name) if name == "u8") {
-        return Some(InterpolationInputKind::U8);
-    }
-    if matches!(ty, Type::Primitive(name) if name == "usize") {
-        return Some(InterpolationInputKind::Usize);
-    }
-    if let Type::Primitive(name) = ty
-        && let Some(kind) = IntegerType::from_name(name)
-    {
-        return Some(InterpolationInputKind::Integer(kind));
-    }
-    if is_bool_type(ty) {
-        return Some(InterpolationInputKind::Bool);
-    }
-    is_string_type(ty, resolved).then_some(InterpolationInputKind::String)
-}
-
-fn is_string_type(ty: &Type, resolved: &ResolveOutput) -> bool {
-    let Some(canonical_name) = ty.nominal_name() else {
-        return false;
-    };
-
-    runtime_string_symbol(resolved).is_some_and(|symbol| symbol.canonical_name == canonical_name)
+    environment: &TypeEnvironment,
+) -> Option<TypecheckProtocolMethod> {
+    let runtime = resolved.trusted_declarations.interpolation_runtime()?;
+    let receiver = method_self_type_for_receiver(ty);
+    super::protocol_methods::resolved_protocol_method(
+        &receiver,
+        &runtime.format_interface_canonical_name,
+        &runtime.format_method_name,
+        span,
+        resolved,
+        environment,
+    )
 }
 
 fn runtime_string_symbol(resolved: &ResolveOutput) -> Option<&crate::resolve::TypeSymbol> {

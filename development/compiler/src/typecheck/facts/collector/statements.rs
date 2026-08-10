@@ -314,8 +314,8 @@ pub(super) fn iteration_method_fact(
     resolution: &crate::typecheck::iteration::IterationMethodResolution,
     self_ty: TypeExpr,
     free_type_parameters: &HashSet<String>,
-) -> TypecheckIterationMethod {
-    TypecheckIterationMethod {
+) -> TypecheckProtocolMethod {
+    TypecheckProtocolMethod {
         declaration_span: resolution.declaration,
         target_name: resolution.target_name.clone(),
         self_ty,

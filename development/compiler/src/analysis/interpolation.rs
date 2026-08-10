@@ -2,7 +2,6 @@
 
 use super::FileAnalysis;
 use crate::ast::{Expr, InterpolatedStringPart, visit_file_expressions};
-use crate::semantics::InterpolationInputKind;
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +43,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
                 return;
             }
             focus = part_span;
-            accepted = Some(planned.input);
+            accepted = Some(&planned.accepted_type);
             break;
         }
         let result_name = file
@@ -58,8 +57,16 @@ pub(crate) fn interpolation_editor_info_at_offset(
         if let Some(input) = accepted {
             documentation.push(format!(
                 "**Accepted interpolation input:** `{}`.",
-                input_label(input)
+                crate::typecheck::type_expr_presentation_label(input, &file.resolved)
             ));
+            let contract = file
+                .resolved
+                .symbols
+                .symbols()
+                .find(|symbol| symbol.declaration_span == plan.format_interface_declaration)
+                .map(|symbol| symbol.name.as_str())
+                .unwrap_or("Format");
+            documentation.push(format!("**Formatting contract:** `{contract}`."));
         }
         candidates.push(InterpolationEditorInfo {
             expression_span: interpolated.span,
@@ -326,18 +333,6 @@ fn parenthesis_follows_callable(text: &str, open: usize) -> bool {
 
 fn previous_non_whitespace_byte(text: &str) -> Option<u8> {
     text.bytes().rev().find(|byte| !byte.is_ascii_whitespace())
-}
-
-fn input_label(input: InterpolationInputKind) -> &'static str {
-    match input {
-        InterpolationInputKind::Str => "&str",
-        InterpolationInputKind::String => "String",
-        InterpolationInputKind::I32 => "i32",
-        InterpolationInputKind::U8 => "u8",
-        InterpolationInputKind::Usize => "usize",
-        InterpolationInputKind::Integer(kind) => kind.name(),
-        InterpolationInputKind::Bool => "bool",
-    }
 }
 
 fn insert_at_offset(text: &str, offset: usize, insertion: &str) -> String {
