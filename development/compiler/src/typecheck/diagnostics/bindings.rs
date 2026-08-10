@@ -76,6 +76,31 @@ pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
     expected: &Type,
     actual: &Type,
 ) -> Diagnostic {
+    if let (Type::Opaque(expected_opaque), Type::Opaque(actual_opaque)) = (expected, actual)
+        && expected_opaque.identity != actual_opaque.identity
+    {
+        let mut diagnostic = Diagnostic::error(
+            "E0382",
+            "cannot assign a value from a different opaque result declaration",
+        );
+        diagnostic.primary_span = sources
+            .span_to_json(statement.value.span())
+            .ok()
+            .map(Box::new);
+        diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
+            message: "the target's opaque identity is declared here".to_string(),
+            span: sources.span_to_json(expected_opaque.identity).ok(),
+        });
+        diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
+            message: "the assigned value has this distinct opaque identity".to_string(),
+            span: sources.span_to_json(actual_opaque.identity).ok(),
+        });
+        diagnostic.help = Some(
+            "keep values from different `some Interface` declarations in separate bindings"
+                .to_string(),
+        );
+        return diagnostic;
+    }
     let mut diagnostic = Diagnostic::error(
         "E0382",
         format!(

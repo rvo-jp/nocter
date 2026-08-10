@@ -4,6 +4,7 @@ use super::FileAnalysis;
 use super::occurrences::{SemanticOccurrenceIndex, SemanticOccurrenceKind, SemanticOccurrenceRole};
 use super::scoped_imports::scoped_import_name_spans;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
+use crate::ast::MethodOwnerDecl;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, TypeSymbol};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::collect_typecheck_facts;
@@ -116,6 +117,7 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
         self.collect_generic_requirement_keywords();
+        self.collect_opaque_type_keywords();
         self.collect_editor_targets();
     }
 
@@ -310,6 +312,16 @@ impl SemanticIdentifierCollector<'_> {
         }
     }
 
+    fn collect_opaque_type_keywords(&mut self) {
+        let mut spans = Vec::new();
+        for item in &self.ast.items {
+            collect_item_opaque_keyword_spans(item, &mut spans);
+        }
+        for span in spans {
+            self.push(span, SemanticTokenKind::Keyword, false, 0);
+        }
+    }
+
     fn push_parameter(&mut self, span: ByteSpan) {
         self.push(
             span,
@@ -392,6 +404,128 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
         SemanticTokenKind::Variable => 0,
         SemanticTokenKind::Namespace => 6,
         SemanticTokenKind::Keyword => 7,
+    }
+}
+
+fn collect_item_opaque_keyword_spans(item: &crate::ast::Item, spans: &mut Vec<ByteSpan>) {
+    fn ty(expression: &crate::ast::TypeExpr, spans: &mut Vec<ByteSpan>) {
+        match expression {
+            crate::ast::TypeExpr::Opaque(opaque) => {
+                spans.push(opaque.some_span);
+                ty(&opaque.interface, spans);
+                for binding in &opaque.associated_bindings {
+                    ty(&binding.value, spans);
+                }
+            }
+            crate::ast::TypeExpr::Callable(callable) => {
+                for parameter in &callable.parameters {
+                    ty(&parameter.ty, spans);
+                }
+                ty(&callable.return_type, spans);
+            }
+            crate::ast::TypeExpr::Closure(closure) => {
+                for capture in &closure.captures {
+                    ty(&capture.ty, spans);
+                }
+                for parameter in &closure.parameters {
+                    ty(parameter, spans);
+                }
+                ty(&closure.return_type, spans);
+            }
+            crate::ast::TypeExpr::Generic(generic) => {
+                for argument in &generic.arguments {
+                    ty(argument, spans);
+                }
+            }
+            crate::ast::TypeExpr::Projection(projection) => ty(&projection.base, spans),
+            crate::ast::TypeExpr::Pointer(pointer) => ty(&pointer.inner, spans),
+            crate::ast::TypeExpr::Borrow(borrow) => ty(&borrow.inner, spans),
+            crate::ast::TypeExpr::View(view) => ty(&view.element, spans),
+            crate::ast::TypeExpr::Array(array) => ty(&array.element, spans),
+            crate::ast::TypeExpr::Optional(optional) => ty(&optional.inner, spans),
+            crate::ast::TypeExpr::Fallible(fallible) => {
+                ty(&fallible.success, spans);
+                ty(&fallible.error, spans);
+            }
+            crate::ast::TypeExpr::Reference(_) => {}
+        }
+    }
+    fn parameters(parameters: &crate::ast::ParameterList, spans: &mut Vec<ByteSpan>) {
+        for parameter in &parameters.parameters {
+            ty(&parameter.ty, spans);
+        }
+    }
+    fn method(method: &crate::ast::MethodDecl, spans: &mut Vec<ByteSpan>) {
+        parameters(&method.parameters, spans);
+        ty(&method.return_type, spans);
+    }
+
+    match item {
+        crate::ast::Item::Function(function) => {
+            parameters(&function.parameters, spans);
+            ty(&function.return_type, spans);
+        }
+        crate::ast::Item::Primitive(primitive) => {
+            parameters(&primitive.parameters, spans);
+            ty(&primitive.return_type, spans);
+        }
+        crate::ast::Item::TypeAlias(alias) => ty(&alias.target, spans),
+        crate::ast::Item::Struct(struct_) => {
+            for field in &struct_.fields {
+                ty(&field.ty, spans);
+            }
+        }
+        crate::ast::Item::Enum(enum_) => {
+            for payload in enum_
+                .variants
+                .iter()
+                .flat_map(|variant| variant.payload.iter())
+            {
+                ty(&payload.ty, spans);
+            }
+        }
+        crate::ast::Item::Interface(interface) => {
+            for member in &interface.methods {
+                method(member, spans);
+            }
+        }
+        crate::ast::Item::Instance(instance) => {
+            for member in instance.methods() {
+                method(member, spans);
+            }
+        }
+        crate::ast::Item::Conformance(conformance) => {
+            for member in &conformance.members {
+                match member {
+                    crate::ast::ConformanceMember::AssociatedType(binding) => {
+                        ty(&binding.value, spans)
+                    }
+                    crate::ast::ConformanceMember::Method(member) => method(member, spans),
+                }
+            }
+        }
+        crate::ast::Item::Destruct(destruct) => {
+            ty(&destruct.target_ty, spans);
+            ty(&destruct.binding.ty, spans);
+        }
+        crate::ast::Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                parameters(&function.parameters, spans);
+                ty(&function.return_type, spans);
+            }
+            for (_, literal) in construct.literals() {
+                parameters(&literal.parameters, spans);
+                ty(&literal.return_type, spans);
+            }
+        }
+        crate::ast::Item::Coerce(coerce) => {
+            for member in coerce.callable_instance().methods() {
+                method(member, spans);
+            }
+        }
+        crate::ast::Item::Import(_)
+        | crate::ast::Item::FromImport(_)
+        | crate::ast::Item::Test(_) => {}
     }
 }
 
@@ -485,6 +619,31 @@ func project<S>(source: S): S.Item where S: Source { return source }
         assert_eq!(item_tokens.len(), 3, "{item_tokens:#?}");
         assert!(
             item_tokens
+                .iter()
+                .all(|identifier| identifier.kind == SemanticTokenKind::Type)
+        );
+    }
+
+    #[test]
+    fn opaque_contract_classifies_only_some_as_a_keyword() {
+        let text = r#"interface Source { pub type Item }
+struct Number { value: i32 }
+conform Source for Number { type Item = i32 }
+func make(): some Source<Item = i32> { return Number { value: 7 } }
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+
+        let some = identifiers_for_lexeme(text, &identifiers, "some");
+        assert_eq!(some.len(), 1, "{some:#?}");
+        assert_eq!(some[0].kind, SemanticTokenKind::Keyword);
+        assert!(
+            identifiers_for_lexeme(text, &identifiers, "Source")
+                .iter()
+                .all(|identifier| identifier.kind == SemanticTokenKind::Type)
+        );
+        assert!(
+            identifiers_for_lexeme(text, &identifiers, "Item")
                 .iter()
                 .all(|identifier| identifier.kind == SemanticTokenKind::Type)
         );

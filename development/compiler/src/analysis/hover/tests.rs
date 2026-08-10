@@ -27,6 +27,7 @@ construct Text {
         return Text { value: text }
     }
 }
+
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -37,6 +38,37 @@ construct Text {
 
     assert_eq!(hover.label, "literal Text \"\"(text: &str): Text from text");
     assert_eq!(&text[hover.span.start..hover.span.end], "\"\"");
+}
+
+#[test]
+fn opaque_result_hover_preserves_contract_and_hides_witness() {
+    let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+struct Number { value: i32 }
+conform Source for Number {
+    type Item = i32
+    method &self.get(): i32 { return self.value }
+}
+func make(): some Source<Item = i32> { return Number { value: 7 } }
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let make_offset = text.find("make()").expect("expected function name");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, make_offset)
+        .expect("expected function hover");
+
+    assert_eq!(hover.label, "func make(): some Source<Item = i32>");
+    assert!(!hover.label.contains("Number"));
+
+    let binding_offset = text.rfind("Item =").expect("expected opaque binding");
+    let binding_hover = hover_for_file_analysis(&sources, &analysis, file, binding_offset)
+        .expect("expected associated binding hover");
+    assert_eq!(
+        &text[binding_hover.span.start..binding_hover.span.end],
+        "Item"
+    );
 }
 
 #[test]

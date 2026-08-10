@@ -468,7 +468,7 @@ pub(super) fn infer_generic_substitutions(
     {
         infer_type_expr_substitutions(
             owner_target_ty,
-            self_type,
+            self_type.opaque_lowering_view(),
             resolved,
             None,
             &parameters,

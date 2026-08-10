@@ -30,6 +30,7 @@ mod literals;
 mod member_presentation;
 mod model;
 mod numeric;
+mod opaque_results;
 mod operations;
 mod ownership;
 mod places;
@@ -228,6 +229,7 @@ pub(crate) fn check_module_with_summary_sources(
     let mut diagnostics = Vec::new();
 
     test_declarations::check_test_declarations(sources, ast, &mut diagnostics);
+    opaque_results::check_opaque_results(sources, ast, resolved, &mut diagnostics);
     check_generic_type_arities(sources, ast, resolved, &mut diagnostics);
     associated_types::check_declarations(sources, ast, &mut diagnostics);
     check_destructors(sources, ast, resolved, &mut diagnostics);

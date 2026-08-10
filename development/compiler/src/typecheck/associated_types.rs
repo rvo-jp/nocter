@@ -50,6 +50,16 @@ pub(super) fn check_declarations(
 }
 
 pub(super) fn normalize_projection(base: Type, member: &str, resolved: &ResolveOutput) -> Type {
+    if let Type::Opaque(opaque) = &base {
+        return opaque
+            .associated_bindings
+            .iter()
+            .find_map(|(name, value)| (name == member).then_some(value.clone()))
+            .unwrap_or_else(|| Type::Projection {
+                base: Box::new(base),
+                member: member.to_string(),
+            });
+    }
     let Some((conformance, _)) = concrete_projection_contract(&base, member, resolved) else {
         return Type::Projection {
             base: Box::new(base),
@@ -66,6 +76,18 @@ pub(super) fn normalize_projection_for_interface(
     member: &str,
     resolved: &ResolveOutput,
 ) -> Type {
+    if let Type::Opaque(opaque) = &base
+        && opaque.interface.nominal_name() == Some(interface_canonical_name)
+    {
+        return opaque
+            .associated_bindings
+            .iter()
+            .find_map(|(name, value)| (name == member).then_some(value.clone()))
+            .unwrap_or_else(|| Type::Projection {
+                base: Box::new(base),
+                member: member.to_string(),
+            });
+    }
     let Some((conformance, _)) = projection_contract_for_interface(
         &base,
         interface_canonical_name,

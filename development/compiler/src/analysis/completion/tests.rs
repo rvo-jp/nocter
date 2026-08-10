@@ -1047,6 +1047,43 @@ func read<M>(map: &M): &i32 from map where M: Lookup<i32> {
 }
 
 #[test]
+fn member_completion_uses_only_the_opaque_interface_surface() {
+    let text = r#"interface Source {
+    pub type Item
+    pub method &self.get(): Self.Item
+}
+struct Number { value: i32 }
+instance Number {
+    method &self.hidden(): i32 { return self.value }
+}
+conform Source for Number {
+    type Item = i32
+    method &self.get(): i32 { return self.value }
+}
+func make(): some Source<Item = i32> { return Number { value: 7 } }
+func read(): i32 {
+    let source = make()
+    return source.get()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("source.get").unwrap() + "source.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let get = items
+        .iter()
+        .find(|item| item.label == "get")
+        .unwrap_or_else(|| panic!("expected advertised interface method: {items:#?}"));
+    assert_eq!(get.kind, CompletionItemKind::Method);
+    assert!(get.detail.as_deref().is_some_and(|detail| {
+        detail.contains("some Source<Item = i32>") && !detail.contains("Number")
+    }));
+    assert!(!items.iter().any(|item| item.label == "hidden"));
+    assert!(!items.iter().any(|item| item.label == "value"));
+}
+
+#[test]
 fn member_completion_targets_conformance_member_implementation() {
     let text = r#"interface Measure {
     pub method &self.measure(): i32

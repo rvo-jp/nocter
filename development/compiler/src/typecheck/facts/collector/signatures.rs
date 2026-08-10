@@ -324,6 +324,7 @@ impl TypecheckFactCollector<'_> {
             TypeExpr::Opaque(opaque) => {
                 self.collect_type_expr_references(&opaque.interface);
                 for binding in &opaque.associated_bindings {
+                    self.record_opaque_associated_type_reference(&opaque.interface, binding);
                     self.collect_type_expr_references(&binding.value);
                 }
             }

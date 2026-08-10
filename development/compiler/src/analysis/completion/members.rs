@@ -136,6 +136,14 @@ fn value_member_completion_items(
         );
         return items;
     };
+    if owner.symbol.kind == TypeSymbolKind::Interface {
+        items.extend(
+            methods_by_name
+                .into_values()
+                .filter_map(unambiguous_completion_candidate),
+        );
+        return items;
+    }
     for candidate in interface_method_completion_candidates(self_ty, use_source, resolved) {
         if !method_receiver_is_available(candidate.method, can_readwrite, can_move) {
             continue;

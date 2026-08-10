@@ -4,7 +4,7 @@
 //! ordinary Nocter source. Only the narrow representation query below is a
 //! trusted primitive.
 
-use std/iter.ViewIter
+use std/iter.{Iterator, ViewIter}
 use std/ptr.from_addr
 use std/string.{String, bytes_from_str, contains, ends_with, find, find_from, split, starts_with}
 use std/string.{LinesIter, SplitIter, get_range, is_char_boundary, lines, split_views}
@@ -75,7 +75,7 @@ instance str {
         return split_views(self, separator)?
     }
 
-    pub method &self.lines(): LinesIter {
+    pub method &self.lines(): some Iterator<Item = &str> {
         return lines(self)
     }
 

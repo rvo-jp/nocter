@@ -73,6 +73,11 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Opaque(opaque) => struct_field_signatures_from_type_expr(
+            opaque.witness.as_deref()?,
+            fallback_resolved,
+            resolver,
+        ),
         TypeExpr::Closure(closure) => Some(
             closure
                 .captures

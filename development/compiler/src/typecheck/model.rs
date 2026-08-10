@@ -76,6 +76,20 @@ pub(super) struct CallableParameterType {
 }
 
 impl Type {
+    /// Returns the concrete representation used only by static lowering and
+    /// implementation specialization. Ordinary type checking must retain the
+    /// opaque public identity and interface surface.
+    pub(super) fn opaque_lowering_view(&self) -> &Type {
+        match self {
+            Type::Opaque(opaque) => opaque
+                .witness
+                .as_deref()
+                .map(Type::opaque_lowering_view)
+                .unwrap_or(self),
+            _ => self,
+        }
+    }
+
     pub(super) fn substitute_parameters(&self, substitutions: &HashMap<String, Type>) -> Type {
         match self {
             Type::Parameter(parameter) => substitutions

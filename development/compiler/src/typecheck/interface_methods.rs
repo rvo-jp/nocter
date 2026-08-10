@@ -138,7 +138,8 @@ fn interface_method_candidates<'a>(
     receiver: &Type,
     resolved: &'a ResolveOutput,
 ) -> Vec<InterfaceMethodCandidate<'a>> {
-    let Some(receiver_owner) = receiver
+    let concrete_receiver = receiver.opaque_lowering_view();
+    let Some(receiver_owner) = concrete_receiver
         .nominal_name()
         .and_then(|name| resolved.type_symbol_by_canonical_name(name))
     else {
@@ -186,6 +187,7 @@ fn conformance_type_expr_substitutions(
     resolved: &ResolveOutput,
     span: ByteSpan,
 ) -> Option<HashMap<String, TypeExpr>> {
+    let receiver = receiver.opaque_lowering_view();
     let parameters = conformance
         .generic_parameters
         .iter()

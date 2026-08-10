@@ -192,6 +192,7 @@ construct Text {
     pub default literal ""(text: &str): Self {
         return Text { value: text }
     }
+
 }
 
 func main(): i32 {
@@ -208,6 +209,32 @@ func main(): i32 {
 
         assert_eq!(&text[span.start..span.end], "\"\"");
         assert_eq!(span.start, text.find("\"\"(text").unwrap());
+    }
+
+    #[test]
+    fn opaque_associated_binding_navigates_to_interface_declaration() {
+        let text = r#"interface Source {
+    pub type Item
+}
+struct Number { value: i32 }
+conform Source for Number { type Item = i32 }
+func make(): some Source<Item = i32> { return Number { value: 7 } }
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("Item =").expect("expected opaque binding");
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected associated type target");
+
+        assert_eq!(
+            &text[target.focus_span.start..target.focus_span.end],
+            "Item"
+        );
+        assert_eq!(
+            &text[target.declaration_span.start..target.declaration_span.end],
+            "Item"
+        );
+        assert_eq!(target.declaration_span.start, text.find("Item").unwrap());
     }
 
     #[test]

@@ -58,6 +58,16 @@ fn conformed_interface_types_inner<'a>(
     resolved: &'a ResolveOutput,
     active: &mut HashSet<(String, String)>,
 ) -> Vec<(&'a InterfaceConformance, Type)> {
+    if let Type::Opaque(opaque) = actual {
+        let Some(witness) = opaque.witness.as_deref() else {
+            return Vec::new();
+        };
+        return conformed_interface_types_inner(witness, resolved, active)
+            .into_iter()
+            .filter(|(_, interface)| interface == opaque.interface.as_ref())
+            .map(|(conformance, _)| (conformance, opaque.interface.as_ref().clone()))
+            .collect();
+    }
     let Some(symbol) = actual
         .nominal_name()
         .and_then(|name| resolved.type_symbol_by_canonical_name(name))

@@ -89,7 +89,7 @@ pub(super) fn method_call_specialization(
     let self_type = resolved_method_call(resolved, call, environment)?.self_type;
     let mut free_type_parameters = HashSet::new();
     let self_ty = type_to_type_expr_allowing_parameters(
-        &self_type,
+        self_type.opaque_lowering_view(),
         member.object.span(),
         &mut free_type_parameters,
     )?;

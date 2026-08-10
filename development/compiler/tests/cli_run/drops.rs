@@ -2,6 +2,69 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn opaque_result_transfers_hidden_aggregate_and_drops_it_once() {
+    let project = TempProject::new("cli-run-opaque-result-drop");
+    project.write_nocter_home_file(
+        "std/log/index.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io/index.nct",
+        r#"#target: "arm64-darwin"
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "index.nct",
+        r#"use std/log.write
+
+interface Value {
+    pub method &self.code(): i32
+}
+
+struct Hidden { value: i32 }
+
+destruct Hidden(&+self) {
+    write("drop\n")!
+    return
+}
+
+conform Value for Hidden {
+    method &self.code(): i32 { return self.value }
+}
+
+func make(): some Value {
+    return Hidden { value: 42 }
+}
+
+func main(): i32 {
+    let value = make()
+    return value.code()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_drops_owned_struct_fields_recursively_at_scope_end() {
     let project = TempProject::new("cli-run-recursive-struct-field-drop");
     write_process_exit_home(&project);

@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NonCopyOwnedValueKind {
     Closure,
+    Opaque,
     Struct,
     CopyStructInstantiation,
     Enum,
@@ -19,6 +20,7 @@ impl NonCopyOwnedValueKind {
     pub(super) fn noun(self) -> &'static str {
         match self {
             NonCopyOwnedValueKind::Closure => "move-only closure",
+            NonCopyOwnedValueKind::Opaque => "move-only opaque result",
             NonCopyOwnedValueKind::Struct => "non-copy struct",
             NonCopyOwnedValueKind::CopyStructInstantiation => "move-only copy-struct instantiation",
             NonCopyOwnedValueKind::Enum => "move-only enum",
@@ -32,6 +34,9 @@ impl NonCopyOwnedValueKind {
         match self {
             NonCopyOwnedValueKind::Closure => format!(
                 "remove readwrite captures or make every moved capture copyable, or write `move {source_name}` to transfer `{type_name}`"
+            ),
+            NonCopyOwnedValueKind::Opaque => format!(
+                "opaque results expose no copy capability; write `move {source_name}` to transfer `{type_name}`"
             ),
             NonCopyOwnedValueKind::Struct => format!(
                 "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
@@ -200,6 +205,7 @@ fn non_copy_owned_type_kind_inner(
         {
             Some(NonCopyOwnedValueKind::Closure)
         }
+        Type::Opaque(_) => Some(NonCopyOwnedValueKind::Opaque),
         Type::Named(name) => {
             let symbol = resolved.type_symbol_by_canonical_name(name)?;
             non_copy_owned_type_symbol_kind(

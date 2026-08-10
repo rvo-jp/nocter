@@ -1,5 +1,37 @@
 use super::*;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_str_lines_opaque_iterator_builds_and_runs() {
+    let project = TempProject::new("distributed-home-str-lines-opaque");
+    let source = project.write_source(
+        "str_lines_opaque.nct",
+        r#"func main(): i32 {
+    var lines = "first\nsecond\n".lines()
+    if lines.next()! != "first" { return 1 }
+    if lines.next()! != "second" { return 2 }
+    let exhausted = lines.next()
+    if has_value(exhausted) { return 3 }
+    return 42
+}
+
+func has_value(value: &str?): bool {
+    let present = value otherwise { return false }
+    return true
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_borrowed_text_view_surface_passes_check() {
     let project = TempProject::new("distributed-home-borrowed-text-view-check");

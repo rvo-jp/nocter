@@ -23,6 +23,7 @@ mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
 pub(crate) mod occurrences;
+mod opaque_results;
 pub(crate) mod package_index;
 pub(crate) mod presentation;
 pub(crate) mod references;
@@ -196,8 +197,8 @@ fn analyze_compile_unit_with_root_policy(
     root_policy: RootPolicy,
 ) -> CompileUnitAnalysis {
     let root_source = unit.root_ast.span.source;
-    let resolved_files = unit
-        .files
+    let mut analyzed_files = unit.files.clone();
+    let initial_resolved_files = analyzed_files
         .iter()
         .map(|file| {
             let mut resolved = crate::resolve::resolve_compile_unit_with_callable_bodies(
@@ -217,19 +218,52 @@ fn analyze_compile_unit_with_root_policy(
             resolved
         })
         .collect::<Vec<_>>();
-    let typecheck_sources = unit
-        .files
+    let mut opaque_diagnostics = Vec::new();
+    for (file, resolved) in analyzed_files.iter_mut().zip(initial_resolved_files.iter()) {
+        let facts = collect_typecheck_facts(file, resolved);
+        opaque_diagnostics.extend(opaque_results::elaborate_file(
+            sources, file, resolved, &facts,
+        ));
+    }
+    let resolved_files = analyzed_files
+        .iter()
+        .map(|file| {
+            let mut resolved = crate::resolve::resolve_compile_unit_with_callable_bodies(
+                sources,
+                file,
+                &analyzed_files,
+                &unit.import_sources,
+                &unit.prelude_sources,
+                &unit.callable_bodies,
+                &unit.source_scopes,
+            );
+            resolved.trusted_declarations = unit.trusted_declarations.clone();
+            resolved.diagnostics.retain(|diagnostic| {
+                diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                    || (diagnostic.primary_span.is_none() && file.span.source == root_source)
+            });
+            resolved
+        })
+        .collect::<Vec<_>>();
+    let typecheck_sources = analyzed_files
         .iter()
         .zip(resolved_files.iter())
         .map(|(file, resolved)| TypecheckSource::new(file, resolved))
         .collect::<Vec<_>>();
-    let files = unit
-        .files
+    let files = analyzed_files
         .iter()
         .zip(resolved_files.iter())
         .map(|(file, resolved)| {
             let is_root = file.span.source == root_source;
             let mut diagnostics = resolved.diagnostics.clone();
+            diagnostics.extend(
+                opaque_diagnostics
+                    .iter()
+                    .filter(|diagnostic| {
+                        diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                    })
+                    .cloned(),
+            );
             if is_root && root_policy == RootPolicy::ExecutableEntry {
                 diagnostics.extend(check_with_summary_sources(
                     sources,

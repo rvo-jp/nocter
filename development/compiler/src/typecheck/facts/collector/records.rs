@@ -200,6 +200,33 @@ impl TypecheckFactCollector<'_> {
         });
     }
 
+    pub(in crate::typecheck::facts::collector) fn record_opaque_associated_type_reference(
+        &mut self,
+        interface: &TypeExpr,
+        binding: &crate::ast::OpaqueAssociatedTypeBinding,
+    ) {
+        let interface_name = match interface {
+            TypeExpr::Reference(reference) => &reference.name,
+            TypeExpr::Generic(generic) => &generic.name,
+            _ => return,
+        };
+        let target = self
+            .resolved
+            .type_symbol_by_reference_name(interface_name)
+            .and_then(|symbol| {
+                symbol
+                    .associated_types
+                    .iter()
+                    .find(|associated| associated.name == binding.name)
+            })
+            .map(|associated| TypeOccurrenceTarget::Member(associated.name_span));
+        self.facts.type_occurrences.push(TypeOccurrenceFact {
+            focus_span: binding.name_span,
+            contextual_type: binding.value.clone(),
+            target,
+        });
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_if_is_pattern_references(
         &mut self,
         statement: &IfIsStmt,
