@@ -12,7 +12,7 @@ copy struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &self.value(): i32 {
         return self.fd
     }
@@ -64,7 +64,7 @@ copy struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &+self.touch(): void {
         return
     }

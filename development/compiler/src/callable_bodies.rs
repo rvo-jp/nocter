@@ -1,9 +1,9 @@
 //! Source-backed callable contract and implementation identity.
 
 use crate::ast::{
-    AstFile, CoerceDecl, ConstructDecl, ConstructMemberDecl, FunctionDecl, GenericParamList,
-    ImplDecl, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl, ParameterList,
-    ResultProvenanceClause, Visibility, canonical_type_expr,
+    AstFile, CoerceDecl, ConformanceMember, ConstructDecl, ConstructMemberDecl, FunctionDecl,
+    GenericParamList, InstanceDecl, InstanceMember, Item, LiteralDecl, LiteralShape, MethodDecl,
+    MethodOwnerDecl, ParameterList, ResultProvenanceClause, Visibility, canonical_type_expr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::ImportSourceMap;
@@ -132,13 +132,21 @@ impl CallableBodyIndex {
     fn declaration_surface_item(&self, item: &Item) -> Option<Item> {
         match item {
             Item::Function(function) if self.is_implementation(function_identity(function)) => None,
-            Item::Impl(impl_) => {
-                let mut filtered = impl_.clone();
+            Item::Instance(instance) => {
+                let mut filtered = instance.clone();
                 filtered.members.retain(|member| match member {
-                    ImplMember::Method(method) => !self.is_implementation(method.name_span),
-                    ImplMember::AssociatedType(_) | ImplMember::Drop(_) => true,
+                    InstanceMember::Method(method) => !self.is_implementation(method.name_span),
+                    InstanceMember::Drop(_) => true,
                 });
-                Some(Item::Impl(filtered))
+                Some(Item::Instance(filtered))
+            }
+            Item::Conformance(conformance) => {
+                let mut filtered = conformance.clone();
+                filtered.members.retain(|member| match member {
+                    ConformanceMember::AssociatedType(_) => true,
+                    ConformanceMember::Method(method) => !self.is_implementation(method.name_span),
+                });
+                Some(Item::Conformance(filtered))
             }
             Item::Construct(construct) => {
                 let mut filtered = construct.clone();
@@ -252,20 +260,20 @@ fn collect_file_callables(
                 implementations,
                 diagnostics,
             ),
-            Item::Impl(impl_) if impl_.interface_ty.is_none() => {
+            Item::Instance(instance) => {
                 collect_inherent_methods(
                     sources,
                     module,
-                    impl_,
+                    instance,
                     is_root,
                     contracts,
                     implementations,
                     diagnostics,
                 );
             }
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
-                    if let ImplMember::Method(method) = member
+            Item::Conformance(conformance) => {
+                for member in &conformance.members {
+                    if let ConformanceMember::Method(method) = member
                         && method.body.is_none()
                     {
                         diagnostics.push(invalid_bodyless_diagnostic(
@@ -338,19 +346,19 @@ fn classify(
 fn collect_inherent_methods(
     sources: &SourceMap,
     module: SourceId,
-    impl_: &ImplDecl,
+    instance: &InstanceDecl,
     is_root: bool,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &impl_.members {
-        let ImplMember::Method(method) = member else {
+    for member in &instance.members {
+        let InstanceMember::Method(method) = member else {
             continue;
         };
         classify(
             sources,
-            record_for_method(module, impl_, method),
+            record_for_method(module, instance, method),
             method.visibility,
             method.body.is_some(),
             is_root,
@@ -472,8 +480,12 @@ fn record_for_function(module: SourceId, function: &FunctionDecl) -> CallableRec
     }
 }
 
-fn record_for_method(module: SourceId, impl_: &ImplDecl, method: &MethodDecl) -> CallableRecord {
-    let owner = canonical_type_expr(&impl_.target_ty);
+fn record_for_method(
+    module: SourceId,
+    owner_decl: &(impl MethodOwnerDecl + ?Sized),
+    method: &MethodDecl,
+) -> CallableRecord {
+    let owner = canonical_type_expr(owner_decl.target_ty());
     CallableRecord {
         module,
         identity: method.name_span,
@@ -483,7 +495,7 @@ fn record_for_method(module: SourceId, impl_: &ImplDecl, method: &MethodDecl) ->
             name: method.name.clone(),
         },
         signature: CallableSignature {
-            owner_generics: generic_signature(&impl_.generics),
+            owner_generics: generic_signature(owner_decl.generics()),
             generics: generic_signature(&method.generics),
             receiver: Some(method.receiver.mode.label()),
             parameters: parameter_signature(&method.parameters),

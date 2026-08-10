@@ -189,7 +189,7 @@ pub(crate) fn method_presentation_with_substitutions(
     resolved: &ResolveOutput,
 ) -> CallablePresentation {
     let mut substitutions = substitutions.clone();
-    if let Some(impl_target) = &method.impl_target_ty {
+    if let Some(impl_target) = &method.owner_target_ty {
         let impl_target = crate::ast::substitute_type_expr_parameters(impl_target, &substitutions);
         substitutions.insert("Self".to_string(), impl_target);
     }

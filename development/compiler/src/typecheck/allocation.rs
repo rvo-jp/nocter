@@ -13,7 +13,7 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::provenance::{CallableId, CallableProvenanceSummaries};
 use super::regions::region_binding_type;
-use crate::ast::{Block, Expr, ImplMember, Item, Stmt};
+use crate::ast::{Block, ConformanceMember, Expr, InstanceMember, Item, Stmt};
 use crate::resolve::ResolveOutput;
 use crate::semantics::{AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole};
 
@@ -60,12 +60,17 @@ pub(super) fn infer_callable_allocation_effects(
                     match item {
                     Item::Function(function) => usize::from(function.body.is_some()),
                     Item::Test(_) => 1,
-                    Item::Impl(impl_) => impl_
+                    Item::Instance(instance) => instance
                         .members
                         .iter()
                         .filter(|member| {
-                            matches!(member, ImplMember::Method(method) if method.body.is_some())
+                            matches!(member, InstanceMember::Method(method) if method.body.is_some())
                         })
+                        .count(),
+                    Item::Conformance(conformance) => conformance
+                        .members
+                        .iter()
+                        .filter(|member| matches!(member, ConformanceMember::Method(method) if method.body.is_some()))
                         .count(),
                     Item::Construct(construct) => {
                         construct
@@ -130,9 +135,9 @@ pub(super) fn infer_callable_allocation_effects(
                             changed = true;
                         }
                     }
-                    Item::Impl(impl_) => {
-                        for member in &impl_.members {
-                            let ImplMember::Method(method) = member else {
+                    Item::Instance(instance) => {
+                        for member in &instance.members {
+                            let InstanceMember::Method(method) = member else {
                                 continue;
                             };
                             let Some(body) = &method.body else {
@@ -147,7 +152,35 @@ pub(super) fn infer_callable_allocation_effects(
                                 && block_needs_current_allocation_context(
                                     body,
                                     source.resolved,
-                                    &mut environment_for_method(method, source.resolved, impl_),
+                                    &mut environment_for_method(method, source.resolved, instance),
+                                    summaries,
+                                )
+                            {
+                                summaries.set_needs_current_allocation_context(callable);
+                                changed = true;
+                            }
+                        }
+                    }
+                    Item::Conformance(conformance) => {
+                        for member in &conformance.members {
+                            let ConformanceMember::Method(method) = member else {
+                                continue;
+                            };
+                            let Some(body) = &method.body else { continue };
+                            let callable = CallableId::declared_at(
+                                source
+                                    .resolved
+                                    .canonical_callable_identity(method.name_span),
+                            );
+                            if !summaries.needs_current_allocation_context(callable)
+                                && block_needs_current_allocation_context(
+                                    body,
+                                    source.resolved,
+                                    &mut environment_for_method(
+                                        method,
+                                        source.resolved,
+                                        conformance,
+                                    ),
                                     summaries,
                                 )
                             {
@@ -222,9 +255,9 @@ pub(super) fn infer_callable_allocation_effects(
                         }
                     }
                     Item::Coerce(coerce) => {
-                        let impl_ = coerce.callable_impl();
-                        for member in &impl_.members {
-                            let ImplMember::Method(method) = member else {
+                        let instance = coerce.callable_instance();
+                        for member in &instance.members {
+                            let InstanceMember::Method(method) = member else {
                                 continue;
                             };
                             let Some(body) = &method.body else {
@@ -239,7 +272,7 @@ pub(super) fn infer_callable_allocation_effects(
                                 && block_needs_current_allocation_context(
                                     body,
                                     source.resolved,
-                                    &mut environment_for_method(method, source.resolved, &impl_),
+                                    &mut environment_for_method(method, source.resolved, &instance),
                                     summaries,
                                 )
                             {

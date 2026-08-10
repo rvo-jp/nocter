@@ -900,7 +900,7 @@ struct Label {
     code: i32
 }
 
-impl Label {
+instance Label {
     method &self.text(value: &i32): &str {
         return "static"
     }
@@ -953,7 +953,7 @@ struct Text {
     len: i32
 }
 
-impl Text {
+instance Text {
     method &self.self_ref(): &Self {
         return self
     }

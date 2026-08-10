@@ -167,17 +167,10 @@ impl Item {
                     children,
                 )
             }
-            Item::Impl(item) => {
+            Item::Instance(item) => {
                 let mut children = vec![item.generics.to_json(sources)];
-                if let Some(interface_ty) = &item.interface_ty {
-                    children.push(JsonAstNode::new(
-                        "interface_type",
-                        json_span(sources, interface_ty.span()),
-                        vec![interface_ty.to_json(sources)],
-                    ));
-                }
                 children.push(JsonAstNode::new(
-                    "impl_target_type",
+                    "instance_target_type",
                     json_span(sources, item.target_ty.span()),
                     vec![item.target_ty.to_json(sources)],
                 ));
@@ -185,7 +178,25 @@ impl Item {
                     children.push(clause.to_json(sources));
                 }
                 children.extend(item.members.iter().map(|member| member.to_json(sources)));
-                JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
+                JsonAstNode::new("instance_decl", json_span(sources, item.span), children)
+            }
+            Item::Conformance(item) => {
+                let mut children = vec![item.generics.to_json(sources)];
+                children.push(JsonAstNode::new(
+                    "interface_type",
+                    json_span(sources, item.interface_ty.span()),
+                    vec![item.interface_ty.to_json(sources)],
+                ));
+                children.push(JsonAstNode::new(
+                    "conformance_target_type",
+                    json_span(sources, item.target_ty.span()),
+                    vec![item.target_ty.to_json(sources)],
+                ));
+                if let Some(clause) = &item.requirements {
+                    children.push(clause.to_json(sources));
+                }
+                children.extend(item.members.iter().map(|member| member.to_json(sources)));
+                JsonAstNode::new("conformance_decl", json_span(sources, item.span), children)
             }
             Item::Construct(item) => {
                 let mut children = vec![item.target.to_json(sources)];
@@ -443,22 +454,30 @@ impl WhereClause {
     }
 }
 
-impl ImplMember {
+impl InstanceMember {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
-            ImplMember::AssociatedType(binding) => JsonAstNode::with_value(
-                "associated_type_binding",
-                binding.name.clone(),
-                json_span(sources, binding.span),
-                vec![binding.value.to_json(sources)],
-            ),
-            ImplMember::Method(method) => method.to_json(sources),
-            ImplMember::Drop(drop_) => JsonAstNode::with_value(
+            InstanceMember::Method(method) => method.to_json(sources),
+            InstanceMember::Drop(drop_) => JsonAstNode::with_value(
                 "drop_decl",
                 drop_.binding.name.clone(),
                 json_span(sources, drop_.span),
                 vec![drop_.binding.to_json(sources), drop_.body.to_json(sources)],
             ),
+        }
+    }
+}
+
+impl ConformanceMember {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        match self {
+            ConformanceMember::AssociatedType(binding) => JsonAstNode::with_value(
+                "associated_type_binding",
+                binding.name.clone(),
+                json_span(sources, binding.span),
+                vec![binding.value.to_json(sources)],
+            ),
+            ConformanceMember::Method(method) => method.to_json(sources),
         }
     }
 }

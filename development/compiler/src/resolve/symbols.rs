@@ -11,7 +11,7 @@ use crate::source_modules::SourceModuleMap;
 use crate::source_scopes::SourceScopeMap;
 use std::collections::HashMap;
 
-use super::builtin_impls::BuiltinTypeSurface;
+use super::builtin_instances::BuiltinTypeSurface;
 use super::generic_requirements::GenericRequirements;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -718,7 +718,7 @@ pub struct MethodSignature {
     pub name_span: ByteSpan,
     pub visibility: Visibility,
     pub is_accessible: bool,
-    pub impl_target_ty: Option<TypeExpr>,
+    pub owner_target_ty: Option<TypeExpr>,
     pub has_default_body: bool,
     pub owner_generic_count: usize,
     pub receiver: MethodReceiver,

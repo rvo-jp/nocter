@@ -5,9 +5,11 @@
 //! separate surface instead of inserting synthetic structs into the value/type
 //! symbol table.
 
-use super::signatures::{duplicate_inherent_member_name_diagnostics, method_signatures};
+use super::signatures::{duplicate_inherent_member_name_diagnostics, instance_method_signatures};
 use super::{ConstructionSurface, Resolver, TypeSymbol, TypeSymbolKind};
-use crate::ast::{AstFile, ImplDecl, ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::ast::{
+    AstFile, InstanceDecl, InstanceMember, Item, MethodReceiverMode, TypeExpr, Visibility,
+};
 use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::source::ByteSpan;
@@ -20,35 +22,34 @@ pub(crate) struct BuiltinTypeSurface {
 }
 
 impl Resolver<'_> {
-    pub(super) fn collect_builtin_impl_surfaces(&mut self, root: &AstFile) {
-        let mut impls = self
-            .module_index
-            .asts()
-            .flat_map(|ast| {
-                ast.items.iter().filter_map(move |item| match item {
-                    Item::Impl(impl_) => {
-                        builtin_impl_owner(impl_).map(|owner| (ast, owner, impl_.clone()))
-                    }
-                    _ => None,
+    pub(super) fn collect_builtin_instance_surfaces(&mut self, root: &AstFile) {
+        let mut instances =
+            self.module_index
+                .asts()
+                .flat_map(|ast| {
+                    ast.items.iter().filter_map(move |item| match item {
+                        Item::Instance(instance) => builtin_instance_owner(instance)
+                            .map(|owner| (ast, owner, instance.clone())),
+                        _ => None,
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
-        impls.sort_by_key(|(_, _, impl_)| {
+                .collect::<Vec<_>>();
+        instances.sort_by_key(|(_, _, instance)| {
             (
-                impl_.span.source == root.span.source,
-                impl_.span.source.raw(),
-                impl_.span.start,
+                instance.span.source == root.span.source,
+                instance.span.source.raw(),
+                instance.span.start,
             )
         });
 
-        for (ast, owner, impl_) in impls {
-            if let Err(message) = builtin_impl_shape(owner, &impl_) {
-                if impl_.span.source == root.span.source {
+        for (ast, owner, instance) in instances {
+            if let Err(message) = builtin_instance_shape(owner, &instance) {
+                if instance.span.source == root.span.source {
                     self.output
                         .diagnostics
-                        .push(invalid_builtin_impl_diagnostic(
+                        .push(invalid_builtin_instance_diagnostic(
                             self.sources,
-                            impl_.target_ty.span(),
+                            instance.target_ty.span(),
                             owner,
                             message,
                         ));
@@ -56,7 +57,7 @@ impl Resolver<'_> {
                 continue;
             }
 
-            let mut methods = method_signatures(&impl_).collect::<Vec<_>>();
+            let mut methods = instance_method_signatures(&instance).collect::<Vec<_>>();
             self.prepare_builtin_surface_methods(
                 ast,
                 owner.implementation_module(),
@@ -69,18 +70,18 @@ impl Resolver<'_> {
                 .entry(owner)
                 .or_insert_with(|| BuiltinTypeSurface {
                     owner,
-                    declaration_span: impl_.target_ty.span(),
-                    symbol: empty_builtin_symbol(owner, &impl_),
+                    declaration_span: instance.target_ty.span(),
+                    symbol: empty_builtin_symbol(owner, &instance),
                 });
 
-            if impl_.span.source == root.span.source {
+            if instance.span.source == root.span.source {
                 self.output
                     .diagnostics
                     .extend(duplicate_inherent_member_name_diagnostics(
                         self.sources,
                         owner.canonical_name(),
                         &surface.symbol,
-                        &impl_,
+                        &instance,
                     ));
             }
             surface.symbol.methods.extend(methods);
@@ -88,41 +89,41 @@ impl Resolver<'_> {
     }
 }
 
-fn builtin_impl_owner(impl_: &ImplDecl) -> Option<BuiltinTypeOwner> {
-    BuiltinTypeOwner::from_impl_target(&impl_.target_ty)
+fn builtin_instance_owner(instance: &InstanceDecl) -> Option<BuiltinTypeOwner> {
+    BuiltinTypeOwner::from_instance_target(&instance.target_ty)
 }
 
-fn builtin_impl_shape(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> Result<(), &'static str> {
-    if impl_.interface_ty.is_some() {
-        return Err("built-in types cannot implement project interfaces");
-    }
+fn builtin_instance_shape(
+    owner: BuiltinTypeOwner,
+    instance: &InstanceDecl,
+) -> Result<(), &'static str> {
     match owner {
-        BuiltinTypeOwner::Str if !impl_.generics.parameters.is_empty() => {
-            return Err("`impl str` cannot declare generic parameters");
+        BuiltinTypeOwner::Str if !instance.generics.parameters.is_empty() => {
+            return Err("`instance str` cannot declare generic parameters");
         }
         BuiltinTypeOwner::Slice => {
-            let TypeExpr::View(view) = &impl_.target_ty else {
+            let TypeExpr::View(view) = &instance.target_ty else {
                 unreachable!("slice owner always has a view target");
             };
             if view.is_readwrite {
                 return Err("the built-in slice owner must be written `[T]`, not `&+[T]`");
             }
-            let [parameter] = impl_.generics.parameters.as_slice() else {
+            let [parameter] = instance.generics.parameters.as_slice() else {
                 return Err("the built-in slice owner requires exactly one generic parameter");
             };
             let TypeExpr::Reference(element) = view.element.as_ref() else {
                 return Err("the built-in slice element must name its generic parameter");
             };
             if element.name != parameter.name {
-                return Err("the slice element must match the implementation generic parameter");
+                return Err("the slice element must match the instance generic parameter");
             }
         }
         BuiltinTypeOwner::Str => {}
     }
-    if impl_.members.iter().any(|member| {
+    if instance.members.iter().any(|member| {
         !matches!(
             member,
-            ImplMember::Method(method)
+            InstanceMember::Method(method)
                 if method.body.is_some()
                     && method.visibility == Visibility::Public
                     && method.receiver.mode != MethodReceiverMode::Owned
@@ -133,7 +134,7 @@ fn builtin_impl_shape(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> Result<(), &
     Ok(())
 }
 
-fn invalid_builtin_impl_diagnostic(
+fn invalid_builtin_instance_diagnostic(
     sources: &crate::source::SourceMap,
     span: ByteSpan,
     owner: BuiltinTypeOwner,
@@ -142,7 +143,7 @@ fn invalid_builtin_impl_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0417",
         format!(
-            "invalid implementation surface for built-in type `{}`: {message}",
+            "invalid instance surface for built-in type `{}`: {message}",
             owner.canonical_name()
         ),
     );
@@ -154,32 +155,32 @@ fn invalid_builtin_impl_diagnostic(
     diagnostic
 }
 
-fn empty_builtin_symbol(owner: BuiltinTypeOwner, impl_: &ImplDecl) -> TypeSymbol {
+fn empty_builtin_symbol(owner: BuiltinTypeOwner, instance: &InstanceDecl) -> TypeSymbol {
     TypeSymbol {
         // The surface is kept outside the nominal symbol table. `Struct` here
         // only reuses the common method container; it never grants fields,
         // construction, coercion ownership, or drop.
         kind: TypeSymbolKind::Struct,
         canonical_name: owner.canonical_name().to_string(),
-        generic_parameters: impl_
+        generic_parameters: instance
             .generics
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_requirements: impl_
+        generic_parameter_requirements: instance
             .generics
             .parameters
             .iter()
             .map(|parameter| {
                 super::GenericRequirements::for_parameter(
                     &parameter.name,
-                    impl_.requirements.as_ref(),
+                    instance.requirements.as_ref(),
                 )
             })
             .collect(),
-        where_clause: impl_.requirements.clone(),
-        generic_arity: impl_.generics.parameters.len(),
+        where_clause: instance.requirements.clone(),
+        generic_arity: instance.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
         fields: Vec::new(),

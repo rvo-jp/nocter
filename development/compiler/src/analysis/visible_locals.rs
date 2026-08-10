@@ -1,6 +1,6 @@
 //! Lexically visible local declarations at an editor cursor.
 
-use crate::ast::{AstFile, Block, Expr, ImplMember, Item, Stmt};
+use crate::ast::{AstFile, Block, ConformanceMember, Expr, InstanceMember, Item, MethodDecl, Stmt};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,35 +38,15 @@ pub(super) fn visible_local_bindings_at_offset(
                 );
                 return locals;
             }
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
+            Item::Instance(instance) => {
+                for member in &instance.members {
                     match member {
-                        ImplMember::AssociatedType(_) => {}
-                        ImplMember::Method(method) => {
-                            let Some(body) = &method.body else {
-                                continue;
-                            };
-                            if !contains(body.span, offset) {
-                                continue;
+                        InstanceMember::Method(method) => {
+                            if collect_method(method, offset, &mut locals) {
+                                return locals;
                             }
-                            define(
-                                &mut locals,
-                                &method.receiver.name,
-                                method.receiver.name_span,
-                                "parameter",
-                            );
-                            for parameter in &method.parameters.parameters {
-                                define(
-                                    &mut locals,
-                                    &parameter.name,
-                                    parameter.name_span,
-                                    "parameter",
-                                );
-                            }
-                            collect_block(body, offset, &mut locals);
-                            return locals;
                         }
-                        ImplMember::Drop(drop_) if contains(drop_.body.span, offset) => {
+                        InstanceMember::Drop(drop_) if contains(drop_.body.span, offset) => {
                             define(
                                 &mut locals,
                                 &drop_.binding.name,
@@ -76,7 +56,16 @@ pub(super) fn visible_local_bindings_at_offset(
                             collect_block(&drop_.body, offset, &mut locals);
                             return locals;
                         }
-                        ImplMember::Drop(_) => {}
+                        InstanceMember::Drop(_) => {}
+                    }
+                }
+            }
+            Item::Conformance(conformance) => {
+                for member in &conformance.members {
+                    if let ConformanceMember::Method(method) = member
+                        && collect_method(method, offset, &mut locals)
+                    {
+                        return locals;
                     }
                 }
             }
@@ -84,6 +73,30 @@ pub(super) fn visible_local_bindings_at_offset(
         }
     }
     locals
+}
+
+fn collect_method(
+    method: &MethodDecl,
+    offset: usize,
+    locals: &mut Vec<VisibleLocalBinding>,
+) -> bool {
+    let Some(body) = &method.body else {
+        return false;
+    };
+    if !contains(body.span, offset) {
+        return false;
+    }
+    define(
+        locals,
+        &method.receiver.name,
+        method.receiver.name_span,
+        "parameter",
+    );
+    for parameter in &method.parameters.parameters {
+        define(locals, &parameter.name, parameter.name_span, "parameter");
+    }
+    collect_block(body, offset, locals);
+    true
 }
 
 fn collect_block(block: &Block, offset: usize, locals: &mut Vec<VisibleLocalBinding>) {

@@ -187,7 +187,7 @@ mod tests {
     pub type Item
 }
 struct NumberSource { value: i32 }
-impl Source for NumberSource {
+conform Source for NumberSource {
     type Item = i32
 }
 func project<S>(source: S): S.Item where S: Source { return source }
@@ -203,7 +203,7 @@ func project<S>(source: S): S.Item where S: Source { return source }
 
     #[test]
     fn reference_query_finds_member_references() {
-        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method &self.read(): i32 {\n        return self.fd\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd + file.read()\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\ninstance File {\n    method &self.read(): i32 {\n        return self.fd\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd + file.read()\n}\n";
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let field_offset = text.find("fd: i32").expect("expected field");

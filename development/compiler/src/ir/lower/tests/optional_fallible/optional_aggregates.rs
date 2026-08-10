@@ -176,7 +176,7 @@ fn lowers_optional_direct_aggregate_otherwise_return_with_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -302,7 +302,7 @@ fn lowers_optional_direct_aggregate_otherwise_fallible_return_with_scope_cleanup
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -397,7 +397,7 @@ fn lowers_optional_indirect_aggregate_otherwise_return_with_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

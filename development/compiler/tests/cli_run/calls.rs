@@ -37,7 +37,7 @@ fn run_command_returns_temporary_method_receiver_exit_code() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &self.value(): i32 {
         return self.fd
     }

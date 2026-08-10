@@ -163,7 +163,7 @@ fn accepts_public_inherent_method_with_elided_receiver_origin() {
     let diagnostics = check_text(
         r#"struct Holder { value: &i32 }
 
-impl Holder {
+instance Holder {
     pub method &self.view(): &i32 { return self.value }
 }
 
@@ -179,7 +179,7 @@ fn accepts_public_fallible_method_with_elided_receiver_origin() {
     let diagnostics = check_text(
         r#"struct Holder { value: &i32 }
 
-impl Holder {
+instance Holder {
     pub method &self.view(): &i32! { return self.value }
 }
 
@@ -195,7 +195,7 @@ fn private_inherent_method_may_infer_an_external_result_origin() {
     let diagnostics = check_text(
         r#"struct Holder { value: &i32 }
 
-impl Holder {
+instance Holder {
     method &self.view(): &i32 { return self.value }
 }
 

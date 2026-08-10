@@ -43,9 +43,16 @@ pub(in crate::typecheck) fn check_ownership_states(
                     &mut ownership,
                 );
             }
-            Item::Impl(impl_) => {
-                check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
+            Item::Instance(instance) => {
+                check_instance_member_ownership(sources, instance, resolved, summaries, diagnostics)
             }
+            Item::Conformance(conformance) => check_conformance_member_ownership(
+                sources,
+                conformance,
+                resolved,
+                summaries,
+                diagnostics,
+            ),
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     let Some(body) = &method.body else {
@@ -84,9 +91,9 @@ pub(in crate::typecheck) fn check_ownership_states(
                     check_literal_ownership(sources, literal, resolved, summaries, diagnostics);
                 }
             }
-            Item::Coerce(coerce) => check_impl_member_ownership(
+            Item::Coerce(coerce) => check_instance_member_ownership(
                 sources,
-                &coerce.callable_impl(),
+                &coerce.callable_instance(),
                 resolved,
                 summaries,
                 diagnostics,
@@ -149,44 +156,52 @@ fn check_literal_ownership(
     );
 }
 
-fn check_impl_member_ownership(
+fn check_method_ownership(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
+    method: &crate::ast::MethodDecl,
     resolved: &ResolveOutput,
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &impl_.members {
+    let Some(body) = &method.body else { return };
+    let mut environment = environment_for_method(method, resolved, owner);
+    let mut ownership = OwnershipState::default();
+    ownership.define_binding_from_environment(
+        &method.receiver.name,
+        method.receiver.name_span,
+        &environment,
+        resolved,
+    );
+    ownership.define_parameters(&method.parameters.parameters, &environment, resolved);
+    check_block_ownership(
+        sources,
+        body,
+        resolved,
+        summaries,
+        diagnostics,
+        &mut environment,
+        &mut ownership,
+    );
+}
+
+fn check_instance_member_ownership(
+    sources: &SourceMap,
+    instance: &InstanceDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in &instance.members {
         match member {
-            ImplMember::AssociatedType(_) => {}
-            ImplMember::Method(method) => {
-                let Some(body) = &method.body else {
-                    continue;
-                };
-                let mut environment = environment_for_method(method, resolved, impl_);
-                let mut ownership = OwnershipState::default();
-                ownership.define_binding_from_environment(
-                    &method.receiver.name,
-                    method.receiver.name_span,
-                    &environment,
-                    resolved,
-                );
-                ownership.define_parameters(&method.parameters.parameters, &environment, resolved);
-                check_block_ownership(
-                    sources,
-                    body,
-                    resolved,
-                    summaries,
-                    diagnostics,
-                    &mut environment,
-                    &mut ownership,
-                );
+            InstanceMember::Method(method) => {
+                check_method_ownership(sources, instance, method, resolved, summaries, diagnostics)
             }
-            ImplMember::Drop(drop_) => {
-                let mut environment = environment_for_parameters_in_impl(
+            InstanceMember::Drop(drop_) => {
+                let mut environment = environment_for_parameters_in_method_owner(
                     std::slice::from_ref(&drop_.binding),
                     resolved,
-                    impl_,
+                    instance,
                 );
                 let mut ownership = OwnershipState::default();
                 ownership.define_parameters(
@@ -204,6 +219,27 @@ fn check_impl_member_ownership(
                     &mut ownership,
                 );
             }
+        }
+    }
+}
+
+fn check_conformance_member_ownership(
+    sources: &SourceMap,
+    conformance: &ConformanceDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in &conformance.members {
+        if let ConformanceMember::Method(method) = member {
+            check_method_ownership(
+                sources,
+                conformance,
+                method,
+                resolved,
+                summaries,
+                diagnostics,
+            );
         }
     }
 }

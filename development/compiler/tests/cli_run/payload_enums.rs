@@ -100,7 +100,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -142,7 +142,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -184,7 +184,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -226,7 +226,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -269,7 +269,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -315,7 +315,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -361,7 +361,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -408,7 +408,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     drop &+self {
         exit(self.code)
     }
@@ -787,7 +787,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -986,7 +986,7 @@ struct Guard {
     code: i32
 }
 
-impl Guard {
+instance Guard {
     drop &+self {
         exit(self.code)
     }
@@ -1038,7 +1038,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -1102,7 +1102,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         write("drop\n")!
         return
@@ -1189,7 +1189,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -1238,7 +1238,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -1284,7 +1284,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -1582,7 +1582,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -1880,7 +1880,7 @@ struct Payload {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         exit(self.code)
     }
@@ -2571,7 +2571,7 @@ fn run_command_returns_owned_if_is_direct_drop_payload_binding_exit_code() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -2613,7 +2613,7 @@ fn run_command_returns_owned_match_direct_drop_payload_binding_exit_code() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -2655,7 +2655,7 @@ fn run_command_returns_constructor_match_direct_drop_payload_binding_exit_code()
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -2699,7 +2699,7 @@ struct Detail {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         exit(self.code)
     }
@@ -2749,7 +2749,7 @@ struct Detail {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         exit(self.code)
     }
@@ -2799,7 +2799,7 @@ struct Detail {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         exit(self.code)
     }
@@ -2845,7 +2845,7 @@ struct Detail {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         exit(self.code)
     }
@@ -2914,7 +2914,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -3034,7 +3034,7 @@ struct Token {
     tag: u8
 }
 
-impl Token {
+instance Token {
     drop &+self {
         if self.tag == 1 {
             write("a")!
@@ -3106,7 +3106,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -3208,7 +3208,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -3315,7 +3315,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return

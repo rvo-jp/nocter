@@ -194,7 +194,8 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 | Item::Struct(_)
                 | Item::Enum(_)
                 | Item::Interface(_)
-                | Item::Impl(_)
+                | Item::Instance(_)
+                | Item::Conformance(_)
                 | Item::Construct(_)
                 | Item::Coerce(_) => None,
             };

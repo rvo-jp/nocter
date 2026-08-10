@@ -11,7 +11,7 @@ use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 
-pub(super) fn enqueue_builtin_implementation_sources(
+pub(super) fn enqueue_builtin_instance_sources(
     sources: &mut SourceMap,
     root: SourceId,
     options: &FrontendOptions,
@@ -65,7 +65,7 @@ pub(super) fn enqueue_builtin_implementation_sources(
     diagnostics
 }
 
-pub(super) fn validate_builtin_impl_authority(
+pub(super) fn validate_builtin_instance_authority(
     sources: &SourceMap,
     source: SourceId,
     ast: &AstFile,
@@ -76,14 +76,14 @@ pub(super) fn validate_builtin_impl_authority(
     ast.items
         .iter()
         .filter_map(|item| {
-            let Item::Impl(impl_) = item else {
+            let Item::Instance(instance) = item else {
                 return None;
             };
-            BuiltinTypeOwner::from_impl_target(&impl_.target_ty).map(|owner| {
+            BuiltinTypeOwner::from_instance_target(&instance.target_ty).map(|owner| {
                 (
                     owner.canonical_name(),
                     owner.implementation_module(),
-                    impl_.target_ty.span(),
+                    instance.target_ty.span(),
                 )
             })
         })
@@ -94,7 +94,7 @@ pub(super) fn validate_builtin_impl_authority(
             let mut diagnostic = Diagnostic::error(
                 "E0416",
                 format!(
-                    "implementations for built-in type `{owner}` are owned by `{required_module}`"
+                    "instances for built-in type `{owner}` are owned by `{required_module}`"
                 ),
             );
             diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);

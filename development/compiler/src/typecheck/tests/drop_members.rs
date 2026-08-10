@@ -7,7 +7,7 @@ fn accepts_drop_member_readwrite_self_borrow_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -30,7 +30,7 @@ fn diagnoses_drop_member_on_copy_struct() {
     right: i32
 }
 
-impl Pair {
+instance Pair {
     drop &+self {
         return
     }

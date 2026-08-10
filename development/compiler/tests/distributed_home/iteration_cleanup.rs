@@ -87,7 +87,7 @@ struct Token {
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         print(self.label)!
         return
@@ -292,7 +292,7 @@ struct Token {
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         print(self.label)!
         return
@@ -341,7 +341,7 @@ struct Token {{
     label: &str
 }}
 
-impl Token {{
+instance Token {{
     drop &+self {{
         print(self.label)!
         return

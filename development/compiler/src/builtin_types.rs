@@ -32,7 +32,7 @@ impl BuiltinTypeOwner {
         }
     }
 
-    pub(crate) fn from_impl_target(target: &TypeExpr) -> Option<Self> {
+    pub(crate) fn from_instance_target(target: &TypeExpr) -> Option<Self> {
         match target {
             TypeExpr::Reference(reference) if reference.name == "str" => Some(Self::Str),
             TypeExpr::View(_) => Some(Self::Slice),

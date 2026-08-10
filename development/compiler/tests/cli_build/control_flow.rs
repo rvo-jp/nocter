@@ -194,7 +194,7 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_while_body() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -230,7 +230,7 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_loop_body() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -266,7 +266,7 @@ fn build_command_lowers_return_in_nonterminal_while_body() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -298,7 +298,7 @@ fn build_command_lowers_terminal_if_branch_void_call() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -879,7 +879,7 @@ copy struct Checker {
     seed: i32
 }
 
-impl Checker {
+instance Checker {
     method &self.score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
         if self.seed == 40 && byte == 5 && size == 7 && ok && text == "Nocter" && data.len() == 3 {
             42

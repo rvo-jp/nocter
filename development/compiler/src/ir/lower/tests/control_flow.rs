@@ -608,7 +608,7 @@ fn lowers_branch_void_call_before_terminal_if_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

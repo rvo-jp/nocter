@@ -35,12 +35,12 @@ fn check_text(text: &str) -> Vec<Diagnostic> {
     let str_source = sources.add_source(
         "std/str/index.nct",
         None,
-        "impl str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let slice_source = sources.add_source(
         "std/slice/index.nct",
         None,
-        "impl<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let ast = parse_test_source(&sources, source);
     let str_ast = parse_test_source(&sources, str_source);

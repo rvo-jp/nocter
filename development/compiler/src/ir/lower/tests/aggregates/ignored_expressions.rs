@@ -7,7 +7,7 @@ fn lowers_ignored_direct_aggregate_call_expression_statement_with_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -94,7 +94,7 @@ fn lowers_ignored_aggregate_literal_expression_statement_with_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -143,7 +143,7 @@ fn lowers_ignored_alias_aggregate_call_expression_statement_with_drop() {
 
 type Handle = File
 
-impl File {
+instance File {
     drop &+self {
         return
     }

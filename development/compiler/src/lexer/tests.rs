@@ -83,6 +83,17 @@ fn keyword_lexemes_match_lexer_keywords() {
 }
 
 #[test]
+fn impl_is_an_identifier_after_the_declaration_split() {
+    let mut sources = SourceMap::new();
+    let id = sources.add_source("app.nct", None, "impl instance conform".to_string());
+    let output = lex(&sources, id);
+
+    assert!(matches!(output.tokens[0].kind, TokenKind::Identifier));
+    assert_eq!(output.tokens[1].kind, TokenKind::Keyword(Keyword::Instance));
+    assert_eq!(output.tokens[2].kind, TokenKind::Keyword(Keyword::Conform));
+}
+
+#[test]
 fn validates_identifier_names() {
     assert!(is_valid_identifier_name("main"));
     assert!(is_valid_identifier_name("_entry2"));

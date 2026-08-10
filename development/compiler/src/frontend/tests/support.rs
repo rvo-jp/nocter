@@ -29,7 +29,7 @@ pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        r#"impl str {
+        r#"instance str {
     pub method &self.len(): usize { return 0 }
     pub method &self.is_empty(): bool { return self.len() == 0 }
 }
@@ -38,7 +38,7 @@ pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     .unwrap();
     crate::test_files::write(
         home.join("std/slice/index.nct"),
-        r#"impl<T> [T] {
+        r#"instance<T> [T] {
     pub method &self.len(): usize { return 0 }
     pub method &self.is_empty(): bool { return self.len() == 0 }
 }

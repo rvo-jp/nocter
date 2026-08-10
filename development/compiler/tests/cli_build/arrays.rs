@@ -560,7 +560,7 @@ fn build_command_tracks_partial_move_only_array_struct_fields() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

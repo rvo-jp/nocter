@@ -1,8 +1,8 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, TypeExpr, canonical_type_expr,
-    substitute_type_expr_parameters,
+    DropDecl, FunctionDecl, InstanceDecl, InstanceMember, Item, MethodDecl, MethodOwnerDecl,
+    TypeExpr, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{
@@ -280,17 +280,17 @@ fn redirect_interface_method_specialization(
     ) else {
         return specialization;
     };
-    let Some((_file, Some(impl_), _method)) =
+    let Some((_file, Some(owner), _method)) =
         method_declaration_for_span(analysis, actual_method.name_span)
     else {
         return specialization;
     };
-    let Some(impl_substitutions) = impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
+    let Some(impl_substitutions) = impl_substitutions_for_self_ty(owner, &specialization.self_ty)
     else {
         return specialization;
     };
     specialization.declaration_span = actual_method.name_span;
-    let runtime_self_ty = substitute_type_expr_parameters(&impl_.target_ty, &impl_substitutions);
+    let runtime_self_ty = substitute_type_expr_parameters(owner.target_ty(), &impl_substitutions);
     specialization.target_name = format!(
         "{}.{}",
         canonical_type_expr(&runtime_self_ty),
@@ -535,16 +535,16 @@ fn iteration_method_call_specialization(
     analysis: &CompileUnitAnalysis,
     method: &crate::typecheck::TypecheckIterationMethod,
 ) -> Option<MethodCallSpecialization> {
-    let Some((_file, Some(impl_), _declaration)) =
+    let Some((_file, Some(owner), _declaration)) =
         method_declaration_for_span(analysis, method.declaration_span)
     else {
         return interface_method_identity_for_span(analysis, method.declaration_span)
             .is_some()
             .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
     };
-    let substitutions = impl_substitutions_for_self_ty(impl_, &method.self_ty)?;
-    let generic_parameters = impl_
-        .generics
+    let substitutions = impl_substitutions_for_self_ty(owner, &method.self_ty)?;
+    let generic_parameters = owner
+        .generics()
         .parameters
         .iter()
         .map(|parameter| parameter.name.clone())
@@ -591,14 +591,13 @@ fn function_body_declaration_for_span(
 fn method_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, Option<&ImplDecl>, &MethodDecl)> {
+) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, &MethodDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| match item {
-            Item::Impl(impl_) => impl_.members.iter().find_map(|member| {
-                let ImplMember::Method(method) = member else {
-                    return None;
-                };
-                (method.name_span == declaration_span).then_some((file, Some(impl_), method))
+            Item::Instance(_) | Item::Conformance(_) => item.method_owner().and_then(|owner| {
+                owner.methods().find_map(|method| {
+                    (method.name_span == declaration_span).then_some((file, Some(owner), method))
+                })
             }),
             Item::Interface(interface) => interface.methods.iter().find_map(|method| {
                 (method.name_span == declaration_span).then_some((file, None, method))
@@ -611,7 +610,7 @@ fn method_declaration_for_span(
 fn method_body_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, Option<&ImplDecl>, &MethodDecl)> {
+) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, &MethodDecl)> {
     let body_span = analysis
         .callable_bodies
         .implementation(declaration_span)
@@ -622,17 +621,17 @@ fn method_body_declaration_for_span(
 fn drop_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &ImplDecl, &DropDecl)> {
+) -> Option<(&FileAnalysis, &InstanceDecl, &DropDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
-            let Item::Impl(impl_) = item else {
+            let Item::Instance(instance) = item else {
                 return None;
             };
-            impl_.members.iter().find_map(|member| {
-                let ImplMember::Drop(drop_) = member else {
+            instance.members.iter().find_map(|member| {
+                let InstanceMember::Drop(drop_) = member else {
                     return None;
                 };
-                (drop_.name_span == declaration_span).then_some((file, impl_, drop_))
+                (drop_.name_span == declaration_span).then_some((file, instance, drop_))
             })
         })
     })
@@ -642,10 +641,10 @@ fn drop_specialization_from_typecheck_fact(
     analysis: &CompileUnitAnalysis,
     specialization: DropTypeSpecialization,
 ) -> Option<DropSpecialization> {
-    let (_file, impl_, _drop_) =
+    let (_file, instance, _drop_) =
         drop_declaration_for_span(analysis, specialization.declaration_span)?;
-    let substitutions = impl_substitutions_for_self_ty(impl_, &specialization.self_ty)?;
-    let self_ty = substitute_type_expr_parameters(&impl_.target_ty, &substitutions);
+    let substitutions = impl_substitutions_for_self_ty(instance, &specialization.self_ty)?;
+    let self_ty = substitute_type_expr_parameters(&instance.target_ty, &substitutions);
     Some(DropSpecialization {
         declaration_span: specialization.declaration_span,
         target_name: drop_target_name(&self_ty),
@@ -655,13 +654,13 @@ fn drop_specialization_from_typecheck_fact(
 }
 
 fn method_specialization_context_substitutions(
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
     specialization: &MethodCallSpecialization,
     resolved: &crate::resolve::ResolveOutput,
     analysis: &CompileUnitAnalysis,
 ) -> HashMap<String, TypeExpr> {
     let mut substitutions =
-        impl_substitutions_for_self_ty(impl_, &specialization.self_ty).unwrap_or_default();
+        impl_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
     crate::typecheck::extend_associated_type_substitutions_with_resolver(
         &mut substitutions,
@@ -672,18 +671,18 @@ fn method_specialization_context_substitutions(
 }
 
 pub(crate) fn impl_substitutions_for_self_ty(
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
     self_ty: &TypeExpr,
 ) -> Option<HashMap<String, TypeExpr>> {
-    let generic_parameters = impl_
-        .generics
+    let generic_parameters = owner
+        .generics()
         .parameters
         .iter()
         .map(|parameter| parameter.name.clone())
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
     infer_impl_substitutions(
-        &impl_.target_ty,
+        owner.target_ty(),
         self_ty,
         &generic_parameters,
         &mut substitutions,

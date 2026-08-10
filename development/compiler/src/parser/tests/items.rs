@@ -2,17 +2,19 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::ast::{
+    ConformanceMember, InstanceMember, Item, MethodReceiverMode, TypeExpr, Visibility,
+};
 
 #[test]
-fn parses_required_associated_types_and_impl_bindings() {
+fn parses_required_associated_types_and_conformance_bindings() {
     let output = parse_text(
         r#"pub interface Source {
     pub type Item
     pub method &+self.next(): Self.Item?
 }
 
-impl<T> Source for Buffer<T> {
+conform<T> Source for Buffer<T> {
     type Item = T
     method &+self.next(): T? { return none }
 }
@@ -32,12 +34,12 @@ impl<T> Source for Buffer<T> {
                 if projection.name == "Item"
                     && matches!(projection.base.as_ref(), TypeExpr::Reference(reference) if reference.name == "Self"))
     ));
-    let Item::Impl(impl_) = &ast.items[1] else {
-        panic!("expected impl");
+    let Item::Conformance(conformance) = &ast.items[1] else {
+        panic!("expected conformance");
     };
     assert!(matches!(
-        &impl_.members[0],
-        ImplMember::AssociatedType(binding)
+        &conformance.members[0],
+        ConformanceMember::AssociatedType(binding)
             if binding.name == "Item"
                 && matches!(&binding.value, TypeExpr::Reference(reference) if reference.name == "T")
     ));
@@ -120,7 +122,7 @@ fn rejects_removed_result_allocation_modifiers_without_reserving_alloc() {
         "pub alloc func copy(): Text { return make() }\n",
         "pub(/) alloc primitive make_text(): Text\n",
         "interface Factory { pub alloc method &self.make(): Text }\n",
-        "impl Factory for Builder { alloc method &self.make(): Text { return make() } }\n",
+        "conform Factory for Builder { alloc method &self.make(): Text { return make() } }\n",
     ] {
         let output = parse_text(source);
         assert!(output.ast.is_none(), "accepted `{source}`");
@@ -371,7 +373,7 @@ fn rejects_discard_name_for_item_declarations_and_imports() {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     method &self._(): i32 {
         return 0
     }
@@ -430,7 +432,7 @@ fn rejects_self_name_for_item_declarations_and_imports() {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     method &self.Self(): i32 {
         return 0
     }
@@ -593,7 +595,7 @@ pub func Counter.zero(): i32 {
     return 0
 }
 
-impl Counter {
+instance Counter {
     pub method &+self.add(value: i32): void {
         return
     }
@@ -624,22 +626,21 @@ func main(): i32 {
     let owner = associated_function.owner.as_ref().unwrap();
     assert_eq!(owner.name, "Counter");
 
-    let Item::Impl(inherent_impl) = &ast.items[2] else {
-        panic!("expected inherent impl");
+    let Item::Instance(instance) = &ast.items[2] else {
+        panic!("expected instance");
     };
-    assert!(inherent_impl.interface_ty.is_none());
     assert!(matches!(
-        &inherent_impl.target_ty,
+        &instance.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    let ImplMember::Method(method) = &inherent_impl.members[0] else {
+    let InstanceMember::Method(method) = &instance.members[0] else {
         panic!("expected method");
     };
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert_eq!(method.receiver.name, "self");
     assert_eq!(method.receiver.mode, MethodReceiverMode::ReadwriteBorrow);
-    let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
+    let InstanceMember::Drop(drop_) = &instance.members[1] else {
         panic!("expected drop member");
     };
     assert_eq!(&source[drop_.name_span.start..drop_.name_span.end], "drop");
@@ -760,13 +761,13 @@ fn diagnoses_single_line_parameter_trailing_comma() {
 }
 
 #[test]
-fn parses_generic_impl_parameters() {
+fn parses_generic_instance_parameters() {
     let output = parse_text(
         r#"struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.value(): U {
         return self.value
     }
@@ -780,13 +781,13 @@ func main(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Impl(impl_) = &ast.items[1] else {
-        panic!("expected impl");
+    let Item::Instance(instance) = &ast.items[1] else {
+        panic!("expected instance");
     };
-    assert_eq!(impl_.generics.parameters.len(), 1);
-    assert_eq!(impl_.generics.parameters[0].name, "U");
-    let TypeExpr::Generic(target) = &impl_.target_ty else {
-        panic!("expected generic impl target");
+    assert_eq!(instance.generics.parameters.len(), 1);
+    assert_eq!(instance.generics.parameters[0].name, "U");
+    let TypeExpr::Generic(target) = &instance.target_ty else {
+        panic!("expected generic instance target");
     };
     assert_eq!(target.name, "Box");
     assert_eq!(target.arguments.len(), 1);
@@ -796,7 +797,7 @@ func main(): i32 {
 fn parses_method_generic_parameters_after_the_method_name() {
     let source = r#"struct Factory {}
 
-impl Factory {
+instance Factory {
     method &self.identity<T>(value: T): T where T: Copyable {
         return value
     }
@@ -806,10 +807,10 @@ impl Factory {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Impl(impl_) = &ast.items[1] else {
-        panic!("expected impl");
+    let Item::Instance(instance) = &ast.items[1] else {
+        panic!("expected instance");
     };
-    let ImplMember::Method(method) = &impl_.members[0] else {
+    let InstanceMember::Method(method) = &instance.members[0] else {
         panic!("expected method");
     };
     assert_eq!(method.generics.parameters.len(), 1);
@@ -857,7 +858,7 @@ fn rejects_non_self_method_receiver_name() {
     fd: i32
 }
 
-impl File {
+instance File {
     method file.bad(): i32 {
         return 0
     }
@@ -955,7 +956,7 @@ fn rejects_legacy_drop_member_binding_syntax() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop file: Self {
         return
     }
@@ -975,7 +976,7 @@ fn rejects_readonly_drop_member_receiver() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &self {
         return
     }
@@ -1038,7 +1039,7 @@ fn parses_interface_default_method_bodies() {
 }
 
 #[test]
-fn parses_interface_conformance_impls() {
+fn parses_interface_conformances() {
     let (sources, output) = parse_text_with_sources(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
@@ -1048,7 +1049,7 @@ struct Counter {
     value: i32
 }
 
-impl Writer for Counter {
+conform Writer for Counter {
     method &+self.write(text: &str): void! {
         return
     }
@@ -1058,30 +1059,31 @@ impl Writer for Counter {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Impl(interface_impl) = &ast.items[2] else {
-        panic!("expected interface impl");
+    let Item::Conformance(conformance) = &ast.items[2] else {
+        panic!("expected conformance");
     };
     assert!(
-        matches!(&interface_impl.interface_ty, Some(TypeExpr::Reference(reference)) if reference.name == "Writer")
+        matches!(&conformance.interface_ty, TypeExpr::Reference(reference) if reference.name == "Writer")
     );
     assert!(matches!(
-        &interface_impl.target_ty,
+        &conformance.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
     assert!(matches!(
-        interface_impl.members.as_slice(),
-        [ImplMember::Method(method)] if method.name == "write" && method.body.is_some()
+        conformance.members.as_slice(),
+        [ConformanceMember::Method(method)] if method.name == "write" && method.body.is_some()
     ));
     let json = ast.to_json(&sources);
-    let impl_node = find_json_node(&json, "impl_decl").expect("expected impl JSON node");
+    let conformance_node =
+        find_json_node(&json, "conformance_decl").expect("expected conformance JSON node");
     assert!(
-        impl_node
+        conformance_node
             .items
             .iter()
             .any(|node| node.kind == "interface_type")
     );
     assert!(
-        impl_node
+        conformance_node
             .items
             .iter()
             .any(|node| { node.kind == "method_decl" && node.value.as_deref() == Some("write") })
@@ -1089,7 +1091,48 @@ impl Writer for Counter {
 }
 
 #[test]
-fn rejects_braceless_interface_implementations() {
+fn rejects_removed_impl_declarations_with_a_directional_diagnostic() {
+    let output = parse_text("impl Counter { method &self.value(): i32 { return 0 } }\n");
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    let diagnostic = &output.diagnostics[0];
+    assert!(
+        diagnostic
+            .message
+            .contains("`impl` declarations were removed")
+    );
+    assert!(diagnostic.message.contains("`instance Type`"));
+    assert!(diagnostic.message.contains("`conform Interface for Type`"));
+}
+
+#[test]
+fn instance_and_conformance_member_grammars_do_not_overlap() {
+    for (source, expected) in [
+        (
+            "instance Counter { type Item = i32 }\n",
+            "expected `method` or `drop`",
+        ),
+        (
+            "conform Iterator for Counter { drop &+self { return } }\n",
+            "expected `type` or `method`",
+        ),
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "accepted `{source}`");
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn rejects_braceless_conformances() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
@@ -1099,7 +1142,7 @@ struct Counter {
     value: i32
 }
 
-impl Writer for Counter
+conform Writer for Counter
 "#,
     );
 
@@ -1107,12 +1150,12 @@ impl Writer for Counter
     assert!(
         output.diagnostics[0]
             .message
-            .contains("expected `{` after interface implementation target")
+            .contains("expected `{` after conformance target")
     );
 }
 
 #[test]
-fn rejects_visibility_on_interface_implementation_members() {
+fn rejects_visibility_on_conformance_members() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
@@ -1122,7 +1165,7 @@ struct Counter {
     value: i32
 }
 
-impl Writer for Counter {
+conform Writer for Counter {
     pub method &+self.write(text: &str): void! {
         return
     }
@@ -1277,19 +1320,19 @@ fn rejects_copy_after_a_bound_colon() {
 }
 
 #[test]
-fn parses_projected_type_equality_on_impl() {
+fn parses_projected_type_equality_on_conformance() {
     let output = parse_text(
-        r#"impl<L, R> Pair for Zip<L, R> where R.Item = L.Item {
+        r#"conform<L, R> Pair for Zip<L, R> where R.Item = L.Item {
 }
 "#,
     );
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.expect("ast");
-    let Item::Impl(impl_) = &ast.items[0] else {
-        panic!("expected impl");
+    let Item::Conformance(conformance) = &ast.items[0] else {
+        panic!("expected conformance");
     };
-    let clause = impl_.requirements.as_ref().expect("where clause");
+    let clause = conformance.requirements.as_ref().expect("where clause");
     let equalities = clause.equalities().collect::<Vec<_>>();
     assert_eq!(equalities.len(), 1);
     assert_eq!(
@@ -1303,13 +1346,13 @@ fn parses_projected_type_equality_on_impl() {
 }
 
 #[test]
-fn rejects_function_members_in_impl_blocks() {
+fn rejects_function_members_in_instance_blocks() {
     let output = parse_text(
         r#"struct Counter {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     func zero(): i32 {
         return 0
     }

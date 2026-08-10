@@ -12,7 +12,7 @@ struct Buffer<T> {
     marker: i32,
 }
 
-impl<T> Source for Buffer<T> {
+conform<T> Source for Buffer<T> {
     type Item = T
 
     method &+self.next(): T? {
@@ -55,11 +55,11 @@ copy struct Box<T> {
     value: T
 }
 
-impl Source for Numbers {
+conform Source for Numbers {
     type Item = i32
 }
 
-impl<T> Source for Box<T> {
+conform<T> Source for Box<T> {
     type Item = T
 }
 
@@ -102,7 +102,7 @@ struct Buffer {
     marker: i32,
 }
 
-impl Source for Buffer {
+conform Source for Buffer {
     type Other = i32
     type Other = bool
 }
@@ -213,7 +213,7 @@ copy struct Bad {
     value: i32
 }
 
-impl Iterable for Bad {
+conform Iterable for Bad {
     type Iter = i32
 
     method &self.iter(): i32 {
@@ -286,11 +286,11 @@ fn rejects_call_whose_associated_types_violate_where_equality() {
 copy struct Integers { marker: i32 }
 copy struct Flags { marker: i32 }
 
-impl Source for Integers {
+conform Source for Integers {
     type Item = i32
 }
 
-impl Source for Flags {
+conform Source for Flags {
     type Item = bool
 }
 
@@ -326,7 +326,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -353,7 +353,7 @@ copy struct Number {
     value: i32
 }
 
-impl Value for Number {
+conform Value for Number {
     method &self.value(): i32 {
         return self.value
     }
@@ -382,7 +382,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {
+conform Value for Unit {
     method &self.value(): i32 {
         return 2
     }
@@ -417,8 +417,8 @@ copy struct Unit {
     marker: i32
 }
 
-impl Left for Unit {}
-impl Right for Unit {}
+conform Left for Unit {}
+conform Right for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -459,7 +459,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_inherent_and_interface_implementation_name_conflict() {
+fn diagnoses_inherent_and_conformanceementation_name_conflict() {
     let diagnostics = check_text(
         r#"interface Value {
     pub method &self.value(): i32
@@ -469,13 +469,13 @@ copy struct Unit {
     marker: i32
 }
 
-impl Unit {
+instance Unit {
     pub method &self.value(): i32 {
         return 1
     }
 }
 
-impl Value for Unit {
+conform Value for Unit {
     method &self.value(): i32 {
         return 2
     }
@@ -509,7 +509,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {
+conform Value for Unit {
     method &self.value(): usize {
         return 2
     }
@@ -540,7 +540,7 @@ struct User {
     id: i32
 }
 
-impl Printable for User {
+conform Printable for User {
     method &self.print(): i32 {
         return 1
     }
@@ -567,7 +567,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Source<T> for Box<T> {
+conform<T> Source<T> for Box<T> {
     method self.get(): T from self {
         return self.value
     }
@@ -593,7 +593,7 @@ struct Constant {
     value: i32
 }
 
-impl Source<i32> for Constant {
+conform Source<i32> for Constant {
     method self.get(): i32 {
         return self.value
     }
@@ -619,7 +619,7 @@ interface Source {
 
 struct Factory {}
 
-impl Source for Factory {
+conform Source for Factory {
     method &self.get(): &i32 {
         return fresh()
     }
@@ -641,7 +641,7 @@ fn accepts_explicit_implementation_of_elided_interface_origin() {
 
 struct Holder { value: &i32 }
 
-impl Source for Holder {
+conform Source for Holder {
     method &self.get(): &i32 from self {
         return self.value
     }
@@ -663,7 +663,7 @@ fn accepts_elided_interface_origin_in_implementation_body() {
 
 struct Holder { value: &i32 }
 
-impl Source for Holder {
+conform Source for Holder {
     method &self.get(): &i32 {
         return self.value
     }
@@ -685,7 +685,7 @@ fn diagnoses_elided_implementation_that_selects_an_ambiguous_origin() {
 
 struct Holder { value: &i32 }
 
-impl Source for Holder {
+conform Source for Holder {
     method &self.get(other: &Self): &Self {
         return other
     }
@@ -714,7 +714,7 @@ interface Source {
 
 struct Factory {}
 
-impl Source for Factory {
+conform Source for Factory {
     method &self.get(): &i32 from static {
         return static_value()
     }
@@ -738,7 +738,7 @@ struct User {
     id: i32
 }
 
-impl Cloneable for User {
+conform Cloneable for User {
     method &self.clone(): User {
         return User { id: self.id }
     }
@@ -866,7 +866,7 @@ struct User {
     id: i32
 }
 
-impl Printable for User {}
+conform Printable for User {}
 
 func main(): i32 {
     return 0
@@ -880,7 +880,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_extra_interface_implementation_method() {
+fn diagnoses_extra_conformanceementation_method() {
     let diagnostics = check_text(
         r#"interface Printable {
     pub method &self.print(): i32
@@ -890,7 +890,7 @@ struct User {
     id: i32
 }
 
-impl Printable for User {
+conform Printable for User {
     method &self.print(): i32 {
         return 1
     }
@@ -922,7 +922,7 @@ struct User {
     id: i32
 }
 
-impl Printable for User {
+conform Printable for User {
     method &self.print(): bool {
         return true
     }
@@ -950,7 +950,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Source<T> for Box<T> {
+conform<T> Source<T> for Box<T> {
     method self.get(): i32 {
         return 0
     }
@@ -978,12 +978,12 @@ struct User {
     id: i32
 }
 
-impl Printable for User {
+conform Printable for User {
     method &self.print(): i32 {
         return 1
     }
 }
-impl Printable for User {
+conform Printable for User {
     method &self.print(): i32 {
         return 2
     }
@@ -1010,12 +1010,12 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Source<T> for Box<T> {
+conform<T> Source<T> for Box<T> {
     method self.get(): T from self {
         return self.value
     }
 }
-impl<U> Source<U> for Box<U> {
+conform<U> Source<U> for Box<U> {
     method self.get(): U from self {
         return self.value
     }
@@ -1038,7 +1038,7 @@ fn diagnoses_non_interface_conformance_contract() {
     id: i32
 }
 
-impl User for User {}
+conform User for User {}
 
 func main(): i32 {
     return 0
@@ -1059,7 +1059,7 @@ fn diagnoses_non_nominal_interface_conformance_target() {
 
 type Id = i32
 
-impl Printable for Id {}
+conform Printable for Id {}
 
 func main(): i32 {
     return 0

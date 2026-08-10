@@ -1013,7 +1013,7 @@ pub func make(): Raw {
     return Raw { value: 1 }
 }
 
-impl Raw {
+instance Raw {
     pub(/) method &self.secret(): i32 {
         return self.value
     }
@@ -1057,7 +1057,7 @@ pub func make(): Raw {
     return Raw { value: 1 }
 }
 
-impl Raw {
+instance Raw {
     pub(/) method &self.secret(): i32 {
         return self.value
     }
@@ -1182,7 +1182,7 @@ pub(/) func PublicStruct.hidden_associated(): i32 {
     return 2
 }
 
-impl PublicStruct {
+instance PublicStruct {
     pub(/) method &self.hidden_method(): i32 {
         return self.value
     }
@@ -1247,7 +1247,7 @@ pub(/) func PublicStruct.hidden_associated(): i32 {
     return 2
 }
 
-impl PublicStruct {
+instance PublicStruct {
     pub(/) method &self.hidden_method(): i32 {
         return self.value
     }
@@ -1444,7 +1444,7 @@ pub func len<T>(values: &Vec<T>): usize {
     return values.len
 }
 
-impl<T> Vec<T> {
+instance<T> Vec<T> {
     pub method &self.len(): usize {
         return len(self)
     }

@@ -155,7 +155,7 @@ struct Owner {
     id: i32
 }
 
-impl Owner {
+instance Owner {
     drop &+self {
         write("drop\n")!
         return
@@ -205,7 +205,7 @@ fn run_command_uses_composed_outcome_abi_for_specialized_methods() {
     value: T
 }
 
-impl<T> Holder<T> {
+instance<T> Holder<T> {
     method &self.get(): T?! {
         return self.value
     }
@@ -1092,7 +1092,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         touch2(self.fd, 99)
         return
@@ -1162,7 +1162,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -2008,7 +2008,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -2902,7 +2902,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -3479,7 +3479,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -3644,7 +3644,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return

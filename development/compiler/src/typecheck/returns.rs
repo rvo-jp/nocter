@@ -17,7 +17,8 @@ use super::environments::{
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal,
     environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_switch_arm, impl_member_name,
+    environment_for_parameters_in_method_owner, environment_for_switch_arm,
+    method_owner_member_name,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
@@ -30,9 +31,9 @@ use super::provenance::*;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    MethodReceiverMode, PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding,
-    TypeExpr,
+    AstFile, Block, ConformanceDecl, ConformanceMember, Expr, IfIsStmt, InstanceDecl,
+    InstanceMember, InterpolatedStringPart, Item, MethodOwnerDecl, MethodReceiverMode,
+    PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
@@ -117,9 +118,20 @@ pub(super) fn check_return_types(
                     summaries,
                 );
             }
-            Item::Impl(impl_) => {
-                check_impl_member_return_types(sources, impl_, resolved, diagnostics, summaries);
-            }
+            Item::Instance(instance) => check_instance_member_return_types(
+                sources,
+                instance,
+                resolved,
+                diagnostics,
+                summaries,
+            ),
+            Item::Conformance(conformance) => check_conformance_member_return_types(
+                sources,
+                conformance,
+                resolved,
+                diagnostics,
+                summaries,
+            ),
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     let Some(body) = &method.body else {
@@ -207,9 +219,9 @@ pub(super) fn check_return_types(
                     );
                 }
             }
-            Item::Coerce(coerce) => check_impl_member_return_types(
+            Item::Coerce(coerce) => check_instance_member_return_types(
                 sources,
-                &coerce.callable_impl(),
+                &coerce.callable_instance(),
                 resolved,
                 diagnostics,
                 summaries,

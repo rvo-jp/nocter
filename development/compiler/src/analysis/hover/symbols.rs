@@ -95,15 +95,13 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Struct(struct_) => collect_struct_hover_symbols(text, struct_, symbols),
         Item::Enum(enum_) => collect_enum_hover_symbols(text, enum_, symbols),
         Item::Interface(interface) => collect_interface_hover_symbols(text, interface, symbols),
-        Item::Impl(impl_) => {
-            for member in &impl_.members {
-                match member {
-                    ImplMember::AssociatedType(_) => {}
-                    ImplMember::Method(method) => {
-                        collect_method_hover_symbols(text, method, symbols)
-                    }
-                    ImplMember::Drop(drop_) => collect_drop_hover_symbols(text, drop_, symbols),
-                }
+        Item::Instance(_) | Item::Conformance(_) => {
+            let owner = item.method_owner().expect("matched method owner");
+            for method in owner.methods() {
+                collect_method_hover_symbols(text, method, symbols);
+            }
+            if let Some(drop_) = owner.drop_decl() {
+                collect_drop_hover_symbols(text, drop_, symbols);
             }
         }
         Item::Construct(construct) => {

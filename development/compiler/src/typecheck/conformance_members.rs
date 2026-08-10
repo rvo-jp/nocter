@@ -1,26 +1,26 @@
-//! Contract validation for members owned by body-bearing interface implementations.
+//! Contract validation for members owned by explicit interface conformances.
 
 use super::diagnostics::{
     associated_type_bound_not_satisfied_diagnostic, associated_type_extra_diagnostic,
-    associated_type_missing_diagnostic, duplicate_associated_type_binding_diagnostic,
-    duplicate_interface_impl_method_diagnostic, interface_impl_extra_method_diagnostic,
+    associated_type_missing_diagnostic, conformance_extra_method_diagnostic,
+    duplicate_associated_type_binding_diagnostic, duplicate_conformance_method_diagnostic,
     interface_method_missing_diagnostic, interface_method_signature_mismatch_diagnostic,
 };
 use super::interfaces::{
-    method_impl_target_substitutions, method_shape, method_shape_label,
+    method_owner_target_substitutions, method_shape, method_shape_label,
     result_provenance_contract_is_compatible, type_symbol_generic_substitutions,
 };
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
-use crate::ast::ImplDecl;
+use crate::ast::ConformanceDecl;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{InterfaceConformance, ResolveOutput, TypeSymbol};
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 
-pub(super) fn check_interface_impl_members(
+pub(super) fn check_conformance_members(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
     interface_type: &Type,
@@ -31,7 +31,7 @@ pub(super) fn check_interface_impl_members(
     let Some(conformance) = target_symbol
         .interface_conformances
         .iter()
-        .find(|conformance| conformance.declaration_span == impl_.span)
+        .find(|conformance| conformance.declaration_span == conformance_decl.span)
     else {
         return;
     };
@@ -44,7 +44,7 @@ pub(super) fn check_interface_impl_members(
     );
     report_associated_type_bindings(
         sources,
-        impl_,
+        conformance_decl,
         conformance,
         interface_symbol,
         target_symbol,
@@ -65,7 +65,7 @@ pub(super) fn check_interface_impl_members(
             if !required.has_default_body {
                 diagnostics.push(interface_method_missing_diagnostic(
                     sources,
-                    impl_,
+                    conformance_decl,
                     interface_symbol,
                     target_symbol,
                     required,
@@ -74,7 +74,7 @@ pub(super) fn check_interface_impl_members(
             continue;
         };
 
-        let actual_substitutions = method_impl_target_substitutions(actual, self_type, resolved);
+        let actual_substitutions = method_owner_target_substitutions(actual, self_type, resolved);
         let associated_types = conformance
             .associated_types
             .iter()
@@ -137,7 +137,7 @@ pub(super) fn check_interface_impl_members(
 
 fn report_associated_type_bindings(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     conformance: &InterfaceConformance,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
@@ -178,7 +178,7 @@ fn report_associated_type_bindings(
         let Some(binding) = binding else {
             diagnostics.push(associated_type_missing_diagnostic(
                 sources,
-                impl_,
+                conformance_decl,
                 interface_symbol,
                 target_symbol,
                 required,
@@ -186,7 +186,7 @@ fn report_associated_type_bindings(
             continue;
         };
 
-        let impl_substitutions = conformance
+        let conformance_substitutions = conformance
             .generic_parameters
             .iter()
             .map(|name| (name.clone(), Type::Parameter(name.clone())))
@@ -195,7 +195,7 @@ fn report_associated_type_bindings(
             &binding.value,
             resolved,
             Some(self_type),
-            &impl_substitutions,
+            &conformance_substitutions,
         );
         let interface_substitutions =
             type_symbol_generic_substitutions(interface_symbol, interface_type);
@@ -213,7 +213,7 @@ fn report_associated_type_bindings(
                     &bound,
                     conformance,
                     resolved,
-                    &impl_substitutions,
+                    &conformance_substitutions,
                 )
             {
                 continue;
@@ -269,7 +269,7 @@ fn report_extra_and_duplicate_methods(
     let mut seen = HashMap::<&str, ByteSpan>::new();
     for actual in &conformance.methods {
         if let Some(first_span) = seen.insert(&actual.name, actual.name_span) {
-            diagnostics.push(duplicate_interface_impl_method_diagnostic(
+            diagnostics.push(duplicate_conformance_method_diagnostic(
                 sources,
                 interface_symbol,
                 target_symbol,
@@ -283,7 +283,7 @@ fn report_extra_and_duplicate_methods(
             .iter()
             .any(|required| required.name == actual.name)
         {
-            diagnostics.push(interface_impl_extra_method_diagnostic(
+            diagnostics.push(conformance_extra_method_diagnostic(
                 sources,
                 interface_symbol,
                 target_symbol,

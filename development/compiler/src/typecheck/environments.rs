@@ -6,21 +6,21 @@ use super::type_expr::{
     canonical_type_expr, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, ImplDecl,
-    InterfaceDecl, LiteralDecl, LiteralPackForStmt, MethodDecl, Parameter, SwitchArm, TypeExpr,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, InterfaceDecl,
+    LiteralDecl, LiteralPackForStmt, MethodDecl, MethodOwnerDecl, Parameter, SwitchArm, TypeExpr,
     TypeReference,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
 
-pub(super) fn environment_for_parameters_in_impl(
+pub(super) fn environment_for_parameters_in_method_owner(
     parameters: &[Parameter],
     resolved: &ResolveOutput,
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
 ) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
-    define_impl_generic_parameters(impl_, &mut environment);
-    environment.apply_where_clause(impl_.requirements.as_ref(), resolved);
+    let mut environment = TypeEnvironment::with_self_type(method_owner_self_type(owner, resolved));
+    define_method_owner_generic_parameters(owner, &mut environment);
+    environment.apply_where_clause(owner.requirements(), resolved);
     define_parameters_in_environment(parameters, resolved, &mut environment);
     environment
 }
@@ -133,11 +133,11 @@ fn literal_target_name(target: &TypeExpr) -> Option<&str> {
 pub(super) fn environment_for_method(
     method: &MethodDecl,
     resolved: &ResolveOutput,
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
 ) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
-    define_impl_generic_parameters(impl_, &mut environment);
-    environment.apply_where_clause(impl_.requirements.as_ref(), resolved);
+    let mut environment = TypeEnvironment::with_self_type(method_owner_self_type(owner, resolved));
+    define_method_owner_generic_parameters(owner, &mut environment);
+    environment.apply_where_clause(owner.requirements(), resolved);
     environment.define_generic_parameter_list(&method.generics);
     environment.apply_where_clause(method.requirements.as_ref(), resolved);
     let receiver = method.receiver.implicit_parameter();
@@ -204,17 +204,23 @@ fn define_parameters_in_environment(
     }
 }
 
-pub(super) fn impl_self_type(impl_: &ImplDecl, resolved: &ResolveOutput) -> Type {
+pub(super) fn method_owner_self_type(
+    owner: &(impl MethodOwnerDecl + ?Sized),
+    resolved: &ResolveOutput,
+) -> Type {
     type_expr_to_type_with_substitutions(
-        &impl_.target_ty,
+        owner.target_ty(),
         resolved,
         None,
-        &generic_parameter_substitutions(&impl_.generics),
+        &generic_parameter_substitutions(owner.generics()),
     )
 }
 
-pub(super) fn impl_member_name(impl_: &ImplDecl, member_name: &str) -> String {
-    format!("{}.{}", canonical_type_expr(&impl_.target_ty), member_name)
+pub(super) fn method_owner_member_name(
+    owner: &(impl MethodOwnerDecl + ?Sized),
+    member_name: &str,
+) -> String {
+    format!("{}.{}", canonical_type_expr(owner.target_ty()), member_name)
 }
 
 pub(super) fn generic_parameter_substitutions(
@@ -232,8 +238,11 @@ pub(super) fn generic_parameter_substitutions(
         .collect()
 }
 
-fn define_impl_generic_parameters(impl_: &ImplDecl, environment: &mut TypeEnvironment) {
-    environment.define_generic_parameter_list(&impl_.generics);
+fn define_method_owner_generic_parameters(
+    owner: &(impl MethodOwnerDecl + ?Sized),
+    environment: &mut TypeEnvironment,
+) {
+    environment.define_generic_parameter_list(owner.generics());
 }
 
 pub(super) fn environment_for_catch(

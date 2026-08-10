@@ -345,7 +345,7 @@ coerce Text { &self as &str from self { return self.value } }
     pub type Item
 }
 struct NumberSource { value: i32 }
-impl Source for NumberSource {
+conform Source for NumberSource {
     type Item = i32
 }
 func project<S>(source: S): S.Item where S: Source { return source }
@@ -542,7 +542,7 @@ func read<T>(value: &T): i32 where T: Measure {
 
 struct Count { value: i32 }
 
-impl Measure for Count {
+conform Measure for Count {
     method &self.measure(): i32 {
         return self.value
     }
@@ -573,7 +573,7 @@ func main(): i32 {
 
 struct Number { value: i32 }
 
-impl Source for Number {
+conform Source for Number {
     type Item = i32
 }
 

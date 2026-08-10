@@ -11,7 +11,7 @@ use super::environments::{
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal,
     environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_switch_arm,
+    environment_for_parameters_in_method_owner, environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -29,11 +29,12 @@ use super::variants::{
     resolved_enum_variant_for_member,
 };
 use crate::ast::{
-    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, Expr, FallibleType,
-    GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    MemberExpr, MethodDecl, MethodReceiverMode, OptionalType, Parameter, PointerType, Stmt,
-    StructLiteralExpr, StructLiteralField, SwitchArm, SwitchPayloadBinding, TypeExpr,
-    TypeReference, ViewType, substitute_type_expr_parameters,
+    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, ConformanceDecl,
+    ConformanceMember, Expr, FallibleType, GenericParamList, GenericType, IfIsStmt, InstanceDecl,
+    InstanceMember, InterpolatedStringPart, Item, MemberExpr, MethodDecl, MethodOwnerDecl,
+    MethodReceiverMode, OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr,
+    StructLiteralField, SwitchArm, SwitchPayloadBinding, TypeExpr, TypeReference, ViewType,
+    substitute_type_expr_parameters,
 };
 use crate::integer::IntegerType;
 use crate::resolve::{

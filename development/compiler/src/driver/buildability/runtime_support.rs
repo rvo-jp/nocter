@@ -506,7 +506,7 @@ pub(super) fn call_return_type_expr_with_substitutions(
             }
             let method = resolved.method_signature_by_name_span(method_name_span)?;
             let mut return_type = method.signature.return_type.clone();
-            if let Some(self_ty) = &method.impl_target_ty {
+            if let Some(self_ty) = &method.owner_target_ty {
                 let self_substitution = HashMap::from([("Self".to_string(), self_ty.clone())]);
                 return_type = substitute_type_expr_parameters(&return_type, &self_substitution);
             }

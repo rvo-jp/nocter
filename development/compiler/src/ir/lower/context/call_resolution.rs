@@ -662,7 +662,7 @@ impl<'a> LoweringContext<'a> {
         {
             return None;
         }
-        if let Some(self_ty) = &method.impl_target_ty {
+        if let Some(self_ty) = &method.owner_target_ty {
             return_type = type_expr_with_self_type(&return_type, self_ty);
         }
         Some(substitute_type_expr_parameters(
@@ -712,7 +712,7 @@ impl<'a> LoweringContext<'a> {
         {
             return None;
         }
-        if let Some(self_ty) = &method.impl_target_ty {
+        if let Some(self_ty) = &method.owner_target_ty {
             ty = type_expr_with_self_type(&ty, self_ty);
         }
         Some(substitute_type_expr_parameters(

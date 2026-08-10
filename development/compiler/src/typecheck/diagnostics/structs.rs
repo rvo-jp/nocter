@@ -237,7 +237,7 @@ pub(in crate::typecheck) fn copy_struct_drop_member_diagnostic(
     if let Ok(span) = sources.span_to_json(target_ty.span()) {
         diagnostic.notes.push(DiagnosticNote {
             message: format!(
-                "impl target `{}` resolves to copy struct `{struct_name}`",
+                "instance target `{}` resolves to copy struct `{struct_name}`",
                 canonical_type_expr(target_ty)
             ),
             span: Some(span),

@@ -329,7 +329,7 @@ fn build_command_lowers_moved_aggregate_struct_literal_field() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -339,7 +339,7 @@ struct Holder {
     file: File
 }
 
-impl Holder {
+instance Holder {
     drop &+self {
         return
     }

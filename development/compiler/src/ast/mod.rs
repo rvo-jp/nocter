@@ -55,7 +55,8 @@ pub enum Item {
     Struct(StructDecl),
     Enum(EnumDecl),
     Interface(InterfaceDecl),
-    Impl(ImplDecl),
+    Instance(InstanceDecl),
+    Conformance(ConformanceDecl),
     Construct(ConstructDecl),
     Coerce(CoerceDecl),
 }
@@ -248,20 +249,104 @@ pub struct AssociatedTypeDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImplDecl {
+pub struct InstanceDecl {
     pub span: ByteSpan,
     pub generics: GenericParamList,
-    pub interface_ty: Option<TypeExpr>,
     pub target_ty: TypeExpr,
     pub requirements: Option<WhereClause>,
-    pub members: Vec<ImplMember>,
+    pub members: Vec<InstanceMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ImplMember {
-    AssociatedType(AssociatedTypeBinding),
+pub enum InstanceMember {
     Method(MethodDecl),
     Drop(DropDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConformanceDecl {
+    pub span: ByteSpan,
+    pub generics: GenericParamList,
+    pub interface_ty: TypeExpr,
+    pub target_ty: TypeExpr,
+    pub requirements: Option<WhereClause>,
+    pub members: Vec<ConformanceMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConformanceMember {
+    AssociatedType(AssociatedTypeBinding),
+    Method(MethodDecl),
+}
+
+pub trait MethodOwnerDecl {
+    fn span(&self) -> ByteSpan;
+    fn generics(&self) -> &GenericParamList;
+    fn target_ty(&self) -> &TypeExpr;
+    fn requirements(&self) -> Option<&WhereClause>;
+    fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_>;
+    fn drop_decl(&self) -> Option<&DropDecl>;
+}
+
+impl MethodOwnerDecl for InstanceDecl {
+    fn span(&self) -> ByteSpan {
+        self.span
+    }
+
+    fn generics(&self) -> &GenericParamList {
+        &self.generics
+    }
+
+    fn target_ty(&self) -> &TypeExpr {
+        &self.target_ty
+    }
+
+    fn requirements(&self) -> Option<&WhereClause> {
+        self.requirements.as_ref()
+    }
+
+    fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_> {
+        Box::new(self.members.iter().filter_map(|member| match member {
+            InstanceMember::Method(method) => Some(method),
+            InstanceMember::Drop(_) => None,
+        }))
+    }
+
+    fn drop_decl(&self) -> Option<&DropDecl> {
+        self.members.iter().find_map(|member| match member {
+            InstanceMember::Method(_) => None,
+            InstanceMember::Drop(drop_) => Some(drop_),
+        })
+    }
+}
+
+impl MethodOwnerDecl for ConformanceDecl {
+    fn span(&self) -> ByteSpan {
+        self.span
+    }
+
+    fn generics(&self) -> &GenericParamList {
+        &self.generics
+    }
+
+    fn target_ty(&self) -> &TypeExpr {
+        &self.target_ty
+    }
+
+    fn requirements(&self) -> Option<&WhereClause> {
+        self.requirements.as_ref()
+    }
+
+    fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_> {
+        Box::new(self.members.iter().filter_map(|member| match member {
+            ConformanceMember::AssociatedType(_) => None,
+            ConformanceMember::Method(method) => Some(method),
+        }))
+    }
+
+    fn drop_decl(&self) -> Option<&DropDecl> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -832,6 +917,14 @@ pub struct OtherwiseExpr {
 }
 
 impl Item {
+    pub fn method_owner(&self) -> Option<&dyn MethodOwnerDecl> {
+        match self {
+            Item::Instance(instance) => Some(instance),
+            Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        }
+    }
+
     pub fn span(&self) -> ByteSpan {
         match self {
             Item::Import(item) => item.span,
@@ -843,7 +936,8 @@ impl Item {
             Item::Struct(item) => item.span,
             Item::Enum(item) => item.span,
             Item::Interface(item) => item.span,
-            Item::Impl(item) => item.span,
+            Item::Instance(item) => item.span,
+            Item::Conformance(item) => item.span,
             Item::Construct(item) => item.span,
             Item::Coerce(item) => item.span,
         }

@@ -144,7 +144,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -208,7 +208,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -401,7 +401,7 @@ fn lowers_direct_aggregate_fallible_struct_literal_return_after_scope_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1344,7 +1344,7 @@ fn lowers_ignored_fallible_direct_aggregate_call_expression_statement_with_drop(
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

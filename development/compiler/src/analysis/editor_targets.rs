@@ -5,8 +5,8 @@
 
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, Block, Expr, FromImportItem, ImplMember, ImportItem, InterpolatedStringPart, Item,
-    ModulePath, Stmt,
+    AstFile, Block, Expr, FromImportItem, ImportItem, InterpolatedStringPart, Item, ModulePath,
+    Stmt,
 };
 use crate::resolve::{ImportedSymbolKind, ResolveOutput, Symbol, SymbolKind};
 use crate::source::ByteSpan;
@@ -162,17 +162,15 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                 }
             }
             Item::Test(test) => collect_block_import_sites(&test.body, sites),
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
-                    match member {
-                        ImplMember::AssociatedType(_) => {}
-                        ImplMember::Method(method) => {
-                            if let Some(body) = &method.body {
-                                collect_block_import_sites(body, sites);
-                            }
-                        }
-                        ImplMember::Drop(drop_) => collect_block_import_sites(&drop_.body, sites),
+            Item::Instance(_) | Item::Conformance(_) => {
+                let owner = item.method_owner().expect("matched method owner");
+                for method in owner.methods() {
+                    if let Some(body) = &method.body {
+                        collect_block_import_sites(body, sites);
                     }
+                }
+                if let Some(drop_) = owner.drop_decl() {
+                    collect_block_import_sites(&drop_.body, sites);
                 }
             }
             Item::Interface(interface) => {

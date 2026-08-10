@@ -1,7 +1,8 @@
 //! Shared, exhaustive expression traversal for compiler analyses.
 
 use super::{
-    AstFile, Block, ConstructMemberDecl, Expr, ImplMember, InterpolatedStringPart, Item, Stmt,
+    AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, InstanceMember,
+    InterpolatedStringPart, Item, Stmt,
 };
 use crate::source::ByteSpan;
 
@@ -29,16 +30,26 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                 }
             }
             Item::Test(test) => visit_block_expressions(&test.body, visitor),
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
+            Item::Instance(instance) => {
+                for member in &instance.members {
                     match member {
-                        ImplMember::AssociatedType(_) => {}
-                        ImplMember::Method(method) => {
+                        InstanceMember::Method(method) => {
                             if let Some(body) = &method.body {
                                 visit_block_expressions(body, visitor);
                             }
                         }
-                        ImplMember::Drop(drop_) => visit_block_expressions(&drop_.body, visitor),
+                        InstanceMember::Drop(drop_) => {
+                            visit_block_expressions(&drop_.body, visitor)
+                        }
+                    }
+                }
+            }
+            Item::Conformance(conformance) => {
+                for member in &conformance.members {
+                    if let ConformanceMember::Method(method) = member
+                        && let Some(body) = &method.body
+                    {
+                        visit_block_expressions(body, visitor);
                     }
                 }
             }

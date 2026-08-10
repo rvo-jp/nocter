@@ -4,7 +4,7 @@ use super::call_sites::{CallCursorRegion, call_at_offset};
 use super::call_specializations::impl_substitutions_for_self_ty;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    CallExpr, ConstructMemberDecl, Expr, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl,
+    CallExpr, ConstructMemberDecl, Expr, FunctionDecl, Item, MethodDecl, MethodOwnerDecl,
     MethodReceiver, Parameter, PrimitiveDecl, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
@@ -111,9 +111,9 @@ fn signature_info_for_call(
     if let Some(member_span) = call_member_span(call)
         && let Some(specialization) = file.typecheck_facts.method_call_specialization(member_span)
     {
-        if let CallableDeclaration::Method { impl_, .. } = declaration
+        if let CallableDeclaration::Method { owner, .. } = declaration
             && let Some(impl_substitutions) =
-                impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
+                impl_substitutions_for_self_ty(owner, &specialization.self_ty)
         {
             substitutions.extend(impl_substitutions);
         }
@@ -138,10 +138,10 @@ fn signature_info_for_call(
                 substitutions.entry("Self".to_string()).or_insert(self_ty);
             }
         }
-        CallableDeclaration::Method { impl_, .. } => {
+        CallableDeclaration::Method { owner, .. } => {
             substitutions
                 .entry("Self".to_string())
-                .or_insert_with(|| impl_.target_ty.clone());
+                .or_insert_with(|| owner.target_ty().clone());
         }
         CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
     }
@@ -360,7 +360,7 @@ enum CallableDeclaration<'a> {
     Function(&'a FunctionDecl),
     Primitive(&'a PrimitiveDecl),
     Method {
-        impl_: &'a ImplDecl,
+        owner: &'a dyn MethodOwnerDecl,
         method: &'a MethodDecl,
     },
     InterfaceMethod(&'a MethodDecl),
@@ -391,11 +391,11 @@ fn callable_declaration(
         Item::Primitive(primitive) if primitive.name_span == target => {
             Some(CallableDeclaration::Primitive(primitive))
         }
-        Item::Impl(impl_) => impl_.members.iter().find_map(|member| {
-            let ImplMember::Method(method) = member else {
-                return None;
-            };
-            (method.name_span == target).then_some(CallableDeclaration::Method { impl_, method })
+        Item::Instance(_) | Item::Conformance(_) => item.method_owner().and_then(|owner| {
+            owner.methods().find_map(|method| {
+                (method.name_span == target)
+                    .then_some(CallableDeclaration::Method { owner, method })
+            })
         }),
         Item::Interface(interface) => interface
             .methods
@@ -627,7 +627,7 @@ func main(): i32 {
     fn presents_method_receiver_as_mode_and_specialized_owner() {
         let text = r#"struct Box<T> { value: T }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     method &self.replace(value: T): T {
         return value
     }
@@ -658,7 +658,7 @@ func main(box: &Box<i32>): i32 {
 
 copy struct Unit { marker: i32 }
 
-impl Identity for Unit {}
+conform Identity for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

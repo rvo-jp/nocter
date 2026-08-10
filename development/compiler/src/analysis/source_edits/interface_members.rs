@@ -1,6 +1,6 @@
 use crate::analysis::FileAnalysis;
 use crate::analysis::presentation::method_presentation;
-use crate::ast::{ImplMember, Item, TypeExpr};
+use crate::ast::{ConformanceMember, Item, TypeExpr};
 use crate::resolve::TypeSymbolKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,27 +14,27 @@ pub(crate) fn plan_missing_interface_members(
     file: &FileAnalysis,
     diagnostic_offset: usize,
 ) -> Option<InterfaceMembersEditPlan> {
-    let impl_ = file.ast.items.iter().find_map(|item| {
-        let Item::Impl(impl_) = item else {
+    let conformance = file.ast.items.iter().find_map(|item| {
+        let Item::Conformance(conformance) = item else {
             return None;
         };
-        (impl_.target_ty.span().start <= diagnostic_offset
-            && diagnostic_offset <= impl_.target_ty.span().end)
-            .then_some(impl_)
+        (conformance.target_ty.span().start <= diagnostic_offset
+            && diagnostic_offset <= conformance.target_ty.span().end)
+            .then_some(conformance)
     })?;
-    let interface_name = type_reference_name(impl_.interface_ty.as_ref()?)?;
+    let interface_name = type_reference_name(&conformance.interface_ty)?;
     let interface = file
         .resolved
         .type_symbol_by_reference_name(interface_name)?;
     if interface.kind != TypeSymbolKind::Interface {
         return None;
     }
-    let existing = impl_
+    let existing = conformance
         .members
         .iter()
         .filter_map(|member| match member {
-            ImplMember::Method(method) => Some(method.name.as_str()),
-            ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
+            ConformanceMember::Method(method) => Some(method.name.as_str()),
+            ConformanceMember::AssociatedType(_) => None,
         })
         .collect::<std::collections::HashSet<_>>();
     let missing = interface
@@ -56,7 +56,7 @@ pub(crate) fn plan_missing_interface_members(
         new_text.push_str(" {\n        loop {}\n    }\n");
     }
     Some(InterfaceMembersEditPlan {
-        offset: impl_.span.end.saturating_sub(1),
+        offset: conformance.span.end.saturating_sub(1),
         new_text,
         method_names: missing.iter().map(|method| method.name.clone()).collect(),
     })
@@ -89,7 +89,7 @@ mod tests {
     pub method &self.print(): i32
 }
 struct User { id: i32 }
-impl Printable for User {}
+conform Printable for User {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().unwrap();
@@ -115,7 +115,7 @@ impl Printable for User {}
     pub method &self.get(): Self.Item
 }
 struct Number { value: i32 }
-impl Source for Number {
+conform Source for Number {
     type Item = i32
 }
 "#;
@@ -144,7 +144,7 @@ impl Source for Number {
     pub type Item
 }
 struct Number { value: i32 }
-impl Source for Number {}
+conform Source for Number {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().unwrap();

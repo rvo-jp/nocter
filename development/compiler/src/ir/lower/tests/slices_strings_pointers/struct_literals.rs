@@ -475,7 +475,7 @@ fn lowers_replacement_drop_for_aggregate_struct_literal_assignment() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -548,7 +548,7 @@ fn lowers_replacement_drop_for_moved_aggregate_struct_literal_field_assignment()
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -558,7 +558,7 @@ struct Holder {
     file: File
 }
 
-impl Holder {
+instance Holder {
     drop &+self {
         return
     }
@@ -785,7 +785,7 @@ fn lowers_direct_aggregate_struct_literal_return_after_scope_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -868,7 +868,7 @@ fn lowers_direct_aggregate_terminal_if_struct_literal_return_after_scope_drop() 
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1204,7 +1204,7 @@ fn lowers_moved_aggregate_struct_literal_field_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1214,7 +1214,7 @@ struct Holder {
     file: File
 }
 
-impl Holder {
+instance Holder {
     drop &+self {
         return
     }
@@ -1620,7 +1620,7 @@ fn lowers_moved_aggregate_struct_literal_field() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1630,7 +1630,7 @@ struct Holder {
     file: File
 }
 
-impl Holder {
+instance Holder {
     drop &+self {
         return
     }

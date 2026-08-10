@@ -352,8 +352,9 @@ fn generic_bounds_at_offset<'a>(
                 {
                     (&function.generics, function.requirements.as_ref())
                 }
-                Item::Impl(impl_) if span_contains(impl_.span, offset) => {
-                    (&impl_.generics, impl_.requirements.as_ref())
+                Item::Instance(_) | Item::Conformance(_) if span_contains(item.span(), offset) => {
+                    let owner = item.method_owner().expect("matched method owner");
+                    (owner.generics(), owner.requirements())
                 }
                 _ => return None,
             };

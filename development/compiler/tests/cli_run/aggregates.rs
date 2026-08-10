@@ -15,7 +15,7 @@ copy struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &self.value(): i32 {
         return self.fd
     }
@@ -54,7 +54,7 @@ copy struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &+self.bump(): void {
         self.fd += 1
         return
@@ -435,7 +435,7 @@ pub struct Handle {
     fd: i32
 }
 
-impl Handle {
+instance Handle {
     drop &+self {
         write_text_raw(1, "drop\n")!
         return
@@ -997,7 +997,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -3145,7 +3145,7 @@ fn run_command_returns_non_copy_aggregate_field_replacement_assignment_exit_code
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -3185,7 +3185,7 @@ fn run_command_returns_borrowed_non_copy_aggregate_field_replacement_assignment_
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -3230,7 +3230,7 @@ fn run_command_returns_non_copy_aggregate_field_call_replacement_assignment_exit
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -3274,7 +3274,7 @@ fn run_command_returns_outer_aggregate_replacement_inside_while_exit_code() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

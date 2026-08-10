@@ -10,8 +10,8 @@ use super::diagnostics::{
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{
-    AstFile, Block, Expr, GenericParam, GenericParamList, ImplMember, InterpolatedStringPart, Item,
-    MethodDecl, Parameter, Stmt, TypeExpr, WhereClause,
+    AstFile, Block, ConformanceMember, Expr, GenericParam, GenericParamList, InstanceMember,
+    InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, TypeExpr, WhereClause,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -161,8 +161,11 @@ pub(super) fn check_generic_type_arities(
                     }
                 }
             }
-            Item::Impl(impl_) => {
-                check_impl_types(sources, impl_, resolved, diagnostics);
+            Item::Instance(instance) => {
+                check_instance_types(sources, instance, resolved, diagnostics)
+            }
+            Item::Conformance(conformance) => {
+                check_conformance_types(sources, conformance, resolved, diagnostics)
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
@@ -196,44 +199,33 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Coerce(coerce) => {
-                check_impl_types(sources, &coerce.callable_impl(), resolved, diagnostics);
+                check_instance_types(sources, &coerce.callable_instance(), resolved, diagnostics);
             }
             Item::Import(_) | Item::FromImport(_) => {}
         }
     }
 }
 
-fn check_impl_types(
+fn check_instance_types(
     sources: &SourceMap,
-    impl_: &crate::ast::ImplDecl,
+    instance: &crate::ast::InstanceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let scope = GenericScope::new(&impl_.generics).with_where_clause(impl_.requirements.as_ref());
+    let scope =
+        GenericScope::new(&instance.generics).with_where_clause(instance.requirements.as_ref());
     check_where_clause(
         sources,
-        impl_.requirements.as_ref(),
+        instance.requirements.as_ref(),
         resolved,
         &scope,
         diagnostics,
     );
-    if let Some(interface_ty) = &impl_.interface_ty {
-        check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
-    }
-    check_type_expr(sources, &impl_.target_ty, resolved, &scope, diagnostics);
-    let member_scope = scope.clone().with_impl_interface(impl_, resolved);
-    for member in &impl_.members {
+    check_type_expr(sources, &instance.target_ty, resolved, &scope, diagnostics);
+    let member_scope = scope.clone().with_self_type();
+    for member in &instance.members {
         match member {
-            ImplMember::AssociatedType(binding) => {
-                check_type_expr(
-                    sources,
-                    &binding.value,
-                    resolved,
-                    &member_scope,
-                    diagnostics,
-                );
-            }
-            ImplMember::Method(method) => {
+            InstanceMember::Method(method) => {
                 let method_scope = member_scope
                     .clone()
                     .with_generics(&method.generics)
@@ -243,7 +235,7 @@ fn check_impl_types(
                     check_block(sources, body, resolved, &method_scope, diagnostics);
                 }
             }
-            ImplMember::Drop(drop_) => {
+            InstanceMember::Drop(drop_) => {
                 check_type_expr(
                     sources,
                     &drop_.binding.ty,
@@ -252,6 +244,63 @@ fn check_impl_types(
                     diagnostics,
                 );
                 check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
+            }
+        }
+    }
+}
+
+fn check_conformance_types(
+    sources: &SourceMap,
+    conformance: &crate::ast::ConformanceDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let scope = GenericScope::new(&conformance.generics)
+        .with_where_clause(conformance.requirements.as_ref());
+    check_where_clause(
+        sources,
+        conformance.requirements.as_ref(),
+        resolved,
+        &scope,
+        diagnostics,
+    );
+    check_type_expr(
+        sources,
+        &conformance.interface_ty,
+        resolved,
+        &scope,
+        diagnostics,
+    );
+    check_type_expr(
+        sources,
+        &conformance.target_ty,
+        resolved,
+        &scope,
+        diagnostics,
+    );
+    let member_scope = scope
+        .clone()
+        .with_conformance_interface(conformance, resolved);
+    for member in &conformance.members {
+        match member {
+            ConformanceMember::AssociatedType(binding) => {
+                check_type_expr(
+                    sources,
+                    &binding.value,
+                    resolved,
+                    &member_scope,
+                    diagnostics,
+                );
+            }
+            ConformanceMember::Method(method) => {
+                let method_scope = member_scope
+                    .clone()
+                    .with_generics(&method.generics)
+                    .with_where_clause(method.requirements.as_ref());
+                check_method_signature(sources, method, resolved, &method_scope, diagnostics);
+                if let Some(body) = &method.body {
+                    check_block(sources, body, resolved, &method_scope, diagnostics);
+                }
             }
         }
     }
@@ -512,16 +561,13 @@ impl<'a> GenericScope<'a> {
         self
     }
 
-    fn with_impl_interface(
+    fn with_conformance_interface(
         mut self,
-        impl_: &crate::ast::ImplDecl,
+        conformance: &crate::ast::ConformanceDecl,
         resolved: &ResolveOutput,
     ) -> Self {
         self.self_associated_types = Some(HashMap::new());
-        let Some(interface_ty) = &impl_.interface_ty else {
-            return self;
-        };
-        let name = match interface_ty {
+        let name = match &conformance.interface_ty {
             TypeExpr::Reference(reference) => &reference.name,
             TypeExpr::Generic(generic) => &generic.name,
             _ => return self,

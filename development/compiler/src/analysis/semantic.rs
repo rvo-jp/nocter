@@ -231,14 +231,12 @@ impl SemanticIdentifierCollector<'_> {
                         );
                     }
                 }
-                crate::ast::Item::Impl(item) => {
-                    for member in &item.members {
-                        if let crate::ast::ImplMember::Method(method) = member {
-                            collect_provenance_parameter_spans(
-                                method.result_provenance.as_ref(),
-                                &mut spans,
-                            );
-                        }
+                crate::ast::Item::Instance(_) | crate::ast::Item::Conformance(_) => {
+                    for method in item.method_owner().expect("matched method owner").methods() {
+                        collect_provenance_parameter_spans(
+                            method.result_provenance.as_ref(),
+                            &mut spans,
+                        );
                     }
                 }
                 crate::ast::Item::Construct(construct) => {
@@ -429,12 +427,11 @@ fn collect_item_generic_requirement_keyword_spans(
                 method(member, spans);
             }
         }
-        crate::ast::Item::Impl(impl_) => {
-            clause(impl_.requirements.as_ref(), spans);
-            for member in &impl_.members {
-                if let crate::ast::ImplMember::Method(member) = member {
-                    method(member, spans);
-                }
+        crate::ast::Item::Instance(_) | crate::ast::Item::Conformance(_) => {
+            let owner = item.method_owner().expect("matched method owner");
+            clause(owner.requirements(), spans);
+            for member in owner.methods() {
+                method(member, spans);
             }
         }
         crate::ast::Item::Construct(construct) => {
@@ -477,7 +474,7 @@ mod tests {
     fn associated_type_names_are_semantic_types() {
         let text = r#"interface Source { pub type Item }
 struct NumberSource { value: i32 }
-impl Source for NumberSource { type Item = i32 }
+conform Source for NumberSource { type Item = i32 }
 func project<S>(source: S): S.Item where S: Source { return source }
 "#;
         let identifiers =
@@ -538,7 +535,7 @@ func project<S>(source: S): S.Item where S: Source { return source }
     fn semantic_identifiers_survive_an_unclosed_member_body() {
         let text = r#"struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
 "#;
@@ -657,7 +654,7 @@ func main(): i32 {
     fn analysis_classifies_method_self_as_a_parameter_not_a_type() {
         let text = r#"struct File { fd: i32 }
 
-impl File {
+instance File {
     method &self.read(): i32 {
         return self.fd
     }
@@ -698,7 +695,7 @@ coerce Text {
     fn analysis_classifies_drop_keyword_and_receiver_independently() {
         let text = r#"struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }

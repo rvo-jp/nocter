@@ -41,7 +41,8 @@ pub(super) fn type_decl_names(ast: &AstFile) -> Vec<String> {
             | Item::Function(_)
             | Item::Test(_)
             | Item::Primitive(_)
-            | Item::Impl(_) => None,
+            | Item::Instance(_)
+            | Item::Conformance(_) => None,
             Item::Construct(_) | Item::Coerce(_) => None,
         })
         .collect()

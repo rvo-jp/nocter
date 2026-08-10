@@ -513,7 +513,7 @@ fn lowers_optional_i32_otherwise_never_call_without_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -625,7 +625,7 @@ fn lowers_optional_i32_otherwise_return_with_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

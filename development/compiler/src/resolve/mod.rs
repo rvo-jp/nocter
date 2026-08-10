@@ -1,7 +1,7 @@
 //! Import resolution, visibility, and name lookup.
 
 mod body;
-mod builtin_impls;
+mod builtin_instances;
 mod builtins;
 mod closures;
 mod coercions;
@@ -116,7 +116,7 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
     };
 
     resolver.collect_top_level_symbols(&module_ast);
-    resolver.collect_builtin_impl_surfaces(&module_ast);
+    resolver.collect_builtin_instance_surfaces(&module_ast);
     resolver.resolve_callable_bodies(root);
     resolver.output
 }
@@ -137,7 +137,8 @@ fn root_access(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Interface(_)
-            | Item::Impl(_)
+            | Item::Instance(_)
+            | Item::Conformance(_)
             | Item::Construct(_)
             | Item::Coerce(_) => continue,
         };

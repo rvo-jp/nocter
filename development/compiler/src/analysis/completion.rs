@@ -9,8 +9,8 @@ use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, LiteralShape, MemberExpr, MethodReceiverMode,
-    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
+    AstFile, Block, Expr, IfIsStmt, Item, LiteralShape, MemberExpr, MethodReceiverMode, Stmt,
+    StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
@@ -149,11 +149,10 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                     .iter()
                     .any(|member| method(member, offset))
         }
-        Item::Impl(impl_) => {
-            clause(impl_.requirements.as_ref(), offset)
-                || impl_.members.iter().any(
-                    |member| matches!(member, ImplMember::Method(member) if method(member, offset)),
-                )
+        Item::Instance(_) | Item::Conformance(_) => {
+            let owner = item.method_owner().expect("matched method owner");
+            clause(owner.requirements(), offset)
+                || owner.methods().any(|member| method(member, offset))
         }
         Item::Construct(construct) => {
             construct
@@ -320,8 +319,8 @@ fn associated_type_completion_items(
                         })
                         .collect::<Vec<_>>(),
                 ),
-                Item::Impl(impl_) => {
-                    let name = match impl_.interface_ty.as_ref()? {
+                Item::Conformance(conformance) => {
+                    let name = match &conformance.interface_ty {
                         TypeExpr::Reference(reference) => &reference.name,
                         TypeExpr::Generic(generic) => &generic.name,
                         _ => return None,
@@ -424,11 +423,8 @@ fn result_provenance_completion_items(
                     }
                 }
             }
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
-                    let ImplMember::Method(method) = member else {
-                        continue;
-                    };
+            Item::Instance(_) | Item::Conformance(_) => {
+                for method in item.method_owner().expect("matched method owner").methods() {
                     if clause_contains_offset(method.result_provenance.as_ref(), offset) {
                         return Some(provenance_origin_items(
                             Some(method.receiver.mode),

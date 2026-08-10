@@ -1,13 +1,13 @@
 mod value;
 mod walk;
 
-use super::environments::{environment_for_literal, function_self_type, impl_self_type};
+use super::environments::{environment_for_literal, function_self_type, method_owner_self_type};
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
 use crate::ast::{
-    AstFile, FunctionDecl, ImplDecl, ImplMember, InterfaceDecl, Item, MethodDecl, Parameter,
-    PrimitiveDecl,
+    AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, InstanceDecl, InstanceMember,
+    InterfaceDecl, Item, MethodDecl, Parameter, PrimitiveDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -75,8 +75,9 @@ pub(super) fn check_sized_value_types(
             Item::Interface(interface) => {
                 check_interface(sources, interface, resolved, diagnostics);
             }
-            Item::Impl(impl_) => {
-                check_impl(sources, impl_, resolved, diagnostics);
+            Item::Instance(instance) => check_instance(sources, instance, resolved, diagnostics),
+            Item::Conformance(conformance) => {
+                check_conformance(sources, conformance, resolved, diagnostics)
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
@@ -88,7 +89,7 @@ pub(super) fn check_sized_value_types(
                 }
             }
             Item::Coerce(coerce) => {
-                check_impl(sources, &coerce.callable_impl(), resolved, diagnostics);
+                check_instance(sources, &coerce.callable_instance(), resolved, diagnostics);
             }
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
@@ -202,26 +203,16 @@ fn check_interface(
     }
 }
 
-fn check_impl(
+fn check_instance(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    instance: &InstanceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let self_type = impl_self_type(impl_, resolved);
-    for member in &impl_.members {
+    let self_type = method_owner_self_type(instance, resolved);
+    for member in &instance.members {
         match member {
-            ImplMember::AssociatedType(binding) => {
-                check_value_type(
-                    sources,
-                    &binding.value,
-                    "associated type binding",
-                    resolved,
-                    Some(&self_type),
-                    diagnostics,
-                );
-            }
-            ImplMember::Method(method) => {
+            InstanceMember::Method(method) => {
                 let prefix = format!("method `{}`", method.name);
                 check_method_with_prefix(
                     sources,
@@ -232,7 +223,7 @@ fn check_impl(
                     diagnostics,
                 );
             }
-            ImplMember::Drop(drop_) => {
+            InstanceMember::Drop(drop_) => {
                 check_value_type(
                     sources,
                     &drop_.binding.ty,
@@ -249,6 +240,35 @@ fn check_impl(
                     diagnostics,
                 );
             }
+        }
+    }
+}
+
+fn check_conformance(
+    sources: &SourceMap,
+    conformance: &ConformanceDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let self_type = method_owner_self_type(conformance, resolved);
+    for member in &conformance.members {
+        match member {
+            ConformanceMember::AssociatedType(binding) => check_value_type(
+                sources,
+                &binding.value,
+                "associated type binding",
+                resolved,
+                Some(&self_type),
+                diagnostics,
+            ),
+            ConformanceMember::Method(method) => check_method_with_prefix(
+                sources,
+                method,
+                &format!("method `{}`", method.name),
+                resolved,
+                Some(&self_type),
+                diagnostics,
+            ),
         }
     }
 }

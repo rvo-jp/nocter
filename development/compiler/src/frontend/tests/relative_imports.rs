@@ -320,7 +320,7 @@ construct Point {
     }
 }
 
-impl Point {
+instance Point {
     pub method self.x_value(): i32 {
         return self.x
     }
@@ -372,7 +372,7 @@ func main(): i32 {
 }
 
 #[test]
-fn check_reports_relative_imported_impl_member_name_duplicates() {
+fn check_reports_relative_imported_method_owner_member_name_duplicates() {
     let root = make_temp_project("relative-import-impl-duplicate");
     let home = make_nocter_home(&root);
     crate::test_files::write(
@@ -397,7 +397,7 @@ construct Point {
     }
 }
 
-impl Point {
+instance Point {
     pub method self.origin(): i32 {
         return self.x
     }

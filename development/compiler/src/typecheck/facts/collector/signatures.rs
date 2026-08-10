@@ -12,7 +12,8 @@ impl TypecheckFactCollector<'_> {
             Item::Struct(item) => Some(&item.generics),
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
-            Item::Impl(item) => Some(&item.generics),
+            Item::Instance(item) => Some(&item.generics),
+            Item::Conformance(item) => Some(&item.generics),
             Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
@@ -91,37 +92,46 @@ impl TypecheckFactCollector<'_> {
                     },
                 );
             }
-            Item::Impl(impl_) => {
-                self.collect_generic_param_type_references(&impl_.generics);
-                if let Some(interface_ty) = &impl_.interface_ty {
-                    self.collect_type_expr_references(interface_ty);
+            Item::Instance(instance) => {
+                self.collect_generic_param_type_references(&instance.generics);
+                self.collect_type_expr_references(&instance.target_ty);
+                self.collect_where_clause_type_references(instance.requirements.as_ref());
+                for member in &instance.members {
+                    match member {
+                        InstanceMember::Method(method) => self
+                            .with_generic_scope(&method.generics, |collector| {
+                                collector.collect_method_signature_type_references(method)
+                            }),
+                        InstanceMember::Drop(_) => {}
+                    }
                 }
-                self.collect_type_expr_references(&impl_.target_ty);
-                self.collect_where_clause_type_references(impl_.requirements.as_ref());
-                let associated_types = impl_
-                    .interface_ty
-                    .as_ref()
-                    .and_then(|ty| match ty {
-                        TypeExpr::Reference(reference) => {
-                            self.resolved.type_symbol_by_reference_name(&reference.name)
-                        }
-                        TypeExpr::Generic(generic) => {
-                            self.resolved.type_symbol_by_reference_name(&generic.name)
-                        }
-                        _ => None,
-                    })
-                    .map(|interface| {
-                        interface
-                            .associated_types
-                            .iter()
-                            .map(|associated| (associated.name.clone(), associated.name_span))
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
+            }
+            Item::Conformance(conformance) => {
+                self.collect_generic_param_type_references(&conformance.generics);
+                self.collect_type_expr_references(&conformance.interface_ty);
+                self.collect_type_expr_references(&conformance.target_ty);
+                self.collect_where_clause_type_references(conformance.requirements.as_ref());
+                let associated_types = match &conformance.interface_ty {
+                    TypeExpr::Reference(reference) => {
+                        self.resolved.type_symbol_by_reference_name(&reference.name)
+                    }
+                    TypeExpr::Generic(generic) => {
+                        self.resolved.type_symbol_by_reference_name(&generic.name)
+                    }
+                    _ => None,
+                }
+                .map(|interface| {
+                    interface
+                        .associated_types
+                        .iter()
+                        .map(|associated| (associated.name.clone(), associated.name_span))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
                 self.with_associated_type_scope(associated_types, |collector| {
-                    for member in &impl_.members {
+                    for member in &conformance.members {
                         match member {
-                            ImplMember::AssociatedType(binding) => {
+                            ConformanceMember::AssociatedType(binding) => {
                                 if let Some(target) = collector
                                     .associated_type_declaration(&binding.name)
                                     .map(TypeOccurrenceTarget::Member)
@@ -134,12 +144,11 @@ impl TypecheckFactCollector<'_> {
                                 }
                                 collector.collect_type_expr_references(&binding.value);
                             }
-                            ImplMember::Method(method) => {
+                            ConformanceMember::Method(method) => {
                                 collector.with_generic_scope(&method.generics, |collector| {
                                     collector.collect_method_signature_type_references(method);
                                 });
                             }
-                            ImplMember::Drop(_) => {}
                         }
                     }
                 });

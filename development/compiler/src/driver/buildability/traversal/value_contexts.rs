@@ -214,7 +214,7 @@ pub(in crate::driver::buildability) fn method_call_argument_parameter_type(
         return None;
     }
 
-    if let Some(self_ty) = &method.impl_target_ty {
+    if let Some(self_ty) = &method.owner_target_ty {
         let self_substitution = HashMap::from([("Self".to_string(), self_ty.clone())]);
         ty = substitute_type_expr_parameters(&ty, &self_substitution);
     }

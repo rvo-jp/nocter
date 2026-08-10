@@ -319,7 +319,7 @@ fn does_not_report_owned_payload_match_expression_direct_drop_binding() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -352,7 +352,7 @@ fn does_not_report_owned_payload_match_statement_direct_drop_binding() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -385,7 +385,7 @@ fn accepts_move_only_fixed_array_payload_construction_and_binding() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -421,7 +421,7 @@ fn accepts_partial_move_only_fixed_array_payload_initialization() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -455,7 +455,7 @@ fn accepts_payload_enums_nested_in_aggregate_abi_surfaces() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -596,7 +596,7 @@ fn does_not_report_owned_if_is_direct_drop_binding_as_outer_control_move() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -629,7 +629,7 @@ fn does_not_report_fully_initialized_recursive_drop_fixed_array_literal_binding(
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -654,7 +654,7 @@ fn accepts_tracked_partial_initialization_recursive_drop_fixed_array_literal_bin
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -683,7 +683,7 @@ fn does_not_report_recursive_drop_fixed_array_literal_replacement() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -709,7 +709,7 @@ fn accepts_tracked_partial_initialization_recursive_drop_fixed_array_literal_rep
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -739,7 +739,7 @@ fn does_not_report_recursive_drop_fixed_array_local_moves_and_reinitialization()
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -884,7 +884,7 @@ fn does_not_report_reachable_payload_enum_single_drop_payload_construction() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -914,7 +914,7 @@ fn does_not_report_reachable_payload_enum_multi_drop_payload_construction() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -944,7 +944,7 @@ fn does_not_report_reachable_scope_drop_body_with_multi_field_payload_enum() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -959,7 +959,7 @@ struct Resource {
     value: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -985,7 +985,7 @@ fn does_not_report_reachable_generic_scope_drop_body_with_multi_field_payload_en
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1000,7 +1000,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -1026,7 +1026,7 @@ fn does_not_report_reachable_field_replacement_drop_body_with_multi_field_payloa
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1041,7 +1041,7 @@ struct Resource {
     value: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -1072,7 +1072,7 @@ fn does_not_report_reachable_generic_field_replacement_drop_body_with_multi_fiel
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1087,7 +1087,7 @@ struct Resource {
     value: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -1602,7 +1602,7 @@ fn accepts_reachable_generic_function_body_method_call_with_concrete_arguments()
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -2050,7 +2050,7 @@ fn accepts_reachable_concrete_generic_impl_method() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     method &self.read(): i32 {
         return self.value
     }
@@ -2075,7 +2075,7 @@ fn accepts_reachable_generic_impl_method_with_concrete_receiver() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -2125,7 +2125,7 @@ fn accepts_move_only_fixed_array_return_and_call_result_boundaries() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2156,7 +2156,7 @@ fn accepts_tracked_move_only_fixed_array_return_partial_initialization() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2189,7 +2189,7 @@ fn accepts_move_only_fixed_array_owned_parameter_boundaries() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2225,7 +2225,7 @@ fn accepts_tracked_move_only_fixed_array_argument_partial_initialization() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2258,7 +2258,7 @@ fn accepts_move_only_fixed_array_struct_field_storage_and_replacement() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2302,7 +2302,7 @@ fn accepts_atomic_fallible_move_only_fixed_array_struct_field_initialization() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2336,7 +2336,7 @@ fn accepts_partial_move_only_fixed_array_literal_struct_field_initialization() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2368,12 +2368,12 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
     let str_source = sources.add_source(
         "std/str/index.nct",
         None,
-        "impl str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance str { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let slice_source = sources.add_source(
         "std/slice/index.nct",
         None,
-        "impl<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
+        "instance<T> [T] { pub method &self.len(): usize { return 0 } pub method &self.is_empty(): bool { return false } }\n",
     );
     let lexed = lex(&sources, source);
     assert!(

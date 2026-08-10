@@ -10,15 +10,16 @@ use super::diagnostics::{
     reserved_type_declaration_name_reuse_diagnostic,
 };
 use super::signatures::{
-    alias_type_symbol, associated_function_signature, drop_signature,
+    alias_type_symbol, associated_function_signature, declaration_target_type_name, drop_signature,
     duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
-    enum_type_symbol, function_signature, impl_target_type_name, interface_type_symbol,
-    method_signatures, primitive_signature, struct_type_symbol, type_symbol_accepts_inherent_impl,
+    enum_type_symbol, function_signature, instance_method_signatures, interface_type_symbol,
+    primitive_signature, struct_type_symbol, type_symbol_accepts_instance_behavior,
 };
 use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, InterfaceDecl, Item,
-    MethodReceiver, Parameter, PrimitiveDecl, StructDecl,
+    AstFile, ConformanceDecl, ConformanceMember, EnumDecl, EnumVariant, FunctionDecl,
+    GenericParamList, InstanceDecl, InstanceMember, InterfaceDecl, Item, MethodReceiver, Parameter,
+    PrimitiveDecl, StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -164,22 +165,52 @@ impl Resolver<'_> {
                         interface_type_symbol(interface),
                     );
                 }
-                Item::Impl(impl_) => {
+                Item::Instance(instance) => {
                     self.output
                         .diagnostics
                         .extend(generic_parameter_name_diagnostics(
                             self.sources,
-                            "impl block",
-                            &impl_.generics,
+                            "instance block",
+                            &instance.generics,
                         ));
-                    for member in &impl_.members {
-                        if let crate::ast::ImplMember::Method(method) = member {
+                    for member in &instance.members {
+                        if let InstanceMember::Method(method) = member {
                             let subject = format!("method `{}`", method.name);
                             self.output.diagnostics.extend(
                                 method_generic_parameter_name_diagnostics(
                                     self.sources,
                                     &subject,
-                                    &impl_.generics,
+                                    &instance.generics,
+                                    &method.generics,
+                                ),
+                            );
+                            self.output.diagnostics.extend(
+                                duplicate_method_parameter_name_diagnostics(
+                                    self.sources,
+                                    &subject,
+                                    &method.receiver,
+                                    &method.parameters.parameters,
+                                ),
+                            );
+                        }
+                    }
+                }
+                Item::Conformance(conformance) => {
+                    self.output
+                        .diagnostics
+                        .extend(generic_parameter_name_diagnostics(
+                            self.sources,
+                            "conform block",
+                            &conformance.generics,
+                        ));
+                    for member in &conformance.members {
+                        if let ConformanceMember::Method(method) = member {
+                            let subject = format!("conformance method `{}`", method.name);
+                            self.output.diagnostics.extend(
+                                method_generic_parameter_name_diagnostics(
+                                    self.sources,
+                                    &subject,
+                                    &conformance.generics,
                                     &method.generics,
                                 ),
                             );
@@ -232,8 +263,10 @@ impl Resolver<'_> {
         }
 
         for item in &ast.items {
-            if let Item::Impl(impl_) = item {
-                self.collect_inherent_impl_members(impl_);
+            match item {
+                Item::Instance(instance) => self.collect_instance_members(instance),
+                Item::Conformance(conformance) => self.collect_conformance(conformance),
+                _ => {}
             }
         }
 
@@ -363,7 +396,7 @@ impl Resolver<'_> {
             return;
         };
 
-        if !type_symbol_accepts_inherent_impl(type_symbol) {
+        if !type_symbol_accepts_instance_behavior(type_symbol) {
             self.output
                 .diagnostics
                 .push(invalid_associated_function_owner_diagnostic(
@@ -409,8 +442,8 @@ impl Resolver<'_> {
         self.define_symbol(name, name_span, declaration_span, SymbolKind::Type(symbol));
     }
 
-    fn collect_inherent_impl_members(&mut self, impl_: &ImplDecl) {
-        let Some(target_name) = impl_target_type_name(&impl_.target_ty) else {
+    fn collect_instance_members(&mut self, instance: &InstanceDecl) {
+        let Some(target_name) = declaration_target_type_name(&instance.target_ty) else {
             return;
         };
         let Some(symbol_id) = self.output.symbols.by_name.get(target_name).copied() else {
@@ -429,37 +462,55 @@ impl Resolver<'_> {
                 return;
             };
 
-            if !type_symbol_accepts_inherent_impl(type_symbol) {
+            if !type_symbol_accepts_instance_behavior(type_symbol) {
                 return;
             }
 
-            if impl_.interface_ty.is_some() {
-                if let Some(conformance) = interface_conformance(impl_) {
-                    type_symbol.interface_conformances.push(conformance);
-                }
-                return;
-            }
-
-            let mut methods = method_signatures(impl_).collect::<Vec<_>>();
+            let mut methods = instance_method_signatures(instance).collect::<Vec<_>>();
             let mut diagnostics = duplicate_inherent_member_name_diagnostics(
                 self.sources,
                 target_name,
                 type_symbol,
-                impl_,
+                instance,
             );
             diagnostics.extend(duplicate_inherent_drop_diagnostics(
                 self.sources,
                 target_name,
                 type_symbol,
-                impl_,
+                instance,
             ));
             type_symbol.methods.append(&mut methods);
             if type_symbol.drop_member.is_none() {
-                type_symbol.drop_member = drop_signature(impl_);
+                type_symbol.drop_member = drop_signature(instance);
             }
             diagnostics
         };
         self.output.diagnostics.extend(diagnostics);
+    }
+
+    fn collect_conformance(&mut self, conformance: &ConformanceDecl) {
+        let Some(target_name) = declaration_target_type_name(&conformance.target_ty) else {
+            return;
+        };
+        let Some(symbol_id) = self.output.symbols.by_name.get(target_name).copied() else {
+            return;
+        };
+        let Some(symbol) = self
+            .output
+            .symbols
+            .symbols
+            .get_mut(symbol_id.raw() as usize)
+        else {
+            return;
+        };
+        let SymbolKind::Type(type_symbol) = &mut symbol.kind else {
+            return;
+        };
+        if type_symbol_accepts_instance_behavior(type_symbol) {
+            type_symbol
+                .interface_conformances
+                .push(interface_conformance(conformance));
+        }
     }
 }
 

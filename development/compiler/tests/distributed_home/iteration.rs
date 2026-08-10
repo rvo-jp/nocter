@@ -389,7 +389,7 @@ struct Token {
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         print(self.label)!
         return
@@ -810,7 +810,7 @@ struct AllocatingIter {
     end: i32
 }
 
-impl IntoIterator for AllocatingCollection {
+conform IntoIterator for AllocatingCollection {
     type Iter = AllocatingIter
 
     method self.into_iter(): AllocatingIter {
@@ -820,7 +820,7 @@ impl IntoIterator for AllocatingCollection {
     }
 }
 
-impl Iterator for AllocatingIter {
+conform Iterator for AllocatingIter {
     type Item = i32
 
     method &+self.next(): i32? {
@@ -906,7 +906,7 @@ struct CounterIter {
     end: i32
 }
 
-impl IntoIterator for Counter {
+conform IntoIterator for Counter {
     type Iter = CounterIter
 
     method self.into_iter(): CounterIter {
@@ -914,7 +914,7 @@ impl IntoIterator for Counter {
     }
 }
 
-impl Iterator for CounterIter {
+conform Iterator for CounterIter {
     type Item = i32
 
     method &+self.next(): i32? {

@@ -14,7 +14,7 @@ construct ViewIter<T> {
     }
 }
 
-impl<T> ViewIter<T> {
+instance<T> ViewIter<T> {
     pub method &self.remaining(): usize {
         return self.view.len - self.next_index
     }
@@ -34,7 +34,7 @@ impl<T> ViewIter<T> {
     .unwrap();
     crate::test_files::write(
         home.join("std/vec/into_iter.nct"),
-        r#"impl<T> VecIntoIter<T> {
+        r#"instance<T> VecIntoIter<T> {
     /// Moves the next element out of the owned remaining range.
     method &+self.next(): T? {
         return none
@@ -52,7 +52,7 @@ pub struct VecIntoIter<T> {
     remaining_count: usize
 }
 
-impl<T> VecIntoIter<T> {
+instance<T> VecIntoIter<T> {
     /// Moves the next element out of the owned remaining range.
     pub method &+self.next(): T?
 }
@@ -61,7 +61,7 @@ pub struct Vec<T> {
     view: &[T]
 }
 
-impl<T> Vec<T> {
+instance<T> Vec<T> {
     /// Creates an allocation-free readonly iterator.
     pub method &self.iter(): ViewIter<T> {
         return ViewIter.from_view(self.view)

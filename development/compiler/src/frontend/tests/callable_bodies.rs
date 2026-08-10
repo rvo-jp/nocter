@@ -149,7 +149,7 @@ construct Box {
     pub default func new(value: i32): Self
 }
 
-impl Box {
+instance Box {
     pub method &self.get(): i32
 }
 
@@ -166,7 +166,7 @@ func main(): i32 {
     }
 }
 
-impl Box {
+instance Box {
     method &self.get(): i32 {
         return self.value
     }

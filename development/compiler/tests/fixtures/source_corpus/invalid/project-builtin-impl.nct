@@ -1,4 +1,4 @@
-impl str {
+instance str {
     pub method &self.extra(): usize {
         return 0
     }

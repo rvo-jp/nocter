@@ -5,8 +5,9 @@ use super::diagnostics::{
 };
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
-    AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    MemberExpr, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, Stmt,
+    AstFile, Block, ConformanceMember, Expr, IdentifierExpr, InstanceDecl, InstanceMember,
+    InterpolatedStringPart, Item, MemberExpr, Parameter, ResultProvenanceClause,
+    ResultProvenanceOriginKind, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -58,7 +59,15 @@ impl Resolver<'_> {
                         }
                     }
                 }
-                Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
+                Item::Instance(instance) => self.resolve_instance_bodies(instance),
+                Item::Conformance(conformance) => {
+                    for member in &conformance.members {
+                        match member {
+                            ConformanceMember::AssociatedType(_) => {}
+                            ConformanceMember::Method(method) => self.resolve_method(method),
+                        }
+                    }
+                }
                 Item::Import(_)
                 | Item::FromImport(_)
                 | Item::TypeAlias(_)
@@ -98,14 +107,13 @@ impl Resolver<'_> {
         }
     }
 
-    fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {
-        for member in &impl_.members {
+    fn resolve_instance_bodies(&mut self, instance: &InstanceDecl) {
+        for member in &instance.members {
             match member {
-                ImplMember::AssociatedType(_) => {}
-                ImplMember::Method(method) => {
+                InstanceMember::Method(method) => {
                     self.resolve_method(method);
                 }
-                ImplMember::Drop(drop_) => {
+                InstanceMember::Drop(drop_) => {
                     let mut scope = Scope::new();
                     self.define_local_name(
                         drop_.binding.name.clone(),

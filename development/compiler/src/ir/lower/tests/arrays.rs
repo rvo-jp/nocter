@@ -7,7 +7,7 @@ fn lowers_recursive_drop_fixed_array_elements_in_reverse_offset_order() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -72,7 +72,7 @@ fn lowers_partial_fixed_array_initialization_cleanup_from_runtime_prefix() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -163,7 +163,7 @@ fn tracks_completed_fixed_array_struct_fields_independently() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -247,7 +247,7 @@ fn tracks_partial_fixed_array_literals_inside_struct_fields() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -349,7 +349,7 @@ fn lowers_partial_fixed_array_replacement_cleanup_before_preserving_old_value() 
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -968,7 +968,7 @@ fn keeps_completed_owned_array_argument_live_until_call_starts() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1036,7 +1036,7 @@ fn lowers_partial_fixed_array_return_through_tracked_temporary() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

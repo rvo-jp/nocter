@@ -269,13 +269,13 @@ pub(super) fn method_contextual_substitutions(
 }
 
 pub(super) fn method_specialization_context_substitutions(
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
     specialization: &MethodCallSpecialization,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> HashMap<String, TypeExpr> {
     let mut substitutions =
-        impl_substitutions_for_self_ty(impl_, &specialization.self_ty).unwrap_or_default();
+        impl_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
     crate::typecheck::extend_associated_type_substitutions_with_resolver(
         &mut substitutions,

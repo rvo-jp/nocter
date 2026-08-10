@@ -1,11 +1,12 @@
 use super::Formatter;
 use crate::ast::{
-    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConstructDecl,
-    ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant, FromImportItem,
-    FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName,
-    InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, PackageFile,
-    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
-    TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
+    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConformanceDecl,
+    ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl,
+    EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImportItem,
+    ImportedName, InstanceDecl, InstanceMember, InterfaceDecl, Item, LiteralDecl, LiteralShape,
+    MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
+    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
+    WhereClause,
 };
 
 impl Formatter {
@@ -40,7 +41,8 @@ impl Formatter {
             Item::Struct(item) => self.format_struct_decl(item),
             Item::Enum(item) => self.format_enum_decl(item),
             Item::Interface(item) => self.format_interface_decl(item),
-            Item::Impl(item) => self.format_impl_decl(item),
+            Item::Instance(item) => self.format_instance_decl(item),
+            Item::Conformance(item) => self.format_conformance_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
             Item::Coerce(item) => self.format_coerce_decl(item),
         }
@@ -340,14 +342,10 @@ impl Formatter {
         }
     }
 
-    fn format_impl_decl(&mut self, item: &ImplDecl) {
-        self.write("impl");
+    fn format_instance_decl(&mut self, item: &InstanceDecl) {
+        self.write("instance");
         self.format_generics(&item.generics);
         self.write(" ");
-        if let Some(interface_ty) = &item.interface_ty {
-            self.format_type(interface_ty);
-            self.write(" for ");
-        }
         self.format_type(&item.target_ty);
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
@@ -365,7 +363,7 @@ impl Formatter {
                     formatter.newline();
                 }
                 formatter.write_indent();
-                formatter.format_impl_member(member);
+                formatter.format_instance_member(member);
                 formatter.newline();
             }
         });
@@ -373,12 +371,47 @@ impl Formatter {
         self.write("}");
     }
 
-    fn format_impl_member(&mut self, member: &ImplMember) {
+    fn format_instance_member(&mut self, member: &InstanceMember) {
         match member {
-            ImplMember::AssociatedType(binding) => self.format_associated_type_binding(binding),
-            ImplMember::Method(method) => self.format_method_decl(method),
-            ImplMember::Drop(drop_) => self.format_drop_decl(drop_),
+            InstanceMember::Method(method) => self.format_method_decl(method),
+            InstanceMember::Drop(drop_) => self.format_drop_decl(drop_),
         }
+    }
+
+    fn format_conformance_decl(&mut self, item: &ConformanceDecl) {
+        self.write("conform");
+        self.format_generics(&item.generics);
+        self.write(" ");
+        self.format_type(&item.interface_ty);
+        self.write(" for ");
+        self.format_type(&item.target_ty);
+        self.format_where_clause(item.requirements.as_ref());
+        self.write(" ");
+
+        if item.members.is_empty() {
+            self.write("{}");
+            return;
+        }
+
+        self.write("{");
+        self.newline();
+        self.indented(|formatter| {
+            for (index, member) in item.members.iter().enumerate() {
+                if index > 0 {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                match member {
+                    ConformanceMember::AssociatedType(binding) => {
+                        formatter.format_associated_type_binding(binding);
+                    }
+                    ConformanceMember::Method(method) => formatter.format_method_decl(method),
+                }
+                formatter.newline();
+            }
+        });
+        self.write_indent();
+        self.write("}");
     }
 
     fn format_associated_type_binding(&mut self, binding: &AssociatedTypeBinding) {

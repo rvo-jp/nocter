@@ -88,7 +88,7 @@ fn build_command_rejects_nonterminal_if_branch_outer_explicit_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -141,7 +141,7 @@ fn build_command_rejects_nonterminal_if_branch_outer_move_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -194,7 +194,7 @@ fn build_command_rejects_nonterminal_while_body_outer_explicit_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -248,7 +248,7 @@ fn build_command_rejects_nonterminal_while_body_outer_move_assignment_before_loo
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -483,7 +483,7 @@ fn build_command_rejects_ignored_unsupported_method_call_expression_statement_be
     value: i32
 }
 
-impl Box {
+instance Box {
     method &+self.borrow_self(): &+Self {
         return self
     }
@@ -655,7 +655,7 @@ fn build_command_rejects_compound_terminal_if_condition_outer_move() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -713,7 +713,7 @@ fn build_command_rejects_value_if_condition_outer_move() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -772,7 +772,7 @@ fn build_command_rejects_nonterminal_while_condition_outer_move() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1312,7 +1312,7 @@ fn build_command_accepts_payload_if_is_owned_direct_drop_binding() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -1496,7 +1496,7 @@ fn build_command_accepts_reachable_composed_outcome_method_return() {
     pub value: i32
 }
 
-impl Holder {
+instance Holder {
     pub method &self.make_value(): i32?! {
         return none
     }
@@ -1526,7 +1526,7 @@ fn build_command_accepts_specialized_composed_outcome_method_return() {
     value: T
 }
 
-impl<T> Holder<T> {
+instance<T> Holder<T> {
     pub method &self.make(): T?! from self {
         return self.value
     }
@@ -1605,7 +1605,7 @@ fn build_command_does_not_reject_unreachable_nested_fallible_method_return() {
     pub value: i32
 }
 
-impl Holder {
+instance Holder {
     pub method &self.make_value(): (i32?)! {
         return none
     }
@@ -2013,7 +2013,7 @@ fn build_command_rejects_nonterminal_match_arm_outer_explicit_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2076,7 +2076,7 @@ fn build_command_accepts_payload_match_expression_owned_direct_drop_binding() {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         return
     }
@@ -2248,7 +2248,7 @@ copy struct Holder {
     value: i32
 }
 
-impl Holder {
+instance Holder {
     method &self.app_failed(): error {
         return Error.new("app.failed", "failed")
     }

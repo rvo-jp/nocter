@@ -680,7 +680,7 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
 
 #[test]
 fn drop_declaration_editor_features_share_the_keyword_range() {
-    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n    }\n}\n";
+    let text = "struct Token { value: i32 }\n\ninstance Token {\n    drop &+self {\n        return\n    }\n}\n";
     let uri = "file:///tmp/nocter-drop-editor-identity.nct".to_string();
     let server = LspServer {
         documents: HashMap::from([(
@@ -862,7 +862,7 @@ fn classifies_builtin_types_and_methods_for_semantic_tokens() {
     let project = TempProject::new("lsp-semantic-methods");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File { fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
+    let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\ninstance File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File { fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
     let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
@@ -3032,7 +3032,7 @@ fn returns_definition_for_method_call() {
     let project = TempProject::new("lsp-definition-method-call");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read()\n}\n";
+    let text = "struct File {\n    fd: i32\n}\n\ninstance File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read()\n}\n";
     let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
     let server = LspServer {
@@ -3281,7 +3281,8 @@ fn returns_document_symbols_for_top_level_declarations() {
 
 #[test]
 fn document_features_recover_an_unclosed_member_body() {
-    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n";
+    let text =
+        "struct Token { value: i32 }\n\ninstance Token {\n    drop &+self {\n        return\n";
     let uri = "file:///tmp/nocter-unclosed-document-features.nct".to_string();
     let server = LspServer {
         documents: HashMap::from([(
@@ -3625,7 +3626,7 @@ fd: i32
 size: i32
 }
 
-impl File {
+instance File {
 method &self.describe(): i32 {
     return self.size
 }
@@ -3692,7 +3693,7 @@ fn returns_completion_items_for_incomplete_value_member_dot() {
 fd: i32
 }
 
-impl File {
+instance File {
 method &self.describe(): i32 {
     return self.fd
 }
@@ -4468,7 +4469,7 @@ coerce Vec<T> {
     pub &self as &[T] { return self.data }
 }
 
-impl<T> Vec<T> {
+instance<T> Vec<T> {
     /// Transfers `value` into the end of the initialized prefix.
     pub method &+self.push(value: T): void! {
         return
@@ -4711,7 +4712,7 @@ fn member_completion_recovers_incomplete_imported_receiver() {
     value: T
 }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     pub method &self.inspect(): void {
         return
     }
@@ -4764,7 +4765,7 @@ pub struct Box {
     value: i32
 }
 
-impl Box {
+instance Box {
     pub method &self.inspect(): i32 {
         return self.value
     }
@@ -5074,12 +5075,12 @@ fn write_builtin_view_surfaces(home: &Path) {
     std::fs::create_dir_all(home.join("std/slice")).unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        "pub(/) primitive str_len_raw(value: &str): usize\nimpl str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
+        "pub(/) primitive str_len_raw(value: &str): usize\ninstance str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
     )
     .unwrap();
     crate::test_files::write(
         home.join("std/slice/index.nct"),
-        "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\nimpl<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
+        "pub(/) primitive slice_len_raw<T>(value: &[T]): usize\ninstance<T> [T] { pub method &self.len(): usize { return slice_len_raw(self) } pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 } }\n",
     )
     .unwrap();
 }

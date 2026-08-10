@@ -192,7 +192,8 @@ pub(crate) fn trusted_declarations_for_module(
             | Item::TypeAlias(_)
             | Item::Enum(_)
             | Item::Interface(_)
-            | Item::Impl(_)
+            | Item::Instance(_)
+            | Item::Conformance(_)
             | Item::Construct(_)
             | Item::Coerce(_) => {}
         }

@@ -6,7 +6,7 @@
 
 use super::CompileUnitAnalysis;
 use crate::ast::{
-    AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, ImplMember, Item, TypeExpr,
+    AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, MethodOwnerDecl, TypeExpr,
 };
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
@@ -123,7 +123,7 @@ struct OccurrenceBuilder<'a> {
 impl OccurrenceBuilder<'_> {
     fn collect(&mut self) {
         self.collect_symbol_declarations();
-        self.collect_callable_implementation_occurrences();
+        self.collect_callable_instanceementation_occurrences();
         self.collect_local_declarations_and_references();
         self.collect_resolved_references();
         self.collect_generic_parameter_declarations();
@@ -131,7 +131,7 @@ impl OccurrenceBuilder<'_> {
         self.collect_typechecked_references();
     }
 
-    fn collect_callable_implementation_occurrences(&mut self) {
+    fn collect_callable_instanceementation_occurrences(&mut self) {
         for item in &self.ast.items {
             match item {
                 Item::Function(function) => {
@@ -166,11 +166,8 @@ impl OccurrenceBuilder<'_> {
                         2,
                     );
                 }
-                Item::Impl(impl_) if impl_.interface_ty.is_none() => {
-                    for member in &impl_.members {
-                        let ImplMember::Method(method) = member else {
-                            continue;
-                        };
+                Item::Instance(instance) => {
+                    for method in instance.methods() {
                         let Some(contract) =
                             self.resolved.callable_bodies.declaration(method.name_span)
                         else {
@@ -220,7 +217,7 @@ impl OccurrenceBuilder<'_> {
                 | Item::Struct(_)
                 | Item::Enum(_)
                 | Item::Interface(_)
-                | Item::Impl(_)
+                | Item::Conformance(_)
                 | Item::Coerce(_) => {}
             }
         }
@@ -623,13 +620,14 @@ mod tests {
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-impl<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
+conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let declaration_offset = text.find("ExactSizeStream<T> {}").unwrap();
         let bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
-        let target_offset = text.rfind("impl<T, I> ExactSizeStream").unwrap() + "impl<T, I> ".len();
+        let target_offset =
+            text.rfind("instance<T, I> ExactSizeStream").unwrap() + "instance<T, I> ".len();
 
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let bound = file.occurrences.at_offset(bound_offset).unwrap();

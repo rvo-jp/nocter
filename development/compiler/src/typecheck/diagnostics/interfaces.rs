@@ -1,11 +1,12 @@
 use super::{
-    AssociatedTypeBindingSignature, AssociatedTypeSignature, Diagnostic, DiagnosticNote, ImplDecl,
+    AssociatedTypeBindingSignature, AssociatedTypeSignature, Diagnostic, DiagnosticNote,
     MethodSignature, SourceMap, Type, TypeExpr, TypeSymbol, type_symbol_kind_name,
 };
+use crate::ast::ConformanceDecl;
 
 pub(in crate::typecheck) fn associated_type_missing_diagnostic(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
     required: &AssociatedTypeSignature,
@@ -13,12 +14,12 @@ pub(in crate::typecheck) fn associated_type_missing_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0433",
         format!(
-            "interface implementation for `{}` does not bind associated type `{}` from `{}`",
+            "conformance for `{}` does not bind associated type `{}` from `{}`",
             target_symbol.canonical_name, required.name, interface_symbol.canonical_name
         ),
     );
     diagnostic.primary_span = sources
-        .span_to_json(impl_.target_ty.span())
+        .span_to_json(conformance_decl.target_ty.span())
         .ok()
         .map(Box::new);
     if let Ok(span) = sources.span_to_json(required.name_span) {
@@ -28,7 +29,7 @@ pub(in crate::typecheck) fn associated_type_missing_diagnostic(
         });
     }
     diagnostic.help = Some(format!(
-        "add `type {} = ConcreteType` to this interface implementation",
+        "add `type {} = ConcreteType` to this conform block",
         required.name
     ));
     diagnostic
@@ -62,7 +63,7 @@ pub(in crate::typecheck) fn duplicate_associated_type_binding_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0435",
         format!(
-            "interface implementation for `{}` binds associated type `{}` more than once",
+            "conformance for `{}` binds associated type `{}` more than once",
             target_symbol.canonical_name, binding.name
         ),
     );
@@ -77,7 +78,7 @@ pub(in crate::typecheck) fn duplicate_associated_type_binding_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn interface_impl_contract_not_interface_diagnostic(
+pub(in crate::typecheck) fn conformance_contract_not_interface_diagnostic(
     sources: &SourceMap,
     interface_ty: &TypeExpr,
     actual: &Type,
@@ -95,14 +96,14 @@ pub(in crate::typecheck) fn interface_impl_contract_not_interface_diagnostic(
     );
     let mut diagnostic = Diagnostic::error(
         "E0422",
-        format!("interface conformance impl must name an interface, got {actual_label}"),
+        format!("conform declaration must name an interface, got {actual_label}"),
     );
     diagnostic.primary_span = sources.span_to_json(interface_ty.span()).ok().map(Box::new);
-    diagnostic.help = Some("write `impl Interface for Type` with an interface name".to_string());
+    diagnostic.help = Some("write `conform Interface for Type` with an interface name".to_string());
     diagnostic
 }
 
-pub(in crate::typecheck) fn interface_impl_target_not_nominal_diagnostic(
+pub(in crate::typecheck) fn conformance_target_not_nominal_diagnostic(
     sources: &SourceMap,
     target_ty: &TypeExpr,
     actual: &Type,
@@ -123,13 +124,13 @@ pub(in crate::typecheck) fn interface_impl_target_not_nominal_diagnostic(
         format!("interface conformance target must be a struct or enum, got {actual_label}"),
     );
     diagnostic.primary_span = sources.span_to_json(target_ty.span()).ok().map(Box::new);
-    diagnostic.help = Some("implement interfaces for nominal struct or enum types".to_string());
+    diagnostic.help = Some("conform nominal struct or enum types to interfaces".to_string());
     diagnostic
 }
 
-pub(in crate::typecheck) fn duplicate_interface_impl_diagnostic(
+pub(in crate::typecheck) fn duplicate_conformance_diagnostic(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
     first_span: crate::source::ByteSpan,
@@ -141,20 +142,23 @@ pub(in crate::typecheck) fn duplicate_interface_impl_diagnostic(
             target_symbol.canonical_name, interface_symbol.canonical_name
         ),
     );
-    diagnostic.primary_span = sources.span_to_json(impl_.span).ok().map(Box::new);
+    diagnostic.primary_span = sources
+        .span_to_json(conformance_decl.span)
+        .ok()
+        .map(Box::new);
     if let Ok(span) = sources.span_to_json(first_span) {
         diagnostic.notes.push(DiagnosticNote {
             message: "first conformance declaration is here".to_string(),
             span: Some(span),
         });
     }
-    diagnostic.help = Some("keep a single `impl Interface for Type` declaration".to_string());
+    diagnostic.help = Some("keep a single `conform Interface for Type` declaration".to_string());
     diagnostic
 }
 
 pub(in crate::typecheck) fn interface_method_missing_diagnostic(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
     required: &MethodSignature,
@@ -162,12 +166,12 @@ pub(in crate::typecheck) fn interface_method_missing_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0425",
         format!(
-            "interface implementation for `{}` does not define required method `{}` from `{}`",
+            "conformance for `{}` does not define required method `{}` from `{}`",
             target_symbol.canonical_name, required.name, interface_symbol.canonical_name
         ),
     );
     diagnostic.primary_span = sources
-        .span_to_json(impl_.target_ty.span())
+        .span_to_json(conformance_decl.target_ty.span())
         .ok()
         .map(Box::new);
     if let Ok(span) = sources.span_to_json(required.name_span) {
@@ -177,13 +181,13 @@ pub(in crate::typecheck) fn interface_method_missing_diagnostic(
         });
     }
     diagnostic.help = Some(format!(
-        "define `method self.{}(...)` inside this interface implementation block",
+        "define `method self.{}(...)` inside this conform block",
         required.name
     ));
     diagnostic
 }
 
-pub(in crate::typecheck) fn interface_impl_extra_method_diagnostic(
+pub(in crate::typecheck) fn conformance_extra_method_diagnostic(
     sources: &SourceMap,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
@@ -198,11 +202,11 @@ pub(in crate::typecheck) fn interface_impl_extra_method_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(actual.name_span).ok().map(Box::new);
     diagnostic.help =
-        Some("move unrelated methods to an inherent `impl Type { ... }` block".to_string());
+        Some("move unrelated methods to an `instance Type { ... }` block".to_string());
     diagnostic
 }
 
-pub(in crate::typecheck) fn duplicate_interface_impl_method_diagnostic(
+pub(in crate::typecheck) fn duplicate_conformance_method_diagnostic(
     sources: &SourceMap,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
@@ -212,7 +216,7 @@ pub(in crate::typecheck) fn duplicate_interface_impl_method_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0425",
         format!(
-            "interface implementation for `{}` defines method `{}` more than once",
+            "conformance for `{}` defines method `{}` more than once",
             target_symbol.canonical_name, actual.name
         ),
     );
@@ -220,13 +224,13 @@ pub(in crate::typecheck) fn duplicate_interface_impl_method_diagnostic(
     if let Ok(span) = sources.span_to_json(first_span) {
         diagnostic.notes.push(DiagnosticNote {
             message: format!(
-                "first implementation of `{}.{}` is here",
+                "first conformance method `{}.{}` is here",
                 interface_symbol.canonical_name, actual.name
             ),
             span: Some(span),
         });
     }
-    diagnostic.help = Some("keep exactly one implementation for each interface method".to_string());
+    diagnostic.help = Some("keep exactly one definition for each interface method".to_string());
     diagnostic
 }
 
@@ -260,6 +264,6 @@ pub(in crate::typecheck) fn interface_method_signature_mismatch_diagnostic(
         });
     }
     diagnostic.help =
-        Some("make the interface implementation member signature match the contract".to_string());
+        Some("make the conformance member signature match the interface contract".to_string());
     diagnostic
 }

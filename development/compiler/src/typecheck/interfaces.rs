@@ -1,17 +1,17 @@
 use super::diagnostics::{
-    duplicate_interface_impl_diagnostic, interface_impl_contract_not_interface_diagnostic,
-    interface_impl_target_not_nominal_diagnostic,
+    conformance_contract_not_interface_diagnostic, conformance_target_not_nominal_diagnostic,
+    duplicate_conformance_diagnostic,
 };
 use super::environments::generic_parameter_substitutions;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
-use crate::ast::{AstFile, ImplDecl, Item, TypeExpr};
+use crate::ast::{AstFile, ConformanceDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::{HashMap, HashSet};
 
-pub(super) fn check_interface_impls(
+pub(super) fn check_conformances(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
@@ -19,47 +19,47 @@ pub(super) fn check_interface_impls(
 ) {
     let mut seen = HashMap::<(String, String), ByteSpan>::new();
 
-    for impl_ in ast.items.iter().filter_map(|item| match item {
-        Item::Impl(impl_) if impl_.interface_ty.is_some() => Some(impl_),
+    for conformance_decl in ast.items.iter().filter_map(|item| match item {
+        Item::Conformance(conformance_decl) => Some(conformance_decl),
         _ => None,
     }) {
-        check_interface_impl(sources, impl_, resolved, diagnostics, &mut seen);
+        check_conformance(sources, conformance_decl, resolved, diagnostics, &mut seen);
     }
 }
 
-fn check_interface_impl(
+fn check_conformance(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     seen: &mut HashMap<(String, String), ByteSpan>,
 ) {
-    let Some(interface_ty) = &impl_.interface_ty else {
-        return;
-    };
-
-    let impl_substitutions = generic_parameter_substitutions(&impl_.generics);
+    let conformance_substitutions = generic_parameter_substitutions(&conformance_decl.generics);
     let Some((interface_symbol, interface_type)) = resolve_interface_symbol(
-        interface_ty,
+        &conformance_decl.interface_ty,
         resolved,
         diagnostics,
         sources,
-        &impl_substitutions,
+        &conformance_substitutions,
     ) else {
         return;
     };
-    let Some((target_symbol, target_type)) =
-        resolve_target_symbol(impl_, resolved, diagnostics, sources, &impl_substitutions)
-    else {
+    let Some((target_symbol, target_type)) = resolve_target_symbol(
+        conformance_decl,
+        resolved,
+        diagnostics,
+        sources,
+        &conformance_substitutions,
+    ) else {
         return;
     };
 
     let key = conformance_key(&interface_type, &target_type);
     match seen.entry(key) {
         std::collections::hash_map::Entry::Occupied(first) => {
-            diagnostics.push(duplicate_interface_impl_diagnostic(
+            diagnostics.push(duplicate_conformance_diagnostic(
                 sources,
-                impl_,
+                conformance_decl,
                 interface_symbol,
                 target_symbol,
                 *first.get(),
@@ -67,13 +67,13 @@ fn check_interface_impl(
             return;
         }
         std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(impl_.span);
+            entry.insert(conformance_decl.span);
         }
     }
 
-    super::interface_impl_members::check_interface_impl_members(
+    super::conformance_members::check_conformance_members(
         sources,
-        impl_,
+        conformance_decl,
         interface_symbol,
         target_symbol,
         &interface_type,
@@ -96,7 +96,7 @@ fn resolve_interface_symbol<'a>(
     }
     let symbol = symbol_for_type(&actual_type, resolved);
     if symbol.is_none_or(|symbol| symbol.kind != TypeSymbolKind::Interface) {
-        diagnostics.push(interface_impl_contract_not_interface_diagnostic(
+        diagnostics.push(conformance_contract_not_interface_diagnostic(
             sources,
             ty,
             &actual_type,
@@ -109,14 +109,18 @@ fn resolve_interface_symbol<'a>(
 }
 
 fn resolve_target_symbol<'a>(
-    impl_: &ImplDecl,
+    conformance_decl: &ConformanceDecl,
     resolved: &'a ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     sources: &SourceMap,
     substitutions: &HashMap<String, Type>,
 ) -> Option<(&'a TypeSymbol, Type)> {
-    let actual_type =
-        type_expr_to_type_with_substitutions(&impl_.target_ty, resolved, None, substitutions);
+    let actual_type = type_expr_to_type_with_substitutions(
+        &conformance_decl.target_ty,
+        resolved,
+        None,
+        substitutions,
+    );
     if actual_type.is_unknown_or_unresolved() {
         return None;
     }
@@ -124,9 +128,9 @@ fn resolve_target_symbol<'a>(
     if symbol
         .is_none_or(|symbol| !matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
     {
-        diagnostics.push(interface_impl_target_not_nominal_diagnostic(
+        diagnostics.push(conformance_target_not_nominal_diagnostic(
             sources,
-            &impl_.target_ty,
+            &conformance_decl.target_ty,
             &actual_type,
             symbol,
         ));
@@ -232,12 +236,12 @@ pub(super) fn type_symbol_generic_substitutions(
         .collect()
 }
 
-pub(super) fn method_impl_target_substitutions(
+pub(super) fn method_owner_target_substitutions(
     method: &MethodSignature,
     self_type: &Type,
     resolved: &ResolveOutput,
 ) -> HashMap<String, Type> {
-    let Some(impl_target_ty) = &method.impl_target_ty else {
+    let Some(owner_target_ty) = &method.owner_target_ty else {
         return HashMap::new();
     };
 
@@ -249,7 +253,7 @@ pub(super) fn method_impl_target_substitutions(
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
     infer_type_expr_substitutions(
-        impl_target_ty,
+        owner_target_ty,
         self_type,
         resolved,
         None,

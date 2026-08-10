@@ -5,13 +5,13 @@ use crate::resolve::{SymbolKind, TypeSymbol, TypeSymbolKind};
 #[test]
 fn collects_source_declared_builtin_method_surfaces_outside_the_symbol_table() {
     let output = resolve_text(
-        r#"impl str {
+        r#"instance str {
     pub method &self.count(): usize {
         return 1
     }
 }
 
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.count(): usize {
         return 2
     }
@@ -123,7 +123,7 @@ construct Point {
     }
 }
 
-impl Point {
+instance Point {
     method self.x_value(): i32 {
         return self.x
     }
@@ -157,7 +157,7 @@ func main(): i32 {
 }
 
 #[test]
-fn collects_interface_implementation_member_identities() {
+fn collects_conformanceementation_member_identities() {
     let output = resolve_text(
         r#"interface Measure {
     pub method &self.measure(): i32
@@ -167,7 +167,7 @@ struct Count {
     value: i32
 }
 
-impl Measure for Count {
+conform Measure for Count {
     method &self.measure(): i32 {
         return self.value
     }
@@ -185,7 +185,10 @@ impl Measure for Count {
     };
     assert_eq!(method.name, "measure");
     assert!(!method.has_default_body);
-    assert_eq!(method.impl_target_ty.as_ref(), Some(&conformance.target_ty));
+    assert_eq!(
+        method.owner_target_ty.as_ref(),
+        Some(&conformance.target_ty)
+    );
     assert_eq!(
         output
             .method_signature_by_name_span(method.name_span)
@@ -201,7 +204,7 @@ fn collects_drop_member_signature() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

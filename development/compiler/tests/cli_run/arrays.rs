@@ -873,7 +873,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -932,7 +932,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -991,7 +991,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1047,7 +1047,7 @@ struct Handle {
     name: &str
 }
 
-impl Handle {
+instance Handle {
     drop &+self {
         write(self.name)!
         return
@@ -1059,7 +1059,7 @@ struct Wrapper {
     handle: Handle
 }
 
-impl Wrapper {
+instance Wrapper {
     drop &+self {
         write(self.name)!
         return
@@ -1122,7 +1122,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1183,7 +1183,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1248,7 +1248,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1309,7 +1309,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1375,7 +1375,7 @@ struct Token {
     tag: u8
 }
 
-impl Token {
+instance Token {
     drop &+self {
         if self.tag == 1 {
             write("a")!
@@ -1442,7 +1442,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1516,7 +1516,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1579,7 +1579,7 @@ struct Token {
     tag: u8
 }
 
-impl Token {
+instance Token {
     drop &+self {
         if self.tag == 1 {
             write("a")!
@@ -1659,7 +1659,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1722,7 +1722,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1789,7 +1789,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1801,7 +1801,7 @@ struct Bundle {
     files: [File; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -1865,7 +1865,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1877,7 +1877,7 @@ struct Bundle {
     files: [File; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -1940,7 +1940,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -1952,7 +1952,7 @@ struct Bundle {
     files: [File; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -2040,7 +2040,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -2052,7 +2052,7 @@ struct Bundle {
     files: [File; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -2118,7 +2118,7 @@ struct Token {
     tag: u8
 }
 
-impl Token {
+instance Token {
     drop &+self {
         if self.tag == 1 {
             write("a")!
@@ -2142,7 +2142,7 @@ struct Bundle {
     tokens: [Token; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -2206,7 +2206,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return
@@ -2217,7 +2217,7 @@ struct Bundle {
     files: [File; 2]
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         write("X")!
         return
@@ -2294,7 +2294,7 @@ struct File {
     name: &str
 }
 
-impl File {
+instance File {
     drop &+self {
         write(self.name)!
         return

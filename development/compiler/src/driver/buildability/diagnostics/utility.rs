@@ -99,7 +99,7 @@ pub(in crate::driver::buildability) fn unsupported_outcome_return_type_issue(
     })
 }
 
-pub(in crate::driver::buildability) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+pub(in crate::driver::buildability) fn declaration_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),

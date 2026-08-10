@@ -16,8 +16,8 @@ use super::provenance::{
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
 use crate::ast::{
-    AstFile, ImplDecl, ImplMember, Item, MethodDecl, Parameter, ResultProvenanceClause, TypeExpr,
-    Visibility,
+    AstFile, ConformanceMember, InstanceMember, Item, MethodDecl, MethodOwnerDecl, Parameter,
+    ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -125,9 +125,33 @@ pub(super) fn check_result_provenance_contracts(
                     }
                 }
             }
-            Item::Impl(impl_) => {
-                check_impl_methods(sources, impl_, resolved, summaries, diagnostics)
-            }
+            Item::Instance(instance) => check_method_contracts(
+                sources,
+                instance,
+                instance.members.iter().filter_map(|member| match member {
+                    InstanceMember::Method(method) => Some(method),
+                    InstanceMember::Drop(_) => None,
+                }),
+                false,
+                resolved,
+                summaries,
+                diagnostics,
+            ),
+            Item::Conformance(conformance) => check_method_contracts(
+                sources,
+                conformance,
+                conformance
+                    .members
+                    .iter()
+                    .filter_map(|member| match member {
+                        ConformanceMember::AssociatedType(_) => None,
+                        ConformanceMember::Method(method) => Some(method),
+                    }),
+                true,
+                resolved,
+                summaries,
+                diagnostics,
+            ),
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     let environment = environment_for_function(function, resolved);
@@ -198,44 +222,50 @@ pub(super) fn check_result_provenance_contracts(
                     }
                 }
             }
-            Item::Coerce(coerce) => check_impl_methods(
-                sources,
-                &coerce.callable_impl(),
-                resolved,
-                summaries,
-                diagnostics,
-            ),
+            Item::Coerce(coerce) => {
+                let instance = coerce.callable_instance();
+                check_method_contracts(
+                    sources,
+                    &instance,
+                    instance.members.iter().filter_map(|member| match member {
+                        InstanceMember::Method(method) => Some(method),
+                        InstanceMember::Drop(_) => None,
+                    }),
+                    false,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                )
+            }
             _ => {}
         }
     }
 }
 
-fn check_impl_methods(
+fn check_method_contracts<'a>(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    owner: &(impl MethodOwnerDecl + ?Sized),
+    methods: impl Iterator<Item = &'a MethodDecl>,
+    externally_callable: bool,
     resolved: &ResolveOutput,
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let implements_interface = impl_.interface_ty.is_some();
-    for member in &impl_.members {
-        let ImplMember::Method(method) = member else {
-            continue;
-        };
+    for method in methods {
         check_clause(
             sources,
             method.result_provenance.as_ref(),
             Some(method),
             ResultProvenanceInputs::parameters(&method.parameters.parameters),
             &method.return_type,
-            Some(&environment_for_method(method, resolved, impl_)),
+            Some(&environment_for_method(method, resolved, owner)),
             resolved,
             diagnostics,
         );
         let Some(body) = &method.body else {
             continue;
         };
-        let environment = environment_for_method(method, resolved, impl_);
+        let environment = environment_for_method(method, resolved, owner);
         check_body_result_contract(
             sources,
             BodyResultContract {
@@ -247,8 +277,7 @@ fn check_impl_methods(
                 parameters: &method.parameters.parameters,
                 return_type: &method.return_type,
                 environment: &environment,
-                externally_callable: implements_interface
-                    || method.visibility == Visibility::Public,
+                externally_callable: externally_callable || method.visibility == Visibility::Public,
             },
             resolved,
             summaries,

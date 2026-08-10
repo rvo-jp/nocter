@@ -6,7 +6,7 @@ fn enforces_nominal_where_requirements_at_type_use_sites() {
         r#"interface Marked {}
 
 copy struct MarkedValue {}
-impl Marked for MarkedValue {}
+conform Marked for MarkedValue {}
 
 struct OwnedValue {}
 
@@ -60,10 +60,10 @@ fn enforces_nominal_projection_equalities_at_type_use_sites() {
 }
 
 struct IntSource {}
-impl Source for IntSource { type Item = i32 }
+conform Source for IntSource { type Item = i32 }
 
 struct BoolSource {}
-impl Source for BoolSource { type Item = bool }
+conform Source for BoolSource { type Item = bool }
 
 struct Pair<L, R> where L: Source, R: Source, L.Item = R.Item {
     left: L
@@ -321,7 +321,7 @@ struct Count {
 fn accepts_statically_resolved_method_call_through_interface_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}
-impl Measure for Count {{
+conform Measure for Count {{
     method &self.measure(): i32 {{
         return self.value
     }}
@@ -352,7 +352,7 @@ struct IdentityValue {
     marker: i32
 }
 
-impl Identity for IdentityValue {
+conform Identity for IdentityValue {
     method &self.apply<U>(value: U): U from value {
         return value
     }
@@ -422,7 +422,7 @@ func main(): i32 {
 fn accepts_forwarding_a_matching_generic_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}
-impl Measure for Count {{
+conform Measure for Count {{
     method &self.measure(): i32 {{
         return self.value
     }}
@@ -456,7 +456,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Lookup<T> for Box<T> {
+conform<T> Lookup<T> for Box<T> {
     method &self.get(): &T from self {
         return &self.value
     }
@@ -499,7 +499,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Lookup<T> for Box<T> {
+conform<T> Lookup<T> for Box<T> {
     method &self.get(): &T {
         return &self.value
     }
@@ -529,13 +529,13 @@ struct Value {
     raw: i32
 }
 
-impl Read for Value {
+conform Read for Value {
     method &self.read(): i32 {
         return self.raw
     }
 }
 
-impl Size for Value {
+conform Size for Value {
     method &self.size(): usize {
         return 1
     }
@@ -617,7 +617,7 @@ struct Input {
     value: i32
 }
 
-impl Source<i32> for Input {
+conform Source<i32> for Input {
     method &+self.next(): i32? {
         return none
     }
@@ -627,7 +627,7 @@ struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
+conform<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
@@ -664,7 +664,7 @@ struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
+conform<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }

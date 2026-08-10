@@ -476,7 +476,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

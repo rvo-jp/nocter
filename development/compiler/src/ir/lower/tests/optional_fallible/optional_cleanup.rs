@@ -11,7 +11,7 @@ fn optional_propagation_drops_owned_locals_before_returning_none() {
     value: i32
 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }
@@ -77,7 +77,7 @@ fn optional_aggregate_exiting_fallback_does_not_drop_an_uninitialized_destinatio
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }

@@ -118,7 +118,7 @@ func main(): usize {
 "#,
         &[(
             "std/str/index.nct",
-            "impl str { pub method &self.count(): usize { return 5 } }\n",
+            "instance str { pub method &self.count(): usize { return 5 } }\n",
         )],
     );
     let coercion = ir

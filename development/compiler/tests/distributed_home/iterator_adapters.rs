@@ -53,7 +53,7 @@ struct PlainIter {
     end: i32
 }
 
-impl Iterator for PlainIter {
+conform Iterator for PlainIter {
     type Item = i32
 
     method &+self.next(): i32? {
@@ -72,7 +72,7 @@ struct ReportedIter {
     reported: usize
 }
 
-impl Iterator for ReportedIter {
+conform Iterator for ReportedIter {
     type Item = i32
 
     method &+self.next(): i32? {
@@ -86,7 +86,7 @@ impl Iterator for ReportedIter {
 
 }
 
-impl ExactSizeIterator for ReportedIter {
+conform ExactSizeIterator for ReportedIter {
     method &self.remaining_len(): usize {
         return self.reported
     }

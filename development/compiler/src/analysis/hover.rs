@@ -2,7 +2,7 @@
 
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterfaceDecl,
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, InterfaceDecl,
     InterpolatedStringPart, Item, MethodDecl, ModulePath, Parameter, PrimitiveDecl, Stmt,
     StructDecl, StructField,
 };

@@ -1,6 +1,6 @@
 //! Cursor-to-call lookup shared by call-oriented editor features.
 
-use crate::ast::{AstFile, Block, CallExpr, Expr, ImplMember, Item, Stmt};
+use crate::ast::{AstFile, Block, CallExpr, ConformanceMember, Expr, InstanceMember, Item, Stmt};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,14 +30,22 @@ fn call_in_item_at_offset(
             .as_ref()
             .and_then(|body| call_in_block_at_offset(body, offset, region)),
         Item::Test(test) => call_in_block_at_offset(&test.body, offset, region),
-        Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
-            ImplMember::AssociatedType(_) => None,
-            ImplMember::Method(method) => method
+        Item::Instance(instance) => instance.members.iter().find_map(|member| match member {
+            InstanceMember::Method(method) => method
                 .body
                 .as_ref()
                 .and_then(|body| call_in_block_at_offset(body, offset, region)),
-            ImplMember::Drop(drop_) => call_in_block_at_offset(&drop_.body, offset, region),
+            InstanceMember::Drop(drop_) => call_in_block_at_offset(&drop_.body, offset, region),
         }),
+        Item::Conformance(conformance) => {
+            conformance.members.iter().find_map(|member| match member {
+                ConformanceMember::AssociatedType(_) => None,
+                ConformanceMember::Method(method) => method
+                    .body
+                    .as_ref()
+                    .and_then(|body| call_in_block_at_offset(body, offset, region)),
+            })
+        }
         Item::Interface(interface) => interface.methods.iter().find_map(|method| {
             method
                 .body

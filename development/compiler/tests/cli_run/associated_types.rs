@@ -15,7 +15,7 @@ copy struct Number {
     value: i32
 }
 
-impl Source for Number {
+conform Source for Number {
     type Item = i32
 
     method &self.get(): i32 {

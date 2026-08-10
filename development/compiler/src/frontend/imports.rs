@@ -31,18 +31,26 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
             }
         }
         Item::Test(test) => collect_block_import_paths(&test.body, paths),
-        Item::Impl(impl_) => {
-            for member in &impl_.members {
+        Item::Instance(instance) => {
+            for member in &instance.members {
                 match member {
-                    crate::ast::ImplMember::AssociatedType(_) => {}
-                    crate::ast::ImplMember::Method(method) => {
+                    crate::ast::InstanceMember::Method(method) => {
                         if let Some(body) = &method.body {
                             collect_block_import_paths(body, paths);
                         }
                     }
-                    crate::ast::ImplMember::Drop(drop_) => {
+                    crate::ast::InstanceMember::Drop(drop_) => {
                         collect_block_import_paths(&drop_.body, paths);
                     }
+                }
+            }
+        }
+        Item::Conformance(conformance) => {
+            for member in &conformance.members {
+                if let crate::ast::ConformanceMember::Method(method) = member
+                    && let Some(body) = &method.body
+                {
+                    collect_block_import_paths(body, paths);
                 }
             }
         }

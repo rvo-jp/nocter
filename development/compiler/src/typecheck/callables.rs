@@ -162,7 +162,7 @@ pub(super) fn check_callable_call(
     let signature = CheckedCallSignature {
         signature: &contract.signature,
         self_type: None,
-        impl_target_ty: None,
+        owner_target_ty: None,
         name: contract.callee_type.display(),
         kind: CheckedCallKind::Function,
         declaration_span: None,

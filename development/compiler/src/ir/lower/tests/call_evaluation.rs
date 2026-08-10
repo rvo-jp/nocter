@@ -7,7 +7,7 @@ fn drops_completed_struct_fields_when_argument_construction_fails() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -86,7 +86,7 @@ fn drops_complete_owned_temporary_when_a_later_argument_fails() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

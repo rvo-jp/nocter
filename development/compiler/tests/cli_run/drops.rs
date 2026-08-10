@@ -13,7 +13,7 @@ struct Detail {
     code: i32
 }
 
-impl Detail {
+instance Detail {
     drop &+self {
         exit(self.code)
     }
@@ -140,7 +140,7 @@ fn run_command_returns_explicit_move_terminal_if_condition_exit_code() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -200,7 +200,7 @@ struct Box<T> {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     drop &+self {
         write("drop\n")!
         return
@@ -255,7 +255,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -311,7 +311,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -368,7 +368,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return
@@ -427,7 +427,7 @@ struct File {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         write("drop\n")!
         return

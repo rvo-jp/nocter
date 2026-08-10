@@ -20,7 +20,7 @@ use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_switch_arm,
+    environment_for_parameters_in_method_owner, environment_for_switch_arm,
 };
 use super::expressions::{check_error_member_expression, expression_type};
 use super::fallible::check_force_unwrap_operand;
@@ -41,8 +41,8 @@ use super::variants::{
     check_match_expression, check_switch_statement, is_enum_variant_call,
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember,
-    InterpolatedStringPart, Item, Stmt, UnaryOperator,
+    AssignmentOperator, AssignmentStmt, AstFile, Block, ConformanceDecl, ConformanceMember, Expr,
+    InstanceDecl, InstanceMember, InterpolatedStringPart, Item, Stmt, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -74,8 +74,11 @@ pub(super) fn check_body_expressions(
                     0,
                 );
             }
-            Item::Impl(impl_) => {
-                check_impl_member_expressions(sources, impl_, resolved, diagnostics);
+            Item::Instance(instance) => {
+                check_instance_member_expressions(sources, instance, resolved, diagnostics)
+            }
+            Item::Conformance(conformance) => {
+                check_conformance_member_expressions(sources, conformance, resolved, diagnostics)
             }
             Item::Interface(interface) => {
                 for method in &interface.methods {
@@ -113,9 +116,9 @@ pub(super) fn check_body_expressions(
                     check_literal_body_expressions(sources, literal, resolved, diagnostics);
                 }
             }
-            Item::Coerce(coerce) => check_impl_member_expressions(
+            Item::Coerce(coerce) => check_instance_member_expressions(
                 sources,
-                &coerce.callable_impl(),
+                &coerce.callable_instance(),
                 resolved,
                 diagnostics,
             ),
@@ -142,27 +145,26 @@ fn check_literal_body_expressions(
     check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
 }
 
-fn check_impl_member_expressions(
+fn check_instance_member_expressions(
     sources: &SourceMap,
-    impl_: &ImplDecl,
+    instance: &InstanceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &impl_.members {
+    for member in &instance.members {
         match member {
-            ImplMember::AssociatedType(_) => {}
-            ImplMember::Method(method) => {
+            InstanceMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;
                 };
-                let mut environment = environment_for_method(method, resolved, impl_);
+                let mut environment = environment_for_method(method, resolved, instance);
                 check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
             }
-            ImplMember::Drop(drop_) => {
-                let mut environment = environment_for_parameters_in_impl(
+            InstanceMember::Drop(drop_) => {
+                let mut environment = environment_for_parameters_in_method_owner(
                     std::slice::from_ref(&drop_.binding),
                     resolved,
-                    impl_,
+                    instance,
                 );
                 check_block_expressions(
                     sources,
@@ -174,6 +176,22 @@ fn check_impl_member_expressions(
                 );
             }
         }
+    }
+}
+
+fn check_conformance_member_expressions(
+    sources: &SourceMap,
+    conformance: &ConformanceDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in &conformance.members {
+        let ConformanceMember::Method(method) = member else {
+            continue;
+        };
+        let Some(body) = &method.body else { continue };
+        let mut environment = environment_for_method(method, resolved, conformance);
+        check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
     }
 }
 

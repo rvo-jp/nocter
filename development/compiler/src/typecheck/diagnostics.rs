@@ -29,9 +29,9 @@ use super::model::{ReturnContext, Type};
 use super::type_expr::canonical_type_expr;
 use crate::ast::{
     AssignmentStmt, BinaryExpr, BindingKind, BindingStmt, Block, BorrowExpr, CallExpr, Expr,
-    ForRangeStmt, IfIsStmt, ImplDecl, IndexExpr, InterpolatedStringExpression, MemberExpr,
-    OtherwiseExpr, ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt,
-    TypeConversionExpr, TypeExpr, UnaryExpr,
+    ForRangeStmt, IfIsStmt, IndexExpr, InterpolatedStringExpression, MemberExpr, OtherwiseExpr,
+    ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr,
+    TypeExpr, UnaryExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{

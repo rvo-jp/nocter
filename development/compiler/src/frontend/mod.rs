@@ -1,6 +1,6 @@
 //! Front-end source loading, parsing, and compile-unit construction.
 
-mod builtin_impls;
+mod builtin_instances;
 mod dependencies;
 mod diagnostics;
 mod imports;
@@ -12,7 +12,7 @@ mod prelude;
 mod tests;
 
 use crate::analysis::CompileUnit;
-use crate::ast::{AstFile, ImplMember, Item, Visibility};
+use crate::ast::{AstFile, ConformanceMember, InstanceMember, Item, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportKind, ImportSource, ImportSourceMap, PreludeSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -22,7 +22,7 @@ use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 
-use builtin_impls::{enqueue_builtin_implementation_sources, validate_builtin_impl_authority};
+use builtin_instances::{enqueue_builtin_instance_sources, validate_builtin_instance_authority};
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
 use diagnostics::{
@@ -91,7 +91,7 @@ pub(crate) fn load_compile_unit_with_trace(
         loaded_sources_by_path.insert(path.to_path_buf(), source);
     }
 
-    diagnostics.extend(enqueue_builtin_implementation_sources(
+    diagnostics.extend(enqueue_builtin_instance_sources(
         sources,
         root,
         options,
@@ -129,7 +129,7 @@ pub(crate) fn load_compile_unit_with_trace(
             &resolved_nocter_home,
         ));
 
-        diagnostics.extend(validate_builtin_impl_authority(
+        diagnostics.extend(validate_builtin_instance_authority(
             sources,
             source,
             &ast,
@@ -498,12 +498,22 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
                         .map(|method| method.span),
                 );
             }
-            Item::Impl(impl_) => {
-                spans.extend(impl_.members.iter().filter_map(|member| match member {
-                    ImplMember::Method(method) if is_public(method.visibility) => Some(method.span),
+            Item::Instance(instance) => {
+                spans.extend(instance.members.iter().filter_map(|member| match member {
+                    InstanceMember::Method(method) if is_public(method.visibility) => {
+                        Some(method.span)
+                    }
                     _ => None,
                 }))
             }
+            Item::Conformance(conformance) => spans.extend(conformance.members.iter().filter_map(
+                |member| match member {
+                    ConformanceMember::Method(method) if is_public(method.visibility) => {
+                        Some(method.span)
+                    }
+                    _ => None,
+                },
+            )),
             Item::Construct(construct) => {
                 spans.extend(
                     construct
@@ -606,12 +616,21 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
                         .map(|method| (method.visibility, method.span)),
                 );
             }
-            Item::Impl(impl_) => {
-                declarations.extend(impl_.members.iter().filter_map(|member| match member {
-                    ImplMember::Method(method) => Some((method.visibility, method.span)),
-                    ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
+            Item::Instance(instance) => {
+                declarations.extend(instance.members.iter().filter_map(|member| match member {
+                    InstanceMember::Method(method) => Some((method.visibility, method.span)),
+                    InstanceMember::Drop(_) => None,
                 }))
             }
+            Item::Conformance(conformance) => declarations.extend(
+                conformance
+                    .members
+                    .iter()
+                    .filter_map(|member| match member {
+                        ConformanceMember::Method(method) => Some((method.visibility, method.span)),
+                        ConformanceMember::AssociatedType(_) => None,
+                    }),
+            ),
             Item::Construct(construct) => declarations.extend(construct.members.iter().map(
                 |member| match &member.declaration {
                     crate::ast::ConstructMemberDecl::Function(function) => {

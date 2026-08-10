@@ -7,7 +7,7 @@ fn lowers_nonterminal_if_branch_aggregate_slots_with_distinct_layouts() {
     value: i32
 }
 
-impl Small {
+instance Small {
     drop &+self {
         return
     }
@@ -18,7 +18,7 @@ struct Wide {
     right: i32
 }
 
-impl Wide {
+instance Wide {
     drop &+self {
         return
     }

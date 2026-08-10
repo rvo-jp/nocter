@@ -35,8 +35,8 @@ use crate::analysis::{
     literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DropDecl, FunctionDecl, GenericType, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl,
-    Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
+    DropDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape, MethodDecl, Parameter,
+    Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -399,120 +399,115 @@ impl<'a> FunctionIndex<'a> {
                         }
                     }
                     Item::Function(_) => {}
-                    Item::Impl(impl_) => {
-                        let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
+                    Item::Instance(_) | Item::Conformance(_) => {
+                        let owner = item.method_owner().expect("matched method owner");
+                        let Some(type_name) = declaration_target_type_name(owner.target_ty())
+                        else {
                             continue;
                         };
-                        for member in &impl_.members {
-                            match member {
-                                ImplMember::AssociatedType(_) => {}
-                                ImplMember::Drop(drop_) if impl_.generics.parameters.is_empty() => {
-                                    let name = drop_target_name(&impl_.target_ty);
+                        if let Some(drop_) = owner.drop_decl() {
+                            if owner.generics().parameters.is_empty() {
+                                let name = drop_target_name(owner.target_ty());
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_drop(
+                                        drop_,
+                                        owner.target_ty().clone(),
+                                        HashMap::new(),
+                                        name,
+                                        file,
+                                    ),
+                                );
+                            } else {
+                                for specialization in call_specializations
+                                    .drops
+                                    .get(&drop_.name_span)
+                                    .into_iter()
+                                    .flatten()
+                                {
                                     let target = call_target_for_source(
                                         file.ast.span.source,
                                         root_source,
-                                        name.clone(),
+                                        specialization.target_name.clone(),
                                     );
                                     definitions.insert(
                                         target,
                                         IndexedCallable::new_drop(
                                             drop_,
-                                            impl_.target_ty.clone(),
-                                            HashMap::new(),
-                                            name,
+                                            specialization.self_ty.clone(),
+                                            specialization.substitutions.clone(),
+                                            specialization.target_name.clone(),
                                             file,
                                         ),
                                     );
                                 }
-                                ImplMember::Drop(drop_) => {
-                                    for specialization in call_specializations
-                                        .drops
-                                        .get(&drop_.name_span)
-                                        .into_iter()
-                                        .flatten()
-                                    {
-                                        let target = call_target_for_source(
-                                            file.ast.span.source,
-                                            root_source,
-                                            specialization.target_name.clone(),
-                                        );
-                                        definitions.insert(
-                                            target,
-                                            IndexedCallable::new_drop(
-                                                drop_,
-                                                specialization.self_ty.clone(),
-                                                specialization.substitutions.clone(),
-                                                specialization.target_name.clone(),
-                                                file,
-                                            ),
-                                        );
-                                    }
-                                }
-                                ImplMember::Method(method)
-                                    if method.body.is_some()
-                                        && impl_.generics.parameters.is_empty() =>
+                            }
+                        }
+                        for method in owner.methods() {
+                            if method.body.is_some() && owner.generics().parameters.is_empty() {
+                                let declaration = analysis
+                                    .callable_bodies
+                                    .canonical_identity(method.name_span);
+                                let declaration_source = if declaration == method.name_span {
+                                    file.ast.span.source
+                                } else {
+                                    declaration.source
+                                };
+                                let name = method_target_name(type_name, &method.name);
+                                let target = call_target_for_source(
+                                    declaration_source,
+                                    root_source,
+                                    name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        owner.target_ty().clone(),
+                                        HashMap::new(),
+                                        name,
+                                        file,
+                                    ),
+                                );
+                            } else if method.body.is_some() {
+                                let declaration = analysis
+                                    .callable_bodies
+                                    .canonical_identity(method.name_span);
+                                let declaration_source = if declaration == method.name_span {
+                                    file.ast.span.source
+                                } else {
+                                    declaration.source
+                                };
+                                for specialization in call_specializations
+                                    .methods
+                                    .get(&declaration)
+                                    .into_iter()
+                                    .flatten()
                                 {
-                                    let declaration = analysis
-                                        .callable_bodies
-                                        .canonical_identity(method.name_span);
-                                    let declaration_source = if declaration == method.name_span {
-                                        file.ast.span.source
-                                    } else {
-                                        declaration.source
-                                    };
-                                    let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
                                         declaration_source,
                                         root_source,
-                                        name.clone(),
+                                        specialization.target_name.clone(),
                                     );
                                     definitions.insert(
                                         target,
                                         IndexedCallable::new_method(
                                             method,
-                                            impl_.target_ty.clone(),
-                                            HashMap::new(),
-                                            name,
+                                            substitute_type_expr_parameters(
+                                                owner.target_ty(),
+                                                &specialization.substitutions,
+                                            ),
+                                            specialization.substitutions.clone(),
+                                            specialization.target_name.clone(),
                                             file,
                                         ),
                                     );
                                 }
-                                ImplMember::Method(method) if method.body.is_some() => {
-                                    let declaration = analysis
-                                        .callable_bodies
-                                        .canonical_identity(method.name_span);
-                                    let declaration_source = if declaration == method.name_span {
-                                        file.ast.span.source
-                                    } else {
-                                        declaration.source
-                                    };
-                                    for specialization in call_specializations
-                                        .methods
-                                        .get(&declaration)
-                                        .into_iter()
-                                        .flatten()
-                                    {
-                                        let target = call_target_for_source(
-                                            declaration_source,
-                                            root_source,
-                                            specialization.target_name.clone(),
-                                        );
-                                        definitions.insert(
-                                            target,
-                                            IndexedCallable::new_method(
-                                                method,
-                                                substitute_type_expr_parameters(
-                                                    &impl_.target_ty,
-                                                    &specialization.substitutions,
-                                                ),
-                                                specialization.substitutions.clone(),
-                                                specialization.target_name.clone(),
-                                                file,
-                                            ),
-                                        );
-                                    }
-                                }
-                                ImplMember::Method(_) => {}
                             }
                         }
                     }
@@ -1512,7 +1507,7 @@ fn drop_target_name(self_ty: &TypeExpr) -> String {
     format!("{}.drop", canonical_type_expr(self_ty))
 }
 
-fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+fn declaration_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),

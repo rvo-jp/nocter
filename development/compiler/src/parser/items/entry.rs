@@ -226,7 +226,7 @@ impl Parser<'_> {
             return Err(());
         }
 
-        if self.at_keyword(Keyword::Impl) {
+        if self.at_keyword(Keyword::Instance) {
             if target.is_some() {
                 self.error_current(
                     "`#target` applies only to function, primitive, or type declarations",
@@ -238,10 +238,35 @@ impl Parser<'_> {
                 return Err(());
             }
             if visibility != Visibility::Private {
-                self.error_current("`impl` blocks do not use visibility modifiers");
+                self.error_current("`instance` blocks do not use visibility modifiers");
                 return Err(());
             }
-            return self.parse_impl_decl();
+            return self.parse_instance_decl();
+        }
+
+        if self.at_keyword(Keyword::Conform) {
+            if target.is_some() {
+                self.error_current(
+                    "`#target` applies only to function, primitive, or type declarations",
+                );
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            if visibility != Visibility::Private {
+                self.error_current("`conform` blocks do not use visibility modifiers");
+                return Err(());
+            }
+            return self.parse_conformance_decl();
+        }
+
+        if self.at_identifier_text("impl") {
+            self.error_current(
+                "`impl` declarations were removed; use `instance Type` for inherent behavior or `conform Interface for Type` for interface conformance",
+            );
+            return Err(());
         }
 
         if visibility != Visibility::Private || is_copy {

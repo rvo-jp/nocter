@@ -527,7 +527,8 @@ impl Resolver<'_> {
                 | Item::Test(_)
                 | Item::Import(_)
                 | Item::FromImport(_)
-                | Item::Impl(_)
+                | Item::Instance(_)
+                | Item::Conformance(_)
                 | Item::Construct(_)
                 | Item::Coerce(_) => {}
             }

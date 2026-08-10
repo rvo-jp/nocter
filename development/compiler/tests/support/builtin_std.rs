@@ -22,7 +22,7 @@ pub(crate) fn write_builtin_type_surfaces(home: &Path) {
         std.join("str/index.nct"),
         r#"pub(/) primitive str_len_raw(value: &str): usize
 
-impl str {
+instance str {
     pub method &self.len(): usize {
         return str_len_raw(self)
     }
@@ -38,7 +38,7 @@ impl str {
         std.join("slice/index.nct"),
         r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.len(): usize {
         return slice_len_raw(self)
     }

@@ -1,5 +1,5 @@
 use crate::analysis::FileAnalysis;
-use crate::ast::{ConstructMemberDecl, ImplMember, Item, TypeExpr};
+use crate::ast::{ConstructMemberDecl, Item, TypeExpr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutcomeContractKind {
@@ -35,15 +35,17 @@ pub(crate) fn plan_outcome_contract(
                     .filter(|body| contains(body.span, diagnostic_offset))
                     .map(|_| &method.return_type)
             }),
-            Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
-                ImplMember::AssociatedType(_) => None,
-                ImplMember::Method(method) => method
-                    .body
-                    .as_ref()
-                    .filter(|body| contains(body.span, diagnostic_offset))
-                    .map(|_| &method.return_type),
-                ImplMember::Drop(_) => None,
-            }),
+            Item::Instance(_) | Item::Conformance(_) => item
+                .method_owner()
+                .expect("matched method owner")
+                .methods()
+                .find_map(|method| {
+                    method
+                        .body
+                        .as_ref()
+                        .filter(|body| contains(body.span, diagnostic_offset))
+                        .map(|_| &method.return_type)
+                }),
             Item::Construct(construct) => construct.members.iter().find_map(|member| match &member
                 .declaration
             {

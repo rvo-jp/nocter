@@ -9,7 +9,8 @@ impl TypecheckFactCollector<'_> {
             Item::Struct(item) => Some(&item.generics),
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
-            Item::Impl(item) => Some(&item.generics),
+            Item::Instance(item) => Some(&item.generics),
+            Item::Conformance(item) => Some(&item.generics),
             Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
@@ -50,7 +51,10 @@ impl TypecheckFactCollector<'_> {
                     Some(return_type.success_type()),
                 );
             }
-            Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
+            Item::Instance(instance) => self.collect_instance_member_body_facts(instance),
+            Item::Conformance(conformance) => {
+                self.collect_conformance_member_body_facts(conformance)
+            }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     let Some(body) = &method.body else {
@@ -121,7 +125,7 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Item::Coerce(coerce) => {
-                self.collect_impl_member_body_facts(&coerce.callable_impl());
+                self.collect_instance_member_body_facts(&coerce.callable_instance());
             }
             Item::Import(_)
             | Item::FromImport(_)
@@ -132,45 +136,39 @@ impl TypecheckFactCollector<'_> {
         }
     }
 
-    pub(in crate::typecheck::facts::collector) fn collect_impl_member_body_facts(
+    fn collect_method_body_facts(
         &mut self,
-        impl_: &ImplDecl,
+        owner: &(impl MethodOwnerDecl + ?Sized),
+        method: &MethodDecl,
     ) {
-        for member in &impl_.members {
+        let Some(body) = &method.body else { return };
+        self.with_generic_scope(&method.generics, |collector| {
+            let mut environment = environment_for_method(method, collector.resolved, owner);
+            let receiver = method.receiver.implicit_parameter();
+            collector.record_parameter_bindings(std::slice::from_ref(&receiver), &environment);
+            collector.record_parameter_bindings(&method.parameters.parameters, &environment);
+            let return_type = type_expr_to_type_in_environment(
+                &method.return_type,
+                collector.resolved,
+                &environment,
+            );
+            let return_success_type = return_type.success_type().clone();
+            collector.collect_block_facts(body, &mut environment, Some(&return_success_type));
+        });
+    }
+
+    pub(in crate::typecheck::facts::collector) fn collect_instance_member_body_facts(
+        &mut self,
+        instance: &InstanceDecl,
+    ) {
+        for member in &instance.members {
             match member {
-                ImplMember::AssociatedType(_) => {}
-                ImplMember::Method(method) => {
-                    let Some(body) = &method.body else {
-                        continue;
-                    };
-                    self.with_generic_scope(&method.generics, |collector| {
-                        let mut environment =
-                            environment_for_method(method, collector.resolved, impl_);
-                        let receiver = method.receiver.implicit_parameter();
-                        collector.record_parameter_bindings(
-                            std::slice::from_ref(&receiver),
-                            &environment,
-                        );
-                        collector
-                            .record_parameter_bindings(&method.parameters.parameters, &environment);
-                        let return_type = type_expr_to_type_in_environment(
-                            &method.return_type,
-                            collector.resolved,
-                            &environment,
-                        );
-                        let return_success_type = return_type.success_type().clone();
-                        collector.collect_block_facts(
-                            body,
-                            &mut environment,
-                            Some(&return_success_type),
-                        );
-                    });
-                }
-                ImplMember::Drop(drop_) => {
-                    let mut environment = environment_for_parameters_in_impl(
+                InstanceMember::Method(method) => self.collect_method_body_facts(instance, method),
+                InstanceMember::Drop(drop_) => {
+                    let mut environment = environment_for_parameters_in_method_owner(
                         std::slice::from_ref(&drop_.binding),
                         self.resolved,
-                        impl_,
+                        instance,
                     );
                     self.record_parameter_bindings(
                         std::slice::from_ref(&drop_.binding),
@@ -179,6 +177,14 @@ impl TypecheckFactCollector<'_> {
                     let return_type = Type::Void;
                     self.collect_block_facts(&drop_.body, &mut environment, Some(&return_type));
                 }
+            }
+        }
+    }
+
+    fn collect_conformance_member_body_facts(&mut self, conformance: &ConformanceDecl) {
+        for member in &conformance.members {
+            if let ConformanceMember::Method(method) = member {
+                self.collect_method_body_facts(conformance, method);
             }
         }
     }

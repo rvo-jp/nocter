@@ -1148,7 +1148,7 @@ fn lsp_code_actions_share_import_interface_and_outcome_edit_planners() {
 
 struct User { id: i32 }
 
-impl Printable for User {}
+conform Printable for User {}
 
 func run(): i32 {
     return fallible()?
@@ -1901,13 +1901,13 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Read<T> for Box<T> {
+conform<T> Read<T> for Box<T> {
     method &self.read(): &T from self {
         return &self.value
     }
 }
 
-impl<T> Measure for Box<T> {
+conform<T> Measure for Box<T> {
     method &self.measure(): usize {
         return 1
     }
@@ -2055,7 +2055,7 @@ fn lsp_command_serves_closures_default_methods_and_incomplete_bodies() {
 }
 
 copy struct Unit { marker: i32 }
-impl Identity for Unit {}
+conform Identity for Unit {}
 
 func main(): i32 {
     let factor = 2

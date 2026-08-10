@@ -31,7 +31,7 @@ fn records_method_receiver_kind_facts() {
     value: i32
 }
 
-impl Box {
+instance Box {
     method self.take(): i32 {
         return self.value
     }
@@ -69,7 +69,7 @@ func main(): i32 {
 fn records_receiver_coercion_and_builtin_method_declaration_identity() {
     let text = r#"struct Text { value: &str }
 coerce Text { pub &self as &str { return self.value } }
-impl str { pub method &self.count(): usize { return 1 } }
+instance str { pub method &self.count(): usize { return 1 } }
 func count(text: &Text): usize { return text.count() }
 func main(): i32 { return 0 }
 "#;
@@ -101,12 +101,12 @@ interface Iterator {
     pub method &+self.next(): Self.Item?
 }
 coerce Text { pub &self as &View { return &self.view } }
-impl View {
+instance View {
     pub method &self.bytes_iter(): Iter<u8> {
         return Iter<u8> { marker: 0 }
     }
 }
-impl<T> Iterator for Iter<T> {
+conform<T> Iterator for Iter<T> {
     type Item = &T
     method &+self.next(): &T? { return none }
 }

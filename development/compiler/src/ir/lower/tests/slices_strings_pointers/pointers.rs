@@ -848,7 +848,7 @@ struct Item {
     value: i32
 }
 
-impl Item {
+instance Item {
     drop &+self {
         return
     }
@@ -909,7 +909,7 @@ struct Item {
     value: i32
 }
 
-impl Item {
+instance Item {
     drop &+self {
         return
     }

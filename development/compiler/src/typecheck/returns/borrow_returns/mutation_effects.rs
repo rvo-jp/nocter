@@ -147,7 +147,7 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
         crate::typecheck::calls::CheckedCallSignature {
             signature: &callable_contract.signature,
             self_type: None,
-            impl_target_ty: None,
+            owner_target_ty: None,
             name: callable_contract.callee_type.display(),
             kind: crate::typecheck::calls::CheckedCallKind::Function,
             declaration_span: None,

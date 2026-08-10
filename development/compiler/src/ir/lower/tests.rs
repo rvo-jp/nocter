@@ -610,7 +610,7 @@ fn write_builtin_view_surfaces(home: &Path) {
     crate::test_files::write(
         home.join("std/str/index.nct"),
         r#"pub(/) primitive str_len_raw(value: &str): usize
-impl str {
+instance str {
     pub method &self.len(): usize { return str_len_raw(self) }
     pub method &self.is_empty(): bool { return str_len_raw(self) == 0 }
 }
@@ -620,7 +620,7 @@ impl str {
     crate::test_files::write(
         home.join("std/slice/index.nct"),
         r#"pub(/) primitive slice_len_raw<T>(value: &[T]): usize
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.len(): usize { return slice_len_raw(self) }
     pub method &self.is_empty(): bool { return slice_len_raw(self) == 0 }
 }

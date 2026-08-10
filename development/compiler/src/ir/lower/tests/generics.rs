@@ -7,7 +7,7 @@ fn lowers_concrete_generic_impl_method_call() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     method &self.read(): i32 {
         return self.value
     }
@@ -347,7 +347,7 @@ func identity<T>(value: T): T {
     return value
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_identity(): U {
         return identity(self.value)
     }
@@ -396,7 +396,7 @@ fn lowers_generic_function_body_method_call_with_concrete_arguments() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -453,7 +453,7 @@ struct Box<T> {
     value: T
 }
 
-impl<T> Extract<T> for Box<T> {
+conform<T> Extract<T> for Box<T> {
     method self.into_value(): T from self {
         return self.value
     }
@@ -506,7 +506,7 @@ struct Count {
     value: i32
 }
 
-impl Measure for Count {
+conform Measure for Count {
     method &self.measure(): i32 {
         return self.value
     }
@@ -555,7 +555,7 @@ fn lowers_generic_impl_method_call_with_concrete_receiver() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -605,7 +605,7 @@ fn lowers_generic_impl_method_for_multiple_concrete_receivers() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }

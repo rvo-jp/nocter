@@ -134,7 +134,7 @@ func main(): i32 {
     value: T
 }
 
-impl<error> Box<i32> {
+instance<error> Box<i32> {
     method self.value(): i32 {
         return self.value
     }
@@ -259,13 +259,13 @@ fn diagnoses_duplicate_inherent_method_names_across_impls() {
     fd: i32
 }
 
-impl File {
+instance File {
     method self.name(): i32 {
         return self.fd
     }
 }
 
-impl File {
+instance File {
     method self.name(value: i32): i32 {
         return value
     }
@@ -292,7 +292,7 @@ func File.open(): i32 {
     return 0
 }
 
-impl File {
+instance File {
     method self.open(): i32 {
         return self.fd
     }
@@ -336,7 +336,7 @@ fn diagnoses_method_name_that_reuses_enum_variant() {
     missing_path
 }
 
-impl AppError {
+instance AppError {
     method self.missing_path(): i32 {
         return 0
     }
@@ -359,13 +359,13 @@ fn diagnoses_duplicate_inherent_drop_members_across_impls() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -522,7 +522,7 @@ fn diagnoses_duplicate_impl_generic_parameter_names() {
     value: T
 }
 
-impl<T, T> Box<T> {
+instance<T, T> Box<T> {
     method self.value(): T {
         return self.value
     }
@@ -613,7 +613,7 @@ fn diagnoses_inherent_method_parameter_reusing_receiver_name_once() {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     method &self.add(self: i32): i32 {
         return self
     }

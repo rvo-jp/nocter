@@ -8,7 +8,7 @@ fn does_not_drop_a_direct_owner_before_its_struct_initialization_completes() {
     code: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         return
     }
@@ -58,7 +58,7 @@ fn partial_struct_cleanup_drops_fields_without_running_the_outer_destructor() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -69,7 +69,7 @@ struct Bundle {
     code: i32
 }
 
-impl Bundle {
+instance Bundle {
     drop &+self {
         return
     }
@@ -130,7 +130,7 @@ fn partial_nested_struct_cleanup_recurses_without_running_incomplete_destructors
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -141,7 +141,7 @@ struct Inner {
     code: i32
 }
 
-impl Inner {
+instance Inner {
     drop &+self {
         return
     }
@@ -152,7 +152,7 @@ struct Outer {
     tail: i32
 }
 
-impl Outer {
+instance Outer {
     drop &+self {
         return
     }
@@ -222,7 +222,7 @@ fn partial_struct_return_cleanup_tracks_completed_fields() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -301,7 +301,7 @@ fn partial_struct_replacement_preserves_the_old_value_after_cleaning_the_new_pre
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -390,7 +390,7 @@ fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &+self.touch(): void! {
         return
     }
@@ -432,7 +432,7 @@ fn lowers_method_call_temporary_receiver_as_implicit_readonly_borrow() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &self.value(): i32 {
         return self.fd
     }
@@ -480,7 +480,7 @@ fn lowers_explicit_drop_to_drop_member_call() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -538,7 +538,7 @@ fn lowers_concrete_generic_explicit_drop_to_drop_member_call() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     drop &+self {
         return
     }
@@ -606,7 +606,7 @@ func main(): i32 {
     pub fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -675,7 +675,7 @@ fn lowers_scope_end_drop_to_drop_member_call() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -739,7 +739,7 @@ fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     drop &+self {
         return
     }
@@ -822,7 +822,7 @@ struct Box<T> {
     size: usize
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     drop &+self {
         self.size = pointee_size(self.ptr)
         return
@@ -888,7 +888,7 @@ fn lowers_scope_end_drop_inside_nonterminal_if_branches() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -968,7 +968,7 @@ fn lowers_explicit_drop_inside_nonterminal_if_branch_without_scope_end_duplicate
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1030,7 +1030,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1103,7 +1103,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_nested_return_
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1192,7 +1192,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return_suffix(
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1274,7 +1274,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_never_suffix()
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1350,7 +1350,7 @@ fn lowers_return_never_expression_without_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1404,7 +1404,7 @@ fn lowers_terminal_if_never_branch_without_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1472,7 +1472,7 @@ fn lowers_return_inside_nonterminal_if_branch_with_outer_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1553,7 +1553,7 @@ fn lowers_scope_end_drop_inside_nonterminal_while_body() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1623,7 +1623,7 @@ fn lowers_scope_end_drop_inside_nonterminal_loop_body() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1685,7 +1685,7 @@ fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicat
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1751,7 +1751,7 @@ fn lowers_return_inside_nonterminal_while_body_with_body_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1826,7 +1826,7 @@ fn lowers_break_inside_nonterminal_while_body_with_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1892,7 +1892,7 @@ fn lowers_continue_inside_nonterminal_while_body_with_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1958,7 +1958,7 @@ fn lowers_scope_end_drop_before_tail_call() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2019,7 +2019,7 @@ fn lowers_scope_end_drop_inside_terminal_if_branches() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2097,7 +2097,7 @@ fn lowers_branch_explicit_drop_before_terminal_if_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2165,7 +2165,7 @@ fn lowers_scope_end_drop_inside_usize_terminal_if_branches() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2252,7 +2252,7 @@ fn lowers_scope_end_drop_inside_void_terminal_if_branches() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2308,7 +2308,7 @@ fn lowers_scope_end_drop_inside_nested_terminal_if_branches() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2405,7 +2405,7 @@ fn lowers_branch_explicit_drop_before_nested_terminal_if() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2827,7 +2827,7 @@ fn lowers_void_entry_scope_end_drop_before_implicit_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2874,7 +2874,7 @@ fn consuming_method_receiver_transfers_its_drop_obligation() {
     fd: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         return
     }

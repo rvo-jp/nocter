@@ -7,7 +7,7 @@ fn lowers_struct_drop_then_owned_fields_in_reverse_declaration_order() {
     code: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         return
     }
@@ -23,7 +23,7 @@ struct Outer {
     inner: Inner
 }
 
-impl Outer {
+instance Outer {
     drop &+self {
         return
     }
@@ -97,7 +97,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -150,7 +150,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -217,7 +217,7 @@ fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch_before_retur
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -310,7 +310,7 @@ fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch_before_retur
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -412,7 +412,7 @@ fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_re
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -531,7 +531,7 @@ fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_ne
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -667,7 +667,7 @@ fn lowers_replacement_drop_without_scope_unwind_before_never_suffix() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -774,7 +774,7 @@ fn lowers_aggregate_terminal_if_never_branch_without_scope_cleanup() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -860,7 +860,7 @@ fn lowers_branch_local_aggregate_move_assignment_from_outer_before_return_suffix
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -979,7 +979,7 @@ fn lowers_local_aggregate_move_inside_nonterminal_if_branch() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1049,7 +1049,7 @@ fn lowers_assignment_to_nonterminal_while_body_local_aggregate_with_replacement_
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1130,7 +1130,7 @@ fn lowers_explicit_aggregate_move_in_terminal_if_condition() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1205,7 +1205,7 @@ fn lowers_explicit_aggregate_move_in_terminal_bool_if_condition() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1288,7 +1288,7 @@ fn transfers_scope_end_drop_to_by_value_aggregate_parameter() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1371,7 +1371,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_tail_return_argument() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1460,7 +1460,7 @@ fn lowers_aggregate_reinitialization_after_explicit_drop_without_replacement_dro
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1526,7 +1526,7 @@ fn lowers_replacement_drop_for_moved_aggregate_assignment() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1609,7 +1609,7 @@ fn lowers_scope_end_drop_after_staged_aggregate_field_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1683,7 +1683,7 @@ fn lowers_direct_aggregate_terminal_if_call_return_after_scope_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1804,7 +1804,7 @@ fn lowers_direct_aggregate_terminal_if_moved_local_return_after_scope_drop() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1943,7 +1943,7 @@ fn lowers_direct_aggregate_terminal_if_leading_drop_and_void_call_before_return(
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2066,7 +2066,7 @@ fn lowers_direct_aggregate_terminal_if_branch_local_binding_drop_before_return()
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -2199,7 +2199,7 @@ fn lowers_direct_aggregate_terminal_if_branch_assignment_before_moved_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

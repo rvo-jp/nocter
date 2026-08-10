@@ -1,6 +1,6 @@
 use super::{
-    Block, GenericParamList, ImplDecl, ImplMember, MethodDecl, MethodReceiver, ParameterList,
-    ResultProvenanceClause, TypeExpr, Visibility,
+    Block, GenericParamList, InstanceDecl, InstanceMember, MethodDecl, MethodReceiver,
+    ParameterList, ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::source::ByteSpan;
 
@@ -27,17 +27,16 @@ pub struct CoercionEntry {
 impl CoerceDecl {
     /// Adapts unnamed coercion bodies to the ordinary inherent-method pipeline without publishing
     /// a synthetic member or making method lookup aware of coercions.
-    pub(crate) fn callable_impl(&self) -> ImplDecl {
-        ImplDecl {
+    pub(crate) fn callable_instance(&self) -> InstanceDecl {
+        InstanceDecl {
             span: self.span,
             generics: self.generics.clone(),
-            interface_ty: None,
             target_ty: self.target.clone(),
             requirements: None,
             members: self
                 .entries
                 .iter()
-                .map(|entry| ImplMember::Method(entry.callable_method()))
+                .map(|entry| InstanceMember::Method(entry.callable_method()))
                 .collect(),
         }
     }

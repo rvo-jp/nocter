@@ -60,7 +60,8 @@ fn visible_export_spans(ast: &AstFile, access: ImportAccess) -> HashSet<ByteSpan
                 spans.extend(item.names.iter().map(|name| name.local_span()));
             }
             Item::Import(_)
-            | Item::Impl(_)
+            | Item::Instance(_)
+            | Item::Conformance(_)
             | Item::FromImport(_)
             | Item::Construct(_)
             | Item::Coerce(_)

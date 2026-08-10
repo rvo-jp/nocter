@@ -51,11 +51,9 @@ fn body_backed_summary_floor(
                         }
                     }
                 }
-                Item::Impl(impl_) => {
-                    for member in &impl_.members {
-                        if let ImplMember::Method(method) = member
-                            && method.body.is_some()
-                        {
+                Item::Instance(_) | Item::Conformance(_) => {
+                    for method in item.method_owner().expect("matched method owner").methods() {
+                        if method.body.is_some() {
                             summaries.insert_result(
                                 CallableId::declared_at(
                                     source
@@ -90,18 +88,16 @@ fn body_backed_summary_floor(
                     }
                 }
                 Item::Coerce(coerce) => {
-                    let impl_ = coerce.callable_impl();
-                    for member in &impl_.members {
-                        if let ImplMember::Method(method) = member {
-                            summaries.insert_result(
-                                CallableId::declared_at(
-                                    source
-                                        .resolved
-                                        .canonical_callable_identity(method.name_span),
-                                ),
-                                ValueProvenance::Independent,
-                            );
-                        }
+                    let instance = coerce.callable_instance();
+                    for method in instance.methods() {
+                        summaries.insert_result(
+                            CallableId::declared_at(
+                                source
+                                    .resolved
+                                    .canonical_callable_identity(method.name_span),
+                            ),
+                            ValueProvenance::Independent,
+                        );
                     }
                 }
                 Item::Primitive(_)
@@ -145,10 +141,11 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
                 .count()
                 + construct.literals().count()
         }
-        Item::Impl(impl_) => impl_
-            .members
-            .iter()
-            .filter(|member| matches!(member, ImplMember::Method(method) if method.body.is_some()))
+        Item::Instance(_) | Item::Conformance(_) => item
+            .method_owner()
+            .expect("matched method owner")
+            .methods()
+            .filter(|method| method.body.is_some())
             .count(),
         Item::Coerce(coerce) => coerce.entries.len(),
         _ => 0,
@@ -338,16 +335,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         }
                     }
                 }
-                Item::Impl(impl_) => collect_impl_provenance_summaries(
-                    impl_,
+                Item::Instance(_) | Item::Conformance(_) => collect_method_provenance_summaries(
+                    item.method_owner().expect("matched method owner"),
                     source.resolved,
                     previous,
                     &mut summaries,
                 ),
                 Item::Coerce(coerce) => {
-                    let impl_ = coerce.callable_impl();
-                    collect_impl_provenance_summaries(
-                        &impl_,
+                    let instance = coerce.callable_instance();
+                    collect_method_provenance_summaries(
+                        &instance,
                         source.resolved,
                         previous,
                         &mut summaries,
@@ -473,20 +470,17 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
     summaries
 }
 
-fn collect_impl_provenance_summaries(
-    impl_: &ImplDecl,
+fn collect_method_provenance_summaries(
+    owner: &(impl MethodOwnerDecl + ?Sized),
     resolved: &ResolveOutput,
     previous: &CallableProvenanceSummaries,
     summaries: &mut CallableProvenanceSummaries,
 ) {
-    for member in &impl_.members {
-        let ImplMember::Method(method) = member else {
-            continue;
-        };
+    for method in owner.methods() {
         let Some(body) = &method.body else {
             continue;
         };
-        let environment = environment_for_method(method, resolved, impl_);
+        let environment = environment_for_method(method, resolved, owner);
         let return_type =
             type_expr_to_type_in_environment(&method.return_type, resolved, &environment);
         let provenance = borrow_return_provenance_for_callable_body(

@@ -1,8 +1,8 @@
 //! Source anchors for callable presentation and semantic annotations.
 
 use crate::ast::{
-    AstFile, ConstructMemberDecl, FunctionDecl, ImplMember, Item, LiteralDecl, MethodDecl,
-    PrimitiveDecl, TestDecl,
+    AstFile, ConstructMemberDecl, FunctionDecl, Item, LiteralDecl, MethodDecl, PrimitiveDecl,
+    TestDecl,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -62,11 +62,9 @@ impl CallableDeclarationIndex {
                         index.insert_method(method);
                     }
                 }
-                Item::Impl(impl_) => {
-                    for member in &impl_.members {
-                        if let ImplMember::Method(method) = member {
-                            index.insert_method(method);
-                        }
+                Item::Instance(_) | Item::Conformance(_) => {
+                    for method in item.method_owner().expect("matched method owner").methods() {
+                        index.insert_method(method);
                     }
                 }
                 Item::Construct(construct) => {
@@ -182,7 +180,7 @@ interface Build {
     pub method &self.make(): &str from self
 }
 
-impl Build for i32 {
+conform Build for i32 {
     method &self.make(): &str {
         return "static"
     }

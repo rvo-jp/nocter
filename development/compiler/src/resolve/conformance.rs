@@ -1,32 +1,35 @@
-use super::signatures::method_signatures;
+use super::signatures::conformance_method_signatures;
 use super::{GenericRequirements, InterfaceConformance};
-use crate::ast::{ImplDecl, ImplMember};
+use crate::ast::{ConformanceDecl, ConformanceMember};
 
-pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConformance> {
-    Some(InterfaceConformance {
-        declaration_span: impl_.span,
-        generic_parameters: impl_
+pub(super) fn interface_conformance(conformance: &ConformanceDecl) -> InterfaceConformance {
+    InterfaceConformance {
+        declaration_span: conformance.span,
+        generic_parameters: conformance
             .generics
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
-        generic_parameter_requirements: impl_
+        generic_parameter_requirements: conformance
             .generics
             .parameters
             .iter()
             .map(|parameter| {
-                GenericRequirements::for_parameter(&parameter.name, impl_.requirements.as_ref())
+                GenericRequirements::for_parameter(
+                    &parameter.name,
+                    conformance.requirements.as_ref(),
+                )
             })
             .collect(),
-        where_clause: impl_.requirements.clone(),
-        interface_ty: impl_.interface_ty.clone()?,
-        target_ty: impl_.target_ty.clone(),
-        associated_types: impl_
+        where_clause: conformance.requirements.clone(),
+        interface_ty: conformance.interface_ty.clone(),
+        target_ty: conformance.target_ty.clone(),
+        associated_types: conformance
             .members
             .iter()
             .filter_map(|member| match member {
-                ImplMember::AssociatedType(binding) => {
+                ConformanceMember::AssociatedType(binding) => {
                     Some(super::AssociatedTypeBindingSignature {
                         name: binding.name.clone(),
                         name_span: binding.name_span,
@@ -34,9 +37,9 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
                         value: binding.value.clone(),
                     })
                 }
-                ImplMember::Method(_) | ImplMember::Drop(_) => None,
+                ConformanceMember::Method(_) => None,
             })
             .collect(),
-        methods: method_signatures(impl_).collect(),
-    })
+        methods: conformance_method_signatures(conformance).collect(),
+    }
 }

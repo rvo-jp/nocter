@@ -251,7 +251,7 @@ struct Holder {
     value: &Text
 }
 
-impl Text {
+instance Text {
     method &self.hold(): Holder {
         return Holder { value: self }
     }
@@ -527,7 +527,7 @@ coerce Text {
     pub &self as &View { return &self.view }
 }
 
-impl View {
+instance View {
     pub method &self.project(): &str { return self.value }
 }
 
@@ -558,7 +558,7 @@ fn receiver_coercion_method_loan_ends_after_its_last_use() {
 struct Text { view: View }
 
 coerce Text { pub &self as &View { return &self.view } }
-impl View { pub method &self.project(): &str { return self.value } }
+instance View { pub method &self.project(): &str { return self.value } }
 
 func inspect(value: &str): void { return }
 func take(value: Text): void { return }
@@ -920,7 +920,7 @@ fn diagnoses_owned_method_receiver_move_while_readonly_borrow_used_later() {
     value: i32
 }
 
-impl Holder {
+instance Holder {
     method self.take(): i32 {
         return self.value
     }
@@ -954,7 +954,7 @@ fn diagnoses_readwrite_method_receiver_while_readonly_borrow_used_later() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &+self.write(): void {
         return
     }
@@ -992,7 +992,7 @@ struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &+self.write(): void {
         return
     }
@@ -1159,7 +1159,7 @@ struct User {
     counter: Counter
 }
 
-impl Counter {
+instance Counter {
     method &+self.increment(): void {
         self.value = self.value + 1
         return
@@ -1190,7 +1190,7 @@ fn diagnoses_readonly_method_receiver_while_readwrite_borrow_used_later() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &self.fd_value(): i32 {
         return self.fd
     }
@@ -1275,7 +1275,7 @@ fn diagnoses_use_after_owned_method_receiver_move() {
     value: i32
 }
 
-impl Holder {
+instance Holder {
     method self.take(): i32 {
         return self.value
     }

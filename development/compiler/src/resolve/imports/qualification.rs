@@ -137,9 +137,9 @@ fn qualify_type_symbol(
         qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
     }
     for method in &mut symbol.methods {
-        if let Some(impl_target_ty) = &mut method.impl_target_ty {
+        if let Some(owner_target_ty) = &mut method.owner_target_ty {
             qualify_type_expr(
-                impl_target_ty,
+                owner_target_ty,
                 import_path,
                 local_type_names,
                 imported_type_names,
@@ -184,9 +184,9 @@ fn qualify_type_symbol(
             );
         }
         for method in &mut conformance.methods {
-            if let Some(impl_target_ty) = &mut method.impl_target_ty {
+            if let Some(owner_target_ty) = &mut method.owner_target_ty {
                 qualify_type_expr(
-                    impl_target_ty,
+                    owner_target_ty,
                     import_path,
                     local_type_names,
                     imported_type_names,
@@ -255,9 +255,9 @@ pub(super) fn qualify_method_signature(
     local_type_names: &[String],
     imported_type_names: &[ImportedTypeName],
 ) {
-    if let Some(impl_target_ty) = &mut method.impl_target_ty {
+    if let Some(owner_target_ty) = &mut method.owner_target_ty {
         qualify_type_expr(
-            impl_target_ty,
+            owner_target_ty,
             import_path,
             local_type_names,
             imported_type_names,

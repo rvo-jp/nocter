@@ -241,7 +241,7 @@ construct Bucket<T> {
 fn drop_declaration_has_separate_keyword_and_receiver_hover_targets() {
     let text = r#"struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }
@@ -430,7 +430,7 @@ func inspect(storage: Storage): Values {
 
 #[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
-    let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method &self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
+    let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\ninstance File {\n    /// Reads a count.\n    method &self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
     let offset = text.find("read(1)").expect("expected method call");
@@ -446,7 +446,7 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
 fn method_receiver_hover_uses_binding_name_and_semantic_owner_type() {
     let text = r#"struct File { fd: i32 }
 
-impl File {
+instance File {
     method &self.read(): i32 {
         return self.fd
     }
@@ -647,7 +647,7 @@ pub func filter<T, I>(source: I): I from source where I: Stream<T> {
     return source
 }
 
-impl<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
+conform<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -676,7 +676,7 @@ impl<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSiz
     );
 
     let implemented_offset =
-        text.rfind("impl<T, I> ExactSizeStream").unwrap() + "impl<T, I> ".len();
+        text.rfind("instance<T, I> ExactSizeStream").unwrap() + "instance<T, I> ".len();
     let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
         .expect("expected implemented-interface hover");
     assert_eq!(implemented.label, "interface ExactSizeStream<Indexed<T>>");
@@ -695,7 +695,7 @@ fn workspace_hover_uses_associated_type_contract_identity() {
 
 struct NumberSource { value: i32 }
 
-impl Source for NumberSource {
+conform Source for NumberSource {
     type Item = i32
     method &self.get(): i32 { return self.value }
 }
@@ -850,7 +850,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -875,7 +875,7 @@ fn workspace_hover_presents_conformance_member_with_concrete_receiver() {
 
 struct Box<T> { value: T }
 
-impl<T> Lookup<T> for Box<T> {
+conform<T> Lookup<T> for Box<T> {
     method &self.get(): &T from self {
         return &self.value
     }

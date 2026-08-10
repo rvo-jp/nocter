@@ -7,7 +7,7 @@ fn tracks_partial_fixed_array_payload_construction() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -105,7 +105,7 @@ fn tracks_partial_payload_construction_as_a_call_argument() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -177,7 +177,7 @@ fn tracks_partial_payload_construction_in_return_storage() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -245,7 +245,7 @@ fn partial_payload_replacement_preserves_the_old_value() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -327,7 +327,7 @@ fn tracks_nested_payload_constructor_initialization_recursively() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -396,7 +396,7 @@ fn tracks_payload_constructor_nested_in_a_struct_field() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -466,7 +466,7 @@ fn partial_multi_field_payload_cleanup_drops_completed_fields_in_reverse_order()
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -545,7 +545,7 @@ fn tracks_partial_payload_inside_the_current_fixed_array_element() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -862,7 +862,7 @@ fn lowers_owned_direct_drop_payload_binding_with_conditional_target_cleanup() {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -952,7 +952,7 @@ fn lowers_live_enum_cleanup_on_propagated_pattern_target_failure() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -1082,7 +1082,7 @@ fn lowers_scope_end_drop_for_active_payload_enum_payload() {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1182,7 +1182,7 @@ fn lowers_scope_end_drop_for_multi_field_active_payload_enum_payload() {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1256,7 +1256,7 @@ fn lowers_scope_end_drop_for_inactive_payload_enum_payload() {
     code: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }

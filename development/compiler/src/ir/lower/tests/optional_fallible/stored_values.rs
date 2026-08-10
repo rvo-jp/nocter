@@ -352,7 +352,7 @@ fn drops_only_the_active_owned_outcome_payload() {
     code: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         return
     }
@@ -499,7 +499,7 @@ fn moving_owned_outcomes_transfers_one_drop_obligation() {
     let module = lower_text(
         r#"struct Resource { code: i32 }
 
-impl Resource {
+instance Resource {
     drop &+self { return }
 }
 
@@ -603,7 +603,7 @@ fn specializes_alias_method_and_generic_stored_outcomes() {
 
 copy struct Holder<T> { value: T }
 
-impl<T> Holder<T> {
+instance<T> Holder<T> {
     method &self.get(): T? {
         return self.value
     }
@@ -637,7 +637,7 @@ fn evaluates_owned_replacement_before_dropping_the_old_payload() {
     let module = lower_text(
         r#"struct Resource { code: i32 }
 
-impl Resource {
+instance Resource {
     drop &+self { return }
 }
 

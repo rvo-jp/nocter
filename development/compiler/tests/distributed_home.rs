@@ -2185,7 +2185,7 @@ copy struct Checker {
     seed: i32
 }
 
-impl Checker {
+instance Checker {
     method &self.touch(value: &+i32): void {
         return
     }

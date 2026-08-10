@@ -36,7 +36,7 @@ fn check_command_rejects_consuming_closure_for_repeated_callback_contract() {
     value: i32
 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }
@@ -261,7 +261,7 @@ struct Guard {
     code: i32
 }
 
-impl Guard {
+instance Guard {
     drop &+self {
         exit(self.code)
     }

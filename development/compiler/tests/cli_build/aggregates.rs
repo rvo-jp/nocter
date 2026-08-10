@@ -9,7 +9,7 @@ fn build_command_lowers_nonterminal_if_distinct_branch_aggregate_layouts() {
     value: i32
 }
 
-impl Small {
+instance Small {
     drop &+self {
         return
     }
@@ -20,7 +20,7 @@ struct Wide {
     right: i32
 }
 
-impl Wide {
+instance Wide {
     drop &+self {
         return
     }
@@ -53,7 +53,7 @@ fn build_command_lowers_nonterminal_while_body_local_aggregate_replacement() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -85,7 +85,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -128,7 +128,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_call_return() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -176,7 +176,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_leading_statements()
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -225,7 +225,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_local_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -269,7 +269,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_assignment() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -567,7 +567,7 @@ fn build_command_lowers_moved_aggregate_slot_assignment() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -598,7 +598,7 @@ fn build_command_lowers_moved_aggregate_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }

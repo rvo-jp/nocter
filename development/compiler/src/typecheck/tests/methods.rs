@@ -12,11 +12,11 @@ coerce Source {
     pub &self as &Right { return &self.right }
 }
 
-impl Left {
+instance Left {
     pub method &self.value(): usize { return self.value }
 }
 
-impl Right {
+instance Right {
     pub method &self.value(): usize { return self.value }
 }
 
@@ -46,7 +46,7 @@ coerce Text {
     }
 }
 
-impl str {
+instance str {
     pub method &self.count(): usize {
         return 1
     }
@@ -75,7 +75,7 @@ coerce Buffer {
     pub &+self as &+[u8] { return self.write }
 }
 
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.count(): usize { return 1 }
     pub method &+self.clear(): void { return }
 }
@@ -103,7 +103,7 @@ fn accepts_method_body_receiver_self_type() {
     x: i32
 }
 
-impl Point {
+instance Point {
     method self.x_value(): i32 {
         return self.x
     }
@@ -125,7 +125,7 @@ fn accepts_method_call_return_type() {
     x: i32
 }
 
-impl Point {
+instance Point {
     method self.x_value(): i32 {
         return self.x
     }
@@ -148,7 +148,7 @@ fn accepts_method_call_self_return_type() {
     x: i32
 }
 
-impl Point {
+instance Point {
     method self.same(): Self {
         return Self { x: self.x }
     }
@@ -171,7 +171,7 @@ fn accepts_readonly_borrow_method_receiver() {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     method &self.get(): i32 {
         return self.value
     }
@@ -197,7 +197,7 @@ fn accepts_readwrite_borrow_method_receiver() {
     value: i32
 }
 
-impl Counter {
+instance Counter {
     method &+self.bump(): void {
         self.value = self.value + 1
         return
@@ -225,7 +225,7 @@ fn accepts_generic_impl_method_body_and_call_return_type() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.value(): U {
         return self.value
     }
@@ -250,7 +250,7 @@ fn accepts_method_local_generic_inferred_from_an_argument() {
     marker: i32
 }
 
-impl Factory {
+instance Factory {
     method &self.identity<T>(value: T): T {
         return value
     }
@@ -273,7 +273,7 @@ fn diagnoses_method_generic_reusing_an_impl_parameter() {
     value: T
 }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     method &self.identity<T>(value: T): T {
         return value
     }
@@ -300,7 +300,7 @@ fn diagnoses_generic_impl_method_return_type_mismatch() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.bad(): i32 {
         return self.value
     }
@@ -325,7 +325,7 @@ fn diagnoses_method_call_from_non_matching_generic_impl_target() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     method self.value_i32(): i32 {
         return self.value
     }
@@ -392,7 +392,7 @@ fn diagnoses_method_call_argument_count_mismatch() {
     value: i32
 }
 
-impl Parser {
+instance Parser {
     method self.parse(value: i32): i32 {
         return value
     }
@@ -417,7 +417,7 @@ fn diagnoses_method_call_argument_type_mismatch() {
     value: i32
 }
 
-impl Parser {
+instance Parser {
     method self.parse(value: i32): i32 {
         return value
     }
@@ -441,7 +441,7 @@ fn accepts_readwrite_method_call_on_var_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &+self.write(): i32 {
         return 0
     }
@@ -468,7 +468,7 @@ struct Holder {
     file: File
 }
 
-impl File {
+instance File {
     method &+self.write(): i32 {
         return 0
     }
@@ -491,7 +491,7 @@ fn diagnoses_readwrite_method_call_on_let_binding() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &+self.write(): i32 {
         return 0
     }
@@ -515,7 +515,7 @@ fn diagnoses_readwrite_method_call_on_temporary() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &+self.write(): i32 {
         return 0
     }
@@ -538,7 +538,7 @@ fn accepts_readonly_method_call_on_let_binding_and_temporary() {
     fd: i32
 }
 
-impl File {
+instance File {
     method &self.fd_value(): i32 {
         return 0
     }
@@ -564,7 +564,7 @@ fn diagnoses_method_body_return_type_mismatch() {
     x: i32
 }
 
-impl Point {
+instance Point {
     method self.x_value(): i32 {
         return "bad"
     }

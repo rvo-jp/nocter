@@ -9,7 +9,7 @@ fn build_command_tracks_partial_payload_construction_across_value_boundaries() {
     code: i32
 }
 
-impl File {
+instance File {
     drop &+self {
         return
     }
@@ -808,7 +808,7 @@ fn build_command_accepts_scope_drop_body_with_multi_field_payload_enum() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -823,7 +823,7 @@ struct Resource {
     value: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -853,7 +853,7 @@ fn build_command_accepts_field_replacement_drop_body_with_multi_field_payload_en
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -868,7 +868,7 @@ struct Resource {
     value: i32
 }
 
-impl Resource {
+instance Resource {
     drop &+self {
         let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
@@ -1199,7 +1199,7 @@ fn build_command_accepts_payload_enum_single_drop_payload_construction() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }
@@ -1233,7 +1233,7 @@ fn build_command_accepts_payload_enum_multi_drop_payload_construction() {
     value: i32
 }
 
-impl Payload {
+instance Payload {
     drop &+self {
         return
     }

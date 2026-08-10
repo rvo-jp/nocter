@@ -210,7 +210,7 @@ func identity<T>(value: T): T {
     return value
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_identity(): U {
         return identity(self.value)
     }
@@ -244,7 +244,7 @@ fn run_command_returns_generic_function_body_method_call_exit_code() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -282,7 +282,7 @@ fn run_command_returns_concrete_generic_impl_method_exit_code() {
     value: T
 }
 
-impl Box<i32> {
+instance Box<i32> {
     method &self.read(): i32 {
         return self.value
     }
@@ -316,7 +316,7 @@ fn run_command_returns_generic_impl_method_with_concrete_receiver_exit_code() {
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -350,7 +350,7 @@ fn run_command_returns_generic_impl_method_multiple_concrete_receivers_exit_code
     value: T
 }
 
-impl<U> Box<U> {
+instance<U> Box<U> {
     method self.into_value(): U {
         return self.value
     }
@@ -395,13 +395,13 @@ struct Value {
     value: i32
 }
 
-impl Read for Value {
+conform Read for Value {
     method &self.read(): i32 {
         return self.value
     }
 }
 
-impl Size for Value {
+conform Size for Value {
     method &self.size(): i32 {
         return 1
     }
@@ -411,7 +411,7 @@ struct Adapter<T> {
     value: T
 }
 
-impl<T> Read for Adapter<T> where T: Read {
+conform<T> Read for Adapter<T> where T: Read {
     method &self.read(): i32 {
         return self.value.read()
     }
@@ -461,7 +461,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -500,7 +500,7 @@ copy struct Number {
     value: i32
 }
 
-impl Value for Number {
+conform Value for Number {
     method &self.value(): i32 {
         return self.value
     }
@@ -540,7 +540,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func read<T>(value: &T): i32 where T: Value {
     return value.value()
@@ -580,7 +580,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {
+conform Value for Unit {
     method &self.value(): i32 {
         return 42
     }
@@ -624,7 +624,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Identity for Unit {}
+conform Identity for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -660,7 +660,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value<i32> for Unit {}
+conform Value<i32> for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

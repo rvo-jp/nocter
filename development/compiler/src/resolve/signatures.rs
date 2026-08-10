@@ -5,8 +5,9 @@ use super::{
     StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
-    AstFile, FunctionDecl, GenericParamList, ImplDecl, ImplMember, InterfaceDecl, MethodDecl,
-    Parameter, PrimitiveDecl, StructField, TypeAliasDecl, TypeExpr,
+    AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, GenericParamList, InstanceDecl,
+    InstanceMember, InterfaceDecl, MethodDecl, Parameter, PrimitiveDecl, StructField,
+    TypeAliasDecl, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -20,19 +21,18 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
     ast: &AstFile,
     type_name: &str,
 ) {
-    if !type_symbol_accepts_inherent_impl(symbol) {
+    if !type_symbol_accepts_instance_behavior(symbol) {
         return;
     }
 
     symbol
         .interface_conformances
         .extend(ast.items.iter().filter_map(|item| {
-            let crate::ast::Item::Impl(impl_) = item else {
+            let crate::ast::Item::Conformance(conformance) = item else {
                 return None;
             };
-            (impl_target_type_name(&impl_.target_ty) == Some(type_name))
-                .then(|| interface_conformance(impl_))
-                .flatten()
+            (declaration_target_type_name(&conformance.target_ty) == Some(type_name))
+                .then(|| interface_conformance(conformance))
         }));
 
     symbol
@@ -40,23 +40,21 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
         .extend(top_level_associated_function_signatures(ast, type_name));
 
     for item in &ast.items {
-        let crate::ast::Item::Impl(impl_) = item else {
+        let crate::ast::Item::Instance(instance) = item else {
             continue;
         };
-        if impl_.interface_ty.is_some()
-            || impl_target_type_name(&impl_.target_ty) != Some(type_name)
-        {
+        if declaration_target_type_name(&instance.target_ty) != Some(type_name) {
             continue;
         }
 
-        symbol.methods.extend(method_signatures(impl_));
+        symbol.methods.extend(instance_method_signatures(instance));
         if symbol.drop_member.is_none() {
-            symbol.drop_member = drop_signature(impl_);
+            symbol.drop_member = drop_signature(instance);
         }
     }
 }
 
-pub(super) fn type_symbol_accepts_inherent_impl(symbol: &TypeSymbol) -> bool {
+pub(super) fn type_symbol_accepts_instance_behavior(symbol: &TypeSymbol) -> bool {
     matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
         || type_symbol_is_error_alias(symbol)
 }
@@ -104,22 +102,44 @@ pub(super) fn associated_function_signature(
     }
 }
 
-pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
-    impl_.members.iter().filter_map(|member| match member {
-        ImplMember::Method(method) => Some(method_signature_in_impl(method, impl_)),
-        ImplMember::AssociatedType(_) | ImplMember::Drop(_) => None,
+pub(super) fn instance_method_signatures(
+    instance: &InstanceDecl,
+) -> impl Iterator<Item = MethodSignature> + '_ {
+    instance.members.iter().filter_map(|member| match member {
+        InstanceMember::Method(method) => Some(method_signature_for_owner(
+            method,
+            &instance.target_ty,
+            &instance.generics,
+        )),
+        InstanceMember::Drop(_) => None,
     })
 }
 
-pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
-    let target_name = impl_target_type_name(&impl_.target_ty)?;
-    impl_.members.iter().find_map(|member| match member {
-        ImplMember::Drop(drop_) => Some(DropSignature {
+pub(super) fn conformance_method_signatures(
+    conformance: &ConformanceDecl,
+) -> impl Iterator<Item = MethodSignature> + '_ {
+    conformance
+        .members
+        .iter()
+        .filter_map(|member| match member {
+            ConformanceMember::AssociatedType(_) => None,
+            ConformanceMember::Method(method) => Some(method_signature_for_owner(
+                method,
+                &conformance.target_ty,
+                &conformance.generics,
+            )),
+        })
+}
+
+pub(super) fn drop_signature(instance: &InstanceDecl) -> Option<DropSignature> {
+    let target_name = declaration_target_type_name(&instance.target_ty)?;
+    instance.members.iter().find_map(|member| match member {
+        InstanceMember::Drop(drop_) => Some(DropSignature {
             name_span: drop_.name_span,
             target_name: drop_function_name(target_name),
             binding: parameter_signature(&drop_.binding),
         }),
-        ImplMember::AssociatedType(_) | ImplMember::Method(_) => None,
+        InstanceMember::Method(_) => None,
     })
 }
 
@@ -127,7 +147,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     sources: &SourceMap,
     target_name: &str,
     type_symbol: &TypeSymbol,
-    impl_: &ImplDecl,
+    instance: &InstanceDecl,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut seen = HashMap::<&str, ByteSpan>::new();
@@ -143,10 +163,10 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
         seen.entry(method.name.as_str()).or_insert(method.name_span);
     }
 
-    for member in &impl_.members {
+    for member in &instance.members {
         let (name, span) = match member {
-            ImplMember::Method(method) => (method.name.as_str(), method.name_span),
-            ImplMember::AssociatedType(_) | ImplMember::Drop(_) => continue,
+            InstanceMember::Method(method) => (method.name.as_str(), method.name_span),
+            InstanceMember::Drop(_) => continue,
         };
         match seen.entry(name) {
             std::collections::hash_map::Entry::Occupied(first) => {
@@ -171,12 +191,12 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
     sources: &SourceMap,
     target_name: &str,
     type_symbol: &TypeSymbol,
-    impl_: &ImplDecl,
+    instance: &InstanceDecl,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    let Some(drop_) = impl_.members.iter().find_map(|member| match member {
-        ImplMember::Drop(drop_) => Some(drop_),
-        ImplMember::AssociatedType(_) | ImplMember::Method(_) => None,
+    let Some(drop_) = instance.members.iter().find_map(|member| match member {
+        InstanceMember::Drop(drop_) => Some(drop_),
+        InstanceMember::Method(_) => None,
     }) else {
         return diagnostics;
     };
@@ -194,7 +214,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
     diagnostics
 }
 
-pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+pub(super) fn declaration_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Callable(_) | TypeExpr::Closure(_) | TypeExpr::Projection(_) => None,
         TypeExpr::Reference(reference) => Some(&reference.name),
@@ -429,22 +449,26 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
     }
 }
 
-fn method_signature_in_impl(method: &MethodDecl, impl_: &ImplDecl) -> MethodSignature {
-    method_signature_inner(method, Some(impl_.target_ty.clone()), &impl_.generics)
+fn method_signature_for_owner(
+    method: &MethodDecl,
+    target_ty: &TypeExpr,
+    generics: &GenericParamList,
+) -> MethodSignature {
+    method_signature_inner(method, Some(target_ty.clone()), generics)
 }
 
 fn method_signature_inner(
     method: &MethodDecl,
-    impl_target_ty: Option<TypeExpr>,
+    owner_target_ty: Option<TypeExpr>,
     generics: &GenericParamList,
 ) -> MethodSignature {
-    let has_default_body = method.body.is_some() && impl_target_ty.is_none();
+    let has_default_body = method.body.is_some() && owner_target_ty.is_none();
     MethodSignature {
         name: method.name.clone(),
         name_span: method.name_span,
         visibility: method.visibility,
         is_accessible: true,
-        impl_target_ty,
+        owner_target_ty,
         has_default_body,
         owner_generic_count: generics.parameters.len(),
         receiver: method.receiver.clone(),

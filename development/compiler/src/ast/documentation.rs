@@ -55,10 +55,37 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 }
             }
         }
-        Item::Impl(impl_) => {
-            push_target(text, impl_.span, targets);
-            for member in &impl_.members {
-                collect_impl_member_targets(text, member, targets);
+        Item::Instance(instance) => {
+            push_target(text, instance.span, targets);
+            for member in &instance.members {
+                match member {
+                    InstanceMember::Method(method) => {
+                        push_target(text, method.span, targets);
+                        if let Some(body) = &method.body {
+                            collect_block_targets(text, body, targets);
+                        }
+                    }
+                    InstanceMember::Drop(drop_) => {
+                        push_target(text, drop_.span, targets);
+                        collect_block_targets(text, &drop_.body, targets);
+                    }
+                }
+            }
+        }
+        Item::Conformance(conformance) => {
+            push_target(text, conformance.span, targets);
+            for member in &conformance.members {
+                match member {
+                    ConformanceMember::AssociatedType(binding) => {
+                        push_target(text, binding.span, targets);
+                    }
+                    ConformanceMember::Method(method) => {
+                        push_target(text, method.span, targets);
+                        if let Some(body) = &method.body {
+                            collect_block_targets(text, body, targets);
+                        }
+                    }
+                }
             }
         }
         Item::Construct(construct) => {
@@ -88,28 +115,6 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                     collect_block_targets(text, body, targets);
                 }
             }
-        }
-    }
-}
-
-fn collect_impl_member_targets(
-    text: &str,
-    member: &ImplMember,
-    targets: &mut Vec<DocumentationTarget>,
-) {
-    match member {
-        ImplMember::AssociatedType(binding) => {
-            push_target(text, binding.span, targets);
-        }
-        ImplMember::Method(method) => {
-            push_target(text, method.span, targets);
-            if let Some(body) = &method.body {
-                collect_block_targets(text, body, targets);
-            }
-        }
-        ImplMember::Drop(drop_) => {
-            push_target(text, drop_.span, targets);
-            collect_block_targets(text, &drop_.body, targets);
         }
     }
 }

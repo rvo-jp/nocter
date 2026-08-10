@@ -59,14 +59,14 @@ if x>3{return x}else{return 0}
 fn formats_source_backed_callable_contracts_stably() {
     assert_formats_stably(
         r#"pub func parse(text:&str):Value! from text
-impl Value{pub method &self.render():String}
+instance Value{pub method &self.render():String}
 construct Value{pub default func new():Self
 pub literal [](...items:i32):Self}
 coerce Value{pub &self as &str from self}
 "#,
         r#"pub func parse(text: &str): Value! from text
 
-impl Value {
+instance Value {
     pub method &self.render(): String
 }
 
@@ -173,7 +173,7 @@ fn formats_interface_default_methods_stably() {
 fn formats_associated_types_before_interface_methods_stably() {
     assert_formats_stably(
         r#"interface Source{pub method &+self.next():Self.Item? pub type Item}
-impl<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
+conform<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
 "#,
         concat!(
             "interface Source {\n",
@@ -182,7 +182,7 @@ impl<T> Source for Buffer<T>{method &+self.next():T?{return none}type Item=T}
             "    pub method &+self.next(): Self.Item?\n",
             "}\n",
             "\n",
-            "impl<T> Source for Buffer<T> {\n",
+            "conform<T> Source for Buffer<T> {\n",
             "    method &+self.next(): T? {\n",
             "        return none\n",
             "    }\n",
@@ -496,7 +496,7 @@ fn formats_result_provenance_contracts_stably() {
     assert_formats_stably(
         r#"pub func view(factory:&func():&Text from static):&Text from static{return factory()}
 interface Factory{pub method &self.view():&Text from self}
-impl Factory for Builder{method &self.view():&Text from self{return borrow()}}
+conform Factory for Builder{method &self.view():&Text from self{return borrow()}}
 construct Text{pub default func new():Self{return make()}pub literal ""(text:&str):Self{return make()}}
 "#,
         concat!(
@@ -508,7 +508,7 @@ construct Text{pub default func new():Self{return make()}pub literal ""(text:&st
             "    pub method &self.view(): &Text from self\n",
             "}\n",
             "\n",
-            "impl Factory for Builder {\n",
+            "conform Factory for Builder {\n",
             "    method &self.view(): &Text from self {\n",
             "        return borrow()\n",
             "    }\n",
@@ -533,13 +533,13 @@ fn formats_imports_impls_and_literals_stably() {
         r#"use std/io
 use std/io.{print as write,File}
 use std/process as process
-impl File {pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
+instance File {pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
 let marker=b'\n'
 var point=Point {x:1,y:2}
 var marker=Marker<i32> {code:42}
 while ready(){print(text)}
 }}
-impl File {drop &+self{drop self}}
+instance File {drop &+self{drop self}}
 "#,
         concat!(
             "use std/io\n",
@@ -548,7 +548,7 @@ impl File {drop &+self{drop self}}
             "\n",
             "use std/process as process\n",
             "\n",
-            "impl File {\n",
+            "instance File {\n",
             "    pub method &+self.write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
             "        let marker = b'\\n'\n",
@@ -558,7 +558,7 @@ impl File {drop &+self{drop self}}
             "    }\n",
             "}\n",
             "\n",
-            "impl File {\n",
+            "instance File {\n",
             "    drop &+self {\n",
             "        drop self\n",
             "    }\n",
@@ -570,9 +570,9 @@ impl File {drop &+self{drop self}}
 #[test]
 fn formats_method_generic_parameters_stably() {
     assert_formats_stably(
-        "impl Factory {pub method &self.convert<T,U>(value:T):U where T:Readable+Measured{return make(value)}}\n",
+        "instance Factory {pub method &self.convert<T,U>(value:T):U where T:Readable+Measured{return make(value)}}\n",
         concat!(
-            "impl Factory {\n",
+            "instance Factory {\n",
             "    pub method &self.convert<T, U>(value: T): U where T: Readable + Measured {\n",
             "        return make(value)\n",
             "    }\n",
@@ -582,11 +582,11 @@ fn formats_method_generic_parameters_stably() {
 }
 
 #[test]
-fn formats_generic_interface_implementations_with_members_stably() {
+fn formats_generic_conformanceementations_with_members_stably() {
     assert_formats_stably(
-        "impl<T> Source<T> for Box<T> where T:Readable{method &self.read():T{return self.value}}\n",
+        "conform<T> Source<T> for Box<T> where T:Readable{method &self.read():T{return self.value}}\n",
         concat!(
-            "impl<T> Source<T> for Box<T> where T: Readable {\n",
+            "conform<T> Source<T> for Box<T> where T: Readable {\n",
             "    method &self.read(): T {\n",
             "        return self.value\n",
             "    }\n",

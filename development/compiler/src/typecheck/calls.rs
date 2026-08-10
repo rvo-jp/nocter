@@ -125,7 +125,7 @@ pub(super) fn call_return_type(
 pub(super) struct CheckedCallSignature<'a> {
     pub(super) signature: &'a FunctionSignature,
     pub(super) self_type: Option<Type>,
-    pub(super) impl_target_ty: Option<&'a TypeExpr>,
+    pub(super) owner_target_ty: Option<&'a TypeExpr>,
     pub(super) name: String,
     pub(super) kind: CheckedCallKind,
     pub(super) declaration_span: Option<ByteSpan>,
@@ -157,7 +157,7 @@ pub(super) fn resolved_call_signature<'a>(
         return Some(CheckedCallSignature {
             signature,
             self_type: None,
-            impl_target_ty: None,
+            owner_target_ty: None,
             name: resolved.call_name_for_diagnostic(call),
             kind: CheckedCallKind::Function,
             declaration_span: resolved
@@ -170,7 +170,7 @@ pub(super) fn resolved_call_signature<'a>(
         return Some(CheckedCallSignature {
             signature: &function.signature,
             self_type: Some(type_symbol_self_type(owner)),
-            impl_target_ty: None,
+            owner_target_ty: None,
             name: format!("{}.{}", owner.canonical_name, function.name),
             kind: CheckedCallKind::AssociatedFunction,
             declaration_span: Some(function.name_span),
@@ -180,7 +180,7 @@ pub(super) fn resolved_call_signature<'a>(
     resolved_method_call(resolved, call, environment).map(|selected| CheckedCallSignature {
         signature: &selected.method.signature,
         self_type: Some(selected.self_type),
-        impl_target_ty: selected.method.impl_target_ty.as_ref(),
+        owner_target_ty: selected.method.owner_target_ty.as_ref(),
         name: format!("{}.{}", selected.owner.canonical_name, selected.method.name),
         kind: CheckedCallKind::Method,
         declaration_span: Some(selected.method.name_span),
@@ -463,11 +463,11 @@ pub(super) fn infer_generic_substitutions(
             substitutions.extend(type_symbol_substitutions(owner, &interface_type));
         }
     }
-    if let (Some(impl_target_ty), Some(self_type)) =
-        (signature.impl_target_ty, signature.self_type.as_ref())
+    if let (Some(owner_target_ty), Some(self_type)) =
+        (signature.owner_target_ty, signature.self_type.as_ref())
     {
         infer_type_expr_substitutions(
-            impl_target_ty,
+            owner_target_ty,
             self_type,
             resolved,
             None,
@@ -855,7 +855,7 @@ pub(super) fn method_applies_to_receiver(
     receiver_type: &Type,
     resolved: &ResolveOutput,
 ) -> bool {
-    let Some(impl_target_ty) = &method.impl_target_ty else {
+    let Some(owner_target_ty) = &method.owner_target_ty else {
         return true;
     };
 
@@ -867,7 +867,7 @@ pub(super) fn method_applies_to_receiver(
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
     infer_type_expr_substitutions(
-        impl_target_ty,
+        owner_target_ty,
         receiver_type,
         resolved,
         None,
@@ -875,7 +875,7 @@ pub(super) fn method_applies_to_receiver(
         &mut substitutions,
     );
     let expected =
-        type_expr_to_type_with_substitutions(impl_target_ty, resolved, None, &substitutions);
+        type_expr_to_type_with_substitutions(owner_target_ty, resolved, None, &substitutions);
 
     !expected.is_unknown_or_unresolved() && expected == *receiver_type
 }

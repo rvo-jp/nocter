@@ -567,7 +567,7 @@ fn completion_candidates_include_fields_and_methods_after_value_member_dot() {
     size: i32
 }
 
-impl File {
+instance File {
     method &self.describe(): i32 {
         return self.size
     }
@@ -614,7 +614,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -647,13 +647,13 @@ copy struct Unit {
     marker: i32
 }
 
-impl Unit {
+instance Unit {
     pub method &self.value(): i32 {
         return 42
     }
 }
 
-impl Value for Unit {}
+conform Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -690,8 +690,8 @@ copy struct Unit {
     marker: i32
 }
 
-impl Left for Unit {}
-impl Right for Unit {}
+conform Left for Unit {}
+conform Right for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -714,7 +714,7 @@ fn completion_candidates_include_fields_and_methods_after_incomplete_value_membe
     size: i32
 }
 
-impl File {
+instance File {
     method &self.describe(): i32 {
         return self.size
     }
@@ -881,7 +881,7 @@ fn completion_candidates_include_fields_and_methods_after_borrowed_value_member_
     fd: i32
 }
 
-impl File {
+instance File {
     method &self.describe(): i32 {
         return self.fd
     }
@@ -977,7 +977,7 @@ fn member_completion_specializes_generics_and_filters_receiver_capability() {
     value: T
 }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     method &self.inspect(): void {
         return
     }
@@ -1054,7 +1054,7 @@ fn member_completion_targets_conformance_member_implementation() {
 
 struct Count { value: i32 }
 
-impl Measure for Count {
+conform Measure for Count {
     method &self.measure(): i32 {
         return self.value
     }
@@ -1111,7 +1111,7 @@ fn generic_method_completion_keeps_constraints_in_a_specialized_where_clause() {
 
 struct Box<T> { value: T }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     method &self.map<U>(value: U): T where U: Reader<T> {
         return self.value
     }
@@ -1168,11 +1168,11 @@ coerce Source {
     pub &self as &Right { return &self.right }
 }
 
-impl Left {
+instance Left {
     pub method &self.inspect(): usize { return self.value }
 }
 
-impl Right {
+instance Right {
     pub method &self.inspect(): usize { return self.value }
 }
 
@@ -1196,11 +1196,11 @@ coerce Text {
     pub &self as &str { return self.value }
 }
 
-impl Text {
+instance Text {
     pub method &+self.inspect(): usize { return 1 }
 }
 
-impl str {
+instance str {
     pub method &self.inspect(): usize { return 2 }
 }
 
@@ -1225,7 +1225,7 @@ coerce Buffer {
     pub &+self as &+[u8] { return self.write }
 }
 
-impl<T> [T] {
+instance<T> [T] {
     pub method &self.len(): usize { return 1 }
     pub method &+self.clear(): void { return }
 }
@@ -1399,7 +1399,7 @@ func project<S>(source: S): S. where S: Source {
 fn method_presentation_matches_completion_hover_and_signature_help() {
     let text = r#"struct Box<T> { value: T }
 
-impl<T> Box<T> {
+instance<T> Box<T> {
     method &self.replace(value: T): T {
         return value
     }

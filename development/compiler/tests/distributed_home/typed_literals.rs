@@ -92,7 +92,7 @@ struct Stream {
     done: bool
 }
 
-impl Iterator for Stream {
+conform Iterator for Stream {
     type Item = i32
 
     method &+self.next(): i32? {
@@ -287,7 +287,7 @@ struct AllocatingIter {
     end: usize
 }
 
-impl IntoIterator for AllocatingCollection {
+conform IntoIterator for AllocatingCollection {
     type Iter = AllocatingIter
 
     method self.into_iter(): AllocatingIter {
@@ -297,13 +297,13 @@ impl IntoIterator for AllocatingCollection {
     }
 }
 
-impl ExactSizeIterator for AllocatingIter {
+conform ExactSizeIterator for AllocatingIter {
     method &self.remaining_len(): usize {
         return self.end - self.next_value
     }
 }
 
-impl Iterator for AllocatingIter {
+conform Iterator for AllocatingIter {
     type Item = usize
 
     method &+self.next(): usize? {
@@ -668,7 +668,7 @@ struct Token {
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         print(self.label)!
         return
@@ -906,7 +906,7 @@ use std/mem.page_allocator
 struct Numbers { count: usize }
 struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         assert_region_allocator()
         return
@@ -972,7 +972,7 @@ struct Token {
     label: &str
 }
 
-impl Token {
+instance Token {
     drop &+self {
         print(self.label)!
         return

@@ -4,7 +4,8 @@ use super::model::{Type, TypeEnvironment};
 use super::places::expression_is_established_place;
 use super::provenance::{LexicalRegionTree, RegionId};
 use crate::ast::{
-    AstFile, Block, Expr, ImplMember, InterpolatedStringPart, Item, RegionStmt, Stmt,
+    AstFile, Block, ConformanceMember, Expr, InstanceMember, InterpolatedStringPart, Item,
+    RegionStmt, Stmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -36,18 +37,26 @@ pub(super) fn check_region_statements(
                 }
             }
             Item::Test(test) => check_block(sources, &test.body, None, &mut tree, diagnostics),
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
+            Item::Instance(instance) => {
+                for member in &instance.members {
                     match member {
-                        ImplMember::AssociatedType(_) => {}
-                        ImplMember::Method(method) => {
+                        InstanceMember::Method(method) => {
                             if let Some(body) = &method.body {
                                 check_block(sources, body, None, &mut tree, diagnostics);
                             }
                         }
-                        ImplMember::Drop(drop_) => {
+                        InstanceMember::Drop(drop_) => {
                             check_block(sources, &drop_.body, None, &mut tree, diagnostics)
                         }
+                    }
+                }
+            }
+            Item::Conformance(conformance) => {
+                for member in &conformance.members {
+                    if let ConformanceMember::Method(method) = member
+                        && let Some(body) = &method.body
+                    {
+                        check_block(sources, body, None, &mut tree, diagnostics);
                     }
                 }
             }

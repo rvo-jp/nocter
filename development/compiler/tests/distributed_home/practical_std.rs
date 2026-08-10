@@ -169,7 +169,7 @@ struct InvalidCountReader {
     called: bool
 }
 
-impl Reader for InvalidCountReader {
+conform Reader for InvalidCountReader {
     method &+self.read(buffer: &+[u8]): usize! from static {
         self.called = true
         return buffer.len() + 1
@@ -180,7 +180,7 @@ struct FailingReader {
     calls: usize
 }
 
-impl Reader for FailingReader {
+conform Reader for FailingReader {
     method &+self.read(buffer: &+[u8]): usize! from static {
         if self.calls == 0 {
             self.calls = 1
@@ -228,7 +228,7 @@ struct InvalidCountReader {
     called: bool
 }
 
-impl Reader for InvalidCountReader {
+conform Reader for InvalidCountReader {
     method &+self.read(buffer: &+[u8]): usize! from static {
         return buffer.len() + 1
     }

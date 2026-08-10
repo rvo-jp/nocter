@@ -1,7 +1,7 @@
 //! Document outline symbols derived from the parsed AST.
 
 use super::single_file::parse_single_file_text;
-use crate::ast::{AstFile, ImplDecl, ImplMember, Item, MethodDecl};
+use crate::ast::{AstFile, ConformanceMember, InstanceMember, Item, MethodDecl};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,15 +121,33 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 .map(method_document_symbol)
                 .collect(),
         )),
-        Item::Impl(impl_) => Some(document_symbol(
-            impl_document_symbol_name(text, impl_),
+        Item::Instance(instance) => Some(document_symbol(
+            format!(
+                "instance {}",
+                source_fragment(text, instance.target_ty.span())
+            ),
             DocumentSymbolKind::Class,
-            impl_.span,
-            impl_document_symbol_selection_span(impl_),
-            impl_
+            instance.span,
+            instance.target_ty.span(),
+            instance
                 .members
                 .iter()
-                .map(impl_member_document_symbol)
+                .map(instance_member_document_symbol)
+                .collect(),
+        )),
+        Item::Conformance(conformance) => Some(document_symbol(
+            format!(
+                "conform {} for {}",
+                source_fragment(text, conformance.interface_ty.span()),
+                source_fragment(text, conformance.target_ty.span())
+            ),
+            DocumentSymbolKind::Class,
+            conformance.span,
+            conformance.interface_ty.span(),
+            conformance
+                .members
+                .iter()
+                .map(conformance_member_document_symbol)
                 .collect(),
         )),
         Item::Construct(construct) => Some(document_symbol(
@@ -190,23 +208,29 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
     }
 }
 
-fn impl_member_document_symbol(member: &ImplMember) -> DocumentSymbolInfo {
+fn instance_member_document_symbol(member: &InstanceMember) -> DocumentSymbolInfo {
     match member {
-        ImplMember::AssociatedType(binding) => document_symbol(
-            binding.name.clone(),
-            DocumentSymbolKind::Class,
-            binding.span,
-            binding.name_span,
-            Vec::new(),
-        ),
-        ImplMember::Method(method) => method_document_symbol(method),
-        ImplMember::Drop(drop_) => document_symbol(
+        InstanceMember::Method(method) => method_document_symbol(method),
+        InstanceMember::Drop(drop_) => document_symbol(
             "drop".to_string(),
             DocumentSymbolKind::Method,
             drop_.span,
             drop_.name_span,
             Vec::new(),
         ),
+    }
+}
+
+fn conformance_member_document_symbol(member: &ConformanceMember) -> DocumentSymbolInfo {
+    match member {
+        ConformanceMember::AssociatedType(binding) => document_symbol(
+            binding.name.clone(),
+            DocumentSymbolKind::Class,
+            binding.span,
+            binding.name_span,
+            Vec::new(),
+        ),
+        ConformanceMember::Method(method) => method_document_symbol(method),
     }
 }
 
@@ -218,25 +242,6 @@ fn method_document_symbol(method: &MethodDecl) -> DocumentSymbolInfo {
         method.name_span,
         Vec::new(),
     )
-}
-
-fn impl_document_symbol_name(text: &str, impl_: &ImplDecl) -> String {
-    if let Some(interface_ty) = &impl_.interface_ty {
-        return format!(
-            "impl {} for {}",
-            source_fragment(text, interface_ty.span()),
-            source_fragment(text, impl_.target_ty.span())
-        );
-    }
-
-    format!("impl {}", source_fragment(text, impl_.target_ty.span()))
-}
-
-fn impl_document_symbol_selection_span(impl_: &ImplDecl) -> ByteSpan {
-    impl_
-        .interface_ty
-        .as_ref()
-        .map_or(impl_.target_ty.span(), |interface_ty| interface_ty.span())
 }
 
 fn document_symbol(
@@ -294,7 +299,7 @@ mod tests {
     fn drop_document_symbol_selects_the_declaration_keyword() {
         let text = r#"struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
     }
@@ -315,7 +320,7 @@ impl Token {
     fn document_symbols_survive_an_unclosed_member_body() {
         let text = r#"struct Token { value: i32 }
 
-impl Token {
+instance Token {
     drop &+self {
         return
 "#;

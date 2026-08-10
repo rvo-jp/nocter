@@ -836,7 +836,7 @@ copy struct Checker {
     seed: i32
 }
 
-impl Checker {
+instance Checker {
     method &self.score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
         if self.seed == 40 && byte == 5 && size == 7 && ok && text == "Nocter" && data.len() == 3 {
             42

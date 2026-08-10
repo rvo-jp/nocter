@@ -365,7 +365,7 @@ func main(): i32 {
     return 0
 }
 "#,
-        r#"impl Self {
+        r#"instance Self {
 }
 
 func main(): i32 {
@@ -396,7 +396,7 @@ construct Point {
     }
 }
 
-impl Point {
+instance Point {
     method self.same(): Self {
         return move self
     }

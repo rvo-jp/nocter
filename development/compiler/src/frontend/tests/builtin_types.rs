@@ -60,7 +60,7 @@ fn check_rejects_project_owned_builtin_implementation() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         root.join("index.nct"),
-        r#"impl str {
+        r#"instance str {
     pub method &self.project_method(): usize { return 0 }
 }
 
@@ -84,7 +84,7 @@ fn check_rejects_malformed_standard_builtin_implementation() {
     let home = make_nocter_home(&root);
     crate::test_files::write(
         home.join("std/str/index.nct"),
-        r#"impl<T> str {
+        r#"instance<T> str {
     pub method self.consume(): usize { return 0 }
 }
 "#,
@@ -115,7 +115,7 @@ fn check_resolves_types_imported_by_builtin_method_signatures() {
     pub marker: usize
 }
 
-impl<T> Iter<T> {
+instance<T> Iter<T> {
     pub method &self.value(): usize { return self.marker }
 }
 "#,
@@ -125,7 +125,7 @@ impl<T> Iter<T> {
         home.join("std/str/index.nct"),
         r#"use std/iter.Iter
 
-impl str {
+instance str {
     pub method &self.bytes_iter(): Iter<u8> {
         return Iter<u8> { marker: 42 }
     }
