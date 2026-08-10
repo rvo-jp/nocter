@@ -2,8 +2,9 @@
 
 ## Current Task
 
-v0.11.0 Phase 4 is complete. Do not begin another source-language change until the next phase has a
-separate reviewed plan and completion gate.
+v0.11.0 Phase 5 is active. Complete declaration type patterns, directed binder refinement,
+structural overlap rejection, canonical tooling presentation, full source migration, and the
+qualification gate before beginning another source-language change.
 
 ## Completed Checkpoint
 
