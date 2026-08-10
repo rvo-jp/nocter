@@ -84,6 +84,42 @@ func borrow_optional(value: Item?): &(Item?) {
 }
 
 #[test]
+fn projections_bind_inside_borrow_and_optional_type_operators() {
+    let output = parse_text(
+        r#"func borrowed<I>(value: &I.Item): &I.Item {
+    return value
+}
+
+func optional<I>(): I.Item? {
+    return none
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(borrowed) = &ast.items[0] else {
+        panic!("expected function declaration");
+    };
+    assert!(matches!(
+        &borrowed.parameters.parameters[0].ty,
+        TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::Projection(_))
+    ));
+    assert!(matches!(
+        &borrowed.return_type,
+        TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::Projection(_))
+    ));
+    let Item::Function(optional) = &ast.items[1] else {
+        panic!("expected function declaration");
+    };
+    assert!(matches!(
+        &optional.return_type,
+        TypeExpr::Optional(optional)
+            if matches!(optional.inner.as_ref(), TypeExpr::Projection(_))
+    ));
+}
+
+#[test]
 fn parses_builtin_view_and_array_types() {
     let output = parse_text(
         r#"pub func checksum(bytes: &[u8], output: &+[u8], header: [u8; 4]): &str {

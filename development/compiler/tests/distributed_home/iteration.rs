@@ -810,7 +810,9 @@ struct AllocatingIter {
     end: i32
 }
 
-impl IntoIterator<i32, AllocatingIter> for AllocatingCollection {
+impl IntoIterator for AllocatingCollection {
+    type Iter = AllocatingIter
+
     method self.into_iter(): AllocatingIter {
         let scratch = Vec [0]
         drop scratch
@@ -818,7 +820,9 @@ impl IntoIterator<i32, AllocatingIter> for AllocatingCollection {
     }
 }
 
-impl Iterator<i32> for AllocatingIter {
+impl Iterator for AllocatingIter {
+    type Item = i32
+
     method &+self.next(): i32? {
         if self.next_value >= self.end {
             return none
@@ -902,13 +906,17 @@ struct CounterIter {
     end: i32
 }
 
-impl IntoIterator<i32, CounterIter> for Counter {
+impl IntoIterator for Counter {
+    type Iter = CounterIter
+
     method self.into_iter(): CounterIter {
         return CounterIter { next_value: 0, end: self.end }
     }
 }
 
-impl Iterator<i32> for CounterIter {
+impl Iterator for CounterIter {
+    type Item = i32
+
     method &+self.next(): i32? {
         if self.next_value >= self.end {
             return none

@@ -202,8 +202,15 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         ));
     }
 
-    let parameters = function_parameters(function, substitutions);
-    let return_type_expr = substitute_type_expr_parameters(&function.return_type, substitutions);
+    let mut contextual_substitutions = substitutions.clone();
+    crate::typecheck::extend_associated_type_substitutions_with_resolver(
+        &mut contextual_substitutions,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
+    );
+    let parameters = function_parameters(function, &contextual_substitutions);
+    let return_type_expr =
+        substitute_type_expr_parameters(&function.return_type, &contextual_substitutions);
     let parameter_slots = lower_scalar_parameters(
         &name,
         &parameters,
@@ -259,7 +266,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         function_names,
         resolved_sources,
     )
-    .with_generic_substitutions(substitutions.clone())
+    .with_generic_substitutions(contextual_substitutions)
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
@@ -424,11 +431,17 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
         ));
     };
 
-    let parameters = method_parameters(method, self_ty, substitutions);
-    let return_type_expr = type_expr_with_impl_substitutions(
-        &type_expr_with_self_type(&method.return_type, self_ty),
-        substitutions,
+    let concrete_self_ty = substitute_type_expr_parameters(self_ty, substitutions);
+    let mut contextual_substitutions = substitutions.clone();
+    contextual_substitutions.insert("Self".to_string(), concrete_self_ty.clone());
+    crate::typecheck::extend_associated_type_substitutions_with_resolver(
+        &mut contextual_substitutions,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
     );
+    let parameters = method_parameters(method, &concrete_self_ty, &contextual_substitutions);
+    let return_type_expr =
+        substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
     let parameter_slots = lower_scalar_parameters(
         &name,
         &parameters,
@@ -482,7 +495,7 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
         function_names,
         resolved_sources,
     )
-    .with_generic_substitutions(substitutions.clone())
+    .with_generic_substitutions(contextual_substitutions)
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(prologue(&mut context)?);

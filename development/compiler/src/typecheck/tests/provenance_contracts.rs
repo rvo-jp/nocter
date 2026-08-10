@@ -453,3 +453,24 @@ func main(): i32 {
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn forwarded_owned_inputs_keep_their_upstream_provenance() {
+    let diagnostics = check_text(
+        r#"struct BorrowingValue {
+    value: &i32
+}
+
+func forward(value: BorrowingValue): BorrowingValue from value {
+    var source = move value
+    return move source
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

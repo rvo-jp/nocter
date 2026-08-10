@@ -138,7 +138,7 @@ construct Vec<T> {
     }
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
-    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+    pub func from_iter<I: Iterator>(iterator: I): Self where I.Item = T {
         var result: Vec<T> = Vec.empty()
         for item in iterator {
             result.push(move item)
@@ -147,9 +147,9 @@ construct Vec<T> {
     }
 
     /// Consumes an exact iterator after reserving its initial reported remainder.
-    pub func from_exact_iter<I: Iterator<T> + ExactSizeIterator<T>>(
+    pub func from_exact_iter<I: Iterator + ExactSizeIterator>(
         iterator: I,
-    ): Self {
+    ): Self where I.Item = T {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()
@@ -549,14 +549,17 @@ impl<T> Sequence<T> for Vec<T> {
     }
 }
 
-impl<T> Iterable<&T, ViewIter<T>> for Vec<T> {
+impl<T> Iterable for Vec<T> {
+    type Iter = ViewIter<T>
+
     /// Returns an allocation-free iterator over readonly element borrows.
     method &self.iter(): ViewIter<T> {
         return iter(self)
     }
 }
 
-impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T> {
+impl<T> IntoIterator for Vec<T> {
+    type Iter = VecIntoIter<T>
     /// Transfers the allocation and every element into an owning iterator.
     method self.into_iter(): VecIntoIter<T> {
         return into_iter(move self)

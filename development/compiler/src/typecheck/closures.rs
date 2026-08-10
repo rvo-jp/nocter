@@ -24,6 +24,7 @@ pub(super) struct ExpectedCallableContract<'a> {
 pub(super) fn expected_callable_contract_for_generic<'a>(
     generic: &str,
     signature: &'a FunctionSignature,
+    self_type: Option<&Type>,
     substitutions: &HashMap<String, Type>,
     resolved: &ResolveOutput,
 ) -> Option<ExpectedCallableContract<'a>> {
@@ -48,7 +49,7 @@ pub(super) fn expected_callable_contract_for_generic<'a>(
                         type_expr_to_type_with_substitutions(
                             &parameter.ty,
                             resolved,
-                            None,
+                            self_type,
                             substitutions,
                         )
                     })
@@ -56,7 +57,7 @@ pub(super) fn expected_callable_contract_for_generic<'a>(
                 return_type: type_expr_to_type_with_substitutions(
                     &callable.return_type,
                     resolved,
-                    None,
+                    self_type,
                     substitutions,
                 ),
             })

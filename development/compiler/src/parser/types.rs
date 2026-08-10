@@ -10,22 +10,9 @@ use crate::source::ByteSpan;
 
 impl Parser<'_> {
     pub(super) fn parse_type(&mut self) -> ParseResult<TypeExpr> {
-        let mut ty = self.parse_type_atom()?;
+        let mut ty = self.parse_type_atom_with_projections()?;
 
         loop {
-            if self.at_punctuation(".") && self.next_is_identifier() {
-                self.bump();
-                let name =
-                    self.expect_name_identifier("expected associated type name after `.`")?;
-                ty = TypeExpr::Projection(ProjectedType {
-                    span: self.span(ty.span().start, name.span.end),
-                    base: Box::new(ty),
-                    name: name.value,
-                    name_span: name.span,
-                });
-                continue;
-            }
-
             if let Some(question) = self.match_punctuation("?") {
                 ty = TypeExpr::Optional(OptionalType {
                     span: self.span(ty.span().start, question.span.end),
@@ -53,6 +40,21 @@ impl Parser<'_> {
         Ok(ty)
     }
 
+    fn parse_type_atom_with_projections(&mut self) -> ParseResult<TypeExpr> {
+        let mut ty = self.parse_type_atom()?;
+        while self.at_punctuation(".") && self.next_is_identifier() {
+            self.bump();
+            let name = self.expect_name_identifier("expected associated type name after `.`")?;
+            ty = TypeExpr::Projection(ProjectedType {
+                span: self.span(ty.span().start, name.span.end),
+                base: Box::new(ty),
+                name: name.value,
+                name_span: name.span,
+            });
+        }
+        Ok(ty)
+    }
+
     pub(super) fn parse_type_atom(&mut self) -> ParseResult<TypeExpr> {
         self.reject_removed_result_allocation_modifier()?;
 
@@ -71,7 +73,7 @@ impl Parser<'_> {
         }
 
         if let Some(star) = self.match_punctuation("*") {
-            let inner = self.parse_type_atom()?;
+            let inner = self.parse_type_atom_with_projections()?;
             return Ok(TypeExpr::Pointer(PointerType {
                 span: self.span(star.span.start, inner.span().end),
                 inner: Box::new(inner),
@@ -79,7 +81,7 @@ impl Parser<'_> {
         }
 
         if let Some(borrow) = self.match_punctuation("&+") {
-            let inner = self.parse_type_atom()?;
+            let inner = self.parse_type_atom_with_projections()?;
             return Ok(TypeExpr::Borrow(BorrowType {
                 span: self.span(borrow.span.start, inner.span().end),
                 is_readwrite: true,
@@ -88,7 +90,7 @@ impl Parser<'_> {
         }
 
         if let Some(borrow) = self.match_punctuation("&") {
-            let inner = self.parse_type_atom()?;
+            let inner = self.parse_type_atom_with_projections()?;
             return Ok(TypeExpr::Borrow(BorrowType {
                 span: self.span(borrow.span.start, inner.span().end),
                 is_readwrite: false,

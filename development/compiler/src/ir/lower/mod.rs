@@ -1093,9 +1093,17 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 ..
             } => {
-                let parameters = function_parameters(function, substitutions);
-                let return_type =
-                    substitute_type_expr_parameters(&function.return_type, substitutions);
+                let mut contextual_substitutions = substitutions.clone();
+                crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                    &mut contextual_substitutions,
+                    self.resolved,
+                    |source| resolved_sources.get(&source).copied(),
+                );
+                let parameters = function_parameters(function, &contextual_substitutions);
+                let return_type = substitute_type_expr_parameters(
+                    &function.return_type,
+                    &contextual_substitutions,
+                );
                 let resolved_signature =
                     resolved_function_signature(&parameters, return_type.clone());
                 lower_signature_return_type(&return_type, self.resolved, resolved_sources).map(
@@ -1170,10 +1178,19 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 ..
             } => {
-                let parameters = method_parameters(declaration, self_ty, substitutions);
+                let concrete_self_ty = substitute_type_expr_parameters(self_ty, substitutions);
+                let mut contextual_substitutions = substitutions.clone();
+                contextual_substitutions.insert("Self".to_string(), concrete_self_ty.clone());
+                crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                    &mut contextual_substitutions,
+                    self.resolved,
+                    |source| resolved_sources.get(&source).copied(),
+                );
+                let parameters =
+                    method_parameters(declaration, &concrete_self_ty, &contextual_substitutions);
                 let return_type = substitute_type_expr_parameters(
-                    &type_expr_with_self_type(&declaration.return_type, self_ty),
-                    substitutions,
+                    &declaration.return_type,
+                    &contextual_substitutions,
                 );
                 let resolved_signature =
                     resolved_function_signature(&parameters, return_type.clone());

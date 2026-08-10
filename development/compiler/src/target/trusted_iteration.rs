@@ -3,7 +3,9 @@
 use crate::ast::{
     AstFile, InterfaceDecl, Item, MethodReceiverMode, ResultProvenanceOriginKind, Visibility,
 };
-use crate::semantics::{IterationProtocol, IterationRuntime, TrustedDeclarationFacts};
+use crate::semantics::{
+    IterationAssociatedType, IterationProtocol, IterationRuntime, TrustedDeclarationFacts,
+};
 use std::collections::HashMap;
 
 pub(crate) fn attach_iteration_runtime(
@@ -23,10 +25,14 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             module,
             "std/iter",
             "Iterator",
-            &["T"],
+            &[],
+            Some(AssociatedTypeShape {
+                name: "Item",
+                bounds: &[],
+            }),
             "next",
             MethodReceiverMode::ReadwriteBorrow,
-            "T?",
+            "Self.Item?",
             IterationResultContract {
                 from_receiver: true,
             },
@@ -35,7 +41,8 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             module,
             "std/iter",
             "ExactSizeIterator",
-            &["T"],
+            &[],
+            None,
             "remaining_len",
             MethodReceiverMode::ReadonlyBorrow,
             "usize",
@@ -45,10 +52,14 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             module,
             "std/iter",
             "Iterable",
-            &["T", "I"],
+            &[],
+            Some(AssociatedTypeShape {
+                name: "Iter",
+                bounds: &["Iterator"],
+            }),
             "iter",
             MethodReceiverMode::ReadonlyBorrow,
-            "I",
+            "Self.Iter",
             IterationResultContract {
                 from_receiver: true,
             },
@@ -57,10 +68,14 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             module,
             "std/iter",
             "IntoIterator",
-            &["T", "I"],
+            &[],
+            Some(AssociatedTypeShape {
+                name: "Iter",
+                bounds: &["Iterator"],
+            }),
             "into_iter",
             MethodReceiverMode::Owned,
-            "I",
+            "Self.Iter",
             IterationResultContract {
                 from_receiver: true,
             },
@@ -73,6 +88,7 @@ fn find_interface(
     module_name: &str,
     name: &str,
     generic_parameters: &[&str],
+    associated_type: Option<AssociatedTypeShape<'_>>,
     method_name: &str,
     receiver_mode: MethodReceiverMode,
     return_type: &str,
@@ -90,6 +106,7 @@ fn find_interface(
         declaration,
         method,
         generic_parameters,
+        associated_type,
         receiver_mode,
         return_type,
         result_contract,
@@ -99,6 +116,17 @@ fn find_interface(
         interface_canonical_name: format!("{module_name}.{name}"),
         method_declaration: method.name_span,
         method_name: method.name.clone(),
+        associated_type: associated_type.map(|expected| {
+            let actual = declaration
+                .associated_types
+                .iter()
+                .find(|actual| actual.name == expected.name)
+                .expect("validated associated type");
+            IterationAssociatedType {
+                declaration: actual.name_span,
+                name: actual.name.clone(),
+            }
+        }),
     })
 }
 
@@ -106,6 +134,7 @@ fn interface_shape_matches(
     declaration: &InterfaceDecl,
     method: &crate::ast::MethodDecl,
     generic_parameters: &[&str],
+    associated_type: Option<AssociatedTypeShape<'_>>,
     receiver_mode: MethodReceiverMode,
     return_type: &str,
     result_contract: IterationResultContract,
@@ -123,12 +152,37 @@ fn interface_shape_matches(
             .parameters
             .iter()
             .all(|parameter| parameter.bounds.is_empty())
+        && associated_type_shape_matches(declaration, associated_type)
         && method.visibility == Visibility::Public
         && method.receiver.mode == receiver_mode
         && method.parameters.parameters.is_empty()
         && crate::ast::canonical_type_expr(&method.return_type) == return_type
         && result_provenance_matches(method, result_contract.from_receiver)
         && method.body.is_none()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AssociatedTypeShape<'a> {
+    name: &'a str,
+    bounds: &'a [&'a str],
+}
+
+fn associated_type_shape_matches(
+    declaration: &InterfaceDecl,
+    expected: Option<AssociatedTypeShape<'_>>,
+) -> bool {
+    match (declaration.associated_types.as_slice(), expected) {
+        ([], None) => true,
+        ([actual], Some(expected)) => {
+            actual.name == expected.name
+                && actual
+                    .bounds
+                    .iter()
+                    .map(crate::ast::canonical_type_expr)
+                    .eq(expected.bounds.iter().copied())
+        }
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -178,17 +232,20 @@ mod tests {
         let mut sources = SourceMap::new();
         let iter = parse_text(
             &mut sources,
-            r#"pub interface Iterator<T> {
-    pub method &+self.next(): T?
+            r#"pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
 }
-pub interface ExactSizeIterator<T> {
+pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
-pub interface Iterable<T, I> {
-    pub method &self.iter(): I
+pub interface Iterable {
+    pub type Iter: Iterator
+    pub method &self.iter(): Self.Iter
 }
-pub interface IntoIterator<T, I> {
-    pub method self.into_iter(): I
+pub interface IntoIterator {
+    pub type Iter: Iterator
+    pub method self.into_iter(): Self.Iter
 }
 "#,
         );
@@ -209,7 +266,7 @@ pub interface IntoIterator<T, I> {
         let mut sources = SourceMap::new();
         let iter = parse_text(
             &mut sources,
-            "pub interface Iterator<T> { pub method self.next(): usize }\n",
+            "pub interface Iterator { pub type Item pub method self.next(): usize }\n",
         );
         let modules = HashMap::from([("std/iter".to_string(), &iter)]);
 

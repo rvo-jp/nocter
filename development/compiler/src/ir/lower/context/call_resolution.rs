@@ -80,8 +80,12 @@ impl<'a> LoweringContext<'a> {
             let specialization =
                 specialization.with_context_substitutions(&self.generic_substitutions)?;
             call_substitutions = specialization.substitutions.clone();
-            return_type =
-                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+            crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                &mut call_substitutions,
+                resolution.resolved,
+                |source| resolution.resolved_sources.get(&source).copied(),
+            );
+            return_type = substitute_type_expr_parameters(&return_type, &call_substitutions);
         }
         if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
             let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
@@ -137,7 +141,12 @@ impl<'a> LoweringContext<'a> {
             })
         {
             call_substitutions = specialization.substitutions.clone();
-            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+            crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                &mut call_substitutions,
+                resolution.resolved,
+                |source| resolution.resolved_sources.get(&source).copied(),
+            );
+            ty = substitute_type_expr_parameters(&ty, &call_substitutions);
         }
         if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
             let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
@@ -633,12 +642,17 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
-            return_type = type_expr_with_self_type(&return_type, &specialization.self_ty);
-            return_type =
-                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+            let mut substitutions = self.generic_substitutions.clone();
+            substitutions.extend(specialization.substitutions.clone());
+            substitutions.insert("Self".to_string(), specialization.self_ty.clone());
+            crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                &mut substitutions,
+                resolution.resolved,
+                |source| resolution.resolved_sources.get(&source).copied(),
+            );
             return Some(substitute_type_expr_parameters(
                 &return_type,
-                &self.generic_substitutions,
+                &substitutions,
             ));
         }
         if resolution
@@ -681,12 +695,15 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
-            ty = type_expr_with_self_type(&ty, &specialization.self_ty);
-            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
-            return Some(substitute_type_expr_parameters(
-                &ty,
-                &self.generic_substitutions,
-            ));
+            let mut substitutions = self.generic_substitutions.clone();
+            substitutions.extend(specialization.substitutions.clone());
+            substitutions.insert("Self".to_string(), specialization.self_ty.clone());
+            crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                &mut substitutions,
+                resolution.resolved,
+                |source| resolution.resolved_sources.get(&source).copied(),
+            );
+            return Some(substitute_type_expr_parameters(&ty, &substitutions));
         }
         if resolution
             .typecheck_facts

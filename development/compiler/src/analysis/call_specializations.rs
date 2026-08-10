@@ -137,11 +137,17 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 else {
                     continue;
                 };
+                let mut context_substitutions = specialization.substitutions.clone();
+                crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                    &mut context_substitutions,
+                    &file.resolved,
+                    |source| analysis.file_by_source(source).map(|file| &file.resolved),
+                );
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
                     function.span,
-                    &specialization.substitutions,
+                    &context_substitutions,
                     &mut queue,
                 );
             }
@@ -171,9 +177,21 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                     || {
                         let mut substitutions = specialization.substitutions.clone();
                         substitutions.insert("Self".to_string(), specialization.self_ty.clone());
+                        crate::typecheck::extend_associated_type_substitutions_with_resolver(
+                            &mut substitutions,
+                            &file.resolved,
+                            |source| analysis.file_by_source(source).map(|file| &file.resolved),
+                        );
                         substitutions
                     },
-                    |impl_| method_specialization_context_substitutions(impl_, &specialization),
+                    |impl_| {
+                        method_specialization_context_substitutions(
+                            impl_,
+                            &specialization,
+                            &file.resolved,
+                            analysis,
+                        )
+                    },
                 );
                 enqueue_call_specializations_from_span(
                     analysis,
@@ -639,10 +657,17 @@ fn drop_specialization_from_typecheck_fact(
 fn method_specialization_context_substitutions(
     impl_: &ImplDecl,
     specialization: &MethodCallSpecialization,
+    resolved: &crate::resolve::ResolveOutput,
+    analysis: &CompileUnitAnalysis,
 ) -> HashMap<String, TypeExpr> {
     let mut substitutions =
         impl_substitutions_for_self_ty(impl_, &specialization.self_ty).unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
+    crate::typecheck::extend_associated_type_substitutions_with_resolver(
+        &mut substitutions,
+        resolved,
+        |source| analysis.file_by_source(source).map(|file| &file.resolved),
+    );
     substitutions
 }
 

@@ -99,6 +99,40 @@ pub(crate) fn normalize_associated_type_expr(
     (!matches!(result, crate::ast::TypeExpr::Projection(_))).then_some(result)
 }
 
+pub(crate) fn extend_associated_type_substitutions_with_resolver<'a, F>(
+    substitutions: &mut std::collections::HashMap<String, crate::ast::TypeExpr>,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) where
+    F: Fn(crate::source::SourceId) -> Option<&'a ResolveOutput>,
+{
+    let bases = substitutions
+        .iter()
+        .filter(|(name, _)| !name.contains('.'))
+        .map(|(name, ty)| {
+            (
+                name.clone(),
+                crate::ast::substitute_type_expr_parameters(ty, substitutions),
+            )
+        })
+        .collect::<Vec<_>>();
+    for (parameter, base) in bases {
+        let resolved = resolver(base.span().source).unwrap_or(fallback_resolved);
+        for (member, _, _) in concrete_associated_types(&base, resolved) {
+            let span = base.span();
+            let projection = crate::ast::TypeExpr::Projection(crate::ast::ProjectedType {
+                span,
+                base: Box::new(base.clone()),
+                name: member.clone(),
+                name_span: span,
+            });
+            if let Some(normalized) = normalize_associated_type_expr(&projection, resolved) {
+                substitutions.insert(format!("{parameter}.{member}"), normalized);
+            }
+        }
+    }
+}
+
 pub(crate) fn concrete_associated_types(
     ty: &crate::ast::TypeExpr,
     resolved: &ResolveOutput,

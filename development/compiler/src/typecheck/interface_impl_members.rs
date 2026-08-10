@@ -75,8 +75,35 @@ pub(super) fn check_interface_impl_members(
         };
 
         let actual_substitutions = method_impl_target_substitutions(actual, self_type, resolved);
-        let expected = method_shape(required, resolved, self_type, &interface_substitutions);
-        let found = method_shape(actual, resolved, self_type, &actual_substitutions);
+        let associated_types = conformance
+            .associated_types
+            .iter()
+            .map(|binding| {
+                (
+                    binding.name.clone(),
+                    type_expr_to_type_with_substitutions(
+                        &binding.value,
+                        resolved,
+                        Some(self_type),
+                        &actual_substitutions,
+                    ),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        let expected = method_shape(
+            required,
+            resolved,
+            self_type,
+            &interface_substitutions,
+            &associated_types,
+        );
+        let found = method_shape(
+            actual,
+            resolved,
+            self_type,
+            &actual_substitutions,
+            &associated_types,
+        );
         if expected.has_unknown_or_unresolved() || found.has_unknown_or_unresolved() {
             continue;
         }
@@ -89,8 +116,20 @@ pub(super) fn check_interface_impl_members(
                 target_symbol,
                 required,
                 actual,
-                method_shape_label(required, resolved, self_type, &interface_substitutions),
-                method_shape_label(actual, resolved, self_type, &actual_substitutions),
+                method_shape_label(
+                    required,
+                    resolved,
+                    self_type,
+                    &interface_substitutions,
+                    &associated_types,
+                ),
+                method_shape_label(
+                    actual,
+                    resolved,
+                    self_type,
+                    &actual_substitutions,
+                    &associated_types,
+                ),
             ));
         }
     }

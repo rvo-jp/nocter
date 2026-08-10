@@ -47,6 +47,9 @@ pub(crate) fn substitute_type_expr_parameters(
             TypeExpr::Generic(generic)
         }
         TypeExpr::Projection(projection) => {
+            if let Some(substitution) = substitutions.get(&super::canonical_type_expr(ty)) {
+                return substitution.clone();
+            }
             let mut projection = projection.clone();
             projection.base = Box::new(substitute_type_expr_parameters(
                 &projection.base,

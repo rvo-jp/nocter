@@ -62,14 +62,15 @@ impl<T> VecIntoIter<T> {
     }
 }
 
-impl<T> ExactSizeIterator<T> for VecIntoIter<T> {
+impl<T> ExactSizeIterator for VecIntoIter<T> {
     /// Implements exact-size iteration for compiler-owned element packs.
     method &self.remaining_len(): usize {
         return remaining(self)
     }
 }
 
-impl<T> Iterator<T> for VecIntoIter<T> {
+impl<T> Iterator for VecIntoIter<T> {
+    type Item = T
     /// Transfers the next element, or returns `none` at exhaustion.
     method &+self.next(): T? {
         return next(self)?

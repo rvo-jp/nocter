@@ -92,7 +92,9 @@ struct Stream {
     done: bool
 }
 
-impl Iterator<i32> for Stream {
+impl Iterator for Stream {
+    type Item = i32
+
     method &+self.next(): i32? {
         if self.done {
             return none
@@ -285,7 +287,9 @@ struct AllocatingIter {
     end: usize
 }
 
-impl IntoIterator<usize, AllocatingIter> for AllocatingCollection {
+impl IntoIterator for AllocatingCollection {
+    type Iter = AllocatingIter
+
     method self.into_iter(): AllocatingIter {
         let scratch = Vec [0]
         drop scratch
@@ -293,13 +297,15 @@ impl IntoIterator<usize, AllocatingIter> for AllocatingCollection {
     }
 }
 
-impl ExactSizeIterator<usize> for AllocatingIter {
+impl ExactSizeIterator for AllocatingIter {
     method &self.remaining_len(): usize {
         return self.end - self.next_value
     }
 }
 
-impl Iterator<usize> for AllocatingIter {
+impl Iterator for AllocatingIter {
+    type Item = usize
+
     method &+self.next(): usize? {
         if self.next_value >= self.end {
             return none

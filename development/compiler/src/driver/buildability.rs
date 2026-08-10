@@ -269,6 +269,8 @@ impl<'a> CallableIndex<'a> {
                                             method_specialization_context_substitutions(
                                                 impl_,
                                                 specialization,
+                                                &file.resolved,
+                                                &resolved_sources,
                                             );
                                         let target = call_target_for_source(
                                             declaration_source,
@@ -557,11 +559,16 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_function_specialization(
         function: &'a FunctionDecl,
-        substitutions: HashMap<String, TypeExpr>,
+        mut substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
         resolved_sources: &ResolvedSources<'a>,
         root_source: SourceId,
     ) -> Self {
+        crate::typecheck::extend_associated_type_substitutions_with_resolver(
+            &mut substitutions,
+            &file.resolved,
+            |source| resolved_sources.get(&source).copied(),
+        );
         let mut issues = Vec::new();
         issues.extend(callable_function_signature_issues(
             function,
@@ -600,7 +607,12 @@ impl<'a> IndexedCallable<'a> {
         file: &'a FileAnalysis,
         resolved_sources: &ResolvedSources<'a>,
     ) -> Self {
-        let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
+        let mut contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
+        crate::typecheck::extend_associated_type_substitutions_with_resolver(
+            &mut contextual_substitutions,
+            &file.resolved,
+            |source| resolved_sources.get(&source).copied(),
+        );
         let mut issues = Vec::new();
         issues.extend(callable_method_signature_issues(
             method,
@@ -635,7 +647,12 @@ impl<'a> IndexedCallable<'a> {
         file: &'a FileAnalysis,
         resolved_sources: &ResolvedSources<'a>,
     ) -> Self {
-        let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
+        let mut contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
+        crate::typecheck::extend_associated_type_substitutions_with_resolver(
+            &mut contextual_substitutions,
+            &file.resolved,
+            |source| resolved_sources.get(&source).copied(),
+        );
         let mut issues = Vec::new();
         issues.extend(callable_parameter_issues(
             std::slice::from_ref(&drop_.binding),

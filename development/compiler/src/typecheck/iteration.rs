@@ -3,7 +3,7 @@
 use super::copyability::non_copy_owned_type_kind_in_environment;
 use super::expressions::expression_type;
 use super::interface_bounds::{
-    implemented_interface_types, interface_symbols_for_generic_parameter,
+    implemented_interface_types, interface_symbols_for_constrained_type,
 };
 use super::interface_methods::implementation_for_interface;
 use super::model::{Type, TypeEnvironment};
@@ -114,21 +114,13 @@ pub(super) fn resolve_sequence_spread(
             )?,
         ),
     };
-    let exact_interface = implemented_protocol_type(
+    let _exact_interface = implemented_protocol_type(
         &iteration.iterator_type,
         &runtime.exact_size,
         resolved,
         environment,
     )
     .ok_or_else(|| CollectionIterationError::MissingExactSize(iteration.iterator_type.clone()))?;
-    let exact_item = protocol_item_type(&exact_interface)
-        .ok_or(CollectionIterationError::MalformedConformance)?;
-    if exact_item != &iteration.item_type {
-        return Err(CollectionIterationError::mismatched_item(
-            iteration.item_type.clone(),
-            exact_item.clone(),
-        ));
-    }
     let pack_item_type = match mode {
         SequenceSpreadMode::Copy => {
             readonly_referent_type(&iteration.item_type).ok_or_else(|| {
@@ -241,52 +233,41 @@ fn resolve_converted_iteration(
     if source_type.is_unknown_or_unresolved() {
         return Err(CollectionIterationError::UnresolvedSource);
     }
-    let conversion_interface =
+    let _conversion_interface =
         implemented_protocol_type(&source_type, conversion_protocol, resolved, environment)
             .ok_or_else(|| CollectionIterationError::MissingConversion(source_type.clone()))?;
-    let Type::Generic { arguments, .. } = conversion_interface else {
-        return Err(CollectionIterationError::MalformedConformance);
-    };
-    let [item_type, iterator_type] = arguments.as_slice() else {
-        return Err(CollectionIterationError::MalformedConformance);
-    };
-    let iterator_interface =
-        implemented_protocol_type(iterator_type, &runtime.iterator, resolved, environment)
-            .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
-    let iterator_item = protocol_item_type(&iterator_interface)
+    let iterator_type = protocol_associated_type(&source_type, conversion_protocol, resolved)
         .ok_or(CollectionIterationError::MalformedConformance)?;
-    if iterator_item != item_type {
-        return Err(CollectionIterationError::mismatched_item(
-            item_type.clone(),
-            iterator_item.clone(),
-        ));
-    }
+    let _iterator_interface =
+        implemented_protocol_type(&iterator_type, &runtime.iterator, resolved, environment)
+            .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
+    let item_type = protocol_associated_type(&iterator_type, &runtime.iterator, resolved)
+        .ok_or(CollectionIterationError::MalformedConformance)?;
 
     Ok(CollectionIterationResolution {
         source_mode,
         source_type: source_type.clone(),
         iterator_type: iterator_type.clone(),
-        item_type: item_type.clone(),
+        item_type,
         conversion: Some(resolve_concrete_method(
             &source_type,
             conversion_protocol,
             resolved,
             environment,
         )?),
-        step: resolve_concrete_method(iterator_type, &runtime.iterator, resolved, environment)?,
+        step: resolve_concrete_method(&iterator_type, &runtime.iterator, resolved, environment)?,
     })
 }
 
 fn resolve_direct_iteration(
     source_type: Type,
-    iterator_interface: Type,
+    _iterator_interface: Type,
     runtime: &IterationRuntime,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Result<CollectionIterationResolution, CollectionIterationError> {
-    let item_type = protocol_item_type(&iterator_interface)
-        .ok_or(CollectionIterationError::MalformedConformance)?
-        .clone();
+    let item_type = protocol_associated_type(&source_type, &runtime.iterator, resolved)
+        .ok_or(CollectionIterationError::MalformedConformance)?;
     Ok(CollectionIterationResolution {
         source_mode: CollectionIterationSourceMode::Direct,
         source_type: source_type.clone(),
@@ -297,14 +278,19 @@ fn resolve_direct_iteration(
     })
 }
 
-fn protocol_item_type(interface: &Type) -> Option<&Type> {
-    let Type::Generic { arguments, .. } = interface else {
-        return None;
-    };
-    let [item] = arguments.as_slice() else {
-        return None;
-    };
-    Some(item)
+fn protocol_associated_type(
+    actual: &Type,
+    protocol: &IterationProtocol,
+    resolved: &ResolveOutput,
+) -> Option<Type> {
+    let associated = protocol.associated_type.as_ref()?;
+    Some(super::associated_types::normalize_projection_for_interface(
+        actual.clone(),
+        &protocol.interface_canonical_name,
+        associated.declaration,
+        &associated.name,
+        resolved,
+    ))
 }
 
 fn implemented_protocol_type(
@@ -313,15 +299,8 @@ fn implemented_protocol_type(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<Type> {
-    let parameter = match actual {
-        Type::Parameter(parameter) => Some(parameter.as_str()),
-        Type::Named(parameter) if environment.generic_requirements(parameter).is_some() => {
-            Some(parameter.as_str())
-        }
-        _ => None,
-    };
-    if let Some(parameter) = parameter {
-        return interface_symbols_for_generic_parameter(parameter, environment, resolved)
+    if matches!(actual, Type::Parameter(_) | Type::Projection { .. }) {
+        return interface_symbols_for_constrained_type(actual, environment, resolved)
             .into_iter()
             .map(|(_, bound)| bound)
             .find(|bound| protocol_type_matches(bound, protocol, resolved));
@@ -345,15 +324,8 @@ fn resolve_concrete_method(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Result<IterationMethodResolution, CollectionIterationError> {
-    let parameter = match receiver_type {
-        Type::Parameter(parameter) => Some(parameter.as_str()),
-        Type::Named(parameter) if environment.generic_requirements(parameter).is_some() => {
-            Some(parameter.as_str())
-        }
-        _ => None,
-    };
-    if let Some(parameter) = parameter {
-        let method = interface_symbols_for_generic_parameter(parameter, environment, resolved)
+    if matches!(receiver_type, Type::Parameter(_) | Type::Projection { .. }) {
+        let method = interface_symbols_for_constrained_type(receiver_type, environment, resolved)
             .into_iter()
             .find(|(symbol, _)| symbol.canonical_name == protocol.interface_canonical_name)
             .and_then(|(symbol, _)| {
@@ -395,23 +367,7 @@ pub(super) enum CollectionIterationError {
     MissingExactSize(Type),
     CopyRequiresReadonlyItem(Type),
     CopyRequiresCopy(Type),
-    MismatchedItem(Box<IterationItemMismatch>),
     MalformedConformance,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct IterationItemMismatch {
-    conversion: Type,
-    iterator: Type,
-}
-
-impl CollectionIterationError {
-    fn mismatched_item(conversion: Type, iterator: Type) -> Self {
-        Self::MismatchedItem(Box::new(IterationItemMismatch {
-            conversion,
-            iterator,
-        }))
-    }
 }
 
 pub(super) fn collection_iteration_diagnostic(
@@ -478,7 +434,7 @@ fn iteration_diagnostic(
                 "spread iterator `{}` does not provide an exact remaining element count",
                 actual.display()
             ),
-            "implement the validated `ExactSizeIterator<T>` interface; Nocter does not buffer unknown-size spread input"
+            "implement the validated `ExactSizeIterator` interface; Nocter does not buffer unknown-size spread input"
                 .to_string(),
         ),
         CollectionIterationError::CopyRequiresReadonlyItem(actual) => (
@@ -489,14 +445,6 @@ fn iteration_diagnostic(
         CollectionIterationError::CopyRequiresCopy(actual) => (
             format!("copy spread element `{}` is move-only", actual.display()),
             "use `...move source` to transfer its elements explicitly".to_string(),
-        ),
-        CollectionIterationError::MismatchedItem(mismatch) => (
-            format!(
-                "collection conversion declares item `{}`, but its iterator yields `{}`",
-                mismatch.conversion.display(),
-                mismatch.iterator.display()
-            ),
-            "make the conversion and iterator conformances use the same item type".to_string(),
         ),
         CollectionIterationError::MalformedConformance => (
             "collection iteration conformance does not match its validated protocol shape".to_string(),

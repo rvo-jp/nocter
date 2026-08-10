@@ -43,17 +43,13 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input
         );
     }
 
-    let mut provenance = borrow_return_provenance_for_local_storage(identifier, resolved);
-    merge_provenance(
-        &mut provenance,
-        borrow_return_provenance_for_identifier(
-            identifier,
-            resolved,
-            environment,
-            borrow_provenance,
-        ),
-    );
-    provenance
+    // A moved or forwarded value keeps the origin already recorded for its
+    // binding. Treating the forwarding local as an additional storage owner
+    // would make `from input` contracts fail merely because an implementation
+    // gave the input a local name. A genuinely local value has no recorded
+    // upstream provenance and still falls back to its lexical storage scope.
+    borrow_return_provenance_for_identifier(identifier, resolved, environment, borrow_provenance)
+        .or_else(|| borrow_return_provenance_for_local_storage(identifier, resolved))
 }
 
 pub(in crate::typecheck::returns) fn value_provenance_for_call_input(

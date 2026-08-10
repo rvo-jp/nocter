@@ -928,6 +928,32 @@ fn associated_type_projection_candidates(
         }
     }
 
+    if let TypeExpr::Projection(base_projection) = projection.base.as_ref() {
+        let mut candidates =
+            associated_type_signatures_for_projection(base_projection, resolved, scope)
+                .into_iter()
+                .flat_map(|associated| associated.requirements.type_bounds())
+                .filter_map(|bound| {
+                    let name = match bound {
+                        TypeExpr::Reference(reference) => &reference.name,
+                        TypeExpr::Generic(generic) => &generic.name,
+                        _ => return None,
+                    };
+                    resolved
+                        .type_symbol_by_reference_name(name)?
+                        .associated_types
+                        .iter()
+                        .find(|associated| associated.name == projection.name)
+                        .map(|associated| associated.name_span)
+                })
+                .collect::<Vec<_>>();
+        candidates.sort_by_key(|span| (span.source.raw(), span.start, span.end));
+        candidates.dedup();
+        if !candidates.is_empty() {
+            return candidates;
+        }
+    }
+
     let substitutions = scope
         .parameters
         .keys()
@@ -947,6 +973,34 @@ fn associated_type_projection_candidates(
     } else {
         vec![projection.name_span]
     }
+}
+
+fn associated_type_signatures_for_projection<'a>(
+    projection: &crate::ast::ProjectedType,
+    resolved: &'a ResolveOutput,
+    scope: &GenericScope<'_>,
+) -> Vec<&'a crate::resolve::AssociatedTypeSignature> {
+    let TypeExpr::Reference(reference) = projection.base.as_ref() else {
+        return Vec::new();
+    };
+    let Some(bounds) = scope.requirements.get(reference.name.as_str()) else {
+        return Vec::new();
+    };
+    bounds
+        .iter()
+        .filter_map(|bound| {
+            let name = match bound {
+                TypeExpr::Reference(reference) => &reference.name,
+                TypeExpr::Generic(generic) => &generic.name,
+                _ => return None,
+            };
+            resolved
+                .type_symbol_by_reference_name(name)?
+                .associated_types
+                .iter()
+                .find(|associated| associated.name == projection.name)
+        })
+        .collect()
 }
 
 fn builtin_type_argument_arity(name: &str) -> Option<usize> {

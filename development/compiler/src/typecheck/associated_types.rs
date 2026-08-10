@@ -56,6 +56,37 @@ pub(super) fn normalize_projection(base: Type, member: &str, resolved: &ResolveO
             member: member.to_string(),
         };
     };
+    normalize_projection_binding(base, member, conformance, resolved)
+}
+
+pub(super) fn normalize_projection_for_interface(
+    base: Type,
+    interface_canonical_name: &str,
+    associated_declaration: ByteSpan,
+    member: &str,
+    resolved: &ResolveOutput,
+) -> Type {
+    let Some((conformance, _)) = projection_contract_for_interface(
+        &base,
+        interface_canonical_name,
+        associated_declaration,
+        member,
+        resolved,
+    ) else {
+        return Type::Projection {
+            base: Box::new(base),
+            member: member.to_string(),
+        };
+    };
+    normalize_projection_binding(base, member, conformance, resolved)
+}
+
+fn normalize_projection_binding(
+    base: Type,
+    member: &str,
+    conformance: &crate::resolve::InterfaceConformance,
+    resolved: &ResolveOutput,
+) -> Type {
     let Some(binding) = conformance
         .associated_types
         .iter()
@@ -82,6 +113,30 @@ pub(super) fn normalize_projection(base: Type, member: &str, resolved: &ResolveO
         &mut substitutions,
     );
     type_expr_to_type_with_substitutions(&binding.value, resolved, Some(&base), &substitutions)
+}
+
+fn projection_contract_for_interface<'a>(
+    base: &Type,
+    interface_canonical_name: &str,
+    associated_declaration: ByteSpan,
+    member: &str,
+    resolved: &'a ResolveOutput,
+) -> Option<(
+    &'a crate::resolve::InterfaceConformance,
+    &'a crate::resolve::AssociatedTypeSignature,
+)> {
+    let interface = resolved.type_symbol_by_canonical_name(interface_canonical_name)?;
+    let associated = interface.associated_types.iter().find(|associated| {
+        associated.name == member && associated.name_span == associated_declaration
+    })?;
+    let mut candidates = implemented_interface_conformances(base, resolved)
+        .into_iter()
+        .filter(|(_, interface_type)| {
+            interface_type.nominal_name() == Some(interface_canonical_name)
+        })
+        .map(|(conformance, _)| (conformance, associated));
+    let candidate = candidates.next()?;
+    candidates.next().is_none().then_some(candidate)
 }
 
 pub(super) fn concrete_projection_contract<'a>(

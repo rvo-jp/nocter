@@ -79,6 +79,13 @@ pub(crate) struct IterationProtocol {
     pub(crate) interface_canonical_name: String,
     pub(crate) method_declaration: ByteSpan,
     pub(crate) method_name: String,
+    pub(crate) associated_type: Option<IterationAssociatedType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationAssociatedType {
+    pub(crate) declaration: ByteSpan,
+    pub(crate) name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

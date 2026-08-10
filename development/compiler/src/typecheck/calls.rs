@@ -486,6 +486,7 @@ pub(super) fn infer_generic_substitutions(
             && let Some(contract) = super::closures::expected_callable_contract_for_generic(
                 &reference.name,
                 signature.signature,
+                signature.self_type.as_ref(),
                 &substitutions,
                 resolved,
             ) {
@@ -538,7 +539,63 @@ pub(super) fn infer_generic_substitutions(
         );
     }
     infer_substitutions_from_interface_bounds(signature, resolved, &parameters, &mut substitutions);
+    infer_substitutions_from_type_equalities(signature, resolved, &parameters, &mut substitutions);
     substitutions
+}
+
+fn infer_substitutions_from_type_equalities(
+    signature: &CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    parameters: &HashSet<&str>,
+    substitutions: &mut HashMap<String, Type>,
+) {
+    let Some(clause) = signature.signature.where_clause.as_ref() else {
+        return;
+    };
+    for _ in 0..signature.signature.generic_parameters.len() {
+        let before = substitutions.len();
+        let self_type = signature
+            .self_type
+            .as_ref()
+            .map(|ty| ty.substitute_parameters(substitutions));
+        for equality in clause.equalities() {
+            let left = type_expr_to_type_with_substitutions(
+                &equality.left,
+                resolved,
+                self_type.as_ref(),
+                substitutions,
+            );
+            let right = type_expr_to_type_with_substitutions(
+                &equality.right,
+                resolved,
+                self_type.as_ref(),
+                substitutions,
+            );
+            if !right.is_unknown_or_unresolved() {
+                infer_type_expr_substitutions(
+                    &equality.left,
+                    &right,
+                    resolved,
+                    self_type.as_ref(),
+                    parameters,
+                    substitutions,
+                );
+            }
+            if !left.is_unknown_or_unresolved() {
+                infer_type_expr_substitutions(
+                    &equality.right,
+                    &left,
+                    resolved,
+                    self_type.as_ref(),
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        if substitutions.len() == before {
+            break;
+        }
+    }
 }
 
 fn infer_substitutions_from_interface_bounds(
@@ -606,6 +663,10 @@ fn check_generic_interface_bounds(
     environment: &TypeEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let specialized_self_type = signature
+        .self_type
+        .as_ref()
+        .map(|ty| ty.substitute_parameters(substitutions));
     for (parameter, bounds) in signature
         .signature
         .generic_parameters
@@ -630,9 +691,12 @@ fn check_generic_interface_bounds(
         }
         for bound in bounds.type_bounds() {
             let bound_type = match bound {
-                TypeExpr::Callable(_) => {
-                    type_expr_to_type_with_substitutions(bound, resolved, None, substitutions)
-                }
+                TypeExpr::Callable(_) => type_expr_to_type_with_substitutions(
+                    bound,
+                    resolved,
+                    specialized_self_type.as_ref(),
+                    substitutions,
+                ),
                 _ => {
                     let Some((_, bound_type)) =
                         interface_symbol_for_bound(bound, substitutions, resolved)
@@ -675,10 +739,6 @@ fn check_generic_interface_bounds(
     let Some(clause) = signature.signature.where_clause.as_ref() else {
         return;
     };
-    let specialized_self_type = signature
-        .self_type
-        .as_ref()
-        .map(|ty| ty.substitute_parameters(substitutions));
     for equality in clause.equalities() {
         let left = type_expr_to_type_with_substitutions(
             &equality.left,

@@ -15,10 +15,10 @@ use std/vec.Vec
 func main(): i32 {
     var empty_values: EmptyIter<i32> = empty()
     var one_value: OnceIter<i32> = once(1)
-    let chained: ChainIter<i32, EmptyIter<i32>, OnceIter<i32>> = chain(move empty_values, move one_value)
-    let limited: TakeIter<i32, ChainIter<i32, EmptyIter<i32>, OnceIter<i32>>> = take(move chained, 1)
-    let skipped: SkipIter<i32, TakeIter<i32, ChainIter<i32, EmptyIter<i32>, OnceIter<i32>>>> = skip(move limited, 0)
-    let indexed: EnumerateIter<i32, SkipIter<i32, TakeIter<i32, ChainIter<i32, EmptyIter<i32>, OnceIter<i32>>>>> = enumerate(move skipped)
+    let chained: ChainIter<EmptyIter<i32>, OnceIter<i32>> = chain(move empty_values, move one_value)
+    let limited: TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>> = take(move chained, 1)
+    let skipped: SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>> = skip(move limited, 0)
+    let indexed: EnumerateIter<SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>>> = enumerate(move skipped)
     let values: Vec<Indexed<i32>> = Vec.from_exact_iter(move indexed)
     let item_count: usize = count(once(1))
     let final_item: i32 = last(once(2)) otherwise { return 1 }
@@ -53,7 +53,9 @@ struct PlainIter {
     end: i32
 }
 
-impl Iterator<i32> for PlainIter {
+impl Iterator for PlainIter {
+    type Item = i32
+
     method &+self.next(): i32? {
         if self.next_value == self.end {
             return none
@@ -70,7 +72,9 @@ struct ReportedIter {
     reported: usize
 }
 
-impl Iterator<i32> for ReportedIter {
+impl Iterator for ReportedIter {
+    type Item = i32
+
     method &+self.next(): i32? {
         if self.next_value == self.end {
             return none
@@ -82,7 +86,7 @@ impl Iterator<i32> for ReportedIter {
 
 }
 
-impl ExactSizeIterator<i32> for ReportedIter {
+impl ExactSizeIterator for ReportedIter {
     method &self.remaining_len(): usize {
         return self.reported
     }

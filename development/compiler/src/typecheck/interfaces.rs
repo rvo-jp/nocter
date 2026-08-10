@@ -264,33 +264,128 @@ pub(super) fn method_shape(
     resolved: &ResolveOutput,
     self_type: &Type,
     substitutions: &HashMap<String, Type>,
+    associated_types: &HashMap<String, Type>,
 ) -> MethodShape {
     MethodShape {
-        receiver: type_expr_to_type_with_substitutions(
-            &method.receiver.implicit_parameter().ty,
-            resolved,
-            Some(self_type),
-            substitutions,
+        receiver: replace_self_associated_types(
+            type_expr_to_type_with_substitutions(
+                &method.receiver.implicit_parameter().ty,
+                resolved,
+                Some(self_type),
+                substitutions,
+            ),
+            self_type,
+            associated_types,
         ),
         parameters: method
             .signature
             .parameters
             .iter()
             .map(|parameter| {
-                type_expr_to_type_with_substitutions(
-                    &parameter.ty,
-                    resolved,
-                    Some(self_type),
-                    substitutions,
+                replace_self_associated_types(
+                    type_expr_to_type_with_substitutions(
+                        &parameter.ty,
+                        resolved,
+                        Some(self_type),
+                        substitutions,
+                    ),
+                    self_type,
+                    associated_types,
                 )
             })
             .collect(),
-        return_type: type_expr_to_type_with_substitutions(
-            &method.signature.return_type,
-            resolved,
-            Some(self_type),
-            substitutions,
+        return_type: replace_self_associated_types(
+            type_expr_to_type_with_substitutions(
+                &method.signature.return_type,
+                resolved,
+                Some(self_type),
+                substitutions,
+            ),
+            self_type,
+            associated_types,
         ),
+    }
+}
+
+fn replace_self_associated_types(
+    ty: Type,
+    self_type: &Type,
+    associated_types: &HashMap<String, Type>,
+) -> Type {
+    match ty {
+        Type::Projection { base, member } if base.as_ref() == self_type => associated_types
+            .get(&member)
+            .cloned()
+            .unwrap_or(Type::Projection { base, member }),
+        Type::ArrayData { element } => Type::ArrayData {
+            element: Box::new(replace_self_associated_types(
+                *element,
+                self_type,
+                associated_types,
+            )),
+        },
+        Type::View {
+            is_readwrite,
+            element,
+        } => Type::View {
+            is_readwrite,
+            element: Box::new(replace_self_associated_types(
+                *element,
+                self_type,
+                associated_types,
+            )),
+        },
+        Type::Array { element, length } => Type::Array {
+            element: Box::new(replace_self_associated_types(
+                *element,
+                self_type,
+                associated_types,
+            )),
+            length,
+        },
+        Type::Pointer(inner) => Type::Pointer(Box::new(replace_self_associated_types(
+            *inner,
+            self_type,
+            associated_types,
+        ))),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Type::Borrow {
+            is_readwrite,
+            inner: Box::new(replace_self_associated_types(
+                *inner,
+                self_type,
+                associated_types,
+            )),
+        },
+        Type::Optional(inner) => Type::Optional(Box::new(replace_self_associated_types(
+            *inner,
+            self_type,
+            associated_types,
+        ))),
+        Type::Fallible { success, error } => Type::Fallible {
+            success: Box::new(replace_self_associated_types(
+                *success,
+                self_type,
+                associated_types,
+            )),
+            error: Box::new(replace_self_associated_types(
+                *error,
+                self_type,
+                associated_types,
+            )),
+        },
+        Type::Generic { name, arguments } => Type::Generic {
+            name,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| {
+                    replace_self_associated_types(argument, self_type, associated_types)
+                })
+                .collect(),
+        },
+        other => other,
     }
 }
 
@@ -299,8 +394,9 @@ pub(super) fn method_shape_label(
     resolved: &ResolveOutput,
     self_type: &Type,
     substitutions: &HashMap<String, Type>,
+    associated_types: &HashMap<String, Type>,
 ) -> String {
-    let shape = method_shape(method, resolved, self_type, substitutions);
+    let shape = method_shape(method, resolved, self_type, substitutions, associated_types);
     let parameters = shape
         .parameters
         .iter()
