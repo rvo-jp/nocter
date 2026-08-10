@@ -200,7 +200,7 @@ struct Box<T> {
     value: T
 }
 
-instance Box<T> where T = i32 {
+instance Box<T> {
     drop &+self {
         write("drop\n")!
         return

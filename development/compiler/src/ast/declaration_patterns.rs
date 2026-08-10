@@ -27,6 +27,32 @@ where
     R: IntoIterator,
     R::Item: AsRef<str>,
 {
+    declaration_patterns_overlap_with_names(
+        left_types,
+        left_parameters,
+        left_clause,
+        right_types,
+        right_parameters,
+        right_clause,
+        &str::to_string,
+    )
+}
+
+pub(crate) fn declaration_patterns_overlap_with_names<L, R>(
+    left_types: &[&TypeExpr],
+    left_parameters: L,
+    left_clause: Option<&WhereClause>,
+    right_types: &[&TypeExpr],
+    right_parameters: R,
+    right_clause: Option<&WhereClause>,
+    normalize_name: &impl Fn(&str) -> String,
+) -> bool
+where
+    L: IntoIterator,
+    L::Item: AsRef<str>,
+    R: IntoIterator,
+    R::Item: AsRef<str>,
+{
     if left_types.len() != right_types.len() {
         return false;
     }
@@ -45,13 +71,13 @@ where
         left_types
             .iter()
             .map(|ty| {
-                term(
-                    ty,
+                TermBuilder::new(
                     Side::Left,
                     &left_parameters,
                     &left_refinements,
-                    &mut HashSet::new(),
+                    normalize_name,
                 )
+                .term(ty)
             })
             .collect(),
     );
@@ -60,13 +86,13 @@ where
         right_types
             .iter()
             .map(|ty| {
-                term(
-                    ty,
+                TermBuilder::new(
                     Side::Right,
                     &right_parameters,
                     &right_refinements,
-                    &mut HashSet::new(),
+                    normalize_name,
                 )
+                .term(ty)
             })
             .collect(),
     );
@@ -81,118 +107,93 @@ fn refinements(clause: Option<&WhereClause>) -> HashMap<String, &TypeExpr> {
         .collect()
 }
 
-fn term(
-    ty: &TypeExpr,
+struct TermBuilder<'a, F> {
     side: Side,
-    parameters: &HashSet<String>,
-    refinements: &HashMap<String, &TypeExpr>,
-    expanding: &mut HashSet<String>,
-) -> Term {
-    if let TypeExpr::Reference(reference) = ty
-        && parameters.contains(&reference.name)
-    {
-        if let Some(value) = refinements.get(&reference.name)
-            && expanding.insert(reference.name.clone())
-        {
-            let result = term(value, side, parameters, refinements, expanding);
-            expanding.remove(&reference.name);
-            return result;
+    parameters: &'a HashSet<String>,
+    refinements: &'a HashMap<String, &'a TypeExpr>,
+    expanding: HashSet<String>,
+    normalize_name: &'a F,
+}
+
+impl<'a, F: Fn(&str) -> String> TermBuilder<'a, F> {
+    fn new(
+        side: Side,
+        parameters: &'a HashSet<String>,
+        refinements: &'a HashMap<String, &'a TypeExpr>,
+        normalize_name: &'a F,
+    ) -> Self {
+        Self {
+            side,
+            parameters,
+            refinements,
+            expanding: HashSet::new(),
+            normalize_name,
         }
-        return Term::Variable(side, reference.name.clone());
     }
-    match ty {
-        TypeExpr::Callable(callable) => {
-            let mut children = callable
-                .parameters
-                .iter()
-                .map(|parameter| term(&parameter.ty, side, parameters, refinements, expanding))
-                .collect::<Vec<_>>();
-            children.push(term(
-                &callable.return_type,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            ));
-            Term::Node(format!("callable:{:?}", callable.capability), children)
+
+    fn term(&mut self, ty: &TypeExpr) -> Term {
+        if let TypeExpr::Reference(reference) = ty
+            && self.parameters.contains(&reference.name)
+        {
+            if let Some(value) = self.refinements.get(&reference.name)
+                && self.expanding.insert(reference.name.clone())
+            {
+                let result = self.term(value);
+                self.expanding.remove(&reference.name);
+                return result;
+            }
+            return Term::Variable(self.side, reference.name.clone());
         }
-        TypeExpr::Closure(closure) => Term::Node(closure.identity_name(), Vec::new()),
-        TypeExpr::Reference(reference) => Term::Node(format!("ref:{}", reference.name), Vec::new()),
-        TypeExpr::Generic(generic) => Term::Node(
-            format!("generic:{}", generic.name),
-            generic
-                .arguments
-                .iter()
-                .map(|argument| term(argument, side, parameters, refinements, expanding))
-                .collect(),
-        ),
-        TypeExpr::Projection(projection) => Term::Node(
-            format!("projection:{}", projection.name),
-            vec![term(
-                &projection.base,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::Pointer(pointer) => Term::Node(
-            "pointer".to_string(),
-            vec![term(
-                &pointer.inner,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::Borrow(borrow) => Term::Node(
-            format!("borrow:{}", borrow.is_readwrite),
-            vec![term(
-                &borrow.inner,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::View(view) => Term::Node(
-            format!("view:{}", view.is_readwrite),
-            vec![term(
-                &view.element,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::Array(array) => Term::Node(
-            format!("array:{}", array.length.value),
-            vec![term(
-                &array.element,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::Optional(optional) => Term::Node(
-            "optional".to_string(),
-            vec![term(
-                &optional.inner,
-                side,
-                parameters,
-                refinements,
-                expanding,
-            )],
-        ),
-        TypeExpr::Fallible(fallible) => Term::Node(
-            "fallible".to_string(),
-            vec![
-                term(&fallible.success, side, parameters, refinements, expanding),
-                term(&fallible.error, side, parameters, refinements, expanding),
-            ],
-        ),
+        match ty {
+            TypeExpr::Callable(callable) => {
+                let mut children = callable
+                    .parameters
+                    .iter()
+                    .map(|parameter| self.term(&parameter.ty))
+                    .collect::<Vec<_>>();
+                children.push(self.term(&callable.return_type));
+                Term::Node(format!("callable:{:?}", callable.capability), children)
+            }
+            TypeExpr::Closure(closure) => Term::Node(closure.identity_name(), Vec::new()),
+            TypeExpr::Reference(reference) => Term::Node(
+                format!("ref:{}", (self.normalize_name)(&reference.name)),
+                Vec::new(),
+            ),
+            TypeExpr::Generic(generic) => Term::Node(
+                format!("generic:{}", (self.normalize_name)(&generic.name)),
+                generic
+                    .arguments
+                    .iter()
+                    .map(|argument| self.term(argument))
+                    .collect(),
+            ),
+            TypeExpr::Projection(projection) => Term::Node(
+                format!("projection:{}", projection.name),
+                vec![self.term(&projection.base)],
+            ),
+            TypeExpr::Pointer(pointer) => {
+                Term::Node("pointer".to_string(), vec![self.term(&pointer.inner)])
+            }
+            TypeExpr::Borrow(borrow) => Term::Node(
+                format!("borrow:{}", borrow.is_readwrite),
+                vec![self.term(&borrow.inner)],
+            ),
+            TypeExpr::View(view) => Term::Node(
+                format!("view:{}", view.is_readwrite),
+                vec![self.term(&view.element)],
+            ),
+            TypeExpr::Array(array) => Term::Node(
+                format!("array:{}", array.length.value),
+                vec![self.term(&array.element)],
+            ),
+            TypeExpr::Optional(optional) => {
+                Term::Node("optional".to_string(), vec![self.term(&optional.inner)])
+            }
+            TypeExpr::Fallible(fallible) => Term::Node(
+                "fallible".to_string(),
+                vec![self.term(&fallible.success), self.term(&fallible.error)],
+            ),
+        }
     }
 }
 

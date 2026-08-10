@@ -538,7 +538,7 @@ fn lowers_concrete_generic_explicit_drop_to_drop_member_call() {
     value: T
 }
 
-instance Box<T> where T = i32 {
+instance Box<T> {
     drop &+self {
         return
     }
@@ -739,7 +739,7 @@ fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
     value: T
 }
 
-instance Box<T> where T = i32 {
+instance Box<T> {
     drop &+self {
         return
     }

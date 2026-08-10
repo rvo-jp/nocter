@@ -238,6 +238,35 @@ pub(super) fn generic_parameter_substitutions(
         .collect()
 }
 
+pub(super) fn declaration_pattern_substitutions(
+    generics: &GenericParamList,
+    requirements: Option<&crate::ast::WhereClause>,
+    resolved: &ResolveOutput,
+) -> HashMap<String, Type> {
+    let mut substitutions = generic_parameter_substitutions(generics);
+    let Some(requirements) = requirements else {
+        return substitutions;
+    };
+    for _ in 0..generics.parameters.len().max(1) {
+        let before = substitutions.clone();
+        for refinement in requirements.refinements() {
+            let value = type_expr_to_type_with_substitutions(
+                &refinement.value,
+                resolved,
+                None,
+                &substitutions,
+            );
+            if !value.is_unknown_or_unresolved() {
+                substitutions.insert(refinement.name.clone(), value);
+            }
+        }
+        if substitutions == before {
+            break;
+        }
+    }
+    substitutions
+}
+
 fn define_method_owner_generic_parameters(
     owner: &(impl MethodOwnerDecl + ?Sized),
     environment: &mut TypeEnvironment,

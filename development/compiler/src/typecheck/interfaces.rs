@@ -2,7 +2,7 @@ use super::diagnostics::{
     conformance_contract_not_interface_diagnostic, conformance_target_not_nominal_diagnostic,
     duplicate_conformance_diagnostic,
 };
-use super::environments::generic_parameter_substitutions;
+use super::environments::declaration_pattern_substitutions;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use crate::ast::{AstFile, ConformanceDecl, Item, TypeExpr};
@@ -34,7 +34,11 @@ fn check_conformance<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     seen: &mut Vec<&'a ConformanceDecl>,
 ) {
-    let conformance_substitutions = generic_parameter_substitutions(&conformance_decl.generics);
+    let conformance_substitutions = declaration_pattern_substitutions(
+        &conformance_decl.generics,
+        conformance_decl.requirements.as_ref(),
+        resolved,
+    );
     let Some((interface_symbol, interface_type)) = resolve_interface_symbol(
         &conformance_decl.interface_ty,
         resolved,
@@ -55,7 +59,7 @@ fn check_conformance<'a>(
     };
 
     if let Some(first) = seen.iter().copied().find(|first| {
-        crate::ast::declaration_patterns_overlap(
+        crate::ast::declaration_patterns_overlap_with_names(
             &[&first.interface_ty, &first.target_ty],
             first
                 .generics
@@ -70,6 +74,11 @@ fn check_conformance<'a>(
                 .iter()
                 .map(|parameter| &parameter.name),
             conformance_decl.requirements.as_ref(),
+            &|name| {
+                resolved
+                    .type_symbol_by_reference_name(name)
+                    .map_or_else(|| name.to_string(), |symbol| symbol.canonical_name.clone())
+            },
         )
     }) {
         diagnostics.push(duplicate_conformance_diagnostic(

@@ -34,7 +34,7 @@ func main(): i32 {
                     destination: I32Location::Return,
                     target,
                     arguments,
-                } if target == &CallTarget::same_file("Box.read")
+                } if target == &CallTarget::same_file("Box<i32>.read")
                     && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
                         source: BorrowSource::AggregateSlot(0),
                     })]

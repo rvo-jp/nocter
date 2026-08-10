@@ -23,7 +23,9 @@ pub use closures::*;
 pub use coercions::*;
 pub use collection_for::*;
 pub use constructs::*;
-pub(crate) use declaration_patterns::declaration_patterns_overlap;
+pub(crate) use declaration_patterns::{
+    declaration_patterns_overlap, declaration_patterns_overlap_with_names,
+};
 pub use generic_requirements::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;

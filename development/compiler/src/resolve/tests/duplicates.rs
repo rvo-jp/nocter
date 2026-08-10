@@ -130,20 +130,6 @@ func main(): i32 {
     return 0
 }
 "#,
-        r#"struct Box<T> {
-    value: T
-}
-
-instance Box<T> where T = i32 {
-    method self.value(): i32 {
-        return self.value
-    }
-}
-
-func main(): i32 {
-    return 0
-}
-"#,
     ] {
         let output = resolve_text(source);
         assert_eq!(

@@ -1,21 +1,2 @@
-pub(crate) fn is_builtin_type_name(name: &str) -> bool {
-    matches!(
-        name,
-        "bool"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "u8"
-            | "u16"
-            | "u32"
-            | "u64"
-            | "usize"
-            | "isize"
-            | "str"
-    )
-}
-
-pub(super) fn is_reserved_type_declaration_name(name: &str) -> bool {
-    is_builtin_type_name(name) || name == "error"
-}
+pub(crate) use crate::type_names::is_builtin_type_name;
+pub(super) use crate::type_names::is_reserved_type_declaration_name;

@@ -99,6 +99,13 @@ impl Parser<'_> {
             );
             return Err(());
         };
+        if crate::type_names::is_reserved_type_declaration_name(&reference.name) {
+            self.error_at(
+                reference.span,
+                "declaration pattern arguments must be bare binders; introduce a name here and refine it with `where Name = Type`",
+            );
+            return Err(());
+        }
         if seen.insert(reference.name.clone()) {
             parameters.push(GenericParam {
                 span: reference.span,

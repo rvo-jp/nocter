@@ -1125,9 +1125,7 @@ func main(): i32 { return 0 }
 "#,
     );
     assert!(
-        mutual
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0469"),
+        mutual.iter().any(|diagnostic| diagnostic.code == "E0469"),
         "{mutual:?}"
     );
 }
