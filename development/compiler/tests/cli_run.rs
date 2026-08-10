@@ -24,6 +24,8 @@ mod coercions;
 mod commands;
 #[path = "cli_run/control_flow.rs"]
 mod control_flow;
+#[path = "cli_run/control_flow_drop_state.rs"]
+mod control_flow_drop_state;
 #[path = "cli_run/diagnostics.rs"]
 mod diagnostics;
 #[path = "cli_run/drops.rs"]

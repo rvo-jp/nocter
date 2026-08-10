@@ -25,15 +25,6 @@ pub(super) fn unsupported_nonterminal_if_diagnostic(
     )]
 }
 
-pub(super) fn unsupported_control_flow_condition_move_diagnostic(
-    diagnostic_code: &'static str,
-) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(
-        diagnostic_code,
-        "native lowering cannot lower control-flow conditions that explicitly move aggregate values",
-    )]
-}
-
 pub(super) fn attach_primary_span_if_absent(
     diagnostics: Vec<Diagnostic>,
     sources: &SourceMap,

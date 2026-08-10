@@ -1,22 +1,5 @@
 use super::*;
 
-pub(in crate::driver::buildability) fn statement_suffix_exits_function_for_buildability(
-    statements: &[Stmt],
-    index: usize,
-    result: Option<&Expr>,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> bool {
-    statement_sequence_or_result_exits_function_for_buildability(
-        statements.get(index + 1..).unwrap_or(&[]),
-        result,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )
-}
-
 pub(in crate::driver::buildability) fn statement_sequence_or_result_exits_function_for_buildability(
     statements: &[Stmt],
     result: Option<&Expr>,

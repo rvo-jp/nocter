@@ -37,7 +37,7 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
     drop_: &PendingAggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match &drop_.obligation {
+    let instructions = match &drop_.obligation {
         DropObligation::Inactive => Ok(Vec::new()),
         DropObligation::Complete => lower_aggregate_drop_instructions(
             &drop_.name,
@@ -75,7 +75,15 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
             fields,
             context,
         ),
-    }
+    }?;
+    let Some(condition) = drop_.runtime_live else {
+        return Ok(instructions);
+    };
+    Ok(vec![Instruction::If {
+        condition: BoolValue::Location(condition),
+        then_instructions: instructions,
+        else_instructions: Vec::new(),
+    }])
 }
 
 pub(in crate::ir::lower) fn mark_explicit_moves_in_block(
@@ -464,13 +472,17 @@ pub(in crate::ir::lower) fn lower_drop_statement(
     };
 
     context.mark_aggregate_local_dropped(&statement.name);
-    lower_aggregate_drop_instructions(
+    let mut instructions = lower_aggregate_drop_instructions(
         &statement.name,
         local.slot_index,
         local.layout,
         &drop_kind,
         context,
-    )
+    )?;
+    if let Some(transition) = context.aggregate_runtime_live_transition(&statement.name, false) {
+        instructions.push(transition);
+    }
+    Ok(instructions)
 }
 
 pub(in crate::ir::lower) fn lower_never_expression(
@@ -708,15 +720,6 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
     }
-}
-
-pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> bool {
-    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
-        context.aggregate_local(name).is_some()
-    })
 }
 
 pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_outside(

@@ -68,6 +68,7 @@ impl<'a> LoweringContext<'a> {
                     is_copy: parameter.is_copy,
                     drop_obligation: DropObligation::for_drop_kind(&parameter.drop_kind),
                     drop_kind: parameter.drop_kind,
+                    runtime_live: None,
                 },
                 index: 0,
             });

@@ -156,6 +156,7 @@ impl<'a> LoweringContext<'a> {
                 is_copy,
                 drop_obligation: DropObligation::for_drop_kind(&drop_kind),
                 drop_kind,
+                runtime_live: None,
             },
             index: 0,
         });
@@ -392,6 +393,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index,
                     is_copy,
                     ref drop_kind,
+                    runtime_live,
                     ..
                 } = local.kind
             {
@@ -400,6 +402,7 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     is_copy,
                     drop_kind: drop_kind.clone(),
+                    runtime_live,
                 });
             }
             None
@@ -416,6 +419,7 @@ impl<'a> LoweringContext<'a> {
                 slot_index: local_slot_index,
                 is_copy,
                 ref drop_kind,
+                runtime_live,
                 ..
             } = local.kind
             else {
@@ -427,6 +431,7 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     is_copy,
                     drop_kind: drop_kind.clone(),
+                    runtime_live,
                 });
             }
             None
@@ -598,22 +603,31 @@ impl<'a> LoweringContext<'a> {
                 .iter()
                 .rev()
                 .filter_map(|local| {
-                    let (layout, slot_index, drop_obligation, drop_kind) = match &local.kind {
-                        LocalKind::Aggregate {
-                            layout,
-                            slot_index,
-                            drop_obligation,
-                            drop_kind,
-                            ..
-                        } => (*layout, *slot_index, drop_obligation, drop_kind),
-                        LocalKind::Outcome(outcome) if outcome.is_live => (
-                            outcome.storage.layout,
-                            outcome.slot_index,
-                            &outcome.drop_obligation,
-                            &outcome.drop_kind,
-                        ),
-                        _ => return None,
-                    };
+                    let (layout, slot_index, drop_obligation, drop_kind, runtime_live) =
+                        match &local.kind {
+                            LocalKind::Aggregate {
+                                layout,
+                                slot_index,
+                                drop_obligation,
+                                drop_kind,
+                                runtime_live,
+                                ..
+                            } => (
+                                *layout,
+                                *slot_index,
+                                drop_obligation,
+                                drop_kind,
+                                *runtime_live,
+                            ),
+                            LocalKind::Outcome(outcome) if outcome.is_live => (
+                                outcome.storage.layout,
+                                outcome.slot_index,
+                                &outcome.drop_obligation,
+                                &outcome.drop_kind,
+                                None,
+                            ),
+                            _ => return None,
+                        };
                     if !drop_obligation.is_active() {
                         return None;
                     }
@@ -623,6 +637,7 @@ impl<'a> LoweringContext<'a> {
                         layout,
                         drop_kind: drop_kind.clone()?,
                         obligation: drop_obligation.clone(),
+                        runtime_live,
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -665,22 +680,31 @@ impl<'a> LoweringContext<'a> {
                 .iter()
                 .rev()
                 .filter_map(|local| {
-                    let (layout, slot_index, drop_obligation, drop_kind) = match &local.kind {
-                        LocalKind::Aggregate {
-                            layout,
-                            slot_index,
-                            drop_obligation,
-                            drop_kind,
-                            ..
-                        } => (*layout, *slot_index, drop_obligation, drop_kind),
-                        LocalKind::Outcome(outcome) if outcome.is_live => (
-                            outcome.storage.layout,
-                            outcome.slot_index,
-                            &outcome.drop_obligation,
-                            &outcome.drop_kind,
-                        ),
-                        _ => return None,
-                    };
+                    let (layout, slot_index, drop_obligation, drop_kind, runtime_live) =
+                        match &local.kind {
+                            LocalKind::Aggregate {
+                                layout,
+                                slot_index,
+                                drop_obligation,
+                                drop_kind,
+                                runtime_live,
+                                ..
+                            } => (
+                                *layout,
+                                *slot_index,
+                                drop_obligation,
+                                drop_kind,
+                                *runtime_live,
+                            ),
+                            LocalKind::Outcome(outcome) if outcome.is_live => (
+                                outcome.storage.layout,
+                                outcome.slot_index,
+                                &outcome.drop_obligation,
+                                &outcome.drop_kind,
+                                None,
+                            ),
+                            _ => return None,
+                        };
                     if !drop_obligation.is_active() {
                         return None;
                     }
@@ -690,6 +714,7 @@ impl<'a> LoweringContext<'a> {
                         layout,
                         drop_kind: drop_kind.clone()?,
                         obligation: drop_obligation.clone(),
+                        runtime_live,
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -707,6 +732,7 @@ impl<'a> LoweringContext<'a> {
                 slot_index: local_slot_index,
                 ref drop_obligation,
                 ref drop_kind,
+                runtime_live,
                 ..
             } = local.kind
             else {
@@ -721,8 +747,88 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 drop_kind: drop_kind.clone()?,
                 obligation: drop_obligation.clone(),
+                runtime_live,
             })
         })
+    }
+
+    pub(in crate::ir::lower) fn promote_aggregate_runtime_live(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Instruction>, Vec<Diagnostic>> {
+        let Some(local_index) = self.locals.iter().position(|local| {
+            local.name == name
+                && matches!(
+                    local.kind,
+                    LocalKind::Aggregate {
+                        is_copy: false,
+                        drop_kind: Some(_),
+                        ..
+                    }
+                )
+        }) else {
+            return Ok(None);
+        };
+        let (existing, is_live) = match &self.locals[local_index].kind {
+            LocalKind::Aggregate {
+                runtime_live,
+                drop_obligation,
+                ..
+            } => (*runtime_live, drop_obligation.is_active()),
+            _ => unreachable!("aggregate runtime state selection must remain aggregate"),
+        };
+        if existing.is_some() {
+            return Ok(None);
+        }
+        let destination = self.reserve_drop_state_bool_local()?;
+        let LocalKind::Aggregate { runtime_live, .. } = &mut self.locals[local_index].kind else {
+            unreachable!("aggregate runtime state selection must remain aggregate");
+        };
+        *runtime_live = Some(destination);
+        Ok(Some(Instruction::SetBool {
+            destination,
+            value: BoolValue::Const(is_live),
+        }))
+    }
+
+    pub(in crate::ir::lower) fn aggregate_runtime_live_by_slot(
+        &self,
+        slot_index: usize,
+    ) -> Option<BoolLocation> {
+        self.locals.iter().find_map(|local| match local.kind {
+            LocalKind::Aggregate {
+                slot_index: local_slot,
+                runtime_live,
+                ..
+            } if local_slot == slot_index => runtime_live,
+            _ => None,
+        })
+    }
+
+    pub(in crate::ir::lower) fn aggregate_runtime_live_transition(
+        &self,
+        name: &str,
+        is_live: bool,
+    ) -> Option<Instruction> {
+        let runtime_live = self.aggregate_local(name)?.runtime_live?;
+        Some(Instruction::SetBool {
+            destination: runtime_live,
+            value: BoolValue::Const(is_live),
+        })
+    }
+
+    pub(in crate::ir::lower) fn aggregate_runtime_drop_candidate_names(&self) -> Vec<String> {
+        self.locals
+            .iter()
+            .filter_map(|local| match &local.kind {
+                LocalKind::Aggregate {
+                    is_copy: false,
+                    drop_kind: Some(_),
+                    ..
+                } => Some(local.name.clone()),
+                _ => None,
+            })
+            .collect()
     }
 
     pub(in crate::ir::lower) fn aggregate_field(

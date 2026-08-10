@@ -1,27 +1,5 @@
 use super::*;
 
-pub(super) fn condition_explicit_moves_are_single_evaluation_call(condition: &Expr) -> bool {
-    match condition {
-        Expr::Call(_) => true,
-        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            condition_explicit_moves_are_single_evaluation_call(&unary.operand)
-        }
-        Expr::Propagate(propagation) => {
-            condition_explicit_moves_are_single_evaluation_call(&propagation.expression)
-        }
-        Expr::Force(force) => {
-            condition_explicit_moves_are_single_evaluation_call(&force.expression)
-        }
-        Expr::Catch(catch) => {
-            condition_explicit_moves_are_single_evaluation_call(&catch.expression)
-        }
-        Expr::Group(group) => {
-            condition_explicit_moves_are_single_evaluation_call(&group.expression)
-        }
-        _ => false,
-    }
-}
-
 pub(super) fn aggregate_argument_slots_in_instructions(
     instructions: &[Instruction],
 ) -> HashSet<usize> {

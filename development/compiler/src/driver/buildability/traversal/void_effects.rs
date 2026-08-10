@@ -124,15 +124,6 @@ pub(in crate::driver::buildability) fn collect_void_effect_if_expression_diagnos
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    collect_control_condition_move_diagnostics(
-        &expression.condition,
-        sources,
-        resolved,
-        resolved_sources,
-        typecheck_facts,
-        generic_substitutions,
-        diagnostics,
-    );
     collect_expression_diagnostics(
         &expression.condition,
         sources,

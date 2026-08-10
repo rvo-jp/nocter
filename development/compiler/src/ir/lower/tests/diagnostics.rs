@@ -1,5 +1,72 @@
 use super::*;
 
+fn assert_runtime_aggregate_drop_state(ir: &IrModule) {
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .expect("fixture must lower main");
+    assert!(contains_bool_state(&main.instructions, true), "{main:?}");
+    assert!(contains_bool_state(&main.instructions, false), "{main:?}");
+    assert!(contains_guarded_drop(&main.instructions), "{main:?}");
+}
+
+fn contains_bool_state(instructions: &[Instruction], state: bool) -> bool {
+    instructions.iter().any(|instruction| match instruction {
+        Instruction::SetBool {
+            value: BoolValue::Const(value),
+            ..
+        } => *value == state,
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => {
+            contains_bool_state(then_instructions, state)
+                || contains_bool_state(else_instructions, state)
+        }
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => {
+            contains_bool_state(condition_instructions, state)
+                || contains_bool_state(body_instructions, state)
+        }
+        _ => false,
+    })
+}
+
+fn contains_guarded_drop(instructions: &[Instruction]) -> bool {
+    instructions.iter().any(|instruction| match instruction {
+        Instruction::If {
+            condition: BoolValue::Location(_),
+            then_instructions,
+            else_instructions,
+        } if else_instructions.is_empty() => then_instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("File.drop")
+            )
+        }),
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => contains_guarded_drop(then_instructions) || contains_guarded_drop(else_instructions),
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => {
+            contains_guarded_drop(condition_instructions)
+                || contains_guarded_drop(body_instructions)
+        }
+        _ => false,
+    })
+}
+
 #[test]
 fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_loop_body() {
     let ir = lower_text(
@@ -84,8 +151,8 @@ func done(): bool {
 }
 
 #[test]
-fn rejects_outer_explicit_drop_inside_nonterminal_while_body() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_explicit_drop_inside_nonterminal_while_body() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -104,13 +171,12 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
-fn rejects_outer_explicit_drop_before_loop_control_even_with_later_return() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_explicit_drop_before_loop_control_even_with_later_return() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -131,13 +197,12 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
-fn rejects_outer_explicit_drop_before_nested_loop_control_even_with_later_return() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_explicit_drop_before_nested_loop_control_even_with_later_return() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -160,13 +225,12 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
-fn rejects_outer_aggregate_move_assignment_before_loop_control_even_with_later_return() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_aggregate_move_assignment_before_loop_control_even_with_later_return() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -188,13 +252,12 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
-fn rejects_branch_local_aggregate_move_assignment_from_outer_before_loop_control() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_branch_local_aggregate_move_assignment_from_outer_before_loop_control() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -216,13 +279,12 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
-fn rejects_outer_aggregate_move_binding_inside_nonterminal_if_branch() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -241,8 +303,7 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]
@@ -333,8 +394,8 @@ func done(): bool {
 }
 
 #[test]
-fn rejects_explicit_aggregate_move_in_nonterminal_while_condition() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_explicit_aggregate_move_in_nonterminal_while_condition() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -357,8 +418,7 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("control-flow conditions"));
+    assert_runtime_aggregate_drop_state(&ir);
 }
 
 #[test]

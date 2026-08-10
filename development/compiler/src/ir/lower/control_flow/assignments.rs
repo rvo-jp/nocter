@@ -1,35 +1,5 @@
 use super::*;
 
-pub(super) fn outer_aggregate_move_binding_before_function_exit_allowed(
-    statement: &crate::ast::BindingStmt,
-    context: &LoweringContext,
-    local_mark: usize,
-    statements: &[Stmt],
-    index: usize,
-    result: Option<&Expr>,
-) -> bool {
-    statement_suffix_exits_function(statements, index, result, context)
-        && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
-}
-
-fn direct_outer_aggregate_move(
-    expression: &Expr,
-    context: &LoweringContext,
-    local_mark: usize,
-) -> bool {
-    let Expr::Unary(unary) = unwrap_group(expression) else {
-        return false;
-    };
-    if unary.operator != crate::ast::UnaryOperator::Move {
-        return false;
-    }
-    let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
-        return false;
-    };
-    context.aggregate_local(&identifier.name).is_some()
-        && !context.aggregate_local_defined_since(&identifier.name, local_mark)
-}
-
 fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
     match unwrap_group(expression) {
         Expr::Identifier(identifier) => Some(&identifier.name),
@@ -145,22 +115,4 @@ pub(super) fn outer_aggregate_assignment_before_function_exit_allowed(
     };
     context.aggregate_local(target_name).is_some()
         && !context.aggregate_local_defined_since(target_name, local_mark)
-}
-
-pub(super) fn aggregate_move_assignment_before_function_exit_allowed(
-    statement: &crate::ast::AssignmentStmt,
-    context: &LoweringContext,
-    local_mark: usize,
-    statements: &[Stmt],
-    index: usize,
-    result: Option<&Expr>,
-) -> bool {
-    if !statement_suffix_exits_function(statements, index, result, context) {
-        return false;
-    }
-    let Some(target_name) = assignment_target_root_name(&statement.target) else {
-        return false;
-    };
-    context.aggregate_local(target_name).is_some()
-        && direct_outer_aggregate_move(&statement.value, context, local_mark)
 }

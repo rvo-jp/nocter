@@ -81,6 +81,7 @@ impl LoweringContext<'_> {
             layout,
             drop_kind,
             obligation,
+            runtime_live: None,
         });
         true
     }

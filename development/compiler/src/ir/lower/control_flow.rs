@@ -13,9 +13,8 @@ use super::expressions::{
 };
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
-    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
-    expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
-    lower_never_expression, lower_return_statement_with_scope_drops,
+    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move_matching,
+    lower_drop_statement, lower_never_expression, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     lowerable_switch_is_exhaustive, mark_explicit_moves_in_expression,
     mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
@@ -26,13 +25,13 @@ use super::regions::CleanupScopeMark;
 pub(super) use super::regions::lower_nonterminal_region_statement;
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    ReturnStmt, Stmt, SwitchStmt, UnaryOperator, WhileStmt,
+    ReturnStmt, Stmt, SwitchStmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, I32ComparisonOperator,
-    I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument, SliceLocation,
-    StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
+    AggregateArgumentSource, AggregateLocation, BoolLocation, BoolValue, BorrowSource,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument,
+    SliceLocation, StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::TypecheckScalarViewKind;
@@ -41,6 +40,7 @@ use std::collections::HashSet;
 mod assignments;
 mod condition_drops;
 mod diagnostics;
+mod drop_state;
 mod exit_analysis;
 mod loop_control;
 mod model;
@@ -52,17 +52,19 @@ mod terminal_conditions;
 mod utility;
 
 use assignments::{
-    aggregate_move_assignment_before_function_exit_allowed, nonterminal_assignment_target_allowed,
-    outer_aggregate_assignment_before_function_exit_allowed,
-    outer_aggregate_move_binding_before_function_exit_allowed,
+    nonterminal_assignment_target_allowed, outer_aggregate_assignment_before_function_exit_allowed,
 };
 use condition_drops::{
-    aggregate_argument_slots_in_instructions, condition_explicit_moves_are_single_evaluation_call,
-    remove_condition_moved_aggregate_drops,
+    aggregate_argument_slots_in_instructions, remove_condition_moved_aggregate_drops,
 };
 use diagnostics::{
-    attach_primary_span_if_absent, unsupported_control_flow_condition_move_diagnostic,
-    unsupported_nonterminal_if_diagnostic, unsupported_terminal_if_diagnostic,
+    attach_primary_span_if_absent, unsupported_nonterminal_if_diagnostic,
+    unsupported_terminal_if_diagnostic,
+};
+use drop_state::{
+    promote_if_aggregate_state, promote_loop_aggregate_state, promote_switch_aggregate_state,
+    promote_while_aggregate_state, record_assignment_runtime_initialization,
+    record_runtime_aggregate_transitions,
 };
 pub(super) use exit_analysis::statement_exits_function;
 use exit_analysis::{expression_exits_function, statement_suffix_exits_function};

@@ -123,15 +123,6 @@ pub(in crate::driver::buildability) fn collect_terminal_return_expression_diagno
             );
         }
         Expr::If(expression) if terminal_if_expression_is_buildable(expression) => {
-            collect_terminal_control_condition_move_diagnostics(
-                &expression.condition,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_expression_diagnostics(
                 &expression.condition,
                 sources,

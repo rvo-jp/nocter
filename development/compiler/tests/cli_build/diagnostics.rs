@@ -1,5 +1,12 @@
 use super::*;
 
+fn assert_builds_and_exits(output: &Output, executable: &Path, expected: i32) {
+    assert_success(output);
+    assert_macho_executable(executable);
+    let status = Command::new(executable).status().unwrap();
+    assert_eq!(status.code(), Some(expected));
+}
+
 #[test]
 fn build_command_rejects_generic_entry_before_ir_lowering() {
     let project = TempProject::new("cli-build-generic-entry-boundary");
@@ -80,7 +87,7 @@ fn build_command_rejects_mixed_shift_count_before_ir_lowering() {
 }
 
 #[test]
-fn build_command_rejects_nonterminal_if_branch_outer_explicit_drop() {
+fn build_command_lowers_nonterminal_if_branch_outer_explicit_drop() {
     let project = TempProject::new("cli-build-nonterminal-if-branch-outer-explicit-drop");
     let source = project.write_source(
         "nonterminal_if_branch_outer_explicit_drop.nct",
@@ -104,34 +111,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("12 |         drop file"),
-        "stderr missing drop span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_nonterminal_if_branch_outer_move_binding() {
+fn build_command_lowers_nonterminal_if_branch_outer_move_binding() {
     let project = TempProject::new("cli-build-nonterminal-if-branch-outer-move-binding");
     let source = project.write_source(
         "nonterminal_if_branch_outer_move_binding.nct",
@@ -155,34 +139,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit outer aggregate moves inside non-terminal control flow"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("12 |         var moved = move file"),
-        "stderr missing move span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_nonterminal_while_body_outer_explicit_drop() {
+fn build_command_lowers_nonterminal_while_body_outer_explicit_drop() {
     let project = TempProject::new("cli-build-nonterminal-while-body-outer-explicit-drop");
     let source = project.write_source(
         "nonterminal_while_body_outer_explicit_drop.nct",
@@ -206,34 +167,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("12 |         drop file"),
-        "stderr missing drop span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_nonterminal_while_body_outer_move_assignment_before_loop_control() {
+fn build_command_lowers_nonterminal_while_body_outer_move_assignment_before_loop_control() {
     let project =
         TempProject::new("cli-build-nonterminal-while-body-outer-move-assignment-before-control");
     let source = project.write_source(
@@ -261,30 +199,7 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit outer aggregate moves inside non-terminal control flow"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("13 |         target = move source"),
-        "stderr missing move span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
@@ -639,7 +554,7 @@ func source(): i32? {
 }
 
 #[test]
-fn build_command_rejects_compound_terminal_if_condition_outer_move() {
+fn build_command_lowers_compound_terminal_if_condition_outer_move() {
     let project = TempProject::new("cli-build-compound-terminal-if-condition-outer-move");
     let source = project.write_source(
         "compound_terminal_if_condition_outer_move.nct",
@@ -668,34 +583,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit aggregate moves in control-flow conditions"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("15 |     if consume(move file) && true {"),
-        "stderr missing condition span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_value_if_condition_outer_move() {
+fn build_command_lowers_value_if_condition_outer_move() {
     let project = TempProject::new("cli-build-value-if-condition-outer-move");
     let source = project.write_source(
         "value_if_condition_outer_move.nct",
@@ -725,34 +617,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit aggregate moves in control-flow conditions"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("15 |     let code = if consume(move file) {"),
-        "stderr missing condition span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_nonterminal_while_condition_outer_move() {
+fn build_command_lowers_nonterminal_while_condition_outer_move() {
     let project = TempProject::new("cli-build-nonterminal-while-condition-outer-move");
     let source = project.write_source(
         "nonterminal_while_condition_outer_move.nct",
@@ -780,34 +649,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit aggregate moves in control-flow conditions"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("15 |     while consume(move file) {"),
-        "stderr missing condition span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]
-fn build_command_rejects_imported_nested_alias_condition_aggregate_move_before_ir_lowering() {
+fn build_command_lowers_imported_nested_alias_condition_aggregate_move() {
     let project = TempProject::new("cli-build-imported-nested-alias-condition-aggregate-move");
     project.write_source(
         "slot_api/index.nct",
@@ -845,30 +691,7 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit aggregate moves in control-flow conditions"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     if consume(move slot) {"),
-        "stderr missing condition span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 1);
 }
 
 #[test]
@@ -1989,7 +1812,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_rejects_nonterminal_match_arm_outer_explicit_drop() {
+fn build_command_lowers_nonterminal_match_arm_outer_explicit_drop() {
     let project = TempProject::new("cli-build-nonterminal-match-arm-outer-explicit-drop");
     let source = project.write_source(
         "nonterminal_match_arm_outer_explicit_drop.nct",
@@ -2023,30 +1846,7 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "stderr missing E0435:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
-        "stderr missing unsupported construct:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("19 |             drop file"),
-        "stderr missing drop span:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "stderr leaked IR diagnostic:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "unexpected executable at {}",
-        executable.display()
-    );
+    assert_builds_and_exits(&output, &executable, 0);
 }
 
 #[test]

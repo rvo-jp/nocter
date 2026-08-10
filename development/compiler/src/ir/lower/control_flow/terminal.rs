@@ -829,16 +829,6 @@ pub(in crate::ir::lower) fn lower_terminal_condition(
     diagnostic_code: &'static str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move(condition, context)
-        && !condition_explicit_moves_are_single_evaluation_call(condition)
-    {
-        return Err(attach_primary_span_if_absent(
-            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
-            sources,
-            condition.span(),
-        ));
-    }
-
     if let Some(binary) = short_circuit_condition_needs_branch(condition, context) {
         return lower_short_circuit_terminal_condition(
             binary,

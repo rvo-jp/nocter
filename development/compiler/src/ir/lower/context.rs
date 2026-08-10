@@ -9,8 +9,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::integer::IntegerType;
 use crate::ir::{
-    AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
-    U8Location, UsizeLocation,
+    AggregateLocation, BoolLocation, BoolValue, CallTarget, I32Location, Instruction,
+    SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
@@ -464,6 +464,7 @@ pub(super) struct AggregateLocal {
     pub(super) layout: ValueLayout,
     pub(super) is_copy: bool,
     pub(super) drop_kind: Option<AggregateDrop>,
+    pub(super) runtime_live: Option<BoolLocation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,6 +485,7 @@ pub(super) struct PendingAggregateDrop {
     pub(super) layout: ValueLayout,
     pub(super) drop_kind: AggregateDrop,
     pub(super) obligation: DropObligation,
+    pub(super) runtime_live: Option<BoolLocation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -657,6 +659,7 @@ enum LocalKind {
         is_copy: bool,
         drop_obligation: DropObligation,
         drop_kind: Option<AggregateDrop>,
+        runtime_live: Option<BoolLocation>,
     },
     Outcome(OutcomeLocal),
 }

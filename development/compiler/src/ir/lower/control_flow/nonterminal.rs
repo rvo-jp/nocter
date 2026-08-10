@@ -2,7 +2,7 @@ use super::*;
 
 pub(in crate::ir::lower) fn lower_nonterminal_if_statement(
     statement: &IfStmt,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
     loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
@@ -24,7 +24,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_if_statement(
 
 pub(in crate::ir::lower) fn lower_nonterminal_if_statement_with_branch_prologues(
     statement: &IfStmt,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
     then_prologue: &BranchPrologue,
     else_prologue: &BranchPrologue,
     loop_scope_mark: Option<CleanupScopeMark>,
@@ -33,13 +33,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_if_statement_with_branch_prologues
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move(&statement.condition, context) {
-        return Err(attach_primary_span_if_absent(
-            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
-            sources,
-            statement.condition.span(),
-        ));
-    }
+    let mut leading_instructions = promote_if_aggregate_state(statement, context)?;
 
     let then_instructions = lower_nonterminal_if_block_with_prologue(
         &statement.then_block,
@@ -66,14 +60,17 @@ pub(in crate::ir::lower) fn lower_nonterminal_if_statement_with_branch_prologues
         Vec::new()
     };
 
-    lower_terminal_condition(
+    let mut lowered = lower_terminal_condition(
         &statement.condition,
         then_instructions,
         else_instructions,
         context,
         diagnostic_code,
         sources,
-    )
+    )?;
+    record_runtime_aggregate_transitions(&mut lowered, context);
+    leading_instructions.extend(lowered);
+    Ok(leading_instructions)
 }
 
 pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_statement(
@@ -85,6 +82,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut state_instructions = promote_switch_aggregate_state(statement, context)?;
     let switch = tag_only_switch_as_control_flow(statement, context, diagnostic_code)?;
     let target_cleanup = switch.target_cleanup;
     let mut instructions = switch.leading_instructions;
@@ -102,7 +100,9 @@ pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_statement(
     {
         cleanup.append_to(&mut instructions, context)?;
     }
-    Ok(instructions)
+    record_runtime_aggregate_transitions(&mut instructions, context);
+    state_instructions.extend(instructions);
+    Ok(state_instructions)
 }
 
 pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_body(
@@ -146,14 +146,6 @@ fn lower_nonterminal_switch_condition(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move(&condition.condition, context) {
-        return Err(attach_primary_span_if_absent(
-            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
-            sources,
-            condition.condition.span(),
-        ));
-    }
-
     let then_instructions = lower_nonterminal_if_block_with_prologue(
         &condition.then_branch.block,
         context,
@@ -191,13 +183,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_while_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move(&statement.condition, context) {
-        return Err(attach_primary_span_if_absent(
-            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
-            sources,
-            statement.condition.span(),
-        ));
-    }
+    let mut leading_instructions = promote_while_aggregate_state(statement, context)?;
 
     let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)
         .map_err(|diagnostics| {
@@ -206,11 +192,14 @@ pub(in crate::ir::lower) fn lower_nonterminal_while_statement(
     let body_instructions =
         lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject, sources)?;
 
-    Ok(vec![Instruction::While {
+    let mut lowered = vec![Instruction::While {
         condition_instructions: condition.instructions,
         condition: condition.value,
         body_instructions,
-    }])
+    }];
+    record_runtime_aggregate_transitions(&mut lowered, context);
+    leading_instructions.extend(lowered);
+    Ok(leading_instructions)
 }
 
 pub(in crate::ir::lower) fn lower_nonterminal_loop_statement(
@@ -220,14 +209,18 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut leading_instructions = promote_loop_aggregate_state(statement, context)?;
     let body_instructions =
         lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject, sources)?;
 
-    Ok(vec![Instruction::While {
+    let mut lowered = vec![Instruction::While {
         condition_instructions: Vec::new(),
         condition: BoolValue::Const(true),
         body_instructions,
-    }])
+    }];
+    record_runtime_aggregate_transitions(&mut lowered, context);
+    leading_instructions.extend(lowered);
+    Ok(leading_instructions)
 }
 
 pub(in crate::ir::lower) fn lower_nonterminal_for_range_statement(
@@ -509,19 +502,6 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
         match statement {
             Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
-                if expression_contains_explicit_aggregate_move_outside(
-                    &statement.initializer,
-                    context,
-                    local_mark,
-                ) && !outer_aggregate_move_binding_before_function_exit_allowed(
-                    statement, context, local_mark, statements, index, result,
-                ) {
-                    return Err(attach_primary_span_if_absent(
-                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                        sources,
-                        statement.initializer.span(),
-                    ));
-                }
                 let loop_control = loop_scope_mark.map(|scope_mark| LoopControlContext {
                     scope_mark,
                     continue_instructions,
@@ -539,41 +519,25 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
                         || outer_aggregate_assignment_before_function_exit_allowed(
                             statement, context, local_mark, statements, index, result,
                         );
-                let explicit_outer_aggregate_move_allowed =
-                    aggregate_move_assignment_before_function_exit_allowed(
-                        statement, context, local_mark, statements, index, result,
-                    );
-                if !target_allowed
-                    || (expression_contains_explicit_aggregate_move_outside(
-                        &statement.value,
-                        context,
-                        local_mark,
-                    ) && !explicit_outer_aggregate_move_allowed)
-                {
+                if !target_allowed {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
                         sources,
                         statement.span,
                     ));
                 }
-                instructions.extend(lower_assignment(statement, context).map_err(
-                    |diagnostics| {
+                let mut assignment =
+                    lower_assignment(statement, context).map_err(|diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                    },
-                )?);
+                    })?;
+                record_assignment_runtime_initialization(
+                    &statement.target,
+                    &mut assignment,
+                    context,
+                );
+                instructions.extend(assignment);
             }
             Stmt::Expression(statement) => {
-                if expression_contains_explicit_aggregate_move_outside(
-                    &statement.expression,
-                    context,
-                    local_mark,
-                ) {
-                    return Err(attach_primary_span_if_absent(
-                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                        sources,
-                        statement.expression.span(),
-                    ));
-                }
                 if let Some(terminating_instructions) = lower_never_expression(
                     &statement.expression,
                     context,
@@ -605,15 +569,6 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
                 }
             }
             Stmt::Drop(statement) => {
-                if !context.aggregate_local_defined_since(&statement.name, local_mark)
-                    && !statement_suffix_exits_function(statements, index, result, context)
-                {
-                    return Err(attach_primary_span_if_absent(
-                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                        sources,
-                        statement.span,
-                    ));
-                }
                 instructions.extend(lower_drop_statement(statement, context).map_err(
                     |diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -819,7 +774,6 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
         instructions.extend(lower_nonterminal_block_result(
             result,
             context,
-            local_mark,
             diagnostic_code,
             subject,
             sources,
@@ -858,19 +812,10 @@ pub(in crate::ir::lower) fn lower_nonterminal_region_body(
 fn lower_nonterminal_block_result(
     expression: &Expr,
     context: &mut LoweringContext,
-    local_mark: usize,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move_outside(expression, context, local_mark) {
-        return Err(attach_primary_span_if_absent(
-            unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-            sources,
-            expression.span(),
-        ));
-    }
-
     if let Some(terminating_instructions) =
         lower_never_expression(expression, context).map_err(|diagnostics| {
             attach_primary_span_if_absent(diagnostics, sources, expression.span())

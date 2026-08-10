@@ -65,15 +65,6 @@ pub(in crate::driver::buildability) fn collect_value_expression_diagnostics(
 ) {
     match unwrap_group_expr(expression) {
         Expr::If(expression) if value_if_expression_is_buildable(expression) => {
-            collect_control_condition_move_diagnostics(
-                &expression.condition,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_expression_diagnostics(
                 &expression.condition,
                 sources,

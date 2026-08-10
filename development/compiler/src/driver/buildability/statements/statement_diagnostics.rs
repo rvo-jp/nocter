@@ -30,15 +30,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_nonterminal_control_block_aggregate_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.body,
                 return_type,
@@ -343,53 +334,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             }
         }
         Stmt::If(statement) => {
-            let exits_function = if_statement_exits_function_for_buildability(
-                statement,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-            );
-            if exits_function {
-                collect_terminal_control_condition_move_diagnostics(
-                    &statement.condition,
-                    sources,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                    diagnostics,
-                );
-            } else {
-                collect_nonterminal_control_block_aggregate_diagnostics(
-                    &statement.then_block,
-                    sources,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                    diagnostics,
-                );
-                if let Some(block) = &statement.else_block {
-                    collect_nonterminal_control_block_aggregate_diagnostics(
-                        block,
-                        sources,
-                        resolved,
-                        resolved_sources,
-                        typecheck_facts,
-                        generic_substitutions,
-                        diagnostics,
-                    );
-                }
-                collect_control_condition_move_diagnostics(
-                    &statement.condition,
-                    sources,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                    diagnostics,
-                );
-            }
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -473,46 +417,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            if !if_is_statement_exits_function_for_buildability(
-                statement,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-            ) {
-                collect_nonterminal_control_payload_block_aggregate_diagnostics(
-                    &statement.then_block,
-                    statement
-                        .payload
-                        .as_ref()
-                        .and_then(|payload| payload.binding_name()),
-                    sources,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                    diagnostics,
-                );
-                if let Some(block) = &statement.else_block {
-                    collect_nonterminal_control_block_aggregate_diagnostics(
-                        block,
-                        sources,
-                        resolved,
-                        resolved_sources,
-                        typecheck_facts,
-                        generic_substitutions,
-                        diagnostics,
-                    );
-                }
-            }
-            collect_if_is_target_move_diagnostics(
-                statement,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.then_block,
                 return_type,
@@ -583,47 +487,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            if !switch_statement_exits_function_for_buildability(
-                statement,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-            ) {
-                for arm in &statement.arms {
-                    collect_nonterminal_control_payload_block_aggregate_diagnostics(
-                        &arm.body,
-                        arm.payload
-                            .as_ref()
-                            .and_then(|payload| payload.binding_name()),
-                        sources,
-                        resolved,
-                        resolved_sources,
-                        typecheck_facts,
-                        generic_substitutions,
-                        diagnostics,
-                    );
-                }
-                if let Some(arm) = &statement.wildcard_arm {
-                    collect_nonterminal_control_block_aggregate_diagnostics(
-                        &arm.body,
-                        sources,
-                        resolved,
-                        resolved_sources,
-                        typecheck_facts,
-                        generic_substitutions,
-                        diagnostics,
-                    );
-                }
-            }
-            collect_switch_target_move_diagnostics(
-                statement,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             for arm in &statement.arms {
                 collect_block_diagnostics(
                     &arm.body,
@@ -692,15 +555,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_nonterminal_control_block_aggregate_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.body,
                 return_type,
@@ -730,16 +584,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_nonterminal_control_payload_block_aggregate_diagnostics(
-                &statement.body,
-                Some(&statement.name),
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.body,
                 return_type,
@@ -756,15 +600,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             );
         }
         Stmt::LiteralPackFor(statement) => {
-            collect_nonterminal_control_block_aggregate_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.body,
                 return_type,
@@ -781,15 +616,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             );
         }
         Stmt::While(statement) => {
-            collect_control_condition_move_diagnostics(
-                &statement.condition,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -801,15 +627,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 resolved_sources,
                 nocter_home,
                 queue,
-                diagnostics,
-            );
-            collect_nonterminal_control_block_aggregate_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
                 diagnostics,
             );
             collect_block_diagnostics(
@@ -828,15 +645,6 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             );
         }
         Stmt::Loop(statement) => {
-            collect_nonterminal_control_block_aggregate_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-                diagnostics,
-            );
             collect_block_diagnostics(
                 &statement.body,
                 return_type,

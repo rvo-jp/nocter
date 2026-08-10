@@ -958,10 +958,6 @@ pub(super) fn lower_if_expression_to_location_with_branch_prologues(
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_value_control_expression_diagnostic());
     };
-    if expression_contains_explicit_aggregate_move(&statement.condition, context) {
-        return Err(unsupported_value_control_expression_diagnostic());
-    }
-
     let condition = lower_bool_expression_to_value(&statement.condition, context, "E8008")?;
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
