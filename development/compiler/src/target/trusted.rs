@@ -196,6 +196,7 @@ pub(crate) fn trusted_declarations_for_module(
             | Item::Conformance(_)
             | Item::Construct(_)
             | Item::Coerce(_) => {}
+            Item::Destruct(_) => {}
         }
     }
 

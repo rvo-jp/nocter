@@ -12,7 +12,7 @@ use super::diagnostics::{
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{
-    AstFile, Block, ConformanceMember, Expr, GenericParam, GenericParamList, InstanceMember,
+    AstFile, Block, ConformanceMember, Expr, GenericParam, GenericParamList,
     InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, TypeExpr, WhereClause,
 };
 use crate::diagnostics::Diagnostic;
@@ -166,6 +166,12 @@ pub(super) fn check_generic_type_arities(
             Item::Instance(instance) => {
                 check_instance_types(sources, instance, resolved, diagnostics)
             }
+            Item::Destruct(destruct) => {
+                let scope = GenericScope::new(&destruct.generics).with_self_type();
+                check_type_expr(sources, &destruct.target_ty, resolved, &scope, diagnostics);
+                check_type_expr(sources, &destruct.binding.ty, resolved, &scope, diagnostics);
+                check_block(sources, &destruct.body, resolved, &scope, diagnostics);
+            }
             Item::Conformance(conformance) => {
                 check_conformance_types(sources, conformance, resolved, diagnostics)
             }
@@ -225,28 +231,14 @@ fn check_instance_types(
     );
     check_type_expr(sources, &instance.target_ty, resolved, &scope, diagnostics);
     let member_scope = scope.clone().with_self_type();
-    for member in &instance.members {
-        match member {
-            InstanceMember::Method(method) => {
-                let method_scope = member_scope
-                    .clone()
-                    .with_generics(&method.generics)
-                    .with_where_clause(method.requirements.as_ref());
-                check_method_signature(sources, method, resolved, &method_scope, diagnostics);
-                if let Some(body) = &method.body {
-                    check_block(sources, body, resolved, &method_scope, diagnostics);
-                }
-            }
-            InstanceMember::Drop(drop_) => {
-                check_type_expr(
-                    sources,
-                    &drop_.binding.ty,
-                    resolved,
-                    &member_scope,
-                    diagnostics,
-                );
-                check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
-            }
+    for method in &instance.methods {
+        let method_scope = member_scope
+            .clone()
+            .with_generics(&method.generics)
+            .with_where_clause(method.requirements.as_ref());
+        check_method_signature(sources, method, resolved, &method_scope, diagnostics);
+        if let Some(body) = &method.body {
+            check_block(sources, body, resolved, &method_scope, diagnostics);
         }
     }
 }

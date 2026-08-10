@@ -426,7 +426,7 @@ impl Resolver<'_> {
                     );
                 }
                 Item::TypeAlias(alias) => {
-                    let symbol = type_alias_symbol_with_instance_members(ast, alias);
+                    let symbol = type_alias_symbol_with_surfaces(ast, alias);
                     let imported = type_importable_symbol(
                         alias.span,
                         alias.name_span,
@@ -529,6 +529,7 @@ impl Resolver<'_> {
                 | Item::FromImport(_)
                 | Item::Instance(_)
                 | Item::Conformance(_)
+                | Item::Destruct(_)
                 | Item::Construct(_)
                 | Item::Coerce(_) => {}
             }

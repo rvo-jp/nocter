@@ -679,8 +679,8 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
 }
 
 #[test]
-fn drop_declaration_editor_features_share_the_keyword_range() {
-    let text = "struct Token { value: i32 }\n\ninstance Token {\n    drop &+self {\n        return\n    }\n}\n";
+fn destruct_declaration_editor_features_share_the_keyword_range() {
+    let text = "struct Token { value: i32 }\n\ndestruct Token(&+self) {\n    return\n}\n";
     let uri = "file:///tmp/nocter-drop-editor-identity.nct".to_string();
     let server = LspServer {
         documents: HashMap::from([(
@@ -698,23 +698,23 @@ fn drop_declaration_editor_features_share_the_keyword_range() {
         json!(7),
         Some(&json!({
             "textDocument": { "uri": uri },
-            "position": { "line": 3, "character": 5 }
+            "position": { "line": 2, "character": 3 }
         })),
     );
     assert_eq!(
         hover["result"]["contents"]["value"],
-        json!("```nocter\ndrop &+self\n```")
+        json!("```nocter\ndestruct Token(&+self)\n```")
     );
-    assert_eq!(hover["result"]["range"]["start"]["character"], json!(4));
+    assert_eq!(hover["result"]["range"]["start"]["character"], json!(0));
     assert_eq!(hover["result"]["range"]["end"]["character"], json!(8));
 
     let symbols =
         server.document_symbol_response(json!(8), Some(&json!({ "textDocument": { "uri": uri } })));
-    let drop_symbol = &symbols["result"][1]["children"][0];
-    assert_eq!(drop_symbol["name"], json!("drop"));
+    let drop_symbol = &symbols["result"][1];
+    assert_eq!(drop_symbol["name"], json!("destruct Token"));
     assert_eq!(
         drop_symbol["selectionRange"]["start"]["character"],
-        json!(4)
+        json!(0)
     );
     assert_eq!(drop_symbol["selectionRange"]["end"]["character"], json!(8));
 }
@@ -3281,8 +3281,7 @@ fn returns_document_symbols_for_top_level_declarations() {
 
 #[test]
 fn document_features_recover_an_unclosed_member_body() {
-    let text =
-        "struct Token { value: i32 }\n\ninstance Token {\n    drop &+self {\n        return\n";
+    let text = "struct Token { value: i32 }\n\ndestruct Token(&+self) {\n    return\n";
     let uri = "file:///tmp/nocter-unclosed-document-features.nct".to_string();
     let server = LspServer {
         documents: HashMap::from([(
@@ -3298,12 +3297,12 @@ fn document_features_recover_an_unclosed_member_body() {
 
     let symbols = server
         .document_symbol_response(json!(11), Some(&json!({ "textDocument": { "uri": uri } })));
-    let drop_symbol = &symbols["result"][1]["children"][0];
-    assert_eq!(drop_symbol["name"], json!("drop"));
-    assert_eq!(drop_symbol["selectionRange"]["start"]["line"], json!(3));
+    let drop_symbol = &symbols["result"][1];
+    assert_eq!(drop_symbol["name"], json!("destruct Token"));
+    assert_eq!(drop_symbol["selectionRange"]["start"]["line"], json!(2));
     assert_eq!(
         drop_symbol["selectionRange"]["start"]["character"],
-        json!(4)
+        json!(0)
     );
 
     let semantic = server

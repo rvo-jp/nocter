@@ -218,7 +218,8 @@ impl OccurrenceBuilder<'_> {
                 | Item::Enum(_)
                 | Item::Interface(_)
                 | Item::Conformance(_)
-                | Item::Coerce(_) => {}
+                | Item::Coerce(_)
+                | Item::Destruct(_) => {}
             }
         }
     }
@@ -309,7 +310,7 @@ impl OccurrenceBuilder<'_> {
                                 SemanticOccurrenceKind::Literal,
                             );
                         }
-                        if let Some(drop_) = &type_symbol.drop_member {
+                        if let Some(drop_) = &type_symbol.destructor {
                             self.push_member_declaration(
                                 drop_.name_span,
                                 SemanticOccurrenceKind::Method,

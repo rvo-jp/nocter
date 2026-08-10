@@ -9,10 +9,8 @@ fn build_command_lowers_terminal_if_branch_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -43,10 +41,8 @@ fn build_command_lowers_nonterminal_if_branch_scope_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -77,10 +73,8 @@ fn build_command_lowers_nonterminal_if_branch_outer_move_binding_before_return()
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -111,10 +105,8 @@ fn build_command_lowers_nonterminal_if_branch_outer_move_assignment_before_retur
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -145,10 +137,8 @@ fn build_command_lowers_nonterminal_while_body_scope_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -176,10 +166,8 @@ fn build_command_lowers_nonterminal_while_body_explicit_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -209,10 +197,8 @@ fn build_command_lowers_nonterminal_while_body_outer_explicit_drop_before_return
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -242,10 +228,8 @@ fn build_command_lowers_nonterminal_while_break_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -274,10 +258,8 @@ fn build_command_lowers_nonterminal_while_continue_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -306,10 +288,8 @@ fn build_command_lowers_nonterminal_loop_break_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -338,10 +318,8 @@ fn build_command_lowers_terminal_loop_body_return_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -455,10 +433,8 @@ fn build_command_lowers_explicit_move_in_terminal_if_condition() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {
@@ -492,10 +468,8 @@ fn build_command_lowers_concrete_generic_scope_end_drop() {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        return
-    }
+destruct Box<T>(&+self) {
+    return
 }
 
 func main(): i32 {

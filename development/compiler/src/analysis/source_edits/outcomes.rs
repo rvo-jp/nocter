@@ -85,6 +85,7 @@ pub(crate) fn plan_outcome_contract(
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_) => None,
+            Item::Destruct(_) => None,
         })?;
     if matches!(
         (kind, return_type),

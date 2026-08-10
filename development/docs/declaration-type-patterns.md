@@ -6,7 +6,7 @@ document owns the compiler architecture for v0.11.0 Phase 5.
 
 ## Boundary
 
-Only `instance` and `conform` headers are declaration type patterns. A pattern slot introduces a
+`instance`, `conform`, and `destruct` headers use declaration type patterns. A pattern slot introduces a
 bare binder; it does not accept an arbitrary type expression. `func`, `method`, nominal type,
 interface, construction, coercion, and literal generic lists remain explicit name declarations.
 
@@ -31,13 +31,12 @@ Pattern overlap is satisfiability, not textual equality. Binder names are alpha-
 positions add equality constraints, and refinements contribute their normalized concrete shape.
 Two conformances conflict when both their interface and target patterns can match one concrete
 pair. Inherent declarations conflict only when overlapping target patterns export the same method
-name or both export destruction.
+name. A nominal family has one independent destructor declaration.
 
-Destruction is intentionally uniform across a nominal family. An instance containing `drop`
-cannot have a predicate and must mention every target slot through one distinct binder. Allowing a
-type's need for destruction to vary by refinement would make generic ownership and ABI decisions
-conditional; Phase 5 rejects that model instead of approximating it. Refined method-only instances
-remain ordinary patterns.
+Destruction is intentionally uniform across a nominal family. A `destruct` declaration has no
+`where` clause and must mention every target slot through one distinct binder. Allowing a type's
+need for destruction to vary by refinement would make generic ownership and ABI decisions
+conditional. Refined instances remain method-only declaration patterns.
 
 Nocter rejects overlap rather than selecting the more concrete declaration. This keeps lookup,
 ownership, lowering, and editor results independent of declaration and import order.

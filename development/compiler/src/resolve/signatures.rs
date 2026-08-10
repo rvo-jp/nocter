@@ -1,27 +1,29 @@
 use super::GenericRequirements;
 use super::{
     AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
-    DropSignature, EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature,
-    StructFieldSignature, TypeSymbol, TypeSymbolKind,
+    DestructSignature, EnumVariantSignature, FunctionSignature, MethodSignature,
+    ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
-    AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, GenericParamList, InstanceDecl,
-    InstanceMember, InterfaceDecl, MethodDecl, Parameter, PrimitiveDecl, StructField,
-    TypeAliasDecl, TypeExpr,
+    AstFile, ConformanceDecl, ConformanceMember, DestructDecl, FunctionDecl, GenericParamList,
+    InstanceDecl, InterfaceDecl, MethodDecl, Parameter, PrimitiveDecl, StructField, TypeAliasDecl,
+    TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 
 use super::conformance::interface_conformance;
-use super::diagnostics::duplicate_inherent_member_name_diagnostic;
+use super::diagnostics::{
+    duplicate_destruct_declaration_diagnostic, duplicate_inherent_member_name_diagnostic,
+};
 
-pub(super) fn attach_instance_members_to_symbol(
+pub(super) fn attach_behavior_declarations_to_symbol(
     symbol: &mut TypeSymbol,
     ast: &AstFile,
     type_name: &str,
 ) {
-    if !type_symbol_accepts_instance_behavior(symbol) {
+    if !type_symbol_accepts_inherent_behavior(symbol) {
         return;
     }
 
@@ -40,23 +42,31 @@ pub(super) fn attach_instance_members_to_symbol(
         .extend(top_level_associated_function_signatures(ast, type_name));
 
     for item in &ast.items {
-        let crate::ast::Item::Instance(instance) = item else {
-            continue;
-        };
-        if declaration_target_type_name(&instance.target_ty) != Some(type_name) {
-            continue;
-        }
-
-        symbol.methods.extend(instance_method_signatures(instance));
-        if symbol.drop_member.is_none() {
-            symbol.drop_member = drop_signature(instance);
+        match item {
+            crate::ast::Item::Instance(instance)
+                if declaration_target_type_name(&instance.target_ty) == Some(type_name) =>
+            {
+                symbol.methods.extend(instance_method_signatures(instance));
+            }
+            crate::ast::Item::Destruct(destruct)
+                if declaration_target_type_name(&destruct.target_ty) == Some(type_name)
+                    && type_symbol_accepts_destructor(symbol)
+                    && symbol.destructor.is_none() =>
+            {
+                symbol.destructor = destruct_signature(destruct);
+            }
+            _ => {}
         }
     }
 }
 
-pub(super) fn type_symbol_accepts_instance_behavior(symbol: &TypeSymbol) -> bool {
+pub(super) fn type_symbol_accepts_inherent_behavior(symbol: &TypeSymbol) -> bool {
     matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
         || type_symbol_is_error_alias(symbol)
+}
+
+pub(super) fn type_symbol_accepts_destructor(symbol: &TypeSymbol) -> bool {
+    matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
 }
 
 fn type_symbol_is_error_alias(symbol: &TypeSymbol) -> bool {
@@ -105,14 +115,13 @@ pub(super) fn associated_function_signature(
 pub(super) fn instance_method_signatures(
     instance: &InstanceDecl,
 ) -> impl Iterator<Item = MethodSignature> + '_ {
-    instance.members.iter().filter_map(|member| match member {
-        InstanceMember::Method(method) => Some(method_signature_for_owner(
+    instance.methods.iter().map(|method| {
+        method_signature_for_owner(
             method,
             &instance.target_ty,
             &instance.generics,
             instance.requirements.as_ref(),
-        )),
-        InstanceMember::Drop(_) => None,
+        )
     })
 }
 
@@ -133,15 +142,12 @@ pub(super) fn conformance_method_signatures(
         })
 }
 
-pub(super) fn drop_signature(instance: &InstanceDecl) -> Option<DropSignature> {
-    let target_name = declaration_target_type_name(&instance.target_ty)?;
-    instance.members.iter().find_map(|member| match member {
-        InstanceMember::Drop(drop_) => Some(DropSignature {
-            name_span: drop_.name_span,
-            target_name: drop_function_name(target_name),
-            binding: parameter_signature(&drop_.binding),
-        }),
-        InstanceMember::Method(_) => None,
+pub(super) fn destruct_signature(destruct: &DestructDecl) -> Option<DestructSignature> {
+    let target_name = declaration_target_type_name(&destruct.target_ty)?;
+    Some(DestructSignature {
+        name_span: destruct.keyword_span,
+        target_name: drop_function_name(target_name),
+        binding: parameter_signature(&destruct.binding),
     })
 }
 
@@ -165,11 +171,8 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     }
     let mut current_methods = HashMap::<&str, ByteSpan>::new();
 
-    for member in &instance.members {
-        let (name, span) = match member {
-            InstanceMember::Method(method) => (method.name.as_str(), method.name_span),
-            InstanceMember::Drop(_) => continue,
-        };
+    for method in &instance.methods {
+        let (name, span) = (method.name.as_str(), method.name_span);
         let first = fixed_names
             .get(name)
             .copied()
@@ -215,27 +218,19 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     diagnostics
 }
 
-pub(super) fn duplicate_inherent_drop_diagnostics(
+pub(super) fn duplicate_destruct_diagnostics(
     sources: &SourceMap,
     target_name: &str,
     type_symbol: &TypeSymbol,
-    instance: &InstanceDecl,
+    destruct: &DestructDecl,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    let Some(drop_) = instance.members.iter().find_map(|member| match member {
-        InstanceMember::Drop(drop_) => Some(drop_),
-        InstanceMember::Method(_) => None,
-    }) else {
-        return diagnostics;
-    };
-
-    if let Some(existing) = &type_symbol.drop_member {
-        diagnostics.push(duplicate_inherent_member_name_diagnostic(
+    if let Some(existing) = &type_symbol.destructor {
+        diagnostics.push(duplicate_destruct_declaration_diagnostic(
             sources,
             target_name,
-            "drop",
             existing.name_span,
-            drop_.name_span,
+            destruct.keyword_span,
         ));
     }
 
@@ -308,7 +303,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
-        drop_member: None,
+        destructor: None,
         literals: Vec::new(),
         coercions: Vec::new(),
         construction: ConstructionSurface::default(),
@@ -363,7 +358,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             })
             .collect(),
         interface_conformances: Vec::new(),
-        drop_member: None,
+        destructor: None,
         literals: Vec::new(),
         coercions: Vec::new(),
         construction: ConstructionSurface::default(),
@@ -411,7 +406,7 @@ pub(super) fn struct_type_symbol(
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
-        drop_member: None,
+        destructor: None,
         literals: Vec::new(),
         coercions: Vec::new(),
         construction: {
@@ -464,7 +459,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
-        drop_member: None,
+        destructor: None,
         literals: Vec::new(),
         coercions: Vec::new(),
         construction: ConstructionSurface {

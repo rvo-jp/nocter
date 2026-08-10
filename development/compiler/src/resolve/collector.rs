@@ -10,16 +10,17 @@ use super::diagnostics::{
     reserved_type_declaration_name_reuse_diagnostic,
 };
 use super::signatures::{
-    alias_type_symbol, associated_function_signature, declaration_target_type_name, drop_signature,
-    duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
+    alias_type_symbol, associated_function_signature, declaration_target_type_name,
+    destruct_signature, duplicate_destruct_diagnostics, duplicate_inherent_member_name_diagnostics,
     enum_type_symbol, function_signature, instance_method_signatures, interface_type_symbol,
-    primitive_signature, struct_type_symbol, type_symbol_accepts_instance_behavior,
+    primitive_signature, struct_type_symbol, type_symbol_accepts_destructor,
+    type_symbol_accepts_inherent_behavior,
 };
 use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
-    AstFile, ConformanceDecl, ConformanceMember, EnumDecl, EnumVariant, FunctionDecl,
-    GenericParamList, InstanceDecl, InstanceMember, InterfaceDecl, Item, MethodReceiver, Parameter,
-    PrimitiveDecl, StructDecl,
+    AstFile, ConformanceDecl, ConformanceMember, DestructDecl, EnumDecl, EnumVariant, FunctionDecl,
+    GenericParamList, InstanceDecl, InterfaceDecl, Item, MethodReceiver, Parameter, PrimitiveDecl,
+    StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -173,27 +174,34 @@ impl Resolver<'_> {
                             "instance block",
                             &instance.generics,
                         ));
-                    for member in &instance.members {
-                        if let InstanceMember::Method(method) = member {
-                            let subject = format!("method `{}`", method.name);
-                            self.output.diagnostics.extend(
-                                method_generic_parameter_name_diagnostics(
-                                    self.sources,
-                                    &subject,
-                                    &instance.generics,
-                                    &method.generics,
-                                ),
-                            );
-                            self.output.diagnostics.extend(
-                                duplicate_method_parameter_name_diagnostics(
-                                    self.sources,
-                                    &subject,
-                                    &method.receiver,
-                                    &method.parameters.parameters,
-                                ),
-                            );
-                        }
+                    for method in &instance.methods {
+                        let subject = format!("method `{}`", method.name);
+                        self.output
+                            .diagnostics
+                            .extend(method_generic_parameter_name_diagnostics(
+                                self.sources,
+                                &subject,
+                                &instance.generics,
+                                &method.generics,
+                            ));
+                        self.output.diagnostics.extend(
+                            duplicate_method_parameter_name_diagnostics(
+                                self.sources,
+                                &subject,
+                                &method.receiver,
+                                &method.parameters.parameters,
+                            ),
+                        );
                     }
+                }
+                Item::Destruct(destruct) => {
+                    self.output
+                        .diagnostics
+                        .extend(generic_parameter_name_diagnostics(
+                            self.sources,
+                            "destruct declaration",
+                            &destruct.generics,
+                        ));
                 }
                 Item::Conformance(conformance) => {
                     self.output
@@ -265,6 +273,7 @@ impl Resolver<'_> {
         for item in &ast.items {
             match item {
                 Item::Instance(instance) => self.collect_instance_members(instance),
+                Item::Destruct(destruct) => self.collect_destruct(destruct),
                 Item::Conformance(conformance) => self.collect_conformance(conformance),
                 _ => {}
             }
@@ -396,7 +405,7 @@ impl Resolver<'_> {
             return;
         };
 
-        if !type_symbol_accepts_instance_behavior(type_symbol) {
+        if !type_symbol_accepts_inherent_behavior(type_symbol) {
             self.output
                 .diagnostics
                 .push(invalid_associated_function_owner_diagnostic(
@@ -462,29 +471,49 @@ impl Resolver<'_> {
                 return;
             };
 
-            if !type_symbol_accepts_instance_behavior(type_symbol) {
+            if !type_symbol_accepts_inherent_behavior(type_symbol) {
                 return;
             }
 
             let mut methods = instance_method_signatures(instance).collect::<Vec<_>>();
-            let mut diagnostics = duplicate_inherent_member_name_diagnostics(
+            let diagnostics = duplicate_inherent_member_name_diagnostics(
                 self.sources,
                 target_name,
                 type_symbol,
                 instance,
             );
-            diagnostics.extend(duplicate_inherent_drop_diagnostics(
-                self.sources,
-                target_name,
-                type_symbol,
-                instance,
-            ));
             type_symbol.methods.append(&mut methods);
-            if type_symbol.drop_member.is_none() {
-                type_symbol.drop_member = drop_signature(instance);
-            }
             diagnostics
         };
+        self.output.diagnostics.extend(diagnostics);
+    }
+
+    fn collect_destruct(&mut self, destruct: &DestructDecl) {
+        let Some(target_name) = declaration_target_type_name(&destruct.target_ty) else {
+            return;
+        };
+        let Some(symbol_id) = self.output.symbols.by_name.get(target_name).copied() else {
+            return;
+        };
+        let Some(symbol) = self
+            .output
+            .symbols
+            .symbols
+            .get_mut(symbol_id.raw() as usize)
+        else {
+            return;
+        };
+        let SymbolKind::Type(type_symbol) = &mut symbol.kind else {
+            return;
+        };
+        if !type_symbol_accepts_destructor(type_symbol) {
+            return;
+        }
+        let diagnostics =
+            duplicate_destruct_diagnostics(self.sources, target_name, type_symbol, destruct);
+        if type_symbol.destructor.is_none() {
+            type_symbol.destructor = destruct_signature(destruct);
+        }
         self.output.diagnostics.extend(diagnostics);
     }
 
@@ -506,7 +535,7 @@ impl Resolver<'_> {
         let SymbolKind::Type(type_symbol) = &mut symbol.kind else {
             return;
         };
-        if type_symbol_accepts_instance_behavior(type_symbol) {
+        if type_symbol_accepts_inherent_behavior(type_symbol) {
             type_symbol
                 .interface_conformances
                 .push(interface_conformance(conformance));

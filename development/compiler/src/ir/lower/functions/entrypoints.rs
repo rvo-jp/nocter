@@ -291,7 +291,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
 }
 
 pub(in crate::ir::lower) fn lower_drop_function<'a>(
-    drop_: &DropDecl,
+    drop_: &DestructDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
     name: String,

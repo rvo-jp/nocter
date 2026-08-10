@@ -8,10 +8,8 @@ fn does_not_drop_a_direct_owner_before_its_struct_initialization_completes() {
     code: i32
 }
 
-instance Resource {
-    drop &+self {
-        return
-    }
+destruct Resource(&+self) {
+    return
 }
 
 func code(): i32! {
@@ -58,10 +56,8 @@ fn partial_struct_cleanup_drops_fields_without_running_the_outer_destructor() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -69,10 +65,8 @@ struct Bundle {
     code: i32
 }
 
-instance Bundle {
-    drop &+self {
-        return
-    }
+destruct Bundle(&+self) {
+    return
 }
 
 func code(): i32! {
@@ -130,10 +124,8 @@ fn partial_nested_struct_cleanup_recurses_without_running_incomplete_destructors
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Inner {
@@ -141,10 +133,8 @@ struct Inner {
     code: i32
 }
 
-instance Inner {
-    drop &+self {
-        return
-    }
+destruct Inner(&+self) {
+    return
 }
 
 struct Outer {
@@ -152,10 +142,8 @@ struct Outer {
     tail: i32
 }
 
-instance Outer {
-    drop &+self {
-        return
-    }
+destruct Outer(&+self) {
+    return
 }
 
 func code(): i32! {
@@ -222,10 +210,8 @@ fn partial_struct_return_cleanup_tracks_completed_fields() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -301,10 +287,8 @@ fn partial_struct_replacement_preserves_the_old_value_after_cleaning_the_new_pre
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -474,16 +458,14 @@ func make_file(): File {
 }
 
 #[test]
-fn lowers_explicit_drop_to_drop_member_call() {
+fn lowers_explicit_drop_to_destructor_call() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -532,16 +514,14 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_concrete_generic_explicit_drop_to_drop_member_call() {
+fn lowers_concrete_generic_explicit_drop_to_destructor_call() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        return
-    }
+destruct Box<T>(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -590,7 +570,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
+fn lowers_imported_explicit_drop_to_imported_destructor_call() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/file.File
 
@@ -606,10 +586,8 @@ func main(): i32 {
     pub fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 "#,
         )],
@@ -669,16 +647,14 @@ instance File {
 }
 
 #[test]
-fn lowers_scope_end_drop_to_drop_member_call() {
+fn lowers_scope_end_drop_to_destructor_call() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -733,16 +709,14 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
+fn lowers_concrete_generic_scope_end_drop_to_destructor_call() {
     let ir = lower_text(
         r#"struct Box<T> {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        return
-    }
+destruct Box<T>(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -822,11 +796,9 @@ struct Box<T> {
     size: usize
 }
 
-instance Box<U> {
-    drop &+self {
-        self.size = pointee_size(self.ptr)
-        return
-    }
+destruct Box<U>(&+self) {
+    self.size = pointee_size(self.ptr)
+    return
 }
 
 pub func run(): i32 {
@@ -888,10 +860,8 @@ fn lowers_scope_end_drop_inside_nonterminal_if_branches() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -968,10 +938,8 @@ fn lowers_explicit_drop_inside_nonterminal_if_branch_without_scope_end_duplicate
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1030,10 +998,8 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1103,10 +1069,8 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_nested_return_
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1192,10 +1156,8 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return_suffix(
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1274,10 +1236,8 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_never_suffix()
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1350,10 +1310,8 @@ fn lowers_return_never_expression_without_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1404,10 +1362,8 @@ fn lowers_terminal_if_never_branch_without_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1472,10 +1428,8 @@ fn lowers_return_inside_nonterminal_if_branch_with_outer_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1553,10 +1507,8 @@ fn lowers_scope_end_drop_inside_nonterminal_while_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1623,10 +1575,8 @@ fn lowers_scope_end_drop_inside_nonterminal_loop_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1685,10 +1635,8 @@ fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicat
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1751,10 +1699,8 @@ fn lowers_return_inside_nonterminal_while_body_with_body_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1826,10 +1772,8 @@ fn lowers_break_inside_nonterminal_while_body_with_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1892,10 +1836,8 @@ fn lowers_continue_inside_nonterminal_while_body_with_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -1958,10 +1900,8 @@ fn lowers_scope_end_drop_before_tail_call() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2019,10 +1959,8 @@ fn lowers_scope_end_drop_inside_terminal_if_branches() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2097,10 +2035,8 @@ fn lowers_branch_explicit_drop_before_terminal_if_return() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2165,10 +2101,8 @@ fn lowers_scope_end_drop_inside_usize_terminal_if_branches() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2252,10 +2186,8 @@ fn lowers_scope_end_drop_inside_void_terminal_if_branches() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): void {
@@ -2308,10 +2240,8 @@ fn lowers_scope_end_drop_inside_nested_terminal_if_branches() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2405,10 +2335,8 @@ fn lowers_branch_explicit_drop_before_nested_terminal_if() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -2827,10 +2755,8 @@ fn lowers_void_entry_scope_end_drop_before_implicit_return() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): void {
@@ -2875,13 +2801,13 @@ fn consuming_method_receiver_transfers_its_drop_obligation() {
 }
 
 instance Resource {
-    drop &+self {
-        return
-    }
-
     method self.consume(): i32 {
         return self.fd
     }
+}
+
+destruct Resource(&+self) {
+return
 }
 
 func main(): i32 {

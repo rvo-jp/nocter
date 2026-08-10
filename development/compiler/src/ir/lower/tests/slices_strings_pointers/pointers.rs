@@ -848,10 +848,8 @@ struct Item {
     value: i32
 }
 
-instance Item {
-    drop &+self {
-        return
-    }
+destruct Item(&+self) {
+    return
 }
 
 pub func drop_at(pointer: *Item, offset: usize): void {
@@ -909,10 +907,8 @@ struct Item {
     value: i32
 }
 
-instance Item {
-    drop &+self {
-        return
-    }
+destruct Item(&+self) {
+    return
 }
 
 pub func take_at(pointer: *Item, offset: usize): Item {

@@ -133,6 +133,27 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn duplicate_destruct_declaration_diagnostic(
+    sources: &SourceMap,
+    target_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0413",
+        format!("type `{target_name}` already has a destructor"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first destructor is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("keep exactly one `destruct` declaration for the type".to_string());
+    diagnostic
+}
+
 pub(super) fn duplicate_interface_method_name_diagnostic(
     sources: &SourceMap,
     interface_name: &str,

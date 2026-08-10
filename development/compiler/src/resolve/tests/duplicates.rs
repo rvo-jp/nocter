@@ -339,22 +339,18 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_inherent_drop_members_across_instances() {
+fn diagnoses_duplicate_destruct_declarations() {
     let output = resolve_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {

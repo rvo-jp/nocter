@@ -25,8 +25,8 @@ pub use generic_requirements::{GenericRequirement, GenericRequirements};
 pub use symbols::{
     AssociatedFunctionSignature, AssociatedTypeBindingSignature, AssociatedTypeSignature,
     CoercionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
-    DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportKind, ImportSource,
-    ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    DestructSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportKind,
+    ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
     LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
     LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
     StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
@@ -139,6 +139,7 @@ fn root_access(
             | Item::Interface(_)
             | Item::Instance(_)
             | Item::Conformance(_)
+            | Item::Destruct(_)
             | Item::Construct(_)
             | Item::Coerce(_) => continue,
         };

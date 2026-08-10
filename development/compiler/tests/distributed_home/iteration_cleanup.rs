@@ -87,11 +87,9 @@ struct Token {
     label: &str
 }
 
-instance Token {
-    drop &+self {
-        print(self.label)!
-        return
-    }
+destruct Token(&+self) {
+    print(self.label)!
+    return
 }
 
 func fail(): void! {
@@ -292,11 +290,9 @@ struct Token {
     label: &str
 }
 
-instance Token {
-    drop &+self {
-        print(self.label)!
-        return
-    }
+destruct Token(&+self) {
+    print(self.label)!
+    return
 }
 
 func fail(): void! {
@@ -341,11 +337,9 @@ struct Token {{
     label: &str
 }}
 
-instance Token {{
-    drop &+self {{
-        print(self.label)!
-        return
-    }}
+destruct Token(&+self) {{
+    print(self.label)!
+    return
 }}
 
 func tokens(): Vec<Token> {{

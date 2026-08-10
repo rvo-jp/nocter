@@ -4,7 +4,7 @@ mod borrow_wrappers;
 mod calls;
 mod coercions;
 mod control_flow;
-mod drop_members;
+mod destructors;
 mod entry;
 mod fallible;
 mod generic_bounds;

@@ -35,8 +35,8 @@ use crate::analysis::{
     literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DropDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape, MethodDecl, Parameter,
-    Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
+    DestructDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape, MethodDecl,
+    Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -317,7 +317,7 @@ enum IndexedDeclaration<'a> {
         name: String,
     },
     Drop {
-        declaration: &'a DropDecl,
+        declaration: &'a DestructDecl,
         self_ty: TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         name: String,
@@ -405,49 +405,6 @@ impl<'a> FunctionIndex<'a> {
                         else {
                             continue;
                         };
-                        if let Some(drop_) = owner.drop_decl() {
-                            if owner.generics().parameters.is_empty() {
-                                let name = drop_target_name(owner.target_ty());
-                                let target = call_target_for_source(
-                                    file.ast.span.source,
-                                    root_source,
-                                    name.clone(),
-                                );
-                                definitions.insert(
-                                    target,
-                                    IndexedCallable::new_drop(
-                                        drop_,
-                                        owner.target_ty().clone(),
-                                        HashMap::new(),
-                                        name,
-                                        file,
-                                    ),
-                                );
-                            } else {
-                                for specialization in call_specializations
-                                    .drops
-                                    .get(&drop_.name_span)
-                                    .into_iter()
-                                    .flatten()
-                                {
-                                    let target = call_target_for_source(
-                                        file.ast.span.source,
-                                        root_source,
-                                        specialization.target_name.clone(),
-                                    );
-                                    definitions.insert(
-                                        target,
-                                        IndexedCallable::new_drop(
-                                            drop_,
-                                            specialization.self_ty.clone(),
-                                            specialization.substitutions.clone(),
-                                            specialization.target_name.clone(),
-                                            file,
-                                        ),
-                                    );
-                                }
-                            }
-                        }
                         for method in owner.methods() {
                             if method.body.is_some() && owner.generics().parameters.is_empty() {
                                 let declaration = analysis
@@ -508,6 +465,49 @@ impl<'a> FunctionIndex<'a> {
                                         ),
                                     );
                                 }
+                            }
+                        }
+                    }
+                    Item::Destruct(destruct) => {
+                        if destruct.generics.parameters.is_empty() {
+                            let name = drop_target_name(&destruct.target_ty);
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                name.clone(),
+                            );
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_drop(
+                                    destruct,
+                                    destruct.target_ty.clone(),
+                                    HashMap::new(),
+                                    name,
+                                    file,
+                                ),
+                            );
+                        } else {
+                            for specialization in call_specializations
+                                .drops
+                                .get(&destruct.keyword_span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_drop(
+                                        destruct,
+                                        specialization.self_ty.clone(),
+                                        specialization.substitutions.clone(),
+                                        specialization.target_name.clone(),
+                                        file,
+                                    ),
+                                );
                             }
                         }
                     }
@@ -804,7 +804,7 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_drop(
-        declaration: &'a DropDecl,
+        declaration: &'a DestructDecl,
         self_ty: TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         name: String,
@@ -1286,7 +1286,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name,
                 ..
-            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
+            } if substitutions.is_empty() => Some((declaration.keyword_span, name.clone())),
             IndexedDeclaration::Drop { .. } => None,
             IndexedDeclaration::Method {
                 declaration,

@@ -238,29 +238,33 @@ construct Bucket<T> {
 }
 
 #[test]
-fn drop_declaration_has_separate_keyword_and_receiver_hover_targets() {
+fn destruct_declaration_has_separate_keyword_and_receiver_hover_targets() {
     let text = r#"struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        return
-    }
+destruct Token(&+self) {
+    return
 }
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
-    let declaration = text.find("drop &+self").expect("expected drop declaration");
+    let declaration = text
+        .find("destruct Token")
+        .expect("expected destruct declaration");
 
     let drop_keyword = hover_for_file_analysis(&sources, &analysis, file, declaration)
         .expect("expected drop hover");
-    let receiver =
-        hover_for_file_analysis(&sources, &analysis, file, declaration + "drop &+".len())
-            .expect("expected receiver hover");
+    let receiver = hover_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        declaration + "destruct Token(&+".len(),
+    )
+    .expect("expected receiver hover");
 
-    assert_eq!(drop_keyword.label, "drop &+self");
+    assert_eq!(drop_keyword.label, "destruct Token(&+self)");
     assert_eq!(
         &text[drop_keyword.span.start..drop_keyword.span.end],
-        "drop"
+        "destruct"
     );
     assert_eq!(&text[receiver.span.start..receiver.span.end], "self");
     assert!(receiver.label.starts_with("parameter self:"));

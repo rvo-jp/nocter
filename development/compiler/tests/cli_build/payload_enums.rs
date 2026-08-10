@@ -9,10 +9,8 @@ fn build_command_tracks_partial_payload_construction_across_value_boundaries() {
     code: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Result {
@@ -808,10 +806,8 @@ fn build_command_accepts_scope_drop_body_with_multi_field_payload_enum() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -823,11 +819,9 @@ struct Resource {
     value: i32
 }
 
-instance Resource {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Resource(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 func main(): i32 {
@@ -853,10 +847,8 @@ fn build_command_accepts_field_replacement_drop_body_with_multi_field_payload_en
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -868,11 +860,9 @@ struct Resource {
     value: i32
 }
 
-instance Resource {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Resource(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 struct Holder {
@@ -1199,10 +1189,8 @@ fn build_command_accepts_payload_enum_single_drop_payload_construction() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -1233,10 +1221,8 @@ fn build_command_accepts_payload_enum_multi_drop_payload_construction() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {

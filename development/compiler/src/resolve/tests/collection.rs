@@ -198,16 +198,14 @@ conform Measure for Count {
 }
 
 #[test]
-fn collects_drop_member_signature() {
+fn collects_destructor_signature() {
     let output = resolve_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -218,10 +216,10 @@ func main(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let file_symbol = output.symbols.symbol_by_name("File").unwrap();
-    let SymbolKind::Type(TypeSymbol { drop_member, .. }) = &file_symbol.kind else {
+    let SymbolKind::Type(TypeSymbol { destructor, .. }) = &file_symbol.kind else {
         panic!("expected type symbol");
     };
-    let drop_member = drop_member.as_ref().expect("expected drop member");
-    assert_eq!(drop_member.target_name, "File.drop");
-    assert_eq!(drop_member.binding.name, "self");
+    let destructor = destructor.as_ref().expect("expected destructor");
+    assert_eq!(destructor.target_name, "File.drop");
+    assert_eq!(destructor.binding.name, "self");
 }

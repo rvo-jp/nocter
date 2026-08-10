@@ -16,6 +16,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   overlays, invalidation, and request consistency
 - [Body-Bearing Interface Implementations](interface-conformances.md): canonical conformance
   member identity, lookup, validation, migration, and editor boundaries
+- [Destruction Declarations](destruction-declarations.md): independent destructor identity,
+  type-family uniqueness, cleanup integration, and editor traversal
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
   default selection, lowering reuse, and editor boundaries
 - [Borrow Coercions](borrow-coercions.md): type-owned view declarations, contextual plans,
@@ -85,6 +87,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Generic requirement identity, copyability, and specialization | `generic-requirements.md` |
 | Associated type identity, projection normalization, and conformance bindings | `associated-types.md` |
 | Instance/conformance declaration ownership and member identity | `interface-conformances.md` |
+| Independent destruction declarations and cleanup identity | `destruction-declarations.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Built-in `str` and `[T]` method authority and compiler integration | `builtin-type-methods.md` |

@@ -155,11 +155,9 @@ struct Owner {
     id: i32
 }
 
-instance Owner {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct Owner(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32 {
@@ -1092,11 +1090,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        touch2(self.fd, 99)
-        return
-    }
+destruct File(&+self) {
+    touch2(self.fd, 99)
+    return
 }
 
 func main(): void! {
@@ -1162,11 +1158,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {
@@ -2008,11 +2002,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32 {
@@ -2902,11 +2894,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32 {
@@ -3479,11 +3469,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 copy struct Header {
@@ -3644,11 +3632,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 copy struct Triple {

@@ -7,10 +7,8 @@ fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_loop_bod
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -92,10 +90,8 @@ fn rejects_outer_explicit_drop_inside_nonterminal_while_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -119,10 +115,8 @@ fn rejects_outer_explicit_drop_before_loop_control_even_with_later_return() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -148,10 +142,8 @@ fn rejects_outer_explicit_drop_before_nested_loop_control_even_with_later_return
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -179,10 +171,8 @@ fn rejects_outer_aggregate_move_assignment_before_loop_control_even_with_later_r
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -209,10 +199,8 @@ fn rejects_branch_local_aggregate_move_assignment_from_outer_before_loop_control
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -239,10 +227,8 @@ fn rejects_outer_aggregate_move_binding_inside_nonterminal_if_branch() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -266,10 +252,8 @@ fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_while_bo
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -355,10 +339,8 @@ fn rejects_explicit_aggregate_move_in_nonterminal_while_condition() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {

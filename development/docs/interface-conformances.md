@@ -6,7 +6,8 @@ This document defines the compiler boundary for explicit interface conformances.
 [language specification](../../spec/08-generics-interfaces-embedding-methods.md).
 
 One `ConformanceDecl` owns each conformance method from parsing through native lowering and editor
-presentation. An `InstanceDecl` owns inherent methods and destruction separately.
+presentation. `InstanceDecl` owns inherent methods, while `DestructDecl` independently owns
+destruction.
 
 ## Canonical Source Model
 
@@ -24,15 +25,16 @@ conform Iterator for Counter<T> {
 - required methods are declared in the conformance body and always have bodies
 - default methods may be omitted or overridden in the conformance body
 - conformance members do not carry `pub`; visibility comes from the interface contract
-- extra methods, undeclared associated type bindings, associated functions, literals, and `drop`
-  members are rejected; required associated bindings are validated separately
+- extra methods, undeclared associated type bindings, associated functions, literals, and
+  destruction declarations are rejected; required associated bindings are validated separately
 - `instance Type { ... }` members never satisfy or override an interface contract
 - an empty body is valid only when every required method has an applicable default
 
 ## Compiler Ownership
 
-The AST represents the two declaration forms separately. `InstanceMember` permits only `Method`
-and `Drop`; `ConformanceMember` permits only `AssociatedType` and `Method`. Resolution creates a
+The AST represents the three declaration forms separately. `InstanceDecl` stores only methods,
+`ConformanceMember` permits only `AssociatedType` and `Method`, and `DestructDecl` stores one target,
+receiver, and body. Resolution creates a
 stable conformance identity and a stable identity for every member. The conformance record owns
 those members; the target type's inherent member table does not.
 

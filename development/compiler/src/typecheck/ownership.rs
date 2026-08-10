@@ -7,11 +7,10 @@ use super::diagnostics::{
     overlapping_expression_borrow_diagnostic, uninitialized_binding_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_catch, environment_for_collection_for_binding, environment_for_destruct,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal,
-    environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_method_owner, environment_for_switch_arm,
+    environment_for_literal_pack_binding, environment_for_method, environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -23,8 +22,8 @@ use super::returns::{
 };
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
-    AstFile, Block, ConformanceDecl, ConformanceMember, Expr, IdentifierExpr, InstanceDecl,
-    InstanceMember, Item, MethodOwnerDecl, MethodReceiverMode, Stmt, TypeExpr, UnaryOperator,
+    AstFile, Block, ConformanceDecl, ConformanceMember, Expr, IdentifierExpr, InstanceDecl, Item,
+    MethodOwnerDecl, MethodReceiverMode, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;

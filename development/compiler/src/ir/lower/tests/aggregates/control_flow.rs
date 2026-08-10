@@ -7,10 +7,8 @@ fn lowers_nonterminal_if_branch_aggregate_slots_with_distinct_layouts() {
     value: i32
 }
 
-instance Small {
-    drop &+self {
-        return
-    }
+destruct Small(&+self) {
+    return
 }
 
 struct Wide {
@@ -18,10 +16,8 @@ struct Wide {
     right: i32
 }
 
-instance Wide {
-    drop &+self {
-        return
-    }
+destruct Wide(&+self) {
+    return
 }
 
 func main(): i32 {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{ConformanceMember, InstanceMember};
+use crate::ast::ConformanceMember;
 
 pub(crate) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
     ast.items
@@ -19,13 +19,13 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
             .as_ref()
             .and_then(|body| module_path_in_block_at_offset(body, offset)),
         Item::Test(test) => module_path_in_block_at_offset(&test.body, offset),
-        Item::Instance(instance) => instance.members.iter().find_map(|member| match member {
-            InstanceMember::Method(method) => method
+        Item::Instance(instance) => instance.methods.iter().find_map(|method| {
+            method
                 .body
                 .as_ref()
-                .and_then(|body| module_path_in_block_at_offset(body, offset)),
-            InstanceMember::Drop(drop_) => module_path_in_block_at_offset(&drop_.body, offset),
+                .and_then(|body| module_path_in_block_at_offset(body, offset))
         }),
+        Item::Destruct(destruct) => module_path_in_block_at_offset(&destruct.body, offset),
         Item::Conformance(conformance) => {
             conformance.members.iter().find_map(|member| match member {
                 ConformanceMember::AssociatedType(_) => None,

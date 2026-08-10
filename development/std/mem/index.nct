@@ -357,19 +357,19 @@ instance RawBuffer {
     pub method &+self.prefix_mut(len: usize): &+[u8]! {
         return prefix_mut(self, len)?
     }
+}
 
-    drop &+self {
-        if self.len != 0 {
-            if self.allocator_kind == 0 {
-                free_pages(addr(self.ptr), self.len)
-            } else if self.allocator_kind != 1 {
-                return allocation_abort_raw()
-            }
-            self.ptr = from_addr(1)
-            self.len = 0
+destruct RawBuffer(&+self) {
+    if self.len != 0 {
+        if self.allocator_kind == 0 {
+            free_pages(addr(self.ptr), self.len)
+        } else if self.allocator_kind != 1 {
+            return allocation_abort_raw()
         }
-        return
+        self.ptr = from_addr(1)
+        self.len = 0
     }
+    return
 }
 
 instance Layout {

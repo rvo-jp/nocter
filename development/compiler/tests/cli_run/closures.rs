@@ -36,10 +36,8 @@ fn check_command_rejects_consuming_closure_for_repeated_callback_contract() {
     value: i32
 }
 
-instance Token {
-    drop &+self {
-        return
-    }
+destruct Token(&+self) {
+    return
 }
 
 func consume(token: Token): i32 {
@@ -261,10 +259,8 @@ struct Guard {
     code: i32
 }
 
-instance Guard {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Guard(&+self) {
+    exit(self.code)
 }
 
 func apply<F>(callback: F): i32 where F: &+func(i32): i32 {

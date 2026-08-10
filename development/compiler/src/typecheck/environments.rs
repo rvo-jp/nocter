@@ -6,22 +6,27 @@ use super::type_expr::{
     canonical_type_expr, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, InterfaceDecl,
-    LiteralDecl, LiteralPackForStmt, MethodDecl, MethodOwnerDecl, Parameter, SwitchArm, TypeExpr,
-    TypeReference,
+    DestructDecl, Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt,
+    InterfaceDecl, LiteralDecl, LiteralPackForStmt, MethodDecl, MethodOwnerDecl, Parameter,
+    SwitchArm, TypeExpr, TypeReference,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
 
-pub(super) fn environment_for_parameters_in_method_owner(
-    parameters: &[Parameter],
+pub(super) fn environment_for_destruct(
+    destruct: &DestructDecl,
     resolved: &ResolveOutput,
-    owner: &(impl MethodOwnerDecl + ?Sized),
 ) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::with_self_type(method_owner_self_type(owner, resolved));
-    define_method_owner_generic_parameters(owner, &mut environment);
-    environment.apply_where_clause(owner.requirements(), resolved);
-    define_parameters_in_environment(parameters, resolved, &mut environment);
+    let substitutions = generic_parameter_substitutions(&destruct.generics);
+    let self_type =
+        type_expr_to_type_with_substitutions(&destruct.target_ty, resolved, None, &substitutions);
+    let mut environment = TypeEnvironment::with_self_type(self_type);
+    environment.define_generic_parameter_list(&destruct.generics);
+    define_parameters_in_environment(
+        std::slice::from_ref(&destruct.binding),
+        resolved,
+        &mut environment,
+    );
     environment
 }
 

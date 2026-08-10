@@ -17,10 +17,10 @@ use super::diagnostics::{
     self_move_assignment_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_catch, environment_for_collection_for_binding, environment_for_destruct,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_method_owner, environment_for_switch_arm,
+    environment_for_switch_arm,
 };
 use super::expressions::{check_error_member_expression, expression_type};
 use super::fallible::check_force_unwrap_operand;
@@ -42,7 +42,7 @@ use super::variants::{
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, AstFile, Block, ConformanceDecl, ConformanceMember, Expr,
-    InstanceDecl, InstanceMember, InterpolatedStringPart, Item, Stmt, UnaryOperator,
+    InstanceDecl, InterpolatedStringPart, Item, Stmt, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -76,6 +76,17 @@ pub(super) fn check_body_expressions(
             }
             Item::Instance(instance) => {
                 check_instance_member_expressions(sources, instance, resolved, diagnostics)
+            }
+            Item::Destruct(destruct) => {
+                let mut environment = environment_for_destruct(destruct, resolved);
+                check_block_expressions(
+                    sources,
+                    &destruct.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    0,
+                );
             }
             Item::Conformance(conformance) => {
                 check_conformance_member_expressions(sources, conformance, resolved, diagnostics)
@@ -151,31 +162,12 @@ fn check_instance_member_expressions(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &instance.members {
-        match member {
-            InstanceMember::Method(method) => {
-                let Some(body) = &method.body else {
-                    continue;
-                };
-                let mut environment = environment_for_method(method, resolved, instance);
-                check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
-            }
-            InstanceMember::Drop(drop_) => {
-                let mut environment = environment_for_parameters_in_method_owner(
-                    std::slice::from_ref(&drop_.binding),
-                    resolved,
-                    instance,
-                );
-                check_block_expressions(
-                    sources,
-                    &drop_.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    0,
-                );
-            }
-        }
+    for method in &instance.methods {
+        let Some(body) = &method.body else {
+            continue;
+        };
+        let mut environment = environment_for_method(method, resolved, instance);
+        check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
     }
 }
 

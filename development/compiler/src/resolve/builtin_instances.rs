@@ -7,9 +7,7 @@
 
 use super::signatures::{duplicate_inherent_member_name_diagnostics, instance_method_signatures};
 use super::{ConstructionSurface, Resolver, TypeSymbol, TypeSymbolKind};
-use crate::ast::{
-    AstFile, InstanceDecl, InstanceMember, Item, MethodReceiverMode, TypeExpr, Visibility,
-};
+use crate::ast::{AstFile, InstanceDecl, Item, MethodReceiverMode, TypeExpr, Visibility};
 use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::source::ByteSpan;
@@ -120,14 +118,10 @@ fn builtin_instance_shape(
         }
         BuiltinTypeOwner::Str => {}
     }
-    if instance.members.iter().any(|member| {
-        !matches!(
-            member,
-            InstanceMember::Method(method)
-                if method.body.is_some()
-                    && method.visibility == Visibility::Public
-                    && method.receiver.mode != MethodReceiverMode::Owned
-        )
+    if instance.methods.iter().any(|method| {
+        method.body.is_none()
+            || method.visibility != Visibility::Public
+            || method.receiver.mode == MethodReceiverMode::Owned
     }) {
         return Err("built-in instances contain only public borrowed methods with bodies");
     }
@@ -189,7 +183,7 @@ fn empty_builtin_symbol(owner: BuiltinTypeOwner, instance: &InstanceDecl) -> Typ
         associated_functions: Vec::new(),
         methods: Vec::new(),
         interface_conformances: Vec::new(),
-        drop_member: None,
+        destructor: None,
         literals: Vec::new(),
         coercions: Vec::new(),
         construction: ConstructionSurface::default(),

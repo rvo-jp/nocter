@@ -129,7 +129,7 @@ impl Resolver<'_> {
                 imported_type_names: self.imported_type_names(ast),
             }),
             Item::TypeAlias(alias) if alias.name == name => {
-                let symbol = type_alias_symbol_with_instance_members(ast, alias);
+                let symbol = type_alias_symbol_with_surfaces(ast, alias);
                 Some(type_importable_symbol(
                     alias.span,
                     alias.name_span,

@@ -317,12 +317,16 @@ pub(in crate::analysis::hover) fn callable_member_occurrence_hover_for_file_anal
                     ),
                 });
             }
-            if let Some(drop_) = &owner.drop_member
+            if let Some(drop_) = &owner.destructor
                 && drop_.name_span == target
             {
                 return Some(HoverInfo {
                     span: occurrence.focus_span,
-                    label: crate::analysis::presentation::drop_presentation(drop_, &file.resolved),
+                    label: crate::analysis::presentation::drop_presentation(
+                        owner,
+                        drop_,
+                        &file.resolved,
+                    ),
                     documentation: target_documentation(sources, analysis, target),
                 });
             }

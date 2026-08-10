@@ -177,7 +177,7 @@ impl Item {
                 if let Some(clause) = &item.requirements {
                     children.push(clause.to_json(sources));
                 }
-                children.extend(item.members.iter().map(|member| member.to_json(sources)));
+                children.extend(item.methods.iter().map(|method| method.to_json(sources)));
                 JsonAstNode::new("instance_decl", json_span(sources, item.span), children)
             }
             Item::Conformance(item) => {
@@ -198,6 +198,20 @@ impl Item {
                 children.extend(item.members.iter().map(|member| member.to_json(sources)));
                 JsonAstNode::new("conformance_decl", json_span(sources, item.span), children)
             }
+            Item::Destruct(item) => JsonAstNode::new(
+                "destruct_decl",
+                json_span(sources, item.span),
+                vec![
+                    item.generics.to_json(sources),
+                    JsonAstNode::new(
+                        "destruct_target_type",
+                        json_span(sources, item.target_ty.span()),
+                        vec![item.target_ty.to_json(sources)],
+                    ),
+                    item.binding.to_json(sources),
+                    item.body.to_json(sources),
+                ],
+            ),
             Item::Construct(item) => {
                 let mut children = vec![item.target.to_json(sources)];
                 children.extend(item.members.iter().map(|member| {
@@ -457,20 +471,6 @@ impl WhereClause {
                 })
                 .collect(),
         )
-    }
-}
-
-impl InstanceMember {
-    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        match self {
-            InstanceMember::Method(method) => method.to_json(sources),
-            InstanceMember::Drop(drop_) => JsonAstNode::with_value(
-                "drop_decl",
-                drop_.binding.name.clone(),
-                json_span(sources, drop_.span),
-                vec![drop_.binding.to_json(sources), drop_.body.to_json(sources)],
-            ),
-        }
     }
 }
 

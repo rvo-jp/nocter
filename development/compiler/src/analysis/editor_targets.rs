@@ -169,10 +169,8 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                         collect_block_import_sites(body, sites);
                     }
                 }
-                if let Some(drop_) = owner.drop_decl() {
-                    collect_block_import_sites(&drop_.body, sites);
-                }
             }
+            Item::Destruct(destruct) => collect_block_import_sites(&destruct.body, sites),
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     if let Some(body) = &method.body {

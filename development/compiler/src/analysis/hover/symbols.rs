@@ -100,10 +100,8 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             for method in owner.methods() {
                 collect_method_hover_symbols(text, method, symbols);
             }
-            if let Some(drop_) = owner.drop_decl() {
-                collect_drop_hover_symbols(text, drop_, symbols);
-            }
         }
+        Item::Destruct(destruct) => collect_drop_hover_symbols(text, destruct, symbols),
         Item::Construct(construct) => {
             for (_, function) in construct.functions() {
                 push_function_hover_symbol(text, function, symbols);
@@ -248,12 +246,12 @@ pub(in crate::analysis::hover) fn collect_interface_hover_symbols(
 
 pub(in crate::analysis::hover) fn collect_drop_hover_symbols(
     text: &str,
-    drop_: &crate::ast::DropDecl,
+    drop_: &crate::ast::DestructDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
     push_hover_symbol(
         text,
-        drop_.name_span,
+        drop_.keyword_span,
         drop_.span.start,
         crate::analysis::presentation::ast_drop_presentation(drop_),
         symbols,

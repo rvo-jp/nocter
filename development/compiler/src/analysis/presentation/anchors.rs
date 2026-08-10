@@ -95,6 +95,7 @@ impl CallableDeclarationIndex {
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
                 | Item::Enum(_) => {}
+                Item::Destruct(_) => {}
             }
         }
         index

@@ -2,9 +2,7 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{
-    ConformanceMember, InstanceMember, Item, MethodReceiverMode, TypeExpr, Visibility,
-};
+use crate::ast::{ConformanceMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
 fn parses_required_associated_types_and_conformance_bindings() {
@@ -599,10 +597,10 @@ instance Counter {
     pub method &+self.add(value: i32): void {
         return
     }
+}
 
-    drop &+self {
-        return
-    }
+destruct Counter(&+self) {
+    return
 }
 
 func print<W>(writer: &+W): void! {
@@ -633,24 +631,25 @@ func main(): i32 {
         &instance.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    let InstanceMember::Method(method) = &instance.members[0] else {
-        panic!("expected method");
-    };
+    let method = &instance.methods[0];
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert_eq!(method.receiver.name, "self");
     assert_eq!(method.receiver.mode, MethodReceiverMode::ReadwriteBorrow);
-    let InstanceMember::Drop(drop_) = &instance.members[1] else {
-        panic!("expected drop member");
+    let Item::Destruct(drop_) = &ast.items[3] else {
+        panic!("expected destruct declaration");
     };
-    assert_eq!(&source[drop_.name_span.start..drop_.name_span.end], "drop");
+    assert_eq!(
+        &source[drop_.keyword_span.start..drop_.keyword_span.end],
+        "destruct"
+    );
     assert_eq!(drop_.binding.name, "self");
     assert!(matches!(
         &drop_.binding.ty,
         TypeExpr::Borrow(borrow) if borrow.is_readwrite
     ));
 
-    let Item::Function(function) = &ast.items[3] else {
+    let Item::Function(function) = &ast.items[4] else {
         panic!("expected generic function");
     };
     assert_eq!(function.generics.parameters.len(), 1);
@@ -810,9 +809,7 @@ instance Factory {
     let Item::Instance(instance) = &ast.items[1] else {
         panic!("expected instance");
     };
-    let InstanceMember::Method(method) = &instance.members[0] else {
-        panic!("expected method");
-    };
+    let method = &instance.methods[0];
     assert_eq!(method.generics.parameters.len(), 1);
     assert_eq!(method.generics.parameters[0].name, "T");
     assert_eq!(
@@ -950,16 +947,30 @@ fn ast_json_preserves_method_receiver_mode_without_a_synthetic_type() {
 }
 
 #[test]
-fn rejects_legacy_drop_member_binding_syntax() {
+fn ast_json_preserves_the_independent_destruct_declaration() {
+    let (sources, output) =
+        parse_text_with_sources("struct File { fd: i32 }\ndestruct File(&+self) { return }\n");
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap().to_json(&sources);
+    let destruct = find_json_node(&ast, "destruct_decl").expect("expected destruct declaration");
+    assert!(
+        find_json_node(destruct, "destruct_target_type").is_some(),
+        "{destruct:#?}"
+    );
+    let binding = find_json_node(destruct, "parameter").expect("expected destruct receiver");
+    assert_eq!(binding.value.as_deref(), Some("self"));
+}
+
+#[test]
+fn rejects_legacy_destruct_binding_syntax() {
     let output = parse_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop file: Self {
-        return
-    }
+destruct File(file: Self) {
+    return
 }
 "#,
     );
@@ -970,16 +981,14 @@ instance File {
 }
 
 #[test]
-fn rejects_readonly_drop_member_receiver() {
+fn rejects_readonly_destruct_receiver() {
     let output = parse_text(
         r#"struct File {
     fd: i32
 }
 
-instance File {
-    drop &self {
-        return
-    }
+destruct File(&self) {
+    return
 }
 "#,
     );
@@ -987,6 +996,46 @@ instance File {
     assert!(output.ast.is_none());
     assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
     assert!(output.diagnostics[0].message.contains("expected `&+self`"));
+}
+
+#[test]
+fn rejects_destruct_declaration_modifiers_and_clauses() {
+    for (source, expected) in [
+        (
+            "struct File { fd: i32 }\npub destruct File(&+self) { return }\n",
+            "do not use top-level modifiers",
+        ),
+        (
+            "struct File { fd: i32 }\ncopy destruct File(&+self) { return }\n",
+            "do not use top-level modifiers",
+        ),
+        (
+            "#target: \"arm64-darwin\"\nstruct File { fd: i32 }\n#target: \"arm64-darwin\"\ndestruct File(&+self) { return }\n",
+            "does not apply to destruct declarations",
+        ),
+        (
+            "struct File { fd: i32 }\ndestruct<T> File(&+self) { return }\n",
+            "parameters are declared by its type pattern",
+        ),
+        (
+            "struct File { fd: i32 }\ndestruct File(&+self) where copy File { return }\n",
+            "cannot have a `where` clause",
+        ),
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}: {:?}",
+            output.diagnostics
+        );
+        assert!(
+            output.diagnostics[0].message.contains(expected),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
 }
 
 #[test]
@@ -1111,7 +1160,7 @@ fn instance_and_conformance_member_grammars_do_not_overlap() {
     for (source, expected) in [
         (
             "instance Counter { type Item = i32 }\n",
-            "expected `method` or `drop`",
+            "expected `method`",
         ),
         (
             "conform Iterator for Counter { drop &+self { return } }\n",
@@ -1129,6 +1178,24 @@ fn instance_and_conformance_member_grammars_do_not_overlap() {
             output.diagnostics
         );
     }
+}
+
+#[test]
+fn rejects_removed_instance_destructor_member_with_directional_diagnostic() {
+    let output = parse_text("struct File { fd: i32 }\ninstance File { drop &+self { return } }\n");
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("drop members were removed")
+    );
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("destruct Type(&+self)")
+    );
 }
 
 #[test]

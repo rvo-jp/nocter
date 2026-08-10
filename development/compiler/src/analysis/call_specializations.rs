@@ -1,8 +1,8 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DropDecl, FunctionDecl, InstanceDecl, InstanceMember, Item, MethodDecl, MethodOwnerDecl,
-    TypeExpr, canonical_type_expr, substitute_type_expr_parameters,
+    DestructDecl, FunctionDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
+    substitute_type_expr_parameters,
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{
@@ -227,8 +227,8 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
                     continue;
                 }
-                let Some((file, _owner, drop_)) =
-                    drop_declaration_for_span(analysis, specialization.declaration_span)
+                let Some((file, drop_)) =
+                    destruct_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
                 };
@@ -619,21 +619,16 @@ fn method_body_declaration_for_span(
     method_declaration_for_span(analysis, body_span)
 }
 
-fn drop_declaration_for_span(
+fn destruct_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &InstanceDecl, &DropDecl)> {
+) -> Option<(&FileAnalysis, &DestructDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
-            let Item::Instance(instance) = item else {
+            let Item::Destruct(destruct) = item else {
                 return None;
             };
-            instance.members.iter().find_map(|member| {
-                let InstanceMember::Drop(drop_) = member else {
-                    return None;
-                };
-                (drop_.name_span == declaration_span).then_some((file, instance, drop_))
-            })
+            (destruct.keyword_span == declaration_span).then_some((file, destruct))
         })
     })
 }
@@ -642,10 +637,14 @@ fn drop_specialization_from_typecheck_fact(
     analysis: &CompileUnitAnalysis,
     specialization: DropTypeSpecialization,
 ) -> Option<DropSpecialization> {
-    let (_file, instance, _drop_) =
-        drop_declaration_for_span(analysis, specialization.declaration_span)?;
-    let substitutions = method_owner_substitutions_for_self_ty(instance, &specialization.self_ty)?;
-    let self_ty = substitute_type_expr_parameters(&instance.target_ty, &substitutions);
+    let (_file, destruct) =
+        destruct_declaration_for_span(analysis, specialization.declaration_span)?;
+    let substitutions = declaration_pattern_substitutions_for_self_ty(
+        &destruct.generics,
+        &destruct.target_ty,
+        &specialization.self_ty,
+    )?;
+    let self_ty = substitute_type_expr_parameters(&destruct.target_ty, &substitutions);
     Some(DropSpecialization {
         declaration_span: specialization.declaration_span,
         target_name: drop_target_name(&self_ty),
@@ -675,20 +674,22 @@ pub(crate) fn method_owner_substitutions_for_self_ty(
     owner: &(impl MethodOwnerDecl + ?Sized),
     self_ty: &TypeExpr,
 ) -> Option<HashMap<String, TypeExpr>> {
-    let generic_parameters = owner
-        .generics()
+    declaration_pattern_substitutions_for_self_ty(owner.generics(), owner.target_ty(), self_ty)
+}
+
+fn declaration_pattern_substitutions_for_self_ty(
+    generics: &crate::ast::GenericParamList,
+    target_ty: &TypeExpr,
+    self_ty: &TypeExpr,
+) -> Option<HashMap<String, TypeExpr>> {
+    let generic_parameters = generics
         .parameters
         .iter()
         .map(|parameter| parameter.name.clone())
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
-    infer_owner_substitutions(
-        owner.target_ty(),
-        self_ty,
-        &generic_parameters,
-        &mut substitutions,
-    )
-    .then_some(substitutions)
+    infer_owner_substitutions(target_ty, self_ty, &generic_parameters, &mut substitutions)
+        .then_some(substitutions)
 }
 
 fn infer_owner_substitutions(

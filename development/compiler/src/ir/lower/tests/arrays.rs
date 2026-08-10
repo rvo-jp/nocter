@@ -7,10 +7,8 @@ fn lowers_recursive_drop_fixed_array_elements_in_reverse_offset_order() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 type Files = [File; 3]
@@ -72,10 +70,8 @@ fn lowers_partial_fixed_array_initialization_cleanup_from_runtime_prefix() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func make_file(fd: i32): File! {
@@ -163,10 +159,8 @@ fn tracks_completed_fixed_array_struct_fields_independently() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -247,10 +241,8 @@ fn tracks_partial_fixed_array_literals_inside_struct_fields() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -349,10 +341,8 @@ fn lowers_partial_fixed_array_replacement_cleanup_before_preserving_old_value() 
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func make_file(fd: i32): File! {
@@ -968,10 +958,8 @@ fn keeps_completed_owned_array_argument_live_until_call_starts() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func open(fd: i32): File! {
@@ -1036,10 +1024,8 @@ fn lowers_partial_fixed_array_return_through_tracked_temporary() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func open(fd: i32): File! {

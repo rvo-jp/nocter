@@ -7,10 +7,8 @@ fn drops_completed_struct_fields_when_argument_construction_fails() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -86,10 +84,8 @@ fn drops_complete_owned_temporary_when_a_later_argument_fails() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func code(): i32! {

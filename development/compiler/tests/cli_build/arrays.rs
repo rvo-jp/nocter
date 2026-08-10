@@ -560,10 +560,8 @@ fn build_command_tracks_partial_move_only_array_struct_fields() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {

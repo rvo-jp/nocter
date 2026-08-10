@@ -9,10 +9,8 @@ fn build_command_lowers_void_implicit_return_after_statements() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): void {

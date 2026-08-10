@@ -202,7 +202,7 @@ impl SemanticIdentifierCollector<'_> {
             self.collect_function_signature_parameters(&method.signature);
         }
 
-        if let Some(drop_) = &symbol.drop_member {
+        if let Some(drop_) = &symbol.destructor {
             self.push_parameter(drop_.binding.name_span);
         }
     }
@@ -267,6 +267,7 @@ impl SemanticIdentifierCollector<'_> {
                 | crate::ast::Item::TypeAlias(_)
                 | crate::ast::Item::Struct(_)
                 | crate::ast::Item::Enum(_) => {}
+                crate::ast::Item::Destruct(_) => {}
             }
         }
         for span in spans {
@@ -443,6 +444,7 @@ fn collect_item_generic_requirement_keyword_spans(
             }
         }
         crate::ast::Item::Coerce(_) => {}
+        crate::ast::Item::Destruct(_) => {}
         crate::ast::Item::Import(_)
         | crate::ast::Item::FromImport(_)
         | crate::ast::Item::Test(_) => {}
@@ -535,23 +537,23 @@ func project<S>(source: S): S.Item where S: Source { return source }
     fn semantic_identifiers_survive_an_unclosed_member_body() {
         let text = r#"struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        return
+destruct Token(&+self) {
+    return
 "#;
         let identifiers = classified_identifiers_for_single_file_text(text)
             .expect("expected recovered semantic identifiers");
 
         let drop_keyword = identifier_starting_at(
             &identifiers,
-            text.find("drop &+self").expect("expected drop declaration"),
+            text.find("destruct Token")
+                .expect("expected destruct declaration"),
         )
         .expect("expected drop semantic token");
         assert_eq!(drop_keyword.kind, SemanticTokenKind::Method);
 
         let receiver = identifier_starting_at(
             &identifiers,
-            text.find("self {").expect("expected receiver"),
+            text.find("self) {").expect("expected receiver"),
         )
         .expect("expected receiver semantic token");
         assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
@@ -593,9 +595,8 @@ instance Token {
         let text = r#"struct Bucket<T> { value: T }
 
 construct Bucket<T> {
-    pub default func new(value: T): Self {
-        return Bucket<T> { value: value }
-    }
+pub default func new(value: T): Self {
+    return Bucket<T> { value: value }
 }
 
 func main(): i32 {
@@ -695,10 +696,8 @@ coerce Text {
     fn analysis_classifies_drop_keyword_and_receiver_independently() {
         let text = r#"struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        return
-    }
+destruct Token(&+self) {
+    return
 }
 "#;
         let identifiers =
@@ -706,7 +705,8 @@ instance Token {
 
         let drop_keyword = identifier_starting_at(
             &identifiers,
-            text.find("drop &+self").expect("expected drop declaration"),
+            text.find("destruct Token")
+                .expect("expected destruct declaration"),
         )
         .expect("expected drop semantic token");
         assert_eq!(drop_keyword.kind, SemanticTokenKind::Method);
@@ -714,7 +714,7 @@ instance Token {
 
         let receiver = identifier_starting_at(
             &identifiers,
-            text.find("self {").expect("expected drop receiver"),
+            text.find("self) {").expect("expected drop receiver"),
         )
         .expect("expected receiver semantic token");
         assert_eq!(receiver.kind, SemanticTokenKind::Parameter);

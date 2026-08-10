@@ -7,10 +7,8 @@ fn partial_payload_enum_field_replacement_preserves_the_old_field() {
     code: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Result {

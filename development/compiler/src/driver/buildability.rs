@@ -6,9 +6,9 @@ use crate::analysis::{
     call_specializations::{collect_call_specializations, method_owner_substitutions_for_self_ty},
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IdentifierExpr, InterpolatedStringPart, Item, MemberExpr, MethodDecl,
-    MethodOwnerDecl, OtherwiseExpr, Parameter, PayloadEnumPatternTargetShape, Stmt,
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DestructDecl, Expr,
+    ForRangeStmt, FunctionDecl, IdentifierExpr, InterpolatedStringPart, Item, MemberExpr,
+    MethodDecl, MethodOwnerDecl, OtherwiseExpr, Parameter, PayloadEnumPatternTargetShape, Stmt,
     StructLiteralField, SwitchPayloadPattern, TypeExpr, UnaryOperator, canonical_type_expr,
     substitute_type_expr_parameters,
 };
@@ -286,48 +286,48 @@ impl<'a> CallableIndex<'a> {
                                 }
                             }
                         }
-                        if let Some(drop_) = owner.drop_decl() {
-                            if owner.generics().parameters.is_empty() {
-                                let name = drop_target_name(owner.target_ty());
+                    }
+                    Item::Destruct(destruct) => {
+                        if destruct.generics.parameters.is_empty() {
+                            let name = drop_target_name(&destruct.target_ty);
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                name.clone(),
+                            );
+                            names.insert(destruct.keyword_span, name.clone());
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_drop(
+                                    destruct,
+                                    &destruct.target_ty,
+                                    HashMap::new(),
+                                    file,
+                                    &resolved_sources,
+                                ),
+                            );
+                        } else {
+                            for specialization in call_specializations
+                                .drops
+                                .get(&destruct.keyword_span)
+                                .into_iter()
+                                .flatten()
+                            {
                                 let target = call_target_for_source(
                                     file.ast.span.source,
                                     root_source,
-                                    name.clone(),
+                                    specialization.target_name.clone(),
                                 );
-                                names.insert(drop_.name_span, name.clone());
                                 definitions.insert(
                                     target,
                                     IndexedCallable::new_drop(
-                                        drop_,
-                                        owner.target_ty(),
-                                        HashMap::new(),
+                                        destruct,
+                                        &destruct.target_ty,
+                                        specialization.substitutions.clone(),
                                         file,
                                         &resolved_sources,
                                     ),
                                 );
-                            } else {
-                                for specialization in call_specializations
-                                    .drops
-                                    .get(&drop_.name_span)
-                                    .into_iter()
-                                    .flatten()
-                                {
-                                    let target = call_target_for_source(
-                                        file.ast.span.source,
-                                        root_source,
-                                        specialization.target_name.clone(),
-                                    );
-                                    definitions.insert(
-                                        target,
-                                        IndexedCallable::new_drop(
-                                            drop_,
-                                            owner.target_ty(),
-                                            specialization.substitutions.clone(),
-                                            file,
-                                            &resolved_sources,
-                                        ),
-                                    );
-                                }
                             }
                         }
                     }
@@ -635,7 +635,7 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_drop(
-        drop_: &'a DropDecl,
+        drop_: &'a DestructDecl,
         self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,

@@ -511,7 +511,9 @@ instance <span class="token-type">RawBuffer</span> <span class="token-operator">
         <span class="token-keyword">return</span> <span class="token-function">prefix_mut</span><span class="token-operator">(</span>self<span class="token-operator">,</span> len<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
 
-    drop <span class="token-operator">&amp;+</span>self <span class="token-operator">{</span>
+<span class="token-operator">}</span>
+
+destruct <span class="token-type">RawBuffer</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> self<span class="token-operator">.</span>len <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">if</span> self<span class="token-operator">.</span>allocator_kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
                 <span class="token-function">free_pages</span><span class="token-operator">(</span><span class="token-function">addr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">)</span><span class="token-operator">,</span> self<span class="token-operator">.</span>len<span class="token-operator">)</span>
@@ -522,7 +524,6 @@ instance <span class="token-type">RawBuffer</span> <span class="token-operator">
             self<span class="token-operator">.</span>len <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 instance <span class="token-type">Layout</span> <span class="token-operator">{</span>

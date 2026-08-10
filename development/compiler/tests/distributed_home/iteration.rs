@@ -389,11 +389,9 @@ struct Token {
     label: &str
 }
 
-instance Token {
-    drop &+self {
-        print(self.label)!
-        return
-    }
+destruct Token(&+self) {
+    print(self.label)!
+    return
 }
 
 func main(): i32 {

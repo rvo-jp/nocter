@@ -262,6 +262,18 @@ impl Parser<'_> {
             return self.parse_conformance_decl();
         }
 
+        if self.at_keyword(Keyword::Destruct) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to destruct declarations");
+                return Err(());
+            }
+            if is_copy || visibility != Visibility::Private {
+                self.error_current("destruct declarations do not use top-level modifiers");
+                return Err(());
+            }
+            return self.parse_destruct_decl();
+        }
+
         if self.at_identifier_text("impl") {
             self.error_current(
                 "`impl` declarations were removed; use `instance Type` for inherent behavior or `conform Interface for Type` for interface conformance",

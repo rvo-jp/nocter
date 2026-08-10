@@ -13,6 +13,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Instance(item) => Some(&item.generics),
+            Item::Destruct(item) => Some(&item.generics),
             Item::Conformance(item) => Some(&item.generics),
             Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
@@ -96,15 +97,15 @@ impl TypecheckFactCollector<'_> {
                 self.collect_generic_param_type_references(&instance.generics);
                 self.collect_type_expr_references(&instance.target_ty);
                 self.collect_where_clause_type_references(instance.requirements.as_ref());
-                for member in &instance.members {
-                    match member {
-                        InstanceMember::Method(method) => self
-                            .with_generic_scope(&method.generics, |collector| {
-                                collector.collect_method_signature_type_references(method)
-                            }),
-                        InstanceMember::Drop(_) => {}
-                    }
+                for method in &instance.methods {
+                    self.with_generic_scope(&method.generics, |collector| {
+                        collector.collect_method_signature_type_references(method)
+                    });
                 }
+            }
+            Item::Destruct(destruct) => {
+                self.collect_generic_param_type_references(&destruct.generics);
+                self.collect_type_expr_references(&destruct.target_ty);
             }
             Item::Conformance(conformance) => {
                 self.collect_generic_param_type_references(&conformance.generics);

@@ -1,6 +1,6 @@
 use super::{
-    Block, GenericParamList, InstanceDecl, InstanceMember, MethodDecl, MethodReceiver,
-    ParameterList, ResultProvenanceClause, TypeExpr, Visibility,
+    Block, GenericParamList, InstanceDecl, MethodDecl, MethodReceiver, ParameterList,
+    ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::source::ByteSpan;
 
@@ -33,10 +33,10 @@ impl CoerceDecl {
             generics: self.generics.clone(),
             target_ty: self.target.clone(),
             requirements: None,
-            members: self
+            methods: self
                 .entries
                 .iter()
-                .map(|entry| InstanceMember::Method(entry.callable_method()))
+                .map(CoercionEntry::callable_method)
                 .collect(),
         }
     }

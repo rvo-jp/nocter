@@ -79,18 +79,24 @@ fn keyword_lexemes_match_lexer_keywords() {
     assert!(!KEYWORD_LEXEMES.contains(&"from"));
     assert!(!KEYWORD_LEXEMES.contains(&"import"));
     assert!(KEYWORD_LEXEMES.contains(&"interface"));
+    assert!(KEYWORD_LEXEMES.contains(&"destruct"));
     assert!(KEYWORD_LEXEMES.contains(&"test"));
 }
 
 #[test]
 fn impl_is_an_identifier_after_the_declaration_split() {
     let mut sources = SourceMap::new();
-    let id = sources.add_source("app.nct", None, "impl instance conform".to_string());
+    let id = sources.add_source(
+        "app.nct",
+        None,
+        "impl instance conform destruct".to_string(),
+    );
     let output = lex(&sources, id);
 
     assert!(matches!(output.tokens[0].kind, TokenKind::Identifier));
     assert_eq!(output.tokens[1].kind, TokenKind::Keyword(Keyword::Instance));
     assert_eq!(output.tokens[2].kind, TokenKind::Keyword(Keyword::Conform));
+    assert_eq!(output.tokens[3].kind, TokenKind::Keyword(Keyword::Destruct));
 }
 
 #[test]
@@ -102,6 +108,7 @@ fn validates_identifier_names() {
     assert!(is_valid_identifier_name("drop"));
     assert!(is_valid_identifier_name("trait"));
     assert!(!is_valid_identifier_name("interface"));
+    assert!(!is_valid_identifier_name("destruct"));
     assert!(!is_valid_identifier_name("test"));
     assert!(!is_valid_identifier_name(""));
     assert!(!is_valid_identifier_name("2main"));

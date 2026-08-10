@@ -1,7 +1,7 @@
 //! Document outline symbols derived from the parsed AST.
 
 use super::single_file::parse_single_file_text;
-use crate::ast::{AstFile, ConformanceMember, InstanceMember, Item, MethodDecl};
+use crate::ast::{AstFile, ConformanceMember, Item, MethodDecl};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,10 +130,20 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
             instance.span,
             instance.target_ty.span(),
             instance
-                .members
+                .methods
                 .iter()
-                .map(instance_member_document_symbol)
+                .map(method_document_symbol)
                 .collect(),
+        )),
+        Item::Destruct(destruct) => Some(document_symbol(
+            format!(
+                "destruct {}",
+                source_fragment(text, destruct.target_ty.span())
+            ),
+            DocumentSymbolKind::Method,
+            destruct.span,
+            destruct.keyword_span,
+            Vec::new(),
         )),
         Item::Conformance(conformance) => Some(document_symbol(
             format!(
@@ -205,19 +215,6 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 })
                 .collect(),
         )),
-    }
-}
-
-fn instance_member_document_symbol(member: &InstanceMember) -> DocumentSymbolInfo {
-    match member {
-        InstanceMember::Method(method) => method_document_symbol(method),
-        InstanceMember::Drop(drop_) => document_symbol(
-            "drop".to_string(),
-            DocumentSymbolKind::Method,
-            drop_.span,
-            drop_.name_span,
-            Vec::new(),
-        ),
     }
 }
 
@@ -299,20 +296,18 @@ mod tests {
     fn drop_document_symbol_selects_the_declaration_keyword() {
         let text = r#"struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        return
-    }
+destruct Token(&+self) {
+    return
 }
 "#;
         let symbols = document_symbols_for_text(text).expect("expected document symbols");
-        let drop_symbol = &symbols[1].children[0];
+        let drop_symbol = &symbols[1];
 
-        assert_eq!(drop_symbol.name, "drop");
+        assert_eq!(drop_symbol.name, "destruct Token");
         assert_eq!(drop_symbol.kind, DocumentSymbolKind::Method);
         assert_eq!(
             &text[drop_symbol.selection_span.start..drop_symbol.selection_span.end],
-            "drop"
+            "destruct"
         );
     }
 
@@ -320,18 +315,16 @@ instance Token {
     fn document_symbols_survive_an_unclosed_member_body() {
         let text = r#"struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        return
+destruct Token(&+self) {
+    return
 "#;
         let symbols = document_symbols_for_text(text).expect("expected recovered document symbols");
 
         assert_eq!(symbols[0].name, "Token");
-        assert_eq!(symbols[1].children[0].name, "drop");
+        assert_eq!(symbols[1].name, "destruct Token");
         assert_eq!(
-            &text[symbols[1].children[0].selection_span.start
-                ..symbols[1].children[0].selection_span.end],
-            "drop"
+            &text[symbols[1].selection_span.start..symbols[1].selection_span.end],
+            "destruct"
         );
     }
 }

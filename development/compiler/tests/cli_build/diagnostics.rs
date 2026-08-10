@@ -88,10 +88,8 @@ fn build_command_rejects_nonterminal_if_branch_outer_explicit_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -118,7 +116,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("14 |         drop file"),
+        stderr.contains("12 |         drop file"),
         "stderr missing drop span:\n{stderr}"
     );
     assert!(
@@ -141,10 +139,8 @@ fn build_command_rejects_nonterminal_if_branch_outer_move_binding() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -171,7 +167,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("14 |         var moved = move file"),
+        stderr.contains("12 |         var moved = move file"),
         "stderr missing move span:\n{stderr}"
     );
     assert!(
@@ -194,10 +190,8 @@ fn build_command_rejects_nonterminal_while_body_outer_explicit_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -224,7 +218,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("14 |         drop file"),
+        stderr.contains("12 |         drop file"),
         "stderr missing drop span:\n{stderr}"
     );
     assert!(
@@ -248,10 +242,8 @@ fn build_command_rejects_nonterminal_while_body_outer_move_assignment_before_loo
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -281,7 +273,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("15 |         target = move source"),
+        stderr.contains("13 |         target = move source"),
         "stderr missing move span:\n{stderr}"
     );
     assert!(
@@ -655,10 +647,8 @@ fn build_command_rejects_compound_terminal_if_condition_outer_move() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {
@@ -690,7 +680,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("17 |     if consume(move file) && true {"),
+        stderr.contains("15 |     if consume(move file) && true {"),
         "stderr missing condition span:\n{stderr}"
     );
     assert!(
@@ -713,10 +703,8 @@ fn build_command_rejects_value_if_condition_outer_move() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {
@@ -749,7 +737,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("17 |     let code = if consume(move file) {"),
+        stderr.contains("15 |     let code = if consume(move file) {"),
         "stderr missing condition span:\n{stderr}"
     );
     assert!(
@@ -772,10 +760,8 @@ fn build_command_rejects_nonterminal_while_condition_outer_move() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {
@@ -806,7 +792,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("17 |     while consume(move file) {"),
+        stderr.contains("15 |     while consume(move file) {"),
         "stderr missing condition span:\n{stderr}"
     );
     assert!(
@@ -1312,10 +1298,8 @@ fn build_command_accepts_payload_if_is_owned_direct_drop_binding() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum AppError {
@@ -2013,10 +1997,8 @@ fn build_command_rejects_nonterminal_match_arm_outer_explicit_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Choice {
@@ -2053,7 +2035,7 @@ func main(): i32 {
         "stderr missing unsupported construct:\n{stderr}"
     );
     assert!(
-        stderr.contains("21 |             drop file"),
+        stderr.contains("19 |             drop file"),
         "stderr missing drop span:\n{stderr}"
     );
     assert!(
@@ -2076,10 +2058,8 @@ fn build_command_accepts_payload_match_expression_owned_direct_drop_binding() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {

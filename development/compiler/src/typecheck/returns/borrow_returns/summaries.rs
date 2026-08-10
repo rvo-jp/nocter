@@ -107,6 +107,7 @@ fn body_backed_summary_floor(
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
                 | Item::Enum(_) => {}
+                Item::Destruct(_) => {}
             }
         }
     }

@@ -5,9 +5,8 @@ use super::diagnostics::{
 };
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
-    AstFile, Block, ConformanceMember, Expr, IdentifierExpr, InstanceDecl, InstanceMember,
-    InterpolatedStringPart, Item, MemberExpr, Parameter, ResultProvenanceClause,
-    ResultProvenanceOriginKind, Stmt,
+    AstFile, Block, ConformanceMember, Expr, IdentifierExpr, InstanceDecl, InterpolatedStringPart,
+    Item, MemberExpr, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -60,6 +59,16 @@ impl Resolver<'_> {
                     }
                 }
                 Item::Instance(instance) => self.resolve_instance_bodies(instance),
+                Item::Destruct(destruct) => {
+                    let mut scope = Scope::new();
+                    self.define_local_name(
+                        destruct.binding.name.clone(),
+                        destruct.binding.name_span,
+                        LocalSymbolKind::Parameter,
+                        &mut scope,
+                    );
+                    self.resolve_block(&destruct.body, &mut scope);
+                }
                 Item::Conformance(conformance) => {
                     for member in &conformance.members {
                         match member {
@@ -108,22 +117,8 @@ impl Resolver<'_> {
     }
 
     fn resolve_instance_bodies(&mut self, instance: &InstanceDecl) {
-        for member in &instance.members {
-            match member {
-                InstanceMember::Method(method) => {
-                    self.resolve_method(method);
-                }
-                InstanceMember::Drop(drop_) => {
-                    let mut scope = Scope::new();
-                    self.define_local_name(
-                        drop_.binding.name.clone(),
-                        drop_.binding.name_span,
-                        LocalSymbolKind::Parameter,
-                        &mut scope,
-                    );
-                    self.resolve_block(&drop_.body, &mut scope);
-                }
-            }
+        for method in &instance.methods {
+            self.resolve_method(method);
         }
     }
 

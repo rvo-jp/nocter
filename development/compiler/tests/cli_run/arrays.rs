@@ -873,11 +873,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func main(): i32 {
@@ -932,11 +930,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func main(): i32 {
@@ -991,11 +987,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func main(): i32 {
@@ -1047,11 +1041,9 @@ struct Handle {
     name: &str
 }
 
-instance Handle {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct Handle(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Wrapper {
@@ -1059,11 +1051,9 @@ struct Wrapper {
     handle: Handle
 }
 
-instance Wrapper {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct Wrapper(&+self) {
+    write(self.name)!
+    return
 }
 
 func make(name: &str, handle_name: &str): Wrapper {
@@ -1122,11 +1112,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func main(): i32 {
@@ -1183,11 +1171,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func run(move_files: bool): void {
@@ -1248,11 +1234,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func make(first: &str, second: &str): [File; 2] {
@@ -1309,11 +1293,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func consume(files: [File; 2]): void {
@@ -1375,15 +1357,13 @@ struct Token {
     tag: u8
 }
 
-instance Token {
-    drop &+self {
-        if self.tag == 1 {
-            write("a")!
-        } else {
-            write("b")!
-        }
-        return
+destruct Token(&+self) {
+    if self.tag == 1 {
+        write("a")!
+    } else {
+        write("b")!
     }
+    return
 }
 
 func make(): [Token; 2] {
@@ -1442,11 +1422,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func make(): [File; 2]! {
@@ -1516,11 +1494,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func replace(): void! {
@@ -1579,15 +1555,13 @@ struct Token {
     tag: u8
 }
 
-instance Token {
-    drop &+self {
-        if self.tag == 1 {
-            write("a")!
-        } else {
-            write("b")!
-        }
-        return
+destruct Token(&+self) {
+    if self.tag == 1 {
+        write("a")!
+    } else {
+        write("b")!
     }
+    return
 }
 
 func make(): [Token; 2]! {
@@ -1659,11 +1633,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func fail(): [File; 2]! {
@@ -1722,11 +1694,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 func maybe_files(present: bool): [File; 2]? {
@@ -1789,11 +1759,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Bundle {
@@ -1801,11 +1769,9 @@ struct Bundle {
     files: [File; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 func make(): Bundle {
@@ -1865,11 +1831,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Bundle {
@@ -1877,11 +1841,9 @@ struct Bundle {
     files: [File; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 func make(first: &str, second: &str): [File; 2] {
@@ -1940,11 +1902,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Bundle {
@@ -1952,11 +1912,9 @@ struct Bundle {
     files: [File; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 func make(): [File; 2]! {
@@ -2040,11 +1998,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Bundle {
@@ -2052,11 +2008,9 @@ struct Bundle {
     files: [File; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 func fail(): [File; 2]! {
@@ -2118,23 +2072,21 @@ struct Token {
     tag: u8
 }
 
-instance Token {
-    drop &+self {
-        if self.tag == 1 {
-            write("a")!
-            return
-        }
-        if self.tag == 2 {
-            write("b")!
-            return
-        }
-        if self.tag == 3 {
-            write("c")!
-            return
-        }
-        write("d")!
+destruct Token(&+self) {
+    if self.tag == 1 {
+        write("a")!
         return
     }
+    if self.tag == 2 {
+        write("b")!
+        return
+    }
+    if self.tag == 3 {
+        write("c")!
+        return
+    }
+    write("d")!
+    return
 }
 
 struct Bundle {
@@ -2142,11 +2094,9 @@ struct Bundle {
     tokens: [Token; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 func replace(bundle: &+Bundle): void {
@@ -2206,22 +2156,18 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 struct Bundle {
     files: [File; 2]
 }
 
-instance Bundle {
-    drop &+self {
-        write("X")!
-        return
-    }
+destruct Bundle(&+self) {
+    write("X")!
+    return
 }
 
 struct Container {
@@ -2294,11 +2240,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 enum Result {

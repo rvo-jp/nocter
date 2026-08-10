@@ -1,11 +1,8 @@
 use super::*;
 
-pub(super) fn type_alias_symbol_with_instance_members(
-    ast: &AstFile,
-    alias: &TypeAliasDecl,
-) -> TypeSymbol {
+pub(super) fn type_alias_symbol_with_surfaces(ast: &AstFile, alias: &TypeAliasDecl) -> TypeSymbol {
     let mut symbol = alias_type_symbol(alias);
-    attach_instance_members_to_symbol(&mut symbol, ast, &alias.name);
+    attach_behavior_declarations_to_symbol(&mut symbol, ast, &alias.name);
     symbol
 }
 
@@ -43,7 +40,7 @@ pub(super) fn type_decl_names(ast: &AstFile) -> Vec<String> {
             | Item::Primitive(_)
             | Item::Instance(_)
             | Item::Conformance(_) => None,
-            Item::Construct(_) | Item::Coerce(_) => None,
+            Item::Construct(_) | Item::Coerce(_) | Item::Destruct(_) => None,
         })
         .collect()
 }

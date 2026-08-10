@@ -9,8 +9,7 @@ impl Parser<'_> {
         let mut requirements = self.parse_where_clause()?;
         self.classify_declaration_pattern_refinements(&mut requirements, &generics);
         let open = self.expect_punctuation("{", "`{`")?;
-        let mut members = Vec::new();
-        let mut has_drop_member = false;
+        let mut methods = Vec::new();
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -26,22 +25,14 @@ impl Parser<'_> {
                 );
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {
-                members.push(InstanceMember::Method(
-                    self.parse_method_decl(visibility, true)?,
-                ));
+                methods.push(self.parse_method_decl(visibility, true)?);
             } else if self.at_identifier_text("drop") {
-                if visibility != Visibility::Private {
-                    self.error_current("drop member cannot be marked pub");
-                    return Err(());
-                }
-                if has_drop_member {
-                    self.error_current("instance block cannot define more than one drop member");
-                    return Err(());
-                }
-                has_drop_member = true;
-                members.push(InstanceMember::Drop(self.parse_drop_decl()?));
+                self.error_current(
+                    "drop members were removed; write `destruct Type(&+self) { ... }` at top level",
+                );
+                return Err(());
             } else {
-                self.error_current("expected `method` or `drop` in instance block");
+                self.error_current("expected `method` in instance block");
                 return Err(());
             }
             self.skip_newlines();
@@ -53,42 +44,7 @@ impl Parser<'_> {
             generics,
             target_ty,
             requirements,
-            members,
+            methods,
         }))
     }
-
-    fn parse_drop_decl(&mut self) -> ParseResult<DropDecl> {
-        let start = self.bump();
-        let binding = self.parse_drop_receiver()?;
-        let body = self.parse_block()?;
-        Ok(DropDecl {
-            span: self.span(start.span.start, body.span.end),
-            name_span: start.span,
-            binding,
-            body,
-        })
-    }
-
-    fn parse_drop_receiver(&mut self) -> ParseResult<Parameter> {
-        let borrow = self.expect_punctuation("&+", "`&+self`")?;
-        let self_span = self.expect_self_identifier("expected `self` after `&+` in drop member")?;
-        let ty = readwrite_self_borrow_type(self.span(borrow.span.start, self_span.end));
-        Ok(Parameter {
-            span: ty.span(),
-            name: "self".to_string(),
-            name_span: self_span,
-            ty,
-        })
-    }
-}
-
-fn readwrite_self_borrow_type(span: ByteSpan) -> TypeExpr {
-    TypeExpr::Borrow(BorrowType {
-        span,
-        is_readwrite: true,
-        inner: Box::new(TypeExpr::Reference(TypeReference {
-            span: ByteSpan::new(span.source, span.end - "self".len(), span.end),
-            name: "Self".to_string(),
-        })),
-    })
 }

@@ -69,7 +69,7 @@ use crate::analysis::literal_specializations::{
     LiteralSpecialization, literal_element_parameter_name,
 };
 use crate::ast::{
-    ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
+    ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DestructDecl, DropStmt, Expr,
     FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralDecl, LiteralExpr, LiteralShape,
     MemberExpr, MethodDecl, Parameter, PayloadEnumPatternTargetShape, ReturnStmt, Stmt,
     StructLiteralExpr, SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference,

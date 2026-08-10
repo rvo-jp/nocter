@@ -198,6 +198,7 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 | Item::Conformance(_)
                 | Item::Construct(_)
                 | Item::Coerce(_) => None,
+                Item::Destruct(_) => None,
             };
             if let Some((name, kind, visibility)) = export
                 && let Some(visibility) = file

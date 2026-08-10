@@ -329,20 +329,16 @@ fn build_command_lowers_moved_aggregate_struct_literal_field() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
     file: File
 }
 
-instance Holder {
-    drop &+self {
-        return
-    }
+destruct Holder(&+self) {
+    return
 }
 
 func main(): i32 {

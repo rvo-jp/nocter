@@ -671,7 +671,7 @@ impl ReturnContext {
             CallableKind::Function(name) => format!("function `{name}`"),
             CallableKind::AssociatedFunction(name) => format!("associated function `{name}`"),
             CallableKind::Method(name) => format!("method `{name}`"),
-            CallableKind::Drop(name) => format!("drop member `{name}`"),
+            CallableKind::Drop(name) => format!("destructor `{name}`"),
             CallableKind::Literal(name) => format!("literal definition for `{name}`"),
         }
     }

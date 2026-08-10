@@ -61,6 +61,7 @@ pub enum Item {
     Interface(InterfaceDecl),
     Instance(InstanceDecl),
     Conformance(ConformanceDecl),
+    Destruct(DestructDecl),
     Construct(ConstructDecl),
     Coerce(CoerceDecl),
 }
@@ -258,13 +259,7 @@ pub struct InstanceDecl {
     pub generics: GenericParamList,
     pub target_ty: TypeExpr,
     pub requirements: Option<WhereClause>,
-    pub members: Vec<InstanceMember>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum InstanceMember {
-    Method(MethodDecl),
-    Drop(DropDecl),
+    pub methods: Vec<MethodDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -289,7 +284,6 @@ pub trait MethodOwnerDecl {
     fn target_ty(&self) -> &TypeExpr;
     fn requirements(&self) -> Option<&WhereClause>;
     fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_>;
-    fn drop_decl(&self) -> Option<&DropDecl>;
 }
 
 impl MethodOwnerDecl for InstanceDecl {
@@ -310,17 +304,7 @@ impl MethodOwnerDecl for InstanceDecl {
     }
 
     fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_> {
-        Box::new(self.members.iter().filter_map(|member| match member {
-            InstanceMember::Method(method) => Some(method),
-            InstanceMember::Drop(_) => None,
-        }))
-    }
-
-    fn drop_decl(&self) -> Option<&DropDecl> {
-        self.members.iter().find_map(|member| match member {
-            InstanceMember::Method(_) => None,
-            InstanceMember::Drop(drop_) => Some(drop_),
-        })
+        Box::new(self.methods.iter())
     }
 }
 
@@ -347,10 +331,6 @@ impl MethodOwnerDecl for ConformanceDecl {
             ConformanceMember::Method(method) => Some(method),
         }))
     }
-
-    fn drop_decl(&self) -> Option<&DropDecl> {
-        None
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -362,9 +342,11 @@ pub struct AssociatedTypeBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropDecl {
+pub struct DestructDecl {
     pub span: ByteSpan,
-    pub name_span: ByteSpan,
+    pub keyword_span: ByteSpan,
+    pub generics: GenericParamList,
+    pub target_ty: TypeExpr,
     pub binding: Parameter,
     pub body: Block,
 }
@@ -942,6 +924,7 @@ impl Item {
             Item::Interface(item) => item.span,
             Item::Instance(item) => item.span,
             Item::Conformance(item) => item.span,
+            Item::Destruct(item) => item.span,
             Item::Construct(item) => item.span,
             Item::Coerce(item) => item.span,
         }

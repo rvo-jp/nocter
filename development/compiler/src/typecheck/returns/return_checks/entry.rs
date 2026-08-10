@@ -36,41 +36,38 @@ pub(in crate::typecheck::returns) fn check_instance_member_return_types(
     diagnostics: &mut Vec<Diagnostic>,
     summaries: &CallableProvenanceSummaries,
 ) {
-    for member in &instance.members {
-        match member {
-            InstanceMember::Method(method) => check_method_return_type(
-                sources,
-                instance,
-                method,
-                resolved,
-                diagnostics,
-                summaries,
-            ),
-            InstanceMember::Drop(drop_) => {
-                let context = ReturnContext::new(
-                    CallableKind::Drop(method_owner_member_name(instance, "drop")),
-                    Type::Void,
-                    drop_.binding.ty.span(),
-                );
-                let mut environment = environment_for_parameters_in_method_owner(
-                    std::slice::from_ref(&drop_.binding),
-                    resolved,
-                    instance,
-                );
-                let mut borrow_provenance = ProvenanceEnvironment::default();
-                check_block_returns(
-                    sources,
-                    &drop_.body,
-                    &context,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    &mut borrow_provenance,
-                    summaries,
-                );
-            }
-        }
+    for method in &instance.methods {
+        check_method_return_type(sources, instance, method, resolved, diagnostics, summaries);
     }
+}
+
+pub(in crate::typecheck::returns) fn check_destruct_return_type(
+    sources: &SourceMap,
+    destruct: &DestructDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    summaries: &CallableProvenanceSummaries,
+) {
+    let context = ReturnContext::new(
+        CallableKind::Drop(format!(
+            "{}.drop",
+            crate::typecheck::type_expr::canonical_type_expr(&destruct.target_ty)
+        )),
+        Type::Void,
+        destruct.binding.ty.span(),
+    );
+    let mut environment = environment_for_destruct(destruct, resolved);
+    let mut borrow_provenance = ProvenanceEnvironment::default();
+    check_block_returns(
+        sources,
+        &destruct.body,
+        &context,
+        resolved,
+        diagnostics,
+        &mut environment,
+        &mut borrow_provenance,
+        summaries,
+    );
 }
 
 pub(in crate::typecheck::returns) fn check_conformance_member_return_types(

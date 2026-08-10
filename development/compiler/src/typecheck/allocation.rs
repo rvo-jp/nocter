@@ -13,7 +13,7 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::provenance::{CallableId, CallableProvenanceSummaries};
 use super::regions::region_binding_type;
-use crate::ast::{Block, ConformanceMember, Expr, InstanceMember, Item, Stmt};
+use crate::ast::{Block, ConformanceMember, Expr, Item, Stmt};
 use crate::resolve::ResolveOutput;
 use crate::semantics::{AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole};
 
@@ -61,11 +61,9 @@ pub(super) fn infer_callable_allocation_effects(
                     Item::Function(function) => usize::from(function.body.is_some()),
                     Item::Test(_) => 1,
                     Item::Instance(instance) => instance
-                        .members
+                        .methods
                         .iter()
-                        .filter(|member| {
-                            matches!(member, InstanceMember::Method(method) if method.body.is_some())
-                        })
+                        .filter(|method| method.body.is_some())
                         .count(),
                     Item::Conformance(conformance) => conformance
                         .members
@@ -136,10 +134,7 @@ pub(super) fn infer_callable_allocation_effects(
                         }
                     }
                     Item::Instance(instance) => {
-                        for member in &instance.members {
-                            let InstanceMember::Method(method) = member else {
-                                continue;
-                            };
+                        for method in &instance.methods {
                             let Some(body) = &method.body else {
                                 continue;
                             };
@@ -256,10 +251,7 @@ pub(super) fn infer_callable_allocation_effects(
                     }
                     Item::Coerce(coerce) => {
                         let instance = coerce.callable_instance();
-                        for member in &instance.members {
-                            let InstanceMember::Method(method) = member else {
-                                continue;
-                            };
+                        for method in &instance.methods {
                             let Some(body) = &method.body else {
                                 continue;
                             };
@@ -287,6 +279,7 @@ pub(super) fn infer_callable_allocation_effects(
                     | Item::TypeAlias(_)
                     | Item::Struct(_)
                     | Item::Enum(_) => {}
+                    Item::Destruct(_) => {}
                 }
             }
         }

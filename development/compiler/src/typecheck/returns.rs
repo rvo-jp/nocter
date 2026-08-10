@@ -13,11 +13,10 @@ use super::diagnostics::{
     unexpected_body_result_diagnostic, unexpected_return_value_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_catch, environment_for_collection_for_binding, environment_for_destruct,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
     environment_for_interface_method, environment_for_literal,
-    environment_for_literal_pack_binding, environment_for_method,
-    environment_for_parameters_in_method_owner, environment_for_switch_arm,
+    environment_for_literal_pack_binding, environment_for_method, environment_for_switch_arm,
     method_owner_member_name,
 };
 use super::expressions::expression_type;
@@ -31,9 +30,9 @@ use super::provenance::*;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
-    AstFile, Block, ConformanceDecl, ConformanceMember, Expr, IfIsStmt, InstanceDecl,
-    InstanceMember, InterpolatedStringPart, Item, MethodOwnerDecl, MethodReceiverMode,
-    PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
+    AstFile, Block, ConformanceDecl, ConformanceMember, DestructDecl, Expr, IfIsStmt, InstanceDecl,
+    InterpolatedStringPart, Item, MethodOwnerDecl, MethodReceiverMode, PropagationExpr, ReturnStmt,
+    Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
@@ -125,6 +124,9 @@ pub(super) fn check_return_types(
                 diagnostics,
                 summaries,
             ),
+            Item::Destruct(destruct) => {
+                check_destruct_return_type(sources, destruct, resolved, diagnostics, summaries)
+            }
             Item::Conformance(conformance) => check_conformance_member_return_types(
                 sources,
                 conformance,

@@ -33,19 +33,13 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
             }
             Item::Test(test) => collect_block(file, &test.body, None, &mut facts),
             Item::Instance(instance) => {
-                for member in &instance.members {
-                    match member {
-                        crate::ast::InstanceMember::Method(method) => {
-                            if let Some(body) = &method.body {
-                                collect_block(file, body, None, &mut facts);
-                            }
-                        }
-                        crate::ast::InstanceMember::Drop(drop_) => {
-                            collect_block(file, &drop_.body, None, &mut facts)
-                        }
+                for method in &instance.methods {
+                    if let Some(body) = &method.body {
+                        collect_block(file, body, None, &mut facts);
                     }
                 }
             }
+            Item::Destruct(destruct) => collect_block(file, &destruct.body, None, &mut facts),
             Item::Conformance(conformance) => {
                 for member in &conformance.members {
                     if let crate::ast::ConformanceMember::Method(method) = member

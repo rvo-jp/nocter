@@ -34,6 +34,68 @@ func main(): i32 {
 }
 
 #[test]
+fn check_composes_a_destructor_from_an_implementation_source() {
+    let root = make_temp_project("same-module-destructor-source");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(
+        root.join("index.nct"),
+        r#"use ./resource
+
+struct Resource { value: i32 }
+
+func main(): i32 {
+    let resource = Resource { value: 1 }
+    drop resource
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("resource.nct"),
+        "destruct Resource(&+self) { return }\n",
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_rejects_duplicate_destructors_across_implementation_sources() {
+    let root = make_temp_project("duplicate-same-module-destructors");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(
+        root.join("index.nct"),
+        "use ./left\nuse ./right\n\nstruct Resource { value: i32 }\n\nfunc main(): i32 { return 0 }\n",
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("left.nct"),
+        "destruct Resource(&+self) { return }\n",
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("right.nct"),
+        "destruct Resource(&+self) { return }\n",
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0413");
+    assert!(diagnostics[0].message.contains("already has a destructor"));
+}
+
+#[test]
 fn check_rejects_public_declarations_in_an_implementation_source() {
     let root = make_temp_project("public-implementation-source");
     let home = make_nocter_home(&root);

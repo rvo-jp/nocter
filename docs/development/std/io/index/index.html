@@ -417,10 +417,11 @@ instance <span class="token-type">File</span> <span class="token-operator">{</sp
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 
-    drop <span class="token-operator">&amp;+</span>self <span class="token-operator">{</span>
+<span class="token-operator">}</span>
+
+destruct <span class="token-type">File</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 conform <span class="token-type">Reader</span> <span class="token-keyword">for</span> <span class="token-type">File</span> <span class="token-operator">{</span>

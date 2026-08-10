@@ -194,10 +194,8 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_while_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -230,10 +228,8 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_loop_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -266,10 +262,8 @@ fn build_command_lowers_return_in_nonterminal_while_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -298,10 +292,8 @@ fn build_command_lowers_terminal_if_branch_void_call() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {

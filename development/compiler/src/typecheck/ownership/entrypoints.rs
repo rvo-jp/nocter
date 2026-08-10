@@ -46,6 +46,24 @@ pub(in crate::typecheck) fn check_ownership_states(
             Item::Instance(instance) => {
                 check_instance_member_ownership(sources, instance, resolved, summaries, diagnostics)
             }
+            Item::Destruct(destruct) => {
+                let mut environment = environment_for_destruct(destruct, resolved);
+                let mut ownership = OwnershipState::default();
+                ownership.define_parameters(
+                    std::slice::from_ref(&destruct.binding),
+                    &environment,
+                    resolved,
+                );
+                check_block_ownership(
+                    sources,
+                    &destruct.body,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    &mut environment,
+                    &mut ownership,
+                );
+            }
             Item::Conformance(conformance) => check_conformance_member_ownership(
                 sources,
                 conformance,
@@ -192,34 +210,8 @@ fn check_instance_member_ownership(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &instance.members {
-        match member {
-            InstanceMember::Method(method) => {
-                check_method_ownership(sources, instance, method, resolved, summaries, diagnostics)
-            }
-            InstanceMember::Drop(drop_) => {
-                let mut environment = environment_for_parameters_in_method_owner(
-                    std::slice::from_ref(&drop_.binding),
-                    resolved,
-                    instance,
-                );
-                let mut ownership = OwnershipState::default();
-                ownership.define_parameters(
-                    std::slice::from_ref(&drop_.binding),
-                    &environment,
-                    resolved,
-                );
-                check_block_ownership(
-                    sources,
-                    &drop_.body,
-                    resolved,
-                    summaries,
-                    diagnostics,
-                    &mut environment,
-                    &mut ownership,
-                );
-            }
-        }
+    for method in &instance.methods {
+        check_method_ownership(sources, instance, method, resolved, summaries, diagnostics)
     }
 }
 

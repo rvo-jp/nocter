@@ -290,7 +290,7 @@ where
             )
         }),
         TypeSymbolKind::Struct => {
-            let mut has_drop = symbol.drop_member.is_some();
+            let mut has_drop = symbol.destructor.is_some();
             let fields_are_supported = symbol.fields.iter().all(|field| {
                 let field_ty = substitute_type_expr_parameters(&field.ty, &substitutions);
                 if type_expr_is_runtime_copy_value_with_resolver(

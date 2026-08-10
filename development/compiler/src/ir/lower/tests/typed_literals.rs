@@ -186,9 +186,7 @@ fn early_literal_body_return_drops_current_and_unconsumed_move_only_elements() {
         r#"
 struct File { fd: i32 }
 
-instance File {
-    drop &+self { return }
-}
+destruct File(&+self) { return }
 
 struct Holder { count: usize }
 
@@ -239,9 +237,7 @@ use std/mem.page_allocator
 struct Numbers { count: usize }
 struct Token { value: i32 }
 
-instance Token {
-    drop &+self { return }
-}
+destruct Token(&+self) { return }
 
 construct Numbers {
     pub default literal [](...items: i32): Self {

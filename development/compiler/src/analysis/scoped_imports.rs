@@ -1,8 +1,8 @@
 //! Block-scope import visibility helpers shared by editor analyses.
 
 use crate::ast::{
-    AstFile, Block, ConformanceMember, Expr, IfIsStmt, IfStmt, InstanceMember,
-    InterpolatedStringPart, Item, Stmt, SwitchStmt,
+    AstFile, Block, ConformanceMember, Expr, IfIsStmt, IfStmt, InterpolatedStringPart, Item, Stmt,
+    SwitchStmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashSet;
@@ -33,18 +33,14 @@ fn collect_scoped_import_name_spans_in_item(item: &Item, spans: &mut HashSet<Byt
             }
         }
         Item::Instance(instance) => {
-            for member in &instance.members {
-                match member {
-                    InstanceMember::Method(method) => {
-                        if let Some(body) = &method.body {
-                            collect_scoped_import_name_spans_in_block(body, spans);
-                        }
-                    }
-                    InstanceMember::Drop(drop_) => {
-                        collect_scoped_import_name_spans_in_block(&drop_.body, spans);
-                    }
+            for method in &instance.methods {
+                if let Some(body) = &method.body {
+                    collect_scoped_import_name_spans_in_block(body, spans);
                 }
             }
+        }
+        Item::Destruct(destruct) => {
+            collect_scoped_import_name_spans_in_block(&destruct.body, spans)
         }
         Item::Conformance(conformance) => {
             for member in &conformance.members {
@@ -260,14 +256,14 @@ fn scoped_import_spans_in_item_at_offset(item: &Item, offset: usize) -> Option<H
             .body
             .as_ref()
             .and_then(|body| scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())),
-        Item::Instance(instance) => instance.members.iter().find_map(|member| match member {
-            InstanceMember::Method(method) => method.body.as_ref().and_then(|body| {
+        Item::Instance(instance) => instance.methods.iter().find_map(|method| {
+            method.body.as_ref().and_then(|body| {
                 scoped_import_spans_in_block_at_offset(body, offset, &HashSet::new())
-            }),
-            InstanceMember::Drop(drop_) => {
-                scoped_import_spans_in_block_at_offset(&drop_.body, offset, &HashSet::new())
-            }
+            })
         }),
+        Item::Destruct(destruct) => {
+            scoped_import_spans_in_block_at_offset(&destruct.body, offset, &HashSet::new())
+        }
         Item::Conformance(conformance) => {
             conformance.members.iter().find_map(|member| match member {
                 ConformanceMember::AssociatedType(_) => None,

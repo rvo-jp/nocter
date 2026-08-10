@@ -233,12 +233,12 @@ pub(super) fn drop_type_specialization_from_self_ty_inner(
         return specialization;
     }
 
-    let drop_member = symbol.drop_member.as_ref()?;
+    let destructor = symbol.destructor.as_ref()?;
     Some(DropTypeSpecialization {
-        declaration_span: drop_member.name_span,
-        target_name: drop_target_name_from_base_and_self_ty(&drop_member.target_name, self_ty),
+        declaration_span: destructor.name_span,
+        target_name: drop_target_name_from_base_and_self_ty(&destructor.target_name, self_ty),
         self_ty: self_ty.clone(),
-        base_target_name: drop_member.target_name.clone(),
+        base_target_name: destructor.target_name.clone(),
         free_type_parameters,
     })
 }

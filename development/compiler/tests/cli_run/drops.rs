@@ -13,10 +13,8 @@ struct Detail {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Detail(&+self) {
+    exit(self.code)
 }
 
 struct Wrapper {
@@ -140,10 +138,8 @@ fn run_command_returns_explicit_move_terminal_if_condition_exit_code() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(file: File): bool {
@@ -200,11 +196,9 @@ struct Box<T> {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct Box<T>(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {
@@ -255,11 +249,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {
@@ -311,11 +303,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {
@@ -368,11 +358,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {
@@ -427,11 +415,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 func main(): i32! {

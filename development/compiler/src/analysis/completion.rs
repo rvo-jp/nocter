@@ -163,7 +163,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                     .literals()
                     .any(|(_, literal)| clause(literal.requirements.as_ref(), offset))
         }
-        Item::Coerce(_) => false,
+        Item::Coerce(_) | Item::Destruct(_) => false,
         Item::Import(_) | Item::FromImport(_) | Item::Test(_) => false,
     })
 }
@@ -459,6 +459,7 @@ fn result_provenance_completion_items(
                     }
                 }
             }
+            Item::Destruct(_) => {}
             Item::Import(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)

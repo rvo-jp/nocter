@@ -239,9 +239,9 @@ fn qualify_type_symbol(
             imported_type_names,
         );
     }
-    if let Some(drop_member) = &mut symbol.drop_member {
+    if let Some(destructor) = &mut symbol.destructor {
         qualify_parameter_signature(
-            &mut drop_member.binding,
+            &mut destructor.binding,
             import_path,
             local_type_names,
             imported_type_names,

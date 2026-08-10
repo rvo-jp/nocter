@@ -204,7 +204,9 @@ instance <span class="token-type">VecIntoIter</span><span class="token-operator"
         <span class="token-keyword">return</span> <span class="token-function">remaining</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
-    drop <span class="token-operator">&amp;+</span>self <span class="token-operator">{</span>
+<span class="token-operator">}</span>
+
+destruct <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> element_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">pointee_size</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">)</span>
         while self<span class="token-operator">.</span>end_index <span class="token-operator">&gt;</span> self<span class="token-operator">.</span>next_index <span class="token-operator">{</span>
             <span class="token-keyword">let</span> next_end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>end_index - <span class="token-number">1</span>
@@ -212,7 +214,6 @@ instance <span class="token-type">VecIntoIter</span><span class="token-operator"
             <span class="token-function">drop_value_at_ptr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">,</span> next_end <span class="token-operator">*</span> element_size<span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span>
-    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 conform <span class="token-type">ExactSizeIterator</span> <span class="token-keyword">for</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

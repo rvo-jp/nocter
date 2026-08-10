@@ -526,12 +526,12 @@ instance Vec<T> {
     pub method &+self.pop(): T? {
         return pop(self)?
     }
+}
 
-    drop &+self {
-        clear(self)
-        self.capacity = 0
-        return
-    }
+destruct Vec<T>(&+self) {
+    clear(self)
+    self.capacity = 0
+    return
 }
 
 conform Sequence<T> for Vec<T> {

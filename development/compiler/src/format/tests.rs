@@ -539,7 +539,7 @@ var point=Point {x:1,y:2}
 var marker=Marker<i32> {code:42}
 while ready(){print(text)}
 }}
-instance File {drop &+self{drop self}}
+destruct File(&+self){drop self}
 "#,
         concat!(
             "use std/io\n",
@@ -558,10 +558,8 @@ instance File {drop &+self{drop self}}
             "    }\n",
             "}\n",
             "\n",
-            "instance File {\n",
-            "    drop &+self {\n",
-            "        drop self\n",
-            "    }\n",
+            "destruct File(&+self) {\n",
+            "    drop self\n",
             "}\n",
         ),
     );

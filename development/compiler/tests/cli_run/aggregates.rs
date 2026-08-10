@@ -435,11 +435,9 @@ pub struct Handle {
     fd: i32
 }
 
-instance Handle {
-    drop &+self {
-        write_text_raw(1, "drop\n")!
-        return
-    }
+destruct Handle(&+self) {
+    write_text_raw(1, "drop\n")!
+    return
 }
 
 pub func make(): Handle {
@@ -997,11 +995,9 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct File(&+self) {
+    write("drop\n")!
+    return
 }
 
 copy struct Pair {
@@ -3145,10 +3141,8 @@ fn run_command_returns_non_copy_aggregate_field_replacement_assignment_exit_code
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -3185,10 +3179,8 @@ fn run_command_returns_borrowed_non_copy_aggregate_field_replacement_assignment_
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -3230,10 +3222,8 @@ fn run_command_returns_non_copy_aggregate_field_call_replacement_assignment_exit
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -3274,10 +3264,8 @@ fn run_command_returns_outer_aggregate_replacement_inside_while_exit_code() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {

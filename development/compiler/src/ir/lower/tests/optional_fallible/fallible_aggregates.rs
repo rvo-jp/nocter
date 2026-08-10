@@ -144,10 +144,8 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): void! {
@@ -208,10 +206,8 @@ struct File {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): void! {
@@ -401,10 +397,8 @@ fn lowers_direct_aggregate_fallible_struct_literal_return_after_scope_drop() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Pair {
@@ -1344,10 +1338,8 @@ fn lowers_ignored_fallible_direct_aggregate_call_expression_statement_with_drop(
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32! {

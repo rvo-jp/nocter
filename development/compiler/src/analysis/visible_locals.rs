@@ -1,6 +1,6 @@
 //! Lexically visible local declarations at an editor cursor.
 
-use crate::ast::{AstFile, Block, ConformanceMember, Expr, InstanceMember, Item, MethodDecl, Stmt};
+use crate::ast::{AstFile, Block, ConformanceMember, Expr, Item, MethodDecl, Stmt};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,26 +39,21 @@ pub(super) fn visible_local_bindings_at_offset(
                 return locals;
             }
             Item::Instance(instance) => {
-                for member in &instance.members {
-                    match member {
-                        InstanceMember::Method(method) => {
-                            if collect_method(method, offset, &mut locals) {
-                                return locals;
-                            }
-                        }
-                        InstanceMember::Drop(drop_) if contains(drop_.body.span, offset) => {
-                            define(
-                                &mut locals,
-                                &drop_.binding.name,
-                                drop_.binding.name_span,
-                                "parameter",
-                            );
-                            collect_block(&drop_.body, offset, &mut locals);
-                            return locals;
-                        }
-                        InstanceMember::Drop(_) => {}
+                for method in &instance.methods {
+                    if collect_method(method, offset, &mut locals) {
+                        return locals;
                     }
                 }
+            }
+            Item::Destruct(destruct) if contains(destruct.body.span, offset) => {
+                define(
+                    &mut locals,
+                    &destruct.binding.name,
+                    destruct.binding.name_span,
+                    "parameter",
+                );
+                collect_block(&destruct.body, offset, &mut locals);
+                return locals;
             }
             Item::Conformance(conformance) => {
                 for member in &conformance.members {

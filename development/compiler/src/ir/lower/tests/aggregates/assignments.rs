@@ -147,10 +147,8 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_if_branch_before_return_
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -249,10 +247,8 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_while_body() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -330,10 +326,8 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_if_branch() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -398,10 +392,8 @@ fn lowers_outer_aggregate_assignment_before_loop_control() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -933,10 +925,8 @@ fn lowers_non_copy_aggregate_field_replacement_assignment() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -1003,10 +993,8 @@ fn lowers_non_copy_borrowed_aggregate_field_replacement_assignment() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -1078,10 +1066,8 @@ fn lowers_non_copy_aggregate_field_replacement_assignment_from_move() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {
@@ -1149,10 +1135,8 @@ fn lowers_non_copy_aggregate_field_replacement_assignment_from_call() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Holder {

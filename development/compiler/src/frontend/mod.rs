@@ -12,7 +12,7 @@ mod prelude;
 mod tests;
 
 use crate::analysis::CompileUnit;
-use crate::ast::{AstFile, ConformanceMember, InstanceMember, Item, Visibility};
+use crate::ast::{AstFile, ConformanceMember, Item, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportKind, ImportSource, ImportSourceMap, PreludeSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -498,14 +498,13 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
                         .map(|method| method.span),
                 );
             }
-            Item::Instance(instance) => {
-                spans.extend(instance.members.iter().filter_map(|member| match member {
-                    InstanceMember::Method(method) if is_public(method.visibility) => {
-                        Some(method.span)
-                    }
-                    _ => None,
-                }))
-            }
+            Item::Instance(instance) => spans.extend(
+                instance
+                    .methods
+                    .iter()
+                    .filter(|method| is_public(method.visibility))
+                    .map(|method| method.span),
+            ),
             Item::Conformance(conformance) => spans.extend(conformance.members.iter().filter_map(
                 |member| match member {
                     ConformanceMember::Method(method) if is_public(method.visibility) => {
@@ -616,12 +615,12 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
                         .map(|method| (method.visibility, method.span)),
                 );
             }
-            Item::Instance(instance) => {
-                declarations.extend(instance.members.iter().filter_map(|member| match member {
-                    InstanceMember::Method(method) => Some((method.visibility, method.span)),
-                    InstanceMember::Drop(_) => None,
-                }))
-            }
+            Item::Instance(instance) => declarations.extend(
+                instance
+                    .methods
+                    .iter()
+                    .map(|method| (method.visibility, method.span)),
+            ),
             Item::Conformance(conformance) => declarations.extend(
                 conformance
                     .members
@@ -648,6 +647,7 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
                     .map(|entry| (entry.visibility, entry.span)),
             ),
             Item::Test(_) => {}
+            Item::Destruct(_) => {}
         }
     }
     declarations

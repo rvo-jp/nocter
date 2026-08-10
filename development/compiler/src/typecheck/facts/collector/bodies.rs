@@ -10,6 +10,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Instance(item) => Some(&item.generics),
+            Item::Destruct(item) => Some(&item.generics),
             Item::Conformance(item) => Some(&item.generics),
             Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
@@ -52,6 +53,14 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Item::Instance(instance) => self.collect_instance_member_body_facts(instance),
+            Item::Destruct(destruct) => {
+                let mut environment = environment_for_destruct(destruct, self.resolved);
+                self.record_parameter_bindings(
+                    std::slice::from_ref(&destruct.binding),
+                    &environment,
+                );
+                self.collect_block_facts(&destruct.body, &mut environment, Some(&Type::Void));
+            }
             Item::Conformance(conformance) => {
                 self.collect_conformance_member_body_facts(conformance)
             }
@@ -161,23 +170,8 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         instance: &InstanceDecl,
     ) {
-        for member in &instance.members {
-            match member {
-                InstanceMember::Method(method) => self.collect_method_body_facts(instance, method),
-                InstanceMember::Drop(drop_) => {
-                    let mut environment = environment_for_parameters_in_method_owner(
-                        std::slice::from_ref(&drop_.binding),
-                        self.resolved,
-                        instance,
-                    );
-                    self.record_parameter_bindings(
-                        std::slice::from_ref(&drop_.binding),
-                        &environment,
-                    );
-                    let return_type = Type::Void;
-                    self.collect_block_facts(&drop_.body, &mut environment, Some(&return_type));
-                }
-            }
+        for method in &instance.methods {
+            self.collect_method_body_facts(instance, method);
         }
     }
 

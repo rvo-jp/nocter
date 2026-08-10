@@ -584,7 +584,7 @@ pub struct TypeSymbol {
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
     pub interface_conformances: Vec<InterfaceConformance>,
-    pub drop_member: Option<DropSignature>,
+    pub destructor: Option<DestructSignature>,
     pub literals: Vec<LiteralSignature>,
     pub coercions: Vec<CoercionSignature>,
     pub construction: ConstructionSurface,
@@ -726,7 +726,7 @@ pub struct MethodSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropSignature {
+pub struct DestructSignature {
     pub name_span: ByteSpan,
     pub target_name: String,
     pub binding: ParameterSignature,

@@ -6,8 +6,8 @@ use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
 use crate::ast::{
-    AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, InstanceDecl, InstanceMember,
-    InterfaceDecl, Item, MethodDecl, Parameter, PrimitiveDecl,
+    AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, InstanceDecl, InterfaceDecl, Item,
+    MethodDecl, Parameter, PrimitiveDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -76,6 +76,24 @@ pub(super) fn check_sized_value_types(
                 check_interface(sources, interface, resolved, diagnostics);
             }
             Item::Instance(instance) => check_instance(sources, instance, resolved, diagnostics),
+            Item::Destruct(destruct) => {
+                let self_type = super::type_expr::type_expr_to_type(&destruct.target_ty, resolved);
+                check_value_type(
+                    sources,
+                    &destruct.binding.ty,
+                    "destruct binding type",
+                    resolved,
+                    Some(&self_type),
+                    diagnostics,
+                );
+                check_block(
+                    sources,
+                    &destruct.body,
+                    resolved,
+                    Some(&self_type),
+                    diagnostics,
+                );
+            }
             Item::Conformance(conformance) => {
                 check_conformance(sources, conformance, resolved, diagnostics)
             }
@@ -210,37 +228,16 @@ fn check_instance(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let self_type = method_owner_self_type(instance, resolved);
-    for member in &instance.members {
-        match member {
-            InstanceMember::Method(method) => {
-                let prefix = format!("method `{}`", method.name);
-                check_method_with_prefix(
-                    sources,
-                    method,
-                    &prefix,
-                    resolved,
-                    Some(&self_type),
-                    diagnostics,
-                );
-            }
-            InstanceMember::Drop(drop_) => {
-                check_value_type(
-                    sources,
-                    &drop_.binding.ty,
-                    "drop binding type",
-                    resolved,
-                    Some(&self_type),
-                    diagnostics,
-                );
-                check_block(
-                    sources,
-                    &drop_.body,
-                    resolved,
-                    Some(&self_type),
-                    diagnostics,
-                );
-            }
-        }
+    for method in &instance.methods {
+        let prefix = format!("method `{}`", method.name);
+        check_method_with_prefix(
+            sources,
+            method,
+            &prefix,
+            resolved,
+            Some(&self_type),
+            diagnostics,
+        );
     }
 }
 

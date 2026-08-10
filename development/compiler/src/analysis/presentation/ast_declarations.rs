@@ -2,7 +2,7 @@
 
 use super::{CallablePresentation, LiteralPresentation};
 use crate::ast::{
-    CoercionEntry, DropDecl, EnumDecl, FunctionDecl, GenericParam, InterfaceDecl, LiteralDecl,
+    CoercionEntry, DestructDecl, EnumDecl, FunctionDecl, GenericParam, InterfaceDecl, LiteralDecl,
     LiteralShape, MethodDecl, Parameter, PrimitiveDecl, StructDecl, TypeAliasDecl,
 };
 
@@ -132,11 +132,10 @@ pub(crate) fn ast_literal_presentation(literal: &LiteralDecl) -> String {
     .render()
 }
 
-pub(crate) fn ast_drop_presentation(drop_: &DropDecl) -> String {
+pub(crate) fn ast_drop_presentation(drop_: &DestructDecl) -> String {
     format!(
-        "drop {}: {}",
-        drop_.binding.name,
-        crate::ast::canonical_type_expr(&drop_.binding.ty)
+        "destruct {}(&+self)",
+        crate::ast::canonical_type_expr(&drop_.target_ty)
     )
 }
 

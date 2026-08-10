@@ -263,11 +263,11 @@ instance File {
         close(self)
         return
     }
+}
 
-    drop &+self {
-        close(self)
-        return
-    }
+destruct File(&+self) {
+    close(self)
+    return
 }
 
 conform Reader for File {

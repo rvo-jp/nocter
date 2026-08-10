@@ -608,10 +608,8 @@ fn lowers_branch_void_call_before_terminal_if_return() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {

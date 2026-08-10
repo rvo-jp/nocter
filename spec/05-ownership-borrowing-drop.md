@@ -230,42 +230,42 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 
 ## Drop
 
-Resource destruction uses a dedicated `drop` member inside an `instance`, not a `Drop` interface.
+Resource destruction uses an independent `destruct` declaration, not an `instance` method or a
+`Drop` interface.
 
 ```nct
-instance File {
-    drop &+self {
-        close(self)
-        return
-    }
+destruct File(&+self) {
+    close(self)
+    return
 }
 ```
 
-The destructor member is the contextual `drop &+self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an `instance` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
+`destruct` is a reserved declaration keyword. `drop` remains an identifier token that the parser
+recognizes contextually only for the explicit `drop value` statement. Outside statement position,
+`drop` is an ordinary identifier.
 
 A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
 Rules:
 
-- A type may define at most one `drop` member.
-- A `drop` member has the source form `drop &+self { ... }`.
-- `self` is the fixed drop receiver name and is scoped to the drop body.
+- A nominal type family may define at most one `destruct` declaration.
+- A destructor has the source form `destruct TypePattern(&+self) { ... }`.
+- `self` is the fixed destructor receiver name and is scoped to the destructor body.
 - The drop receiver type is always exactly `&+Self`.
-- A `drop` member can appear only in an `instance Type` block. `conform` declarations contain
-  method bodies but cannot contain `drop` members.
-- A `drop` member has no return type annotation.
-- A `drop` member always returns no value.
-- A `drop` member cannot be fallible.
-- A `drop` member cannot be marked `pub`.
-- A destructor member cannot be called as a normal associated function or method.
+- A destructor is a top-level declaration. `instance` contains inherent methods, and `conform`
+  contains interface members.
+- A destructor has no visibility, target, generic-prefix, `where`, or return-type annotation.
+- Its target pattern must cover every generic slot exactly once with a distinct binder.
+- A destructor always returns no value and cannot be fallible.
+- A destructor cannot be called as a normal associated function or method.
 - `file.drop()` is an ordinary method call if an ordinary method named `drop` exists; it is not a destructor call.
 - `File.drop(&+file)` is an ordinary associated function call if an ordinary function named `drop` exists; it is not a destructor call.
-- A `drop` member cannot report cleanup failure through fallible return.
+- A destructor cannot report cleanup failure through a fallible return.
 - If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
-- Struct drop glue invokes the struct's own `drop` member first when present,
+- Struct drop glue invokes the struct's own destructor first when present,
   then drops owned fields in reverse declaration order. Field drop glue follows
   the same rule recursively.
 - Maybe initialized owned values use compiler-generated conditional drop.

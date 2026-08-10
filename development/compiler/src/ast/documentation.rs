@@ -57,20 +57,16 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
         }
         Item::Instance(instance) => {
             push_target(text, instance.span, targets);
-            for member in &instance.members {
-                match member {
-                    InstanceMember::Method(method) => {
-                        push_target(text, method.span, targets);
-                        if let Some(body) = &method.body {
-                            collect_block_targets(text, body, targets);
-                        }
-                    }
-                    InstanceMember::Drop(drop_) => {
-                        push_target(text, drop_.span, targets);
-                        collect_block_targets(text, &drop_.body, targets);
-                    }
+            for method in &instance.methods {
+                push_target(text, method.span, targets);
+                if let Some(body) = &method.body {
+                    collect_block_targets(text, body, targets);
                 }
             }
+        }
+        Item::Destruct(destruct) => {
+            push_target(text, destruct.span, targets);
+            collect_block_targets(text, &destruct.body, targets);
         }
         Item::Conformance(conformance) => {
             push_target(text, conformance.span, targets);

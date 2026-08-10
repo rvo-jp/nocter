@@ -1,12 +1,11 @@
 use super::Formatter;
 use crate::ast::{
     AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConformanceDecl,
-    ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl,
+    ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DestructDecl, EnumDecl,
     EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImportItem,
-    ImportedName, InstanceDecl, InstanceMember, InterfaceDecl, Item, LiteralDecl, LiteralShape,
-    MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
-    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
-    WhereClause,
+    ImportedName, InstanceDecl, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl,
+    MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause,
+    StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
 };
 
 impl Formatter {
@@ -43,6 +42,7 @@ impl Formatter {
             Item::Interface(item) => self.format_interface_decl(item),
             Item::Instance(item) => self.format_instance_decl(item),
             Item::Conformance(item) => self.format_conformance_decl(item),
+            Item::Destruct(item) => self.format_destruct_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
             Item::Coerce(item) => self.format_coerce_decl(item),
         }
@@ -348,7 +348,7 @@ impl Formatter {
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
-        if item.members.is_empty() {
+        if item.methods.is_empty() {
             self.write("{}");
             return;
         }
@@ -356,24 +356,17 @@ impl Formatter {
         self.write("{");
         self.newline();
         self.indented(|formatter| {
-            for (index, member) in item.members.iter().enumerate() {
+            for (index, method) in item.methods.iter().enumerate() {
                 if index > 0 {
                     formatter.newline();
                 }
                 formatter.write_indent();
-                formatter.format_instance_member(member);
+                formatter.format_method_decl(method);
                 formatter.newline();
             }
         });
         self.write_indent();
         self.write("}");
-    }
-
-    fn format_instance_member(&mut self, member: &InstanceMember) {
-        match member {
-            InstanceMember::Method(method) => self.format_method_decl(method),
-            InstanceMember::Drop(drop_) => self.format_drop_decl(drop_),
-        }
     }
 
     fn format_conformance_decl(&mut self, item: &ConformanceDecl) {
@@ -417,10 +410,12 @@ impl Formatter {
         self.format_type(&binding.value);
     }
 
-    fn format_drop_decl(&mut self, item: &DropDecl) {
-        self.write("drop ");
+    fn format_destruct_decl(&mut self, item: &DestructDecl) {
+        self.write("destruct ");
+        self.format_type(&item.target_ty);
+        self.write("(");
         self.format_self_receiver(&item.binding);
-        self.write(" ");
+        self.write(") ");
         self.format_block(&item.body);
     }
 

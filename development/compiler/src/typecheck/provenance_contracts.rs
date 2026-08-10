@@ -16,7 +16,7 @@ use super::provenance::{
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
 use crate::ast::{
-    AstFile, ConformanceMember, InstanceMember, Item, MethodDecl, MethodOwnerDecl, Parameter,
+    AstFile, ConformanceMember, Item, MethodDecl, MethodOwnerDecl, Parameter,
     ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::diagnostics::Diagnostic;
@@ -128,10 +128,7 @@ pub(super) fn check_result_provenance_contracts(
             Item::Instance(instance) => check_method_contracts(
                 sources,
                 instance,
-                instance.members.iter().filter_map(|member| match member {
-                    InstanceMember::Method(method) => Some(method),
-                    InstanceMember::Drop(_) => None,
-                }),
+                instance.methods.iter(),
                 false,
                 resolved,
                 summaries,
@@ -227,10 +224,7 @@ pub(super) fn check_result_provenance_contracts(
                 check_method_contracts(
                     sources,
                     &instance,
-                    instance.members.iter().filter_map(|member| match member {
-                        InstanceMember::Method(method) => Some(method),
-                        InstanceMember::Drop(_) => None,
-                    }),
+                    instance.methods.iter(),
                     false,
                     resolved,
                     summaries,

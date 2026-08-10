@@ -1,9 +1,9 @@
 use super::{
     ByteSpan, Diagnostic, DiagnosticNote, ResolveOutput, SourceMap, StructFieldSignature,
-    StructLiteralExpr, StructLiteralField, Type, TypeExpr, TypeSymbol, canonical_type_expr,
+    StructLiteralExpr, StructLiteralField, Type, TypeSymbol, canonical_type_expr,
     type_symbol_kind_name,
 };
-use crate::ast::{DropDecl, StructDecl, StructField};
+use crate::ast::{DestructDecl, StructDecl, StructField};
 
 pub(in crate::typecheck) fn struct_literal_target_type_mismatch_diagnostic(
     sources: &SourceMap,
@@ -223,28 +223,28 @@ pub(in crate::typecheck) fn copy_struct_field_not_copy_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn copy_struct_drop_member_diagnostic(
+pub(in crate::typecheck) fn copy_struct_destruct_diagnostic(
     sources: &SourceMap,
     struct_name: &str,
-    target_ty: &TypeExpr,
-    drop_: &DropDecl,
+    destruct: &DestructDecl,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0391",
-        format!("copy struct `{struct_name}` cannot define `drop`"),
+        format!("copy struct `{struct_name}` cannot define destruction"),
     );
-    diagnostic.primary_span = sources.span_to_json(drop_.span).ok().map(Box::new);
-    if let Ok(span) = sources.span_to_json(target_ty.span()) {
+    diagnostic.primary_span = sources.span_to_json(destruct.span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(destruct.target_ty.span()) {
         diagnostic.notes.push(DiagnosticNote {
             message: format!(
-                "instance target `{}` resolves to copy struct `{struct_name}`",
-                canonical_type_expr(target_ty)
+                "destruct target `{}` resolves to copy struct `{struct_name}`",
+                canonical_type_expr(&destruct.target_ty)
             ),
             span: Some(span),
         });
     }
     diagnostic.help = Some(
-        "remove the `drop` member or make the type an ordinary move-only `struct`".to_string(),
+        "remove the `destruct` declaration or make the type an ordinary move-only `struct`"
+            .to_string(),
     );
     diagnostic
 }

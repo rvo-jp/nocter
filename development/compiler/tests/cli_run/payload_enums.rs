@@ -100,10 +100,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -142,10 +140,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -184,10 +180,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -226,10 +220,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -269,10 +261,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -315,10 +305,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -361,10 +349,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -408,10 +394,8 @@ struct Box<T> {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Box<T>(&+self) {
+    exit(self.code)
 }
 
 enum Maybe<T> {
@@ -787,10 +771,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -986,10 +968,8 @@ struct Guard {
     code: i32
 }
 
-instance Guard {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Guard(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1038,10 +1018,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1102,11 +1080,9 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        write("drop\n")!
-        return
-    }
+destruct Payload(&+self) {
+    write("drop\n")!
+    return
 }
 
 enum Result {
@@ -1189,10 +1165,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1238,10 +1212,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1284,10 +1256,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1582,10 +1552,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -1880,10 +1848,8 @@ struct Payload {
     code: i32
 }
 
-instance Payload {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Payload(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -2571,10 +2537,8 @@ fn run_command_returns_owned_if_is_direct_drop_payload_binding_exit_code() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {
@@ -2613,10 +2577,8 @@ fn run_command_returns_owned_match_direct_drop_payload_binding_exit_code() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {
@@ -2655,10 +2617,8 @@ fn run_command_returns_constructor_match_direct_drop_payload_binding_exit_code()
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {
@@ -2699,10 +2659,8 @@ struct Detail {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Detail(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -2749,10 +2707,8 @@ struct Detail {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Detail(&+self) {
+    exit(self.code)
 }
 
 enum Result {
@@ -2799,10 +2755,8 @@ struct Detail {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Detail(&+self) {
+    exit(self.code)
 }
 
 struct Wrapper {
@@ -2845,10 +2799,8 @@ struct Detail {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        exit(self.code)
-    }
+destruct Detail(&+self) {
+    exit(self.code)
 }
 
 struct Wrapper {
@@ -2914,11 +2866,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 enum Result {
@@ -3034,15 +2984,13 @@ struct Token {
     tag: u8
 }
 
-instance Token {
-    drop &+self {
-        if self.tag == 1 {
-            write("a")!
-            return
-        }
-        write("b")!
+destruct Token(&+self) {
+    if self.tag == 1 {
+        write("a")!
         return
     }
+    write("b")!
+    return
 }
 
 enum Event {
@@ -3106,11 +3054,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 enum Result {
@@ -3208,11 +3154,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 enum Result {
@@ -3315,11 +3259,9 @@ struct File {
     name: &str
 }
 
-instance File {
-    drop &+self {
-        write(self.name)!
-        return
-    }
+destruct File(&+self) {
+    write(self.name)!
+    return
 }
 
 enum Result {

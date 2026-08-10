@@ -92,9 +92,10 @@ contain that binder, and one binder cannot have two refinements. Refinements aff
 conformance applicability. Overlapping patterns are rejected; a more concrete refinement never
 wins by ranking or source order.
 
-`drop` is uniform across every specialization of a nominal type. An instance containing `drop`
-must use each target slot through one distinct binder and cannot have a `where` predicate. This
-keeps generic ownership and ABI behavior independent of conditional method availability.
+An independent `destruct TypePattern(&+self) { ... }` declaration is uniform across every
+specialization of a nominal type. Its pattern must use each target slot through one distinct
+binder and cannot have a `where` predicate. This keeps generic ownership and ABI behavior
+independent of conditional method availability.
 
 ```nct
 func inspect<T>(value: &T): i32 where T: Readable<i32> {

@@ -319,10 +319,8 @@ fn does_not_report_owned_payload_match_expression_direct_drop_binding() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {
@@ -352,10 +350,8 @@ fn does_not_report_owned_payload_match_statement_direct_drop_binding() {
     code: i32
 }
 
-instance Detail {
-    drop &+self {
-        return
-    }
+destruct Detail(&+self) {
+    return
 }
 
 enum Result {
@@ -385,10 +381,8 @@ fn accepts_move_only_fixed_array_payload_construction_and_binding() {
     code: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Result {
@@ -421,10 +415,8 @@ fn accepts_partial_move_only_fixed_array_payload_initialization() {
     code: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Result {
@@ -455,10 +447,8 @@ fn accepts_payload_enums_nested_in_aggregate_abi_surfaces() {
     code: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Result {
@@ -596,10 +586,8 @@ fn does_not_report_owned_if_is_direct_drop_binding_as_outer_control_move() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 enum Event {
@@ -629,10 +617,8 @@ fn does_not_report_fully_initialized_recursive_drop_fixed_array_literal_binding(
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -654,10 +640,8 @@ fn accepts_tracked_partial_initialization_recursive_drop_fixed_array_literal_bin
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32! {
@@ -683,10 +667,8 @@ fn does_not_report_recursive_drop_fixed_array_literal_replacement() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -709,10 +691,8 @@ fn accepts_tracked_partial_initialization_recursive_drop_fixed_array_literal_rep
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32! {
@@ -739,10 +719,8 @@ fn does_not_report_recursive_drop_fixed_array_local_moves_and_reinitialization()
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -884,10 +862,8 @@ fn does_not_report_reachable_payload_enum_single_drop_payload_construction() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -914,10 +890,8 @@ fn does_not_report_reachable_payload_enum_multi_drop_payload_construction() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -944,10 +918,8 @@ fn does_not_report_reachable_scope_drop_body_with_multi_field_payload_enum() {
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -959,11 +931,9 @@ struct Resource {
     value: i32
 }
 
-instance Resource {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Resource(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 func main(): i32 {
@@ -985,10 +955,8 @@ fn does_not_report_reachable_generic_scope_drop_body_with_multi_field_payload_en
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -1000,11 +968,9 @@ struct Box<T> {
     value: T
 }
 
-instance Box<T> {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Box<T>(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 func main(): i32 {
@@ -1026,10 +992,8 @@ fn does_not_report_reachable_field_replacement_drop_body_with_multi_field_payloa
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -1041,11 +1005,9 @@ struct Resource {
     value: i32
 }
 
-instance Resource {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Resource(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 struct Holder {
@@ -1072,10 +1034,8 @@ fn does_not_report_reachable_generic_field_replacement_drop_body_with_multi_fiel
     value: i32
 }
 
-instance Payload {
-    drop &+self {
-        return
-    }
+destruct Payload(&+self) {
+    return
 }
 
 enum Result {
@@ -1087,11 +1047,9 @@ struct Resource {
     value: i32
 }
 
-instance Resource {
-    drop &+self {
-        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
-        return
-    }
+destruct Resource(&+self) {
+    let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
+    return
 }
 
 struct Holder<T> {
@@ -2125,10 +2083,8 @@ fn accepts_move_only_fixed_array_return_and_call_result_boundaries() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func make(first: i32, second: i32): [File; 2] {
@@ -2156,10 +2112,8 @@ fn accepts_tracked_move_only_fixed_array_return_partial_initialization() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func open(fd: i32): File! {
@@ -2189,10 +2143,8 @@ fn accepts_move_only_fixed_array_owned_parameter_boundaries() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func consume(files: [File; 2]): void {
@@ -2225,10 +2177,8 @@ fn accepts_tracked_move_only_fixed_array_argument_partial_initialization() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func open(fd: i32): File! {
@@ -2258,10 +2208,8 @@ fn accepts_move_only_fixed_array_struct_field_storage_and_replacement() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -2302,10 +2250,8 @@ fn accepts_atomic_fallible_move_only_fixed_array_struct_field_initialization() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {
@@ -2336,10 +2282,8 @@ fn accepts_partial_move_only_fixed_array_literal_struct_field_initialization() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 struct Bundle {

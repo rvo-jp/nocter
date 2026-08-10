@@ -1,6 +1,6 @@
 use crate::ast::TypeExpr;
 use crate::resolve::{
-    AssociatedFunctionSignature, DropSignature, FunctionSignature, LiteralSignature,
+    AssociatedFunctionSignature, DestructSignature, FunctionSignature, LiteralSignature,
     MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind,
 };
 use crate::typecheck::type_expr_presentation_label;
@@ -299,16 +299,15 @@ fn where_predicate_labels_with(
         .collect()
 }
 
-pub(crate) fn drop_presentation(drop_: &DropSignature, resolved: &ResolveOutput) -> String {
-    let binding = match self_receiver_prefix(&drop_.binding.ty) {
-        Some(prefix) => format!("{prefix}{}", drop_.binding.name),
-        None => format!(
-            "{}: {}",
-            drop_.binding.name,
-            type_expr_presentation_label(&drop_.binding.ty, resolved)
-        ),
-    };
-    format!("drop {binding}")
+pub(crate) fn drop_presentation(
+    owner: &TypeSymbol,
+    _drop: &DestructSignature,
+    resolved: &ResolveOutput,
+) -> String {
+    format!(
+        "destruct {}(&+self)",
+        crate::typecheck::type_symbol_presentation_label(owner, resolved)
+    )
 }
 
 pub(crate) fn literal_signature_presentation(
@@ -363,16 +362,6 @@ pub(crate) fn literal_presentation_with_substitutions(
         type_expr_presentation_label(&return_type, resolved),
         result_origin_labels(literal.result_provenance.as_ref()),
     )
-}
-
-fn self_receiver_prefix(ty: &TypeExpr) -> Option<&'static str> {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "Self" => Some(""),
-        TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "Self") => {
-            Some(if borrow.is_readwrite { "&+" } else { "&" })
-        }
-        _ => None,
-    }
 }
 
 pub(crate) fn result_origin_labels(

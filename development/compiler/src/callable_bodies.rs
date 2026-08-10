@@ -2,8 +2,8 @@
 
 use crate::ast::{
     AstFile, CoerceDecl, ConformanceMember, ConstructDecl, ConstructMemberDecl, FunctionDecl,
-    GenericParamList, InstanceDecl, InstanceMember, Item, LiteralDecl, LiteralShape, MethodDecl,
-    MethodOwnerDecl, ParameterList, ResultProvenanceClause, Visibility, canonical_type_expr,
+    GenericParamList, InstanceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodOwnerDecl,
+    ParameterList, ResultProvenanceClause, Visibility, canonical_type_expr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::ImportSourceMap;
@@ -134,10 +134,9 @@ impl CallableBodyIndex {
             Item::Function(function) if self.is_implementation(function_identity(function)) => None,
             Item::Instance(instance) => {
                 let mut filtered = instance.clone();
-                filtered.members.retain(|member| match member {
-                    InstanceMember::Method(method) => !self.is_implementation(method.name_span),
-                    InstanceMember::Drop(_) => true,
-                });
+                filtered
+                    .methods
+                    .retain(|method| !self.is_implementation(method.name_span));
                 Some(Item::Instance(filtered))
             }
             Item::Conformance(conformance) => {
@@ -310,6 +309,7 @@ fn collect_file_callables(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Interface(_) => {}
+            Item::Destruct(_) => {}
         }
     }
 }
@@ -352,10 +352,7 @@ fn collect_inherent_methods(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in &instance.members {
-        let InstanceMember::Method(method) = member else {
-            continue;
-        };
+    for method in &instance.methods {
         classify(
             sources,
             record_for_method(module, instance, method),

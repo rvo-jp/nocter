@@ -352,10 +352,8 @@ fn drops_only_the_active_owned_outcome_payload() {
     code: i32
 }
 
-instance Resource {
-    drop &+self {
-        return
-    }
+destruct Resource(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -499,9 +497,7 @@ fn moving_owned_outcomes_transfers_one_drop_obligation() {
     let module = lower_text(
         r#"struct Resource { code: i32 }
 
-instance Resource {
-    drop &+self { return }
-}
+destruct Resource(&+self) { return }
 
 func main(): i32 {
     let first = make()
@@ -637,9 +633,7 @@ fn evaluates_owned_replacement_before_dropping_the_old_payload() {
     let module = lower_text(
         r#"struct Resource { code: i32 }
 
-instance Resource {
-    drop &+self { return }
-}
+destruct Resource(&+self) { return }
 
 func main(): i32 {
     var saved = make(1)

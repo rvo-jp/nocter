@@ -583,11 +583,11 @@ where
         return drop_glue;
     }
 
-    let drop_member = type_symbol.drop_member.as_ref()?;
+    let destructor = type_symbol.destructor.as_ref()?;
     let target_name = if type_symbol.generic_arity > 0 {
-        drop_target_name_from_base_and_type_expr(&drop_member.target_name, ty)
+        drop_target_name_from_base_and_type_expr(&destructor.target_name, ty)
     } else {
-        drop_member.target_name.clone()
+        destructor.target_name.clone()
     };
     let target = if symbol.declaration_span.source == root_source {
         CallTarget::same_file(target_name)

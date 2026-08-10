@@ -668,11 +668,9 @@ struct Token {
     label: &str
 }
 
-instance Token {
-    drop &+self {
-        print(self.label)!
-        return
-    }
+destruct Token(&+self) {
+    print(self.label)!
+    return
 }
 
 struct Sink {
@@ -906,11 +904,9 @@ use std/mem.page_allocator
 struct Numbers { count: usize }
 struct Token { value: i32 }
 
-instance Token {
-    drop &+self {
-        assert_region_allocator()
-        return
-    }
+destruct Token(&+self) {
+    assert_region_allocator()
+    return
 }
 
 construct Numbers {
@@ -972,11 +968,9 @@ struct Token {
     label: &str
 }
 
-instance Token {
-    drop &+self {
-        print(self.label)!
-        return
-    }
+destruct Token(&+self) {
+    print(self.label)!
+    return
 }
 
 struct Sink {

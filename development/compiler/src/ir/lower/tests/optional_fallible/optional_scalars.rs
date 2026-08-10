@@ -513,10 +513,8 @@ fn lowers_optional_i32_otherwise_never_call_without_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
@@ -625,10 +623,8 @@ fn lowers_optional_i32_otherwise_return_with_scope_cleanup() {
     fd: i32
 }
 
-instance File {
-    drop &+self {
-        return
-    }
+destruct File(&+self) {
+    return
 }
 
 func main(): i32 {
