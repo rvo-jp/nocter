@@ -574,6 +574,7 @@ pub struct TypeSymbol {
     pub canonical_name: String,
     pub generic_parameters: Vec<String>,
     pub generic_parameter_requirements: Vec<GenericRequirements>,
+    pub where_clause: Option<crate::ast::WhereClause>,
     pub generic_arity: usize,
     pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,

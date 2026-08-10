@@ -643,11 +643,11 @@ interface ExactSizeStream<T> {}
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-pub func filter<T, I: Stream<T>>(source: I): I from source {
+pub func filter<T, I>(source: I): I from source where I: Stream<T> {
     return source
 }
 
-impl<T, I: ExactSizeStream<T>> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> {}
+impl<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -675,7 +675,8 @@ impl<T, I: ExactSizeStream<T>> ExactSizeStream<Indexed<T>> for EnumerateIter<T, 
         "ExactSizeStream"
     );
 
-    let implemented_offset = text.rfind(">> ExactSizeStream").unwrap() + ">> ".len();
+    let implemented_offset =
+        text.rfind("impl<T, I> ExactSizeStream").unwrap() + "impl<T, I> ".len();
     let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
         .expect("expected implemented-interface hover");
     assert_eq!(implemented.label, "interface ExactSizeStream<Indexed<T>>");
@@ -699,7 +700,7 @@ impl Source for NumberSource {
     method &self.get(): i32 { return self.value }
 }
 
-func project<S: Source>(source: &S): S.Item {
+func project<S>(source: &S): S.Item where S: Source {
     return source.get()
 }
 "#;
@@ -729,18 +730,18 @@ fn workspace_hover_presents_method_generic_parameter_identity() {
     let text = r#"interface Reader<T> {}
 
 interface Transform<T> {
-    pub method &self.map<U: Reader<T>>(value: U): T
-}
-"#;
+    pub method &self.map<U>(value: U): T where U: Reader<T>
+}"#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
-    let declaration_offset = text.find("U: Reader").unwrap();
+    let declaration_offset = text.find("map<U>").unwrap() + "map<".len();
+    let requirement_offset = text.find("U: Reader").unwrap();
     let reference_offset = text.find("value: U").unwrap() + "value: ".len();
 
-    for offset in [declaration_offset, reference_offset] {
+    for offset in [declaration_offset, requirement_offset, reference_offset] {
         let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
             .expect("expected generic parameter hover");
-        assert_eq!(hover.label, "type parameter U: Reader<T>");
+        assert_eq!(hover.label, "type parameter U where U: Reader<T>");
         assert_eq!(&text[hover.span.start..hover.span.end], "U");
     }
 
@@ -822,7 +823,7 @@ fn workspace_hover_presents_bound_method_provenance_contract() {
     pub method &self.get(): &V from self
 }
 
-func read<M: Lookup<i32>>(map: &M): &i32 from map {
+func read<M>(map: &M): &i32 from map where M: Lookup<i32> {
     return map.get()
 }
 "#;
@@ -904,7 +905,7 @@ interface Measurable {
     pub method &self.measure(): usize
 }
 
-func inspect<T: Readable + Measurable>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Readable + Measurable {
     return value.read()
 }
 "#;

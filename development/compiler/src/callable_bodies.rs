@@ -550,15 +550,7 @@ fn generic_signature(generics: &GenericParamList) -> Vec<String> {
     generics
         .parameters
         .iter()
-        .map(|parameter| {
-            let bounds = parameter
-                .bounds
-                .iter()
-                .map(canonical_type_expr)
-                .collect::<Vec<_>>()
-                .join("+");
-            format!("{}:{bounds}", parameter.name)
-        })
+        .map(|parameter| parameter.name.clone())
         .collect()
 }
 

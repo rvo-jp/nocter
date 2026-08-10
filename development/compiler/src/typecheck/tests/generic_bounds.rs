@@ -1,9 +1,99 @@
 use super::check_text;
 
 #[test]
+fn enforces_nominal_where_requirements_at_type_use_sites() {
+    let diagnostics = check_text(
+        r#"interface Marked {}
+
+copy struct MarkedValue {}
+impl Marked for MarkedValue {}
+
+struct OwnedValue {}
+
+struct Box<T> where T: Marked {
+    value: T
+}
+
+struct CopyBox<T> where copy T {
+    value: T
+}
+
+func generic_valid<T>(value: Box<T>): void where T: Marked {
+    return
+}
+
+func concrete_valid(value: Box<MarkedValue>, copied: CopyBox<MarkedValue>): void {
+    return
+}
+
+func invalid(value: Box<OwnedValue>, copied: CopyBox<OwnedValue>): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "E0470")
+            .count(),
+        2,
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E0470" && diagnostic.message.contains("Marked")
+        })
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E0470" && diagnostic.message.contains("copy T")
+        })
+    );
+}
+
+#[test]
+fn enforces_nominal_projection_equalities_at_type_use_sites() {
+    let diagnostics = check_text(
+        r#"interface Source {
+    pub type Item
+}
+
+struct IntSource {}
+impl Source for IntSource { type Item = i32 }
+
+struct BoolSource {}
+impl Source for BoolSource { type Item = bool }
+
+struct Pair<L, R> where L: Source, R: Source, L.Item = R.Item {
+    left: L
+    right: R
+}
+
+func valid(value: Pair<IntSource, IntSource>): void {
+    return
+}
+
+func invalid(value: Pair<IntSource, BoolSource>): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "E0471")
+            .count(),
+        1,
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn accepts_copy_requirement_in_generic_body_and_at_copyable_call_site() {
     let diagnostics = check_text(
-        r#"func duplicate<copy T>(value: T): [T; 2] {
+        r#"func duplicate<T>(value: T): [T; 2] where copy T {
     return [value, value]
 }
 
@@ -48,7 +138,7 @@ fn diagnoses_non_copy_type_at_copy_required_call() {
     value: i32
 }
 
-func duplicate<copy T>(value: T): [T; 2] {
+func duplicate<T>(value: T): [T; 2] where copy T {
     return [value, value]
 }
 
@@ -71,7 +161,7 @@ func main(): i32 {
 #[test]
 fn diagnoses_unknown_and_duplicate_where_copy_requirements() {
     let diagnostics = check_text(
-        r#"func duplicate<copy T>(value: T): T where copy T, copy Missing {
+        r#"func duplicate<T>(value: T): T where copy T, copy Missing, copy T {
     return value
 }
 "#,
@@ -94,7 +184,7 @@ fn diagnoses_unknown_and_duplicate_where_copy_requirements() {
 #[test]
 fn accepts_builtin_readonly_callable_bound_and_direct_invocation() {
     let diagnostics = check_text(
-        r#"func invoke<F: &func(i32): i32>(callback: F, value: i32): i32 {
+        r#"func invoke<F>(callback: F, value: i32): i32 where F: &func(i32): i32 {
     return callback(value)
 }
 
@@ -110,7 +200,7 @@ func main(): i32 {
 #[test]
 fn accepts_builtin_readwrite_callable_bound_through_writable_place() {
     let diagnostics = check_text(
-        r#"func invoke<F: &+func(i32): i32>(callback: F, value: i32): i32 {
+        r#"func invoke<F>(callback: F, value: i32): i32 where F: &+func(i32): i32 {
     var callable = move callback
     return callable(value)
 }
@@ -131,7 +221,7 @@ func main(): i32 {
 #[test]
 fn diagnoses_readwrite_callable_invocation_through_immutable_place() {
     let diagnostics = check_text(
-        r#"func invoke<F: &+func(i32): i32>(callback: F, value: i32): i32 {
+        r#"func invoke<F>(callback: F, value: i32): i32 where F: &+func(i32): i32 {
     return callback(value)
 }
 "#,
@@ -148,7 +238,7 @@ fn diagnoses_readwrite_callable_invocation_through_immutable_place() {
 #[test]
 fn consuming_callable_invocation_moves_the_callback() {
     let diagnostics = check_text(
-        r#"func invoke<F: func(i32): i32>(callback: F, value: i32): i32 {
+        r#"func invoke<F>(callback: F, value: i32): i32 where F: func(i32): i32 {
     let first = callback(value)
     return callback(first)
 }
@@ -172,7 +262,7 @@ func main(): i32 {
 #[test]
 fn diagnoses_multiple_callable_contracts_on_one_parameter() {
     let diagnostics = check_text(
-        r#"func invoke<F: &func(i32): i32 + func(i32): i32>(callback: F): i32 {
+        r#"func invoke<F>(callback: F): i32 where F: &func(i32): i32 + func(i32): i32 {
     return 0
 }
 
@@ -193,7 +283,7 @@ func main(): i32 {
 #[test]
 fn diagnoses_invalid_callable_parameter_and_provenance_names() {
     let diagnostics = check_text(
-        r#"func invoke<F: &func(value: &i32, value: &i32): &i32 from missing>(callback: F): i32 {
+        r#"func invoke<F>(callback: F): i32 where F: &func(value: &i32, value: &i32): &i32 from missing {
     return 0
 }
 
@@ -237,7 +327,7 @@ impl Measure for Count {{
     }}
 }}
 
-func read<T: Measure>(value: &T): i32 {{
+func read<T>(value: &T): i32 where T: Measure {{
     return value.measure()
 }}
 
@@ -268,7 +358,7 @@ impl Identity for IdentityValue {
     }
 }
 
-func apply_i32<I: Identity>(identity: &I, value: i32): i32 {
+func apply_i32<I>(identity: &I, value: i32): i32 where I: Identity {
     return identity.apply(value)
 }
 
@@ -286,7 +376,7 @@ func main(): i32 {
 fn diagnoses_concrete_type_that_does_not_satisfy_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}
-func read<T: Measure>(value: &T): i32 {{
+func read<T>(value: &T): i32 where T: Measure {{
     return value.measure()
 }}
 
@@ -311,7 +401,7 @@ fn diagnoses_non_interface_generic_bound() {
     raw: i32
 }
 
-func identity<T: Value>(value: T): T {
+func identity<T>(value: T): T where T: Value {
     return value
 }
 
@@ -338,11 +428,11 @@ impl Measure for Count {{
     }}
 }}
 
-func read<T: Measure>(value: &T): i32 {{
+func read<T>(value: &T): i32 where T: Measure {{
     return value.measure()
 }}
 
-func forward<U: Measure>(value: &U): i32 {{
+func forward<U>(value: &U): i32 where U: Measure {{
     return read(value)
 }}
 
@@ -372,7 +462,7 @@ impl<T> Lookup<T> for Box<T> {
     }
 }
 
-func lookup<M: Lookup<V>, V>(map: &M): &V from map {
+func lookup<M, V>(map: &M): &V from map where M: Lookup<V> {
     return map.get()
 }
 
@@ -451,7 +541,7 @@ impl Size for Value {
     }
 }
 
-func inspect<T: Read + Size>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Read + Size {
     let size: usize = value.size()
     return value.read()
 }
@@ -473,7 +563,7 @@ fn diagnoses_duplicate_interface_bound_by_specialized_identity() {
     pub method &self.read(): T
 }
 
-func inspect<T: Read<i32> + Read<i32>>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Read<i32> + Read<i32> {
     return value.read()
 }
 "#,
@@ -498,7 +588,7 @@ interface Right {
     pub method &self.read(): i32
 }
 
-func inspect<T: Left + Right>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Left + Right {
     return value.read()
 }
 "#,
@@ -537,13 +627,13 @@ struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I> {
+impl<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
 }
 
-func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
+func use_wrapper<W>(wrapper: &+W): void where W: Wrapper<i32> {
     let item = wrapper.next()
     return
 }
@@ -574,13 +664,13 @@ struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I> {
+impl<T, I> Wrapper<T> for Adapter<T, I> where I: Source<T> {
     method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
 }
 
-func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
+func use_wrapper<W>(wrapper: &+W): void where W: Wrapper<i32> {
     let item = wrapper.next()
     return
 }

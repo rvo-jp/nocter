@@ -70,9 +70,9 @@ Rules:
 - Reserved keywords are not identifiers.
 - `nocter` is an ordinary identifier and has no visibility meaning.
 - `copy` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes it
-  contextually in `copy struct`, `<copy T>`, and callable `where copy T` source forms.
-- `where` is not a reserved keyword. It is recognized contextually after a callable return type and
-  optional result-provenance clause.
+  contextually in `copy struct` and `where copy T` source forms.
+- `where` is not a reserved keyword. It is recognized contextually in declaration constraint
+  clauses.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
 - `interface` is a reserved keyword.
 - `from` and `import` are not reserved keywords. They are emitted as

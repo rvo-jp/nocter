@@ -2,18 +2,22 @@
 
 Public syntax and semantics are specified in
 [Generics, Interfaces, and Methods](../../spec/08-generics-interfaces-embedding-methods.md). This
-document records the compiler boundary introduced for v0.11.0 Phase 0.
+document records the compiler boundary completed through v0.11.0 Phase 3.
 
 ## Representations
 
-The AST preserves authored inline parameters and shared callable/impl `where` clauses, including
-separate spans for contextual keywords, target names, type bounds, and equality operands. Resolver
-signatures merge parameter predicates into `GenericRequirements` and retain resolved type
-equalities beside them. Each parameter requirement has one semantic kind: nominal, callable, or
-intrinsic copy. Consumers select the kind they understand instead of reclassifying arbitrary
-`TypeExpr` values or inspecting formatted text.
+The AST represents a generic parameter as a name and source span only. Every constraint belongs to
+one declaration-owned `WhereClause`. Its predicates retain separate spans for contextual keywords,
+target names, capability types, and equality operands. `where copy T`, `where T: Interface`, and
+`where L.Item = R.Item` therefore remain distinct authored nodes instead of overloading a type
+expression or a parameter modifier.
 
-`TypeEnvironment` carries the merged requirements for every visible generic parameter. Interface
+Resolver signatures map predicates to lexical parameter identities. They store parameter
+requirements in `GenericRequirements` and resolved type equalities beside them. Each parameter
+requirement has one semantic kind: nominal, callable, or intrinsic copy. Consumers select the kind
+they understand instead of reclassifying arbitrary `TypeExpr` values or inspecting formatted text.
+
+`TypeEnvironment` carries the resolved requirements for every visible generic parameter. Interface
 lookup consumes nominal requirements, callable invocation consumes callable requirements, and the
 ownership classifier consumes `copy`. Concrete call and conditional-conformance matching use the
 same classifier as generic-body ownership. Copy requirements produce no witness, ABI field, or
@@ -22,16 +26,19 @@ witness.
 
 ## Declaration and Specialization Flow
 
-1. Parsing records `<copy T>` and `where copy T` without reserving either contextual word globally.
-2. Declaration validation resolves every target in lexical generic scope and rejects duplicate or
-   invalid requirement sets.
-3. Resolver signatures merge inline and callable requirements by parameter identity.
+1. Parsing records name-only parameter lists and declaration-wide `where` predicates without
+   reserving `copy` or `where` globally.
+2. Declaration validation resolves every predicate target in lexical generic scope and rejects
+   duplicate or invalid requirement sets.
+3. Resolver signatures derive every parameter requirement from the clause by parameter identity.
 4. Generic-body checking treats `T` as copyable only when its environment contains the intrinsic
    requirement.
 5. Call specialization validates the concrete substitution at the argument evidence span.
-6. Associated-type bounds and equality predicates validate through the same resolved requirement
+6. A nominal specialization validates its declaration's requirements before the type can be used
+   as a field, parameter, result, conformance target, or nested type argument.
+7. Associated-type bounds and equality predicates validate through the same resolved requirement
    and projection services.
-7. Imported signatures qualify nominal bound and equality operand types while preserving
+8. Imported signatures qualify nominal bound and equality operand types while preserving
    intrinsic identities and source spans.
 
 AST JSON, normalized presentation, type occurrences, semantic tokens, signature help, and
@@ -40,7 +47,21 @@ requirements.
 
 ## Standard-Library Contract
 
-Readonly generic copying must be stated at the public declaration. `Vec.from_slice` and
-`Vec.try_from_slice` use `where copy T` because `T` belongs to the surrounding construction owner;
-their top-level forwarding functions declare `<copy T>`. Moving iteration and construction APIs
-remain unconstrained.
+Readonly generic copying must be stated at the public declaration. `Vec.from_slice`,
+`Vec.try_from_slice`, and their top-level forwarding functions use `where copy T`. Moving iteration
+and construction APIs remain unconstrained.
+
+## Source Invariants
+
+- `<T, U>` declares names and arity; `<copy T>` and `<T: Interface>` are rejected syntax.
+- `where T: Capability` is reserved for interface and structural callable conformance.
+- `where copy T` is the only intrinsic copy spelling; `where T: copy` is rejected.
+- `where Left = Right` relates types and requires at least one associated projection.
+- functions, methods, literals, nominal declarations, aliases, and impls all own the same clause
+  representation; no declaration kind carries an inline fallback.
+- associated type declarations may retain `pub type Item: Interface` because that bound constrains
+  the type selected for the member, not a generic parameter.
+
+Parser recovery, AST JSON, formatting, qualification, diagnostics, hover, completion, signature
+help, and semantic tokens consume these authored nodes or their resolved identities. Editor code
+must not scan source text or parse a presentation label to rediscover a requirement.

@@ -246,8 +246,11 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(GenericRequirements::from_parameter)
+            .map(|parameter| {
+                GenericRequirements::for_parameter(&parameter.name, alias.requirements.as_ref())
+            })
             .collect(),
+        where_clause: alias.requirements.clone(),
         generic_arity: alias.generics.parameters.len(),
         is_copy: false,
         alias_target: Some(alias.target.clone()),
@@ -278,8 +281,11 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(GenericRequirements::from_parameter)
+            .map(|parameter| {
+                GenericRequirements::for_parameter(&parameter.name, interface.requirements.as_ref())
+            })
             .collect(),
+        where_clause: interface.requirements.clone(),
         generic_arity: interface.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
@@ -327,8 +333,11 @@ pub(super) fn struct_type_symbol(
             .generics
             .parameters
             .iter()
-            .map(GenericRequirements::from_parameter)
+            .map(|parameter| {
+                GenericRequirements::for_parameter(&parameter.name, struct_.requirements.as_ref())
+            })
             .collect(),
+        where_clause: struct_.requirements.clone(),
         generic_arity: struct_.generics.parameters.len(),
         is_copy,
         alias_target: None,
@@ -378,8 +387,11 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .generics
             .parameters
             .iter()
-            .map(GenericRequirements::from_parameter)
+            .map(|parameter| {
+                GenericRequirements::for_parameter(&parameter.name, enum_.requirements.as_ref())
+            })
             .collect(),
+        where_clause: enum_.requirements.clone(),
         generic_arity: enum_.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
@@ -467,11 +479,7 @@ fn method_callable_signature(
             .collect(),
         generic_parameter_requirements: generic_parameters
             .iter()
-            .map(|parameter| {
-                let mut resolved = GenericRequirements::from_parameter(parameter);
-                resolved.extend_from_clause(&parameter.name, requirements);
-                resolved
-            })
+            .map(|parameter| GenericRequirements::for_parameter(&parameter.name, requirements))
             .collect(),
         where_clause: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),
@@ -496,11 +504,7 @@ fn callable_signature(
         generic_parameter_requirements: generics
             .parameters
             .iter()
-            .map(|parameter| {
-                let mut resolved = GenericRequirements::from_parameter(parameter);
-                resolved.extend_from_clause(&parameter.name, requirements);
-                resolved
-            })
+            .map(|parameter| GenericRequirements::for_parameter(&parameter.name, requirements))
             .collect(),
         where_clause: requirements.cloned(),
         parameters: parameters.iter().map(parameter_signature).collect(),

@@ -53,21 +53,25 @@ impl TypecheckFactCollector<'_> {
             Item::TypeAlias(alias) => {
                 self.collect_generic_param_type_references(&alias.generics);
                 self.collect_type_expr_references(&alias.target);
+                self.collect_where_clause_type_references(alias.requirements.as_ref());
             }
             Item::Struct(struct_) => {
                 self.collect_generic_param_type_references(&struct_.generics);
+                self.collect_where_clause_type_references(struct_.requirements.as_ref());
                 for field in &struct_.fields {
                     self.collect_type_expr_references(&field.ty);
                 }
             }
             Item::Enum(enum_) => {
                 self.collect_generic_param_type_references(&enum_.generics);
+                self.collect_where_clause_type_references(enum_.requirements.as_ref());
                 for variant in &enum_.variants {
                     self.collect_parameter_type_references(&variant.payload);
                 }
             }
             Item::Interface(interface) => {
                 self.collect_generic_param_type_references(&interface.generics);
+                self.collect_where_clause_type_references(interface.requirements.as_ref());
                 for associated in &interface.associated_types {
                     for bound in &associated.bounds {
                         self.collect_type_expr_references(bound);
@@ -185,6 +189,25 @@ impl TypecheckFactCollector<'_> {
         let Some(clause) = clause else {
             return;
         };
+        for requirement in clause.copy_requirements() {
+            if let Some(declaration) = self.generic_parameter_declaration(&requirement.name)
+                && let Some(parameter) = self
+                    .facts
+                    .generic_parameter_declarations
+                    .iter_mut()
+                    .find(|parameter| parameter.span == declaration)
+            {
+                parameter.is_copy = true;
+            }
+            self.record_type_reference(
+                &requirement.name,
+                requirement.name_span,
+                TypeExpr::Reference(TypeReference {
+                    span: requirement.name_span,
+                    name: requirement.name.clone(),
+                }),
+            );
+        }
         for requirement in clause.generic_requirements() {
             if let Some(declaration) = self.generic_parameter_declaration(&requirement.name)
                 && let Some(parameter) = self
@@ -219,13 +242,8 @@ impl TypecheckFactCollector<'_> {
 
     pub(in crate::typecheck::facts::collector) fn collect_generic_param_type_references(
         &mut self,
-        generics: &GenericParamList,
+        _generics: &GenericParamList,
     ) {
-        for parameter in &generics.parameters {
-            for bound in &parameter.bounds {
-                self.collect_type_expr_references(bound);
-            }
-        }
     }
 
     pub(in crate::typecheck::facts::collector) fn collect_parameter_type_references(

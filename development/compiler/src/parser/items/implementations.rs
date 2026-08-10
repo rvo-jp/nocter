@@ -125,6 +125,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::Interface, "`interface`")?;
         let name = self.expect_name_identifier("expected interface name after `interface`")?;
         let generics = self.parse_generic_param_list()?;
+        let requirements = self.parse_where_clause()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut methods = Vec::new();
         let mut associated_types = Vec::new();
@@ -170,6 +171,7 @@ impl Parser<'_> {
             name: name.value,
             name_span: name.span,
             generics,
+            requirements,
             associated_types,
             methods,
         }))

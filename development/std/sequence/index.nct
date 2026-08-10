@@ -7,6 +7,6 @@ pub interface Sequence<T> {
 }
 
 /// Returns the first element borrow without allocating.
-pub func first<S: Sequence<T>, T>(values: &S): &T? {
+pub func first<S, T>(values: &S): &T? where S: Sequence<T> {
         return values.get(0)?
 }

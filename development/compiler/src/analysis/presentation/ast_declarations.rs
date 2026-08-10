@@ -13,6 +13,7 @@ pub(crate) fn ast_type_alias_presentation(alias: &TypeAliasDecl) -> String {
         &alias.generics.parameters,
         false,
         Some(&alias.target),
+        alias.requirements.as_ref(),
     )
 }
 
@@ -23,11 +24,19 @@ pub(crate) fn ast_struct_presentation(struct_: &StructDecl) -> String {
         &struct_.generics.parameters,
         struct_.is_copy,
         None,
+        struct_.requirements.as_ref(),
     )
 }
 
 pub(crate) fn ast_enum_presentation(enum_: &EnumDecl) -> String {
-    nominal_type("enum", &enum_.name, &enum_.generics.parameters, false, None)
+    nominal_type(
+        "enum",
+        &enum_.name,
+        &enum_.generics.parameters,
+        false,
+        None,
+        enum_.requirements.as_ref(),
+    )
 }
 
 pub(crate) fn ast_interface_presentation(interface: &InterfaceDecl) -> String {
@@ -37,6 +46,7 @@ pub(crate) fn ast_interface_presentation(interface: &InterfaceDecl) -> String {
         &interface.generics.parameters,
         false,
         None,
+        interface.requirements.as_ref(),
     )
 }
 
@@ -159,57 +169,13 @@ fn callable(
         ast_parameter_labels(parameters),
         crate::ast::canonical_type_expr(return_type),
         super::result_origin_labels(result_provenance),
-        requirements
-            .into_iter()
-            .flat_map(|clause| &clause.predicates)
-            .map(|predicate| match predicate {
-                crate::ast::WherePredicate::Generic(requirement) => {
-                    let copy = if requirement.copy_span.is_some() {
-                        "copy "
-                    } else {
-                        ""
-                    };
-                    let bounds = requirement
-                        .bounds
-                        .iter()
-                        .map(crate::ast::canonical_type_expr)
-                        .collect::<Vec<_>>();
-                    if bounds.is_empty() {
-                        format!("{copy}{}", requirement.name)
-                    } else {
-                        format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
-                    }
-                }
-                crate::ast::WherePredicate::Equality(equality) => format!(
-                    "{} = {}",
-                    crate::ast::canonical_type_expr(&equality.left),
-                    crate::ast::canonical_type_expr(&equality.right)
-                ),
-            })
-            .collect(),
+        super::canonical_where_predicate_labels(requirements),
     )
     .render()
 }
 
 fn generic_label(parameter: &GenericParam) -> String {
-    let copy = if parameter.copy_span.is_some() {
-        "copy "
-    } else {
-        ""
-    };
-    if parameter.bounds.is_empty() {
-        return format!("{copy}{}", parameter.name);
-    }
-    format!(
-        "{copy}{}: {}",
-        parameter.name,
-        parameter
-            .bounds
-            .iter()
-            .map(crate::ast::canonical_type_expr)
-            .collect::<Vec<_>>()
-            .join(" + ")
-    )
+    parameter.name.clone()
 }
 
 fn nominal_type(
@@ -218,6 +184,7 @@ fn nominal_type(
     generics: &[GenericParam],
     is_copy: bool,
     target: Option<&crate::ast::TypeExpr>,
+    requirements: Option<&crate::ast::WhereClause>,
 ) -> String {
     let generics = generics.iter().map(generic_label).collect::<Vec<_>>();
     let generics = if generics.is_empty() {
@@ -229,5 +196,11 @@ fn nominal_type(
     let target = target
         .map(|target| format!(" = {}", crate::ast::canonical_type_expr(target)))
         .unwrap_or_default();
-    format!("{copy}{keyword} {name}{generics}{target}")
+    let predicates = super::canonical_where_predicate_labels(requirements);
+    let requirements = if predicates.is_empty() {
+        String::new()
+    } else {
+        format!(" where {}", predicates.join(", "))
+    };
+    format!("{copy}{keyword} {name}{generics}{target}{requirements}")
 }

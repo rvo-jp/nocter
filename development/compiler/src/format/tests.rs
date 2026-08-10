@@ -204,9 +204,28 @@ fn formats_associated_type_bounds_stably() {
 #[test]
 fn formats_generic_interface_bounds_stably() {
     assert_formats_stably(
-        r#"func measure<T:Measure+Display>(value:&T):i32{return value.measure()}
+        r#"func measure<T>(value:&T):i32 where T: Measure+Display {return value.measure()}
 "#,
-        "func measure<T: Measure + Display>(value: &T): i32 {\n    return value.measure()\n}\n",
+        "func measure<T>(value: &T): i32 where T: Measure + Display {\n    return value.measure()\n}\n",
+    );
+}
+
+#[test]
+fn formats_nominal_where_predicates_stably() {
+    assert_formats_stably(
+        r#"struct Box<T>where copy T,T:Readable{}
+type ReadableBox<T> =Box<T> where T:Readable
+interface Source<T>where T:Readable{pub type Item}
+"#,
+        concat!(
+            "struct Box<T> where copy T, T: Readable {}\n",
+            "\n",
+            "type ReadableBox<T> = Box<T> where T: Readable\n",
+            "\n",
+            "interface Source<T> where T: Readable {\n",
+            "    pub type Item\n",
+            "}\n",
+        ),
     );
 }
 
@@ -237,7 +256,7 @@ fn formats_construct_declarations_stably() {
     assert_formats_stably(
         r#"construct Vec<T>{pub default literal [](...items:T):Self{return Self.empty()}
 pub func new():Self{return make()}
-pub func from_iter<I:Source<T>>(iterator:I):Self{return Self.new()}}
+pub func from_iter<I>(iterator:I):Self where I: Source<T> {return Self.new()}}
 "#,
         r#"construct Vec<T> {
     pub default literal [](...items: T): Self {
@@ -248,7 +267,7 @@ pub func from_iter<I:Source<T>>(iterator:I):Self{return Self.new()}}
         return make()
     }
 
-    pub func from_iter<I: Source<T>>(iterator: I): Self {
+    pub func from_iter<I>(iterator: I): Self where I: Source<T> {
         return Self.new()
     }
 }
@@ -467,8 +486,8 @@ fn formats_ancestor_visibility_without_named_scopes() {
 #[test]
 fn formats_builtin_callable_contracts_stably() {
     assert_formats_stably(
-        "func apply<F:&+func(value:i32):i32>(callback:F):void {\nreturn\n}\n",
-        "func apply<F: &+func(value: i32): i32>(callback: F): void {\n    return\n}\n",
+        "func apply<F>(callback:F):void where F:&+func(value:i32):i32 {\nreturn\n}\n",
+        "func apply<F>(callback: F): void where F: &+func(value: i32): i32 {\n    return\n}\n",
     );
 }
 
@@ -551,10 +570,10 @@ impl File {drop &+self{drop self}}
 #[test]
 fn formats_method_generic_parameters_stably() {
     assert_formats_stably(
-        "impl Factory {pub method &self.convert<T:Readable+Measured,U>(value:T):U{return make(value)}}\n",
+        "impl Factory {pub method &self.convert<T,U>(value:T):U where T:Readable+Measured{return make(value)}}\n",
         concat!(
             "impl Factory {\n",
-            "    pub method &self.convert<T: Readable + Measured, U>(value: T): U {\n",
+            "    pub method &self.convert<T, U>(value: T): U where T: Readable + Measured {\n",
             "        return make(value)\n",
             "    }\n",
             "}\n",
@@ -565,9 +584,9 @@ fn formats_method_generic_parameters_stably() {
 #[test]
 fn formats_generic_interface_implementations_with_members_stably() {
     assert_formats_stably(
-        "impl<T:Readable> Source<T> for Box<T>{method &self.read():T{return self.value}}\n",
+        "impl<T> Source<T> for Box<T> where T:Readable{method &self.read():T{return self.value}}\n",
         concat!(
-            "impl<T: Readable> Source<T> for Box<T> {\n",
+            "impl<T> Source<T> for Box<T> where T: Readable {\n",
             "    method &self.read(): T {\n",
             "        return self.value\n",
             "    }\n",

@@ -338,7 +338,7 @@ This preserves Nocter's rule that ordinary names do not define special behavior.
 `Name` by an interface conformance, rather than an ordinary qualified declaration.
 
 ```nct
-func next<S: Source>(source: &+S): S.Item? {
+func next<S>(source: &+S): S.Item? where S: Source {
     return source.next()
 }
 ```

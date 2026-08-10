@@ -354,7 +354,7 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
     let project = TempProject::new("lsp-signature-help-builtin-callable");
     let home = project.write_nocter_home();
     let _home = NocterHomeEnv::set(&home);
-    let text = r#"func invoke<F: &+func(value: i32): i32>(callback: F, input: i32): i32 {
+    let text = r#"func invoke<F>(callback: F, input: i32): i32 where F: &+func(value: i32): i32 {
     var callable = move callback
     return callable(input)
 }

@@ -314,7 +314,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/io/core/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -326,19 +326,19 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/core/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/index/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/ops/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -392,7 +392,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/sequence/index/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -434,7 +434,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/vec/index/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -560,7 +560,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/02-values-types/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -626,7 +626,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/13-lexical-grammar/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

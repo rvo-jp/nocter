@@ -162,11 +162,7 @@ func main(): i32 {
 #[test]
 fn parses_builtin_callable_capability_types() {
     let output = parse_text(
-        r#"func apply<
-    Readonly: &func(i32): i32,
-    Mutable: &+func(value: i32): i32,
-    Once: func(source: &str): &str from source,
->(readonly: Readonly, mutable: Mutable, once: Once): void {
+        r#"func apply<Readonly, Mutable, Once>(readonly: Readonly, mutable: Mutable, once: Once): void where Readonly: &func(i32): i32, Mutable: &+func(value: i32): i32, Once: func(source: &str): &str from source {
     return
 }
 "#,
@@ -178,10 +174,11 @@ fn parses_builtin_callable_capability_types() {
         panic!("expected function declaration");
     };
     let bounds = function
-        .generics
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.bounds[0])
+        .requirements
+        .as_ref()
+        .expect("where clause")
+        .generic_requirements()
+        .map(|requirement| &requirement.bounds[0])
         .collect::<Vec<_>>();
     assert!(matches!(
         bounds[0],
@@ -205,8 +202,9 @@ fn parses_builtin_callable_capability_types() {
 
 #[test]
 fn rejects_removed_result_allocation_on_callable_types_contextually() {
-    let output =
-        parse_text("func apply<Factory: alloc &func(): Text>(factory: Factory): void { return }\n");
+    let output = parse_text(
+        "func apply<Factory>(factory: Factory): void where Factory: alloc &func(): Text { return }\n",
+    );
     assert!(output.ast.is_none());
     assert!(output.diagnostics.iter().any(|diagnostic| {
         diagnostic

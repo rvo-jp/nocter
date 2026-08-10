@@ -1417,7 +1417,7 @@ fn lsp_does_not_offer_removed_result_allocation_contract_edits() {
     let source_text = r#"struct Buffer { ptr: *u8 }
 interface Factory { pub method &self.make(): Buffer }
 
-func make<F: Factory>(factory: &F): Buffer { return factory.make() }
+func make<F>(factory: &F): Buffer where F: Factory { return factory.make() }
 "#;
     let source = project.write_source("index.nct", source_text);
     let uri = file_uri(&source);
@@ -1913,7 +1913,7 @@ impl<T> Measure for Box<T> {
     }
 }
 
-func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
+func borrow<B, T>(value: &B): &T from value where B: Read<T> + Measure {
     return value.read()
 }
 "#;

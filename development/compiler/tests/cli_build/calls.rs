@@ -5,7 +5,7 @@ fn build_command_lowers_builtin_callable_invocation() {
     let project = TempProject::new("cli-build-builtin-callable");
     let source = project.write_source(
         "builtin_callable.nct",
-        r#"func apply<F: &func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &func(i32): i32 {
     return callback(3)
 }
 

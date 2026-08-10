@@ -38,16 +38,19 @@ pub(crate) struct GenericParameterPresentation {
 
 impl GenericParameterPresentation {
     pub(crate) fn render(&self) -> String {
-        let copy = if self.is_copy { "copy " } else { "" };
-        if self.bounds.is_empty() {
-            format!("type parameter {copy}{}", self.name)
-        } else {
-            format!(
-                "type parameter {copy}{}: {}",
-                self.name,
-                self.bounds.join(" + ")
-            )
+        let mut predicates = Vec::new();
+        if self.is_copy {
+            predicates.push(format!("copy {}", self.name));
         }
+        if !self.bounds.is_empty() {
+            predicates.push(format!("{}: {}", self.name, self.bounds.join(" + ")));
+        }
+        let requirements = if predicates.is_empty() {
+            String::new()
+        } else {
+            format!(" where {}", predicates.join(", "))
+        };
+        format!("type parameter {}{requirements}", self.name)
     }
 }
 
@@ -142,30 +145,7 @@ fn declared_type_label(
     if type_symbol.generic_parameters.is_empty() {
         return visible_name;
     }
-    let parameters = type_symbol
-        .generic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let Some(requirements) = type_symbol.generic_parameter_requirements.get(index) else {
-                return parameter.clone();
-            };
-            if requirements.is_empty() {
-                return parameter.clone();
-            }
-            let copy = if requirements.has_copy() { "copy " } else { "" };
-            let bounds = requirements
-                .type_bounds()
-                .map(|bound| type_expr_presentation_label(bound, resolved))
-                .collect::<Vec<_>>();
-            if bounds.is_empty() {
-                format!("{copy}{parameter}")
-            } else {
-                format!("{copy}{parameter}: {}", bounds.join(" + "))
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
+    let parameters = type_symbol.generic_parameters.join(", ");
     format!("{visible_name}<{parameters}>")
 }
 

@@ -9,7 +9,7 @@ belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 A generic parameter may require more than one interface:
 
 ```nct
-func reserve_exact<I: Iterator + ExactSizeIterator>(source: &I): usize {
+func reserve_exact<I>(source: &I): usize where I: Iterator + ExactSizeIterator {
     return source.remaining_len()
 }
 ```
@@ -27,7 +27,7 @@ remain outside this architecture.
 A conformance declaration may constrain its own generic parameters:
 
 ```nct
-impl<I: Iterator> Iterator for TakeIter<I> {
+impl<I> Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -35,7 +35,7 @@ impl<I: Iterator> Iterator for TakeIter<I> {
     }
 }
 
-impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for TakeIter<I> {
+impl<I> ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         // return the exact bounded remainder
     }

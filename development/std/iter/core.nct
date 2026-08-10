@@ -1,17 +1,17 @@
 //! Iterator adapter implementations.
 
 /// Constructs a lazy mapping adapter without allocating.
-func map<U, I: Iterator, F: &+func(I.Item): U>(
+func map<U, I, F>(
     source: I,
     transform: F,
-): MapIter<U, I, F> from source | transform {
+): MapIter<U, I, F> from source | transform where I: Iterator, F: &+func(I.Item): U {
     return MapIter<U, I, F> {
         source: move source,
         transform: move transform,
     }
 }
 
-impl<U, I: Iterator, F: &+func(I.Item): U> Iterator for MapIter<U, I, F> {
+impl<U, I, F> Iterator for MapIter<U, I, F> where I: Iterator, F: &+func(I.Item): U {
     type Item = U
 
     /// Advances the source once and transforms the yielded item once.
@@ -21,7 +21,7 @@ impl<U, I: Iterator, F: &+func(I.Item): U> Iterator for MapIter<U, I, F> {
     }
 }
 
-impl<U, I: Iterator + ExactSizeIterator, F: &+func(I.Item): U> ExactSizeIterator for MapIter<U, I, F> {
+impl<U, I, F> ExactSizeIterator for MapIter<U, I, F> where I: Iterator + ExactSizeIterator, F: &+func(I.Item): U {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
@@ -29,17 +29,17 @@ impl<U, I: Iterator + ExactSizeIterator, F: &+func(I.Item): U> ExactSizeIterator
 }
 
 /// Constructs a lazy filtering adapter without allocating.
-func filter<I: Iterator, F: &+func(&I.Item): bool>(
+func filter<I, F>(
     source: I,
     predicate: F,
-): FilterIter<I, F> from source | predicate {
+): FilterIter<I, F> from source | predicate where I: Iterator, F: &+func(&I.Item): bool {
     return FilterIter<I, F> {
         source: move source,
         predicate: move predicate,
     }
 }
 
-impl<I: Iterator, F: &+func(&I.Item): bool> Iterator for FilterIter<I, F> {
+impl<I, F> Iterator for FilterIter<I, F> where I: Iterator, F: &+func(&I.Item): bool {
     type Item = I.Item
 
     /// Advances until the predicate accepts an item or the source is exhausted.
@@ -55,14 +55,14 @@ impl<I: Iterator, F: &+func(&I.Item): bool> Iterator for FilterIter<I, F> {
 }
 
 /// Constructs an owning prefix-limiting adapter.
-func take<I: Iterator>(source: I, limit: usize): TakeIter<I> {
+func take<I>(source: I, limit: usize): TakeIter<I> where I: Iterator {
     return TakeIter<I> {
         source: move source,
         remaining: limit,
     }
 }
 
-impl<I: Iterator> Iterator for TakeIter<I> {
+impl<I> Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -78,7 +78,7 @@ impl<I: Iterator> Iterator for TakeIter<I> {
     }
 }
 
-impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for TakeIter<I> {
+impl<I> ExactSizeIterator for TakeIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining < self.remaining {
@@ -89,14 +89,14 @@ impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for TakeIter<I> {
 }
 
 /// Constructs an owning prefix-skipping adapter.
-func skip<I: Iterator>(source: I, amount: usize): SkipIter<I> {
+func skip<I>(source: I, amount: usize): SkipIter<I> where I: Iterator {
     return SkipIter<I> {
         source: move source,
         remaining_to_skip: amount,
     }
 }
 
-impl<I: Iterator> Iterator for SkipIter<I> {
+impl<I> Iterator for SkipIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {
@@ -111,7 +111,7 @@ impl<I: Iterator> Iterator for SkipIter<I> {
     }
 }
 
-impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for SkipIter<I> {
+impl<I> ExactSizeIterator for SkipIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining <= self.remaining_to_skip {
@@ -122,10 +122,10 @@ impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for SkipIter<I> {
 }
 
 /// Constructs an owning sequential adapter.
-func chain<L: Iterator, R: Iterator>(
+func chain<L, R>(
     left: L,
     right: R,
-): ChainIter<L, R> from left | right where R.Item = L.Item {
+): ChainIter<L, R> from left | right where L: Iterator, R: Iterator, R.Item = L.Item {
     return ChainIter<L, R> {
         left: move left,
         right: move right,
@@ -133,7 +133,7 @@ func chain<L: Iterator, R: Iterator>(
     }
 }
 
-impl<L: Iterator, R: Iterator> Iterator for ChainIter<L, R> where R.Item = L.Item {
+impl<L, R> Iterator for ChainIter<L, R> where L: Iterator, R: Iterator, R.Item = L.Item {
     type Item = L.Item
 
     method &+self.next(): L.Item? {
@@ -148,21 +148,21 @@ impl<L: Iterator, R: Iterator> Iterator for ChainIter<L, R> where R.Item = L.Ite
     }
 }
 
-impl<L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator> ExactSizeIterator for ChainIter<L, R> where R.Item = L.Item {
+impl<L, R> ExactSizeIterator for ChainIter<L, R> where L: Iterator + ExactSizeIterator, R: Iterator + ExactSizeIterator, R.Item = L.Item {
     method &self.remaining_len(): usize {
         return self.left.remaining_len() + self.right.remaining_len()
     }
 }
 
 /// Constructs an indexed owning adapter.
-func enumerate<I: Iterator>(source: I): EnumerateIter<I> {
+func enumerate<I>(source: I): EnumerateIter<I> where I: Iterator {
     return EnumerateIter<I> {
         source: move source,
         next_index: 0,
     }
 }
 
-impl<I: Iterator> Iterator for EnumerateIter<I> {
+impl<I> Iterator for EnumerateIter<I> where I: Iterator {
     type Item = Indexed<I.Item>
 
     method &+self.next(): Indexed<I.Item>? {
@@ -176,7 +176,7 @@ impl<I: Iterator> Iterator for EnumerateIter<I> {
     }
 }
 
-impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for EnumerateIter<I> {
+impl<I> ExactSizeIterator for EnumerateIter<I> where I: Iterator + ExactSizeIterator {
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }

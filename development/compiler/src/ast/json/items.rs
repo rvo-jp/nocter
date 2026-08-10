@@ -90,6 +90,9 @@ impl Item {
                     item.generics.to_json(sources),
                     item.target.to_json(sources),
                 ]);
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
+                }
                 JsonAstNode::with_value(
                     "type_alias_decl",
                     item.name.clone(),
@@ -104,6 +107,9 @@ impl Item {
                     children.push(JsonAstNode::new("copy_modifier", None, Vec::new()));
                 }
                 children.push(item.generics.to_json(sources));
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
+                }
                 children.extend(item.fields.iter().map(|field| field.to_json(sources)));
                 JsonAstNode::with_value(
                     "struct_decl",
@@ -118,6 +124,9 @@ impl Item {
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                 ]);
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
+                }
                 children.extend(item.variants.iter().map(|variant| variant.to_json(sources)));
                 JsonAstNode::with_value(
                     "enum_decl",
@@ -132,6 +141,9 @@ impl Item {
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                 ]);
+                if let Some(requirements) = &item.requirements {
+                    children.push(requirements.to_json(sources));
+                }
                 children.extend(item.associated_types.iter().map(|associated_type| {
                     JsonAstNode::with_value(
                         "associated_type_decl",
@@ -381,22 +393,11 @@ impl GenericParamList {
 
 impl GenericParam {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        let mut children = self
-            .bounds
-            .iter()
-            .map(|bound| bound.to_json(sources))
-            .collect::<Vec<_>>();
-        if let Some(span) = self.copy_span {
-            children.insert(
-                0,
-                JsonAstNode::new("copy_requirement", json_span(sources, span), Vec::new()),
-            );
-        }
         JsonAstNode::with_value(
             "generic_param",
             self.name.clone(),
             json_span(sources, self.span),
-            children,
+            Vec::new(),
         )
     }
 }
@@ -409,22 +410,18 @@ impl WhereClause {
             self.predicates
                 .iter()
                 .map(|predicate| match predicate {
+                    crate::ast::WherePredicate::Copy(requirement) => JsonAstNode::with_value(
+                        "copy_requirement",
+                        requirement.name.clone(),
+                        json_span(sources, requirement.span),
+                        Vec::new(),
+                    ),
                     crate::ast::WherePredicate::Generic(requirement) => {
-                        let mut children = requirement
+                        let children = requirement
                             .bounds
                             .iter()
                             .map(|bound| bound.to_json(sources))
                             .collect::<Vec<_>>();
-                        if let Some(span) = requirement.copy_span {
-                            children.insert(
-                                0,
-                                JsonAstNode::new(
-                                    "copy_requirement",
-                                    json_span(sources, span),
-                                    Vec::new(),
-                                ),
-                            );
-                        }
                         JsonAstNode::with_value(
                             "generic_requirement",
                             requirement.name.clone(),

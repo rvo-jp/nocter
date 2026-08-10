@@ -97,6 +97,13 @@ fn qualify_type_symbol(
     local_type_names: &[String],
     imported_type_names: &[ImportedTypeName],
 ) {
+    for requirements in &mut symbol.generic_parameter_requirements {
+        for requirement in requirements.iter_mut() {
+            if let Some(bound) = requirement.type_expr_mut() {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
+        }
+    }
     if let Some(target) = &mut symbol.alias_target {
         qualify_type_expr(target, import_path, local_type_names, imported_type_names);
     }
@@ -125,6 +132,9 @@ fn qualify_type_symbol(
             local_type_names,
             imported_type_names,
         );
+    }
+    if let Some(clause) = &mut symbol.where_clause {
+        qualify_where_clause(clause, import_path, local_type_names, imported_type_names);
     }
     for method in &mut symbol.methods {
         if let Some(impl_target_ty) = &mut method.impl_target_ty {
@@ -301,6 +311,7 @@ fn qualify_where_clause(
 ) {
     for predicate in &mut clause.predicates {
         match predicate {
+            crate::ast::WherePredicate::Copy(_) => {}
             crate::ast::WherePredicate::Generic(requirement) => {
                 for bound in &mut requirement.bounds {
                     qualify_type_expr(bound, import_path, local_type_names, imported_type_names);

@@ -5,7 +5,7 @@
 //! from arbitrary type syntax. Nominal requirements remain subject to interface validation during
 //! type checking; preserving that invalid form lets diagnostics point at the authored bound.
 
-use crate::ast::{GenericParam, TypeExpr, WhereClause};
+use crate::ast::{TypeExpr, WhereClause};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,31 +62,26 @@ impl GenericRequirements {
         }
     }
 
-    pub fn from_parameter(parameter: &GenericParam) -> Self {
-        let mut requirements = parameter
-            .copy_span
-            .map(|span| vec![GenericRequirement::Copy { span }])
-            .unwrap_or_default();
-        requirements.extend(
-            parameter
-                .bounds
-                .iter()
-                .cloned()
-                .map(GenericRequirement::from_type_expr),
-        );
-        Self { requirements }
+    pub fn for_parameter(parameter: &str, clause: Option<&WhereClause>) -> Self {
+        let mut requirements = Self::default();
+        requirements.extend_from_clause(parameter, clause);
+        requirements
     }
 
     pub fn extend_from_clause(&mut self, parameter: &str, clause: Option<&WhereClause>) {
         let Some(clause) = clause else {
             return;
         };
+        for authored in clause.copy_requirements() {
+            if authored.name == parameter {
+                self.requirements.push(GenericRequirement::Copy {
+                    span: authored.keyword_span,
+                });
+            }
+        }
         for authored in clause.generic_requirements() {
             if authored.name != parameter {
                 continue;
-            }
-            if let Some(span) = authored.copy_span {
-                self.requirements.push(GenericRequirement::Copy { span });
             }
             self.requirements.extend(
                 authored

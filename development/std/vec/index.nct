@@ -138,7 +138,7 @@ construct Vec<T> {
     }
 
     /// Consumes an iterator and grows a Vec without an intermediate collection.
-    pub func from_iter<I: Iterator>(iterator: I): Self where I.Item = T {
+    pub func from_iter<I>(iterator: I): Self where I: Iterator, I.Item = T {
         var result: Vec<T> = Vec.empty()
         for item in iterator {
             result.push(move item)
@@ -147,9 +147,9 @@ construct Vec<T> {
     }
 
     /// Consumes an exact iterator after reserving its initial reported remainder.
-    pub func from_exact_iter<I: Iterator + ExactSizeIterator>(
+    pub func from_exact_iter<I>(
         iterator: I,
-    ): Self where I.Item = T {
+    ): Self where I: Iterator + ExactSizeIterator, I.Item = T {
         var source = move iterator
         let initial_len: usize = source.remaining_len()
         var result: Vec<T> = Vec.empty()
@@ -201,14 +201,14 @@ pub func try_with_capacity<T>(
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func from_slice<copy T>(values: &[T]): Vec<T> {
+pub func from_slice<T>(values: &[T]): Vec<T> where copy T {
     return Vec.from_slice(values)
 }
 
-pub func try_from_slice<copy T>(
+pub func try_from_slice<T>(
     allocator: &+TryAllocator,
     values: &[T],
-): Vec<T>! from allocator | values {
+): Vec<T>! from allocator | values where copy T {
     return Vec.try_from_slice(allocator, values)?
 }
 
@@ -326,7 +326,7 @@ pub func truncate<T>(values: &+Vec<T>, requested_len: usize): void {
 /// Removes elements rejected by `predicate` while preserving relative order.
 /// Each removed value is dropped exactly once and retained values are moved at
 /// most once into the compacted initialized prefix.
-pub func retain<T, F: &+func(&T): bool>(values: &+Vec<T>, predicate: F): void {
+pub func retain<T, F>(values: &+Vec<T>, predicate: F): void where F: &+func(&T): bool {
     var predicate_fn = move predicate
     let element_size: usize = pointee_size(values.ptr)
     let original_len: usize = values.len
@@ -471,7 +471,7 @@ impl<T> Vec<T> {
         return
     }
 
-    pub method &+self.retain<F: &+func(&T): bool>(predicate: F): void {
+    pub method &+self.retain<F>(predicate: F): void where F: &+func(&T): bool {
         var predicate_fn = move predicate
         let element_size: usize = pointee_size(self.ptr)
         let original_len: usize = self.len

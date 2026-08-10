@@ -181,6 +181,7 @@ pub struct TypeAliasDecl {
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
     pub target: TypeExpr,
+    pub requirements: Option<WhereClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +193,7 @@ pub struct StructDecl {
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
+    pub requirements: Option<WhereClause>,
     pub fields: Vec<StructField>,
 }
 
@@ -212,6 +214,7 @@ pub struct EnumDecl {
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
+    pub requirements: Option<WhereClause>,
     pub variants: Vec<EnumVariant>,
 }
 
@@ -231,6 +234,7 @@ pub struct InterfaceDecl {
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
+    pub requirements: Option<WhereClause>,
     pub associated_types: Vec<AssociatedTypeDecl>,
     pub methods: Vec<MethodDecl>,
 }

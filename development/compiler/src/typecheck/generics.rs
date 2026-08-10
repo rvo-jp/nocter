@@ -3,7 +3,8 @@ use super::diagnostics::{
     duplicate_generic_bound_diagnostic, duplicate_type_equality_diagnostic,
     generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
     invalid_callable_provenance_origin_diagnostic, invalid_type_equality_diagnostic,
-    multiple_callable_bounds_diagnostic, self_type_outside_context_diagnostic,
+    multiple_callable_bounds_diagnostic, nominal_type_equality_not_satisfied_diagnostic,
+    nominal_type_requirement_not_satisfied_diagnostic, self_type_outside_context_diagnostic,
     unknown_where_parameter_diagnostic, unresolved_type_reference_diagnostic,
 };
 use super::model::Type;
@@ -32,7 +33,6 @@ pub(super) fn check_generic_type_arities(
                     GenericScope::new(&function.generics)
                 }
                 .with_where_clause(function.requirements.as_ref());
-                check_generic_bounds(sources, &function.generics, resolved, &scope, diagnostics);
                 check_where_clause(
                     sources,
                     function.requirements.as_ref(),
@@ -74,7 +74,6 @@ pub(super) fn check_generic_type_arities(
             Item::Primitive(primitive) => {
                 let scope = GenericScope::new(&primitive.generics)
                     .with_where_clause(primitive.requirements.as_ref());
-                check_generic_bounds(sources, &primitive.generics, resolved, &scope, diagnostics);
                 check_where_clause(
                     sources,
                     primitive.requirements.as_ref(),
@@ -98,27 +97,56 @@ pub(super) fn check_generic_type_arities(
                 );
             }
             Item::TypeAlias(alias) => {
-                let scope = GenericScope::new(&alias.generics);
-                check_generic_bounds(sources, &alias.generics, resolved, &scope, diagnostics);
+                let scope = GenericScope::new(&alias.generics)
+                    .with_where_clause(alias.requirements.as_ref());
+                check_where_clause(
+                    sources,
+                    alias.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 check_type_expr(sources, &alias.target, resolved, &scope, diagnostics);
             }
             Item::Struct(struct_) => {
-                let scope = GenericScope::new(&struct_.generics);
-                check_generic_bounds(sources, &struct_.generics, resolved, &scope, diagnostics);
+                let scope = GenericScope::new(&struct_.generics)
+                    .with_where_clause(struct_.requirements.as_ref());
+                check_where_clause(
+                    sources,
+                    struct_.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 for field in &struct_.fields {
                     check_type_expr(sources, &field.ty, resolved, &scope, diagnostics);
                 }
             }
             Item::Enum(enum_) => {
-                let scope = GenericScope::new(&enum_.generics);
-                check_generic_bounds(sources, &enum_.generics, resolved, &scope, diagnostics);
+                let scope = GenericScope::new(&enum_.generics)
+                    .with_where_clause(enum_.requirements.as_ref());
+                check_where_clause(
+                    sources,
+                    enum_.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 for variant in &enum_.variants {
                     check_parameters(sources, &variant.payload, resolved, &scope, diagnostics);
                 }
             }
             Item::Interface(interface) => {
-                let scope = GenericScope::new(&interface.generics).with_interface(interface);
-                check_generic_bounds(sources, &interface.generics, resolved, &scope, diagnostics);
+                let scope = GenericScope::new(&interface.generics)
+                    .with_interface(interface)
+                    .with_where_clause(interface.requirements.as_ref());
+                check_where_clause(
+                    sources,
+                    interface.requirements.as_ref(),
+                    resolved,
+                    &scope,
+                    diagnostics,
+                );
                 for associated in &interface.associated_types {
                     check_bound_list(sources, &associated.bounds, resolved, &scope, diagnostics);
                 }
@@ -127,13 +155,6 @@ pub(super) fn check_generic_type_arities(
                         .clone()
                         .with_generics(&method.generics)
                         .with_where_clause(method.requirements.as_ref());
-                    check_generic_bounds(
-                        sources,
-                        &method.generics,
-                        resolved,
-                        &method_scope,
-                        diagnostics,
-                    );
                     check_method_signature(sources, method, resolved, &method_scope, diagnostics);
                     if let Some(body) = &method.body {
                         check_block(sources, body, resolved, &method_scope, diagnostics);
@@ -148,13 +169,6 @@ pub(super) fn check_generic_type_arities(
                     let scope = GenericScope::new(&function.generics)
                         .with_self_type()
                         .with_where_clause(function.requirements.as_ref());
-                    check_generic_bounds(
-                        sources,
-                        &function.generics,
-                        resolved,
-                        &scope,
-                        diagnostics,
-                    );
                     check_where_clause(
                         sources,
                         function.requirements.as_ref(),
@@ -196,7 +210,6 @@ fn check_impl_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let scope = GenericScope::new(&impl_.generics).with_where_clause(impl_.requirements.as_ref());
-    check_generic_bounds(sources, &impl_.generics, resolved, &scope, diagnostics);
     check_where_clause(
         sources,
         impl_.requirements.as_ref(),
@@ -225,13 +238,6 @@ fn check_impl_types(
                     .clone()
                     .with_generics(&method.generics)
                     .with_where_clause(method.requirements.as_ref());
-                check_generic_bounds(
-                    sources,
-                    &method.generics,
-                    resolved,
-                    &method_scope,
-                    diagnostics,
-                );
                 check_method_signature(sources, method, resolved, &method_scope, diagnostics);
                 if let Some(body) = &method.body {
                     check_block(sources, body, resolved, &method_scope, diagnostics);
@@ -248,18 +254,6 @@ fn check_impl_types(
                 check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
             }
         }
-    }
-}
-
-fn check_generic_bounds(
-    sources: &SourceMap,
-    generics: &GenericParamList,
-    resolved: &ResolveOutput,
-    scope: &GenericScope<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for parameter in &generics.parameters {
-        check_bound_list(sources, &parameter.bounds, resolved, scope, diagnostics);
     }
 }
 
@@ -335,40 +329,29 @@ fn check_where_clause(
         .keys()
         .map(|name| ((*name).to_string(), Type::Parameter((*name).to_string())))
         .collect();
-    let mut seen_copy = scope
-        .parameters
-        .iter()
-        .filter_map(|(name, parameter)| parameter.copy_span.map(|span| (*name, span)))
-        .collect::<HashMap<_, _>>();
-    let mut seen_bounds = scope
-        .parameters
-        .iter()
-        .map(|(name, parameter)| {
-            let bounds = parameter
-                .bounds
-                .iter()
-                .map(|bound| {
-                    (
-                        type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions)
-                            .display(),
-                        bound.span(),
-                    )
-                })
-                .collect::<HashMap<_, _>>();
-            (*name, bounds)
-        })
-        .collect::<HashMap<_, _>>();
-    let mut callable_bound_spans = scope
-        .parameters
-        .iter()
-        .filter_map(|(name, parameter)| {
-            parameter
-                .bounds
-                .iter()
-                .find(|bound| matches!(bound, TypeExpr::Callable(_)))
-                .map(|bound| (*name, bound.span()))
-        })
-        .collect::<HashMap<_, _>>();
+    let mut seen_copy = HashMap::new();
+    let mut seen_bounds = HashMap::<&str, HashMap<String, ByteSpan>>::new();
+    let mut callable_bound_spans = HashMap::new();
+
+    for requirement in clause.copy_requirements() {
+        if !scope.parameters.contains_key(requirement.name.as_str()) {
+            diagnostics.push(unknown_where_parameter_diagnostic(
+                sources,
+                &requirement.name,
+                requirement.name_span,
+            ));
+            continue;
+        }
+        if let Some(first_span) =
+            seen_copy.insert(requirement.name.as_str(), requirement.keyword_span)
+        {
+            diagnostics.push(duplicate_copy_requirement_diagnostic(
+                sources,
+                requirement.keyword_span,
+                first_span,
+            ));
+        }
+    }
 
     for requirement in clause.generic_requirements() {
         let Some(_) = scope.parameters.get(requirement.name.as_str()) else {
@@ -382,13 +365,6 @@ fn check_where_clause(
             }
             continue;
         };
-        if let Some(copy_span) = requirement.copy_span
-            && let Some(first_span) = seen_copy.insert(requirement.name.as_str(), copy_span)
-        {
-            diagnostics.push(duplicate_copy_requirement_diagnostic(
-                sources, copy_span, first_span,
-            ));
-        }
         for bound in &requirement.bounds {
             check_type_expr(sources, bound, resolved, scope, diagnostics);
             let bound_type =
@@ -498,6 +474,7 @@ fn type_expr_contains_projection(ty: &TypeExpr) -> bool {
 struct GenericScope<'a> {
     parameters: HashMap<&'a str, &'a GenericParam>,
     requirements: HashMap<&'a str, Vec<&'a TypeExpr>>,
+    clauses: Vec<&'a WhereClause>,
     self_associated_types: Option<HashMap<String, ByteSpan>>,
 }
 
@@ -512,13 +489,9 @@ impl<'a> GenericScope<'a> {
             requirements: generics
                 .parameters
                 .iter()
-                .map(|parameter| {
-                    (
-                        parameter.name.as_str(),
-                        parameter.bounds.iter().collect::<Vec<_>>(),
-                    )
-                })
+                .map(|parameter| (parameter.name.as_str(), Vec::new()))
                 .collect(),
+            clauses: Vec::new(),
             self_associated_types: None,
         }
     }
@@ -572,18 +545,18 @@ impl<'a> GenericScope<'a> {
                 .iter()
                 .map(|parameter| (parameter.name.as_str(), parameter)),
         );
-        self.requirements
-            .extend(generics.parameters.iter().map(|parameter| {
-                (
-                    parameter.name.as_str(),
-                    parameter.bounds.iter().collect::<Vec<_>>(),
-                )
-            }));
+        self.requirements.extend(
+            generics
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.name.as_str(), Vec::new())),
+        );
         self
     }
 
     fn with_where_clause(mut self, clause: Option<&'a WhereClause>) -> Self {
         if let Some(clause) = clause {
+            self.clauses.push(clause);
             for requirement in clause.generic_requirements() {
                 self.requirements
                     .entry(requirement.name.as_str())
@@ -606,6 +579,16 @@ impl<'a> GenericScope<'a> {
         self.parameters
             .get(name)
             .map(|parameter| parameter.name_span)
+    }
+
+    fn type_environment(&self, resolved: &ResolveOutput) -> super::model::TypeEnvironment {
+        let mut environment = super::model::TypeEnvironment::default();
+        environment
+            .define_generic_parameters(self.parameters.keys().map(|name| (*name).to_string()));
+        for clause in &self.clauses {
+            environment.apply_where_clause(Some(clause), resolved);
+        }
+        environment
     }
 }
 
@@ -828,6 +811,7 @@ fn check_type_expr(
             for argument in &generic.arguments {
                 check_type_expr(sources, argument, resolved, scope, diagnostics);
             }
+            check_nominal_type_requirements(sources, generic, resolved, scope, diagnostics);
         }
         TypeExpr::Projection(projection) => {
             check_type_expr(sources, &projection.base, resolved, scope, diagnostics);
@@ -887,6 +871,142 @@ fn check_type_expr(
             check_type_expr(sources, &fallible.error, resolved, scope, diagnostics);
         }
     }
+}
+
+fn check_nominal_type_requirements(
+    sources: &SourceMap,
+    generic: &crate::ast::GenericType,
+    resolved: &ResolveOutput,
+    scope: &GenericScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+        return;
+    };
+    if symbol.generic_parameters.len() != generic.arguments.len() {
+        return;
+    }
+
+    let scope_substitutions = scope
+        .parameters
+        .keys()
+        .map(|name| ((*name).to_string(), Type::Parameter((*name).to_string())))
+        .collect::<HashMap<_, _>>();
+    let arguments = generic
+        .arguments
+        .iter()
+        .map(|argument| {
+            type_expr_to_type_with_substitutions(argument, resolved, None, &scope_substitutions)
+        })
+        .collect::<Vec<_>>();
+    if arguments.iter().any(Type::is_unknown_or_unresolved) {
+        return;
+    }
+    let substitutions = symbol
+        .generic_parameters
+        .iter()
+        .cloned()
+        .zip(arguments.iter().cloned())
+        .collect::<HashMap<_, _>>();
+    let environment = scope.type_environment(resolved);
+
+    for ((parameter, requirements), (argument_expr, actual)) in symbol
+        .generic_parameters
+        .iter()
+        .zip(&symbol.generic_parameter_requirements)
+        .zip(generic.arguments.iter().zip(&arguments))
+    {
+        if let Some(requirement_span) = requirements.copy_span()
+            && !super::copyability::type_is_copy_in_environment(actual, resolved, &environment)
+        {
+            diagnostics.push(nominal_type_requirement_not_satisfied_diagnostic(
+                sources,
+                argument_expr.span(),
+                &symbol.canonical_name,
+                actual,
+                &format!("copy {parameter}"),
+                requirement_span,
+            ));
+        }
+        for bound in requirements.type_bounds() {
+            let expected =
+                type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
+            if expected.is_unknown_or_unresolved()
+                || type_satisfies_nominal_requirement(
+                    actual,
+                    &expected,
+                    resolved,
+                    &environment,
+                    &scope_substitutions,
+                )
+            {
+                continue;
+            }
+            diagnostics.push(nominal_type_requirement_not_satisfied_diagnostic(
+                sources,
+                argument_expr.span(),
+                &symbol.canonical_name,
+                actual,
+                &expected.display(),
+                bound.span(),
+            ));
+        }
+    }
+
+    if let Some(clause) = &symbol.where_clause {
+        for equality in clause.equalities() {
+            let left = type_expr_to_type_with_substitutions(
+                &equality.left,
+                resolved,
+                None,
+                &substitutions,
+            );
+            let right = type_expr_to_type_with_substitutions(
+                &equality.right,
+                resolved,
+                None,
+                &substitutions,
+            );
+            if left.is_unknown_or_unresolved()
+                || right.is_unknown_or_unresolved()
+                || environment.types_equal(&left, &right)
+            {
+                continue;
+            }
+            diagnostics.push(nominal_type_equality_not_satisfied_diagnostic(
+                sources,
+                generic.span,
+                &symbol.canonical_name,
+                &left,
+                &right,
+                equality.span,
+            ));
+        }
+    }
+}
+
+fn type_satisfies_nominal_requirement(
+    actual: &Type,
+    expected: &Type,
+    resolved: &ResolveOutput,
+    environment: &super::model::TypeEnvironment,
+    substitutions: &HashMap<String, Type>,
+) -> bool {
+    if super::conformance::type_satisfies_interface_bound(actual, expected, resolved) {
+        return true;
+    }
+    let Type::Parameter(name) = actual else {
+        return false;
+    };
+    let Some(requirements) = environment.generic_requirements(name) else {
+        return false;
+    };
+    requirements.type_bounds().any(|bound| {
+        let actual_bound =
+            type_expr_to_type_with_substitutions(bound, resolved, None, substitutions);
+        actual_bound == *expected
+            || super::conformance::type_satisfies_interface_bound(&actual_bound, expected, resolved)
+    })
 }
 
 fn associated_type_projection_candidates(

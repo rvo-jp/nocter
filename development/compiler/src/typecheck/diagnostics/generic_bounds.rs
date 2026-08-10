@@ -291,3 +291,58 @@ pub(in crate::typecheck) fn type_equality_not_satisfied_diagnostic(
     diagnostic.help = Some("use arguments whose associated types satisfy the equality".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn nominal_type_requirement_not_satisfied_diagnostic(
+    sources: &SourceMap,
+    argument_span: ByteSpan,
+    nominal: &str,
+    actual: &Type,
+    requirement: &str,
+    requirement_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0470",
+        format!(
+            "type argument `{}` does not satisfy `{requirement}` required by `{nominal}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(argument_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(requirement_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the nominal type requirement is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("use a type argument that satisfies the declaration's `where` clause".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn nominal_type_equality_not_satisfied_diagnostic(
+    sources: &SourceMap,
+    use_span: ByteSpan,
+    nominal: &str,
+    left: &Type,
+    right: &Type,
+    equality_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0471",
+        format!(
+            "type `{nominal}` requires `{}` and `{}` to be the same type",
+            left.display(),
+            right.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(use_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(equality_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the nominal type equality is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("use type arguments whose associated types satisfy the equality".to_string());
+    diagnostic
+}

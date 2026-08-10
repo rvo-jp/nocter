@@ -13,29 +13,7 @@ pub(crate) fn symbol_presentation_without_resolution(symbol: &Symbol) -> String 
 }
 
 fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
-    let generics = signature
-        .generic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let requirements = signature.generic_parameter_requirements.get(index);
-            let bounds = requirements
-                .into_iter()
-                .flat_map(|requirements| requirements.type_bounds())
-                .map(crate::ast::canonical_type_expr)
-                .collect::<Vec<_>>();
-            let copy = if requirements.is_some_and(|requirements| requirements.has_copy()) {
-                "copy "
-            } else {
-                ""
-            };
-            if bounds.is_empty() {
-                format!("{copy}{parameter}")
-            } else {
-                format!("{copy}{parameter}: {}", bounds.join(" + "))
-            }
-        })
-        .collect();
+    let generics = signature.generic_parameters.clone();
     let parameters = signature
         .parameters
         .iter()
@@ -54,36 +32,7 @@ fn callable(kind: &str, name: &str, signature: &FunctionSignature) -> String {
         parameters,
         crate::ast::canonical_type_expr(&signature.return_type),
         super::result_origin_labels(signature.result_provenance.as_ref()),
-        signature
-            .where_clause
-            .as_ref()
-            .into_iter()
-            .flat_map(|clause| &clause.predicates)
-            .map(|predicate| match predicate {
-                crate::ast::WherePredicate::Generic(requirement) => {
-                    let copy = if requirement.copy_span.is_some() {
-                        "copy "
-                    } else {
-                        ""
-                    };
-                    let bounds = requirement
-                        .bounds
-                        .iter()
-                        .map(crate::ast::canonical_type_expr)
-                        .collect::<Vec<_>>();
-                    if bounds.is_empty() {
-                        format!("{copy}{}", requirement.name)
-                    } else {
-                        format!("{copy}{}: {}", requirement.name, bounds.join(" + "))
-                    }
-                }
-                crate::ast::WherePredicate::Equality(equality) => format!(
-                    "{} = {}",
-                    crate::ast::canonical_type_expr(&equality.left),
-                    crate::ast::canonical_type_expr(&equality.right)
-                ),
-            })
-            .collect(),
+        super::canonical_where_predicate_labels(signature.where_clause.as_ref()),
     )
     .render()
 }
@@ -100,25 +49,7 @@ fn type_declaration(name: &str, symbol: &TypeSymbol) -> String {
     } else {
         ""
     };
-    let generics = symbol
-        .generic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let bounds = symbol
-                .generic_parameter_requirements
-                .get(index)
-                .into_iter()
-                .flat_map(|requirements| requirements.type_bounds())
-                .map(crate::ast::canonical_type_expr)
-                .collect::<Vec<_>>();
-            if bounds.is_empty() {
-                parameter.clone()
-            } else {
-                format!("{parameter}: {}", bounds.join(" + "))
-            }
-        })
-        .collect::<Vec<_>>();
+    let generics = symbol.generic_parameters.clone();
     let generics = if generics.is_empty() {
         String::new()
     } else {
@@ -129,7 +60,13 @@ fn type_declaration(name: &str, symbol: &TypeSymbol) -> String {
         .as_ref()
         .map(|target| format!(" = {}", crate::ast::canonical_type_expr(target)))
         .unwrap_or_default();
-    format!("{copy}{keyword} {name}{generics}{target}")
+    let predicates = super::canonical_where_predicate_labels(symbol.where_clause.as_ref());
+    let requirements = if predicates.is_empty() {
+        String::new()
+    } else {
+        format!(" where {}", predicates.join(", "))
+    };
+    format!("{copy}{keyword} {name}{generics}{target}{requirements}")
 }
 
 #[cfg(test)]

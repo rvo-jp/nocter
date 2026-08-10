@@ -294,7 +294,7 @@ func main(): i32 { return 0 }
 #[test]
 fn accepts_callable_type_with_one_elided_origin() {
     let diagnostics = check_text(
-        r#"func apply<F: &func(value: &i32): &i32>(callback: F, value: &i32): &i32 from value {
+        r#"func apply<F>(callback: F, value: &i32): &i32 from value where F: &func(value: &i32): &i32 {
     return callback(value)
 }
 

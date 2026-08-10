@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-09">
+    <meta property="article:modified_time" content="2026-08-10">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Lexical Grammar - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Lexical Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/13-lexical-grammar/","mainEntityOfPage":"https://nocter.dev/spec/13-lexical-grammar/","dateModified":"2026-08-09","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"13 Lexical Grammar","item":"https://nocter.dev/spec/13-lexical-grammar/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Lexical Grammar - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/13-lexical-grammar/","mainEntityOfPage":"https://nocter.dev/spec/13-lexical-grammar/","dateModified":"2026-08-10","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"13 Lexical Grammar","item":"https://nocter.dev/spec/13-lexical-grammar/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -169,8 +169,8 @@
 <span class="token-keyword">let</span> b <span class="token-operator">=</span> <span class="token-number">2</span>
 </code></pre><h2 id="identifiers">Identifiers</h2><p>Identifiers are ASCII-only.</p><p>Identifier grammar:</p><pre><code class="language-text">identifier = [A-Za-z_][A-Za-z0-9_]*
 </code></pre><p>Rules:</p><ul><li>Unicode letters are not accepted in identifiers.</li><li>Reserved keywords are not identifiers.</li><li><code>nocter</code> is an ordinary identifier and has no visibility meaning.</li><li><code>copy</code> is not a reserved keyword. It is emitted as an identifier token; the parser recognizes it
-  contextually in <code>copy struct</code>, <code>&lt;copy T&gt;</code>, and callable <code>where copy T</code> source forms.</li><li><code>where</code> is not a reserved keyword. It is recognized contextually after a callable return type and
-  optional result-provenance clause.</li><li><code>drop</code> is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.</li><li><code>interface</code> is a reserved keyword.</li><li><code>from</code> and <code>import</code> are not reserved keywords. They are emitted as
+  contextually in <code>copy struct</code> and <code>where copy T</code> source forms.</li><li><code>where</code> is not a reserved keyword. It is recognized contextually in declaration constraint
+  clauses.</li><li><code>drop</code> is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.</li><li><code>interface</code> is a reserved keyword.</li><li><code>from</code> and <code>import</code> are not reserved keywords. They are emitted as
   identifier tokens; top-level legacy import syntax is diagnosed as removed
   syntax by the parser.</li><li>The parser recognizes <code>from</code> contextually after a callable return type. This does not reserve
   <code>from</code> as a general identifier.</li><li><code>alloc</code> is not a reserved keyword. It is an ordinary identifier, including the standard

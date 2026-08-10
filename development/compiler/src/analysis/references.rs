@@ -190,7 +190,7 @@ struct NumberSource { value: i32 }
 impl Source for NumberSource {
     type Item = i32
 }
-func project<S: Source>(source: S): S.Item { return source }
+func project<S>(source: S): S.Item where S: Source { return source }
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
@@ -280,11 +280,11 @@ func main(choice: Choice): i32 {
     pub method &self.measure(): i32
 }
 
-func first<T: Measure>(value: &T): i32 {
+func first<T>(value: &T): i32 where T: Measure {
     return value.measure()
 }
 
-func second<U: Measure>(value: &U): i32 {
+func second<U>(value: &U): i32 where U: Measure {
     return value.measure()
 }
 "#;

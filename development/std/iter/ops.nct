@@ -1,6 +1,6 @@
 //! Consuming terminal iterator operations.
 
-func count<I: Iterator>(source: I): usize {
+func count<I>(source: I): usize where I: Iterator {
     var iterator = move source
     var total: usize = 0
     while true {
@@ -10,7 +10,7 @@ func count<I: Iterator>(source: I): usize {
     return 0
 }
 
-func last<I: Iterator>(source: I): I.Item? from source {
+func last<I>(source: I): I.Item? from source where I: Iterator {
     var iterator = move source
     var result: I.Item? = none
     while true {

@@ -411,17 +411,17 @@ struct Adapter<T> {
     value: T
 }
 
-impl<T: Read> Read for Adapter<T> {
+impl<T> Read for Adapter<T> where T: Read {
     method &self.read(): i32 {
         return self.value.read()
     }
 }
 
-func inspect<T: Read + Size>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Read + Size {
     return value.read() + value.size()
 }
 
-func read<T: Read>(value: &T): i32 {
+func read<T>(value: &T): i32 where T: Read {
     return value.read()
 }
 
@@ -542,7 +542,7 @@ copy struct Unit {
 
 impl Value for Unit {}
 
-func read<T: Value>(value: &T): i32 {
+func read<T>(value: &T): i32 where T: Value {
     return value.value()
 }
 
@@ -586,7 +586,7 @@ impl Value for Unit {
     }
 }
 
-func read<T: Value>(value: &T): i32 {
+func read<T>(value: &T): i32 where T: Value {
     return value.value()
 }
 

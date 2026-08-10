@@ -106,16 +106,16 @@ Closure values have anonymous concrete types. Built-in structural callable contr
 code state how it may invoke such a value:
 
 ```nct
-func inspect<F: &func(value: i32): bool>(callback: F, value: i32): bool {
+func inspect<F>(callback: F, value: i32): bool where F: &func(value: i32): bool {
     return callback(value)
 }
 
-func transform<F: &+func(value: i32): i32>(callback: F, value: i32): i32 {
+func transform<F>(callback: F, value: i32): i32 where F: &+func(value: i32): i32 {
     var callable = move callback
     return callable(value)
 }
 
-func finish<F: func(value: i32): i32>(callback: F, value: i32): i32 {
+func finish<F>(callback: F, value: i32): i32 where F: func(value: i32): i32 {
     return callback(value)
 }
 ```

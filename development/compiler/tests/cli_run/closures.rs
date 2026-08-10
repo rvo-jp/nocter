@@ -6,7 +6,7 @@ fn run_command_invokes_builtin_callable_directly() {
     let project = TempProject::new("cli-run-builtin-callable");
     let source = project.write_source(
         "builtin_callable.nct",
-        r#"func apply<F: &func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &func(i32): i32 {
     return callback(3)
 }
 
@@ -46,7 +46,7 @@ func consume(token: Token): i32 {
     return token.value
 }
 
-func apply<F: &+func(i32): i32>(callback: F): i32 {
+func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }
@@ -79,7 +79,7 @@ fn run_command_invokes_zero_capture_closure() {
     let project = TempProject::new("cli-run-zero-capture-closure");
     let source = project.write_source(
         "zero_capture_closure.nct",
-        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }
@@ -107,7 +107,7 @@ fn run_command_preserves_borrow_capture_across_return_call() {
     let project = TempProject::new("cli-run-borrow-capture-closure");
     let source = project.write_source(
         "borrow_capture_closure.nct",
-        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }
@@ -136,7 +136,7 @@ fn run_command_invokes_move_capture_closure() {
     let project = TempProject::new("cli-run-move-capture-closure");
     let source = project.write_source(
         "move_capture_closure.nct",
-        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }
@@ -166,7 +166,7 @@ fn run_command_mutates_readwrite_capture() {
     let project = TempProject::new("cli-run-readwrite-capture-closure");
     let source = project.write_source(
         "readwrite_capture_closure.nct",
-        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
+        r#"func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }
@@ -198,17 +198,17 @@ fn run_command_loads_and_mutates_all_scalar_capture_kinds() {
     let project = TempProject::new("cli-run-scalar-capture-closure");
     let source = project.write_source(
         "scalar_capture_closure.nct",
-        r#"func apply_byte<F: &+func(u8): u8>(callback: F): u8 {
+        r#"func apply_byte<F>(callback: F): u8 where F: &+func(u8): u8 {
     var current = move callback
     return current(3)
 }
 
-func apply_size<F: &+func(usize): usize>(callback: F): usize {
+func apply_size<F>(callback: F): usize where F: &+func(usize): usize {
     var current = move callback
     return current(4)
 }
 
-func apply_flag<F: &+func(bool): bool>(callback: F): bool {
+func apply_flag<F>(callback: F): bool where F: &+func(bool): bool {
     var current = move callback
     return current(true)
 }
@@ -267,7 +267,7 @@ impl Guard {
     }
 }
 
-func apply<F: &+func(i32): i32>(callback: F): i32 {
+func apply<F>(callback: F): i32 where F: &+func(i32): i32 {
     var current = move callback
     return current(3)
 }

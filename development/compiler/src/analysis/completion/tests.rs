@@ -32,24 +32,62 @@ fn completion_candidates_include_keywords_and_symbols() {
 
 #[test]
 fn copy_completion_is_scoped_to_generic_requirements() {
-    let text = r#"func duplicate<T>(value: T): T {
+    let text = r#"interface Copyable {}
+
+func duplicate<T>(value: T): T where T: Copyable {
     return value
 }
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
     let generic_offset = text.find("<T").expect("generic list") + 1;
+    let where_offset = text.find("where ").expect("where clause") + "where ".len();
     let body_offset = text.find("return").expect("body");
 
     let generic_items = completion_items_for_file_analysis_at_offset(file, generic_offset);
+    let where_items = completion_items_for_file_analysis_at_offset(file, where_offset);
     let body_items = completion_items_for_file_analysis_at_offset(file, body_offset);
+    assert!(!generic_items.iter().any(|item| item.label == "copy"));
     assert!(
-        generic_items
+        where_items
             .iter()
             .any(|item| { item.label == "copy" && item.kind == CompletionItemKind::Keyword })
     );
     assert!(!body_items.iter().any(|item| item.label == "copy"));
     assert!(sources.get(file.ast.span.source).is_some());
+}
+
+#[test]
+fn completion_recovers_an_empty_where_predicate_and_offers_copy() {
+    let text = r#"func duplicate<T>(value: T): T where {
+    return value
+}
+"#;
+    let offset = text.find("where ").expect("where clause") + "where ".len();
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered where-predicate completion");
+
+    assert!(
+        items
+            .iter()
+            .any(|item| { item.label == "copy" && item.kind == CompletionItemKind::Keyword })
+    );
+}
+
+#[test]
+fn copy_completion_is_not_offered_as_an_interface_bound() {
+    let text = r#"interface Copyable {}
+
+func duplicate<T>(value: T): T where T: {
+    return value
+}
+"#;
+    let offset = text.find("T: ").expect("bound") + "T: ".len();
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered interface-bound completion");
+
+    assert!(!items.iter().any(|item| item.label == "copy"));
+    assert!(items.iter().any(|item| item.label == "Copyable"));
 }
 
 #[test]
@@ -984,7 +1022,7 @@ fn member_completion_uses_generic_interface_bound() {
     pub method &self.get(): &V from self
 }
 
-func read<M: Lookup<i32>>(map: &M): &i32 from map {
+func read<M>(map: &M): &i32 from map where M: Lookup<i32> {
     return map.get()
 }
 "#;
@@ -1054,7 +1092,7 @@ interface Measurable {
     pub method &self.measure(): usize
 }
 
-func inspect<T: Readable + Measurable>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Readable + Measurable {
     return value.read()
 }
 "#;
@@ -1068,6 +1106,36 @@ func inspect<T: Readable + Measurable>(value: &T): i32 {
 }
 
 #[test]
+fn generic_method_completion_keeps_constraints_in_a_specialized_where_clause() {
+    let text = r#"interface Reader<T> {}
+
+struct Box<T> { value: T }
+
+impl<T> Box<T> {
+    method &self.map<U>(value: U): T where U: Reader<T> {
+        return self.value
+    }
+}
+
+func inspect(box: &Box<i32>): i32 {
+    return box.map
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("box.map").unwrap() + "box.".len();
+    let item = completion_items_for_file_analysis_at_offset(file, offset)
+        .into_iter()
+        .find(|item| item.label == "map")
+        .expect("generic method completion");
+
+    assert_eq!(
+        item.detail.as_deref(),
+        Some("method &Box<i32>.map<U>(value: U): i32 where U: Reader<i32>")
+    );
+}
+
+#[test]
 fn member_completion_omits_ambiguous_capability_set_member() {
     let text = r#"interface Left {
     pub method &self.inspect(): i32
@@ -1077,7 +1145,7 @@ interface Right {
     pub method &self.inspect(): i32
 }
 
-func inspect<T: Left + Right>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Left + Right {
     value.
     return 0
 }
@@ -1232,7 +1300,7 @@ fn completion_recovers_incomplete_generic_bound() {
     pub method &self.measure(): i32
 }
 
-func read<T: >(value: &T): i32 {
+func read<T>(value: &T): i32 where T: {
     return 0
 }
 "#;
@@ -1258,7 +1326,7 @@ interface Measurable {
     pub method &self.measure(): usize
 }
 
-func inspect<T: Readable + >(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Readable + {
     return 0
 }
 "#;
@@ -1280,11 +1348,11 @@ fn completion_recovers_associated_types_after_projection_dot() {
     pub type Error
 }
 
-func project<S: Source>(source: S): S. {
+func project<S>(source: S): S. where S: Source {
     return source
 }
 "#;
-    let offset = text.find("S. {").unwrap() + "S.".len();
+    let offset = text.find("S. where").unwrap() + "S.".len();
 
     let items = completion_items_for_text_at_offset(text, offset)
         .expect("expected associated type completion");

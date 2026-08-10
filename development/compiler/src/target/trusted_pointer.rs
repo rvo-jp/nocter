@@ -23,7 +23,7 @@ fn take_value_shape_matches(primitive: &crate::ast::PrimitiveDecl) -> bool {
     primitive.visibility == Visibility::Package
         && primitive.generics.parameters.len() == 1
         && primitive.generics.parameters[0].name == "T"
-        && primitive.generics.parameters[0].bounds.is_empty()
+        && primitive.requirements.is_none()
         && primitive.parameters.parameters.len() == 2
         && primitive.parameters.parameters[0].name == "pointer"
         && canonical_type_expr(&primitive.parameters.parameters[0].ty) == "*T"

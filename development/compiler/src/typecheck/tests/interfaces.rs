@@ -20,7 +20,7 @@ impl<T> Source for Buffer<T> {
     }
 }
 
-func pull<S: Source>(source: &+S): S.Item? {
+func pull<S>(source: &+S): S.Item? where S: Source {
     return source.next()
 }
 
@@ -143,11 +143,11 @@ interface Right {
     pub type Item
 }
 
-func ambiguous<T: Left + Right>(value: T): T.Item {
+func ambiguous<T>(value: T): T.Item where T: Left + Right {
     return value
 }
 
-func unknown<T: Left>(value: T): T.Output {
+func unknown<T>(value: T): T.Output where T: Left {
     return value
 }
 
@@ -183,7 +183,7 @@ interface Iterable {
     pub method &self.iter(): Self.Iter
 }
 
-func first<S: Iterable>(source: &S): S.Iter.Item? {
+func first<S>(source: &S): S.Iter.Item? where S: Iterable {
     var iterator = source.iter()
     return iterator.next()
 }
@@ -242,7 +242,7 @@ fn where_equality_makes_projected_types_interchangeable() {
     pub type Item
 }
 
-func align<L: Source, R: Source>(value: R.Item): L.Item where R.Item = L.Item {
+func align<L, R>(value: R.Item): L.Item where R.Item = L.Item, L: Source, R: Source {
     return value
 }
 
@@ -294,7 +294,7 @@ impl Source for Flags {
     type Item = bool
 }
 
-func pair<L: Source, R: Source>(left: L, right: R): void where R.Item = L.Item {
+func pair<L, R>(left: L, right: R): void where R.Item = L.Item, L: Source, R: Source {
     return
 }
 

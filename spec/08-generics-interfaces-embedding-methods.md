@@ -20,23 +20,27 @@ func first<T>(items: &[T]): T? {
 }
 ```
 
-A generic parameter may carry a finite `+`-separated capability set:
+A generic parameter list declares names and arity only. A `where` clause declares every capability,
+intrinsic copy requirement, and associated-type equality required by the declaration:
 
 ```text
-GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
-GenericParameter  = ["copy"] Name [":" Bound ("+" Bound)*]
-Bound             = InterfaceBound | CallableContract
+GenericParameters = "<" Name ("," Name)* [","] ">"
+WhereClause       = "where" Predicate ("," Predicate)*
+Predicate         = Name ":" Capability ("+" Capability)*
+                  | "copy" Name
+                  | Type "=" Type
+Capability        = InterfaceBound | CallableContract
 InterfaceBound    = Type
 CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
 ```
 
-Every nominal bound must resolve to an accessible interface with the declared type arity. Bound
+Every nominal capability must resolve to an accessible interface with the declared type arity. Bound
 order is formatting information; semantics use specialized interface declaration identities plus
 at most one structural callable contract. Duplicate interface identities and multiple callable
 contracts are invalid.
 
 `copy` is an intrinsic requirement, not an interface or a type modifier. A callable may rely on
-implicit copies of `T` only when `T` is declared as `<copy T>`. A concrete call satisfies the
+implicit copies of `T` only when its contract contains `where copy T`. A concrete call satisfies the
 requirement only when its substituted type is copyable under the ownership rules.
 
 Callables can refine a generic parameter inherited from a surrounding `construct`, `impl`, or
@@ -50,18 +54,11 @@ construct Buffer<T> {
 }
 ```
 
-```text
-WhereClause = "where" Predicate ("," Predicate)*
-Predicate   = "copy" Name [":" Bound ("+" Bound)*]
-            | Name ":" Bound ("+" Bound)*
-            | Type "=" Type
-```
-
-The clause follows result provenance and precedes the body. A callable requirement target must be a
-generic parameter visible to that callable. Inline and callable requirements merge into one
-unordered semantic set; duplicate `copy` requirements, duplicate interface bounds, and multiple
-callable contracts are invalid. Canonical style uses inline requirements for a callable's own
-parameters and `where` for inherited parameters. `copy` is invalid inside a type expression such
+The clause follows result provenance and precedes a callable body. On a struct, enum, or interface,
+it follows the generic parameter list and precedes the body. On an impl, it follows the target. On a
+type alias, it follows the aliased type. A requirement target must be a generic parameter visible to
+that declaration. Duplicate `copy` requirements, duplicate interface bounds, and multiple callable
+contracts are invalid. `copy` is unavailable after `:` and is invalid inside a type expression such
 as `&[copy T]`.
 
 A type equality requires at least one associated projection. Equality is symmetric and transitive,
@@ -72,7 +69,7 @@ unresolved operands, duplicate predicates, and equalities without a projection a
 `impl Interface for Type` clause uses the same predicate model and places `where` after the target.
 
 ```nct
-func inspect<T: Readable<i32>>(value: &T): i32 {
+func inspect<T>(value: &T): i32 where T: Readable<i32> {
     return value.read()
 }
 ```
@@ -194,8 +191,8 @@ predicates relate projections selected by independent parameters without introdu
 associated-type declaration:
 
 ```nct
-func chain<L: Iterator, R: Iterator>(left: L, right: R): ChainIter<L, R>
-where R.Item = L.Item {
+func chain<L, R>(left: L, right: R): ChainIter<L, R>
+where L: Iterator, R: Iterator, R.Item = L.Item {
     ...
 }
 ```
@@ -237,7 +234,7 @@ Generic conformance parameters may carry bounds. A conditional conformance exist
 target only when every specialized bound is satisfied:
 
 ```nct
-impl<I: Iterator> Iterator for TakeIter<I> {
+impl<I> Iterator for TakeIter<I> where I: Iterator {
     type Item = I.Item
 
     method &+self.next(): I.Item? {

@@ -16,9 +16,7 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
             .parameters
             .iter()
             .map(|parameter| {
-                let mut requirements = GenericRequirements::from_parameter(parameter);
-                requirements.extend_from_clause(&parameter.name, impl_.requirements.as_ref());
-                requirements
+                GenericRequirements::for_parameter(&parameter.name, impl_.requirements.as_ref())
             })
             .collect(),
         where_clause: impl_.requirements.clone(),

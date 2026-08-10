@@ -411,11 +411,6 @@ impl TypeEnvironment {
     ) {
         for parameter in &generics.parameters {
             self.generic_parameters.insert(parameter.name.clone());
-            let requirements = crate::resolve::GenericRequirements::from_parameter(parameter);
-            if !requirements.is_empty() {
-                self.generic_requirements
-                    .insert(parameter.name.clone(), requirements);
-            }
         }
     }
 
@@ -438,6 +433,17 @@ impl TypeEnvironment {
         let Some(clause) = clause else {
             return;
         };
+        for authored in clause.copy_requirements() {
+            if !self.generic_parameters.contains(&authored.name) {
+                continue;
+            }
+            self.generic_requirements
+                .entry(authored.name.clone())
+                .or_default()
+                .push(crate::resolve::GenericRequirement::Copy {
+                    span: authored.keyword_span,
+                });
+        }
         for authored in clause.generic_requirements() {
             if !self.generic_parameters.contains(&authored.name) {
                 continue;
@@ -446,9 +452,6 @@ impl TypeEnvironment {
                 .generic_requirements
                 .entry(authored.name.clone())
                 .or_default();
-            if let Some(span) = authored.copy_span {
-                requirements.push(crate::resolve::GenericRequirement::Copy { span });
-            }
             for bound in &authored.bounds {
                 requirements.push(crate::resolve::GenericRequirement::from_type_expr(
                     bound.clone(),

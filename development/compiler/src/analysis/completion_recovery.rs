@@ -11,6 +11,7 @@ pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(
         super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
             incomplete_member_completion_text(text, offset)
                 .or_else(|| incomplete_result_provenance_completion_text(text, offset))
+                .or_else(|| incomplete_where_predicate_completion_text(text, offset))
                 .or_else(|| incomplete_generic_bound_completion_text(text, offset))
                 .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
                 .or_else(|| incomplete_import_symbol_completion_text(text, offset))
@@ -28,6 +29,52 @@ pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(
     let recovered =
         super::delimiter_recovery::close_unmatched_braces(&recovery.0).unwrap_or(recovery.0);
     Some((recovered, recovery.1))
+}
+
+fn incomplete_where_predicate_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    let where_start = prefix.rfind("where")?;
+    let before = prefix.get(..where_start)?;
+    if before
+        .chars()
+        .next_back()
+        .is_some_and(|char| char == '_' || char.is_alphanumeric())
+    {
+        return None;
+    }
+    let predicates = prefix.get(where_start + "where".len()..)?.trim();
+    let needs_predicate = predicates.is_empty()
+        || (predicates.ends_with(',') && where_predicate_delimiters_are_balanced(predicates));
+    needs_predicate.then(|| {
+        let insertion = format!("copy {COMPLETION_PLACEHOLDER_IDENT}");
+        let mut recovered = String::with_capacity(text.len() + insertion.len());
+        recovered.push_str(&text[..offset]);
+        recovered.push_str(&insertion);
+        recovered.push_str(&text[offset..]);
+        recovered
+    })
+}
+
+fn where_predicate_delimiters_are_balanced(text: &str) -> bool {
+    let mut parentheses = 0usize;
+    let mut brackets = 0usize;
+    let mut angles = 0usize;
+    for byte in text.bytes() {
+        match byte {
+            b'(' => parentheses += 1,
+            b')' => parentheses = parentheses.saturating_sub(1),
+            b'[' => brackets += 1,
+            b']' => brackets = brackets.saturating_sub(1),
+            b'<' => angles += 1,
+            b'>' => angles = angles.saturating_sub(1),
+            _ => {}
+        }
+    }
+    parentheses == 0 && brackets == 0 && angles == 0
 }
 
 fn incomplete_result_provenance_completion_text(text: &str, offset: usize) -> Option<String> {
@@ -48,11 +95,9 @@ fn incomplete_generic_bound_completion_text(text: &str, offset: usize) -> Option
     }
     let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
     let prefix = text[line_start..offset].trim_end();
-    let open = prefix.rfind('<')?;
-    if prefix[open..].contains('>')
-        || (!prefix.ends_with(':') && !prefix.ends_with('+'))
-        || !prefix[open..].contains(':')
-    {
+    let where_start = prefix.rfind("where ")?;
+    let predicate = &prefix[where_start + "where ".len()..];
+    if (!predicate.ends_with(':') && !predicate.ends_with('+')) || !predicate.contains(':') {
         return None;
     }
     insert_completion_placeholder(text, offset)

@@ -43,8 +43,8 @@ impl TypecheckFactCollector<'_> {
                     .push(GenericParameterFact {
                         name: parameter.name.clone(),
                         span: parameter.name_span,
-                        is_copy: parameter.copy_span.is_some(),
-                        bounds: parameter.bounds.clone(),
+                        is_copy: false,
+                        bounds: Vec::new(),
                     });
             }
         }

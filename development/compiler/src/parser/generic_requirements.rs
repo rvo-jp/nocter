@@ -1,6 +1,7 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    GenericRequirementPredicate, TypeEqualityPredicate, TypeExpr, WhereClause, WherePredicate,
+    CopyRequirementPredicate, GenericRequirementPredicate, TypeEqualityPredicate, TypeExpr,
+    WhereClause, WherePredicate,
 };
 
 impl Parser<'_> {
@@ -10,19 +11,21 @@ impl Parser<'_> {
         };
         let mut predicates = Vec::new();
         loop {
-            if let Some(copy_token) = self.match_identifier_text("copy") {
+            if let Some(keyword) = self.match_identifier_text("copy") {
                 let name =
-                    self.expect_name_identifier("expected generic parameter after `where copy`")?;
-                let bounds = self.parse_optional_where_bounds()?;
-                let end = bounds
-                    .last()
-                    .map_or(name.span.end, |bound| bound.span().end);
-                predicates.push(WherePredicate::Generic(GenericRequirementPredicate {
-                    span: self.span(copy_token.span.start, end),
-                    copy_span: Some(copy_token.span),
+                    self.expect_name_identifier("expected generic parameter after `copy`")?;
+                if let Some(colon) = self.match_punctuation(":") {
+                    self.error_at(
+                        colon.span,
+                        "`copy` is a distinct predicate; write `where copy T, T: Interface`",
+                    );
+                    return Err(());
+                }
+                predicates.push(WherePredicate::Copy(CopyRequirementPredicate {
+                    span: self.span(keyword.span.start, name.span.end),
+                    keyword_span: keyword.span,
                     name: name.value,
                     name_span: name.span,
-                    bounds,
                 }));
             } else {
                 let left = self.parse_type()?;
@@ -42,10 +45,7 @@ impl Parser<'_> {
                         return Err(());
                     };
                     if self.match_punctuation(":").is_none() {
-                        self.error_at(
-                            reference.span,
-                            "a where predicate must contain `:`, `=`, or prefix `copy`",
-                        );
+                        self.error_at(reference.span, "a where predicate must contain `:` or `=`");
                         return Err(());
                     }
                     let bounds = self.parse_required_where_bounds()?;
@@ -54,7 +54,6 @@ impl Parser<'_> {
                         .map_or(reference.span.end, |bound| bound.span().end);
                     predicates.push(WherePredicate::Generic(GenericRequirementPredicate {
                         span: self.span(reference.span.start, end),
-                        copy_span: None,
                         name: reference.name,
                         name_span: reference.span,
                         bounds,
@@ -68,6 +67,7 @@ impl Parser<'_> {
         let end = predicates
             .last()
             .map_or(keyword.span.end, |predicate| match predicate {
+                WherePredicate::Copy(requirement) => requirement.span.end,
                 WherePredicate::Generic(requirement) => requirement.span.end,
                 WherePredicate::Equality(equality) => equality.span.end,
             });
@@ -78,16 +78,13 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_optional_where_bounds(&mut self) -> ParseResult<Vec<TypeExpr>> {
-        if self.match_punctuation(":").is_none() {
-            return Ok(Vec::new());
-        }
-        self.parse_required_where_bounds()
-    }
-
     fn parse_required_where_bounds(&mut self) -> ParseResult<Vec<TypeExpr>> {
         let mut bounds = Vec::new();
         loop {
+            if self.at_identifier_text("copy") {
+                self.error_current("`copy` uses a prefix predicate; write `where copy T`");
+                return Err(());
+            }
             bounds.push(self.parse_type()?);
             if self.match_punctuation("+").is_none() {
                 break;

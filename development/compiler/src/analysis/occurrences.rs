@@ -623,13 +623,13 @@ mod tests {
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-impl<T, I: ExactSizeStream<T>> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> {}
+impl<T, I> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> where I: ExactSizeStream<T> {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let declaration_offset = text.find("ExactSizeStream<T> {}").unwrap();
         let bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
-        let target_offset = text.rfind(">> ExactSizeStream").unwrap() + ">> ".len();
+        let target_offset = text.rfind("impl<T, I> ExactSizeStream").unwrap() + "impl<T, I> ".len();
 
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let bound = file.occurrences.at_offset(bound_offset).unwrap();
@@ -684,12 +684,11 @@ func main(): i32 {
         let text = r#"interface Reader<T> {}
 
 interface Transform<T> {
-    pub method &self.map<U: Reader<T>>(value: U): T
-}
-"#;
+    pub method &self.map<U>(value: U): T where U: Reader<T>
+}"#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
-        let declaration_offset = text.find("U: Reader").unwrap();
+        let declaration_offset = text.find("map<U>").unwrap() + "map<".len();
         let reference_offset = text.find("value: U").unwrap() + "value: ".len();
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let reference = file.occurrences.at_offset(reference_offset).unwrap();

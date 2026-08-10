@@ -2,8 +2,8 @@
 
 ## Current Task
 
-v0.11.0 Phase 2 is complete. Do not begin another source-language change until the next phase has a
-separate reviewed plan and completion gate.
+v0.11.0 Phase 3 is in qualification. Generic parameter lists are name-only, all generic
+constraints use declaration-wide `where` clauses, and `copy` is spelled only as `where copy T`.
 
 ## Completed Checkpoint
 
@@ -27,9 +27,8 @@ separate reviewed plan and completion gate.
   semantic tokens; no `Iterator`, `Item`, `std`, or source-path recognition was added
 - focused generic, concrete, nested, callable-`where`, imported, recovery, editor, and native
   execution tests pass; full qualification is recorded in `milestones/v0.11.0.md`
-- v0.11.0 Phase 0 separates authored syntax from resolved generic requirements, supports `<copy T>`
-  and callable `where copy T`, validates generic bodies and concrete substitutions through the
-  ownership classifier, and publishes the contract through compiler-backed editor surfaces
+- v0.11.0 Phase 0 introduced resolved generic requirements and intrinsic `copy`; Phase 3 supersedes
+  its original inline spelling with the single `where copy T` form
 - `Vec.from_slice` and `Vec.try_from_slice` now state their copy precondition at the public boundary;
   the top-level forwarding APIs use inline requirements and no implementation-only limitation
   comment remains

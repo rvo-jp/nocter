@@ -111,41 +111,7 @@ pub(crate) fn callable_signature_presentation(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> CallablePresentation {
-    let generics = signature
-        .generic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let Some(requirements) = signature.generic_parameter_requirements.get(index) else {
-                return parameter.clone();
-            };
-            if requirements.is_empty() {
-                return parameter.clone();
-            }
-            let clause_has_copy_span = signature
-                .where_clause
-                .as_ref()
-                .into_iter()
-                .flat_map(|clause| clause.generic_requirements())
-                .filter(|requirement| requirement.name == *parameter)
-                .filter_map(|requirement| requirement.copy_span)
-                .any(|span| Some(span) == requirements.copy_span());
-            let prefix = if requirements.has_copy() && !clause_has_copy_span {
-                "copy "
-            } else {
-                ""
-            };
-            let bounds = requirements
-                .type_bounds()
-                .map(|bound| type_expr_presentation_label(bound, resolved))
-                .collect::<Vec<_>>();
-            if bounds.is_empty() {
-                format!("{prefix}{parameter}")
-            } else {
-                format!("{prefix}{parameter}: {}", bounds.join(" + "))
-            }
-        })
-        .collect();
+    let generics = signature.generic_parameters.clone();
     let parameters = signature
         .parameters
         .iter()
@@ -235,28 +201,12 @@ pub(crate) fn method_presentation_with_substitutions(
         .signature
         .generic_parameters
         .iter()
-        .enumerate()
         .skip(method.owner_generic_count)
-        .map(|(index, parameter)| {
+        .map(|parameter| {
             if let Some(argument) = substitutions.get(parameter) {
                 return type_expr_presentation_label(argument, resolved);
             }
-            let bounds = method
-                .signature
-                .generic_parameter_requirements
-                .get(index)
-                .into_iter()
-                .flat_map(|requirements| requirements.type_bounds())
-                .map(|bound| {
-                    let bound = crate::ast::substitute_type_expr_parameters(bound, &substitutions);
-                    type_expr_presentation_label(&bound, resolved)
-                })
-                .collect::<Vec<_>>();
-            if bounds.is_empty() {
-                parameter.clone()
-            } else {
-                format!("{parameter}: {}", bounds.join(" + "))
-            }
+            parameter.clone()
         })
         .collect();
     let parameters = method
@@ -285,7 +235,11 @@ pub(crate) fn method_presentation_with_substitutions(
         parameters,
         type_expr_presentation_label(&return_type, resolved),
         result_origin_labels(method.signature.result_provenance.as_ref()),
-        where_predicate_labels(method.signature.where_clause.as_ref(), resolved),
+        where_predicate_labels_with_substitutions(
+            method.signature.where_clause.as_ref(),
+            &substitutions,
+            resolved,
+        ),
     )
 }
 
@@ -293,31 +247,49 @@ pub(crate) fn where_predicate_labels(
     clause: Option<&crate::ast::WhereClause>,
     resolved: &ResolveOutput,
 ) -> Vec<String> {
+    where_predicate_labels_with(clause, |ty| type_expr_presentation_label(ty, resolved))
+}
+
+pub(crate) fn canonical_where_predicate_labels(
+    clause: Option<&crate::ast::WhereClause>,
+) -> Vec<String> {
+    where_predicate_labels_with(clause, crate::ast::canonical_type_expr)
+}
+
+fn where_predicate_labels_with_substitutions(
+    clause: Option<&crate::ast::WhereClause>,
+    substitutions: &std::collections::HashMap<String, TypeExpr>,
+    resolved: &ResolveOutput,
+) -> Vec<String> {
+    where_predicate_labels_with(clause, |ty| {
+        let ty = crate::ast::substitute_type_expr_parameters(ty, substitutions);
+        type_expr_presentation_label(&ty, resolved)
+    })
+}
+
+fn where_predicate_labels_with(
+    clause: Option<&crate::ast::WhereClause>,
+    type_label: impl Fn(&TypeExpr) -> String,
+) -> Vec<String> {
     clause
         .into_iter()
         .flat_map(|clause| &clause.predicates)
         .map(|predicate| match predicate {
+            crate::ast::WherePredicate::Copy(requirement) => {
+                format!("copy {}", requirement.name)
+            }
             crate::ast::WherePredicate::Generic(requirement) => {
-                let prefix = if requirement.copy_span.is_some() {
-                    "copy "
-                } else {
-                    ""
-                };
                 let bounds = requirement
                     .bounds
                     .iter()
-                    .map(|bound| type_expr_presentation_label(bound, resolved))
+                    .map(&type_label)
                     .collect::<Vec<_>>();
-                if bounds.is_empty() {
-                    format!("{prefix}{}", requirement.name)
-                } else {
-                    format!("{prefix}{}: {}", requirement.name, bounds.join(" + "))
-                }
+                format!("{}: {}", requirement.name, bounds.join(" + "))
             }
             crate::ast::WherePredicate::Equality(equality) => format!(
                 "{} = {}",
-                type_expr_presentation_label(&equality.left, resolved),
-                type_expr_presentation_label(&equality.right, resolved)
+                type_label(&equality.left),
+                type_label(&equality.right)
             ),
         })
         .collect()

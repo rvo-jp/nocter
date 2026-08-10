@@ -43,6 +43,7 @@ pub(super) fn environment_for_function(
         {
             environment.define_generic_parameter(name.clone(), bounds.clone());
         }
+        environment.apply_where_clause(symbol.where_clause.as_ref(), resolved);
     }
     environment.define_generic_parameter_list(&function.generics);
     environment.apply_where_clause(function.requirements.as_ref(), resolved);
@@ -72,6 +73,7 @@ pub(super) fn environment_for_literal(
         {
             environment.define_generic_parameter(name.clone(), bounds.clone());
         }
+        environment.apply_where_clause(symbol.where_clause.as_ref(), resolved);
     } else {
         environment.define_generic_parameters(generic_names);
     }
@@ -152,6 +154,7 @@ pub(super) fn environment_for_interface_method(
 ) -> TypeEnvironment {
     let mut environment = TypeEnvironment::with_self_type(Type::Parameter("Self".to_string()));
     environment.define_generic_parameter_list(&interface.generics);
+    environment.apply_where_clause(interface.requirements.as_ref(), resolved);
     environment.define_generic_parameter(
         "Self".to_string(),
         crate::resolve::GenericRequirements::from_bounds(&[interface_self_bound(interface)]),

@@ -654,7 +654,7 @@ func main(): i32 {
     };
     assert_eq!(function.generics.parameters.len(), 1);
     assert_eq!(function.generics.parameters[0].name, "W");
-    assert!(function.generics.parameters[0].bounds.is_empty());
+    assert!(function.requirements.is_none());
 }
 
 #[test]
@@ -797,7 +797,7 @@ fn parses_method_generic_parameters_after_the_method_name() {
     let source = r#"struct Factory {}
 
 impl Factory {
-    method &self.identity<T: Copyable>(value: T): T {
+    method &self.identity<T>(value: T): T where T: Copyable {
         return value
     }
 }
@@ -819,7 +819,13 @@ impl Factory {
             ..method.generics.parameters[0].name_span.end],
         "T"
     );
-    assert_eq!(method.generics.parameters[0].bounds.len(), 1);
+    let requirements = method
+        .requirements
+        .as_ref()
+        .expect("where clause")
+        .generic_requirements()
+        .collect::<Vec<_>>();
+    assert_eq!(requirements[0].bounds.len(), 1);
 }
 
 #[test]
@@ -1129,9 +1135,9 @@ impl Writer for Counter {
 }
 
 #[test]
-fn parses_single_generic_interface_bounds() {
+fn parses_single_generic_interface_requirement() {
     let output = parse_text(
-        r#"func print<W: Writer>(writer: &+W): void! {
+        r#"func print<W>(writer: &+W): void! where W: Writer {
     return
 }
 "#,
@@ -1142,18 +1148,24 @@ fn parses_single_generic_interface_bounds() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    let parameter = &function.generics.parameters[0];
-    assert_eq!(parameter.name, "W");
+    assert_eq!(function.generics.parameters[0].name, "W");
+    let requirement = function
+        .requirements
+        .as_ref()
+        .expect("where clause")
+        .generic_requirements()
+        .next()
+        .expect("generic requirement");
     assert!(matches!(
-        parameter.bounds.first(),
+        requirement.bounds.first(),
         Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
     ));
 }
 
 #[test]
-fn parses_multiple_generic_interface_bounds() {
+fn parses_multiple_generic_interface_requirements() {
     let output = parse_text(
-        r#"func inspect<I: Stream<T> + ExactSizeStream<T>, T>(iterator: &I): usize {
+        r#"func inspect<I, T>(iterator: &I): usize where I: Stream<T> + ExactSizeStream<T> {
     return iterator.remaining_len()
 }
 "#,
@@ -1164,21 +1176,27 @@ fn parses_multiple_generic_interface_bounds() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    let parameter = &function.generics.parameters[0];
-    assert_eq!(parameter.name, "I");
-    assert_eq!(parameter.bounds.len(), 2);
+    assert_eq!(function.generics.parameters[0].name, "I");
+    let requirement = function
+        .requirements
+        .as_ref()
+        .expect("where clause")
+        .generic_requirements()
+        .next()
+        .expect("generic requirement");
+    assert_eq!(requirement.bounds.len(), 2);
     assert!(matches!(
-        &parameter.bounds[0],
+        &requirement.bounds[0],
         TypeExpr::Generic(generic) if generic.name == "Stream"
     ));
     assert!(matches!(
-        &parameter.bounds[1],
+        &requirement.bounds[1],
         TypeExpr::Generic(generic) if generic.name == "ExactSizeStream"
     ));
 }
 
 #[test]
-fn parses_prefix_copy_generic_requirement() {
+fn rejects_removed_prefix_copy_generic_requirement() {
     let output = parse_text(
         r#"func duplicate<copy T>(value: T): T {
     return value
@@ -1186,15 +1204,8 @@ fn parses_prefix_copy_generic_requirement() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.expect("ast");
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function");
-    };
-    let parameter = &function.generics.parameters[0];
-    assert_eq!(parameter.name, "T");
-    assert!(parameter.copy_span.is_some());
-    assert!(function.requirements.is_none());
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics[0].message.contains("inline `copy`"));
 }
 
 #[test]
@@ -1211,12 +1222,58 @@ fn parses_callable_where_copy_requirement() {
     let Item::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    assert!(function.generics.parameters[0].copy_span.is_none());
+    assert_eq!(function.generics.parameters[0].name, "T");
     let clause = function.requirements.as_ref().expect("where clause");
-    let requirements = clause.generic_requirements().collect::<Vec<_>>();
+    let requirements = clause.copy_requirements().collect::<Vec<_>>();
     assert_eq!(requirements.len(), 1);
     assert_eq!(requirements[0].name, "T");
-    assert!(requirements[0].copy_span.is_some());
+    assert_eq!(
+        requirements[0].keyword_span.start + "copy".len(),
+        requirements[0].keyword_span.end
+    );
+}
+
+#[test]
+fn parses_nominal_where_clauses_and_keeps_copy_distinct_from_bounds() {
+    let (sources, output) = parse_text_with_sources(
+        r#"struct Box<T> where copy T, T: Readable {}
+enum Choice<T> where T: Readable { value(item: T) }
+type ReadableBox<T> = Box<T> where T: Readable
+interface Source<T> where T: Readable {
+    pub type Item
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Struct(struct_) = &ast.items[0] else {
+        panic!("expected struct");
+    };
+    let clause = struct_.requirements.as_ref().expect("struct where clause");
+    assert_eq!(clause.copy_requirements().count(), 1);
+    assert_eq!(clause.generic_requirements().count(), 1);
+    assert!(matches!(&ast.items[1], Item::Enum(item) if item.requirements.is_some()));
+    assert!(matches!(&ast.items[2], Item::TypeAlias(item) if item.requirements.is_some()));
+    assert!(matches!(&ast.items[3], Item::Interface(item) if item.requirements.is_some()));
+
+    let json = ast.to_json(&sources);
+    let generic = find_json_node(&json, "generic_param").expect("generic parameter JSON");
+    assert!(generic.items.is_empty());
+    let copy = find_json_node(&json, "copy_requirement").expect("copy predicate JSON");
+    assert_eq!(copy.value.as_deref(), Some("T"));
+}
+
+#[test]
+fn rejects_copy_after_a_bound_colon() {
+    let output = parse_text("func duplicate<T>(value: T): T where T: copy { return value }\n");
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`copy` uses a prefix predicate")
+    }));
 }
 
 #[test]

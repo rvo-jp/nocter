@@ -3780,7 +3780,7 @@ fn distributed_std_accepts_allocating_closure_without_result_variance() {
     let project = TempProject::new("distributed-home-imported-closure-allocation-contract");
     project.write_source(
         "callbacks/index.nct",
-        r#"pub func invoke<F: &func(): String>(callback: F): String {
+        r#"pub func invoke<F>(callback: F): String where F: &func(): String {
     return callback()
 }
 "#,

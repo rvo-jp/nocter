@@ -146,45 +146,57 @@ fn signature_info_for_call(
         CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
     }
 
-    let (kind, name, parameters, return_type, result_provenance, mut generic_parameters, receiver) =
-        match declaration {
-            CallableDeclaration::Function(function) => (
-                "func",
-                function.name.as_str(),
-                function.parameters.parameters.as_slice(),
-                &function.return_type,
-                function.result_provenance.as_ref(),
-                function.generics.parameters.iter().collect::<Vec<_>>(),
-                None,
-            ),
-            CallableDeclaration::Primitive(primitive) => (
-                "primitive",
-                primitive.name.as_str(),
-                primitive.parameters.parameters.as_slice(),
-                &primitive.return_type,
-                primitive.result_provenance.as_ref(),
-                primitive.generics.parameters.iter().collect::<Vec<_>>(),
-                None,
-            ),
-            CallableDeclaration::Method { method, .. } => (
-                "method",
-                method.name.as_str(),
-                method.parameters.parameters.as_slice(),
-                &method.return_type,
-                method.result_provenance.as_ref(),
-                method.generics.parameters.iter().collect::<Vec<_>>(),
-                Some(&method.receiver),
-            ),
-            CallableDeclaration::InterfaceMethod(method) => (
-                "method",
-                method.name.as_str(),
-                method.parameters.parameters.as_slice(),
-                &method.return_type,
-                method.result_provenance.as_ref(),
-                method.generics.parameters.iter().collect::<Vec<_>>(),
-                Some(&method.receiver),
-            ),
-        };
+    let (
+        kind,
+        name,
+        parameters,
+        return_type,
+        result_provenance,
+        requirements,
+        mut generic_parameters,
+        receiver,
+    ) = match declaration {
+        CallableDeclaration::Function(function) => (
+            "func",
+            function.name.as_str(),
+            function.parameters.parameters.as_slice(),
+            &function.return_type,
+            function.result_provenance.as_ref(),
+            function.requirements.as_ref(),
+            function.generics.parameters.iter().collect::<Vec<_>>(),
+            None,
+        ),
+        CallableDeclaration::Primitive(primitive) => (
+            "primitive",
+            primitive.name.as_str(),
+            primitive.parameters.parameters.as_slice(),
+            &primitive.return_type,
+            primitive.result_provenance.as_ref(),
+            primitive.requirements.as_ref(),
+            primitive.generics.parameters.iter().collect::<Vec<_>>(),
+            None,
+        ),
+        CallableDeclaration::Method { method, .. } => (
+            "method",
+            method.name.as_str(),
+            method.parameters.parameters.as_slice(),
+            &method.return_type,
+            method.result_provenance.as_ref(),
+            method.requirements.as_ref(),
+            method.generics.parameters.iter().collect::<Vec<_>>(),
+            Some(&method.receiver),
+        ),
+        CallableDeclaration::InterfaceMethod(method) => (
+            "method",
+            method.name.as_str(),
+            method.parameters.parameters.as_slice(),
+            &method.return_type,
+            method.result_provenance.as_ref(),
+            method.requirements.as_ref(),
+            method.generics.parameters.iter().collect::<Vec<_>>(),
+            Some(&method.receiver),
+        ),
+    };
 
     let specialized_parameters = parameters
         .iter()
@@ -239,7 +251,11 @@ fn signature_info_for_call(
             .collect(),
         return_label,
         crate::analysis::presentation::result_origin_labels(result_provenance),
-        Vec::new(),
+        if substitutions.is_empty() {
+            crate::analysis::presentation::where_predicate_labels(requirements, &file.resolved)
+        } else {
+            Vec::new()
+        },
     )
     .render();
 
@@ -456,21 +472,7 @@ fn specialized_callable_name(
     let Some(arguments) = arguments else {
         let parameters = generic_parameters
             .iter()
-            .map(|parameter| {
-                let mut label = parameter.name.clone();
-                if !parameter.bounds.is_empty() {
-                    label.push_str(": ");
-                    label.push_str(
-                        &parameter
-                            .bounds
-                            .iter()
-                            .map(|bound| type_expr_presentation_label(bound, resolved))
-                            .collect::<Vec<_>>()
-                            .join(" + "),
-                    );
-                }
-                label
-            })
+            .map(|parameter| parameter.name.clone())
             .collect::<Vec<_>>()
             .join(", ");
         return format!("{name}<{parameters}>");
@@ -605,7 +607,7 @@ func main(): i32 {
 
     #[test]
     fn presents_direct_builtin_callable_signature() {
-        let text = r#"func invoke<F: &+func(value: i32): i32>(callback: F, input: i32): i32 {
+        let text = r#"func invoke<F>(callback: F, input: i32): i32 where F: &+func(value: i32): i32 {
     var callable = move callback
     return callable(input)
 }
@@ -683,7 +685,7 @@ func main(): i32 {
     pub method &self.get(fallback: &V): &V from self | fallback
 }
 
-func read<M: Lookup<i32>>(map: &M, fallback: &i32): &i32 from map | fallback {
+func read<M>(map: &M, fallback: &i32): &i32 from map | fallback where M: Lookup<i32> {
     return map.get(fallback)
 }
 "#;
@@ -706,7 +708,7 @@ func read<M: Lookup<i32>>(map: &M, fallback: &i32): &i32 from map | fallback {
         let text = r#"interface Readable {}
 interface Measurable {}
 
-func inspect<T: Readable + Measurable>(value: i32): i32 {
+func inspect<T>(value: i32): i32 where T: Readable + Measurable {
     return value
 }
 
@@ -723,7 +725,7 @@ func main(): i32 {
 
         assert_eq!(
             signature.label,
-            "func inspect<T: Readable + Measurable>(value: i32): i32"
+            "func inspect<T>(value: i32): i32 where T: Readable + Measurable"
         );
     }
 

@@ -459,7 +459,7 @@ impl<T> Extract<T> for Box<T> {
     }
 }
 
-func forward<B: Extract<T>, T>(box: B): T {
+func forward<B, T>(box: B): T where B: Extract<T> {
     return (move box).into_value()
 }
 
@@ -512,7 +512,7 @@ impl Measure for Count {
     }
 }
 
-func read<T: Measure>(value: &T): i32 {
+func read<T>(value: &T): i32 where T: Measure {
     return value.measure()
 }
 

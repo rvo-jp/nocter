@@ -229,6 +229,7 @@ impl Formatter {
         self.format_generics(&item.generics);
         self.write(" = ");
         self.format_type(&item.target);
+        self.format_where_clause(item.requirements.as_ref());
     }
 
     fn format_struct_decl(&mut self, item: &StructDecl) {
@@ -240,6 +241,7 @@ impl Formatter {
         self.write("struct ");
         self.write(&item.name);
         self.format_generics(&item.generics);
+        self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
         if item.fields.is_empty() {
@@ -267,6 +269,7 @@ impl Formatter {
         self.write("enum ");
         self.write(&item.name);
         self.format_generics(&item.generics);
+        self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
         if item.variants.is_empty() {
@@ -294,6 +297,7 @@ impl Formatter {
         self.write("interface ");
         self.write(&item.name);
         self.format_generics(&item.generics);
+        self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
         if item.associated_types.is_empty() && item.methods.is_empty() {
@@ -473,19 +477,7 @@ impl Formatter {
     }
 
     fn format_generic_param(&mut self, parameter: &GenericParam) {
-        if parameter.copy_span.is_some() {
-            self.write("copy ");
-        }
         self.write(&parameter.name);
-        if !parameter.bounds.is_empty() {
-            self.write(": ");
-            for (index, bound) in parameter.bounds.iter().enumerate() {
-                if index != 0 {
-                    self.write(" + ");
-                }
-                self.format_type(bound);
-            }
-        }
     }
 
     fn format_where_clause(&mut self, clause: Option<&WhereClause>) {
@@ -498,19 +490,18 @@ impl Formatter {
                 self.write(", ");
             }
             match predicate {
-                crate::ast::WherePredicate::Generic(requirement) => {
-                    if requirement.copy_span.is_some() {
-                        self.write("copy ");
-                    }
+                crate::ast::WherePredicate::Copy(requirement) => {
+                    self.write("copy ");
                     self.write(&requirement.name);
-                    if !requirement.bounds.is_empty() {
-                        self.write(": ");
-                        for (bound_index, bound) in requirement.bounds.iter().enumerate() {
-                            if bound_index != 0 {
-                                self.write(" + ");
-                            }
-                            self.format_type(bound);
+                }
+                crate::ast::WherePredicate::Generic(requirement) => {
+                    self.write(&requirement.name);
+                    self.write(": ");
+                    for (index, bound) in requirement.bounds.iter().enumerate() {
+                        if index != 0 {
+                            self.write(" + ");
                         }
+                        self.format_type(bound);
                     }
                 }
                 crate::ast::WherePredicate::Equality(equality) => {

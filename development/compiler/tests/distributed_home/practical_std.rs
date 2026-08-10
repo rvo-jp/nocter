@@ -63,11 +63,11 @@ fn distributed_std_whole_stream_io_surface_passes_check() {
         r#"use std/io.{File, Reader, Writer}
 use std/io/buffer.{BufReader, BufWriter}
 
-func collect<R: Reader>(reader: &+R): String! {
+func collect<R>(reader: &+R): String! where R: Reader {
     return reader.read_to_string()?
 }
 
-func emit<W: Writer>(writer: &+W, text: &str): void! {
+func emit<W>(writer: &+W, text: &str): void! where W: Writer {
     writer.write_text(text)?
     writer.flush()?
     return

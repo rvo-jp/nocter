@@ -343,23 +343,32 @@ fn generic_bounds_at_offset<'a>(
     ast.items
         .iter()
         .find_map(|item| {
-            let generics = match item {
+            let (generics, requirements) = match item {
                 Item::Function(function)
                     if function
                         .body
                         .as_ref()
                         .is_some_and(|body| span_contains(body.span, offset)) =>
                 {
-                    &function.generics
+                    (&function.generics, function.requirements.as_ref())
                 }
-                Item::Impl(impl_) if span_contains(impl_.span, offset) => &impl_.generics,
+                Item::Impl(impl_) if span_contains(impl_.span, offset) => {
+                    (&impl_.generics, impl_.requirements.as_ref())
+                }
                 _ => return None,
             };
             generics
                 .parameters
                 .iter()
                 .find(|parameter| parameter.name == parameter_name)
-                .map(|parameter| parameter.bounds.iter().collect())
+                .map(|_| {
+                    requirements
+                        .into_iter()
+                        .flat_map(|clause| clause.generic_requirements())
+                        .filter(|requirement| requirement.name == parameter_name)
+                        .flat_map(|requirement| &requirement.bounds)
+                        .collect()
+                })
         })
         .unwrap_or_default()
 }

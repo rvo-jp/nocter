@@ -127,11 +127,12 @@ Rules:
 - Commas have no preceding space and one following space on a single line.
 - Multi-line parameter lists put one parameter per line and keep a trailing comma.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
-- A generic bound uses no space before `:` and one space after it:
-  `T: Interface<U>`.
+- A generic parameter list contains names only: `<T, U>`.
+- A capability predicate uses no space before `:` and one space after it:
+  `where T: Interface<U>`.
 - Multiple bounds use one space around `+`:
-  `T: Iterator + ExactSizeIterator`.
-- An intrinsic requirement prefixes the parameter as `<copy T>` or `<copy T: Interface>`.
+  `where T: Iterator + ExactSizeIterator`.
+- An intrinsic copy predicate is `where copy T`. `copy` is not a capability after `:`.
 - A callable requirement clause remains on the signature line after result provenance:
   `: Self! from allocator where copy T`. Requirements use comma-space separation.
 - A result provenance clause follows the return type on the same line with one space before

@@ -147,11 +147,7 @@ fn interface_shape_matches(
             .iter()
             .map(|parameter| parameter.name.as_str())
             .eq(generic_parameters.iter().copied())
-        && declaration
-            .generics
-            .parameters
-            .iter()
-            .all(|parameter| parameter.bounds.is_empty())
+        && declaration.requirements.is_none()
         && associated_type_shape_matches(declaration, associated_type)
         && method.visibility == Visibility::Public
         && method.receiver.mode == receiver_mode

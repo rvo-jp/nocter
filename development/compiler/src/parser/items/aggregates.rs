@@ -11,7 +11,10 @@ impl Parser<'_> {
         let generics = self.parse_generic_param_list()?;
         self.expect_punctuation("=", "`=`")?;
         let target = self.parse_type()?;
-        let end = target.span().end;
+        let requirements = self.parse_where_clause()?;
+        let end = requirements
+            .as_ref()
+            .map_or(target.span().end, |clause| clause.span.end);
 
         Ok(Item::TypeAlias(TypeAliasDecl {
             span: self.span(
@@ -26,6 +29,7 @@ impl Parser<'_> {
             name_span: name.span,
             generics,
             target,
+            requirements,
         }))
     }
 
@@ -38,6 +42,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::Struct, "`struct`")?;
         let name = self.expect_name_identifier("expected struct name after `struct`")?;
         let generics = self.parse_generic_param_list()?;
+        let requirements = self.parse_where_clause()?;
         let fields = self.parse_struct_fields()?;
         let end = fields.0.end;
 
@@ -54,6 +59,7 @@ impl Parser<'_> {
             name: name.value,
             name_span: name.span,
             generics,
+            requirements,
             fields: fields.1,
         }))
     }
@@ -105,6 +111,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::Enum, "`enum`")?;
         let name = self.expect_name_identifier("expected enum name after `enum`")?;
         let generics = self.parse_generic_param_list()?;
+        let requirements = self.parse_where_clause()?;
         let variants = self.parse_enum_variants()?;
         let end = variants.0.end;
 
@@ -120,6 +127,7 @@ impl Parser<'_> {
             name: name.value,
             name_span: name.span,
             generics,
+            requirements,
             variants: variants.1,
         }))
     }

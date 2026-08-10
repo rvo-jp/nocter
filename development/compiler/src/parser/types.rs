@@ -269,29 +269,24 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            let copy_span = self.match_identifier_text("copy").map(|token| token.span);
-            let parameter = self.expect_name_identifier("expected generic parameter name")?;
-            let mut bounds = Vec::new();
-            if self.match_punctuation(":").is_some() {
-                loop {
-                    bounds.push(self.parse_type()?);
-                    if self.match_punctuation("+").is_none() {
-                        break;
-                    }
-                }
+            if self.at_identifier_text("copy") {
+                self.error_current(
+                    "inline `copy` generic constraints were removed; declare the parameter name and write `where copy T`",
+                );
+                return Err(());
             }
-            let end = bounds
-                .last()
-                .map_or(parameter.span.end, |bound| bound.span().end);
+            let parameter = self.expect_name_identifier("expected generic parameter name")?;
+            if let Some(colon) = self.match_punctuation(":") {
+                self.error_at(
+                    colon.span,
+                    "inline generic constraints were removed; declare names in `<...>` and write constraints in a `where` clause",
+                );
+                return Err(());
+            }
             parameters.push(GenericParam {
-                span: self.span(
-                    copy_span.map_or(parameter.span.start, |span| span.start),
-                    end,
-                ),
-                copy_span,
+                span: parameter.span,
                 name: parameter.value,
                 name_span: parameter.span,
-                bounds,
             });
 
             self.skip_newlines();

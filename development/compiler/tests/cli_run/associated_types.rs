@@ -23,7 +23,7 @@ impl Source for Number {
     }
 }
 
-func read<S: Source>(source: &S): S.Item {
+func read<S>(source: &S): S.Item where S: Source {
     return source.get()
 }
 

@@ -400,48 +400,36 @@ fn collect_item_generic_requirement_keyword_spans(
     item: &crate::ast::Item,
     spans: &mut Vec<ByteSpan>,
 ) {
-    fn generics(generics: &crate::ast::GenericParamList, spans: &mut Vec<ByteSpan>) {
-        spans.extend(
-            generics
-                .parameters
-                .iter()
-                .filter_map(|parameter| parameter.copy_span),
-        );
-    }
     fn clause(clause: Option<&crate::ast::WhereClause>, spans: &mut Vec<ByteSpan>) {
         if let Some(clause) = clause {
             spans.push(clause.keyword_span);
             spans.extend(
                 clause
-                    .generic_requirements()
-                    .filter_map(|requirement| requirement.copy_span),
+                    .copy_requirements()
+                    .map(|requirement| requirement.keyword_span),
             );
         }
     }
     fn method(method: &crate::ast::MethodDecl, spans: &mut Vec<ByteSpan>) {
-        generics(&method.generics, spans);
         clause(method.requirements.as_ref(), spans);
     }
     match item {
         crate::ast::Item::Function(function) => {
-            generics(&function.generics, spans);
             clause(function.requirements.as_ref(), spans);
         }
         crate::ast::Item::Primitive(primitive) => {
-            generics(&primitive.generics, spans);
             clause(primitive.requirements.as_ref(), spans);
         }
-        crate::ast::Item::TypeAlias(alias) => generics(&alias.generics, spans),
-        crate::ast::Item::Struct(struct_) => generics(&struct_.generics, spans),
-        crate::ast::Item::Enum(enum_) => generics(&enum_.generics, spans),
+        crate::ast::Item::TypeAlias(alias) => clause(alias.requirements.as_ref(), spans),
+        crate::ast::Item::Struct(struct_) => clause(struct_.requirements.as_ref(), spans),
+        crate::ast::Item::Enum(enum_) => clause(enum_.requirements.as_ref(), spans),
         crate::ast::Item::Interface(interface) => {
-            generics(&interface.generics, spans);
+            clause(interface.requirements.as_ref(), spans);
             for member in &interface.methods {
                 method(member, spans);
             }
         }
         crate::ast::Item::Impl(impl_) => {
-            generics(&impl_.generics, spans);
             clause(impl_.requirements.as_ref(), spans);
             for member in &impl_.members {
                 if let crate::ast::ImplMember::Method(member) = member {
@@ -451,14 +439,13 @@ fn collect_item_generic_requirement_keyword_spans(
         }
         crate::ast::Item::Construct(construct) => {
             for (_, function) in construct.functions() {
-                generics(&function.generics, spans);
                 clause(function.requirements.as_ref(), spans);
             }
             for (_, literal) in construct.literals() {
                 clause(literal.requirements.as_ref(), spans);
             }
         }
-        crate::ast::Item::Coerce(coerce) => generics(&coerce.generics, spans),
+        crate::ast::Item::Coerce(_) => {}
         crate::ast::Item::Import(_)
         | crate::ast::Item::FromImport(_)
         | crate::ast::Item::Test(_) => {}
@@ -491,7 +478,7 @@ mod tests {
         let text = r#"interface Source { pub type Item }
 struct NumberSource { value: i32 }
 impl Source for NumberSource { type Item = i32 }
-func project<S: Source>(source: S): S.Item { return source }
+func project<S>(source: S): S.Item where S: Source { return source }
 "#;
         let identifiers =
             classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
@@ -783,7 +770,7 @@ impl Token {
     pub method &self.get(): &V from self
 }
 
-func read<M: Lookup<i32>>(map: &M): &i32 from map {
+func read<M>(map: &M): &i32 from map where M: Lookup<i32> {
     return map.get()
 }
 
@@ -812,12 +799,19 @@ construct Text {
         );
         assert_eq!(interface_token.kind, SemanticTokenKind::Type);
 
-        let generic_start = text.find("M: Lookup").expect("expected generic parameter");
-        let generic = identifier_starting_at(&identifiers, generic_start)
-            .expect("expected generic parameter token");
-        assert_eq!(generic.kind, SemanticTokenKind::Type);
-        assert_ne!(generic.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
-        assert_eq!(&text[generic.start_byte..generic.end_byte], "M");
+        let declaration_start = text.find("read<M>").unwrap() + "read<".len();
+        let declaration = identifier_starting_at(&identifiers, declaration_start)
+            .expect("expected generic parameter declaration token");
+        assert_eq!(declaration.kind, SemanticTokenKind::Type);
+        assert_ne!(declaration.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+
+        let requirement_start = text
+            .find("M: Lookup")
+            .expect("expected generic requirement");
+        let requirement = identifier_starting_at(&identifiers, requirement_start)
+            .expect("expected generic requirement token");
+        assert_eq!(requirement.kind, SemanticTokenKind::Type);
+        assert_eq!(requirement.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
 
         let origin_start = text.find("from map").unwrap() + "from ".len();
         let origin = identifier_starting_at(&identifiers, origin_start)
@@ -935,7 +929,7 @@ func main(choice: Choice): i32 {
 
     #[test]
     fn analysis_classifies_intrinsic_generic_requirement_words_as_keywords() {
-        let text = r#"func duplicate<copy T>(value: T): T where copy T {
+        let text = r#"func duplicate<T>(value: T): T where copy T {
     return value
 }
 "#;
@@ -946,7 +940,7 @@ func main(choice: Choice): i32 {
 
         let copy_tokens = identifiers_for_lexeme(text, &identifiers, "copy");
         let where_tokens = identifiers_for_lexeme(text, &identifiers, "where");
-        assert_eq!(copy_tokens.len(), 2);
+        assert_eq!(copy_tokens.len(), 1);
         assert!(
             copy_tokens
                 .iter()

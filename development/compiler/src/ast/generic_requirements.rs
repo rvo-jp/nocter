@@ -10,10 +10,8 @@ pub struct GenericParamList {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParam {
     pub span: ByteSpan,
-    pub copy_span: Option<ByteSpan>,
     pub name: String,
     pub name_span: ByteSpan,
-    pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,14 +24,22 @@ pub struct WhereClause {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericRequirementPredicate {
     pub span: ByteSpan,
-    pub copy_span: Option<ByteSpan>,
     pub name: String,
     pub name_span: ByteSpan,
     pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyRequirementPredicate {
+    pub span: ByteSpan,
+    pub keyword_span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WherePredicate {
+    Copy(CopyRequirementPredicate),
     Generic(GenericRequirementPredicate),
     Equality(TypeEqualityPredicate),
 }
@@ -52,7 +58,16 @@ impl WhereClause {
             .iter()
             .filter_map(|predicate| match predicate {
                 WherePredicate::Generic(requirement) => Some(requirement),
-                WherePredicate::Equality(_) => None,
+                WherePredicate::Copy(_) | WherePredicate::Equality(_) => None,
+            })
+    }
+
+    pub fn copy_requirements(&self) -> impl Iterator<Item = &CopyRequirementPredicate> {
+        self.predicates
+            .iter()
+            .filter_map(|predicate| match predicate {
+                WherePredicate::Copy(requirement) => Some(requirement),
+                WherePredicate::Generic(_) | WherePredicate::Equality(_) => None,
             })
     }
 
@@ -61,7 +76,7 @@ impl WhereClause {
             .iter()
             .filter_map(|predicate| match predicate {
                 WherePredicate::Equality(equality) => Some(equality),
-                WherePredicate::Generic(_) => None,
+                WherePredicate::Copy(_) | WherePredicate::Generic(_) => None,
             })
     }
 }
