@@ -2,11 +2,20 @@
 
 ## Current Task
 
-v0.11.0 Phase 3 is in qualification. Generic parameter lists are name-only, all generic
-constraints use declaration-wide `where` clauses, and `copy` is spelled only as `where copy T`.
+v0.11.0 Phase 3 is complete. Do not begin another source-language change until the next phase has a
+separate reviewed plan and completion gate.
 
 ## Completed Checkpoint
 
+- v0.11.0 Phase 3 makes generic parameter lists name-only and moves intrinsic copy, interface,
+  callable, and equality constraints into one declaration-wide `where` clause model
+- nominal requirements are enforced inside declarations and at every specialized type-use
+  boundary; obsolete inline and colon-delimited copy forms have no compatibility path
+- AST JSON, formatting, resolution, type checking, specialization, LSP presentation, completion
+  recovery, standard-library source, fixtures, specification, and contributor documentation share
+  the same constraint grammar
+- all 3,479 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed; the generated website contains 116 pages
 - v0.11.0 Phase 2 adds associated-type capability bounds and one resolved equality relation shared
   by callable and impl `where` clauses, generic checking, conditional conformance, specialization,
   buildability, ownership, ABI classification, and lowering
