@@ -2,12 +2,23 @@
 
 ## Current Task
 
-v0.11.0 Phase 1 is complete. Before migrating the iterator interfaces, design a separate phase for
-associated-type equality requirements; adapters with two independent sources must be able to prove
-relations such as `Right.Item = Left.Item` without retaining a redundant unchecked type parameter.
+v0.11.0 Phase 2 is complete. Do not begin another source-language change until the next phase has a
+separate reviewed plan and completion gate.
 
 ## Completed Checkpoint
 
+- v0.11.0 Phase 2 adds associated-type capability bounds and one resolved equality relation shared
+  by callable and impl `where` clauses, generic checking, conditional conformance, specialization,
+  buildability, ownership, ABI classification, and lowering
+- `Iterator.Item`, `Iterable.Iter`, and `IntoIterator.Iter` replace public courier parameters;
+  trusted collection iteration retains exact interface and associated declaration identities even
+  when two interfaces use the same member name
+- adapters remove redundant item parameters, `chain` proves `R.Item = L.Item`, and Vec builders use
+  equality constraints instead of unchecked result transport
+- collection `for`, sequence spread, default methods, adapters, provenance, region constraints,
+  move/drop cleanup, native execution, and LSP presentation pass against the distributed home
+- `development/compiler/scripts/verify.sh` passed all 3,471 tests, formatting, and warnings-denied
+  Clippy; documentation generation produced 116 pages and `git diff --check` passed
 - v0.11.0 Phase 1 adds required interface associated types, exact conformance bindings,
   `Self.Item`/`T.Item`/concrete projections, and one recursive normalization service shared by
   signature compatibility, specialization, ownership, sizing, buildability, lowering, and LSP
@@ -229,8 +240,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Plan the next v0.11.0 phase before changing source syntax. The likely scope is associated-type
-equality requirements plus migration of `Iterator<T>`, `Iterable<T, I>`, and `IntoIterator<T, I>`
-to associated results. Reuse the Phase 1 declaration identity and normalization service; do not add
-iterator-name recognition, textual equality, or an adapter-only constraint path. Keep the published
-v0.10.0 archive, tag, and release evidence immutable.
+Plan the next v0.11.0 phase before changing source syntax or expanding the standard-library
+surface. Reuse the completed requirement, associated-type, and iterator foundations; do not add
+name recognition, textual constraints, or API-specific solver paths. Keep the published v0.10.0
+archive, tag, and release evidence immutable.
