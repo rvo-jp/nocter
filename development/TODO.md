@@ -2,13 +2,25 @@
 
 ## Current Task
 
-v0.11.0 publication and its independent public-asset audit are complete under
-[`releases/v0.11.0.md`](releases/v0.11.0.md). The feature scope is frozen at the completed Phase 8
-boundary. The deterministic archive passed local and public fresh-install matrices. Annotated tag
-`v0.11.0` resolves to publication commit `1a218b3e`, and GitHub exposes the qualified archive as
-the only asset of the latest non-prerelease release. Stop at this published boundary.
+v0.12.0 Phase 0 is active under [`milestones/v0.12.0.md`](milestones/v0.12.0.md). Replace the closed
+interpolation formatter table with the exact `std/fmt.Format` interface, package-authorized
+source-backed conformances for compiler-built-in types, resolved static method plans, and ordinary
+native calls. Complete the full contract, editor, distributed-home, and qualification gates before
+stopping. Do not begin Phase 1 or alter the published v0.11.0 release.
 
-## Completed Stabilization Checkpoint
+## Active Phase 0 Checkpoint
+
+- generalize built-in source surfaces so the exact standard package can define conformances for
+  `str`, `bool`, and all integer types without synthetic nominal declarations
+- add `Format.format_into`, standard conformances, and a shared package-private copy-from-borrow
+  implementation using existing trusted pointer operations
+- remove `InterpolationInputKind` and the per-type trusted formatter map
+- make type checking, specialization, buildability, IR, and LSP consume one resolved protocol
+  method plan
+- prove user-defined, generic, imported, temporary, missing, and spoofed conformance behavior with
+  focused and full verification
+
+## Completed v0.11.0 Stabilization Checkpoint
 
 - candidate identity is `0.11.0` across Cargo metadata, the lockfile, installed `VERSION`, the
   distribution manifest and archive name, `std/nocter.nct`, CLI output, and LSP initialization
@@ -339,7 +351,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the published and audited v0.11.0 boundary. Do not begin another milestone or alter the
-published asset without a new plan. Any compiler, standard-library, or packaging change belongs to
-a later version and requires complete qualification. Published archives, tags, and their evidence
-are immutable.
+Complete v0.12.0 Phase 0 and stop at its verified boundary. Do not begin Phase 1, prepare a release,
+or alter any published archive or tag. Any newly discovered requirement outside extensible
+formatting and its built-in conformance foundation belongs to a later phase unless it blocks a
+Phase 0 completion gate.

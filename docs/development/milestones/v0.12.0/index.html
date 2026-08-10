@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocter v0.12.0 - Nocter</title>
+    <meta name="description" content="Status: Phase 0 in progress.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.12.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Nocter v0.12.0 - Nocter">
+    <meta property="og:description" content="Status: Phase 0 in progress.">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.12.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-10">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nocter v0.12.0 - Nocter">
+    <meta name="twitter:description" content="Status: Phase 0 in progress.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.12.0 - Nocter","description":"Status: Phase 0 in progress.","url":"https://nocter.dev/development/milestones/v0.12.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.12.0/","dateModified":"2026-08-10","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.12.0","item":"https://nocter.dev/development/milestones/v0.12.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="./index.html#content" aria-current="page">v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
+                <li><a href="../../releases/v0.11.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
+                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
+                <li><a href="../../releases/v0.10.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.12.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="nocter-v0-12-0">Nocter v0.12.0</h1><p><strong>Status:</strong> Phase 0 in progress.</p><p>v0.12.0 returns development to practical standard-library APIs. Phase 0 replaces the closed, compiler-enumerated interpolation formatter table with one source-defined <code>Format</code> interface and static conformance dispatch. It also establishes the general built-in conformance authority needed by later equality, hashing, and collection contracts.</p><p>The published v0.11.0 language, tag, archive, and qualification record are immutable. v0.12.0 work must not alter or relabel that release.</p><h2 id="phase-0-extensible-formatting">Phase 0: Extensible Formatting</h2><h3 id="problem">Problem</h3><p>Interpolation currently accepts only <code>&amp;str</code>, <code>String</code>, <code>bool</code>, and built-in integers selected by a compiler-owned type-to-function table. The standard library contains one <code>append_*</code> function for each accepted type, and lowering repeats the input-kind split. A user-defined struct or enum cannot participate even when it can append a textual representation through ordinary Nocter code.</p><p>This boundary has three structural defects:</p><ul><li>formatting capability is encoded as a closed Rust enum instead of a source contract;</li><li>compiler-built-in types cannot use the same explicit conformance model as nominal types;</li><li>type checking, buildability, specialization, and lowering transport formatter identity through
+  interpolation-specific representations rather than the common method-dispatch model.</li></ul><p>Adding another accepted type to the current table would deepen all three defects. Phase 0 removes the table rather than extending it.</p><h3 id="public-contract">Public Contract</h3><p><code>std/fmt</code> owns the ordinary source interface:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Format</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
+<span class="token-operator">}</span>
+</code></pre><p>The method uses the normal aborting allocation policy of <code>String</code>. It does not add an implicit fallible edge to interpolation. Explicit <code>try_append_*</code> functions remain the recoverable builder surface; Phase 0 does not introduce recoverable interpolation or a second formatting interface.</p><p>The distributed standard library provides exact conformances for <code>str</code>, <code>String</code>, <code>bool</code>, and all ten built-in integer types. User-owned nominal types opt in with an ordinary conformance:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Format</span><span class="token-operator">,</span> append_i32<span class="token-operator">,</span> append_str<span class="token-operator">}</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">"("</span><span class="token-operator">)</span>
+        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>x<span class="token-operator">)</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">", "</span><span class="token-operator">)</span>
+        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>y<span class="token-operator">)</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">")"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>${point}</code> is accepted because <code>Point</code> conforms to the exact selected standard-library <code>Format</code> declaration. A project interface with the same spelling has no compiler-defined role.</p><p>Interpolation retains its existing result, evaluation, storage, and failure rules:</p><ul><li>the result is an owned <code>String</code> in the current allocation context;</li><li>text and expression parts are processed left to right;</li><li>every expression is evaluated exactly once;</li><li>formatting borrows the value and does not consume it;</li><li>temporaries stay live through the formatting call and are then destroyed exactly once;</li><li>allocation failure aborts without unwinding;</li><li>explicit failure or absence inside an interpolation expression follows the surrounding source
+  operation rather than the formatting interface.</li></ul><h3 id="built-in-conformance-authority">Built-in Conformance Authority</h3><p>Compiler-built-in types remain syntax identities rather than synthetic nominal declarations. The resolver extends its existing source-backed built-in surface model so a built-in identity can own explicit interface conformances without entering the ordinary type symbol table.</p><p>Only sources belonging to the exact implicit standard-library package may declare a conformance whose target is a compiler-built-in type. A project package cannot conform <code>i32</code>, <code>bool</code>, <code>str</code>, or a slice to an interface. This is an authority check based on package identity, not a module-name or filesystem-name convention.</p><p>The built-in registry owns canonical identities for string data, slice data, <code>bool</code>, and every integer type. Inherent method authorities remain restricted to their existing <code>std/str</code> and <code>std/slice</code> modules. Conformance authority is package-wide because independent standard modules will later own contracts such as formatting, equality, and hashing.</p><p>Resolver collection, signature qualification, duplicate detection, conformance selection, method lookup, associated-type normalization, specialization, editor occurrences, and native lowering must consume the same source-backed conformance records. No synthetic struct declaration or name-only capability path may be introduced.</p><h3 id="compiler-runtime-binding">Compiler Runtime Binding</h3><p>The trusted interpolation capability validates only the declarations that make interpolation an atomic language operation:</p><ul><li>the owned <code>String</code> type;</li><li>zero-capacity construction in the current allocation context;</li><li>the exact <code>std/fmt.Format</code> interface and its public borrowed <code>format_into</code> method.</li></ul><p>It no longer validates or stores one formatter function per input type. Type checking selects the conformance method for each part from resolved semantic identities. Static text uses the same <code>str: Format</code> conformance as an interpolated <code>&amp;str</code> expression.</p><p>A reusable planned protocol-method record carries the contract declaration, selected implementation declaration, concrete <code>Self</code> type, receiver mode, specialized target name, and free type parameters. Collection iteration and interpolation must share this representation or a common lower-level service; Phase 0 must not create a second conformance-specialization algorithm.</p><h3 id="type-checking-and-diagnostics">Type Checking and Diagnostics</h3><p>For every interpolation expression part, type checking:</p><ol><li>1. determines the ordinary expression type;</li><li>derives the method <code>Self</code> type using normal receiver rules;</li><li>selects the conformance to the exact trusted <code>Format</code> interface;</li><li>records the selected implementation or interface default identity;</li><li>rejects a missing or ambiguous conformance before buildability or IR lowering.</li></ol><p>The diagnostic names the concrete type and required <code>std/fmt.Format</code> contract and points at the interpolation expression. It suggests importing and conforming to <code>Format</code> only for user-owned nominal types. Built-in, optional, fallible, pointer, callable, array, and opaque values are not silently formatted unless they have a legal explicit conformance.</p><h3 id="native-lowering-and-cleanup">Native Lowering and Cleanup</h3><p>IR receives the resolved method plan and emits an ordinary static call. It does not inspect a formatting input-kind enum, rediscover a conformance, or search for <code>format_into</code> by spelling.</p><p>Readonly receiver lowering covers:</p><ul><li>UTF-8 views using their ordinary two-word representation;</li><li>scalar locals, parameters, literals, calls, and computed expressions through temporary readonly
+  storage when required by the borrowed receiver ABI;</li><li>nominal aggregate locals, parameters, fields, and temporary results;</li><li>generic conformances specialized to a concrete <code>Self</code> type.</li></ul><p>Temporary aggregate initialization and cleanup reuse the common pending-drop model. A formatting call cannot leak, double-drop, consume, or extend the lifetime of its receiver.</p><h3 id="editor-contract">Editor Contract</h3><p>Hover on an interpolation part reports the accepted value type and <code>Format</code> conformance without inventing source syntax. Definition and references use the actual conformance method and interface declaration identities. Completion and signature help inside <code>${...}</code> remain ordinary expression analysis. Semantic tokens do not color string text as source declarations.</p><p>The LSP must not independently look up <code>Format</code>, <code>format_into</code>, built-in types, or standard-library paths. All editor results derive from compiler analysis facts and immutable compile-unit snapshots.</p><h3 id="implementation-sequence">Implementation Sequence</h3><ol><li>1. Generalize source-backed built-in surfaces to retain package-authorized conformances for <code>str</code>,
+   <code>bool</code>, and every integer type, with focused authority and identity tests.</li><li>Add <code>std/fmt.Format</code>, standard conformances, and a package-private copy-from-borrow helper built
+   from existing trusted pointer operations.</li><li>Replace <code>InterpolationInputKind</code> and the formatter table with the trusted interface identity and
+   resolved protocol-method plans.</li><li>Route specialization and buildability traversal through the selected method plans.</li><li>Lower readonly format receivers and cleanup through ordinary static call and aggregate lifetime
+   services.</li><li>Add command-line, native, distributed-home, and framed-LSP coverage for nominal, generic,
+   imported, built-in, temporary, missing-conformance, and spoofed-interface cases.</li><li>Update the public specification, implementation documents, standard-library reference, and
+   generated website only after behavior and tests agree.</li></ol><h3 id="completion-gates">Completion Gates</h3><p>Phase 0 is complete only when all of the following hold:</p><ul><li><code>${value}</code> accepts a user-owned nominal type solely through explicit conformance to the exact
+  standard <code>Format</code> interface;</li><li>all previously supported string, boolean, and integer values preserve exact native output;</li><li>every supported built-in uses a source conformance rather than an interpolation type table;</li><li>project-owned built-in conformances and same-spelling fake interfaces are rejected or ignored
+  without acquiring trusted behavior;</li><li>generic and imported conformances specialize and execute through normal static dispatch;</li><li>existing values remain usable after interpolation, and temporary move-only values are destroyed
+  exactly once after formatting;</li><li>missing conformance is diagnosed during type checking with an exact source range;</li><li>hover, definition, references, completion, semantic tokens, and signature help remain consistent
+  with the semantic plan;</li><li>no <code>InterpolationInputKind</code>, per-type trusted formatter map, name-based fallback, compatibility
+  grammar, or required Phase 0 TODO remains;</li><li><code>cargo fmt --check</code>, warnings-denied Clippy, <code>git diff --check</code>, documentation generation, public
+  examples, source corpus, distributed-home tests, and the complete verification script pass.</li></ul><h3 id="non-goals">Non-goals</h3><p>Phase 0 does not add format specifiers, width, precision, radix selection, locale behavior, debug formatting, automatic derived conformance, runtime interface objects, dynamic dispatch, reflection, float or Unicode scalar types, recoverable interpolation syntax, specialization ranking, negative requirements, or a new native target.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

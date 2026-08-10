@@ -4,6 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
+The active milestone is [v0.12.0](v0.12.0.md). Phase 0 replaces closed interpolation formatting
+with a source-defined `Format` contract, package-authorized built-in conformances, resolved static
+dispatch, and user-defined nominal formatting. No later v0.12.0 phase is active.
+
 The latest completed milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 8 completed
 unified generic requirements, associated types and bounds, declaration-wide `where` clauses,
 separate `instance` and `conform` declarations, declaration type patterns, independent destruction
