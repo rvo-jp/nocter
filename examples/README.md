@@ -7,7 +7,7 @@ directory module split across physical sources.
 Examples illustrate the qualified compiler candidate in the current repository. For exact behavior
 of a published release, use the examples from that release's repository tag.
 
-## Single-File Example
+## Single-File Examples
 
 [hello.nct](hello.nct) is the smallest executable example. Passing its filename explicitly selects
 single-file mode without a package declaration or inferred entry filename.
@@ -15,6 +15,14 @@ single-file mode without a package declaration or inferred entry filename.
 ```sh
 nocter check examples/hello.nct
 nocter run examples/hello.nct
+```
+
+[custom-format.nct](custom-format.nct) defines `Format` for a project-owned `Point` and uses that
+ordinary static conformance from string interpolation.
+
+```sh
+nocter check examples/custom-format.nct
+nocter run examples/custom-format.nct
 ```
 
 ## Package Example

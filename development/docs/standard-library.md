@@ -23,7 +23,7 @@ defined by the responsibility-specific chapters indexed by
 | OS-independent file ownership | `std/io` |
 | buffered byte state | child module `std/io/buffer` |
 | path validation and lexical operations | `std/path` |
-| numeric parsing and formatting | `std/num`, `std/fmt` |
+| numeric parsing and static `Format` conformances | `std/num`, `std/fmt` |
 | process-state validation and ownership | `std/process` |
 | target-specific system boundary | target-gated declarations in `std/internal/os` |
 

@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-10">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Examples">
     <meta name="twitter:description" content="Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Examples","description":"Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.","url":"https://nocter.dev/examples/","mainEntityOfPage":"https://nocter.dev/examples/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Examples","description":"Complete Nocter packages demonstrating canonical source style, package execution, and practical standard-library use.","url":"https://nocter.dev/examples/","mainEntityOfPage":"https://nocter.dev/examples/","dateModified":"2026-08-10","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"}]}]</script>
 
     <link rel="stylesheet" href="../style.css">
 </head>
@@ -121,6 +121,7 @@
             <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
                 <li><a href="./hello/index.html#content">hello.nct</a></li>
+                <li><a href="./custom-format/index.html#content">custom-format.nct</a></li>
                 <li><a href="./file-summary/index/index.html#content">file-summary/index.nct</a></li>
                 <li><a href="./file-summary/summary/index.html#content">summary.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
@@ -132,8 +133,10 @@
                 <span class="markdown-path-text">/examples/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-examples">Nocter Examples</h1><p>These runnable programs demonstrate current Nocter source style and public standard-library use. The smallest example uses explicit single-file mode; the larger example uses package mode and a directory module split across physical sources.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="single-file-example">Single-File Example</h2><p><a href="./hello/index.html#content">hello.nct</a> is the smallest executable example. Passing its filename explicitly selects single-file mode without a package declaration or inferred entry filename.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/hello.nct
+                <h1 id="nocter-examples">Nocter Examples</h1><p>These runnable programs demonstrate current Nocter source style and public standard-library use. The smallest example uses explicit single-file mode; the larger example uses package mode and a directory module split across physical sources.</p><p>Examples illustrate the qualified compiler candidate in the current repository. For exact behavior of a published release, use the examples from that release's repository tag.</p><h2 id="single-file-examples">Single-File Examples</h2><p><a href="./hello/index.html#content">hello.nct</a> is the smallest executable example. Passing its filename explicitly selects single-file mode without a package declaration or inferred entry filename.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/hello.nct
 <span class="token-function">nocter</span> run examples/hello.nct
+</code></pre><p><a href="./custom-format/index.html#content">custom-format.nct</a> defines <code>Format</code> for a project-owned <code>Point</code> and uses that ordinary static conformance from string interpolation.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/custom-format.nct
+<span class="token-function">nocter</span> run examples/custom-format.nct
 </code></pre><h2 id="package-example">Package Example</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a same-module source import without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build

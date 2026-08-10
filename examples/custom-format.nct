@@ -1,0 +1,26 @@
+use std/fmt.{Format, append_i32, append_str}
+
+use std/io.print
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+conform Format for Point {
+    method &self.format_into(output: &+String): void {
+        append_str(output, "(")
+        append_i32(output, self.x)
+        append_str(output, ", ")
+        append_i32(output, self.y)
+        append_str(output, ")")
+        return
+    }
+}
+
+func main(): i32! {
+    let point = Point { x: 3, y: 4 }
+    let message = "point = ${point}\n"
+    print(((&message) as &str))?
+    return 0
+}

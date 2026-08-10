@@ -2,23 +2,22 @@
 
 ## Current Task
 
-v0.12.0 Phase 0 is active under [`milestones/v0.12.0.md`](milestones/v0.12.0.md). Replace the closed
-interpolation formatter table with the exact `std/fmt.Format` interface, package-authorized
-source-backed conformances for compiler-built-in types, resolved static method plans, and ordinary
-native calls. Complete the full contract, editor, distributed-home, and qualification gates before
-stopping. Do not begin Phase 1 or alter the published v0.11.0 release.
+v0.12.0 Phase 0 is complete under [`milestones/v0.12.0.md`](milestones/v0.12.0.md). Stop at this
+boundary. Do not infer or begin Phase 1, and do not alter the published v0.11.0 release. The next
+task requires an explicit plan.
 
-## Active Phase 0 Checkpoint
+## Completed v0.12.0 Phase 0 Checkpoint
 
-- generalize built-in source surfaces so the exact standard package can define conformances for
-  `str`, `bool`, and all integer types without synthetic nominal declarations
-- add `Format.format_into`, standard conformances, and a shared package-private copy-from-borrow
-  implementation using existing trusted pointer operations
-- remove `InterpolationInputKind` and the per-type trusted formatter map
-- make type checking, specialization, buildability, IR, and LSP consume one resolved protocol
-  method plan
-- prove user-defined, generic, imported, temporary, missing, and spoofed conformance behavior with
-  focused and full verification
+- the exact `std/fmt.Format` interface replaces the closed compiler formatter table
+- standard source conformances cover `str`, `String`, `bool`, and every integer; project-owned
+  built-in conformances are rejected by selected-package authority
+- one `TypecheckProtocolMethod` model now serves interpolation, iteration, and sequence spread
+  through type checking, specialization, buildability, IR, and analysis
+- generic and imported nominal conformances execute through ordinary static dispatch; formatting
+  borrows existing values and destroys move-only temporaries exactly once
+- missing and spoofed conformance cases fail during type checking with exact identities and spans
+- all 3,533 tests, warnings-denied Clippy, formatting, public examples, source corpus, generated
+  documentation, and diff checks pass; the documentation build contains 125 pages
 
 ## Completed v0.11.0 Stabilization Checkpoint
 

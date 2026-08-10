@@ -1,24 +1,25 @@
-# Built-in Type Method Surfaces
+# Built-in Type Source Surfaces
 
-This document owns the compiler boundary that attaches source declarations to built-in unsized
-types. Public method behavior belongs in the [string and view specification](../../spec/07-strings-arrays-views-pointers.md), and receiver selection belongs in the
-[borrow-coercion specification](../../spec/22-borrow-coercions.md).
+This document owns the compiler boundary that attaches source instances and interface conformances
+to compiler-built-in types. Public method and formatting behavior belongs in the
+[string and view specification](../../spec/07-strings-arrays-views-pointers.md), and receiver
+selection belongs in the [borrow-coercion specification](../../spec/22-borrow-coercions.md).
 
 ## Ownership Model
 
-`str` and `[T]` are compiler type identities, not nominal declarations injected into the prelude.
-One compiler-level `BuiltinTypeOwner` registry owns each identity's canonical spelling and
-instance module. Frontend loading, authority validation, resolver collection, trusted
-primitive validation, type checking, and editor analysis consume that registry instead of
+`str`, `[T]`, `bool`, and integer types are compiler identities, not nominal declarations injected
+into the prelude. One compiler-level `BuiltinTypeOwner` registry owns each identity's canonical
+spelling and source authority. Frontend loading, authority validation, resolver collection,
+trusted primitive validation, type checking, and editor analysis consume that registry instead of
 repeating owner or path tables.
 
 Their inherent methods nevertheless require ordinary source identities for type checking,
 lowering, diagnostics, and editor navigation. The resolver therefore stores a
 `BuiltinTypeSurface` beside the nominal symbol table. A surface records its registry owner,
-instance span, generic shape, and source-derived method signatures; it does not create a
-constructible struct, fields, coercions, `drop`, or a source-visible type name.
+source declaration span, generic shape, source-derived methods, and conformances; it does not
+create a constructible struct, fields, coercions, `drop`, or a source-visible type name.
 
-The active Nocter home owns exactly one instance unit per built-in owner:
+The active Nocter home owns exactly one instance unit for each inherent-instance owner:
 
 | Owner | Authority |
 |---|---|
@@ -29,6 +30,23 @@ The frontend loads both units for every package analysis. Loading does not injec
 Project files and other standard modules cannot declare competing built-in instances.
 Authority validation uses the canonical installed module path rather than a textual prefix or the
 current working directory.
+
+## Conformance Authority
+
+The same surface can retain ordinary `InterfaceConformance` records. The exact implicit standard
+library may declare conformances for any registered built-in owner; project packages may not. The
+authority is package-wide because the interface module and the type's inherent-instance module are
+independent responsibilities.
+
+`std/fmt` is the first consumer. It defines `Format` conformances for `str`, `bool`, and every
+integer. Resolver qualification preserves the interface declaration and method source identities,
+then attaches them to the matching built-in surface. `String: Format` is nominal and uses the
+parallel package-coherent nominal conformance collector.
+
+Type checking does not branch on built-in formatting kinds. Its common type-to-surface query feeds
+conformance selection, method lookup, interface validation, associated-type normalization, and
+protocol-method planning. This boundary is reusable by future standard equality and hashing
+contracts without extending interpolation code.
 
 ## Declaration Validation
 

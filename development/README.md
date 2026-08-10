@@ -61,7 +61,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Borrow Coercion Compiler Boundary](docs/borrow-coercions.md)
 - [Built-in Type Method Surfaces](docs/builtin-type-methods.md)
 - [Explicit Iteration and Collection Access](docs/iteration.md)
-- [Owned String Interpolation and Formatting](docs/interpolation.md)
+- [Extensible String Interpolation and Formatting](docs/interpolation.md)
 - [Public Provenance Contracts and Compiler-Owned Result Storage](docs/provenance-contracts.md)
 - [Composable Iterators and Collection Builders](docs/iterator-composition.md)
 - [Callable Values and Interface Default Methods](docs/callable-default-methods.md)

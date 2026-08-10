@@ -106,10 +106,11 @@ same typecheck implementation. Return checking, NLL, region escape validation, a
 consume those facts instead of maintaining separate origin models. See
 [Region, Provenance, and Allocation Context](region-provenance.md).
 
-Phase 3 interpolation uses a validated runtime-capability bundle. Typecheck produces a semantic
-plan containing declaration identities, result type, internal allocation requirement, provenance, and per-part
-evaluation mode. Dedicated IR lowering consumes that plan; it does not resolve standard-library
-names or repeat type dispatch. See [Owned String Interpolation and Formatting](interpolation.md).
+Interpolation uses a validated runtime-capability bundle containing `String` construction and the
+exact `Format` contract identities. Typecheck resolves every part to the shared protocol-method
+plan used by generic static dispatch. Dedicated IR lowering consumes that plan; it does not resolve
+standard-library names, repeat conformance lookup, or classify input types. See
+[Owned String Interpolation and Formatting](interpolation.md).
 
 Phase 4 keeps public result-origin contracts and generic dispatch in separate layers. Resolver
 preserves origin, bound, conformance, and source-module identities; typecheck validates contracts

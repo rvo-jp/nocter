@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/testing/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/testing/index.nct.">
+    <title>development/std/fmt/conformances.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/fmt/conformances.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/testing/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/fmt/conformances/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/testing/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/testing/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/testing/index/">
+    <meta property="og:title" content="development/std/fmt/conformances.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/fmt/conformances.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/fmt/conformances/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-10">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/testing/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/testing/index.nct.">
+    <meta name="twitter:title" content="development/std/fmt/conformances.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/fmt/conformances.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/testing/index.nct - Nocter","description":"Nocter source code for development/std/testing/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/testing/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Testing","item":"https://nocter.dev/development/std/testing/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/testing/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/fmt/conformances.nct - Nocter","description":"Nocter source code for development/std/fmt/conformances.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/fmt/conformances/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Fmt","item":"https://nocter.dev/development/std/fmt/"},{"@type":"ListItem","position":5,"name":"Conformances","item":"https://nocter.dev/development/std/fmt/conformances/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -148,56 +148,105 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/testing/index.nct</span>
+                <span class="markdown-path-text">/development/std/fmt/conformances.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Assertions for native Nocter tests.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! These are ordinary fallible functions. Assertion failure therefore uses the same Error</span>
-<span class="token-comment">//! propagation, process cleanup, and reporting path as application failures.</span>
+                <h1>conformances.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Standard formatting conformances for compiler built-in and owning text types.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-type">Error</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert</span><span class="token-operator">(</span>condition<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> <span class="token-operator">!</span>condition <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.assertion_failed"</span><span class="token-operator">,</span> <span class="token-string">"assertion failed"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_bool</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"boolean values are not equal"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">String</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_string</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_i32</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"i32 values are not equal"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_bool</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_usize</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"usize values are not equal"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_i8</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_u8</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"u8 values are not equal"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_i16</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_str</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"text values are not equal"</span><span class="token-operator">)</span>
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_i64</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_isize</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_u8</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_u16</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_u32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_u64</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_usize</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> copy_value<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span> where copy <span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">=</span> <span class="token-function">from_ref</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

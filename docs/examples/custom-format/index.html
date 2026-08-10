@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation Site Generation - Nocter</title>
-    <meta name="description" content="The repository docs/ directory contains the static website output for Nocter. Website build instructions live here with the rest of the compiler-developmen">
+    <title>examples/custom-format.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/custom-format.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/site-generation/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/examples/custom-format/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Documentation Site Generation - Nocter">
-    <meta property="og:description" content="The repository docs/ directory contains the static website output for Nocter. Website build instructions live here with the rest of the compiler-developmen">
-    <meta property="og:url" content="https://nocter.dev/development/docs/site-generation/">
+    <meta property="og:title" content="examples/custom-format.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/custom-format.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/custom-format/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-10">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Documentation Site Generation - Nocter">
-    <meta name="twitter:description" content="The repository docs/ directory contains the static website output for Nocter. Website build instructions live here with the rest of the compiler-developmen">
+    <meta name="twitter:title" content="examples/custom-format.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/custom-format.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Documentation Site Generation - Nocter","description":"The repository docs/ directory contains the static website output for Nocter. Website build instructions live here with the rest of the compiler-developmen","url":"https://nocter.dev/development/docs/site-generation/","mainEntityOfPage":"https://nocter.dev/development/docs/site-generation/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Site Generation","item":"https://nocter.dev/development/docs/site-generation/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/custom-format.nct - Nocter","description":"Nocter source code for examples/custom-format.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/custom-format/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Custom Format","item":"https://nocter.dev/examples/custom-format/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -118,48 +118,48 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/docs/</p>
+            <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../interface-conformances/index.html#content">Body-Bearing Interface Implementations</a></li>
-                <li><a href="../destruction-declarations/index.html#content">Destruction Declarations</a></li>
-                <li><a href="../control-flow-drop-state/index.html#content">Path-Sensitive Aggregate Cleanup</a></li>
-                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
-                <li><a href="../builtin-type-methods/index.html#content">Built-in Type Source Surfaces</a></li>
-                <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
-                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
-                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
-                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="../generic-requirements/index.html#content">Generic Requirement Architecture</a></li>
-                <li><a href="../associated-types/index.html#content">Associated Type Identity and Projection Normalization</a></li>
-                <li><a href="../opaque-result-types/index.html#content">Static Opaque Result Types</a></li>
-                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="../lsp/index.html#content">LSP</a></li>
-                <li><a href="./index.html#content" aria-current="page">Documentation Site Generation</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
-                <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
-                <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
+                <li><a href="../hello/index.html#content">hello.nct</a></li>
+                <li><a href="./index.html#content" aria-current="page">custom-format.nct</a></li>
+                <li><a href="../file-summary/index/index.html#content">file-summary/index.nct</a></li>
+                <li><a href="../file-summary/summary/index.html#content">summary.nct</a></li>
+                <li><a href="../../spec/index.html#content">language specification</a></li>
+                <li><a href="../file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/site-generation.md</span>
+                <span class="markdown-path-text">/examples/custom-format.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="documentation-site-generation">Documentation Site Generation</h1><p>The repository <code>docs/</code> directory contains the static website output for Nocter. Website build instructions live here with the rest of the compiler-development documentation so generated output does not also own contributor guidance.</p><h2 id="files">Files</h2><ul><li><code>docs/build-docs.js</code> generates static HTML from Markdown documents and Nocter source files in the
-  project.</li><li><code>docs/highlight.js</code> provides build-time syntax highlighting for Nocter and shell code blocks.</li><li><code>docs/style.css</code> contains the shared site styles.</li><li><code>docs/script.js</code> contains the small runtime behavior for hero code example tabs.</li><li><code>docs/assets/</code> contains shared images and icons.</li><li>Generated <code>index.html</code> files mirror the project documentation and source structure.</li></ul><h2 id="build">Build</h2><p>Run from the repository root:</p><pre><code class="language-sh"><span class="token-function">node</span> docs/build-docs.js
-</code></pre><p>The build script recursively reads project <code>.md</code> and <code>.nct</code> files outside generated, transient, and compiler-fixture directories, writes static HTML into <code>docs/</code>, refreshes <code>robots.txt</code> and <code>sitemap.xml</code>, and keeps the site source files listed above. Markdown becomes documentation pages; Nocter files become syntax-highlighted source pages. Links from Markdown to either source type stay within the website. Deliberately invalid compiler fixtures under <code>development/compiler/tests/fixtures/</code> never become public pages. The Examples directory navigation discovers descendant <code>.nct</code> files, so a newly added public example remains reachable from the website even before its overview gains a dedicated section.</p><h2 id="editing-rule">Editing Rule</h2><p>Edit user-facing source Markdown in the repository root, <code>examples/</code>, <code>releases/</code>, and <code>spec/</code>. Edit compiler-developer documentation under <code>development/</code>. Do not manually edit generated HTML; regenerate it with <code>node docs/build-docs.js</code> after Markdown changes.</p>
+                <h1>custom-format.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Format</span><span class="token-operator">,</span> append_i32<span class="token-operator">,</span> append_str<span class="token-operator">}</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">"("</span><span class="token-operator">)</span>
+        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>x<span class="token-operator">)</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">", "</span><span class="token-operator">)</span>
+        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>y<span class="token-operator">)</span>
+        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">")"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -175,6 +175,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

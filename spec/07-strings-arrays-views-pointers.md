@@ -584,12 +584,27 @@ Rules:
 
 Formatting rules:
 
-- `&str` values append their bytes.
-- `String` values append their current string view.
-- Every built-in integer type and `bool` format with their canonical source spelling without extra
-  whitespace.
-- Optional, fallible, array, struct, enum, pointer, and user-defined nominal values are not interpolatable until an explicit formatting method protocol is adopted.
-- Using a non-interpolatable expression inside `${...}` is a type error.
+Interpolation requires conformance to the exact `std/fmt.Format` interface selected from the
+active Nocter home:
+
+```nct
+pub interface Format {
+    pub method &self.format_into(output: &+String): void
+}
+```
+
+- `std` provides `Format` conformances for `str`, `String`, `bool`, and every built-in integer.
+- `str` appends its bytes, `String` appends its current string view, and scalar conformances use
+  their canonical source spelling without extra whitespace.
+- A project-owned struct or enum becomes interpolatable only through an explicit conformance to
+  the exact standard interface.
+- Formatting borrows the value. An existing value remains usable after interpolation, and a
+  temporary remains live through `format_into` before it is destroyed exactly once.
+- Generic code may interpolate `T` when its active requirements include `T: Format`.
+- A project interface named `Format` does not grant interpolation behavior.
+- Optional, fallible, array, pointer, callable, and opaque values are rejected unless they can
+  acquire a legal explicit conformance under the normal conformance rules.
+- Missing or ambiguous conformance is a type error at the `${...}` expression.
 
 Allocator and lowering rules:
 

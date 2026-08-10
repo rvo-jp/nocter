@@ -35,6 +35,22 @@ The iterator terminal operations `find`, `any`, `all`, `fold`, and `to_vec` rema
 of `Iterator`. Their item type is `Self.Item`; they use static generic dispatch and do not require
 runtime interface objects.
 
+## Formatting
+
+`std/fmt.Format` is the static contract used by owned string interpolation:
+
+```nct
+pub interface Format {
+    pub method &self.format_into(output: &+String): void
+}
+```
+
+The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
+project type may conform and implement its representation with the public `append_*` functions.
+The `try_append_*` variants expose recoverable allocation to explicit builders; `format_into` and
+interpolation use the ordinary aborting allocation policy. Formatting dispatch is static and does
+not require a runtime interface object.
+
 ## Paths and Files
 
 `std/path.Utf8Path` is an owned, NUL-free UTF-8 path. The name is intentional: operating systems

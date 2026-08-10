@@ -41,6 +41,12 @@ itself require a new compiler primitive. A primitive is justified only when ordi
 cannot express the operation, such as issuing a target syscall, converting a borrow to an address,
 or constructing a view from trusted raw parts.
 
+Built-in types such as `str`, slices, `bool`, and integers may receive ordinary source-defined
+instances or interface conformances only from the exact implicit standard-library package. A
+project package cannot add behavior directly to a compiler-owned type. This preserves one coherent
+source surface without turning the built-in identity into a synthetic nominal declaration. The
+restriction is based on selected package identity, not a textual `std` path.
+
 ## Error Boundary
 
 The compiler-level failure payload is lowercase `error`. `Error` and `ErrorCode` are ordinary
