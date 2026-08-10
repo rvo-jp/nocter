@@ -453,7 +453,19 @@ destruct <span class="token-type">Box</span><span class="token-operator">&lt;</s
   the shared method-owner abstraction</li><li>instance refinement and overlap concern methods only, while destructor uniqueness and uniform
   family coverage are validated by a destructor-specific service</li><li>every checked and executable cleanup path resolves the independent declaration with exact
   generic substitution and source identity</li><li>editor and JSON surfaces expose <code>destruct</code> with exact keyword, target, receiver, and body ranges</li><li>the standard library and active source corpus use independent destructor declarations</li><li>public specification and contributor documentation define one consistent ownership model</li><li>the complete qualification matrix passes and no required Phase 6 TODO or migration marker
-  remains</li></ul><h3 id="phase-6-non-goals">Phase 6 Non-goals</h3><p>Phase 6 does not add conditional destruction, destructor interfaces, manual destructor calls, visibility, specialization ranking, asynchronous cleanup, unwinding, a <code>Dispose</code> convention, or a change to field destruction order, partial-move rules, explicit <code>drop</code>, layout, or ABI.</p>
+  remains</li></ul><h3 id="phase-6-non-goals">Phase 6 Non-goals</h3><p>Phase 6 does not add conditional destruction, destructor interfaces, manual destructor calls, visibility, specialization ranking, asynchronous cleanup, unwinding, a <code>Dispose</code> convention, or a change to field destruction order, partial-move rules, explicit <code>drop</code>, layout, or ABI.</p><h3 id="phase-6-completion-record">Phase 6 Completion Record</h3><p>Completed on 2026-08-10.</p><ul><li><code>destruct TypePattern(&amp;+self) { ... }</code> is the sole accepted destructor declaration. <code>instance</code>
+  stores methods only, and the removed member form survives only in a directional parser test.</li><li><code>DestructDecl</code> owns exact keyword, target, receiver, and body spans. One <code>DestructSignature</code> on
+  each eligible nominal type symbol supplies the canonical cleanup identity without creating an
+  inherent callable member.</li><li>resolver collection enforces package-graph uniqueness. Type checking rejects aliases, views,
+  copy structs, non-uniform patterns, repeated binders, and non-<code>&amp;+self</code> receivers; the parser
+  rejects visibility, target, generic-prefix, and <code>where</code> modifiers.</li><li>body resolution, generic substitution, return checking, ownership, region and provenance facts,
+  buildability, specialization, automatic and explicit cleanup, and native IR drop glue consume
+  the independent declaration directly while retaining the existing destruction order and ABI.</li><li>formatter and AST JSON expose the authored declaration. Hover, document symbols, semantic
+  tokens, occurrences, completion context, visible locals, and call-site analysis use exact source
+  ranges and present <code>destruct Type(&amp;+self)</code> with the visible type name.</li><li><code>File</code>, <code>RawBuffer</code>, <code>Vec&lt;T&gt;</code>, and <code>VecIntoIter&lt;T&gt;</code>, all active compiler fixtures, the public
+  specification, contributor architecture documents, and the generated website use the new model.</li><li><code>development/compiler/scripts/verify.sh</code> passed the full compiler, CLI, installed-home, public
+  example, source-corpus, formatting, and warnings-denied Clippy matrix. The final inventory is
+  3,497 passing tests; documentation generation produced 118 pages and <code>git diff --check</code> passed.</li></ul>
             </div>
         </main>
     </div>

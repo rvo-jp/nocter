@@ -679,13 +679,12 @@ instance <span class="token-type">Vec</span><span class="token-operator">&lt;</s
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">pop</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">pop</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>
-
 <span class="token-operator">}</span>
 
 destruct <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-function">clear</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
-        self<span class="token-operator">.</span>capacity <span class="token-operator">=</span> <span class="token-number">0</span>
-        <span class="token-keyword">return</span>
+    <span class="token-function">clear</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    self<span class="token-operator">.</span>capacity <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 conform <span class="token-type">Sequence</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-keyword">for</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

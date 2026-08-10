@@ -2,10 +2,21 @@
 
 ## Current Task
 
-v0.11.0 Phase 6 is in progress. Complete the independent `destruct Type(&+self) { ... }`
-declaration migration and its qualification gate before beginning another language change.
+v0.11.0 Phase 6 is complete. Stop at this checkpoint before selecting the next milestone.
 
 ## Completed Checkpoint
+
+- v0.11.0 Phase 6 separates unique type-family destruction from callable `instance` behavior with
+  the independent `destruct TypePattern(&+self) { ... }` declaration
+- one `DestructDecl` and `DestructSignature` identity now drives resolver uniqueness, generic
+  substitution, type checking, ownership, provenance, cleanup facts, buildability, IR drop glue,
+  formatting, AST JSON, and editor traversal
+- invalid alias/view/copy targets, repeated generic binders, modifiers, clauses, duplicate
+  declarations, and removed instance members receive focused diagnostics without compatibility AST
+- the standard library, compiler corpus, public specification, contributor documentation, and
+  generated 118-page website use the independent declaration; instances contain methods only
+- all 3,497 tests passed; warnings-denied Clippy, formatting, documentation generation, and diff
+  checks passed
 
 - v0.11.0 Phase 5 replaces explicit `instance<T>` and `conform<T>` binder prefixes with
   source-backed declaration type patterns and directed `where Binder = Type` refinement
