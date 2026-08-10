@@ -1762,8 +1762,9 @@ fn cyclic_standard_reexport_interface_hover_uses_visible_name() {
 
 pub struct Node<T> { value: T }
 
-pub interface Iterable<T, I> {
-    pub method &self.iter(): I
+pub interface Iterable {
+    pub type Iter
+    pub method &self.iter(): Self.Iter
 }
 "#;
     let core_source = home.join("std/iter/protocol/index.nct");
@@ -1805,7 +1806,7 @@ pub struct Vec<T> { value: T }
     let non_name_offsets = [
         core_text.find("pub interface").unwrap(),
         core_text.find("interface Iterable").unwrap(),
-        core_text.find("Iterable<T, I> {").unwrap() + "Iterable<T, I> ".len(),
+        core_text.find("Iterable {").unwrap() + "Iterable ".len(),
         core_text.find("pub struct").unwrap(),
         core_text.find("struct Node").unwrap(),
         core_text.find("Node<T> {").unwrap() + "Node<T> ".len(),
@@ -1827,7 +1828,7 @@ pub struct Vec<T> { value: T }
     );
     assert_eq!(
         core_response["result"]["contents"]["value"],
-        json!("```nocter\ninterface Iterable<T, I>\n```")
+        json!("```nocter\ninterface Iterable\n```")
     );
     assert_eq!(
         core_response["result"]["range"]["start"],

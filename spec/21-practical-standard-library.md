@@ -32,7 +32,8 @@ elements move at most once, and the initialized prefix is updated only after com
 `Vec<T>.truncate` drops the removed suffix.
 
 The iterator terminal operations `find`, `any`, `all`, `fold`, and `to_vec` remain default methods
-of `Iterator<T>`. They use static generic dispatch and do not require runtime interface objects.
+of `Iterator`. Their item type is `Self.Item`; they use static generic dispatch and do not require
+runtime interface objects.
 
 ## Paths and Files
 

@@ -27,20 +27,23 @@ should be borrowed or moved.
 
 ## Trusted Protocol Roles
 
-The trusted Nocter home supplies ordinary generic interfaces for iterator step, readonly
+The trusted Nocter home supplies ordinary interfaces for iterator step, readonly
 conversion, owned conversion, and exact remaining length. Frontend validation checks each complete
-interface shape and records the interface and required method declaration identities in
-`TrustedDeclarationFacts`.
+interface shape and records the interface, required method, and associated-type declaration
+identities in `TrustedDeclarationFacts`.
 
 Later phases consume a role enum and declaration spans. They do not search source names or module
 paths. A missing or malformed trusted bundle produces a source-backed availability diagnostic
 before lowering. Explicit user conformance remains the only way a nominal type participates.
 
-The generic interface parameters carry the yielded item and concrete iterator types. Phase 7 does
-not require associated types or broaden the one-bound generic model. A conversion is usable only
-when its concrete iterator type also has exactly one matching iterator-role conformance.
+`Iterator.Item` carries the yielded type. `Iterable.Iter` and `IntoIterator.Iter` carry conversion
+results and promise `Iterator`; the two conversion declarations intentionally remain distinct even
+though both are named `Iter`. Protocol resolution passes their declaration identities to the shared
+projection normalizer, so a nominal type conforming to both interfaces is not resolved by name.
+A conversion is usable only when its selected iterator type has the trusted iterator-role
+conformance.
 
-Phase 8 validates `ExactSizeIterator<T>` beside `Iterator<T>` for sequence spread. Its readonly
+Phase 8 validates `ExactSizeIterator` beside `Iterator` for sequence spread. Its readonly
 `remaining_len(): usize` method is an ordinary statically specialized call. The compiler records
 the method identity in the same iteration runtime plan; it does not recognize the spelling or a
 standard-library nominal type.
@@ -53,7 +56,7 @@ Typecheck records one immutable plan per collection-for statement:
 - source and iterator concrete types
 - conversion interface, conformance, method declaration, and concrete call target when applicable
 - iterator interface, conformance, step declaration, and concrete call target
-- yielded item type and optional outcome shape
+- iterator and yielded item types normalized from the trusted associated declarations
 - binding and source spans used by editor queries
 - whether source evaluation transfers ownership
 

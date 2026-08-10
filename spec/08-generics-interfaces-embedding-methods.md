@@ -51,16 +51,25 @@ construct Buffer<T> {
 ```
 
 ```text
-CallableWhereClause = "where" Requirement ("," Requirement)*
-Requirement         = "copy" Name [":" Bound ("+" Bound)*]
-                    | Name ":" Bound ("+" Bound)*
+WhereClause = "where" Predicate ("," Predicate)*
+Predicate   = "copy" Name [":" Bound ("+" Bound)*]
+            | Name ":" Bound ("+" Bound)*
+            | Type "=" Type
 ```
 
-The clause follows result provenance and precedes the body. Its target must be a generic parameter
-visible to that callable. Inline and callable requirements merge into one unordered semantic set;
-duplicate `copy` requirements, duplicate interface bounds, and multiple callable contracts are
-invalid. Canonical style uses inline requirements for a callable's own parameters and `where` for
-inherited parameters. `copy` is invalid inside a type expression such as `&[copy T]`.
+The clause follows result provenance and precedes the body. A callable requirement target must be a
+generic parameter visible to that callable. Inline and callable requirements merge into one
+unordered semantic set; duplicate `copy` requirements, duplicate interface bounds, and multiple
+callable contracts are invalid. Canonical style uses inline requirements for a callable's own
+parameters and `where` for inherited parameters. `copy` is invalid inside a type expression such
+as `&[copy T]`.
+
+A type equality requires at least one associated projection. Equality is symmetric and transitive,
+expands aliases, and applies recursively beneath existing type constructors. A generic body may
+rely only on equalities in its lexical predicate environment. A concrete call or conditional
+conformance must prove every specialized equality. Cycles that cannot normalize to a finite type,
+unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
+`impl Interface for Type` clause uses the same predicate model and places `where` after the target.
 
 ```nct
 func inspect<T: Readable<i32>>(value: &T): i32 {
@@ -68,9 +77,10 @@ func inspect<T: Readable<i32>>(value: &T): i32 {
 }
 ```
 
-Generic implementation uses monomorphization. Nocter does not provide runtime generic metadata,
-interface objects, general predicate clauses, interface inheritance, higher-kinded types, generic
-associated types, or general const generics.
+Generic implementation uses monomorphization. Predicate equality is compile-time only and creates
+no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime generic metadata,
+interface objects, interface inheritance, higher-kinded types, generic associated types, or general
+const generics.
 
 ## Inherent Implementations
 
@@ -161,15 +171,17 @@ impl<T> Source for BufferSource<T> {
 ```
 
 ```text
-AssociatedTypeDeclaration = "pub" "type" Name
+AssociatedTypeDeclaration = "pub" "type" Name [":" Bound ("+" Bound)*]
 AssociatedTypeBinding     = "type" Name "=" Type
 ProjectedType             = TypeAtom "." Name
 ```
 
-Every associated type is required and public. A conformance binds each declaration exactly once
-and cannot bind an undeclared name. Bindings omit `pub` because their visibility and identity come
-from the interface declaration. Inherent implementations cannot contain associated type bindings.
-Associated type names use a namespace separate from interface method names.
+Every associated type is required and public. A declaration may require ordinary interface or
+callable capabilities from its selected type. A conformance binds each declaration exactly once,
+cannot bind an undeclared name, and must satisfy every declared capability. Bindings omit `pub`
+because their visibility and identity come from the interface declaration. Inherent
+implementations cannot contain associated type bindings. Associated type names use a namespace
+separate from interface method names.
 
 `Self.Name` selects a declaration on the current interface. `T.Name` requires one unambiguous
 interface requirement on `T` that declares `Name`. A concrete projection follows one applicable
@@ -177,9 +189,16 @@ conformance and substitutes its binding. The normalized result participates in m
 compatibility, ownership, copyability, sizing, provenance, generic specialization, ABI checking,
 and lowering exactly like the bound type written by the implementation.
 
-Associated type declarations cannot currently have defaults, bounds, or generic parameters.
-Nocter does not yet provide associated-type equality requirements, so a generic contract cannot
-state that associated types selected by two independent parameters are equal.
+Associated type declarations cannot currently have defaults or generic parameters. Equality
+predicates relate projections selected by independent parameters without introducing a second
+associated-type declaration:
+
+```nct
+func chain<L: Iterator, R: Iterator>(left: L, right: R): ChainIter<L, R>
+where R.Item = L.Item {
+    ...
+}
+```
 
 ## Explicit Conformance
 
@@ -218,8 +237,10 @@ Generic conformance parameters may carry bounds. A conditional conformance exist
 target only when every specialized bound is satisfied:
 
 ```nct
-impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    method &+self.next(): T? {
+impl<I: Iterator> Iterator for TakeIter<I> {
+    type Item = I.Item
+
+    method &+self.next(): I.Item? {
         if self.remaining == 0 {
             return none
         }

@@ -18,8 +18,9 @@ receiver has an explicit conformance to that interface.
 An interface may mix required and default methods:
 
 ```nct
-pub interface Iterator<T> {
-    pub method &+self.next(): T?
+pub interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
 
     pub method self.count(): usize {
         var source = move self
@@ -39,8 +40,8 @@ the interface's required methods, other unambiguous default methods, and ordinar
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> from self | transform {
-    return MapIter<T, U, Self, F> {
+pub method self.map<U, F: &+func(Self.Item): U>(transform: F): MapIter<U, Self, F> from self | transform {
+    return MapIter<U, Self, F> {
         source: move self,
         transform: move transform,
     }
@@ -162,7 +163,7 @@ let output = values
 The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
 `fold`, `find`, `any`, `all`, and `to_vec`. Constructing an adapter is lazy and allocation-free.
 Advancing an adapter may return storage carried by its source or callback.
-`Iterator<T>.next` has only its receiver as an eligible origin, so the source clause is elided.
+`Iterator.next` has only its receiver as an eligible origin, so the source clause is elided.
 Adapter construction contracts name every retained input when several are eligible; for example,
 `map` returns `from source | transform`. Compiler summaries preserve fresh storage through callback
 calls without adding variance to `&+func(T): U`. Scalar-only operations such as `count`, `any`, and
@@ -175,6 +176,6 @@ in source order.
 
 ## Unsupported Features
 
-The current language does not include interface inheritance, associated-type equality requirements,
-erased callable types, dynamic dispatch, implicit capture, asynchronous closures, generators,
-parallel iterators, comparator sorting, extension declarations, or implicit conformance.
+The current language does not include interface inheritance, erased callable types, dynamic
+dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
+sorting, extension declarations, or implicit conformance.

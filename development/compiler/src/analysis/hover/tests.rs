@@ -634,54 +634,54 @@ fn workspace_hover_uses_typecheck_facts_for_type_reference() {
 
 #[test]
 fn workspace_hover_presents_contextual_interface_type_applications() {
-    let text = r#"interface Iterator<T> {
+    let text = r#"interface Stream<T> {
     pub method &self.next(): T?
 }
 
-interface ExactSizeIterator<T> {}
+interface ExactSizeStream<T> {}
 
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-pub func filter<T, I: Iterator<T>>(source: I): I from source {
+pub func filter<T, I: Stream<T>>(source: I): I from source {
     return source
 }
 
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I> {}
+impl<T, I: ExactSizeStream<T>> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> {}
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
 
     let declaration = hover_for_file_analysis(&sources, &analysis, file, "interface ".len())
         .expect("expected interface declaration hover");
-    assert_eq!(declaration.label, "interface Iterator<T>");
+    assert_eq!(declaration.label, "interface Stream<T>");
     assert_eq!(
         &text[declaration.span.start..declaration.span.end],
-        "Iterator"
+        "Stream"
     );
 
-    let iterator_offset = text.find("I: Iterator").unwrap() + "I: ".len();
+    let iterator_offset = text.find("I: Stream").unwrap() + "I: ".len();
     let iterator = hover_for_file_analysis(&sources, &analysis, file, iterator_offset)
         .expect("expected function-bound hover");
-    assert_eq!(iterator.label, "interface Iterator<T>");
-    assert_eq!(&text[iterator.span.start..iterator.span.end], "Iterator");
+    assert_eq!(iterator.label, "interface Stream<T>");
+    assert_eq!(&text[iterator.span.start..iterator.span.end], "Stream");
 
-    let impl_bound_offset = text.find("I: ExactSizeIterator").unwrap() + "I: ".len();
+    let impl_bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
     let impl_bound = hover_for_file_analysis(&sources, &analysis, file, impl_bound_offset)
         .expect("expected impl-bound hover");
-    assert_eq!(impl_bound.label, "interface ExactSizeIterator<T>");
+    assert_eq!(impl_bound.label, "interface ExactSizeStream<T>");
     assert_eq!(
         &text[impl_bound.span.start..impl_bound.span.end],
-        "ExactSizeIterator"
+        "ExactSizeStream"
     );
 
-    let implemented_offset = text.rfind(">> ExactSizeIterator").unwrap() + ">> ".len();
+    let implemented_offset = text.rfind(">> ExactSizeStream").unwrap() + ">> ".len();
     let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
         .expect("expected implemented-interface hover");
-    assert_eq!(implemented.label, "interface ExactSizeIterator<Indexed<T>>");
+    assert_eq!(implemented.label, "interface ExactSizeStream<Indexed<T>>");
     assert_eq!(
         &text[implemented.span.start..implemented.span.end],
-        "ExactSizeIterator"
+        "ExactSizeStream"
     );
 }
 
@@ -726,21 +726,21 @@ func project<S: Source>(source: &S): S.Item {
 
 #[test]
 fn workspace_hover_presents_method_generic_parameter_identity() {
-    let text = r#"interface Iterator<T> {}
+    let text = r#"interface Reader<T> {}
 
 interface Transform<T> {
-    pub method &self.map<U: Iterator<T>>(value: U): T
+    pub method &self.map<U: Reader<T>>(value: U): T
 }
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
-    let declaration_offset = text.find("U: Iterator").unwrap();
+    let declaration_offset = text.find("U: Reader").unwrap();
     let reference_offset = text.find("value: U").unwrap() + "value: ".len();
 
     for offset in [declaration_offset, reference_offset] {
         let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
             .expect("expected generic parameter hover");
-        assert_eq!(hover.label, "type parameter U: Iterator<T>");
+        assert_eq!(hover.label, "type parameter U: Reader<T>");
         assert_eq!(&text[hover.span.start..hover.span.end], "U");
     }
 

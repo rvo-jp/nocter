@@ -493,8 +493,8 @@ matches and returns the complete input.
 same component boundaries as the owned `split` operation, including empty components for empty
 input, adjacent separators, a leading separator, and a trailing separator. `SplitIter` retains
 both `text` and `separator` while it can still advance. Each yielded item is a borrowed `&str`
-component in source order. The iterator and ordinary `Iterator<&str>` adapters allocate no
-storage.
+component in source order. `SplitIter` binds `Iterator.Item = &str`, and ordinary adapters over it
+allocate no storage.
 
 `lines` recognizes LF and CRLF terminators. It omits each terminator, removes CR only when it is
 immediately before LF, preserves every other CR, yields no item for empty input, and does not add

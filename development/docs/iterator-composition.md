@@ -9,7 +9,7 @@ belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
 A generic parameter may require more than one interface:
 
 ```nct
-func reserve_exact<T, I: Iterator<T> + ExactSizeIterator<T>>(source: &I): usize {
+func reserve_exact<I: Iterator + ExactSizeIterator>(source: &I): usize {
     return source.remaining_len()
 }
 ```
@@ -19,21 +19,23 @@ specialized interface declaration identities. Duplicate identities are rejected.
 lookup searches the complete set and rejects a name supplied by more than one distinct interface;
 it never selects by import order or by comparing only method text.
 
-`where` clauses, interface inheritance, negative bounds, runtime interface objects, and overlapping
-specialization remain outside Phase 9.
+Interface inheritance, negative bounds, runtime interface objects, and overlapping specialization
+remain outside this architecture.
 
 ## Conditional Conformance
 
 A conformance declaration may constrain its own generic parameters:
 
 ```nct
-impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
-    method &+self.next(): T? {
+impl<I: Iterator> Iterator for TakeIter<I> {
+    type Item = I.Item
+
+    method &+self.next(): I.Item? {
         // advance the bounded source
     }
 }
 
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I> {
+impl<I: Iterator + ExactSizeIterator> ExactSizeIterator for TakeIter<I> {
     method &self.remaining_len(): usize {
         // return the exact bounded remainder
     }
@@ -68,7 +70,7 @@ Dropping an adapter drops its current owned state and unconsumed input exactly o
 aggregate cleanup. No adapter creates a hidden `Vec`, allocator context, runtime interface object,
 or callback representation.
 
-An adapter implements `ExactSizeIterator<T>` only when its remaining count is mathematically exact
+An adapter implements `ExactSizeIterator` only when its remaining count is mathematically exact
 and its input conditions prove the required exact-size capabilities. `empty` and `once` are always
 exact. `take`, `skip`, and `enumerate` preserve exactness from one input; `chain` requires it from
 both inputs. Count arithmetic is checked before publication and never grants unchecked element
@@ -80,11 +82,11 @@ result storage, result provenance, and cleanup.
 
 ## Collection Builders
 
-`Vec.from_iter` consumes any `Iterator<T>` and grows the vector through the existing aborting
-`push` path. Unknown size is explicit in the API and does not cause a hidden intermediate
-collection.
+`Vec.from_iter` consumes any `I: Iterator` under `where I.Item = T` and grows the vector through the
+existing aborting `push` path. Unknown size is explicit in the API and does not cause a hidden
+intermediate collection.
 
-`Vec.from_exact_iter` additionally requires `ExactSizeIterator<T>`, reads the initial exact count
+`Vec.from_exact_iter` additionally requires `ExactSizeIterator`, reads the initial exact count
 once, reserves that capacity, then still terminates through `next()`. A dishonest exact-size
 implementation cannot cause unchecked writes: excess items use ordinary checked growth, and early
 exhaustion leaves a shorter valid vector.

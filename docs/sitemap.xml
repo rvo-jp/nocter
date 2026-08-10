@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/associated-types/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -32,7 +32,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/callable-default-methods/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -44,13 +44,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/generic-requirements/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/interface-implementations/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -62,7 +62,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/iteration-protocol/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -74,7 +74,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/iterator-composition/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -146,7 +146,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/typed-literals/</loc>
-    <lastmod>2026-08-07</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -326,7 +326,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/core/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -338,13 +338,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/ops/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/sources/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -422,7 +422,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/views/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -440,7 +440,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/vec/into_iter/</loc>
-    <lastmod>2026-08-08</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -590,13 +590,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/07-strings-arrays-views-pointers/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/08-generics-interfaces-embedding-methods/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -644,7 +644,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/16-source-style-formatting/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -656,7 +656,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/18-callables-default-methods/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -674,7 +674,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/21-practical-standard-library/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

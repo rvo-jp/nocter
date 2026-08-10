@@ -85,16 +85,17 @@ nested moved captures and adapter sources receive the same generated cleanup as 
 
 ## Standard Iterator Chain
 
-The `Iterator<T>` interface and adapter types have their public declarations in
+The `Iterator` interface and adapter types have their public declarations in
 `std/iter/index.nct`. `core.nct` supplies `MapIter`, `FilterIter`, range, chain, and enumerate
 implementations in the same directory module; `ops.nct` supplies terminal free-function bodies.
 Source-backed callable contracts preserve one module identity without turning these focused files
 into public child modules.
 
-Exact-size-only defaults live on `ExactSizeIterator<T>`. `map` preserves exact size when its source
-is exact. `filter` never claims exact size. Every adapter owns its source and callback, allocates
-nothing, and drops current state plus remaining source exactly once. `to_vec` uses the current
-aborting allocation context through the existing vector builder.
+`Iterator.Item` supplies the item type throughout default bodies and adapters; redundant courier
+parameters are absent. Exact-size-only defaults live on `ExactSizeIterator`. `map` preserves exact
+size when its source is exact. `filter` never claims exact size. Every adapter owns its source and
+callback, allocates nothing, and drops current state plus remaining source exactly once. `to_vec`
+uses the current aborting allocation context through the existing vector builder.
 
 ## Compiler Ownership
 

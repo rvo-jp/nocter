@@ -18,9 +18,10 @@ The compiler preserves three authored forms:
 - `AssociatedTypeBinding` stores a conformance selection and its value type
 - `ProjectedType` stores the base type, member name, and independent member span
 
-Resolver `TypeSymbol` data owns declarations. Resolver `InterfaceConformance` data owns authored
-bindings. Downstream consumers must not rediscover either relationship by scanning an AST, parsing
-canonical text, or recognizing `Iterator`, `Item`, `std`, or a module path.
+Resolver `TypeSymbol` data owns declarations and their capability requirements. Resolver
+`InterfaceConformance` data owns authored bindings. Downstream consumers must not rediscover either
+relationship by scanning an AST, parsing canonical text, or recognizing `Iterator`, `Item`, `std`,
+or a module path.
 
 ## Normalization Boundary
 
@@ -31,6 +32,11 @@ type service performs both supported resolutions:
    set and retains the projection until specialization.
 2. A concrete base selects one applicable conformance, specializes that conformance's binding, and
    recursively normalizes the result.
+
+A source projection that could name the same member on multiple interfaces remains ambiguous. A
+consumer that already owns an interface role, such as trusted collection iteration, passes the
+interface and associated declaration identities into the same normalization service. It must not
+discard those identities and retry a name-only projection.
 
 Zero or multiple declaration candidates are semantic errors. Zero or multiple applicable concrete
 conformances do not produce a guessed type. Type aliases are expanded through the ordinary type
@@ -50,11 +56,26 @@ Conformance checking validates the declaration set before method signatures:
 - no binding names an absent declaration
 - duplicate declarations and duplicate bindings are rejected
 - inherent implementations cannot carry bindings
+- every binding satisfies the associated declaration's resolved capability set
 
 Method compatibility substitutes the target type, interface arguments, impl parameters, and the
 validated associated bindings into the interface method signature. This permits an interface
 result such as `Self.Item` to match a concrete implementation result such as `i32` without textual
-equivalence.
+equivalence. Conditional conformance and concrete specialization prove the shared `where`
+equalities after applying the same substitutions.
+
+## Predicate Environment
+
+Associated-type bounds and equality predicates use the ordinary resolved requirement model.
+`TypeEnvironment` carries a finite equality relation beside generic capability requirements.
+Entailment is symmetric, transitive, alias-aware, and recursive through existing type constructors.
+Consumers query that environment; they do not compare rendered projections or maintain local
+substitution tables.
+
+Specialization extends generic substitutions with normalized projection keys such as `I.Item`.
+Call analysis, buildability, ABI classification, drop discovery, and lowering all use this shared
+extension service. Type expressions are resolved by their declaration's source resolver before a
+binding is copied into another source context.
 
 ## Analysis and Editor Boundary
 
@@ -74,16 +95,15 @@ returned only when normal analysis resolves the base and interface identity.
 
 ## Deliberate Boundary
 
-Required associated types do not solve equality constraints. Iterator adapters with two independent
-sources still need an explicit item parameter until a later phase can express and prove a relation
-such as `Right.Item = Left.Item`. Defaults, bounds, generic associated types, inherent associated
-types, and associated constants also remain outside this subsystem rather than receiving partial
-or name-based implementations.
+Associated type defaults, intrinsic-`copy` associated bounds, generic associated types, inherent
+associated types, associated constants, negative predicates, and runtime witnesses remain outside
+this subsystem rather than receiving partial or name-based implementations.
 
 ## Verification
 
 Focused tests cover parsing and recovery, stable formatting, AST JSON, missing and extra bindings,
-duplicate and ambiguous projections, `Self`, inline and callable requirements, concrete and nested
-normalization, aliases, imported declaration identity, semantic tokens, hover, completion,
-definition, references, rename, and native generic specialization. The complete compiler gate must
-also pass because projections cross ownership, buildability, and lowering boundaries.
+duplicate and ambiguous projections, associated bounds, symmetric and transitive equality,
+`Self`, inline and callable requirements, concrete and nested normalization, aliases, imported
+declaration identity, semantic tokens, hover, completion, definition, references, rename, and
+native generic specialization. The complete compiler gate must also pass because projections cross
+ownership, buildability, drop discovery, and lowering boundaries.

@@ -13,7 +13,9 @@ parsing through native lowering and editor presentation.
 ## Canonical Source Model
 
 ```nct
-impl<T> Iterator<T> for Counter<T> {
+impl<T> Iterator for Counter<T> {
+    type Item = T
+
     method &+self.next(): T? {
         // implementation
     }
@@ -24,7 +26,8 @@ impl<T> Iterator<T> for Counter<T> {
 - required methods are declared in the conformance body and always have bodies
 - default methods may be omitted or overridden in the conformance body
 - implementation members do not carry `pub`; visibility comes from the interface contract
-- extra methods, associated functions, literals, and `drop` members are rejected
+- extra methods, undeclared associated type bindings, associated functions, literals, and `drop`
+  members are rejected; required associated bindings are validated separately
 - inherent `impl Type { ... }` members never satisfy or override an interface contract
 - an empty body is valid only when every required method has an applicable default
 

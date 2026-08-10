@@ -49,9 +49,9 @@ Phase 8 accepts three sequence-element segment forms:
 - `...&source` creates a readonly iterator and contributes the readonly references themselves
 - `...move source` transfers a collection or direct owning iterator and contributes owned items
 
-Every spread iterator must satisfy the trusted `Iterator<T>` and `ExactSizeIterator<T>` roles. An
-unknown-size iterator is rejected before lowering; the compiler never materializes a hidden
-collection to recover a length.
+Every spread iterator must satisfy the trusted `Iterator` and `ExactSizeIterator` roles. Its pack
+element type comes from the trusted `Iterator.Item` declaration. An unknown-size iterator is
+rejected before lowering; the compiler never materializes a hidden collection to recover a length.
 
 Lowering owns a `LiteralElementPack` fact rather than pretending the pack has a public Nocter type.
 Diagnostics may display `literal pack of T`, but resolver and typechecker identify it by binding
