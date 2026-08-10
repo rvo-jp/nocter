@@ -618,18 +618,18 @@ mod tests {
 
     #[test]
     fn impl_bounds_and_targets_share_one_interface_identity() {
-        let text = r#"interface ExactSizeIterator<T> {}
+        let text = r#"interface ExactSizeStream<T> {}
 
 struct Indexed<T> { value: T }
 struct EnumerateIter<T, I> { source: I }
 
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I> {}
+impl<T, I: ExactSizeStream<T>> ExactSizeStream<Indexed<T>> for EnumerateIter<T, I> {}
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
-        let declaration_offset = text.find("ExactSizeIterator<T> {}").unwrap();
-        let bound_offset = text.find("I: ExactSizeIterator").unwrap() + "I: ".len();
-        let target_offset = text.rfind(">> ExactSizeIterator").unwrap() + ">> ".len();
+        let declaration_offset = text.find("ExactSizeStream<T> {}").unwrap();
+        let bound_offset = text.find("I: ExactSizeStream").unwrap() + "I: ".len();
+        let target_offset = text.rfind(">> ExactSizeStream").unwrap() + ">> ".len();
 
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let bound = file.occurrences.at_offset(bound_offset).unwrap();
@@ -644,11 +644,11 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter
         assert_eq!(target.kind, SemanticOccurrenceKind::Type);
         assert_eq!(
             bound.contextual_type.as_ref().map(canonical_type_expr),
-            Some("ExactSizeIterator<T>".to_string())
+            Some("ExactSizeStream<T>".to_string())
         );
         assert_eq!(
             target.contextual_type.as_ref().map(canonical_type_expr),
-            Some("ExactSizeIterator<Indexed<T>>".to_string())
+            Some("ExactSizeStream<Indexed<T>>".to_string())
         );
     }
 
@@ -681,15 +681,15 @@ func main(): i32 {
 
     #[test]
     fn method_generic_parameters_have_declaration_and_reference_identity() {
-        let text = r#"interface Iterator<T> {}
+        let text = r#"interface Reader<T> {}
 
 interface Transform<T> {
-    pub method &self.map<U: Iterator<T>>(value: U): T
+    pub method &self.map<U: Reader<T>>(value: U): T
 }
 "#;
         let (_sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
-        let declaration_offset = text.find("U: Iterator").unwrap();
+        let declaration_offset = text.find("U: Reader").unwrap();
         let reference_offset = text.find("value: U").unwrap() + "value: ".len();
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let reference = file.occurrences.at_offset(reference_offset).unwrap();

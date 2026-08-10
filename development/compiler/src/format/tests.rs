@@ -237,7 +237,7 @@ fn formats_construct_declarations_stably() {
     assert_formats_stably(
         r#"construct Vec<T>{pub default literal [](...items:T):Self{return Self.empty()}
 pub func new():Self{return make()}
-pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
+pub func from_iter<I:Source<T>>(iterator:I):Self{return Self.new()}}
 "#,
         r#"construct Vec<T> {
     pub default literal [](...items: T): Self {
@@ -248,7 +248,7 @@ pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
         return make()
     }
 
-    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+    pub func from_iter<I: Source<T>>(iterator: I): Self {
         return Self.new()
     }
 }

@@ -96,8 +96,9 @@ fn receiver_coerced_method_result_keeps_concrete_nested_generics() {
     let text = r#"struct View { marker: usize }
 struct Text { view: View }
 struct Iter<T> { marker: usize }
-interface Iterator<Item> {
-    pub method &+self.next(): Item?
+interface Iterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?
 }
 coerce Text { pub &self as &View { return &self.view } }
 impl View {
@@ -105,7 +106,8 @@ impl View {
         return Iter<u8> { marker: 0 }
     }
 }
-impl<T> Iterator<&T> for Iter<T> {
+impl<T> Iterator for Iter<T> {
+    type Item = &T
     method &+self.next(): &T? { return none }
 }
 func main(): i32 {

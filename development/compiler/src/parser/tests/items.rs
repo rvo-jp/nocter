@@ -1153,7 +1153,7 @@ fn parses_single_generic_interface_bounds() {
 #[test]
 fn parses_multiple_generic_interface_bounds() {
     let output = parse_text(
-        r#"func inspect<I: Iterator<T> + ExactSizeIterator<T>, T>(iterator: &I): usize {
+        r#"func inspect<I: Stream<T> + ExactSizeStream<T>, T>(iterator: &I): usize {
     return iterator.remaining_len()
 }
 "#,
@@ -1169,11 +1169,11 @@ fn parses_multiple_generic_interface_bounds() {
     assert_eq!(parameter.bounds.len(), 2);
     assert!(matches!(
         &parameter.bounds[0],
-        TypeExpr::Generic(generic) if generic.name == "Iterator"
+        TypeExpr::Generic(generic) if generic.name == "Stream"
     ));
     assert!(matches!(
         &parameter.bounds[1],
-        TypeExpr::Generic(generic) if generic.name == "ExactSizeIterator"
+        TypeExpr::Generic(generic) if generic.name == "ExactSizeStream"
     ));
 }
 

@@ -13,7 +13,7 @@ fn parses_type_owned_construction_members_and_contextual_default() {
         return make()
     }
 
-    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+    pub func from_iter<I: Source<T>>(iterator: I): Self {
         return Self.new()
     }
 }
