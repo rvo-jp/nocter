@@ -51,6 +51,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   intrinsic copyability, specialization, and editor integration
 - [Associated Type Identity and Projection Normalization](associated-types.md): interface-owned
   member identity, conformance bindings, normalization, and editor integration
+- [Static Opaque Result Types](opaque-result-types.md): declaration identity, hidden witness
+  elaboration, public interface view, and concrete lowering view
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): runtime responsibilities, ownership invariants, target

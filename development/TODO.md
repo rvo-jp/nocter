@@ -2,7 +2,21 @@
 
 ## Current Task
 
-v0.11.0 Phase 7 is complete. Stop at this checkpoint before selecting the next milestone scope.
+v0.11.0 Phase 8 is in progress. Implement the static opaque result type plan in
+`milestones/v0.11.0.md` through its complete qualification gate, then stop at that checkpoint.
+
+## Required Phase 8 Work
+
+- add return-only `some Interface<Name = Type>` syntax with exact source ranges and contextual
+  keyword behavior
+- keep authored interface identity, declaration-scoped opaque identity, and inferred concrete
+  lowering witness as separate facts
+- integrate advertised conformance and associated bindings with ordinary type checking while
+  routing layout, ABI, ownership cleanup, provenance, buildability, and IR through one lowering view
+- preserve the opaque public contract across formatting, AST JSON, imports, diagnostics, and every
+  LSP presentation/navigation surface
+- migrate one practical distributed standard-library iterator API and pass the complete
+  qualification matrix
 
 ## Completed Phase 7 Checkpoint
 
