@@ -7,6 +7,7 @@ mod builtins;
 mod closures;
 mod coercions;
 mod collector;
+mod compile_unit_context;
 mod conformance;
 mod constructions;
 mod diagnostics;
@@ -37,15 +38,15 @@ pub use symbols::{
     StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
-use module_index::{MergedModules, ModuleIndex};
+pub(crate) use compile_unit_context::ResolveCompileUnitContext;
+use module_index::ModuleIndex;
 
 use crate::ast::{AstFile, Item};
 use crate::callable_bodies::CallableBodyIndex;
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::source_modules::SourceModuleMap;
 use crate::source_scopes::SourceScopeMap;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
     resolve_compile_unit(
@@ -97,20 +98,6 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
     )
 }
 
-pub(crate) struct ResolveCompileUnitContext {
-    source_modules: SourceModuleMap,
-    merged_modules: MergedModules,
-}
-
-impl ResolveCompileUnitContext {
-    pub(crate) fn new(files: &[AstFile], import_sources: &ImportSourceMap) -> Self {
-        Self {
-            source_modules: SourceModuleMap::new(files, import_sources),
-            merged_modules: MergedModules::new(files, import_sources),
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn resolve_compile_unit_with_context(
     sources: &SourceMap,
@@ -124,10 +111,12 @@ pub(crate) fn resolve_compile_unit_with_context(
 ) -> ResolveOutput {
     let source_modules = &context.source_modules;
     let module_index = ModuleIndex::new(&context.merged_modules);
-    let module_ast = module_index
-        .ast_for_source(root.span.source)
-        .map(|ast| callable_bodies.declaration_surface(ast))
-        .unwrap_or_else(|| root.clone());
+    let module_ast = crate::timing::measure_detail("resolve.declaration_surface", || {
+        module_index
+            .ast_for_source(root.span.source)
+            .map(|ast| callable_bodies.declaration_surface(ast))
+            .unwrap_or_else(|| root.clone())
+    });
     let root_module = source_modules
         .module(root.span.source)
         .unwrap_or(root.span.source);
@@ -154,14 +143,26 @@ pub(crate) fn resolve_compile_unit_with_context(
         synthetic_prelude_symbol_spans: HashSet::new(),
         collected_hidden_type_dependencies: HashSet::new(),
         collecting_imported_type_names: RefCell::new(HashSet::new()),
+        imported_type_name_cache: &context.imported_type_names,
+        prepared_external_surface_sources: HashSet::new(),
         collecting_synthetic_prelude: false,
     };
 
-    resolver.collect_top_level_symbols(&module_ast);
-    resolver.collect_builtin_instance_surfaces(&module_ast);
-    resolver.collect_builtin_conformance_surfaces();
-    resolver.collect_standard_nominal_conformance_surfaces();
-    resolver.resolve_callable_bodies(root);
+    crate::timing::measure_detail("resolve.collect_top_level", || {
+        resolver.collect_top_level_symbols(&module_ast)
+    });
+    crate::timing::measure_detail("resolve.collect_builtin_instances", || {
+        resolver.collect_builtin_instance_surfaces(&module_ast)
+    });
+    crate::timing::measure_detail("resolve.collect_builtin_conformances", || {
+        resolver.collect_builtin_conformance_surfaces()
+    });
+    crate::timing::measure_detail("resolve.collect_standard_conformances", || {
+        resolver.collect_standard_nominal_conformance_surfaces()
+    });
+    crate::timing::measure_detail("resolve.callable_bodies", || {
+        resolver.resolve_callable_bodies(root)
+    });
     resolver.output
 }
 
@@ -207,5 +208,7 @@ struct Resolver<'a> {
     synthetic_prelude_symbol_spans: HashSet<ByteSpan>,
     collected_hidden_type_dependencies: HashSet<(SourceId, String)>,
     collecting_imported_type_names: RefCell<HashSet<SourceId>>,
+    imported_type_name_cache: &'a RefCell<HashMap<SourceId, Vec<imports::ImportedTypeName>>>,
+    prepared_external_surface_sources: HashSet<SourceId>,
     collecting_synthetic_prelude: bool,
 }

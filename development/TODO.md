@@ -15,14 +15,18 @@ alter the published v0.11.0 release.
 - compile-unit resolution builds immutable module indexes once, and opaque-result elaboration
   re-resolves only the reverse import, same-module, and prelude dependency closure of changed
   witnesses instead of every loaded source
-- release `check examples/hello.nct` fell from 18.318 seconds to a three-run median of 8.661 seconds;
-  the remaining dominant phase is initial compile-unit resolution
+- the compile-unit context now owns declaration-source import qualification environments; each
+  resolver reuses that immutable result and materializes hidden type surfaces only once per
+  declaration source, while a fresh context invalidates the cache after opaque elaboration
+- release `check examples/hello.nct` fell from 18.318 seconds through 8.661 seconds to a three-run
+  median of 1.906 seconds; typecheck and semantic-index construction, not resolution, are now the
+  dominant phase
 - public examples no longer repeat successful check/build compilation; all documented runnable
   examples now build and execute, exposing and fixing instance equality method calls composed with
   short-circuit logic
-- all 3,520 tests pass in 686.78 seconds, down from 2,808.33 seconds; distributed-home passes in
-  435.81 seconds, down from 2,438.41 seconds, while the expanded public-example suite passes all
-  five contracts
+- all 3,520 tests pass; the largest CLI suite completes 473 tests in 162.45 seconds and
+  distributed-home completes 218 tests in 131.25 seconds, down from 435.81 seconds at the previous
+  checkpoint, while the public-example suite passes all five contracts
 - warnings-denied Clippy, formatting, generated documentation, and diff checks pass; the
   documentation build contains 129 pages
 

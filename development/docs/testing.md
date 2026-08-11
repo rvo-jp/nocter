@@ -86,3 +86,7 @@ source loading, compile-unit loading, resolution, opaque-result elaboration, typ
 buildability, backend, program execution, and total events. Normal compiler invocations perform no
 clock reads and emit no timing output. Do not turn elapsed time into a correctness assertion;
 compare medians on the same machine and use phase events to choose an implementation target.
+
+Set `NOCTER_INTERNAL_TIMINGS=2` when a top-level phase needs investigation. Level 2 adds resolver
+subphase events while retaining all level 1 events. This is developer instrumentation, not a stable
+CLI or JSON schema.

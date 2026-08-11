@@ -184,6 +184,15 @@ impl Resolver<'_> {
     }
 
     pub(super) fn imported_type_names(&self, ast: &AstFile) -> Vec<ImportedTypeName> {
+        if let Some(imported) = self
+            .imported_type_name_cache
+            .borrow()
+            .get(&ast.span.source)
+            .cloned()
+        {
+            return imported;
+        }
+        let is_top_level_lookup = self.collecting_imported_type_names.borrow().is_empty();
         if !self
             .collecting_imported_type_names
             .borrow_mut()
@@ -235,6 +244,14 @@ impl Resolver<'_> {
         self.collecting_imported_type_names
             .borrow_mut()
             .remove(&ast.span.source);
+        // A nested lookup may have crossed an import cycle and received an intentionally empty
+        // recursion-guard result. Only a top-level lookup is a stable cache entry; nested sources
+        // will be cached when a later surface asks for their environment directly.
+        if is_top_level_lookup {
+            self.imported_type_name_cache
+                .borrow_mut()
+                .insert(ast.span.source, imported_type_names.clone());
+        }
         imported_type_names
     }
 }

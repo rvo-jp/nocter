@@ -17,7 +17,7 @@ pub(super) struct ImportableSymbol {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ImportedTypeName {
+pub(in crate::resolve) struct ImportedTypeName {
     pub(super) local_name: String,
     pub(super) import_path: String,
     pub(super) imported_name: String,

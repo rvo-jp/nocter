@@ -6,7 +6,15 @@ use std::time::Instant;
 const TIMING_ENV: &str = "NOCTER_INTERNAL_TIMINGS";
 
 pub(crate) fn measure<T>(phase: &'static str, operation: impl FnOnce() -> T) -> T {
-    if !enabled() {
+    measure_at_level(1, phase, operation)
+}
+
+pub(crate) fn measure_detail<T>(phase: &'static str, operation: impl FnOnce() -> T) -> T {
+    measure_at_level(2, phase, operation)
+}
+
+fn measure_at_level<T>(level: u8, phase: &'static str, operation: impl FnOnce() -> T) -> T {
+    if timing_level() < level {
         return operation();
     }
 
@@ -25,7 +33,12 @@ pub(crate) fn measure<T>(phase: &'static str, operation: impl FnOnce() -> T) -> 
     result
 }
 
-fn enabled() -> bool {
-    static ENABLED: OnceLock<bool> = OnceLock::new();
-    *ENABLED.get_or_init(|| std::env::var_os(TIMING_ENV).is_some_and(|value| value == "1"))
+fn timing_level() -> u8 {
+    static LEVEL: OnceLock<u8> = OnceLock::new();
+    *LEVEL.get_or_init(|| {
+        std::env::var(TIMING_ENV)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0)
+    })
 }
