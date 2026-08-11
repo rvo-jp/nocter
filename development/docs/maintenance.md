@@ -78,9 +78,9 @@ cargo fmt --manifest-path development/compiler/Cargo.toml --check
 git diff --check
 ```
 
-Run a narrow test first, then the complete verification. A standard-library runtime promotion needs
-a distributed-home or CLI run test. LSP behavior needs an analysis unit test and a JSON-RPC
-integration test.
+Run a narrow test first, then the complete verification. The
+[test ownership policy](testing.md) selects the narrowest authoritative layer and limits
+distributed-home and framed-LSP coverage to representative integration boundaries.
 
 For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run
 `node docs/build-docs.js`, and run `git diff --check`.

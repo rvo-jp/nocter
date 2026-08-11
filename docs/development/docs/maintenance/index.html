@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-06">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Development Maintenance - Nocter">
     <meta name="twitter:description" content="This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Maintenance - Nocter","description":"This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.","url":"https://nocter.dev/development/docs/maintenance/","mainEntityOfPage":"https://nocter.dev/development/docs/maintenance/","dateModified":"2026-08-06","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Maintenance","item":"https://nocter.dev/development/docs/maintenance/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Maintenance - Nocter","description":"This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.","url":"https://nocter.dev/development/docs/maintenance/","mainEntityOfPage":"https://nocter.dev/development/docs/maintenance/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Maintenance","item":"https://nocter.dev/development/docs/maintenance/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -149,6 +149,7 @@
                 <li><a href="../standard-library/index.html#content">Standard Library</a></li>
                 <li><a href="../lsp/index.html#content">LSP</a></li>
                 <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
+                <li><a href="../testing/index.html#content">Test Ownership and Integration Boundaries</a></li>
                 <li><a href="./index.html#content" aria-current="page">Maintenance</a></li>
                 <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
                 <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
@@ -174,7 +175,7 @@
   developer instructions or active milestone status in root documentation.</li></ul><h2 id="verification">Verification</h2><p>Run the standard verification for commits that change shared compiler behavior from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
 <span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--check</span>
 <span class="token-function">git</span> diff <span class="token-option">--check</span>
-</code></pre><p>Run a narrow test first, then the complete verification. A standard-library runtime promotion needs a distributed-home or CLI run test. LSP behavior needs an analysis unit test and a JSON-RPC integration test.</p><p>For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run <code>node docs/build-docs.js</code>, and run <code>git diff --check</code>.</p><h2 id="commit-checkpoints">Commit Checkpoints</h2><ul><li>Keep a behavior change, its tests, and its documentation in one coherent commit.</li><li>Keep pure refactors separate from behavior promotion.</li><li>Do not stage, revert, or format unrelated user changes.</li><li>Commit each coherent verified chunk without waiting for a long session to end.</li><li>If verification cannot run, record why in the final response and, when relevant, in <code>TODO.md</code>.</li></ul><p>Commit messages describe the result. Do not use chronological notes such as “continue.”</p>
+</code></pre><p>Run a narrow test first, then the complete verification. The <a href="../testing/index.html#content">test ownership policy</a> selects the narrowest authoritative layer and limits distributed-home and framed-LSP coverage to representative integration boundaries.</p><p>For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run <code>node docs/build-docs.js</code>, and run <code>git diff --check</code>.</p><h2 id="commit-checkpoints">Commit Checkpoints</h2><ul><li>Keep a behavior change, its tests, and its documentation in one coherent commit.</li><li>Keep pure refactors separate from behavior promotion.</li><li>Do not stage, revert, or format unrelated user changes.</li><li>Commit each coherent verified chunk without waiting for a long session to end.</li><li>If verification cannot run, record why in the final response and, when relevant, in <code>TODO.md</code>.</li></ul><p>Commit messages describe the result. Do not use chronological notes such as “continue.”</p>
             </div>
         </main>
     </div>

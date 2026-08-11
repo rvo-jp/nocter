@@ -122,7 +122,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/maintenance/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -177,6 +177,12 @@
   <url>
     <loc>https://nocter.dev/development/docs/standard-library/</loc>
     <lastmod>2026-08-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/docs/testing/</loc>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

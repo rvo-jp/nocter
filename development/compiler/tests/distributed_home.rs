@@ -2064,18 +2064,56 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_fields_are_private() {
-    let project = TempProject::new("distributed-home-vec-fields-private");
+fn distributed_std_representations_are_not_public_api() {
+    let project = TempProject::new("distributed-home-private-representations");
     let source = project.write_source(
-        "vec_fields_private.nct",
-        r#"use std/vec.Vec
+        "private_representations.nct",
+        r#"use std/io.File
+use std/internal/os.OSErrorKind
+use std/mem.{alloc, page_allocator, RawBuffer}
+use std/ptr.from_ref
+use std/vec.Vec
 
-func main(): i32 {
+func invalid_vec(): i32 {
     let values = Vec<usize> {
         len: 0,
     }
     return 0
 }
+
+func invalid_string(): i32 {
+    let text = String { len: 0 }
+    return 0
+}
+
+func invalid_raw_buffer_literal(): i32 {
+    let byte: u8 = 0
+    let buffer = RawBuffer {
+        ptr: from_ref(&byte),
+        len: 1,
+        align: 1,
+    }
+    return 0
+}
+
+func invalid_raw_buffer_field(): i32! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 1, 1)
+    let length = buffer.len
+    return 0
+}
+
+func invalid_file(): i32 {
+    let file = File { close_on_drop: false }
+    return 0
+}
+
+func invalid_os_error(): i32 {
+    let kind = OSErrorKind.not_found
+    return 0
+}
+
+func main(): i32 { return 0 }
 "#,
     );
 
@@ -2089,10 +2127,22 @@ func main(): i32 {
         text(&output.stderr)
     );
     let stderr = text(&output.stderr);
+    for restricted in ["std/vec.Vec", "std/string.String", "std/io.File"] {
+        assert!(
+            stderr.contains("E0461")
+                && stderr.contains(&format!(
+                    "raw structural construction of `{restricted}` is restricted"
+                )),
+            "expected restricted construction diagnostic for `{restricted}`, got:\n{stderr}"
+        );
+    }
     assert!(
-        stderr.contains("E0461")
-            && stderr.contains("raw structural construction of `std/vec.Vec` is restricted"),
-        "expected restricted Vec construction diagnostic, got:\n{stderr}"
+        stderr.matches("E0377").count() >= 2 && stderr.contains("not visible here"),
+        "expected private RawBuffer field diagnostics, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("E0412") && stderr.contains("OSErrorKind"),
+        "expected private OS error model diagnostic, got:\n{stderr}"
     );
 }
 
@@ -2552,46 +2602,6 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_builds_copy_aggregate_view_index() {
-    let project = TempProject::new("distributed-home-vec-aggregate-view-index-boundary");
-    let source = project.write_source(
-        "index.nct",
-        r#"use std/vec.Vec
-
-copy struct Pair {
-    pub value: i32
-}
-
-func main(): i32 {
-    let values: Vec<Pair> = Vec.empty()
-    let first = (&values as &[Pair])[0]
-    return first.value
-}
-"#,
-    );
-    let executable = project.root().join("vec_aggregate_view_index_boundary");
-
-    let output = nocter_build(&project, &source, &executable);
-
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stderr.is_empty(),
-        "expected empty stderr, got:\n{}",
-        text(&output.stderr)
-    );
-    assert!(
-        executable.exists(),
-        "build should produce an executable for copy aggregate Vec.view index"
-    );
-}
-
-#[test]
 fn distributed_std_vec_runs_copy_aggregate_view_index() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-index-run");
     let source = project.write_source(
@@ -2653,48 +2663,6 @@ func main(): i32! {
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
-    );
-}
-
-#[test]
-fn distributed_std_vec_builds_copy_aggregate_view_mut_index_assignment() {
-    let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-boundary");
-    let source = project.write_source(
-        "index.nct",
-        r#"use std/vec.Vec
-
-copy struct Pair {
-    pub value: i32
-}
-
-func main(): i32 {
-    var values: Vec<Pair> = Vec.empty()
-    (&+values as &+[Pair])[0] = Pair { value: 1 }
-    return 0
-}
-"#,
-    );
-    let executable = project
-        .root()
-        .join("vec_aggregate_view_mut_index_assign_boundary");
-
-    let output = nocter_build(&project, &source, &executable);
-
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stderr.is_empty(),
-        "expected empty stderr, got:\n{}",
-        text(&output.stderr)
-    );
-    assert!(
-        executable.exists(),
-        "build should produce an executable for copy aggregate Vec.view_mut index assignment"
     );
 }
 
@@ -2880,38 +2848,6 @@ func main(): void! {
     );
 }
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[test]
-fn distributed_os_error_model_is_not_public_api() {
-    let project = TempProject::new("distributed-home-os-error-private");
-    let source = project.write_source(
-        "os_error_private.nct",
-        r#"use std/internal/os.OSErrorKind
-
-func main(): i32 {
-    let kind = OSErrorKind.not_found
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(output.stdout.is_empty(), "expected empty stdout");
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
 #[test]
 fn distributed_std_string_empty_passes_check() {
     let project = TempProject::new("distributed-home-string-empty");
@@ -2934,31 +2870,41 @@ func main(): i32 {
 #[test]
 fn distributed_owned_view_helpers_are_not_public_api() {
     let project = TempProject::new("distributed-home-owned-view-private");
-    let cases = [
-        ("string", "use std/string.{view, len, is_empty}\n"),
-        (
-            "vec",
-            "use std/vec.{view, view_mut, len, is_empty, iter, get, get_mut}\n",
-        ),
-    ];
+    let source = project.write_source(
+        "owned_view_helpers_private.nct",
+        r#"use std/string.view as string_view
+use std/string.len as string_len
+use std/string.is_empty as string_is_empty
+use std/vec.view as vec_view
+use std/vec.view_mut as vec_view_mut
+use std/vec.len as vec_len
+use std/vec.is_empty as vec_is_empty
+use std/vec.iter as vec_iter
+use std/vec.get as vec_get
+use std/vec.get_mut as vec_get_mut
 
-    for (name, imports) in cases {
-        let source = project.write_source(
-            &format!("{name}_view_helpers_private.nct"),
-            &format!("{imports}\nfunc main(): i32 {{ return 0 }}\n"),
-        );
-        let output = nocter_check(&project, &source);
-        assert_eq!(
-            output.status.code(),
-            Some(1),
-            "{name} helpers unexpectedly public\nstdout:\n{}\nstderr:\n{}",
-            text(&output.stdout),
-            text(&output.stderr)
-        );
-        let stderr = text(&output.stderr);
+func main(): i32 { return 0 }
+"#,
+    );
+    let output = nocter_check(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "owned view helpers unexpectedly public\nstdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        import_visibility_diagnostic_count(&stderr) >= 10,
+        "expected one visibility diagnostic per private import, got:\n{stderr}"
+    );
+    for helper in [
+        "view", "view_mut", "len", "is_empty", "iter", "get", "get_mut",
+    ] {
         assert!(
-            stderr.contains("E0412") && stderr.contains("private name"),
-            "expected private helper diagnostics for {name}, got:\n{stderr}"
+            stderr.contains(helper),
+            "expected private helper diagnostic for `{helper}`, got:\n{stderr}"
         );
     }
 }
@@ -3005,118 +2951,6 @@ func main(): i32! {
 
     let output = nocter_check(&project, &source);
     assert_success(&output);
-}
-
-#[test]
-fn distributed_std_string_representation_is_private() {
-    let project = TempProject::new("distributed-home-string-private");
-    let source = project.write_source(
-        "string_private.nct",
-        r#"func main(): i32 {
-    let text = String { len: 0 }
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0461")
-            && stderr.contains("raw structural construction of `std/string.String` is restricted"),
-        "expected restricted String construction diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_std_mem_raw_buffer_literal_is_not_public_api() {
-    let project = TempProject::new("distributed-home-raw-buffer-literal-private");
-    let source = project.write_source(
-        "raw_buffer_literal_private.nct",
-        r#"use std/mem.RawBuffer
-use std/ptr.from_ref
-
-func main(): i32 {
-    let byte: u8 = 0
-    let buffer = RawBuffer {
-        ptr: from_ref(&byte),
-        len: 1,
-        align: 1,
-    }
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0377") && stderr.contains("not visible here"),
-        "expected private RawBuffer field diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_std_mem_raw_buffer_fields_are_not_public_api() {
-    let project = TempProject::new("distributed-home-raw-buffer-fields-private");
-    let source = project.write_source(
-        "raw_buffer_fields_private.nct",
-        r#"use std/mem.{alloc, page_allocator}
-
-func main(): i32! {
-    var allocator = page_allocator()
-    let buffer = alloc(&+allocator, 1, 1)
-    let length = buffer.len
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0377") && stderr.contains("not visible here"),
-        "expected private RawBuffer field diagnostic, got:\n{stderr}"
-    );
 }
 
 #[test]
@@ -3841,32 +3675,6 @@ func main(): i32! {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
-#[test]
-fn distributed_io_file_write_bytes_builds_to_macho() {
-    let project = TempProject::new("distributed-home-file-write-bytes-build");
-    let source = project.write_source(
-        "file_write_bytes.nct",
-        r#"use std/io.stdout
-
-func write_bytes(bytes: &[u8]): void! {
-    var out = stdout()
-    out.write(bytes)?
-    return
-}
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-    let executable = project.root().join("file_write_bytes");
-
-    let output = nocter_build(&project, &source, &executable);
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_io_file_write_string_bytes_runs() {
@@ -3876,9 +3684,14 @@ fn distributed_io_file_write_string_bytes_runs() {
         r#"use std/io.stdout
 use std/string.bytes
 
-func main(): i32! {
+func write_bytes(data: &[u8]): void! {
     var out = stdout()
-    out.write(bytes("Hello bytes"))?
+    out.write(data)?
+    return
+}
+
+func main(): i32! {
+    write_bytes(bytes("Hello bytes"))?
     return 0
 }
 "#,
@@ -3902,47 +3715,19 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_io_file_representation_is_private() {
-    let project = TempProject::new("distributed-home-io-file-private");
+fn distributed_std_package_private_helpers_are_not_public_api() {
+    let project = TempProject::new("distributed-home-package-private-helpers");
     let source = project.write_source(
-        "io_file_private.nct",
-        r#"use std/io.File
-
-func main(): i32 {
-    let file = File { close_on_drop: false }
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0461")
-            && stderr.contains("raw structural construction of `std/io.File` is restricted"),
-        "expected restricted File construction diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_os_error_converter_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-os-error-converter-private");
-    let source = project.write_source(
-        "io_os_error_converter_private.nct",
-        r#"use std/io.from_os_error
+        "package_private_helpers.nct",
+        r#"use std/fmt.unsupported as fmt_unsupported
+use std/io.from_os_error
+use std/io.unsupported as io_unsupported
+use std/io.write_text_raw
+use std/io.write_bytes_raw
+use std/io.read_bytes_raw
+use std/io.open_read_raw
+use std/io.close_fd_raw
+use std/process.exit_raw
 
 func main(): i32 {
     return 0
@@ -3966,185 +3751,29 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
+        import_visibility_diagnostic_count(&stderr) >= 9,
+        "expected one visibility diagnostic per private import, got:\n{stderr}"
     );
-}
-
-#[test]
-fn distributed_fmt_unsupported_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-fmt-unsupported-private");
-    let source = project.write_source(
-        "fmt_unsupported_private.nct",
-        r#"use std/fmt.unsupported
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("cannot access private name `unsupported`"),
-        "expected private fmt unsupported diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_unsupported_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-unsupported-private");
-    let source = project.write_source(
-        "io_unsupported_private.nct",
-        r#"use std/io.unsupported
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("cannot access private name `unsupported`"),
-        "expected private io unsupported diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-raw-private");
-    let source = project.write_source(
-        "io_raw_private.nct",
-        r#"use std/io.write_text_raw
-
-func main(): i32 {
-    write_text_raw(1, "x")!
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_byte_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-byte-raw-private");
-    let source = project.write_source(
-        "io_byte_raw_private.nct",
-        r#"use std/io.write_bytes_raw
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_read_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-read-raw-private");
-    let source = project.write_source(
-        "io_read_raw_private.nct",
-        r#"use std/io.read_bytes_raw
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
+    for helper in [
+        "unsupported",
+        "from_os_error",
+        "write_text_raw",
+        "write_bytes_raw",
+        "read_bytes_raw",
+        "open_read_raw",
+        "close_fd_raw",
+        "exit_raw",
+    ] {
+        assert!(
+            stderr.contains("E0412") && stderr.contains(helper),
+            "expected visibility diagnostic for `{helper}`, got:\n{stderr}"
+        );
+    }
 }
 
 #[test]
 fn distributed_ptr_raw_helpers_are_not_public_api() {
-    for helper in [
+    let helpers = [
         "from_addr",
         "pointee_size",
         "pointee_align",
@@ -4159,125 +3788,37 @@ fn distributed_ptr_raw_helpers_are_not_public_api() {
         "slice_from_raw_parts_mut",
         "slice_from_raw_parts_value",
         "slice_from_raw_parts_value_mut",
-    ] {
-        let project = TempProject::new(&format!("distributed-home-ptr-{helper}-private"));
-        let source = project.write_source(
-            &format!("ptr_{helper}_private.nct"),
-            &format!(
-                r#"use std/ptr.{helper}
+    ];
+    let project = TempProject::new("distributed-home-ptr-private-helpers");
+    let source = project.write_source(
+        "ptr_private_helpers.nct",
+        r#"use std/ptr.{
+    from_addr,
+    pointee_size,
+    pointee_align,
+    copy_str_to_ptr,
+    copy_ptr_to_ptr,
+    store_u8_to_ptr,
+    store_value_to_ptr,
+    drop_value_at_ptr,
+    take_value_at_ptr,
+    str_from_raw_parts,
+    slice_from_raw_parts,
+    slice_from_raw_parts_mut,
+    slice_from_raw_parts_value,
+    slice_from_raw_parts_value_mut,
+}
 
-func main(): i32 {{
+func main(): i32 {
     return 0
-}}
-"#
-            ),
-        );
+}
+"#,
+    );
 
-        let output = nocter_check(&project, &source);
+    let output = nocter_check(&project, &source);
+    for helper in helpers {
         assert_package_visibility_rejected(&output, helper);
     }
-}
-
-#[test]
-fn distributed_io_open_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-open-raw-private");
-    let source = project.write_source(
-        "io_open_raw_private.nct",
-        r#"use std/io.open_read_raw
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_io_close_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-close-raw-private");
-    let source = project.write_source(
-        "io_close_raw_private.nct",
-        r#"use std/io.close_fd_raw
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_process_exit_raw_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-process-exit-raw-private");
-    let source = project.write_source(
-        "process_exit_raw_private.nct",
-        r#"use std/process.exit_raw
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(/)"),
-        "expected pub(/) visibility diagnostic, got:\n{stderr}"
-    );
 }
 
 #[test]
@@ -4356,11 +3897,12 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_process_args_builds_to_macho() {
-    let project = TempProject::new("distributed-home-process-args-build");
+fn distributed_std_process_args_returns_argv_vector() {
+    let project = TempProject::new("distributed-home-process-args-runtime");
     let source = project.write_source(
-        "process_args_build.nct",
+        "process_args_runtime.nct",
         r#"use std/process.args
 
 func main(): i32! {
@@ -4383,28 +3925,6 @@ func main(): i32! {
     if first_byte == 0 {
         return 4
     }
-    return 0
-}
-"#,
-    );
-    let executable = project.root().join("process_args_build");
-
-    let output = nocter_build(&project, &source, &executable);
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[test]
-fn distributed_std_process_args_returns_argv_vector() {
-    let project = TempProject::new("distributed-home-process-args-runtime");
-    let source = project.write_source(
-        "process_args_runtime.nct",
-        r#"use std/process.args
-
-func main(): i32! {
-    let values = args()?
     return 0
 }
 "#,
@@ -4640,36 +4160,6 @@ func main(): void! {
     let expected = project.root().canonicalize().unwrap();
     assert_eq!(text(&output.stdout), expected.display().to_string());
     assert!(output.stderr.is_empty(), "expected empty stderr");
-}
-
-#[test]
-fn distributed_std_explicit_string_construction_builds_to_macho() {
-    let project = TempProject::new("distributed-home-explicit-string-build");
-    let source = project.write_source(
-        "explicit_string_app.nct",
-        r#"use std/fmt.append_str
-use std/mem.page_allocator
-use std/string.with_capacity
-
-func make(): String {
-    var allocator = page_allocator()
-    var out = with_capacity(8)
-    append_str(&+out, "hello")
-    return move out
-}
-
-func main(): i32! {
-    var text = make()
-    return 0
-}
-"#,
-    );
-    let executable = project.root().join("explicit_string_app");
-
-    let output = nocter_build(&project, &source, &executable);
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -5655,6 +5145,10 @@ fn assert_package_visibility_rejected(output: &Output, imported_name: &str) {
         stderr.contains("E0412") && stderr.contains("pub(/)") && stderr.contains(imported_name),
         "expected pub(/) visibility diagnostic for `{imported_name}`, got:\n{stderr}"
     );
+}
+
+fn import_visibility_diagnostic_count(stderr: &str) -> usize {
+    stderr.matches("error[E0411]").count() + stderr.matches("error[E0412]").count()
 }
 
 fn assert_macho_executable(path: &Path) {

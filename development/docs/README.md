@@ -64,6 +64,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 - [LSP](lsp.md): compiler-backed semantic, presentation, recovery, protocol, and verification
   boundaries
 - [Documentation Site Generation](site-generation.md): public Markdown build and generated output
+- [Test Ownership and Integration Boundaries](testing.md): layer ownership, redundancy rules,
+  distributed-home scope, and verification profiles
 - [Maintenance](maintenance.md): update ownership, verification, and commit policy
 - [TODO](../TODO.md): internal short-term handoff state
 - [Active Milestones](../milestones/README.md): candidate scope and qualification
@@ -107,6 +109,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | LSP capabilities and analysis boundary | `lsp.md` |
 | Next concrete internal task | `../TODO.md` |
 | Documentation build process | `site-generation.md` |
+| Test ownership, integration boundaries, and redundancy policy | `testing.md` |
 
 Entry points may summarize an owned fact in one sentence and link to its owner. They must not carry
 independent completion lists, qualification details, or mutable status. Git owns chronological

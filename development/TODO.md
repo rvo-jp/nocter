@@ -2,8 +2,26 @@
 
 ## Current Task
 
-v0.12.0 Phase 2 is complete. Stop at this checkpoint before selecting the next stabilization or
-language-development phase, and do not alter the published v0.11.0 release.
+v0.12.0 Phase 2 and the post-phase test-consolidation audit are complete. Stop at this checkpoint
+before selecting the next stabilization or language-development phase, and do not alter the
+published v0.11.0 release.
+
+## Completed Test Consolidation Checkpoint
+
+- every test layer now has an explicit ownership boundary; semantic matrices stay in compiler
+  units while CLI build, CLI run, distributed-home, framed-LSP, corpus, and public-example suites
+  retain only contracts that require their integration boundary
+- 33 CLI build tests with byte-identical successful run programs were removed; build-only artifact,
+  target, output-path, executable-format, and failure contracts remain
+- distributed-home coverage fell from 236 Rust tests to 218 by combining private-surface checks and
+  removing five builds subsumed by stronger native runs; distinct allocator failure, ownership,
+  specialization, cleanup, package, and public-API behaviors remain isolated
+- the consolidation removes 51 tests overall and approximately 32 compiler process launches while
+  preserving independently identifiable diagnostics in recovering multi-import sources
+- the full suite now passes all 3,514 tests in 2,808.33 seconds; distributed-home accounts for
+  2,438.41 seconds, down from 4,868.51 seconds before consolidation
+- warnings-denied Clippy, formatting, generated documentation, and diff checks pass; the
+  documentation build contains 129 pages
 
 ## Completed v0.12.0 Phase 2 Checkpoint
 
