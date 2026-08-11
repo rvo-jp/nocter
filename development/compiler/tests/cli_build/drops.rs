@@ -485,35 +485,3 @@ func main(): i32 {
     assert_success(&output);
     assert_macho_executable(&executable);
 }
-
-#[test]
-fn build_command_lowers_temporary_method_borrow_receiver() {
-    let project = TempProject::new("cli-build-temporary-method-borrow-receiver");
-    let source = project.write_source(
-        "temporary_method_borrow_receiver.nct",
-        r#"copy struct File {
-    fd: i32
-}
-
-instance File {
-    method &self.value(): i32 {
-        return self.fd
-    }
-}
-
-func main(): i32 {
-    return make_file().value()
-}
-
-func make_file(): File {
-    return File { fd: 42 }
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}

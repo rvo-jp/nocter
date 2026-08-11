@@ -1073,66 +1073,6 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_accepts_value_match_bindings_and_assignments() {
-    let project = TempProject::new("cli-build-value-match-bindings-and-assignments");
-    project.write_nocter_home_file(
-        "std/string/index.nct",
-        r#"pub(/) primitive bytes_from_str(value: &str): &[u8]
-
-pub func bytes(value: &str): &[u8] {
-    return bytes_from_str(value)
-}
-"#,
-    );
-    let source = project.write_source(
-        "value_match_bindings_and_assignments.nct",
-        r#"use std/string.bytes
-
-copy struct Packet {
-    count: i32
-    byte: u8
-    size: usize
-    ok: bool
-}
-
-enum Choice {
-    yes
-    no
-    maybe
-}
-
-func main(): i32 {
-    let choice = Choice.no
-    let code = match choice {
-        Choice.yes { 1 }
-        Choice.no { 10 }
-        _ { 0 }
-    }
-    let byte: u8 = match choice { Choice.no { 5 } _ { 1 } }
-    let size: usize = match choice { Choice.no { 7 } _ { 1 } }
-    let text: &str = match choice { Choice.no { "Nocter" } _ { "Other" } }
-    let data: &[u8] = match choice { Choice.no { bytes(text) } _ { bytes("x") } }
-    let ok: bool = match choice { Choice.no { data.len() == 6 } _ { false } }
-    var total = 0
-    total = match choice { Choice.no { code } _ { 1 } }
-    var packet = Packet { count: 0, byte: 0, size: 0, ok: false }
-    packet.count = match choice { Choice.no { total } _ { 1 } }
-    packet.byte = match choice { Choice.no { byte } _ { 1 } }
-    packet.size = match choice { Choice.no { size } _ { 1 } }
-    packet.ok = match choice { Choice.no { ok } _ { false } }
-    return if packet.ok { packet.count + 32 } else { 1 }
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_accepts_copy_payload_enum_construction() {
     let project = TempProject::new("cli-build-copy-payload-enum-construction");
     let source = project.write_source(

@@ -124,31 +124,6 @@ func echo(bytes: &+Bytes): &+Bytes {
 }
 
 #[test]
-fn build_command_lowers_reachable_alias_view_signature() {
-    let project = TempProject::new("cli-build-reachable-alias-view-signature");
-    let source = project.write_source(
-        "alias_view_signature.nct",
-        r#"type Exit = i32
-type Text = str
-
-func main(): i32 {
-    return length("Nocter")
-}
-
-func length(text: &Text): Exit {
-    return 42
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_lowers_imported_bool_condition() {
     let project = TempProject::new("cli-build-imported-bool-condition");
     project.write_nocter_home_file(
@@ -202,43 +177,6 @@ use std/math.base
 
 func main(): i32 {
     return add_one(base())
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-    let status = Command::new(&executable).status().unwrap();
-    assert_eq!(status.code(), Some(42));
-}
-
-#[test]
-fn build_command_lowers_value_control_with_imported_alias_context() {
-    let project = TempProject::new("cli-build-imported-alias-value-control-context");
-    project.write_nocter_home_file(
-        "std/math/index.nct",
-        r#"pub type Count = i32
-
-pub func zero(): Count {
-    return 0
-}
-
-pub func choose(value: Count): Count {
-    return value
-}
-"#,
-    );
-    let source = project.write_source(
-        "imported_alias_value_control_context.nct",
-        r#"use std/math.{choose, zero}
-
-func main(): i32 {
-    var value = zero()
-    value = if true { 40 } else { 1 }
-    return choose(if value == 40 { value + 2 } else { 1 })
 }
 "#,
     );

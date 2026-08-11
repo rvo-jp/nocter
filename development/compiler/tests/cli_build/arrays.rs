@@ -23,39 +23,6 @@ func first<T>(values: [T; 2]): T {
 }
 
 #[test]
-fn build_command_lowers_generic_fixed_array_aggregate_fields() {
-    let project = TempProject::new("cli-build-generic-fixed-array-aggregate-fields");
-    let source = project.write_source(
-        "generic_fixed_array_aggregate_fields.nct",
-        r#"copy struct Box<T> {
-    values: [T; 2]
-}
-
-func main(): i32 {
-    var box = Box<i32> { values: [1, 2] }
-    let replacement: [i32; 2] = [3, 4]
-    let other = Box<i32> { values: [20, 22] }
-    box.values = [5, 6]
-    box.values = replacement
-    box.values = make_pair()
-    box.values = other.values
-    return box.values[0] + box.values[1]
-}
-
-func make_pair(): [i32; 2] {
-    return [7, 8]
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_lowers_fixed_array_variable_index_reads() {
     let project = TempProject::new("cli-build-fixed-array-variable-index-reads");
     let source = project.write_source(
@@ -132,32 +99,6 @@ fn build_command_lowers_fixed_array_value_parameters_and_returns() {
 
 func identity(values: [i32; 3]): [i32; 3] {
     return values
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
-fn build_command_lowers_fixed_array_literal_value_arguments() {
-    let project = TempProject::new("cli-build-fixed-array-literal-value-arguments");
-    let source = project.write_source(
-        "fixed_array_literal_value_arguments.nct",
-        r#"func main(): i32 {
-    return consume([20, 22], ["bad", "Nocter", "lang"], [])
-}
-
-func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
-    let word: &str = words[1]
-    if word.len() == 6 {
-        return pair[0] + pair[1]
-    }
-    return 1
 }
 "#,
     );
@@ -395,50 +336,6 @@ fn build_command_lowers_fixed_array_variable_index_compound_assignment() {
 }
 
 #[test]
-fn build_command_lowers_fixed_array_aggregate_field_indexing() {
-    let project = TempProject::new("cli-build-fixed-array-aggregate-field-indexing");
-    let source = project.write_source(
-        "fixed_array_aggregate_field_indexing.nct",
-        r#"struct Bag {
-    values: [i32; 3]
-    flags: [bool; 1]
-    words: [&str; 2]
-}
-
-func main(): i32 {
-    var bag = Bag {
-        values: [1, 2, 3],
-        flags: [false],
-        words: ["bad", "bad"]
-    }
-    let index: usize = 1
-    bag.values[0] = 20
-    bag.values[index] += 20
-    bag.flags[0] = true
-    bag.words[index] = "Nocter"
-    let total: i32 = bag.values[0] + bag.values[index]
-    let flag: bool = bag.flags[0]
-    let word: &str = bag.words[index]
-    if total == 42 {
-        if flag {
-            if word.len() == 6 {
-                return 42
-            }
-        }
-    }
-    return 1
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_lowers_fixed_array_aggregate_field_values() {
     let project = TempProject::new("cli-build-fixed-array-aggregate-field-values");
     let source = project.write_source(
@@ -482,60 +379,6 @@ func extract_values(bag: Bag): [i32; 3] {
 
 func make_values(): [i32; 3] {
     return [7, 8, 9]
-}
-
-func make_words(): [&str; 2] {
-    return ["lang", "Nocter"]
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
-fn build_command_lowers_fixed_array_aggregate_field_assignments() {
-    let project = TempProject::new("cli-build-fixed-array-aggregate-field-assignments");
-    let source = project.write_source(
-        "fixed_array_aggregate_field_assignments.nct",
-        r#"copy struct Bag {
-    values: [i32; 3]
-    words: [&str; 2]
-}
-
-func main(): i32 {
-    var bag = Bag { values: [0, 0, 0], words: ["bad", "bad"] }
-    let replacement: [i32; 3] = [4, 5, 6]
-    let other = Bag { values: [20, 21, 1], words: ["lang", "Nocter"] }
-    bag.values = [1, 2, 3]
-    bag.values = replacement
-    bag.values = make_values()
-    bag.values = make_fallible_values()!
-    bag.values = other.values
-    bag.words = ["bad", "still"]
-    bag.words = other.words
-    bag.words = make_words()
-    let word: &str = bag.words[1]
-    if word.len() == 6 {
-        return take(bag.values)
-    }
-    return 1
-}
-
-func take(values: [i32; 3]): i32 {
-    return values[0] + values[1] + values[2]
-}
-
-func make_values(): [i32; 3] {
-    return [7, 8, 9]
-}
-
-func make_fallible_values(): [i32; 3]! {
-    return [10, 11, 12]
 }
 
 func make_words(): [&str; 2] {

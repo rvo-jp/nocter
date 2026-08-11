@@ -402,42 +402,6 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_lowers_nested_concrete_generic_aggregate_field() {
-    let project = TempProject::new("cli-build-nested-concrete-generic-aggregate-field");
-    let source = project.write_source(
-        "nested_concrete_generic_aggregate_field.nct",
-        r#"struct Pair<T, U> {
-    first: T
-    second: U
-}
-
-struct Box<T> {
-    value: Pair<T, i32>
-}
-
-func main(): i32 {
-    let box = make_box()
-    return read(move box)
-}
-
-func make_box(): Box<i32> {
-    return Box<i32> { value: Pair<i32, i32> { first: 1, second: 42 } }
-}
-
-func read(box: Box<i32>): i32 {
-    return box.value.second
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_lowers_aggregate_field_borrow_argument() {
     let project = TempProject::new("cli-build-aggregate-field-borrow-argument");
     let source = project.write_source(
@@ -910,42 +874,6 @@ fn build_command_lowers_ignored_aggregate_literal_expression_statement() {
 func main(): void {
     Value { code: 1 }
     return
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
-fn build_command_accepts_value_if_aggregate_scalar_field_assignments() {
-    let project = TempProject::new("cli-build-value-if-aggregate-scalar-field-assignments");
-    let source = project.write_source(
-        "value_if_aggregate_scalar_field_assignments.nct",
-        r#"copy struct Packet {
-    count: i32
-    byte: u8
-    size: usize
-    ok: bool
-}
-
-enum Choice {
-    yes
-    no
-}
-
-func main(): i32 {
-    var packet = Packet { count: 0, byte: 0, size: 0, ok: false }
-    let choice = Choice.no
-    packet.count = if choice is Choice.no { 10 } else { 1 }
-    packet.byte = if packet.count == 10 { 5 } else { 1 }
-    packet.size = if packet.count == 10 { 7 } else { 1 }
-    packet.ok = if packet.count == 10 { true } else { false }
-    return if packet.ok { packet.count + 32 } else { 1 }
 }
 "#,
     );

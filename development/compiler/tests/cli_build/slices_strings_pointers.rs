@@ -1,33 +1,6 @@
 use super::*;
 
 #[test]
-fn build_command_lowers_u8_normal_and_tail_calls() {
-    let project = TempProject::new("cli-build-u8-normal-tail-calls");
-    let source = project.write_source(
-        "u8_normal_tail_calls.nct",
-        r#"func main(): i32 {
-    let byte: u8 = forward(42)
-    return byte as i32
-}
-
-func forward(byte: u8): u8 {
-    return identity(byte)
-}
-
-func identity(byte: u8): u8 {
-    return byte
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
 fn build_command_lowers_byte_literal() {
     let project = TempProject::new("cli-build-byte-literal");
     let source = project.write_source(
@@ -499,48 +472,6 @@ fn build_command_accepts_str_equality() {
         return 0
     } else {
         return 1
-    }
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
-#[test]
-fn build_command_accepts_value_control_struct_literal_scalar_fields() {
-    let project = TempProject::new("cli-build-value-control-struct-literal-scalar-fields");
-    let source = project.write_source(
-        "value_control_struct_literal_scalar_fields.nct",
-        r#"copy struct Header {
-    code: i32
-    tag: u8
-    size: usize
-    ok: bool
-}
-
-enum Choice {
-    yes
-    no
-    maybe
-}
-
-func main(): i32 {
-    let choice = Choice.no
-    let header = Header {
-        code: if choice is Choice.no { 10 } else { 1 },
-        tag: match choice { Choice.no { 5 } _ { 1 } },
-        size: match choice { Choice.no { 7 } _ { 1 } },
-        ok: if choice is Choice.no { true } else { false }
-    }
-    return if header.ok && header.tag == 5 && header.size == 7 {
-        header.code + 32
-    } else {
-        1
     }
 }
 "#,

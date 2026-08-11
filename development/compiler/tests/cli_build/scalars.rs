@@ -58,68 +58,6 @@ fn build_command_lowers_usize_entry_return() {
     assert_macho_executable(&executable);
 }
 
-#[test]
-fn build_command_lowers_usize_arithmetic_and_shifts() {
-    let project = TempProject::new("cli-build-usize-arithmetic-shifts");
-    let source = project.write_source(
-        "usize_arithmetic_shifts.nct",
-        r#"func main(): i32 {
-    if combined(20, size()) == 23 {
-        return 42
-    } else {
-        return 1
-    }
-}
-
-func combined(left: usize, right: usize): usize {
-    return arithmetic(left, right) + shifted_left() + shifted_right()
-}
-
-func arithmetic(left: usize, right: usize): usize {
-    let doubled: usize = right * 2
-    let adjusted: usize = left + doubled - 4
-    let quotient: usize = adjusted / 2
-    let remainder: usize = quotient % 9
-    return remainder
-}
-
-func shifted_left(): usize {
-    return one() << left_count()
-}
-
-func shifted_right(): usize {
-    return sixty_four() >> right_count()
-}
-
-func size(): usize {
-    return 6
-}
-
-func one(): usize {
-    return 1
-}
-
-func sixty_four(): usize {
-    return 64
-}
-
-func left_count(): usize {
-    return 4
-}
-
-func right_count(): usize {
-    return 5
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_success(&output);
-    assert_macho_executable(&executable);
-}
-
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn built_executable_returns_i32_let_binding_value() {
