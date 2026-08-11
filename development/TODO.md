@@ -2,9 +2,11 @@
 
 ## Current Task
 
-v0.12.0 Phase 0 is complete under [`milestones/v0.12.0.md`](milestones/v0.12.0.md). Stop at this
-boundary. Do not infer or begin Phase 1, and do not alter the published v0.11.0 release. The next
-task requires an explicit plan.
+Implement v0.12.0 Phase 1 under [`milestones/v0.12.0.md`](milestones/v0.12.0.md): instance-owned
+readonly homogeneous equality, structural `where &T == &T` requirements, one-step borrow-coercion
+selection on both operands, and the practical collection APIs that prove the common foundation.
+Do not broaden the work into heterogeneous, ordering, arithmetic, hashing, or derived operators,
+and do not alter the published v0.11.0 release.
 
 ## Completed v0.12.0 Phase 0 Checkpoint
 
