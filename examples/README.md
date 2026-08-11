@@ -25,8 +25,9 @@ nocter check examples/custom-format.nct
 nocter run examples/custom-format.nct
 ```
 
-[equality.nct](equality.nct) defines instance-owned equality for a project type and uses the same
-operation through `Vec.contains`.
+[equality.nct](equality.nct) defines instance-owned equality for a project type, uses the same
+operation through `Vec.contains`, and exercises readonly plus readwrite Vec indexing through slice
+coercion.
 
 ```sh
 nocter check examples/equality.nct

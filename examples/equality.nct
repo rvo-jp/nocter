@@ -24,6 +24,14 @@ func main(): i32! {
     if !points.contains(&same) {
         return 1
     }
+    if points[0] != same {
+        return 1
+    }
+    var values = Vec [1, 2, 3]
+    values[1] = 4
+    if values[0] + values[1] + values[2] != 8 {
+        return 1
+    }
     print("equality found the point\n")?
     return 0
 }
