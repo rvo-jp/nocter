@@ -430,6 +430,7 @@ Representative current method surface:
 
 ```nct
 instance str {
+    pub operator (&self == other: &Self): bool
     pub method &self.len(): usize
     pub method &self.is_empty(): bool
     pub method &self.ptr(): *u8
@@ -457,6 +458,22 @@ instance String {
 `String` reaches the `str` observation surface through its declared `&String as &str` coercion.
 An original `String` method wins before coercion. The owning type therefore contains allocation,
 capacity, mutation, and construction behavior without duplicating borrowed observation methods.
+The same coercion reaches `str` equality. `&str == &str`, `&str == &String`, `&String == &str`,
+and `&String == &String` all select the one `str` declaration.
+
+Slices own element-wise equality and search only when their element type satisfies the equality
+operation used by the implementation:
+
+```nct
+instance [T] where &T == &T {
+    pub operator (&self == other: &Self): bool
+    pub method &self.contains(expected: &T): bool
+    pub method &self.position(expected: &T): usize?
+}
+```
+
+`Vec<T>` receives this readonly surface through its slice coercion. Comparison borrows elements;
+it does not consume either collection.
 
 Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
 `try_copy`, `try_reserve`, and `try_push_str` operations use a `TryAllocator`. Both surfaces use the

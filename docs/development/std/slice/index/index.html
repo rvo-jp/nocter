@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-10">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/slice/index.nct - Nocter">
@@ -161,6 +161,10 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> slice_len_raw<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> slice_ptr_addr_raw<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
+<span class="token-keyword">func</span> values_equal<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> where <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> left <span class="token-operator">=</span><span class="token-operator">=</span> right
+<span class="token-operator">}</span>
+
 instance <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">slice_len_raw</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
@@ -172,6 +176,41 @@ instance <span class="token-operator">[</span><span class="token-type">T</span><
 
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-function">slice_ptr_addr_raw</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+instance <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> where <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Compares elements from left to right without consuming either slice.</span>
+    <span class="token-keyword">pub</span> <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> other<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> false
+        <span class="token-operator">}</span>
+        <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+        while index <span class="token-operator">&lt;</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">values_equal</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>other<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> false
+            <span class="token-operator">}</span>
+            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> true
+    <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Returns whether an equal element is present.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span>expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> _index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span><span class="token-function">position</span><span class="token-operator">(</span>expected<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> false <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> true
+    <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Returns the first index containing an equal element.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">position</span><span class="token-operator">(</span>expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+        while index <span class="token-operator">&lt;</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> <span class="token-function">values_equal</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">,</span> expected<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> index
+            <span class="token-operator">}</span>
+            index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> none
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre>

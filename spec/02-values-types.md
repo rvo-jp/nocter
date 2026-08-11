@@ -515,13 +515,31 @@ The exact names for wrapping arithmetic APIs belong to the primitive numeric API
 
 ## Operators, Comparison, and Precedence
 
-Operator behavior is built in for a small set. User-defined operator overloads are not supported.
+Nocter has a closed operator grammar. An `instance` may define the single source-owned equality
+operation for its type:
+
+```nct
+instance Text {
+    pub operator (&self == other: &Self): bool {
+        return self.bytes == other.bytes
+    }
+}
+```
+
+The declaration shape is fixed: both operands are readonly borrows of the same `Self` type and the
+result is `bool`. It may be private or use an ordinary `pub` boundary. `!=` cannot be declared; it
+negates the selected `==` result. Nocter does not derive structural equality.
 
 Comparison rules:
 
-- `==` and `!=` require operands of the same type.
-- Built-in equality is available for `bool`, integer types, `&str`, and payloadless enum types.
-- `String == String`, `String == &str`, and `&str == String` require explicit operator support and are not built-in equality operations.
+- Primitive equality is available for `bool`, matching integer types, and matching payloadless enum
+  types.
+- Nominal and view equality selects an accessible equality declaration from the left type.
+- Equality may apply one readonly borrow coercion to each operand. An exact left declaration wins
+  before coerced candidates; multiple remaining coercion candidates are ambiguous.
+- Owned operands are implicitly borrowed for the selected readonly equality call and remain usable.
+- `str` owns source-defined equality. The standard `String` coercion therefore supports all four
+  `str`/`String` readonly combinations without duplicating the comparison algorithm.
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not supported. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.

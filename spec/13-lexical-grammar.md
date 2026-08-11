@@ -126,6 +126,7 @@ move
 never
 none
 otherwise
+operator
 primitive
 pub
 region

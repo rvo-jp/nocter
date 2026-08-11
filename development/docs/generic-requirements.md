@@ -13,7 +13,8 @@ target names, capability types, and equality operands. `where copy T`, `where T:
 expression or a parameter modifier.
 
 Resolver signatures map predicates to lexical parameter identities. They store parameter
-requirements in `GenericRequirements` and resolved type equalities beside them. Each parameter
+requirements in `GenericRequirements`, resolved type equalities, and structural equality-operation
+requirements beside them. Each parameter
 requirement has one semantic kind: nominal, callable, or intrinsic copy. Consumers select the kind
 they understand instead of reclassifying arbitrary `TypeExpr` values or inspecting formatted text.
 
@@ -21,8 +22,8 @@ they understand instead of reclassifying arbitrary `TypeExpr` values or inspecti
 lookup consumes nominal requirements, callable invocation consumes callable requirements, and the
 ownership classifier consumes `copy`. Concrete call and conditional-conformance matching use the
 same classifier as generic-body ownership. Copy requirements produce no witness, ABI field, or
-runtime metadata. Equality entailment consumes the same type environment and produces no runtime
-witness.
+runtime metadata. Associated-type equality entailment and operator-capability lookup consume the
+same type environment and produce no runtime witness.
 
 ## Declaration and Specialization Flow
 
@@ -40,6 +41,8 @@ witness.
    and projection services.
 8. Imported signatures qualify nominal bound and equality operand types while preserving
    intrinsic identities and source spans.
+9. Equality requirements retain their structural operator identity and specialize through the
+   same resolved equality plan as an ordinary expression.
 
 AST JSON, normalized presentation, type occurrences, semantic tokens, signature help, and
 diagnostics derive from these representations. Editor code must not scan source text to rediscover
@@ -60,6 +63,8 @@ and construction APIs remain unconstrained.
   associated projection. `instance` and `conform` classify `where Binder = Type` separately as a
   directed declaration-pattern refinement; see
   [Declaration Type Pattern Architecture](declaration-type-patterns.md).
+- `where &T == &T` is the only operator requirement. Both operands must name the same visible
+  parameter; it is not a nominal interface bound or an associated-type equality.
 - functions, methods, literals, nominal declarations, aliases, instances, and conformances all own the same clause
   representation; no declaration kind carries an inline fallback.
 - associated type declarations may retain `pub type Item: Interface` because that bound constrains

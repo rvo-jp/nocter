@@ -61,8 +61,14 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/docs/equality-operators/</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/docs/generic-requirements/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -146,7 +152,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -176,7 +182,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/milestones/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -212,7 +218,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/milestones/v0.12.0/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -374,7 +380,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/iter/index/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -440,13 +446,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/slice/index/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/development/std/str/index/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -493,6 +499,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/examples/equality/</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/examples/file-summary/index/</loc>
     <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
@@ -518,7 +530,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -614,7 +626,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/02-values-types/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -644,13 +656,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/07-strings-arrays-views-pointers/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/08-generics-interfaces-embedding-methods/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -680,7 +692,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/13-lexical-grammar/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -698,7 +710,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/16-source-style-formatting/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -728,13 +740,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/21-practical-standard-library/</loc>
-    <lastmod>2026-08-10</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/22-borrow-coercions/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

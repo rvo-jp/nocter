@@ -25,6 +25,14 @@ nocter check examples/custom-format.nct
 nocter run examples/custom-format.nct
 ```
 
+[equality.nct](equality.nct) defines instance-owned equality for a project type and uses the same
+operation through `Vec.contains`.
+
+```sh
+nocter check examples/equality.nct
+nocter run examples/equality.nct
+```
+
 ## Package Example
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line

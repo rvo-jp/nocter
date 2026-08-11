@@ -31,9 +31,15 @@ raw-view helpers are not importable APIs. Explicit view construction uses `as`, 
 elements move at most once, and the initialized prefix is updated only after compaction.
 `Vec<T>.truncate` drops the removed suffix.
 
-The iterator terminal operations `find`, `any`, `all`, `fold`, and `to_vec` remain default methods
-of `Iterator`. Their item type is `Self.Item`; they use static generic dispatch and do not require
-runtime interface objects.
+`str` defines equality once, and `String` reaches it through readonly coercion. `[T]` defines
+element-wise equality, `contains`, and `position` under `where &T == &T`; `Vec<T>` reaches the same
+implementation through its readonly slice coercion.
+
+The iterator terminal operations `find`, `contains`, `position`, `any`, `all`, `fold`, and `to_vec`
+remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
+dispatch and do not require runtime interface objects. `contains` and `position` consume the
+iterator, borrow each yielded owner for equality, and destroy every yielded owner exactly once,
+including the item that causes early return.
 
 ## Formatting
 

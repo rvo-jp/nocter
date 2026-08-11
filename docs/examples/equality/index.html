@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Path-Sensitive Aggregate Cleanup - Nocter</title>
-    <meta name="description" content="This document owns the compiler architecture for runtime aggregate cleanup state introduced by v0.11.0 Phase 7. Public move, drop, and assignment rules rem">
+    <title>examples/equality.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/equality.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/control-flow-drop-state/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/examples/equality/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Path-Sensitive Aggregate Cleanup - Nocter">
-    <meta property="og:description" content="This document owns the compiler architecture for runtime aggregate cleanup state introduced by v0.11.0 Phase 7. Public move, drop, and assignment rules rem">
-    <meta property="og:url" content="https://nocter.dev/development/docs/control-flow-drop-state/">
+    <meta property="og:title" content="examples/equality.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/equality.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/equality/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-10">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Path-Sensitive Aggregate Cleanup - Nocter">
-    <meta name="twitter:description" content="This document owns the compiler architecture for runtime aggregate cleanup state introduced by v0.11.0 Phase 7. Public move, drop, and assignment rules rem">
+    <meta name="twitter:title" content="examples/equality.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/equality.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Path-Sensitive Aggregate Cleanup - Nocter","description":"This document owns the compiler architecture for runtime aggregate cleanup state introduced by v0.11.0 Phase 7. Public move, drop, and assignment rules rem","url":"https://nocter.dev/development/docs/control-flow-drop-state/","mainEntityOfPage":"https://nocter.dev/development/docs/control-flow-drop-state/","dateModified":"2026-08-10","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Control Flow Drop State","item":"https://nocter.dev/development/docs/control-flow-drop-state/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/equality.nct - Nocter","description":"Nocter source code for examples/equality.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/equality/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Equality","item":"https://nocter.dev/examples/equality/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -118,50 +118,52 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/docs/</p>
+            <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../interface-conformances/index.html#content">Body-Bearing Interface Implementations</a></li>
-                <li><a href="../destruction-declarations/index.html#content">Destruction Declarations</a></li>
-                <li><a href="./index.html#content" aria-current="page">Path-Sensitive Aggregate Cleanup</a></li>
-                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
-                <li><a href="../equality-operators/index.html#content">Equality Operators</a></li>
-                <li><a href="../builtin-type-methods/index.html#content">Built-in Type Source Surfaces</a></li>
-                <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
-                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
-                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
-                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="../generic-requirements/index.html#content">Generic Requirement Architecture</a></li>
-                <li><a href="../associated-types/index.html#content">Associated Type Identity and Projection Normalization</a></li>
-                <li><a href="../opaque-result-types/index.html#content">Static Opaque Result Types</a></li>
-                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="../lsp/index.html#content">LSP</a></li>
-                <li><a href="../site-generation/index.html#content">Documentation Site Generation</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
-                <li><a href="../../milestones/index.html#content">Active Milestones</a></li>
-                <li><a href="../../releases/index.html#content">Release Qualification Records</a></li>
+                <li><a href="../hello/index.html#content">hello.nct</a></li>
+                <li><a href="../custom-format/index.html#content">custom-format.nct</a></li>
+                <li><a href="./index.html#content" aria-current="page">equality.nct</a></li>
+                <li><a href="../file-summary/index/index.html#content">file-summary/index.nct</a></li>
+                <li><a href="../file-summary/summary/index.html#content">summary.nct</a></li>
+                <li><a href="../../spec/index.html#content">language specification</a></li>
+                <li><a href="../file-summary/nocter/index.html#content">file-summary/nocter.nct</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/control-flow-drop-state.md</span>
+                <span class="markdown-path-text">/examples/equality.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="path-sensitive-aggregate-cleanup">Path-Sensitive Aggregate Cleanup</h1><p>This document owns the compiler architecture for runtime aggregate cleanup state introduced by v0.11.0 Phase 7. Public move, drop, and assignment rules remain in the <a href="../../../spec/05-ownership-borrowing-drop/index.html#content">ownership specification</a>; this document defines how accepted programs reach native IR without duplicating ownership analysis.</p><h2 id="completion-status">Completion Status</h2><p>Phase 7 completed on 2026-08-10. Native lowering now uses this model for non-terminal branches, matches, loops, value control flow, and short-circuit conditions. The obsolete aggregate-specific buildability rejections were removed after focused IR and native exactly-once cleanup tests covered their accepted programs.</p><h2 id="responsibility-boundary">Responsibility Boundary</h2><p>Type checking and ownership analysis decide whether a source operation is legal on every reachable path. IR lowering does not recover that proof and does not turn an invalid use into a runtime check. Its narrower responsibility is to emit destruction exactly when a value is live on the path that reaches cleanup.</p><p>A purely static <code>DropObligation</code> is sufficient for straight-line code. It is insufficient after a branch whose paths do not perform the same whole-value operation: cloned lowering contexts can describe each branch, but neither clone is the runtime state after the join. The aggregate local is therefore promoted to a runtime live flag only when lowering encounters a path-sensitive move, drop, or reinitialization.</p><h2 id="state-model">State Model</h2><p>An aggregate local retains its slot, layout, copy capability, destructor plan, and static partial initialization obligation. It may also retain one <code>BoolLocation</code> with this meaning:</p><table><thead><tr><th>Flag</th><th>Runtime meaning</th></tr></thead><tbody><tr><td><code>true</code></td><td>the local owns a complete value that requires its configured cleanup</td></tr><tr><td><code>false</code></td><td>the local has been moved, destroyed, or has not completed initialization</td></tr></tbody></table><p>Promotion allocates the flag once and initializes it from the current static obligation before control flow can diverge. Repeated promotion returns the same location and emits no second initialization. Aggregates that are copyable, have no destructor plan, or remain straight-line do not need the flag.</p><p>Partial initialization retains its existing field, payload, or prefix drop state. If a partially initialized construction can cross a new control-flow boundary, the outer live state and the existing fine-grained state compose; neither replaces the other.</p><h2 id="transition-placement">Transition Placement</h2><p>Runtime transitions are part of the operation that changes ownership:</p><ul><li>successful complete initialization or reinitialization emits <code>SetBool(true)</code> after the value is
-  established</li><li>a whole-value move emits <code>SetBool(false)</code> after the value has been transferred and before later
-  cleanup can run</li><li>explicit destruction emits <code>SetBool(false)</code> after destructor and field cleanup complete</li><li>failed construction leaves the flag false and uses the existing partial-initialization cleanup</li><li>copy operations do not change the source flag</li></ul><p>Expression lowering must place transitions where evaluation happens. In particular, a move in the right operand of <code>&amp;&amp;</code> or <code>||</code> belongs inside that operand's conditional instructions. Appending one unconditional transition after the whole condition would incorrectly mark an unevaluated value as moved.</p><h2 id="cleanup">Cleanup</h2><p><code>PendingAggregateDrop</code> is the single boundary between local state and cleanup lowering. When it carries a live flag, the generated complete or partial drop program is wrapped in an IR condition on that flag. Normal scope exits, returns, propagated failures, <code>break</code>, <code>continue</code>, match cleanup, and replacement assignment all consume this same representation.</p><p>Syntax-specific lowering may request promotion or emit an ownership transition. It must not build its own guarded destructor sequence. The independent <code>DestructSignature</code> remains the sole source of destructor identity and generic substitution.</p><h2 id="control-flow-integration">Control-Flow Integration</h2><p>Before lowering a non-terminal control-flow construct, the compiler discovers outer aggregate locals whose state may change in its conditions or reachable blocks and promotes those locals in the parent context. Branch clones therefore reference the same flag location. Their static obligations can still diverge for local cleanup decisions; the parent does not guess a merged compile-time state.</p><p>Loops execute the same transitions on each real iteration. <code>break</code>, <code>continue</code>, and returns append cleanup through their established scope marks. Whether the source may read a value on a later iteration remains an ownership-analysis question.</p><h2 id="invariants">Invariants</h2><ul><li>one aggregate slot has at most one runtime live flag</li><li>promotion precedes every path that can mutate the flag</li><li>a transfer clears the source only after the transfer has consumed its bytes</li><li>initialization sets the destination only after the complete value exists</li><li>cleanup reads the flag through <code>PendingAggregateDrop</code>; it never infers liveness from branch shape</li><li>branch cloning never allocates competing flags for the same outer local</li><li>native buildability does not reject a construct that ownership and lowering both represent</li><li>semantic declaration and type identities, never source spelling or standard-library names,
-  determine aggregate and destructor behavior</li></ul><h2 id="verification">Verification</h2><p>Focused IR tests must assert promotion, transition order, short-circuit placement, guarded cleanup, and the absence of flags in straight-line code. Native tests must use observable destructors to cover taken and untaken <code>if</code>/<code>match</code> paths, loop zero/one/multiple execution, move arguments, bindings, assignments, explicit drop, reinitialization, early exits, and imported alias types.</p><p>The completed phase gate passed all 3,502 tests through the repository verification script, warnings-denied Clippy, formatting, documentation generation, and a clean diff check. The generated website contains 119 pages.</p>
+                <h1>equality.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+instance <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>points<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>same<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -177,6 +179,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

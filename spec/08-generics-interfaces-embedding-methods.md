@@ -29,6 +29,7 @@ WhereClause       = "where" Predicate ("," Predicate)*
 Predicate         = Name ":" Capability ("+" Capability)*
                   | "copy" Name
                   | Type "=" Type
+                  | "&" Type "==" "&" Type
 Capability        = InterfaceBound | CallableContract
 InterfaceBound    = Type
 CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
@@ -68,6 +69,12 @@ rely only on equalities in its lexical predicate environment. A concrete call or
 conformance must prove every specialized equality. Cycles that cannot normalize to a finite type,
 unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
 `conform Interface for Type` clause uses the same predicate model and places `where` after the target.
+
+An operator requirement has the exact form `&T == &T`, where both occurrences name the same
+visible generic parameter. It states that readonly values of the eventual concrete type can use
+the equality expression. A concrete type may satisfy the requirement through an accessible
+instance-owned equality declaration or the same one-step readonly borrow coercions used by a
+non-generic equality expression. The requirement produces no runtime witness.
 
 `instance` and `conform` do not have a prefix generic parameter list. Their interface and target
 headers are declaration type patterns. Each generic argument slot contains a bare binder name; its
@@ -111,8 +118,8 @@ const generics.
 
 ## Instances
 
-An `instance` declaration associates receiver methods and `drop` with a nominal type. It does not create a
-class or introduce inheritance.
+An `instance` declaration associates receiver methods and the fixed equality operation with a
+type. It does not create a class or introduce inheritance.
 
 ```nct
 instance WordStats {
@@ -121,6 +128,19 @@ instance WordStats {
     }
 }
 ```
+
+An equality declaration uses the operator expression itself as its signature:
+
+```nct
+instance WordStats {
+    pub operator (&self == other: &Self): bool {
+        return self.words == other.words
+    }
+}
+```
+
+Only this homogeneous readonly `==` shape is accepted. `operator` declarations cannot appear in an
+interface or conformance, and no other operator is declarable.
 
 The target must be a nominal `struct` or `enum`; a type alias cannot own an `instance`. Generic
 instance parameters are in scope for the target, members, and member bodies.
