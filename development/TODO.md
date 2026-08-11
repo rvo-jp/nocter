@@ -2,9 +2,9 @@
 
 ## Current Task
 
-v0.12.0 Phase 2 and the post-phase test consolidation and performance work are complete. Stop at
-this checkpoint before selecting the next stabilization or language-development phase, and do not
-alter the published v0.11.0 release.
+v0.12.0 Phase 3 stabilization and local release qualification are active. Audit the completed
+Phase 0 through Phase 2 contracts, correct only release-blocking defects, prepare and qualify the
+v0.12.0 candidate, and stop before publication. Do not alter the published v0.11.0 release.
 
 ## Completed Test Performance Checkpoint
 

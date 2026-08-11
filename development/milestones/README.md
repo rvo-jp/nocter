@@ -4,10 +4,11 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.12.0](v0.12.0.md). Phases 0 and 1 are complete: closed interpolation
-formatting was replaced with a source-defined `Format` contract, and fixed instance-owned equality
-now drives generic, text, slice, Vec, and iterator comparison through resolved static plans. No
-later v0.12.0 phase is active.
+The active milestone is [v0.12.0](v0.12.0.md). Phases 0 through 2 are complete: closed interpolation
+formatting was replaced with a source-defined `Format` contract, fixed instance-owned equality now
+drives generic and collection comparison, and equality plus indexing share uniform structural
+operator requirements with coercion-driven execution. Phase 3 is the active stabilization and
+local release-qualification boundary; it adds no new public feature.
 
 The latest completed milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 8 completed
 unified generic requirements, associated types and bounds, declaration-wide `where` clauses,
