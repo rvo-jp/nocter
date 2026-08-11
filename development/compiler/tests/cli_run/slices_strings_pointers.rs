@@ -343,21 +343,18 @@ fn run_command_returns_caught_aggregate_struct_literal_field_exit_code() {
     let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_aggregate_struct_literal_field.nct",
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -373,8 +370,8 @@ copy struct Packet {
 func main(): i32! {
     let packet = Packet {
         prefix: 1,
-        header: source() catch error {
-            return Error.new("app.main", error.message)
+        header: source() catch failure {
+            return error.new("app.main", failure.message)
         },
         tail: 2,
     }

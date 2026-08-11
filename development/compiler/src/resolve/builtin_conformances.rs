@@ -5,7 +5,7 @@
 //! source-backed conformance records to their resolver surfaces.
 
 use super::Resolver;
-use super::builtin_instances::{BuiltinTypeSurface, empty_builtin_type_symbol};
+use super::builtin_surfaces::{BuiltinTypeSurface, empty_builtin_type_symbol};
 use super::conformance::interface_conformance;
 use crate::ast::Item;
 use crate::builtin_types::BuiltinTypeOwner;

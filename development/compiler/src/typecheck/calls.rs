@@ -167,9 +167,13 @@ pub(super) fn resolved_call_signature<'a>(
     }
 
     if let Some((owner, function)) = resolved.associated_function_for_call(call) {
+        let self_type = resolved
+            .builtin_owner_for_symbol(owner)
+            .map(|builtin| super::builtin_types::self_type(builtin, owner))
+            .unwrap_or_else(|| type_symbol_self_type(owner));
         return Some(CheckedCallSignature {
             signature: &function.signature,
-            self_type: Some(type_symbol_self_type(owner)),
+            self_type: Some(self_type),
             owner_target_ty: None,
             name: format!("{}.{}", owner.canonical_name, function.name),
             kind: CheckedCallKind::AssociatedFunction,

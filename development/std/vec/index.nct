@@ -7,7 +7,6 @@
 //! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
 //! that prefix, while clear and drop destroy its elements in reverse order.
 
-use std/error.Error
 use std/iter.{ExactSizeIterator, Iterable, IntoIterator, Iterator, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
@@ -425,15 +424,15 @@ pub func remove<T>(values: &+Vec<T>, index: usize): T? {
 }
 
 func unsupported(): error {
-    return Error.new("std.vec.unsupported", "Vec element storage is not supported")
+    return error.new("std.vec.unsupported", "Vec element storage is not supported")
 }
 
 pub func capacity_overflow(): error {
-    return Error.new("std.vec.capacity_overflow", "Vec capacity overflow")
+    return error.new("std.vec.capacity_overflow", "Vec capacity overflow")
 }
 
 pub func index_out_of_bounds(): error {
-    return Error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")
+    return error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")
 }
 
 instance Vec<T> {

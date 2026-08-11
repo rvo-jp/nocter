@@ -304,6 +304,16 @@ impl Resolver<'_> {
         }
 
         if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
+            if self.is_synthetic_prelude_symbol(symbol.name_span) {
+                let id = self.output.symbols.define_hidden(
+                    name.clone(),
+                    name_span,
+                    declaration_span,
+                    kind,
+                );
+                scope.define_symbol(name, name_span, id);
+                return;
+            }
             let diagnostic =
                 self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, name_span);
             self.output.diagnostics.push(diagnostic);

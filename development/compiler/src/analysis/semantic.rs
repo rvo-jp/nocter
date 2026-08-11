@@ -187,6 +187,11 @@ impl SemanticIdentifierCollector<'_> {
                 SymbolKind::Imported(_) => {}
             }
         }
+        for surface in self.resolved.builtin_type_surfaces() {
+            if surface.declaration_span.source == self.ast.span.source {
+                self.collect_type_symbol_parameter_declarations(&surface.symbol);
+            }
+        }
     }
 
     fn collect_type_symbol_parameter_declarations(&mut self, symbol: &TypeSymbol) {

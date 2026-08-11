@@ -13,7 +13,7 @@ func main(): i32 {
     let valid: bool = is_valid_utf8((&bytes as &[u8]))
     let position: usize = find("hello", "ell") otherwise { return 1 }
     let found: bool = contains("hello", "ell") && starts_with("hello", "he") && ends_with("hello", "lo")
-    var parts: Vec<String> = split("a::b", "::") catch error { return 2 }
+    var parts: Vec<String> = split("a::b", "::") catch failure { return 2 }
     var values = Vec [1, 2, 3]
     retain(&+values, (value) { value != 2 })
     values.retain((value) { value == 1 })
@@ -39,12 +39,12 @@ use std/string.bytes
 use std/vec.Vec
 
 func main(): i32 {
-    let path = Utf8Path.new("file.txt") catch error { return 1 }
-    let child = path.join("child") catch error { return 2 }
+    let path = Utf8Path.new("file.txt") catch failure { return 1 }
+    let child = path.join("child") catch failure { return 2 }
     let count: usize = parse_usize("42") otherwise { return 3 }
     let signed: i32 = parse_i32("-7") otherwise { return 4 }
     let byte: u8 = parse_u8("8") otherwise { return 5 }
-    let first_arg: &str = arg(0) catch error { return 6 } otherwise { return 7 }
+    let first_arg: &str = arg(0) catch failure { return 6 } otherwise { return 7 }
     let process_arg_count: usize = arg_count()
     let process_environment_count: usize = environment_count()
     return 0
@@ -109,8 +109,8 @@ fn distributed_std_whole_stream_io_operations_run() {
 use std/io/buffer.{BufReader, BufWriter}
 
 func rejects_invalid_utf8(path: &str): bool {
-    var input = File.open(path) catch error { return false }
-    let text = input.read_to_string() catch error { return true }
+    var input = File.open(path) catch failure { return false }
+    let text = input.read_to_string() catch failure { return true }
     return false
 }
 
@@ -187,19 +187,19 @@ conform Reader for FailingReader {
             buffer[0] = 65
             return 1
         }
-        return Error.new("test.read_failed", "read failed")
+        return error.new("test.read_failed", "read failed")
     }
 }
 
 func rejects_invalid_count(): bool {
     var reader = InvalidCountReader { called: false }
-    let collected = reader.read_to_end() catch error { return reader.called }
+    let collected = reader.read_to_end() catch failure { return reader.called }
     return false
 }
 
 func propagates_read_failure(): bool {
     var reader = FailingReader { calls: 0 }
-    let collected = reader.read_to_end() catch error { return reader.calls == 1 }
+    let collected = reader.read_to_end() catch failure { return reader.calls == 1 }
     return false
 }
 
@@ -358,14 +358,14 @@ r#"use std/string.{bytes, find, is_valid_utf8, split}
 use std/vec.Vec
 
 func rejects_invalid_utf8(candidate: &[u8]): bool {
-    let accepted = String.from_utf8(candidate) catch error {
+    let accepted = String.from_utf8(candidate) catch failure {
         return true
     }
     return false
 }
 
 func rejects_empty_separator(): bool {
-    let accepted: Vec<String> = split("abc", "") catch error {
+    let accepted: Vec<String> = split("abc", "") catch failure {
         return true
     }
     return false
@@ -384,10 +384,10 @@ func main(): i32 {
     if is_valid_utf8((&invalid as &[u8])) { return 4 }
     if !rejects_invalid_utf8((&invalid as &[u8])) { return 4 }
     let encoded: Vec<u8> = Vec [104, 195, 169]
-    let decoded = String.from_utf8((&encoded as &[u8])) catch error { return 5 }
+    let decoded = String.from_utf8((&encoded as &[u8])) catch failure { return 5 }
     if (&decoded as &str) != "hé" { return 6 }
 
-    var parts = split("a::b::", "::") catch error { return 7 }
+    var parts = split("a::b::", "::") catch failure { return 7 }
     if parts.len() != 3 { return 8 }
     let final_part = parts.pop() otherwise { return 9 }
     let middle_part = parts.pop() otherwise { return 10 }
@@ -428,38 +428,38 @@ use std/string.bytes
 use std/vec.Vec
 
 func main(): i32 {
-    let path = Utf8Path.new("__PATH__") catch error { return 1 }
+    let path = Utf8Path.new("__PATH__") catch failure { return 1 }
     if !path.is_absolute() { return 2 }
-    let file = open_path(&path) catch error { return 3 }
+    let file = open_path(&path) catch failure { return 3 }
     var reader = BufReader.with_capacity(move file, 3)
     var buffer: Vec<u8> = Vec [0, 0, 0, 0, 0, 0]
-    let received: usize = reader.read((&+buffer as &+[u8])) catch error { return 4 }
+    let received: usize = reader.read((&+buffer as &+[u8])) catch failure { return 4 }
     if received != 6 || (&buffer as &[u8])[0] != 97 || (&buffer as &[u8])[5] != 10 { return 5 }
 
-    let created_path = Utf8Path.new("__OUTPUT__") catch error { return 14 }
-    let created_file = create_path(&created_path) catch error { return 15 }
+    let created_path = Utf8Path.new("__OUTPUT__") catch failure { return 14 }
+    let created_file = create_path(&created_path) catch failure { return 15 }
     var file_writer = BufWriter.with_capacity(move created_file, 2)
-    file_writer.write(bytes("written")) catch error { return 16 }
-    file_writer.close() catch error { return 17 }
-    let reopened = open_path(&created_path) catch error { return 18 }
+    file_writer.write(bytes("written")) catch failure { return 16 }
+    file_writer.close() catch failure { return 17 }
+    let reopened = open_path(&created_path) catch failure { return 18 }
     var verifier = BufReader.with_capacity(move reopened, 2)
     var verification: Vec<u8> = Vec [0, 0, 0, 0, 0, 0, 0]
-    let verified: usize = verifier.read((&+verification as &+[u8])) catch error { return 19 }
+    let verified: usize = verifier.read((&+verification as &+[u8])) catch failure { return 19 }
     if verified != 7 || (&verification as &[u8])[0] != 119 || (&verification as &[u8])[6] != 110 { return 20 }
-    let appended_file = append_path(&created_path) catch error { return 21 }
+    let appended_file = append_path(&created_path) catch failure { return 21 }
     var appender = BufWriter.with_capacity(move appended_file, 1)
-    appender.write(bytes("!")) catch error { return 22 }
-    appender.close() catch error { return 23 }
+    appender.write(bytes("!")) catch failure { return 22 }
+    appender.close() catch failure { return 23 }
 
     let number: i32 = parse_i32("-2147483648") otherwise { return 6 }
     if number != -2147483648 || (&usize_to_string(42) as &str) != "42" { return 7 }
     if arg_count() == 0 { return 8 }
-    let executable: &str = arg(0) catch error { return 9 } otherwise { return 10 }
+    let executable: &str = arg(0) catch failure { return 9 } otherwise { return 10 }
     if executable.len() == 0 { return 11 }
 
     var writer = BufWriter.with_capacity(stdout(), 2)
-    writer.write(bytes("ok")) catch error { return 12 }
-    writer.flush() catch error { return 13 }
+    writer.write(bytes("ok")) catch failure { return 12 }
+    writer.flush() catch failure { return 13 }
     return 42
 }
 "#

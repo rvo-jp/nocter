@@ -9,7 +9,7 @@ use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DestructDecl, Expr,
     ForRangeStmt, FunctionDecl, IdentifierExpr, Item, MemberExpr, MethodDecl, MethodOwnerDecl,
     OtherwiseExpr, Parameter, PayloadEnumPatternTargetShape, Stmt, StructLiteralField,
-    SwitchPayloadPattern, TypeExpr, UnaryOperator, canonical_type_expr,
+    SwitchPayloadPattern, TypeExpr, TypeReference, UnaryOperator, canonical_type_expr,
     substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;

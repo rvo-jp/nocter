@@ -102,13 +102,7 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
                 });
             }
         }
-        for surface in [
-            crate::builtin_types::BuiltinTypeOwner::Str,
-            crate::builtin_types::BuiltinTypeOwner::Slice,
-        ]
-        .into_iter()
-        .filter_map(|owner| target_file.resolved.builtin_type_surface(owner))
-        {
+        for surface in target_file.resolved.builtin_type_surfaces() {
             if let Some(method) = surface
                 .symbol
                 .methods
@@ -326,6 +320,47 @@ pub(in crate::analysis::hover) fn callable_member_occurrence_hover_for_file_anal
                         &file.resolved,
                     ),
                     documentation: target_documentation(sources, analysis, target),
+                });
+            }
+        }
+        for surface in target_file.resolved.builtin_type_surfaces() {
+            if let Some(function) = surface
+                .symbol
+                .associated_functions
+                .iter()
+                .find(|function| function.name_span == target)
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::associated_function_presentation(
+                        &surface.symbol,
+                        function,
+                        &file.resolved,
+                    )
+                    .render(),
+                    documentation: combine_documentation(
+                        target_documentation(sources, analysis, target),
+                        semantic_documentation(sources, analysis, target),
+                    ),
+                });
+            }
+            if let Some(method) = surface
+                .symbol
+                .methods
+                .iter()
+                .find(|method| method.name_span == target)
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::method_or_operator_presentation(
+                        &surface.symbol,
+                        method,
+                        &file.resolved,
+                    ),
+                    documentation: combine_documentation(
+                        target_documentation(sources, analysis, target),
+                        semantic_documentation(sources, analysis, target),
+                    ),
                 });
             }
         }

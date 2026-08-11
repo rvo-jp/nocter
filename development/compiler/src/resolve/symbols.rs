@@ -11,7 +11,7 @@ use crate::source_modules::SourceModuleMap;
 use crate::source_scopes::SourceScopeMap;
 use std::collections::HashMap;
 
-use super::builtin_instances::BuiltinTypeSurface;
+use super::builtin_surfaces::BuiltinTypeSurface;
 use super::generic_requirements::GenericRequirements;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,6 +37,7 @@ pub struct ResolveOutput {
     pub(super) typed_literal_targets: HashMap<ByteSpan, LiteralResolution>,
     pub(super) local_symbols: Vec<LocalSymbol>,
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
+    pub(super) builtin_type_identifier_targets: HashMap<ByteSpan, BuiltinTypeOwner>,
     pub(super) builtin_type_surfaces: HashMap<BuiltinTypeOwner, BuiltinTypeSurface>,
     pub(crate) trusted_declarations: TrustedDeclarationFacts,
     pub(crate) callable_bodies: CallableBodyIndex,
@@ -153,6 +154,18 @@ impl ResolveOutput {
             .filter_map(|(span, id)| self.local_symbol(*id).map(|symbol| (*span, symbol)))
     }
 
+    pub(crate) fn builtin_type_identifier_references(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &BuiltinTypeSurface)> + '_ {
+        self.builtin_type_identifier_targets
+            .iter()
+            .filter_map(|(span, owner)| {
+                self.builtin_type_surfaces
+                    .get(owner)
+                    .map(|surface| (*span, surface))
+            })
+    }
+
     pub fn symbol_reference_at_offset(&self, offset: usize) -> Option<(ByteSpan, &Symbol)> {
         self.identifier_targets
             .iter()
@@ -200,11 +213,20 @@ impl ResolveOutput {
             return None;
         };
 
-        let Some(SymbolKind::Type(type_symbol)) = self
-            .symbol_for_identifier(type_name)
-            .map(|symbol| &symbol.kind)
-        else {
-            return None;
+        let type_symbol = if let Some(owner) = self
+            .builtin_type_identifier_targets
+            .get(&type_name.span)
+            .copied()
+        {
+            &self.builtin_type_surfaces.get(&owner)?.symbol
+        } else {
+            let Some(SymbolKind::Type(type_symbol)) = self
+                .symbol_for_identifier(type_name)
+                .map(|symbol| &symbol.kind)
+            else {
+                return None;
+            };
+            type_symbol
         };
 
         let function = type_symbol
@@ -272,6 +294,22 @@ impl ResolveOutput {
         owner: BuiltinTypeOwner,
     ) -> Option<&BuiltinTypeSurface> {
         self.builtin_type_surfaces.get(&owner)
+    }
+
+    pub(crate) fn builtin_type_surface_for_name(&self, name: &str) -> Option<&BuiltinTypeSurface> {
+        BuiltinTypeOwner::from_reference_name(name)
+            .and_then(|owner| self.builtin_type_surfaces.get(&owner))
+    }
+
+    pub(crate) fn builtin_type_surfaces(&self) -> impl Iterator<Item = &BuiltinTypeSurface> + '_ {
+        self.builtin_type_surfaces.values()
+    }
+
+    pub(crate) fn builtin_owner_for_symbol(&self, symbol: &TypeSymbol) -> Option<BuiltinTypeOwner> {
+        self.builtin_type_surfaces
+            .values()
+            .find(|surface| std::ptr::eq(&surface.symbol, symbol))
+            .map(|surface| surface.owner)
     }
 
     pub fn call_name_for_diagnostic(&self, call: &CallExpr) -> String {
@@ -360,6 +398,7 @@ impl ResolveOutput {
             typed_literal_targets: HashMap::new(),
             local_symbols: Vec::new(),
             local_identifier_targets: HashMap::new(),
+            builtin_type_identifier_targets: HashMap::new(),
             builtin_type_surfaces: HashMap::new(),
             trusted_declarations: TrustedDeclarationFacts::default(),
             callable_bodies: CallableBodyIndex::default(),

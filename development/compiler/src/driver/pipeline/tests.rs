@@ -525,13 +525,12 @@ fn build_file_output_runs_fallible_entry_failure() {
     let nocter_home = make_nocter_home(&root);
     crate::test_files::write(
         nocter_home.join("std/error/index.nct"),
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     )
@@ -539,10 +538,8 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     let source = root.join("fallible_fail.nct");
     crate::test_files::write(
         &source,
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", "failed")
+        r#"func main(): i32! {
+    return error.new("app.failed", "failed")
 }
 "#,
     )
@@ -567,13 +564,12 @@ fn build_file_output_propagates_fallible_void_call_failure() {
     let nocter_home = make_nocter_home(&root);
     crate::test_files::write(
         nocter_home.join("std/error/index.nct"),
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     )
@@ -581,14 +577,12 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     let source = root.join("fallible_void_fail.nct");
     crate::test_files::write(
         &source,
-        r#"use std/error.Error
-
-func main(): void! {
+        r#"func main(): void! {
     fail()?
 }
 
 func fail(): void! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     )
@@ -648,14 +642,12 @@ fn build_file_output_propagates_fallible_i32_call_failure() {
     let source = root.join("fallible_i32_fail.nct");
     crate::test_files::write(
         &source,
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     return fail()?
 }
 
 func fail(): i32! {
-    return Error.new("app.number", "number failed")
+    return error.new("app.number", "number failed")
 }
 "#,
     )
@@ -682,7 +674,7 @@ fn build_file_output_runs_fallible_i32_catch_success() {
     crate::test_files::write(
         &source,
         r#"func main(): i32 {
-    return answer() catch error {
+    return answer() catch failure {
         return 7
     }
 }
@@ -715,17 +707,15 @@ fn build_file_output_runs_fallible_i32_catch_failure() {
     let source = root.join("fallible_i32_catch_failure.nct");
     crate::test_files::write(
         &source,
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = answer() catch error {
-        return Error.new("app.answer", error.message)
+        r#"func main(): i32! {
+    let value = answer() catch failure {
+        return error.new("app.answer", failure.message)
     }
     return value
 }
 
 func answer(): i32! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     )
@@ -751,14 +741,12 @@ fn build_file_output_runs_write_text_raw_catch_failure() {
     write_std_error(&nocter_home);
     crate::test_files::write(
         nocter_home.join("std/io/index.nct"),
-        r#"use std/error.Error
-
-#target: "arm64-darwin"
+        r#"#target: "arm64-darwin"
 pub(/) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func fail_write(): void! {
-    write_text_raw(-1, "x") catch error {
-        return Error.new("app.write", error.code)
+    write_text_raw(-1, "x") catch failure {
+        return error.new("app.write", failure.code)
     }
     return
 }
@@ -807,15 +795,14 @@ pub func bytes(value: &str): &[u8] {
     .unwrap();
     crate::test_files::write(
         nocter_home.join("std/io/index.nct"),
-        r#"use std/error.Error
-use std/string.bytes
+        r#"use std/string.bytes
 
 #target: "arm64-darwin"
 pub(/) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 pub func fail_write(): void! {
-    write_bytes_raw(-1, bytes("x")) catch error {
-        return Error.new("app.write", error.code)
+    write_bytes_raw(-1, bytes("x")) catch failure {
+        return error.new("app.write", failure.code)
     }
     return
 }
@@ -862,8 +849,7 @@ pub(/) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
     .unwrap();
     crate::test_files::write(
         nocter_home.join("std/io/index.nct"),
-        r#"use std/error.Error
-use std/ptr.from_addr
+        r#"use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts_mut
 
 #target: "arm64-darwin"
@@ -871,8 +857,8 @@ pub(/) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
 pub func fail_read(): void! {
     let buffer: &+[u8] = slice_from_raw_parts_mut(from_addr(1), 1)
-    let count = read_bytes_raw(-1, buffer) catch error {
-        return Error.new("app.read", error.code)
+    let count = read_bytes_raw(-1, buffer) catch failure {
+        return error.new("app.read", failure.code)
     }
     return
 }
@@ -932,14 +918,14 @@ func success_right(): i32 {
 }
 
 func success_byte(): i32 {
-    let byte_value: u8 = make_byte() catch error {
+    let byte_value: u8 = make_byte() catch failure {
         return 1
     }
     return byte_value as i32
 }
 
 func success_size(): i32 {
-    let size_value: usize = make_size() catch error {
+    let size_value: usize = make_size() catch failure {
         return 2
     }
     if size_value == 8 {
@@ -950,7 +936,7 @@ func success_size(): i32 {
 }
 
 func success_bool(): i32 {
-    let flag_value: bool = make_flag() catch error {
+    let flag_value: bool = make_flag() catch failure {
         return 3
     }
     if flag_value {
@@ -961,14 +947,14 @@ func success_bool(): i32 {
 }
 
 func success_str(): i32 {
-    let text: &str = make_text() catch error {
+    let text: &str = make_text() catch failure {
         return 4
     }
     return 6
 }
 
 func success_void(): i32 {
-    effect() catch error {
+    effect() catch failure {
         return 5
     }
     return 11
@@ -1018,9 +1004,7 @@ fn build_file_output_runs_non_i32_catch_failure_recovery_paths() {
     let source = root.join("non_i32_catch_failure_recovery.nct");
     crate::test_files::write(
         &source,
-        r#"use std/error.Error
-
-func main(): i32 {
+        r#"func main(): i32 {
     let left: i32 = recover_left()
     let right: i32 = recover_right()
     return left + right
@@ -1040,14 +1024,14 @@ func recover_right(): i32 {
 }
 
 func recover_byte(): i32 {
-    let value: u8 = fail_byte() catch error {
+    let value: u8 = fail_byte() catch failure {
         return 10
     }
     return value as i32
 }
 
 func recover_size(): i32 {
-    let value: usize = fail_size() catch error {
+    let value: usize = fail_size() catch failure {
         return 11
     }
     if value == 0 {
@@ -1058,7 +1042,7 @@ func recover_size(): i32 {
 }
 
 func recover_bool(): i32 {
-    let value: bool = fail_flag() catch error {
+    let value: bool = fail_flag() catch failure {
         return 12
     }
     if value {
@@ -1069,37 +1053,37 @@ func recover_bool(): i32 {
 }
 
 func recover_str(): i32 {
-    let value: &str = fail_text() catch error {
+    let value: &str = fail_text() catch failure {
         return 13
     }
     return 1
 }
 
 func recover_void(): i32 {
-    fail_effect() catch error {
+    fail_effect() catch failure {
         return 14
     }
     return 1
 }
 
 func fail_byte(): u8! {
-    return Error.new("app.byte", "byte failed")
+    return error.new("app.byte", "byte failed")
 }
 
 func fail_size(): usize! {
-    return Error.new("app.size", "size failed")
+    return error.new("app.size", "size failed")
 }
 
 func fail_flag(): bool! {
-    return Error.new("app.flag", "flag failed")
+    return error.new("app.flag", "flag failed")
 }
 
 func fail_text(): &str! {
-    return Error.new("app.text", "text failed")
+    return error.new("app.text", "text failed")
 }
 
 func fail_effect(): void! {
-    return Error.new("app.effect", "effect failed")
+    return error.new("app.effect", "effect failed")
 }
 "#,
     )
@@ -1335,6 +1319,8 @@ fn make_nocter_home(root: &Path) -> PathBuf {
 fn write_builtin_view_surfaces(home: &Path) {
     fs::create_dir_all(home.join("std/str")).unwrap();
     fs::create_dir_all(home.join("std/slice")).unwrap();
+    fs::create_dir_all(home.join("std/error")).unwrap();
+    crate::test_files::write(home.join("std/error/index.nct"), "").unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
         "pub(/) primitive str_len_raw(value: &str): usize\ninstance str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
@@ -1351,13 +1337,12 @@ fn write_std_error(nocter_home: &Path) {
     fs::create_dir_all(nocter_home.join("std/error")).unwrap();
     crate::test_files::write(
         nocter_home.join("std/error/index.nct"),
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     )

@@ -1,5 +1,4 @@
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
-use crate::diagnostics::Diagnostic;
 use crate::source::SourceMap;
 use std::fs;
 use std::path::Path;
@@ -85,7 +84,7 @@ fn check_synthetic_prelude_ignores_package_root_shadow() {
 }
 
 #[test]
-fn check_reports_top_level_prelude_collision() {
+fn check_explicit_top_level_name_overrides_prelude_fallback() {
     let root = make_temp_project("synthetic-prelude-top-level-collision");
     let home = make_nocter_home(&root);
     write_answer_prelude(&home);
@@ -107,11 +106,35 @@ func main(): i32 {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert_prelude_collision(&diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn check_reports_parameter_prelude_collision() {
+fn check_explicit_import_overrides_the_same_prelude_export() {
+    let root = make_temp_project("synthetic-prelude-explicit-import");
+    let home = make_nocter_home(&root);
+    write_answer_prelude(&home);
+    crate::test_files::write(
+        root.join("index.nct"),
+        r#"use std/prelude_helpers.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_parameter_name_overrides_prelude_fallback() {
     let root = make_temp_project("synthetic-prelude-parameter-collision");
     let home = make_nocter_home(&root);
     write_answer_prelude(&home);
@@ -133,11 +156,11 @@ func main(): i32 {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert_prelude_collision(&diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn check_reports_local_binding_prelude_collision() {
+fn check_local_binding_overrides_prelude_fallback() {
     let root = make_temp_project("synthetic-prelude-local-collision");
     let home = make_nocter_home(&root);
     write_answer_prelude(&home);
@@ -156,11 +179,11 @@ fn check_reports_local_binding_prelude_collision() {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert_prelude_collision(&diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn check_reports_block_import_prelude_collision() {
+fn check_block_import_overrides_prelude_fallback() {
     let root = make_temp_project("synthetic-prelude-block-import-collision");
     let home = make_nocter_home(&root);
     write_answer_prelude(&home);
@@ -168,7 +191,7 @@ fn check_reports_block_import_prelude_collision() {
         root.join("index.nct"),
         r#"func main(): i32 {
     use std/math.answer
-    return 0
+    return answer()
 }
 "#,
     )
@@ -187,7 +210,7 @@ fn check_reports_block_import_prelude_collision() {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert_prelude_collision(&diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 fn write_answer_prelude(home: &Path) {
@@ -205,22 +228,4 @@ fn write_answer_prelude(home: &Path) {
 "#,
     )
     .unwrap();
-}
-
-fn assert_prelude_collision(diagnostics: &[Diagnostic]) {
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0400");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("synthetic standard prelude"),
-        "{diagnostics:?}"
-    );
-    assert!(
-        diagnostics[0]
-            .notes
-            .iter()
-            .any(|note| note.message.contains("prelude introduces")),
-        "{diagnostics:?}"
-    );
 }

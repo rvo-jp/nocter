@@ -28,8 +28,6 @@ use std::collections::HashMap;
 
 impl Resolver<'_> {
     pub(super) fn collect_top_level_symbols(&mut self, ast: &AstFile) {
-        self.collect_synthetic_prelude_symbols(ast);
-
         for item in &ast.items {
             match item {
                 Item::Import(item) => self.collect_import_namespace_symbol(item),
@@ -255,6 +253,11 @@ impl Resolver<'_> {
             }
         }
 
+        // Prelude exports are fallback names. Collect authored declarations and
+        // explicit imports first so future prelude growth cannot change or
+        // invalidate an existing module's explicit namespace.
+        self.collect_synthetic_prelude_symbols(ast);
+
         for item in &ast.items {
             match item {
                 Item::Function(function) if function.owner.is_some() => {
@@ -300,6 +303,16 @@ impl Resolver<'_> {
             return;
         }
 
+        if self.collecting_synthetic_prelude
+            && let Some(first_id) = self.output.symbols.id_by_name(&name)
+            && let Some(first) = self.output.symbols.get(first_id)
+            && !self
+                .synthetic_prelude_symbol_spans
+                .contains(&first.name_span)
+        {
+            return;
+        }
+
         match self
             .output
             .symbols
@@ -335,6 +348,10 @@ impl Resolver<'_> {
         }
     }
 
+    pub(super) fn is_synthetic_prelude_symbol(&self, span: ByteSpan) -> bool {
+        self.synthetic_prelude_symbol_spans.contains(&span)
+    }
+
     fn collect_function_symbol(&mut self, function: &FunctionDecl) {
         self.define_symbol(
             function.name.clone(),
@@ -357,6 +374,11 @@ impl Resolver<'_> {
         let Some(owner) = &function.owner else {
             return;
         };
+        if crate::builtin_types::BuiltinTypeOwner::from_reference_name(&owner.name).is_some() {
+            // Built-in members are collected into their source-backed surface
+            // after ordinary nominal symbols have been indexed.
+            return;
+        }
         let Some(symbol_id) = self.output.symbols.by_name.get(&owner.name).copied() else {
             self.output
                 .diagnostics

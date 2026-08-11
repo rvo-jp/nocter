@@ -650,9 +650,9 @@ fn counts_parameters_for_fallible_return_signatures() {
 #[test]
 fn counts_error_parameters_as_failure_payload_words() {
     let (_ast, resolved) = parse_and_resolve(
-        r#"type Error = error
+        r#"type Failure = error
 
-func relay(error: Error, tag: i32): i32! {
+func relay(error: Failure, tag: i32): i32! {
 }
 "#,
     );

@@ -492,13 +492,12 @@ fn analyze_text_fixture_with_nocter_home_files(
 fn std_error_file() -> (&'static str, &'static str) {
     (
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     )
@@ -607,6 +606,8 @@ fn make_nocter_home(root: &Path) -> PathBuf {
 fn write_builtin_view_surfaces(home: &Path) {
     fs::create_dir_all(home.join("std/str")).unwrap();
     fs::create_dir_all(home.join("std/slice")).unwrap();
+    fs::create_dir_all(home.join("std/error")).unwrap();
+    crate::test_files::write(home.join("std/error/index.nct"), "").unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
         r#"pub(/) primitive str_len_raw(value: &str): usize

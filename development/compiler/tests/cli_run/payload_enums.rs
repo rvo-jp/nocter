@@ -853,7 +853,7 @@ fn run_command_accepts_payload_enum_if_is_caught_call_target_exit_code() {
 }
 
 func main(): i32 {
-    if (make_ok() catch error { return 1 }) is Result.ok(value) {
+    if (make_ok() catch failure { return 1 }) is Result.ok(value) {
         return value
     }
 
@@ -3224,13 +3224,12 @@ fn run_command_does_not_drop_uninitialized_fixed_array_enum_success_payload() {
     let project = TempProject::new("cli-run-fixed-array-enum-payload-failure-cleanup");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -3252,8 +3251,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "fixed_array_enum_payload_failure_cleanup.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     name: &str
@@ -3270,7 +3268,7 @@ enum Result {
 }
 
 func fail(): Result! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func main(): void! {

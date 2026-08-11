@@ -79,6 +79,140 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn check_rejects_project_owned_builtin_construction() {
+    let root = make_temp_project("project-builtin-construction");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(
+        root.join("index.nct"),
+        r#"construct error {
+    pub default func new(code: &str, message: &str): Self {
+        return error.new(code, message)
+    }
+}
+
+func main(): i32 { return 0 }
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E0416"
+                && diagnostic
+                    .message
+                    .contains("construction for built-in type `error`")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_resolves_authorized_builtin_error_construction() {
+    let root = make_temp_project("builtin-error-construction");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(
+        home.join("std/error/index.nct"),
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
+
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("index.nct"),
+        r#"func fail(): i32! {
+    return error.new("app.failed", "failed")
+}
+
+func main(): i32 {
+    return fail() catch _ { return 7 }
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_rejects_builtin_construction_that_does_not_produce_self() {
+    let root = make_temp_project("invalid-builtin-construction-result");
+    let home = make_nocter_home(&root);
+    crate::test_files::write(
+        home.join("std/error/index.nct"),
+        r#"construct error {
+    pub default func new(code: &str, message: &str): usize {
+        return 0
+    }
+}
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(root.join("index.nct"), "func main(): i32 { return 0 }\n").unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E0417" && diagnostic.message.contains("must produce `Self`")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_accepts_scalar_instance_from_shared_num_authority() {
+    let root = make_temp_project("builtin-scalar-shared-authority");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(home.join("std/num")).unwrap();
+    crate::test_files::write(
+        home.join("std/num/index.nct"),
+        r#"instance bool {
+    pub method &self.as_usize(): usize {
+        return 1
+    }
+}
+
+pub func load(): void { return }
+"#,
+    )
+    .unwrap();
+    crate::test_files::write(
+        root.join("index.nct"),
+        r#"use std/num.load
+
+func inspect(): usize { return true.as_usize() }
+func main(): i32 { return 0 }
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("index.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_rejects_malformed_standard_builtin_instance() {
     let root = make_temp_project("malformed-standard-builtin-impl");
     let home = make_nocter_home(&root);

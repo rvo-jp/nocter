@@ -120,10 +120,18 @@ fn is_error_constructor_call(
         return signature_is_static_error_constructor(signature, resolved);
     }
 
-    if let Some((_owner, function)) = resolved.associated_function_for_call(call)
+    if let Some((owner, function)) = resolved.associated_function_for_call(call)
         && function.name_span.source != root_source
     {
-        return signature_is_static_error_constructor(&function.signature, resolved);
+        let builtin_error_self = resolved.builtin_owner_for_symbol(owner)
+            == Some(crate::builtin_types::BuiltinTypeOwner::Error);
+        return function.signature.parameters.len() == 2
+            && (type_expr_resolves_to_error(&function.signature.return_type, resolved)
+                || builtin_error_self
+                    && matches!(
+                        &function.signature.return_type,
+                        TypeExpr::Reference(reference) if reference.name == "Self"
+                    ));
     }
 
     false

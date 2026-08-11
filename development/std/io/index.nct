@@ -4,7 +4,6 @@
 //! and fail with the compiler built-in `error` payload. Target-specific syscall
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
-use std/error.Error
 use ./core
 use std/mem.alloc_pages
 use std/mem.free_pages
@@ -166,35 +165,35 @@ pub struct File {
     close_on_drop: bool
 }
 
-pub(/) func from_os_error(error: OSError): error {
-    if error.kind is OSErrorKind.interrupted {
-        return Error.new("std.io.interrupted", "operation interrupted")
+pub(/) func from_os_error(os_error: OSError): error {
+    if os_error.kind is OSErrorKind.interrupted {
+        return error.new("std.io.interrupted", "operation interrupted")
     }
-    if error.kind is OSErrorKind.would_block {
-        return Error.new("std.io.would_block", "operation would block")
+    if os_error.kind is OSErrorKind.would_block {
+        return error.new("std.io.would_block", "operation would block")
     }
-    if error.kind is OSErrorKind.not_found {
-        return Error.new("std.io.not_found", "file not found")
+    if os_error.kind is OSErrorKind.not_found {
+        return error.new("std.io.not_found", "file not found")
     }
-    if error.kind is OSErrorKind.permission_denied {
-        return Error.new("std.io.permission_denied", "permission denied")
+    if os_error.kind is OSErrorKind.permission_denied {
+        return error.new("std.io.permission_denied", "permission denied")
     }
-    if error.kind is OSErrorKind.already_exists {
-        return Error.new("std.io.already_exists", "file already exists")
+    if os_error.kind is OSErrorKind.already_exists {
+        return error.new("std.io.already_exists", "file already exists")
     }
-    if error.kind is OSErrorKind.invalid_input {
-        return Error.new("std.io.invalid_input", "invalid I/O input")
+    if os_error.kind is OSErrorKind.invalid_input {
+        return error.new("std.io.invalid_input", "invalid I/O input")
     }
-    if error.kind is OSErrorKind.broken_pipe {
-        return Error.new("std.io.broken_pipe", "broken pipe")
+    if os_error.kind is OSErrorKind.broken_pipe {
+        return error.new("std.io.broken_pipe", "broken pipe")
     }
-    if error.kind is OSErrorKind.timed_out {
-        return Error.new("std.io.timed_out", "operation timed out")
+    if os_error.kind is OSErrorKind.timed_out {
+        return error.new("std.io.timed_out", "operation timed out")
     }
-    if error.kind is OSErrorKind.unsupported {
-        return Error.new("std.io.unsupported", "unsupported I/O operation")
+    if os_error.kind is OSErrorKind.unsupported {
+        return error.new("std.io.unsupported", "unsupported I/O operation")
     }
-    return Error.new("std.io.os_error", "OS operation failed")
+    return error.new("std.io.os_error", "OS operation failed")
 }
 
 pub func stdout(): File {
@@ -285,5 +284,5 @@ pub func print(text: &str): void! {
 }
 
 func unsupported(): error {
-    return Error.new("std.io.unsupported", "unsupported I/O operation")
+    return error.new("std.io.unsupported", "unsupported I/O operation")
 }

@@ -1,6 +1,6 @@
 //! Front-end source loading, parsing, and compile-unit construction.
 
-mod builtin_instances;
+mod builtin_surfaces;
 mod dependencies;
 mod diagnostics;
 mod imports;
@@ -22,9 +22,9 @@ use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 
-use builtin_instances::{
-    enqueue_builtin_instance_sources, validate_builtin_conformance_authority,
-    validate_builtin_instance_authority,
+use builtin_surfaces::{
+    enqueue_builtin_surface_sources, validate_builtin_conformance_authority,
+    validate_builtin_construction_authority, validate_builtin_instance_authority,
 };
 use dependencies::SourceDependencyTrace;
 pub(crate) use dependencies::dependency_path_aliases;
@@ -94,7 +94,7 @@ pub(crate) fn load_compile_unit_with_trace(
         loaded_sources_by_path.insert(path.to_path_buf(), source);
     }
 
-    diagnostics.extend(enqueue_builtin_instance_sources(
+    diagnostics.extend(enqueue_builtin_surface_sources(
         sources,
         root,
         options,
@@ -133,6 +133,13 @@ pub(crate) fn load_compile_unit_with_trace(
         ));
 
         diagnostics.extend(validate_builtin_instance_authority(
+            sources,
+            source,
+            &ast,
+            options,
+            &mut resolved_nocter_home,
+        ));
+        diagnostics.extend(validate_builtin_construction_authority(
             sources,
             source,
             &ast,

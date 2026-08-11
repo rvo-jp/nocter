@@ -1459,13 +1459,12 @@ fn run_command_preserves_move_only_fixed_array_target_on_propagated_failure() {
     let project = TempProject::new("cli-run-fallible-move-only-fixed-array-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -1487,8 +1486,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "fallible_move_only_fixed_array_failure.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     name: &str
@@ -1505,7 +1503,7 @@ func replace(): void! {
 }
 
 func fail(): [File; 2]! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func main(): void! {
@@ -1598,13 +1596,12 @@ fn run_command_does_not_drop_uninitialized_move_only_fixed_array_catch_binding()
     let project = TempProject::new("cli-run-move-only-fixed-array-catch-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -1626,8 +1623,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "move_only_fixed_array_catch_failure.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     name: &str
@@ -1639,12 +1635,12 @@ destruct File(&+self) {
 }
 
 func fail(): [File; 2]! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func main(): i32! {
     let files: [File; 2] = [File { name: "a" }, File { name: "b" }]
-    let unused: [File; 2] = fail() catch error {
+    let unused: [File; 2] = fail() catch failure {
         write("x")!
         return 0
     }
@@ -1963,13 +1959,12 @@ fn run_command_preserves_move_only_fixed_array_field_on_call_failure() {
     let project = TempProject::new("cli-run-preserve-move-only-array-field-on-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -1991,8 +1986,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "preserve_move_only_array_field_on_failure.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     name: &str
@@ -2014,7 +2008,7 @@ destruct Bundle(&+self) {
 }
 
 func fail(): [File; 2]! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func replace(bundle: &+Bundle): void! {
@@ -2205,13 +2199,12 @@ fn run_command_drops_partial_payload_in_current_fixed_array_element() {
     let project = TempProject::new("cli-run-current-array-element-payload-drop");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -2233,8 +2226,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "current_array_element_payload_drop.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     name: &str
@@ -2255,7 +2247,7 @@ struct Wrapper {
 }
 
 func fail_file(): File! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func main(): void! {

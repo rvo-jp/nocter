@@ -3,9 +3,7 @@ use super::*;
 #[test]
 fn lowers_fallible_aggregate_catch_field_read_in_comparison() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -17,8 +15,8 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    if (source() catch error {
-        return Error.new("app.source", error.message)
+    if (source() catch failure {
+        return error.new("app.source", failure.message)
     }).code == 42 {
         return 42
     } else {
@@ -61,9 +59,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_call_binding() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -75,8 +71,8 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    let value = source() catch error {
-        return Error.new("app.source", error.message)
+    let value = source() catch failure {
+        return error.new("app.source", failure.message)
     }
     return value.code
 }
@@ -106,9 +102,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_call_return() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -121,8 +115,8 @@ func main(): i32! {
 }
 
 func forward(): Header! {
-    return source() catch error {
-        return Error.new("app.source", error.message)
+    return source() catch failure {
+        return error.new("app.source", failure.message)
     }
 }
 
@@ -151,9 +145,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_value_argument() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -165,8 +157,8 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    return consume(source() catch error {
-        return Error.new("app.source", error.message)
+    return consume(source() catch failure {
+        return error.new("app.source", failure.message)
     })
 }
 
@@ -198,9 +190,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_field_read() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -212,8 +202,8 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    return (source() catch error {
-        return Error.new("app.source", error.message)
+    return (source() catch failure {
+        return error.new("app.source", failure.message)
     }).code
 }
 
@@ -242,9 +232,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_binding() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -262,8 +250,8 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    let header = (source() catch error {
-        return Error.new("app.source", error.message)
+    let header = (source() catch failure {
+        return error.new("app.source", failure.message)
     }).header
     return header.code
 }
@@ -313,9 +301,7 @@ func source(): Packet! {
 #[test]
 fn lowers_fallible_aggregate_catch_assignment() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -328,8 +314,8 @@ func main(): i32! {
 
 func run(): i32! {
     var value = Header { tag: 1, ok: false, code: 2, len: 3 }
-    value = source() catch error {
-        return Error.new("app.source", error.message)
+    value = source() catch failure {
+        return error.new("app.source", failure.message)
     }
     return value.code
 }
@@ -359,9 +345,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_assignment() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -384,8 +368,8 @@ func run(): i32! {
         header: Header { tag: 1, ok: false, code: 2, len: 3 },
         tail: 4,
     }
-    packet.header = source() catch error {
-        return Error.new("app.source", error.message)
+    packet.header = source() catch failure {
+        return error.new("app.source", failure.message)
     }
     return packet.header.code
 }
@@ -415,9 +399,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_struct_literal_field() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -437,8 +419,8 @@ func main(): i32! {
 func run(): i32! {
     let packet = Packet {
         prefix: 1,
-        header: source() catch error {
-            return Error.new("app.source", error.message)
+        header: source() catch failure {
+            return error.new("app.source", failure.message)
         },
         tail: 2,
     }
@@ -470,9 +452,7 @@ func source(): Header! {
 #[test]
 fn lowers_pending_aggregate_drop_for_catch_failure_return_cleanup() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-struct File {
+        r#"struct File {
     fd: i32
 }
 
@@ -482,14 +462,14 @@ destruct File(&+self) {
 
 func main(): i32! {
     var file = File { fd: 3 }
-    let value = answer() catch error {
-        return Error.new("app.answer", error.message)
+    let value = answer() catch failure {
+        return error.new("app.answer", failure.message)
     }
     return value
 }
 
 func answer(): i32! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     );

@@ -26,7 +26,9 @@ pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     fs::create_dir_all(home.join("std/prelude")).unwrap();
     fs::create_dir_all(home.join("std/str")).unwrap();
     fs::create_dir_all(home.join("std/slice")).unwrap();
+    fs::create_dir_all(home.join("std/error")).unwrap();
     crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
+    crate::test_files::write(home.join("std/error/index.nct"), "").unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
         r#"instance str {

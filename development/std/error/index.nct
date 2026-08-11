@@ -1,17 +1,12 @@
-//! Common error classification API.
+//! Construction for the compiler built-in failure payload.
 //!
-//! `error` is the compiler built-in fallible payload type. Error and ErrorCode
-//! are ordinary standard-library names that user modules receive through the
-//! synthetic prelude.
-//!
-//! ErrorCode is intentionally open. Standard-library and user-library code use
-//! dotted string codes such as "std.io.not_found" or "app.config.missing_key".
-
-pub type ErrorCode = &str
-pub type Error = error
+//! Error codes are open UTF-8 strings. Standard-library and user-library code
+//! use dotted codes such as "std.io.not_found" or "app.config.missing_key".
 
 pub(/) primitive new_error(code: &str, message: &str): error
 
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }

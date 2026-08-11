@@ -4,7 +4,6 @@
 //! return allocation errors. Both surfaces share the same formatting core.
 
 use std/mem.allocation_abort_raw
-use std/error.Error
 use std/ptr.{from_ref, slice_from_raw_parts_value}
 use std/string.{String, try_push_str}
 use ./conformances
@@ -228,5 +227,5 @@ func try_append_i64_digit(out: &+String, value: i64): void! {
 }
 
 func unsupported(): error {
-    return Error.new("std.fmt.unsupported", "value cannot be formatted")
+    return error.new("std.fmt.unsupported", "value cannot be formatted")
 }

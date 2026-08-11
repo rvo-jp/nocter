@@ -138,9 +138,7 @@ func main(): i32! {
 #[test]
 fn lowers_pending_aggregate_drop_for_fallible_propagation_cleanup() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-struct File {
+        r#"struct File {
     fd: i32
 }
 
@@ -154,7 +152,7 @@ func main(): void! {
 }
 
 func fail(): void! {
-    return Error.new("app.fail", "failed")
+    return error.new("app.fail", "failed")
 }
 "#,
     );
@@ -200,9 +198,7 @@ func fail(): void! {
 #[test]
 fn lowers_replacement_drop_for_fallible_aggregate_assignment() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-struct File {
+        r#"struct File {
     fd: i32
 }
 

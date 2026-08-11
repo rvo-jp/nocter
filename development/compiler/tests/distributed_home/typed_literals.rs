@@ -916,7 +916,7 @@ construct Numbers {
 }
 
 func next(): i32! {
-    return Error.new("test.failure", "expected failure")
+    return error.new("test.failure", "expected failure")
 }
 
 func operation(): i32! {

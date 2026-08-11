@@ -26,7 +26,7 @@ fn runs_all_test_targets_in_declaration_order_and_continues_after_failure() {
     );
     project.write(
         "tests/fails/index.nct",
-        "test reports_error { return Error.new(\"test.failed\", \"expected failure\") }\n",
+        "test reports_error { return error.new(\"test.failed\", \"expected failure\") }\n",
     );
     project.write("tests/last/index.nct", "test finishes { return }\n");
 
@@ -63,7 +63,7 @@ fn selects_one_named_test_target() {
     project.write("selected/index.nct", "test chosen { return }\n");
     project.write(
         "unselected/index.nct",
-        "test ignored { return Error.new(\"test.failed\", \"not selected\") }\n",
+        "test ignored { return error.new(\"test.failed\", \"not selected\") }\n",
     );
 
     let output = project.nocter(["test", "--test", "selected"]);
@@ -83,7 +83,7 @@ fn selects_one_native_case_without_running_its_siblings() {
     project.write(
         "unit/index.nct",
         r#"test unselected_failure {
-    return Error.new("test.failed", "must not run")
+    return error.new("test.failed", "must not run")
 }
 
 test selected_success { return }
@@ -118,7 +118,7 @@ fn same_module_tests_use_private_items_but_separate_test_modules_cannot() {
 test reaches_private_item {
     let answer = private_answer()
     if answer != 42 {
-        return Error.new("test.failed", "private function returned the wrong value")
+        return error.new("test.failed", "private function returned the wrong value")
     }
     return
 }
@@ -216,7 +216,7 @@ fn json_report_is_one_stable_machine_readable_envelope() {
     );
     project.write(
         "unit/index.nct",
-        "test rejects { return Error.new(\"test.failed\", \"expected failure\") }\n",
+        "test rejects { return error.new(\"test.failed\", \"expected failure\") }\n",
     );
 
     let output = project.nocter(["test", "--format", "json"]);
@@ -290,7 +290,7 @@ fn propagated_error_is_a_failed_test_outcome() {
     project.write(
         "fallible/index.nct",
         r#"test propagates_error {
-    return Error.new("test.failed", "expected failure")
+    return error.new("test.failed", "expected failure")
 }
 "#,
     );
@@ -346,23 +346,18 @@ impl TempPackage {
         let root = std::env::temp_dir().join(unique_name(name));
         let home = root.join(".nocter");
         fs::create_dir_all(home.join("std/prelude")).unwrap();
-        fs::write(
-            home.join("std/prelude/index.nct"),
-            "pub use std/error.Error\n",
-        )
-        .unwrap();
+        fs::write(home.join("std/prelude/index.nct"), "").unwrap();
         builtin_std::write_builtin_type_surfaces(&home);
         fs::create_dir_all(home.join("std/error")).unwrap();
         fs::create_dir_all(home.join("std/io")).unwrap();
         fs::write(
             home.join("std/error/index.nct"),
-            r#"pub type ErrorCode = &str
-pub type Error = error
+            r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
         )

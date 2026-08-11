@@ -62,22 +62,10 @@ pub(super) fn attach_behavior_declarations_to_symbol(
 
 pub(super) fn type_symbol_accepts_inherent_behavior(symbol: &TypeSymbol) -> bool {
     matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
-        || type_symbol_is_error_alias(symbol)
 }
 
 pub(super) fn type_symbol_accepts_destructor(symbol: &TypeSymbol) -> bool {
     matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
-}
-
-fn type_symbol_is_error_alias(symbol: &TypeSymbol) -> bool {
-    if !matches!(symbol.kind, TypeSymbolKind::Alias) {
-        return false;
-    }
-
-    matches!(
-        symbol.alias_target.as_ref(),
-        Some(TypeExpr::Reference(reference)) if reference.name == "error"
-    )
 }
 
 pub(super) fn top_level_associated_function_signatures<'a>(

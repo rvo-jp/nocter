@@ -911,10 +911,10 @@ fn classifies_an_import_module_path_as_one_namespace_token() {
     let _home = NocterHomeEnv::set(&home);
     crate::test_files::write(
         home.join("std/error/index.nct"),
-        "pub struct Error { code: i32 }\n",
+        "pub struct Problem { code: i32 }\n",
     )
     .unwrap();
-    let text = "use std/error.Error\n";
+    let text = "use std/error.Problem\n";
     let app = project.write_source("index.nct", text);
     let uri = file_uri(&app);
     let document = open_document(uri.clone(), Some(1), text.to_string());
@@ -927,7 +927,7 @@ fn classifies_an_import_module_path_as_one_namespace_token() {
     let path = classified_identifier_with_lexeme(text, &identifiers, "std/error");
     assert_eq!(path.len(), 1);
     assert_eq!(path[0].kind, SemanticTokenKind::Namespace);
-    let imported = classified_identifier_with_lexeme(text, &identifiers, "Error");
+    let imported = classified_identifier_with_lexeme(text, &identifiers, "Problem");
     assert_eq!(imported.len(), 1);
     assert_eq!(imported[0].kind, SemanticTokenKind::Type);
 }
@@ -2220,11 +2220,11 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
     let error_module = home.join("std/error/index.nct");
     crate::test_files::write(
         &error_module,
-        "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n",
+        "/// A recoverable failure.\npub struct Problem {\n    code: i32\n}\n",
     )
     .unwrap();
     let error_uri = file_uri(&error_module.canonicalize().unwrap());
-    let text = "use std/error.Error\n";
+    let text = "use std/error.Problem\n";
     let app = project.write_source("index.nct", text);
     let app_uri = file_uri(&app);
     let server = LspServer {
@@ -2250,11 +2250,11 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
     assert_eq!(
         response["result"]["contents"]["value"],
         json!(
-            "```nocter\nstruct Error\n```\n\nA recoverable failure.\n\n**Construction**\n\nNo direct construction entry is available here."
+            "```nocter\nstruct Problem\n```\n\nA recoverable failure.\n\n**Construction**\n\nNo direct construction entry is available here."
         )
     );
     assert_eq!(response["result"]["range"]["start"]["character"], json!(14));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(19));
+    assert_eq!(response["result"]["range"]["end"]["character"], json!(21));
 
     let definition = server.definition_response(
         json!(9),
@@ -2271,7 +2271,7 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
     );
     assert_eq!(
         definition["originSelectionRange"]["end"]["character"],
-        json!(19)
+        json!(21)
     );
     assert_eq!(
         definition["targetSelectionRange"]["start"]["line"],
@@ -2280,6 +2280,80 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
     assert_eq!(
         definition["targetSelectionRange"]["start"]["character"],
         json!(11)
+    );
+}
+
+#[test]
+fn builtin_error_construction_uses_source_backed_editor_identity() {
+    let project = TempProject::new("lsp-builtin-error-construction");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let error_module = home.join("std/error/index.nct");
+    crate::test_files::write(
+        &error_module,
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
+
+construct error {
+    /// Constructs a recoverable failure.
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+"#,
+    )
+    .unwrap();
+    let error_uri = file_uri(&error_module.canonicalize().unwrap());
+    let text = "func make(): error {\n    return error.new(\"app.failed\", \"failed\")\n}\n";
+    let app = project.write_source("index.nct", text);
+    let app_uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            app_uri.clone(),
+            open_document(app_uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
+        lifecycle: ServerLifecycle::Running,
+        file_watching: FileWatchingRegistration::Unsupported,
+    };
+
+    let hover = server.hover_response(
+        json!(20),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 1, "character": 18 }
+        })),
+    );
+    let hover_text = hover["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover text");
+    assert!(hover_text.contains("func error.new(code: &str, message: &str): error"));
+    assert!(hover_text.contains("Constructs a recoverable failure."));
+
+    let definition = server.definition_response(
+        json!(21),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 1, "character": 18 }
+        })),
+    );
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetUri"], json!(error_uri));
+
+    let completion = server.completion_response(
+        json!(22),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 1, "character": 18 }
+        })),
+    );
+    assert!(
+        completion["result"]["items"]
+            .as_array()
+            .expect("expected completion items")
+            .iter()
+            .any(|item| item["label"] == json!("new"))
     );
 }
 
@@ -5072,6 +5146,8 @@ impl TempProject {
 fn write_builtin_view_surfaces(home: &Path) {
     std::fs::create_dir_all(home.join("std/str")).unwrap();
     std::fs::create_dir_all(home.join("std/slice")).unwrap();
+    std::fs::create_dir_all(home.join("std/error")).unwrap();
+    crate::test_files::write(home.join("std/error/index.nct"), "").unwrap();
     crate::test_files::write(
         home.join("std/str/index.nct"),
         "pub(/) primitive str_len_raw(value: &str): usize\ninstance str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",

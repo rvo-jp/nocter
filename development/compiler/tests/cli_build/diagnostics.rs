@@ -472,26 +472,23 @@ fn build_command_rejects_terminal_if_inside_catch_block_before_ir_lowering() {
     let project = TempProject::new("cli-build-terminal-if-inside-catch-block");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "terminal_if_inside_catch_block.nct",
-        r#"use std/error.Error
-
-func fail(): i32! {
-    return Error.new("app.fail", "fail")
+        r#"func fail(): i32! {
+    return error.new("app.fail", "fail")
 }
 
 func main(): i32 {
-    return fail() catch error {
+    return fail() catch failure {
         if true {
             return 1
         } else {
@@ -1889,26 +1886,23 @@ fn build_command_reports_static_error_payload_helper_with_argument_before_ir_low
     let project = TempProject::new("cli-build-static-error-payload-helper-argument-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "static_error_payload_helper_argument_boundary.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     return app_failed(dynamic_message())
 }
 
 func app_failed(message: &str): error {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func dynamic_message(): &str {
@@ -1931,7 +1925,7 @@ func dynamic_message(): &str {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("7 | func app_failed(message: &str): error {"),
+        stderr.contains("5 | func app_failed(message: &str): error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -1949,22 +1943,19 @@ fn build_command_reports_imported_error_constructor_with_non_str_payload_before_
     let project = TempProject::new("cli-build-imported-error-constructor-non-str-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     project.write_source(
         "bad_error/index.nct",
-        r#"use std/error.Error
-
-pub func app_failed(code: i32, message: i32): error {
-    return Error.new("app.failed", "failed")
+        r#"pub func app_failed(code: i32, message: i32): error {
+    return error.new("app.failed", "failed")
 }
 "#,
     );
@@ -1992,7 +1983,7 @@ func main(): i32! {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("3 | pub func app_failed(code: i32, message: i32): error {"),
+        stderr.contains("1 | pub func app_failed(code: i32, message: i32): error {"),
         "expected source line from imported helper, got:\n{stderr}"
     );
     assert!(
@@ -2010,27 +2001,24 @@ fn build_command_reports_error_return_method_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-error-return-method-helper-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "error_return_method_helper_boundary.nct",
-        r#"use std/error.Error
-
-copy struct Holder {
+        r#"copy struct Holder {
     value: i32
 }
 
 instance Holder {
     method &self.app_failed(): error {
-        return Error.new("app.failed", "failed")
+        return error.new("app.failed", "failed")
     }
 }
 
@@ -2055,7 +2043,7 @@ func main(): i32! {
         "expected method return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("8 |     method &self.app_failed(): error {"),
+        stderr.contains("6 |     method &self.app_failed(): error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -2073,26 +2061,23 @@ fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-dynamic-error-return-helper-boundary");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "dynamic_error_return_helper_boundary.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     return app_failed(dynamic_message())
 }
 
 func app_failed(message: &str): error {
-    return Error.new("app.failed", message)
+    return error.new("app.failed", message)
 }
 
 func dynamic_message(): &str {
@@ -2115,7 +2100,7 @@ func dynamic_message(): &str {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("7 | func app_failed(message: &str): error {"),
+        stderr.contains("5 | func app_failed(message: &str): error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -2133,26 +2118,23 @@ fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-unreachable-dynamic-failure-payload");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "unreachable_dynamic_failure_payload.nct",
-        r#"use std/error.Error
-
-func main(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
 func unused(): i32! {
-    return Error.new("app.failed", dynamic())
+    return error.new("app.failed", dynamic())
 }
 
 func dynamic(): &str {
@@ -2346,22 +2328,19 @@ fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", "failed")
+        r#"func main(): i32! {
+    return error.new("app.failed", "failed")
 }
 "#,
     );

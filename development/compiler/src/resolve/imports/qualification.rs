@@ -91,7 +91,7 @@ pub(super) fn qualify_imported_symbol(
     imported
 }
 
-fn qualify_type_symbol(
+pub(super) fn qualify_type_symbol(
     symbol: &mut TypeSymbol,
     import_path: &str,
     local_type_names: &[String],

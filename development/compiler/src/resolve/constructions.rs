@@ -62,6 +62,13 @@ impl Resolver<'_> {
         ast: &crate::ast::AstFile,
         construct: &ConstructDecl,
     ) {
+        if crate::builtin_types::BuiltinTypeOwner::from_construction_target(&construct.target)
+            .is_some()
+        {
+            // Built-in construction has no nominal symbol. The common built-in
+            // source-surface collector validates and indexes it separately.
+            return;
+        }
         let Some(target_name) = target_name(&construct.target) else {
             self.push_error(
                 "construct target must be a nominal type reference",
@@ -250,7 +257,7 @@ fn target_name(target: &TypeExpr) -> Option<&str> {
     }
 }
 
-fn success_payload_is_self(ty: &TypeExpr) -> bool {
+pub(super) fn success_payload_is_self(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Reference(reference) => reference.name == "Self",
         TypeExpr::Optional(optional) => success_payload_is_self(&optional.inner),
@@ -310,7 +317,7 @@ pub(super) fn attach_construction_surfaces_to_symbol(
     }
 }
 
-fn append_construction_entries(
+pub(super) fn append_construction_entries(
     symbol: &mut TypeSymbol,
     construct: &ConstructDecl,
 ) -> Vec<(usize, ByteSpan)> {

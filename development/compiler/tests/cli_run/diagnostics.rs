@@ -478,33 +478,30 @@ fn run_command_reports_caught_direct_aggregate_call_argument_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_argument_failure.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
 
 func main(): i32! {
-    return consume(make() catch error {
-        return Error.new("app.main", error.message)
+    return consume(make() catch failure {
+        return error.new("app.main", failure.message)
     })
 }
 
 func make(): Pair! {
-    return Error.new("app.make", "failed")
+    return error.new("app.make", "failed")
 }
 
 func consume(pair: Pair): i32 {
@@ -526,28 +523,25 @@ fn run_command_reports_caught_direct_aggregate_call_comparison_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-comparison-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_comparison_failure.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
 
 func main(): i32! {
-    if (make() catch error {
-        return Error.new("app.main", error.message)
+    if (make() catch failure {
+        return error.new("app.main", failure.message)
     }).second == 42 {
         return 42
     } else {
@@ -556,7 +550,7 @@ func main(): i32! {
 }
 
 func make(): Pair! {
-    return Error.new("app.make", "failed")
+    return error.new("app.make", "failed")
 }
 "#,
     );
@@ -574,21 +568,18 @@ fn run_command_reports_caught_direct_aggregate_call_return_failure() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_return_failure.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
@@ -599,13 +590,13 @@ func main(): i32! {
 }
 
 func forward(): Pair! {
-    return make() catch error {
-        return Error.new("app.forward", error.message)
+    return make() catch failure {
+        return error.new("app.forward", failure.message)
     }
 }
 
 func make(): Pair! {
-    return Error.new("app.make", "failed")
+    return error.new("app.make", "failed")
 }
 "#,
     );
@@ -623,21 +614,18 @@ fn run_command_reports_caught_aggregate_struct_literal_field_failure() {
     let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_aggregate_struct_literal_field_failure.nct",
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -653,8 +641,8 @@ copy struct Packet {
 func main(): i32! {
     let packet = Packet {
         prefix: 1,
-        header: source() catch error {
-            return Error.new("app.main", error.message)
+        header: source() catch failure {
+            return error.new("app.main", failure.message)
         },
         tail: 2,
     }
@@ -662,7 +650,7 @@ func main(): i32! {
 }
 
 func source(): Header! {
-    return Error.new("app.source", "failed")
+    return error.new("app.source", "failed")
 }
 "#,
     );
@@ -680,21 +668,18 @@ fn run_command_reports_caught_indirect_aggregate_call_return_failure() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-return-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_return_failure.nct",
-        r#"use std/error.Error
-
-struct Big {
+        r#"struct Big {
     first: usize
     second: usize
     third: usize
@@ -707,13 +692,13 @@ func main(): i32! {
 }
 
 func forward(): Big! {
-    return make() catch error {
-        return Error.new("app.forward", error.message)
+    return make() catch failure {
+        return error.new("app.forward", failure.message)
     }
 }
 
 func make(): Big! {
-    return Error.new("app.make", "failed")
+    return error.new("app.make", "failed")
 }
 "#,
     );
@@ -930,22 +915,19 @@ fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", "failed")
+        r#"func main(): i32! {
+    return error.new("app.failed", "failed")
 }
 "#,
     );
@@ -963,22 +945,19 @@ fn run_command_reports_fallible_entry_failure_dynamic_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-message");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail_dynamic.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", dynamic())
+        r#"func main(): i32! {
+    return error.new("app.failed", dynamic())
 }
 
 func dynamic(): &str {
@@ -1000,22 +979,19 @@ fn run_command_reports_fallible_entry_failure_error_local_dynamic_message() {
     let project = TempProject::new("cli-run-fallible-failure-error-local-dynamic-message");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail_error_local_dynamic.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = Error.new("app.failed", dynamic())
+        r#"func main(): i32! {
+    let value = error.new("app.failed", dynamic())
     return value
 }
 
@@ -1038,21 +1014,18 @@ fn run_command_reports_fully_stack_backed_error_local_failure() {
     let project = TempProject::new("cli-run-fully-stack-backed-error-local");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fully_stack_backed_error_local.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     let a0 = 1
     let a1 = 2
     let a2 = 3
@@ -1060,7 +1033,7 @@ func main(): i32! {
     let a4 = 5
     let a5 = 6
     let a6 = 7
-    let value = Error.new(dynamic_code(), dynamic_message())
+    let value = error.new(dynamic_code(), dynamic_message())
     return value
 }
 
@@ -1087,22 +1060,19 @@ fn run_command_reports_forwarded_error_parameter_failure() {
     let project = TempProject::new("cli-run-forwarded-error-parameter");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "forwarded_error_parameter.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return forward(Error.new("app.failed", "failed"))?
+        r#"func main(): i32! {
+    return forward(error.new("app.failed", "failed"))?
 }
 
 func forward(error: error): i32! {
@@ -1124,22 +1094,19 @@ fn run_command_reports_stack_passed_error_parameter_failure() {
     let project = TempProject::new("cli-run-stack-passed-error-parameter");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "stack_passed_error_parameter.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return forward(1, 2, 3, 4, 5, 6, 7, 8, Error.new("app.failed", "failed"))?
+        r#"func main(): i32! {
+    return forward(1, 2, 3, 4, 5, 6, 7, 8, error.new("app.failed", "failed"))?
 }
 
 func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, error: error): i32! {
@@ -1161,22 +1128,19 @@ fn run_command_reports_split_stack_error_parameter_failure() {
     let project = TempProject::new("cli-run-split-stack-error-parameter");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "split_stack_error_parameter.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return forward(1, 2, 3, 4, 5, 6, Error.new(dynamic_code(), dynamic_message()))?
+        r#"func main(): i32! {
+    return forward(1, 2, 3, 4, 5, 6, error.new(dynamic_code(), dynamic_message()))?
 }
 
 func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, error: error): i32! {
@@ -1206,22 +1170,19 @@ fn run_command_reports_fallible_entry_failure_dynamic_code_and_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-code-message");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail_dynamic_code_message.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new(dynamic_code(), dynamic_message())
+        r#"func main(): i32! {
+    return error.new(dynamic_code(), dynamic_message())
 }
 
 func dynamic_code(): &str {
@@ -1247,26 +1208,23 @@ fn run_command_reports_crossed_failure_payload_parameter_registers() {
     let project = TempProject::new("cli-run-crossed-failure-payload-parameter-registers");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "crossed_failure_payload_parameters.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     return fail("failed", "app.failed")?
 }
 
 func fail(message: &str, code: &str): i32! {
-    return Error.new(code, message)
+    return error.new(code, message)
 }
 "#,
     );
@@ -1284,29 +1242,26 @@ fn run_command_reports_catch_direct_error_return_failure() {
     let project = TempProject::new("cli-run-catch-direct-error-return");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "catch_direct_error_return.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = answer() catch error {
-        return error
+        r#"func main(): i32! {
+    let value = answer() catch failure {
+        return failure
     }
     return value
 }
 
 func answer(): i32! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     );
@@ -1324,22 +1279,19 @@ fn run_command_reports_fallible_entry_failure_multi_line_message() {
     let project = TempProject::new("cli-run-fallible-failure-multi-line");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "fail.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", """
+        r#"func main(): i32! {
+    return error.new("app.failed", """
         failed
         later
         """)

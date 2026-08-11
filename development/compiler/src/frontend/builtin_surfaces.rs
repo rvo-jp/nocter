@@ -1,4 +1,4 @@
-//! Compiler-owned loading and declaration authority for built-in type methods.
+//! Compiler-owned loading and declaration authority for built-in type source surfaces.
 
 use super::dependencies::SourceDependencyTrace;
 use super::diagnostics::import_source_diagnostic;
@@ -8,10 +8,10 @@ use crate::ast::{AstFile, Item, ModulePath};
 use crate::builtin_types::BuiltinTypeOwner;
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
-pub(super) fn enqueue_builtin_instance_sources(
+pub(super) fn enqueue_builtin_surface_sources(
     sources: &mut SourceMap,
     root: SourceId,
     options: &FrontendOptions,
@@ -21,10 +21,14 @@ pub(super) fn enqueue_builtin_instance_sources(
     queue: &mut VecDeque<SourceId>,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    for owner in BuiltinTypeOwner::INSTANCE_OWNERS {
-        let module = owner
-            .instance_module()
-            .expect("instance owner must name its source authority");
+    let mut loaded_modules = HashSet::new();
+    for module in BuiltinTypeOwner::ALL
+        .into_iter()
+        .map(BuiltinTypeOwner::source_authority)
+        .filter(|authority| authority.implicitly_loaded)
+        .map(|authority| authority.module)
+        .filter(|module| loaded_modules.insert(*module))
+    {
         let path = module_path(root, module);
         let canonical = match resolve_import_path(
             sources,
@@ -76,9 +80,6 @@ pub(super) fn validate_builtin_conformance_authority(
 ) -> Vec<Diagnostic> {
     let is_standard_library =
         trusted_module_path(sources, source, options, resolved_nocter_home).is_some();
-    if is_standard_library {
-        return Vec::new();
-    }
 
     ast.items
         .iter()
@@ -89,6 +90,7 @@ pub(super) fn validate_builtin_conformance_authority(
             BuiltinTypeOwner::from_conformance_target(&conformance.target_ty)
                 .map(|owner| (owner, conformance.target_ty.span()))
         })
+        .filter(|(owner, _)| !owner.source_authority().conformance || !is_standard_library)
         .map(|(owner, span)| {
             let mut diagnostic = Diagnostic::error(
                 "E0416",
@@ -122,28 +124,86 @@ pub(super) fn validate_builtin_instance_authority(
                 return None;
             };
             BuiltinTypeOwner::from_instance_target(&instance.target_ty).map(|owner| {
+                let authority = owner.source_authority();
                 (
-                    owner.canonical_name(),
-                    owner
-                        .instance_module()
-                        .expect("instance owner must name its source authority"),
+                    owner,
+                    authority,
                     instance.target_ty.span(),
                 )
             })
         })
-        .filter(|(_, required_module, _)| {
-            actual_module.as_deref() != Some(*required_module)
+        .filter(|(_, authority, _)| {
+            !authority.instance || actual_module.as_deref() != Some(authority.module)
         })
-        .map(|(owner, required_module, span)| {
+        .map(|(owner, authority, span)| {
+            let owner_name = owner.canonical_name();
+            let reason = if authority.instance {
+                format!("instances for built-in type `{owner_name}` are owned by `{}`", authority.module)
+            } else {
+                format!("built-in type `{owner_name}` does not accept instance declarations")
+            };
             let mut diagnostic = Diagnostic::error(
                 "E0416",
-                format!(
-                    "instances for built-in type `{owner}` are owned by `{required_module}`"
-                ),
+                reason,
             );
             diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
             diagnostic.help = Some(
                 "define behavior on a project-owned type; built-in type surfaces are supplied by the active Nocter home"
+                    .to_string(),
+            );
+            diagnostic
+        })
+        .collect()
+}
+
+pub(super) fn validate_builtin_construction_authority(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &AstFile,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Vec<Diagnostic> {
+    let actual_module = trusted_module_path(sources, source, options, resolved_nocter_home);
+    ast.items
+        .iter()
+        .filter_map(|item| {
+            match item {
+                Item::Construct(construct) => {
+                    BuiltinTypeOwner::from_construction_target(&construct.target).map(|owner| {
+                        (owner, owner.source_authority(), construct.target.span(), false)
+                    })
+                }
+                Item::Function(function) => function.owner.as_ref().and_then(|function_owner| {
+                    BuiltinTypeOwner::from_reference_name(&function_owner.name).map(|owner| {
+                        (owner, owner.source_authority(), function_owner.name_span, true)
+                    })
+                }),
+                _ => None,
+            }
+        })
+        .filter(|(_, authority, _, detached)| {
+            *detached
+                || !authority.construction
+                || actual_module.as_deref() != Some(authority.module)
+        })
+        .map(|(owner, authority, span, detached)| {
+            let owner_name = owner.canonical_name();
+            let reason = if detached {
+                format!(
+                    "associated construction for built-in type `{owner_name}` must be declared inside its authorized `construct` surface"
+                )
+            } else if authority.construction {
+                format!(
+                    "construction for built-in type `{owner_name}` is owned by `{}`",
+                    authority.module
+                )
+            } else {
+                format!("built-in type `{owner_name}` does not accept construct declarations")
+            };
+            let mut diagnostic = Diagnostic::error("E0416", reason);
+            diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+            diagnostic.help = Some(
+                "define construction for a project-owned type; built-in type surfaces are supplied by the active Nocter home"
                     .to_string(),
             );
             diagnostic

@@ -1620,28 +1620,25 @@ fn run_command_returns_caught_direct_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_argument_field.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
 
 func main(): i32! {
-    return consume(make() catch error {
-        return Error.new("app.main", error.message)
+    return consume(make() catch failure {
+        return error.new("app.main", failure.message)
     })
 }
 
@@ -1672,21 +1669,18 @@ fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code()
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_argument_field.nct",
-        r#"use std/error.Error
-
-struct Big {
+        r#"struct Big {
     first: usize
     second: usize
     third: usize
@@ -1694,8 +1688,8 @@ struct Big {
 }
 
 func main(): i32! {
-    return consume(make() catch error {
-        return Error.new("app.main", error.message)
+    return consume(make() catch failure {
+        return error.new("app.main", failure.message)
     })
 }
 
@@ -1726,21 +1720,18 @@ fn run_command_returns_caught_direct_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_return_field.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
@@ -1751,8 +1742,8 @@ func main(): i32! {
 }
 
 func forward(): Pair! {
-    return make() catch error {
-        return Error.new("app.forward", error.message)
+    return make() catch failure {
+        return error.new("app.forward", failure.message)
     }
 }
 
@@ -1779,28 +1770,25 @@ fn run_command_returns_caught_direct_aggregate_call_comparison_field_exit_code()
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-comparison-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_comparison_field.nct",
-        r#"use std/error.Error
-
-struct Pair {
+        r#"struct Pair {
     first: i32
     second: i32
 }
 
 func main(): i32! {
-    if (make() catch error {
-        return Error.new("app.main", error.message)
+    if (make() catch failure {
+        return error.new("app.main", failure.message)
     }).second == 42 {
         return 42
     } else {
@@ -1831,21 +1819,18 @@ fn run_command_returns_caught_indirect_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-return-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_return_field.nct",
-        r#"use std/error.Error
-
-struct Big {
+        r#"struct Big {
     first: usize
     second: usize
     third: usize
@@ -1858,8 +1843,8 @@ func main(): i32! {
 }
 
 func forward(): Big! {
-    return make() catch error {
-        return Error.new("app.forward", error.message)
+    return make() catch failure {
+        return error.new("app.forward", failure.message)
     }
 }
 
@@ -1886,21 +1871,18 @@ fn run_command_returns_caught_indirect_aggregate_call_comparison_field_exit_code
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-comparison-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_comparison_field.nct",
-        r#"use std/error.Error
-
-struct Big {
+        r#"struct Big {
     first: usize
     second: usize
     third: usize
@@ -1908,8 +1890,8 @@ struct Big {
 }
 
 func main(): i32! {
-    if (make() catch error {
-        return Error.new("app.main", error.message)
+    if (make() catch failure {
+        return error.new("app.main", failure.message)
     }).code == 42 {
         return 42
     } else {
@@ -1940,21 +1922,18 @@ fn run_command_returns_caught_aggregate_member_assignment_field_exit_code() {
     let project = TempProject::new("cli-run-caught-aggregate-member-assignment-field");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "caught_aggregate_member_assignment_field.nct",
-        r#"use std/error.Error
-
-copy struct Header {
+        r#"copy struct Header {
     tag: u8
     ok: bool
     code: i32
@@ -1973,8 +1952,8 @@ func main(): i32! {
         header: Header { tag: 1, ok: false, code: 2, len: 3 },
         tail: 4,
     }
-    packet.header = source() catch error {
-        return Error.new("app.main", error.message)
+    packet.header = source() catch failure {
+        return error.new("app.main", failure.message)
     }
     return packet.header.code
 }

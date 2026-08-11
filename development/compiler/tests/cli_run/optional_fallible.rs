@@ -36,27 +36,24 @@ fn run_command_propagates_composed_fallible_optional_error_payload() {
     let project = TempProject::new("cli-run-composed-fallible-optional-error");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "composed_fallible_optional_error.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     let value = lookup()? otherwise { return 2 }
     return value
 }
 
 func lookup(): i32?! {
-    return Error.new("app.lookup", "failed")
+    return error.new("app.lookup", "failed")
 }
 "#,
     );
@@ -74,23 +71,20 @@ fn run_command_routes_composed_failure_only_to_catch_and_absence_only_to_otherwi
     let project = TempProject::new("cli-run-composed-catch-otherwise-channels");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "composed_catch_otherwise_channels.nct",
-        r#"use std/error.Error
-
-func main(): i32 {
-    let present = lookup(0) catch error { return 1 } otherwise { return 2 }
-    let absent = lookup(1) catch error { return 3 } otherwise { 4 }
+        r#"func main(): i32 {
+    let present = lookup(0) catch failure { return 1 } otherwise { return 2 }
+    let absent = lookup(1) catch failure { return 3 } otherwise { 4 }
     let unused = lookup(2) catch _ { return present + absent + 34 } otherwise { return 5 }
     return unused
 }
@@ -98,7 +92,7 @@ func main(): i32 {
 func lookup(mode: i32): i32?! {
     if mode == 0 { return 4 }
     if mode == 1 { return none }
-    return Error.new("app.lookup", "failed")
+    return error.new("app.lookup", "failed")
 }
 "#,
     );
@@ -120,13 +114,12 @@ fn run_command_drops_each_owner_once_across_composed_outcome_paths() {
     let project = TempProject::new("cli-run-composed-outcome-cleanup");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -148,8 +141,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "composed_outcome_cleanup.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct Owner {
     id: i32
@@ -169,14 +161,14 @@ func main(): i32 {
 
 func choose(mode: i32): i32 {
     var owner = Owner { id: mode }
-    let value = lookup(mode) catch error { return 9 } otherwise { 8 }
+    let value = lookup(mode) catch failure { return 9 } otherwise { 8 }
     return value
 }
 
 func lookup(mode: i32): i32?! {
     if mode == 0 { return 25 }
     if mode == 1 { return none }
-    return Error.new("app.lookup", "failed")
+    return error.new("app.lookup", "failed")
 }
 "#,
     );
@@ -483,21 +475,18 @@ fn run_command_returns_generic_function_inferred_from_catch_block_exit_code() {
     let project = TempProject::new("cli-run-generic-function-expected-catch-return");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "generic_function_expected_catch_return.nct",
-        r#"use std/error.Error
-
-struct Marker<T> {
+        r#"struct Marker<T> {
     code: i32
 }
 
@@ -506,11 +495,11 @@ func make<T>(): Marker<T> {
 }
 
 func source(): Marker<u8>! {
-    return Error.new("app.source", "source failed")
+    return error.new("app.source", "source failed")
 }
 
 func recover(): Marker<u8> {
-    return source() catch error {
+    return source() catch failure {
         return make()
     }
 }
@@ -1072,21 +1061,18 @@ fn run_command_preserves_propagated_failure_payload_after_scope_drop() {
     let project = TempProject::new("cli-run-propagate-cleanup-drop");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "propagate_cleanup_drop.nct",
-        r#"use std/error.Error
-
-struct File {
+        r#"struct File {
     fd: i32
 }
 
@@ -1101,7 +1087,7 @@ func main(): void! {
 }
 
 func fail(): void! {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 
 func touch2(a: i32, b: i32): void {
@@ -1123,13 +1109,12 @@ fn run_command_runs_catch_failure_scope_drop_cleanup() {
     let project = TempProject::new("cli-run-catch-cleanup-drop");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -1151,8 +1136,7 @@ pub(/) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "catch_cleanup_drop.nct",
-        r#"use std/error.Error
-use std/log.write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -1165,14 +1149,14 @@ destruct File(&+self) {
 
 func main(): i32! {
     var file = File { fd: 3 }
-    let value = fail() catch error {
-        return Error.new("app.outer", error.message)
+    let value = fail() catch failure {
+        return error.new("app.outer", failure.message)
     }
     return value
 }
 
 func fail(): i32! {
-    return Error.new("app.inner", "failed")
+    return error.new("app.inner", "failed")
 }
 "#,
     );
@@ -1230,17 +1214,17 @@ fn run_command_uses_fallible_fixed_array_catch_values() {
 
 func main(): i32! {
     var values: [i32; 2] = [0, 0]
-    values = make_pair() catch error {
-        return error
+    values = make_pair() catch failure {
+        return failure
     }
 
-    let bound: [i32; 2] = make_pair() catch error {
-        return error
+    let bound: [i32; 2] = make_pair() catch failure {
+        return failure
     }
 
     var bag = Bag { values: [0, 0] }
-    bag.values = make_pair() catch error {
-        return error
+    bag.values = make_pair() catch failure {
+        return failure
     }
 
     return values[0] + bound[1] + bag.values[0]

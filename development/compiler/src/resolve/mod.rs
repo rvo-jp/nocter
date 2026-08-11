@@ -2,7 +2,7 @@
 
 mod body;
 mod builtin_conformances;
-mod builtin_instances;
+mod builtin_surfaces;
 mod builtins;
 mod closures;
 mod coercions;
@@ -151,8 +151,8 @@ pub(crate) fn resolve_compile_unit_with_context(
     crate::timing::measure_detail("resolve.collect_top_level", || {
         resolver.collect_top_level_symbols(&module_ast)
     });
-    crate::timing::measure_detail("resolve.collect_builtin_instances", || {
-        resolver.collect_builtin_instance_surfaces(&module_ast)
+    crate::timing::measure_detail("resolve.collect_builtin_surfaces", || {
+        resolver.collect_builtin_source_surfaces(&module_ast)
     });
     crate::timing::measure_detail("resolve.collect_builtin_conformances", || {
         resolver.collect_builtin_conformance_surfaces()

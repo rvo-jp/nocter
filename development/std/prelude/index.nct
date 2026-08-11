@@ -6,5 +6,6 @@
 
 use std/fmt
 
-pub use std/error.{Error, ErrorCode}
 pub use std/string.String
+pub use std/vec.Vec
+pub use std/iter.{Iterable, IntoIterator, Iterator}

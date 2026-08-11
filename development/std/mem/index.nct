@@ -9,7 +9,6 @@
 //! not part of the compiler primitive set; target-gated std internals
 //! provide the OS boundary behind this common API.
 
-use std/error.Error
 use std/internal/os.{syscall2, syscall6}
 use std/ptr.addr
 use std/ptr.copy_ptr_to_ptr
@@ -99,7 +98,7 @@ pub func layout_align(value: &Layout): usize {
 pub(/) func alloc_pages(size: usize): usize! {
     let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
     if result.errno != 0 {
-        return Error.new("std.mem.out_of_memory", "allocation failed")
+        return error.new("std.mem.out_of_memory", "allocation failed")
     }
     return result.value
 }
@@ -401,11 +400,11 @@ func valid_alignment(align: usize): bool {
 }
 
 pub func out_of_memory(): error {
-    return Error.new("std.mem.out_of_memory", "allocation failed")
+    return error.new("std.mem.out_of_memory", "allocation failed")
 }
 
 pub func invalid_argument(): error {
-    return Error.new("std.mem.invalid_argument", "invalid allocation request")
+    return error.new("std.mem.invalid_argument", "invalid allocation request")
 }
 
 pub(/) func abort_allocation(allocation_error: error): never {

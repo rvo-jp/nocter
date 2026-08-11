@@ -144,7 +144,7 @@ func find_byte(text: &str, needle: u8, start: usize): usize? {
 }
 
 func empty_separator_error(): error {
-    return Error.new(
+    return error.new(
         "std.string.empty_separator",
         "string separator must not be empty",
     )

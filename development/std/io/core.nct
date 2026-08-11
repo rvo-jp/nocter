@@ -37,7 +37,7 @@ func write_text_to<W>(writer: &+W, text: &str): void! where W: Writer {
 }
 
 func invalid_read_count(): error {
-    return Error.new(
+    return error.new(
         "std.io.invalid_read_count",
         "reader returned more bytes than the supplied buffer can hold",
     )

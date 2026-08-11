@@ -7,13 +7,26 @@ pub(super) fn callable_function_signature_issues(
     resolved_sources: &ResolvedSources<'_>,
     root_source: SourceId,
 ) -> Vec<BuildabilityIssue> {
+    let mut callable_substitutions = substitutions.clone();
+    if let Some(owner) = function.owner.as_ref()
+        && crate::builtin_types::BuiltinTypeOwner::from_reference_name(&owner.name).is_some()
+    {
+        callable_substitutions.insert(
+            "Self".to_string(),
+            TypeExpr::Reference(TypeReference {
+                span: owner.name_span,
+                name: owner.name.clone(),
+            }),
+        );
+    }
     let mut issues = callable_parameter_issues(
         &function.parameters.parameters,
-        substitutions,
+        &callable_substitutions,
         resolved,
         resolved_sources,
     );
-    let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
+    let return_type =
+        substitute_type_expr_parameters(&function.return_type, &callable_substitutions);
     let source_resolver = |source| resolved_sources.get(&source).copied();
     if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver)
         && !function_error_return_type_is_buildable(
@@ -101,7 +114,7 @@ where
         return false;
     }
 
-    non_root_error_constructor_signature(function, root_source, resolved, resolver)
+    non_root_error_constructor_signature(function, return_type, root_source, resolved, resolver)
         || (function.parameters.parameters.is_empty()
             && function.body.as_ref().is_some_and(|body| {
                 static_error_payload_body_is_buildable(body, root_source, resolved, resolver)
@@ -110,6 +123,7 @@ where
 
 pub(super) fn non_root_error_constructor_signature<'a, F>(
     function: &FunctionDecl,
+    return_type: &TypeExpr,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
     resolver: &F,
@@ -124,7 +138,7 @@ where
                 .parameters
                 .iter()
                 .map(|parameter| &parameter.ty),
-            &function.return_type,
+            return_type,
             resolved,
             resolver,
         )
@@ -214,9 +228,31 @@ where
         );
     }
 
-    if let Some((_owner, function)) = resolved.associated_function_for_call(call)
+    if let Some((owner, function)) = resolved.associated_function_for_call(call)
         && function.name_span.source != root_source
     {
+        let builtin_error_self = resolved.builtin_owner_for_symbol(owner)
+            == Some(crate::builtin_types::BuiltinTypeOwner::Error);
+        if builtin_error_self
+            && matches!(
+                &function.signature.return_type,
+                TypeExpr::Reference(reference) if reference.name == "Self"
+            )
+        {
+            return error_constructor_signature_is_buildable_with_resolver(
+                function
+                    .signature
+                    .parameters
+                    .iter()
+                    .map(|parameter| &parameter.ty),
+                &TypeExpr::Reference(TypeReference {
+                    span: function.signature.return_type.span(),
+                    name: "error".to_string(),
+                }),
+                resolved,
+                resolver,
+            );
+        }
         return error_constructor_signature_is_buildable_with_resolver(
             function
                 .signature

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-/// Writes the compiler-required built-in method implementation units into a
+/// Writes the compiler-required built-in source-surface units into a
 /// deliberately minimal test home.
 pub(crate) fn write_builtin_type_surfaces(home: &Path) {
     let std = home.join("std");
@@ -18,6 +18,7 @@ pub(crate) fn write_builtin_type_surfaces(home: &Path) {
     fs::write(std.join("index.nct"), "//! Test standard library.\n").unwrap();
     fs::create_dir_all(std.join("str")).unwrap();
     fs::create_dir_all(std.join("slice")).unwrap();
+    fs::create_dir_all(std.join("error")).unwrap();
     fs::write(
         std.join("str/index.nct"),
         r#"pub(/) primitive str_len_raw(value: &str): usize
@@ -45,6 +46,18 @@ instance [T] {
 
     pub method &self.is_empty(): bool {
         return self.len() == 0
+    }
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        std.join("error/index.nct"),
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
+
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
     }
 }
 "#,

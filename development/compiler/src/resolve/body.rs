@@ -402,7 +402,7 @@ impl Resolver<'_> {
                     self.resolve_expression(argument, scope);
                 }
             }
-            Expr::Member(expression) => self.resolve_expression(&expression.object, scope),
+            Expr::Member(expression) => self.resolve_member_object(expression, scope),
             Expr::Index(expression) => {
                 self.resolve_expression(&expression.object, scope);
                 self.resolve_expression(&expression.index, scope);
@@ -510,6 +510,30 @@ impl Resolver<'_> {
             | Expr::BoolLiteral(_)
             | Expr::NoneLiteral(_) => {}
         }
+    }
+
+    fn resolve_member_object(&mut self, member: &MemberExpr, scope: &mut Scope) {
+        if let Expr::Identifier(identifier) = member.object.as_ref()
+            && scope.resolve(&identifier.name).is_none()
+            && let Some(owner) =
+                crate::builtin_types::BuiltinTypeOwner::from_reference_name(&identifier.name)
+            && self
+                .output
+                .builtin_type_surface(owner)
+                .is_some_and(|surface| {
+                    surface
+                        .symbol
+                        .associated_functions
+                        .iter()
+                        .any(|function| function.is_accessible && function.name == member.member)
+                })
+        {
+            self.output
+                .builtin_type_identifier_targets
+                .insert(identifier.span, owner);
+            return;
+        }
+        self.resolve_expression(&member.object, scope);
     }
 
     fn resolve_identifier(&mut self, identifier: &IdentifierExpr, scope: &Scope) {
@@ -633,7 +657,9 @@ impl Resolver<'_> {
         } else if let Some(first_span) = scope.get(&name) {
             let diagnostic = self.duplicate_visible_symbol_diagnostic(&name, first_span, span);
             self.output.diagnostics.push(diagnostic);
-        } else if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
+        } else if let Some(symbol) = self.output.symbols.symbol_by_name(&name)
+            && !self.is_synthetic_prelude_symbol(symbol.name_span)
+        {
             let diagnostic =
                 self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, span);
             self.output.diagnostics.push(diagnostic);
@@ -650,6 +676,7 @@ impl Resolver<'_> {
                 .push(builtin_name_reuse_diagnostic(self.sources, &name, span));
         } else if scope.get(&name).is_none()
             && let Some(symbol) = self.output.symbols.symbol_by_name(&name)
+            && !self.is_synthetic_prelude_symbol(symbol.name_span)
         {
             let diagnostic =
                 self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, span);

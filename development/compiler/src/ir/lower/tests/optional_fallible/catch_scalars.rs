@@ -4,7 +4,7 @@ use super::*;
 fn lowers_ignored_fallible_str_catch_statement_with_reserved_error_locals() {
     let ir = lower_text(
         r#"func main(): i32 {
-    text() catch error {
+    text() catch failure {
         return 7
     }
     return 0
@@ -52,14 +52,12 @@ func text(): &str! {
 #[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): void! {
+        r#"func main(): void! {
     fail()?
 }
 
 func fail(): void! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     );
@@ -82,9 +80,7 @@ func fail(): void! {
 #[test]
 fn lowers_fallible_void_function_static_error_helper_failure() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): void! {
+        r#"func main(): void! {
     fail()?
 }
 
@@ -93,7 +89,7 @@ func fail(): void! {
 }
 
 func app_failed(): error {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 "#,
     );
@@ -116,17 +112,15 @@ func app_failed(): error {
 #[test]
 fn lowers_fallible_i32_catch_failure_return() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = answer() catch error {
-        return Error.new("app.answer", error.message)
+        r#"func main(): i32! {
+    let value = answer() catch failure {
+        return error.new("app.answer", failure.message)
     }
     return value
 }
 
 func answer(): i32! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     );
@@ -175,12 +169,11 @@ func main(): void! {
             std_io_file(),
             (
                 "std/io_catch/index.nct",
-                r#"use std/error.Error
-use std/io.write_text_raw
+                r#"use std/io.write_text_raw
 
 pub func print_catch(text: &str): void! {
-    write_text_raw(1, text) catch error {
-        return Error.new("app.write", error.message)
+    write_text_raw(1, text) catch failure {
+        return error.new("app.write", failure.message)
     }
     return
 }
@@ -232,12 +225,11 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_bytes/index.nct",
-                r#"use std/error.Error
-use std/io.write_bytes_raw
+                r#"use std/io.write_bytes_raw
 
 pub func write_bytes_catch(bytes: &[u8]): void! {
-    write_bytes_raw(1, bytes) catch error {
-        return Error.new("app.write", error.message)
+    write_bytes_raw(1, bytes) catch failure {
+        return error.new("app.write", failure.message)
     }
     return
 }
@@ -283,12 +275,11 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_bytes_catch/index.nct",
-                r#"use std/error.Error
-use std/io.read_bytes_raw
+                r#"use std/io.read_bytes_raw
 
 pub func read_count_catch(buffer: &+[u8]): usize! {
-    let count = read_bytes_raw(0, buffer) catch error {
-        return Error.new("app.read", error.message)
+    let count = read_bytes_raw(0, buffer) catch failure {
+        return error.new("app.read", failure.message)
     }
     return count
 }
@@ -325,10 +316,8 @@ pub func read_count_catch(buffer: &+[u8]): usize! {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", "failed")
+        r#"func main(): i32! {
+    return error.new("app.failed", "failed")
 }
 "#,
     );
@@ -350,10 +339,8 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_dynamic_error_message() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", dynamic())
+        r#"func main(): i32! {
+    return error.new("app.failed", dynamic())
 }
 
 func dynamic(): &str {
@@ -386,10 +373,8 @@ func dynamic(): &str {
 #[test]
 fn lowers_fallible_entry_return_error_local_dynamic_message() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = Error.new("app.failed", dynamic())
+        r#"func main(): i32! {
+    let value = error.new("app.failed", dynamic())
     return value
 }
 
@@ -431,10 +416,8 @@ func dynamic(): &str {
 #[test]
 fn lowers_fallible_entry_forwarded_error_parameter_failure() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return forward(Error.new("app.failed", "failed"))?
+        r#"func main(): i32! {
+    return forward(error.new("app.failed", "failed"))?
 }
 
 func forward(error: error): i32! {
@@ -489,10 +472,8 @@ func forward(error: error): i32! {
 #[test]
 fn lowers_fallible_entry_return_dynamic_error_code_and_message() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new(dynamic_code(), dynamic_message())
+        r#"func main(): i32! {
+    return error.new(dynamic_code(), dynamic_message())
 }
 
 func dynamic_code(): &str {
@@ -534,10 +515,8 @@ func dynamic_message(): &str {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor_with_multi_line_message() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", """
+        r#"func main(): i32! {
+    return error.new("app.failed", """
         failed
         later
         """)
@@ -557,10 +536,8 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", "failed\n")
+        r#"func main(): i32! {
+    return error.new("app.failed", "failed\n")
 }
 "#,
     );
@@ -577,17 +554,15 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_catch_direct_error_return() {
     let ir = lower_text_with_std_error(
-        r#"use std/error.Error
-
-func main(): i32! {
-    let value = answer() catch error {
-        return error
+        r#"func main(): i32! {
+    let value = answer() catch failure {
+        return failure
     }
     return value
 }
 
 func answer(): i32! {
-    return Error.new("app.inner", "inner failed")
+    return error.new("app.inner", "inner failed")
 }
 "#,
     );

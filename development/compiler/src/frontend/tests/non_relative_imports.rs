@@ -497,13 +497,12 @@ func main(): i32 {
     .unwrap();
     crate::test_files::write(
         home.join("std/error/index.nct"),
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     )
@@ -530,15 +529,14 @@ pub struct String {
     .unwrap();
     crate::test_files::write(
         home.join("std/fmt/index.nct"),
-        r#"use std/error.Error
-use std/string.String
+        r#"use std/string.String
 
 pub func append_i32(out: &+String, value: i32): void! {
     return
 }
 
 pub func unsupported(): error {
-    return Error.new("std.fmt.unsupported", "value cannot be formatted")
+    return error.new("std.fmt.unsupported", "value cannot be formatted")
 }
 "#,
     )

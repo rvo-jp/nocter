@@ -287,22 +287,19 @@ fn build_command_lowers_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-dynamic-failure-payload");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "dynamic_failure_payload.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new("app.failed", dynamic())
+        r#"func main(): i32! {
+    return error.new("app.failed", dynamic())
 }
 
 func dynamic(): &str {
@@ -323,22 +320,19 @@ fn build_command_lowers_dynamic_failure_payload_code_and_message() {
     let project = TempProject::new("cli-build-dynamic-failure-payload-code-message");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "dynamic_failure_payload_code_message.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
-    return Error.new(dynamic_code(), dynamic_message())
+        r#"func main(): i32! {
+    return error.new(dynamic_code(), dynamic_message())
 }
 
 func dynamic_code(): &str {
@@ -363,26 +357,23 @@ fn build_command_lowers_static_error_payload_helper() {
     let project = TempProject::new("cli-build-static-error-payload-helper");
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
     let source = project.write_source(
         "static_error_payload_helper.nct",
-        r#"use std/error.Error
-
-func main(): i32! {
+        r#"func main(): i32! {
     return app_failed()
 }
 
 func app_failed(): error {
-    return Error.new("app.failed", "failed")
+    return error.new("app.failed", "failed")
 }
 "#,
     );

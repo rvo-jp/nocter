@@ -99,13 +99,12 @@ struct TempProject {
 fn write_process_contract_std(project: &TempProject) {
     project.write_nocter_home_file(
         "std/error/index.nct",
-        r#"pub type ErrorCode = &str
-pub type Error = error
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
 
-pub(/) primitive new_error(code: &str, message: &str): error
-
-pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
-    return new_error(code, message)
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
 }
 "#,
     );
@@ -118,15 +117,14 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
     );
     project.write_nocter_home_file(
         "std/process/index.nct",
-        r#"use std/error.Error
-use std/vec.Vec
+        r#"use std/vec.Vec
 
 pub func args(): Vec<&str>! {
-    return Error.new("std.process.unsupported", "process arguments are not implemented")
+    return error.new("std.process.unsupported", "process arguments are not implemented")
 }
 
 pub func env(name: &str): &str?! {
-    return Error.new("std.process.unsupported", "process environment is not implemented")
+    return error.new("std.process.unsupported", "process environment is not implemented")
 }
 "#,
     );

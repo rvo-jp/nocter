@@ -422,7 +422,7 @@ fn distributed_std_try_insert_growth_failure_is_state_atomic() {
     return
 }"#;
     let failing = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
-    return Error.new("test.out_of_memory", "deterministic growth failure")
+    return error.new("test.out_of_memory", "deterministic growth failure")
 }"#;
     assert!(mem_source.contains(original));
     fs::write(&mem_module, mem_source.replace(original, failing)).unwrap();

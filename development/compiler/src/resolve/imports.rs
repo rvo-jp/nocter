@@ -69,6 +69,29 @@ impl Resolver<'_> {
         }
     }
 
+    pub(super) fn prepare_builtin_surface_symbol(
+        &mut self,
+        ast: &AstFile,
+        module_path: &str,
+        symbol: &mut TypeSymbol,
+    ) {
+        let local_type_names = type_decl_names(ast);
+        let imported_type_names = self.imported_type_names(ast);
+        qualify_type_symbol(symbol, module_path, &local_type_names, &imported_type_names);
+        if self
+            .prepared_external_surface_sources
+            .insert(ast.span.source)
+        {
+            self.collect_hidden_imported_type_symbols(
+                ast,
+                module_path,
+                self.output.access,
+                &local_type_names,
+            );
+            self.collect_hidden_imported_type_dependencies(&imported_type_names);
+        }
+    }
+
     pub(super) fn prepare_external_conformance(
         &mut self,
         ast: &AstFile,

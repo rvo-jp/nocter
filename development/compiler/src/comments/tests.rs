@@ -125,7 +125,7 @@ fn attaches_cleaned_block_documentation_to_target() {
         " * Returns an error on failure.\n",
         " */\n",
         "func open(): File! {\n",
-        "    return Error.new(\"io\", \"failed\")\n",
+        "    return error.new(\"io\", \"failed\")\n",
         "}\n",
     );
     let target = DocumentationTarget::new(text.find("func").unwrap(), text.find("func").unwrap());

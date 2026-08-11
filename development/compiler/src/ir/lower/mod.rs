@@ -1309,7 +1309,21 @@ fn insert_function_self_substitution(
     let Some(owner) = &function.owner else {
         return;
     };
-    let Some(symbol) = resolved.type_symbol_by_name(&owner.name) else {
+    if crate::builtin_types::BuiltinTypeOwner::from_reference_name(&owner.name).is_some() {
+        substitutions.insert(
+            "Self".to_string(),
+            TypeExpr::Reference(TypeReference {
+                span: owner.name_span,
+                name: owner.name.clone(),
+            }),
+        );
+        return;
+    }
+    let Some(symbol) = resolved.type_symbol_by_name(&owner.name).or_else(|| {
+        resolved
+            .builtin_type_surface_for_name(&owner.name)
+            .map(|surface| &surface.symbol)
+    }) else {
         return;
     };
     let self_ty = if symbol.generic_parameters.is_empty() {

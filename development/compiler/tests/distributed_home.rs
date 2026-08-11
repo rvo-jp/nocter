@@ -527,21 +527,33 @@ func process_args_shape(): Vec<&str>! {
 }
 
 #[test]
-fn distributed_std_prelude_exports_v0_core_names() {
+fn distributed_std_prelude_exports_core_owning_types_and_iterator_contracts() {
     let project = TempProject::new("distributed-home-prelude-core");
     let source = project.write_source(
         "prelude_core.nct",
-        r#"func code(): ErrorCode {
-    return "app.ok"
+        r#"func make(): String {
+    return String.empty()
 }
 
-func make(): String {
-    return String.empty()
+func values(): Vec<i32> {
+    return Vec [1, 2, 3]
+}
+
+func accepts_iterator<I>(value: I): i32 where I: Iterator {
+    return 0
+}
+
+func accepts_iterable<I>(value: &I): i32 where I: Iterable {
+    return 0
+}
+
+func accepts_into_iterator<I>(value: I): i32 where I: IntoIterator {
+    return 0
 }
 
 func main(): i32 {
     let text = make()
-    let label = code()
+    let items = values()
     return 0
 }
 "#,
@@ -585,7 +597,32 @@ fn distributed_std_prelude_does_not_export_int() {
 }
 
 #[test]
-fn distributed_std_vec_requires_explicit_import() {
+fn distributed_std_prelude_does_not_export_obsolete_error_aliases() {
+    let project = TempProject::new("distributed-home-prelude-no-error-aliases");
+    let source = project.write_source(
+        "prelude_no_error_aliases.nct",
+        r#"func legacy(value: Error, code: ErrorCode): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("Error") && stderr.contains("ErrorCode") && stderr.contains("not declared"),
+        "expected unresolved obsolete aliases, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_std_explicit_vec_import_overrides_the_prelude_fallback() {
     let project = TempProject::new("distributed-home-vec-explicit-import");
     let source = project.write_source(
         "vec_explicit_import.nct",
@@ -1335,7 +1372,7 @@ func preserved(values: &Vec<u8>): i32 {
 func main(): i32! {
     var values: Vec<u8> = Vec.empty()
     values.push(42)
-    grow_huge(&+values) catch error {
+    grow_huge(&+values) catch failure {
         return preserved(&values)
     }
     return 4
@@ -1458,7 +1495,7 @@ func main(): i32! {
 
     var outer: Vec<Vec<String>> = Vec.with_capacity(1)
     outer.push(move inner)
-    outer.try_reserve(18446744073709551614) catch error {
+    outer.try_reserve(18446744073709551614) catch failure {
         return recover(&+outer)?
     }
     return 4
@@ -2961,10 +2998,10 @@ fn distributed_io_file_methods_pass_check() {
         r#"use std/io.{File, open, stdout}
 
 func main(): i32! {
-    let input = File.open("input.txt") catch error {
+    let input = File.open("input.txt") catch failure {
         return 0
     }
-    let opened = open("input.txt") catch error {
+    let opened = open("input.txt") catch failure {
         return 0
     }
     var out = stdout()
@@ -3240,7 +3277,7 @@ func main(): i32! {
     var allocator = page_try_allocator()
     var buffer = try_alloc(&+allocator, 1, 1)?
     buffer.bytes_mut()[0] = 42
-    let size = grow_huge(&+allocator, &+buffer) catch error {
+    let size = grow_huge(&+allocator, &+buffer) catch failure {
         return preserved(&buffer)
     }
     return 3
@@ -3495,7 +3532,7 @@ fn distributed_std_nested_region_and_propagation_cleanup_run() {
         r#"use std/mem.page_allocator
 
 func fail(): void! {
-    return Error.new("app.expected", "expected failure")
+    return error.new("app.expected", "expected failure")
 }
 
 func propagate(): void! {
@@ -3573,7 +3610,7 @@ func leak_error_view(): i32! {
     var arena = page_allocator()
     region temporary using arena {
         let text = String.from_str("error")
-        return Error.new("app.region", (&text as &str))
+        return error.new("app.region", (&text as &str))
     }
 }
 
@@ -4561,7 +4598,7 @@ func preserved(text: &String): i32 {
 func main(): i32! {
     var allocator = page_allocator()
     var text = String.from_str("keep")
-    grow_huge(&+text) catch error {
+    grow_huge(&+text) catch failure {
         return preserved(&text)
     }
     return 4

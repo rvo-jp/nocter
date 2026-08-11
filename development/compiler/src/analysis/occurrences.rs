@@ -419,6 +419,17 @@ impl OccurrenceBuilder<'_> {
                 2,
             );
         }
+        for (span, surface) in self.resolved.builtin_type_identifier_references() {
+            self.push(
+                span,
+                Some(SemanticIdentity::Declaration(surface.declaration_span)),
+                SemanticOccurrenceRole::Reference,
+                SemanticOccurrenceKind::Type,
+                false,
+                None,
+                2,
+            );
+        }
     }
 
     fn collect_type_references(&mut self) {

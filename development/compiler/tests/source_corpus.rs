@@ -527,21 +527,18 @@ impl TempProject {
 
         fs::write(
             home.join("std/prelude/index.nct"),
-            concat!(
-                "pub use std/error.{Error, ErrorCode}\n",
-                "pub use std/string.String\n",
-            ),
+            "pub use std/string.String\n",
         )
         .unwrap();
         fs::write(
             home.join("std/error/index.nct"),
             concat!(
-                "pub type ErrorCode = &str\n",
-                "pub type Error = error\n",
                 "pub(/) primitive new_error(code: &str, message: &str): error\n",
                 "\n",
-                "pub func Error.new(code: ErrorCode, message: &str): Error from code | message {\n",
-                "    return new_error(code, message)\n",
+                "construct error {\n",
+                "    pub default func new(code: &str, message: &str): Self from code | message {\n",
+                "        return new_error(code, message)\n",
+                "    }\n",
                 "}\n",
             ),
         )
@@ -563,10 +560,8 @@ impl TempProject {
         fs::write(
             home.join("std/process/index.nct"),
             concat!(
-                "use std/error.Error\n",
-                "\n",
                 "pub func env(name: &str): &str?! {\n",
-                "    return Error.new(\"std.process.unsupported\", \"process environment is not implemented\")\n",
+                "    return error.new(\"std.process.unsupported\", \"process environment is not implemented\")\n",
                 "}\n",
             ),
         )

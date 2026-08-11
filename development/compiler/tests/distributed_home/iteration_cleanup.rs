@@ -93,7 +93,7 @@ destruct Token(&+self) {
 }
 
 func fail(): void! {
-    return Error.new("test.failure", "expected")
+    return error.new("test.failure", "expected")
 }
 
 func propagate(): i32! {
@@ -296,7 +296,7 @@ destruct Token(&+self) {
 }
 
 func fail(): void! {
-    return Error.new("test.failure", "expected")
+    return error.new("test.failure", "expected")
 }
 
 func propagate(): i32! {

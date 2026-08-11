@@ -183,7 +183,7 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
     return
 }"#;
     let failing = r#"pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
-    return Error.new("test.out_of_memory", "deterministic interpolation failure")
+    return error.new("test.out_of_memory", "deterministic interpolation failure")
 }"#;
     assert!(mem_source.contains(original));
     fs::write(&mem_module, mem_source.replace(original, failing)).unwrap();

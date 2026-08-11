@@ -11,6 +11,9 @@ pub(super) fn member_completion_items(
     if let Some(symbol) = resolved.type_symbol_by_name(owner_name) {
         return type_member_completion_items(symbol, resolved);
     }
+    if let Some(surface) = resolved.builtin_type_surface_for_name(owner_name) {
+        return type_member_completion_items(&surface.symbol, resolved);
+    }
 
     let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
         return Vec::new();

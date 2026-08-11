@@ -524,7 +524,9 @@ impl TempProject {
         fs::create_dir_all(home.join("std/prelude")).unwrap();
         fs::create_dir_all(home.join("std/str")).unwrap();
         fs::create_dir_all(home.join("std/slice")).unwrap();
+        fs::create_dir_all(home.join("std/error")).unwrap();
         crate::test_files::write(home.join("std/prelude/index.nct"), "").unwrap();
+        crate::test_files::write(home.join("std/error/index.nct"), "").unwrap();
         crate::test_files::write(
             home.join("std/str/index.nct"),
             "pub(/) primitive str_len_raw(value: &str): usize\ninstance str { pub method &self.len(): usize { return str_len_raw(self) } pub method &self.is_empty(): bool { return str_len_raw(self) == 0 } }\n",
