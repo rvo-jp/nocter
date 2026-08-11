@@ -79,8 +79,8 @@ func announce(text: &str): void! {
 Handle a failure locally with `catch`.
 
 ```nct
-run() catch error {
-    return Error.new("app.run_failed", error.message)
+run() catch failure {
+    return error.new("app.run_failed", failure.message)
 }
 ```
 

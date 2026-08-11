@@ -2,11 +2,24 @@
 
 ## Current Task
 
-Implement [v0.13.0 Phase 1 canonical built-in surfaces and core prelude](milestones/v0.13.0.md).
-Make `error` the only failure type spelling, add source-backed construction and `catch _`, replace
-fixed built-in authority paths with one common registry, adopt the minimal owning/iteration
-prelude, and stop at the fully verified Phase 1 boundary. Do not change release identity, package,
-tag, or publish. The published v0.12.0 release remains immutable.
+v0.13.0 Phase 1 is complete. Stop at this boundary until the next phase has an explicit plan; do
+not infer Phase 2 scope, change release identity, package, tag, or publish. The published v0.12.0
+release remains immutable.
+
+## Completed v0.13.0 Phase 1 Checkpoint
+
+- one built-in source authority registry governs construction, instances, conformances, implicit
+  loading, and editor identity for every capability-bearing compiler-owned type
+- `error` is the sole standard failure spelling and `error.new` resolves through the validated
+  `std/error` source construct without spelling-based lowering
+- `catch _` handles and discards a failure without producing a local, storage slot, provenance
+  root, or editor occurrence
+- the synthetic prelude exposes `String`, `Vec`, `Iterator`, `Iterable`, and `IntoIterator` as
+  fallback names; explicit source names remain stable when the prelude grows
+- compiler, distributed standard library, fixtures, specification, implementation documents, and
+  generated website describe the same surface
+- all 3,544 tests, formatting, warnings-denied Clippy, documentation generation, and diff checks
+  pass
 
 ## Completed v0.13.0 Phase 0 Checkpoint
 
@@ -466,5 +479,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Complete v0.13.0 Phase 1 and stop before Phase 2 or publication. Do not alter the published v0.12.0
-archive, tag, or qualification evidence; published artifacts remain immutable.
+Plan the next v0.13.0 phase before implementation. Do not alter the published v0.12.0 archive,
+tag, or qualification evidence; published artifacts remain immutable.

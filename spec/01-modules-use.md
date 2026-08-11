@@ -206,19 +206,24 @@ Rules:
 - `std/prelude` itself does not receive the prelude
 - a project path cannot shadow the compiler-selected prelude
 - source-level `use std/prelude` and selected prelude imports are invalid
-- prelude names participate in ordinary collision checks
+- prelude exports are fallback names: an explicit module declaration or import with the same local
+  name takes precedence
+- parameters, local bindings, and block imports likewise take precedence over a prelude name
+- two authored names in the same scope remain an ordinary collision; fallback priority applies
+  only to synthetic prelude exports
 - project-wide prelude configuration is not supported
 
 The standard prelude exports:
 
 ```nct
-pub use std/error.{Error, ErrorCode}
 pub use std/string.String
+pub use std/vec.Vec
+pub use std/iter.{Iterable, IntoIterator, Iterator}
 ```
 
 Built-in forms such as `str`, `[T]`, and primitive numeric types are language types, not prelude
-exports. `Vec`, file APIs, allocation APIs, process APIs, and I/O functions require explicit
-imports from their domain modules.
+exports. `Format`, `Sequence`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
+I/O functions require explicit imports from their domain modules.
 
 ## Package Layout
 

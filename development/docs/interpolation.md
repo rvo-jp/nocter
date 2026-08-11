@@ -44,9 +44,10 @@ capability stores no concrete formatter functions.
 ## Conformance Surfaces
 
 Built-in types remain compiler identities rather than synthetic nominal declarations. A shared
-`BuiltinTypeOwner` registry maps `str`, slices, `bool`, and every integer to source-backed resolver
-surfaces. The exact implicit standard-library package may attach ordinary interface conformances
-to those surfaces; project packages cannot define competing built-in conformances.
+`BuiltinTypeOwner` registry maps `str`, slices, `error`, `bool`, and every integer to
+source-backed resolver surfaces. The exact implicit standard-library package may attach ordinary
+interface conformances to those surfaces; project packages cannot define competing built-in
+conformances.
 
 Nominal conformances declared by a loaded standard-library source are package-coherent. Resolver
 qualification attaches each conformance to matching canonical type-symbol views across module

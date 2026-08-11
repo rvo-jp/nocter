@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-09">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/error/index.nct - Nocter">
@@ -132,7 +132,7 @@
                 <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../../docs/borrow-coercions/index.html#content">Borrow Coercion Compiler Boundary</a></li>
-                <li><a href="../../../docs/builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
+                <li><a href="../../../docs/builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../../docs/interpolation/index.html#content">Extensible String Interpolation and Formatting</a></li>
                 <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>
@@ -151,22 +151,17 @@
                 <span class="markdown-path-text">/development/std/error/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Common error classification API.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Construction for the compiler built-in failure payload.</span>
 <span class="token-comment">//!</span>
-<span class="token-comment">//! `error` is the compiler built-in fallible payload type. Error and ErrorCode</span>
-<span class="token-comment">//! are ordinary standard-library names that user modules receive through the</span>
-<span class="token-comment">//! synthetic prelude.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! ErrorCode is intentionally open. Standard-library and user-library code use</span>
-<span class="token-comment">//! dotted string codes such as "std.io.not_found" or "app.config.missing_key".</span>
-
-<span class="token-keyword">pub</span> type <span class="token-type">ErrorCode</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-<span class="token-keyword">pub</span> type <span class="token-type">Error</span> <span class="token-operator">=</span> error
+<span class="token-comment">//! Error codes are open UTF-8 strings. Standard-library and user-library code</span>
+<span class="token-comment">//! use dotted codes such as "std.io.not_found" or "app.config.missing_key".</span>
 
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-function">new_error</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">ErrorCode</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Error</span> from code | message <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">new_error</span><span class="token-operator">(</span>code<span class="token-operator">,</span> message<span class="token-operator">)</span>
+<span class="token-keyword">construct</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from code | message <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">new_error</span><span class="token-operator">(</span>code<span class="token-operator">,</span> message<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

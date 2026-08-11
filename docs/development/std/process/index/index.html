@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-09">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/process/index.nct - Nocter">
@@ -132,7 +132,7 @@
                 <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../../docs/borrow-coercions/index.html#content">Borrow Coercion Compiler Boundary</a></li>
-                <li><a href="../../../docs/builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
+                <li><a href="../../../docs/builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../../docs/interpolation/index.html#content">Extensible String Interpolation and Formatting</a></li>
                 <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>
@@ -156,7 +156,6 @@
 <span class="token-comment">//! exit is a standard-library API, not a compiler primitive. The target-specific</span>
 <span class="token-comment">//! implementation calls the active target boundary.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-type">Error</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>alloc
@@ -450,11 +449,11 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd_failed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.cwd_failed"</span><span class="token-operator">,</span> <span class="token-string">"current working directory is not available"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.cwd_failed"</span><span class="token-operator">,</span> <span class="token-string">"current working directory is not available"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">invalid_encoding</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>
         <span class="token-string">"std.process.invalid_encoding"</span><span class="token-operator">,</span>
         <span class="token-string">"process text or requested environment name is invalid"</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>

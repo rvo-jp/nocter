@@ -28,8 +28,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   requirements, coercion selection, plans, lowering, and editor identity
 - [Index Selection and Lowering](indexing.md): source-defined index declarations, structural
   requirements, coercion selection, immutable typecheck plans, and native evaluation order
-- [Built-in Type Source Surfaces](builtin-type-methods.md): installed instance and conformance
-  authority, receiver plans, trusted representation primitives, and editor identity
+- [Built-in Type Source Surfaces](builtin-type-surfaces.md): installed construction, instance,
+  and conformance authority, receiver plans, trusted representation primitives, and editor identity
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
   allocation-effect, lexical-region, and lowering design
@@ -103,7 +103,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Equality operator declaration, selection, and lowering | `equality-operators.md` |
 | Index declarations, requirements, coercion selection, and lowering | `indexing.md` |
-| Built-in instance and conformance authority and compiler integration | `builtin-type-methods.md` |
+| Built-in construction, instance, and conformance authority | `builtin-type-surfaces.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

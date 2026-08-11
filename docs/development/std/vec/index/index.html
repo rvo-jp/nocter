@@ -132,7 +132,7 @@
                 <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../../docs/borrow-coercions/index.html#content">Borrow Coercion Compiler Boundary</a></li>
-                <li><a href="../../../docs/builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
+                <li><a href="../../../docs/builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../../docs/interpolation/index.html#content">Extensible String Interpolation and Formatting</a></li>
                 <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>
@@ -160,7 +160,6 @@
 <span class="token-comment">//! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into</span>
 <span class="token-comment">//! that prefix, while clear and drop destroy its elements in reverse order.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-type">Error</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ExactSizeIterator</span><span class="token-operator">,</span> <span class="token-type">Iterable</span><span class="token-operator">,</span> <span class="token-type">IntoIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> <span class="token-type">TryAllocator</span><span class="token-operator">,</span> alloc<span class="token-operator">,</span> allocation_abort_raw<span class="token-operator">,</span> current_allocator<span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>empty_page_buffer<span class="token-operator">,</span> try_alloc<span class="token-operator">,</span> try_grow_owned<span class="token-operator">}</span>
@@ -578,15 +577,15 @@ coerce <span class="token-type">Vec</span><span class="token-operator">&lt;</spa
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">unsupported</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.unsupported"</span><span class="token-operator">,</span> <span class="token-string">"Vec element storage is not supported"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.unsupported"</span><span class="token-operator">,</span> <span class="token-string">"Vec element storage is not supported"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.capacity_overflow"</span><span class="token-operator">,</span> <span class="token-string">"Vec capacity overflow"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.capacity_overflow"</span><span class="token-operator">,</span> <span class="token-string">"Vec capacity overflow"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">index_out_of_bounds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.index_out_of_bounds"</span><span class="token-operator">,</span> <span class="token-string">"Vec insertion index is out of bounds"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.vec.index_out_of_bounds"</span><span class="token-operator">,</span> <span class="token-string">"Vec insertion index is out of bounds"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 instance <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

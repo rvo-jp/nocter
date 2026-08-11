@@ -78,7 +78,7 @@ Examples:
 
 ```nct
 if path.len() == 0 {
-    return Error.new("app.missing_path", "missing path")
+    return error.new("app.missing_path", "missing path")
 } else {
     use(path)
 }
@@ -218,8 +218,8 @@ Rules:
 Examples:
 
 ```nct
-let file = File.open(path) catch error {
-    return Error.new("std.io.open_failed", error.message)
+let file = File.open(path) catch failure {
+    return error.new("std.io.open_failed", failure.message)
 }
 
 match error {

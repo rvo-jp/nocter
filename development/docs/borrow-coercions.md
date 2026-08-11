@@ -3,7 +3,7 @@
 This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and
 extended to method receivers in v0.9.0. Public syntax and behavior belong in the specification;
 milestone scope and completion evidence belong in the corresponding milestone records. Built-in
-method authority is documented separately in [Built-in Type Method Surfaces](builtin-type-methods.md).
+method authority is documented separately in [Built-in Type Source Surfaces](builtin-type-surfaces.md).
 
 ## Responsibility Model
 

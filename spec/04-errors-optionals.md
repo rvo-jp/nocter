@@ -10,7 +10,7 @@ Failure is represented with fallible types, not exceptions.
 ```nct
 func open(path: &str): File! {
     if failed {
-        return Error.new("std.io.not_found", "file not found")
+        return error.new("std.io.not_found", "file not found")
     }
 
     return file
@@ -38,11 +38,14 @@ Rules:
 - `error` is not looked up through imports and cannot be redefined as a type declaration.
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
-- `Error` may be provided by `std/prelude` as a normal alias or wrapper for `error`.
-- `ErrorCode` is a standard-library `&str` alias, not a compiler-reserved name.
-- `ErrorCode` is intentionally open. Standard-library, user, and package code may introduce dotted string codes such as `"std.io.not_found"`, `"app.config.missing_key"`, or `"package.module.reason"`.
-- Standard-library constructors such as `Error.new("std.io.not_found", "...")` translate the `ErrorCode` string into the built-in payload's primitive code representation.
-- The compiler must not special-case ordinary names such as `Error`, `ErrorCode`, `IOError`, or `Result`.
+- `std/error` owns the source-backed `error.new(code: &str, message: &str)` construction member.
+  The built-in type identity selects that validated surface; the compiler does not recognize the
+  member name `new` or rewrite an alias.
+- Error codes are intentionally open. Standard-library, user, and package code may introduce
+  dotted strings such as `"std.io.not_found"`, `"app.config.missing_key"`, or
+  `"package.module.reason"`.
+- The current standard library does not define `Error` or `ErrorCode` aliases. `error` is the sole
+  public spelling of the failure payload type.
 - Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
 - `error.code` and `error.message` are the direct user-facing fields for reporting.
 - `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
@@ -53,12 +56,22 @@ Rules:
 - The ABI layout of `error` is specified in [ABI and Layout](09-abi-layout.md#built-in-error-layout).
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity. This rule is checked after type aliases and through optional success layers such as `error?!`.
 
+The constructor is declared in ordinary Nocter source:
+
+```nct
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+```
+
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
 ```nct
 func write(file: &+File, text: &str): void! {
     if failed {
-        return Error.new("std.io.broken_pipe", "broken pipe")
+        return error.new("std.io.broken_pipe", "broken pipe")
     }
 
     return
@@ -142,8 +155,8 @@ Rules:
 `catch` handles the failure side of a fallible expression.
 
 ```nct
-let file = File.open(path) catch error {
-    return Error.new("std.io.open_failed", error.message)
+let file = File.open(path) catch failure {
+    return error.new("std.io.open_failed", failure.message)
 }
 ```
 
@@ -153,12 +166,23 @@ let file = File.open(path) catch error {
 - If `expr` succeeds, the whole `catch` expression evaluates to the success value.
 - If `expr` fails, bind the failure value to the catch binding and execute the `catch` block.
 
+Use `_` when the failure payload is intentionally discarded:
+
+```nct
+operation() catch _ {
+    return fallback()
+}
+```
+
 Rules:
 
 - `catch` applies only to fallible values of type `T!`.
 - `catch` does not apply to optional values `T?`.
 - The catch binding has type `error`.
 - The binding name after `catch` is an ordinary local name. `catch error` is conventional, but `catch err` is also valid.
+- `catch _` creates no binding. `_` cannot be referenced, hovered, renamed, or used as a
+  provenance origin.
+- Bare `catch { ... }` is invalid; discarding the failure must be explicit.
 - The catch block is evaluated only on failure.
 - The catch block must not fall through.
 - The catch block must leave the current control path with `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
@@ -177,12 +201,12 @@ Postfix `?` propagates the original failure.
 func read_all(
     path: &str,
 ): String! {
-    var file = File.open(path) catch error {
-        return Error.new("app.open_failed", "failed to open input")
+    var file = File.open(path) catch _ {
+        return error.new("app.open_failed", "failed to open input")
     }
 
-    let text = file.read_to_string() catch error {
-        return Error.new("app.read_failed", "failed to read UTF-8 input")
+    let text = file.read_to_string() catch _ {
+        return error.new("app.read_failed", "failed to read UTF-8 input")
     }
 
     return move text
@@ -273,7 +297,7 @@ func env(name: &str): &str?! {
     }
 
     if invalid_utf8 {
-        return Error.new("std.process.invalid_encoding", "environment value is not UTF-8")
+        return error.new("std.process.invalid_encoding", "environment value is not UTF-8")
     }
 
     return value
@@ -332,7 +356,7 @@ let home = lookup("HOME") otherwise { "/tmp" }
 
 ```nct
 let config = find_config(path) otherwise {
-    return Error.new("app.config.missing", path)
+    return error.new("app.config.missing", path)
 }
 
 load(config)

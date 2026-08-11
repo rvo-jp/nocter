@@ -4,10 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.13.0](v0.13.0.md). Phase 0 is complete. Phase 1 is active and replaces
-the obsolete `Error` alias with a source-backed built-in `error` construction surface, adds
-explicit `catch _`, generalizes built-in source authority, and narrows the core prelude to adopted
-owning types and iterator contracts. No later v0.13.0 phase is active.
+The active milestone is [v0.13.0](v0.13.0.md). Phases 0 and 1 are complete. Phase 1 replaced the
+obsolete `Error` alias with a source-backed built-in `error` construction surface, added explicit
+`catch _`, generalized built-in source authority, and established the owning-type and iterator
+core prelude with fallback-name semantics. No later v0.13.0 phase is active.
 
 The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are complete: closed
 interpolation formatting was replaced with a source-defined `Format` contract, fixed

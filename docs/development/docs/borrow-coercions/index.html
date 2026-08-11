@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Borrow Coercion Compiler Boundary - Nocter">
     <meta name="twitter:description" content="This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and extended to method receivers in v0.9.0. Public syntax and behav">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Borrow Coercion Compiler Boundary - Nocter","description":"This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and extended to method receivers in v0.9.0. Public syntax and behav","url":"https://nocter.dev/development/docs/borrow-coercions/","mainEntityOfPage":"https://nocter.dev/development/docs/borrow-coercions/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Borrow Coercions","item":"https://nocter.dev/development/docs/borrow-coercions/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Borrow Coercion Compiler Boundary - Nocter","description":"This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and extended to method receivers in v0.9.0. Public syntax and behav","url":"https://nocter.dev/development/docs/borrow-coercions/","mainEntityOfPage":"https://nocter.dev/development/docs/borrow-coercions/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Borrow Coercions","item":"https://nocter.dev/development/docs/borrow-coercions/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -130,7 +130,7 @@
                 <li><a href="./index.html#content" aria-current="page">Borrow Coercions</a></li>
                 <li><a href="../equality-operators/index.html#content">Equality Operators</a></li>
                 <li><a href="../indexing/index.html#content">Index Selection and Lowering</a></li>
-                <li><a href="../builtin-type-methods/index.html#content">Built-in Type Source Surfaces</a></li>
+                <li><a href="../builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
@@ -160,7 +160,7 @@
                 <span class="markdown-path-text">/development/docs/borrow-coercions.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="borrow-coercion-compiler-boundary">Borrow Coercion Compiler Boundary</h1><p>This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and extended to method receivers in v0.9.0. Public syntax and behavior belong in the specification; milestone scope and completion evidence belong in the corresponding milestone records. Built-in method authority is documented separately in <a href="../builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a>.</p><h2 id="responsibility-model">Responsibility Model</h2><p>Borrow coercion is a statically resolved call, not type equality and not an IR cast. Contextual compatibility and explicit <code>as</code> share conversion selection; only the source of the target type differs.</p><pre><code class="language-text">coerce declaration
+                <h1 id="borrow-coercion-compiler-boundary">Borrow Coercion Compiler Boundary</h1><p>This document owns the compiler design for borrowed-view coercions introduced in v0.8.0 and extended to method receivers in v0.9.0. Public syntax and behavior belong in the specification; milestone scope and completion evidence belong in the corresponding milestone records. Built-in method authority is documented separately in <a href="../builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a>.</p><h2 id="responsibility-model">Responsibility Model</h2><p>Borrow coercion is a statically resolved call, not type equality and not an IR cast. Contextual compatibility and explicit <code>as</code> share conversion selection; only the source of the target type differs.</p><pre><code class="language-text">coerce declaration
   -&gt; resolver declaration identity and coherent key
   -&gt; typechecked callable summary
   -&gt; contextual or explicit conversion selection

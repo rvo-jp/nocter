@@ -374,7 +374,7 @@ Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`,
 
 `str` is unsized UTF-8 string data. `[T]` is unsized contiguous array data. These unsized data forms cannot be used by value as parameters, return values, fields, local annotations, optional payloads, fallible success payloads, or generic arguments unless they are behind an indirection. Use `&str` for a string slice, `&[T]` for a readonly array slice, `&+[T]` for a readwrite array slice, `String` for owned variable-length text, and `Vec<T>` for owned variable-length arrays.
 
-Names such as `String`, `Error`, `ErrorCode`, `Vec`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
+Names such as `String`, `Vec`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
 The compiler does not treat `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
 

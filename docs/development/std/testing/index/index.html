@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/testing/index.nct - Nocter">
@@ -132,7 +132,7 @@
                 <li><a href="../../../docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
                 <li><a href="../../../docs/typed-literals/index.html#content">Typed Literal Core</a></li>
                 <li><a href="../../../docs/borrow-coercions/index.html#content">Borrow Coercion Compiler Boundary</a></li>
-                <li><a href="../../../docs/builtin-type-methods/index.html#content">Built-in Type Method Surfaces</a></li>
+                <li><a href="../../../docs/builtin-type-surfaces/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../../../docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
                 <li><a href="../../../docs/interpolation/index.html#content">Extensible String Interpolation and Formatting</a></li>
                 <li><a href="../../../docs/provenance-contracts/index.html#content">Public Provenance Contracts and Compiler-Owned Result Storage</a></li>
@@ -156,46 +156,45 @@
 <span class="token-comment">//! These are ordinary fallible functions. Assertion failure therefore uses the same Error</span>
 <span class="token-comment">//! propagation, process cleanup, and reporting path as application failures.</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-type">Error</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert</span><span class="token-operator">(</span>condition<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> <span class="token-operator">!</span>condition <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.assertion_failed"</span><span class="token-operator">,</span> <span class="token-string">"assertion failed"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.assertion_failed"</span><span class="token-operator">,</span> <span class="token-string">"assertion failed"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_bool</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"boolean values are not equal"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"boolean values are not equal"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_i32</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"i32 values are not equal"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"i32 values are not equal"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_usize</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"usize values are not equal"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"usize values are not equal"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_u8</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"u8 values are not equal"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"u8 values are not equal"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert_eq_str</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> actual <span class="token-operator">!</span><span class="token-operator">=</span> expected <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">Error</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"text values are not equal"</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.testing.not_equal"</span><span class="token-operator">,</span> <span class="token-string">"text values are not equal"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>

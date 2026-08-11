@@ -1,35 +1,41 @@
 # Built-in Type Source Surfaces
 
-This document owns the compiler boundary that attaches source instances and interface conformances
-to compiler-built-in types. Public method and formatting behavior belongs in the
+This document owns the compiler boundary that attaches source construction, instances, and
+interface conformances to compiler-built-in types. Public construction, method, and formatting
+behavior belongs in the
 [string and view specification](../../spec/07-strings-arrays-views-pointers.md), and receiver
 selection belongs in the [borrow-coercion specification](../../spec/22-borrow-coercions.md).
 
 ## Ownership Model
 
-`str`, `[T]`, `bool`, and integer types are compiler identities, not nominal declarations injected
-into the prelude. One compiler-level `BuiltinTypeOwner` registry owns each identity's canonical
-spelling and source authority. Frontend loading, authority validation, resolver collection,
+`str`, `[T]`, `error`, `bool`, and integer types are compiler identities, not nominal declarations
+injected into the prelude. One compiler-level `BuiltinTypeOwner` registry owns each identity's
+canonical spelling and source authority. Frontend loading, authority validation, resolver collection,
 trusted primitive validation, type checking, and editor analysis consume that registry instead of
 repeating owner or path tables.
 
-Their inherent methods nevertheless require ordinary source identities for type checking,
-lowering, diagnostics, and editor navigation. The resolver therefore stores a
+Their public source members nevertheless require ordinary identities for type checking, lowering,
+diagnostics, and editor navigation. The resolver therefore stores a
 `BuiltinTypeSurface` beside the nominal symbol table. A surface records its registry owner,
-source declaration span, generic shape, source-derived methods, and conformances; it does not
-create a constructible struct, fields, coercions, `drop`, or a source-visible type name.
+source declaration span, generic shape, source-derived construction entries, methods, and
+conformances. It does not create a nominal struct, fields, coercions, `drop`, or a source-visible
+value name.
 
-The active Nocter home owns exactly one instance unit for each inherent-instance owner:
+Each registry entry records one inherent-source module, allowed surface categories, conformance
+authority, and whether the frontend must load that module implicitly:
 
-| Owner | Authority |
-|---|---|
-| `str` | `std/str` |
-| `[T]` | `std/slice` |
+| Owner | Source module | Instance | Construction | Implicit load |
+|---|---|---:|---:|---:|
+| `str` | `std/str` | yes | no | yes |
+| `[T]` | `std/slice` | yes | no | yes |
+| `error` | `std/error` | no | yes | yes |
+| `bool`, integers | `std/num` | yes | yes | no |
 
-The frontend loads both units for every package analysis. Loading does not inject value imports.
-Project files and other standard modules cannot declare competing built-in instances.
-Authority validation uses the canonical installed module path rather than a textual prefix or the
-current working directory.
+Implicit loading is deduplicated by module, so multiple scalar owners may share `std/num` without
+reloading it. Loading does not inject value imports. A non-implicit surface participates when its
+module is loaded through ordinary source dependencies. Project files and other standard modules
+cannot declare competing inherent surfaces. Authority validation uses the canonical installed
+module path rather than a textual prefix or the current working directory.
 
 ## Conformance Authority
 
@@ -50,11 +56,12 @@ contracts without extending interpolation code.
 
 ## Declaration Validation
 
-The resolver recognizes the built-in target syntax once and validates its complete shape before
-collecting methods. `instance str` has no generic parameters. `instance [T]` has exactly one parameter,
-and its element reference must name that parameter. Built-in instance blocks contain only
-public borrowed methods with bodies. They cannot implement interfaces, declare owned receivers,
-construct values, or attach unrelated members.
+The resolver recognizes built-in target syntax once and validates its complete shape before
+collecting source members. `instance str` has no generic parameters. `instance [T]` has exactly
+one parameter, and its element reference must name that parameter. Built-in instance blocks
+contain only public borrowed methods with bodies. `construct error` uses its canonical scalar
+target, contains public members with bodies, produces `Self`, and has at most one default member.
+Detached associated construction functions are rejected.
 
 Duplicate method identities are diagnosed while surfaces are collected. Parser, type checker, IR,
 and LSP code do not repeat module-authority rules. Malformed source is omitted from the surface and
@@ -70,10 +77,12 @@ visibility, generic shape, parameter types, and result type:
 - `std/str.str_ptr_addr_raw`
 - `std/slice.slice_len_raw`
 - `std/slice.slice_ptr_addr_raw`
+- `std/error.new_error`
 
 Lowering recognizes the resolved primitive role after registry validation. It never treats a
-public member named `len`, `is_empty`, `ptr`, or `bytes` as an intrinsic. Higher operations remain
-ordinary calls and source bodies.
+public member named `len`, `is_empty`, `ptr`, `bytes`, or `new` as an intrinsic. Higher operations
+remain ordinary calls and source bodies. Native failure-payload lowering accepts the resolved
+source member through its `(&str, &str) -> error` ABI shape, independently of its spelling.
 
 Pointer extraction uses typed `StrPointer` and `SlicePointer` IR values so the backend selects the
 data word explicitly instead of reconstructing view layout from offsets. Pointer-returning normal
@@ -100,23 +109,25 @@ borrow-containing aggregate expression as an already borrowed value.
 
 ## Editor Boundary
 
-Hover, completion, signature help, definition, references, and rename use the selected method's
-source span. Direct `str` and slice completion reads the built-in surfaces. Nominal completion may
-add method-only candidates from one-step coercion targets; original names shadow those candidates,
+Hover, completion, signature help, definition, references, and rename use the selected source
+member's span. Direct `str`, slice, and `error` completion reads the built-in surfaces. Nominal
+completion may add method-only candidates from one-step coercion targets; original names shadow
+those candidates,
 identical declaration spans collapse across capability paths, and different declarations remain
 ambiguous.
 
 Presentation renders the canonical concrete receiver (`&str`, `&[u8]`, or `&+[u8]`) while
-navigation retains the declaration in `std/str` or `std/slice`. No synthetic `String` or `Vec<T>`
-member is created for editor convenience.
+navigation retains the declaration in `std/str`, `std/slice`, or `std/error`. No synthetic
+`String`, `Vec<T>`, or `Error` member is created for editor convenience.
 
 ## Verification Boundary
 
 Unit fixtures that deliberately construct a minimal Nocter home use one shared helper to install
-valid built-in surfaces. Distributed-home tests use the packaged sources and cover direct views,
-owning-type receiver coercion, pointer identity, capability selection, ownership conflicts, and
-editor declaration identity. A missing instance unit is an invalid installation rather than
-a signal to restore compiler-invented methods.
+valid built-in surfaces, including construction required by implicit loading. Distributed-home
+tests use the packaged sources and cover direct views, owning-type receiver coercion, pointer
+identity, capability selection, ownership conflicts, and editor declaration identity. A missing
+implicitly loaded surface unit is an invalid installation
+rather than a signal to restore compiler-invented members.
 
 `std/string` and `std/vec` retain private raw-view helpers because their coercion and interface
 implementations must expose initialized private representation. Those helpers are not public

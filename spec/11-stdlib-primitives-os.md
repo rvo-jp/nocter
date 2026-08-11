@@ -19,7 +19,7 @@ operations. User-facing library behavior is divided by responsibility:
 
 The installed Nocter home contains the standard library under `std/`. Its public types and
 functions are ordinary Nocter declarations. The compiler must not assign intrinsic behavior to
-names such as `String`, `Vec`, `File`, `Error`, `Allocator`, `print`, `args`, `env`, `cwd`, `exit`,
+names such as `String`, `Vec`, `File`, `Allocator`, `print`, `args`, `env`, `cwd`, `exit`,
 or `abort`.
 
 Compiler-owned behavior is restricted to built-in language types and operations, declaration
@@ -41,23 +41,30 @@ itself require a new compiler primitive. A primitive is justified only when ordi
 cannot express the operation, such as issuing a target syscall, converting a borrow to an address,
 or constructing a view from trusted raw parts.
 
-Built-in types such as `str`, slices, `bool`, and integers may receive ordinary source-defined
-instances or interface conformances only from the exact implicit standard-library package. A
-project package cannot add behavior directly to a compiler-owned type. This preserves one coherent
-source surface without turning the built-in identity into a synthetic nominal declaration. The
-restriction is based on selected package identity, not a textual `std` path.
+Built-in types may receive ordinary source-defined instances or construction only from the exact
+implicit standard-library module recorded for that built-in identity. `str` is owned by
+`std/str`, slices by `std/slice`, `error` construction by `std/error`, and scalar inherent APIs by
+`std/num`. Interface conformances are owned by the selected standard-library package because an
+interface and the built-in's inherent surface have separate module responsibilities. A project
+package cannot add behavior directly to a compiler-owned type. This preserves one coherent source
+surface without turning the built-in identity into a synthetic nominal declaration. Authority is
+based on selected package and module identity, not an arbitrary textual `std` prefix.
 
 ## Error Boundary
 
-The compiler-level failure payload is lowercase `error`. `Error` and `ErrorCode` are ordinary
-standard-library aliases exported by `std/error` and the synthetic prelude:
+The compiler-level failure payload is lowercase `error`. `std/error` owns its source-backed
+construction surface:
 
 ```nct
-pub type ErrorCode = &str
-pub type Error = error
-
-pub func Error.new(code: ErrorCode, message: &str): Error
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
 ```
+
+The standard library defines no `Error` or `ErrorCode` compatibility alias. Error codes are open
+`&str` values.
 
 Standard-library error codes use stable dotted names such as `"std.io.not_found"`,
 `"std.mem.out_of_memory"`, and `"std.process.invalid_encoding"`. Package and application code may
