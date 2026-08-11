@@ -18,15 +18,17 @@ alter the published v0.11.0 release.
 - the compile-unit context now owns declaration-source import qualification environments; each
   resolver reuses that immutable result and materializes hidden type surfaces only once per
   declaration source, while a fresh context invalidates the cache after opaque elaboration
-- release `check examples/hello.nct` fell from 18.318 seconds through 8.661 seconds to a three-run
-  median of 1.906 seconds; typecheck and semantic-index construction, not resolution, are now the
-  dominant phase
+- one `TypecheckCompileUnitContext` now computes the callable-provenance fixed point for the whole
+  compile unit; source checks share that immutable result instead of rebuilding it once per file
+- release `check examples/hello.nct` fell from 18.318 seconds through 8.661 and 1.906 seconds to a
+  three-run median of 0.301 seconds; no remaining analysis phase dominates the process-cold check
 - public examples no longer repeat successful check/build compilation; all documented runnable
   examples now build and execute, exposing and fixing instance equality method calls composed with
   short-circuit logic
-- all 3,520 tests pass; the largest CLI suite completes 473 tests in 162.45 seconds and
-  distributed-home completes 218 tests in 131.25 seconds, down from 435.81 seconds at the previous
-  checkpoint, while the public-example suite passes all five contracts
+- all 3,520 tests pass in 424.71 seconds, down from 686.78 seconds at the previous checkpoint; the
+  largest CLI suite completes 473 tests in 162.10 seconds, distributed-home completes 218 tests in
+  53.78 seconds instead of 131.25 seconds, and the public-example suite passes all five contracts
+  in 2.06 seconds
 - warnings-denied Clippy, formatting, generated documentation, and diff checks pass; the
   documentation build contains 129 pages
 

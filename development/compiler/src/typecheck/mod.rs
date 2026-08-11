@@ -10,6 +10,7 @@ mod callables;
 mod calls;
 mod closures;
 mod coercions;
+mod compile_unit_context;
 mod conformance;
 mod conformance_members;
 mod controls;
@@ -63,6 +64,8 @@ use ownership::*;
 use regions::*;
 use returns::*;
 use sized::*;
+
+pub(crate) use compile_unit_context::TypecheckCompileUnitContext;
 
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
@@ -205,14 +208,21 @@ pub(crate) fn check_with_summary_sources(
     resolved: &ResolveOutput,
     summary_sources: &[TypecheckSource<'_>],
 ) -> Vec<Diagnostic> {
+    let context = TypecheckCompileUnitContext::new(summary_sources);
+    check_with_compile_unit_context(sources, ast, resolved, &context)
+}
+
+pub(crate) fn check_with_compile_unit_context(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    context: &TypecheckCompileUnitContext,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     check_default_entry_function(sources, ast, resolved, &mut diagnostics);
-    diagnostics.extend(check_module_with_summary_sources(
-        sources,
-        ast,
-        resolved,
-        summary_sources,
+    diagnostics.extend(check_module_with_compile_unit_context(
+        sources, ast, resolved, context,
     ));
 
     diagnostics
@@ -233,6 +243,16 @@ pub(crate) fn check_module_with_summary_sources(
     resolved: &ResolveOutput,
     summary_sources: &[TypecheckSource<'_>],
 ) -> Vec<Diagnostic> {
+    let context = TypecheckCompileUnitContext::new(summary_sources);
+    check_module_with_compile_unit_context(sources, ast, resolved, &context)
+}
+
+pub(crate) fn check_module_with_compile_unit_context(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    context: &TypecheckCompileUnitContext,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     test_declarations::check_test_declarations(sources, ast, &mut diagnostics);
@@ -246,26 +266,25 @@ pub(crate) fn check_module_with_summary_sources(
     operators::check_operator_declarations(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_region_statements(sources, ast, &mut diagnostics);
-    let provenance_summaries = callable_provenance_summaries(summary_sources);
     provenance_contracts::check_result_provenance_contracts(
         sources,
         ast,
         resolved,
-        &provenance_summaries,
+        &context.provenance_summaries,
         &mut diagnostics,
     );
     check_ownership_states(
         sources,
         ast,
         resolved,
-        &provenance_summaries,
+        &context.provenance_summaries,
         &mut diagnostics,
     );
     check_return_types(
         sources,
         ast,
         resolved,
-        &provenance_summaries,
+        &context.provenance_summaries,
         &mut diagnostics,
     );
 

@@ -106,6 +106,10 @@ same typecheck implementation. Return checking, NLL, region escape validation, a
 consume those facts instead of maintaining separate origin models. See
 [Region, Provenance, and Allocation Context](region-provenance.md).
 
+Callable provenance is a fixed point over a complete compile unit. `TypecheckCompileUnitContext`
+owns that immutable result, and every source-level provenance, ownership, and return check borrows
+the same context. A source checker must not reconstruct the compile-unit fixed point.
+
 Interpolation uses a validated runtime-capability bundle containing `String` construction and the
 exact `Format` contract identities. Typecheck resolves every part to the shared protocol-method
 plan used by generic static dispatch. Dedicated IR lowering consumes that plan; it does not resolve

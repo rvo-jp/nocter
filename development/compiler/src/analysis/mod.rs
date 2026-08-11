@@ -58,7 +58,8 @@ use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::source_scopes::SourceScopeMap;
 use crate::typecheck::{
-    TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
+    TypecheckCompileUnitContext, TypecheckFacts, TypecheckSource,
+    check_module_with_compile_unit_context, check_with_compile_unit_context,
     collect_typecheck_facts,
 };
 use std::cmp::Ordering;
@@ -293,6 +294,9 @@ fn analyze_compile_unit_with_root_policy(
         .zip(resolved_files.iter())
         .map(|(file, resolved)| TypecheckSource::new(file, resolved))
         .collect::<Vec<_>>();
+    let typecheck_context = crate::timing::measure("analysis.typecheck_context", || {
+        TypecheckCompileUnitContext::new(&typecheck_sources)
+    });
     let files = crate::timing::measure("analysis.typecheck_and_indexes", || {
         analyzed_files
             .iter()
@@ -309,18 +313,18 @@ fn analyze_compile_unit_with_root_policy(
                         .cloned(),
                 );
                 if is_root && root_policy == RootPolicy::ExecutableEntry {
-                    diagnostics.extend(check_with_summary_sources(
+                    diagnostics.extend(check_with_compile_unit_context(
                         sources,
                         file,
                         resolved,
-                        &typecheck_sources,
+                        &typecheck_context,
                     ));
                 } else {
-                    diagnostics.extend(check_module_with_summary_sources(
+                    diagnostics.extend(check_module_with_compile_unit_context(
                         sources,
                         file,
                         resolved,
-                        &typecheck_sources,
+                        &typecheck_context,
                     ));
                 }
                 let typecheck_facts = collect_typecheck_facts(file, resolved);
