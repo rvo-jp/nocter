@@ -2,9 +2,10 @@
 
 ## Current Task
 
-v0.12.0 Phase 3 is complete and the local candidate is qualified. Stop before publication. Do not
-tag, push, upload the archive, change public download instructions, or alter the published v0.11.0
-release without separate user authorization.
+v0.12.0 publication and its independent public-asset audit are complete under
+[`releases/v0.12.0.md`](releases/v0.12.0.md). Annotated tag `v0.12.0` resolves to publication commit
+`358576fb`, and GitHub exposes the qualified archive as the only asset of the latest
+non-prerelease release. Stop at this published boundary.
 
 ## Completed v0.12.0 Stabilization Checkpoint
 
@@ -21,11 +22,16 @@ release without separate user authorization.
   generation produced 131 pages and `git diff --check` passed
 - the two-build archive comparison and complete isolated fresh-install matrix passed without
   `NOCTER_HOME`
-- the retained 3,783,354-byte `arm64-darwin` archive has SHA-256
+- the published 3,783,354-byte `arm64-darwin` archive has SHA-256
   `65514f5b5f5bddbbcd883b72026566109302e96203d3702503615ca26f2f4e60` and contains all 28
   standard-library files
-- release-content commit `7accfd5a21182b6904d6e2213a18a5c7e80647c3` is frozen; publication remains
-  separately authorized work
+- annotated tag `v0.12.0` resolves to publication commit
+  `358576fbffd5b90b255a3362f4d82f607a7dd714`
+- GitHub resolves v0.12.0 as the latest release with exactly the qualified archive and marks it
+  neither draft nor prerelease
+- a separate public download reproduced the qualified bytes, size, and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
 ## Completed Test Performance Checkpoint
 
@@ -442,7 +448,7 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Complete v0.12.0 Phase 0 and stop at its verified boundary. Do not begin Phase 1, prepare a release,
-or alter any published archive or tag. Any newly discovered requirement outside extensible
-formatting and its built-in conformance foundation belongs to a later phase unless it blocks a
-Phase 0 completion gate.
+Stop at the published and audited v0.12.0 boundary. Do not begin another milestone or alter the
+published asset without a new plan. Any compiler, standard-library, or packaging change belongs to
+a later version and requires complete qualification. Published archives, tags, and their evidence
+are immutable.

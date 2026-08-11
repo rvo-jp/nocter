@@ -8,9 +8,10 @@ The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are 
 interpolation formatting was replaced with a source-defined `Format` contract, fixed
 instance-owned equality now drives generic and collection comparison, and equality plus indexing
 share uniform structural operator requirements with coercion-driven execution. Phase 3 completed
-the semantic audit, candidate identity, incremental and clean verification, and local archive
-qualification. The candidate awaits separate publication authorization; no later milestone is
-active.
+the semantic audit, candidate identity, incremental and clean verification, and archive
+qualification. Its publication and independent public-asset audit are preserved in
+[the release record](../releases/v0.12.0.md), and the published baseline is v0.12.0. No later
+milestone is active.
 
 The latest completed milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 8 completed
 unified generic requirements, associated types and bounds, declaration-wide `where` clauses,
