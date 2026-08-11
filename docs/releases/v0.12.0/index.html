@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.12.0 Release Notes - Nocter</title>
-    <meta name="description" content="Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic ">
+    <meta name="description" content="Download nocter-v0.12.0-arm64-darwin.tar.gz">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/releases/v0.12.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.12.0 Release Notes - Nocter">
-    <meta property="og:description" content="Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic ">
+    <meta property="og:description" content="Download nocter-v0.12.0-arm64-darwin.tar.gz">
     <meta property="og:url" content="https://nocter.dev/releases/v0.12.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.12.0 Release Notes - Nocter">
-    <meta name="twitter:description" content="Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic ">
+    <meta name="twitter:description" content="Download nocter-v0.12.0-arm64-darwin.tar.gz">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.12.0 Release Notes - Nocter","description":"Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic ","url":"https://nocter.dev/releases/v0.12.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.12.0/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.12.0","item":"https://nocter.dev/releases/v0.12.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.12.0 Release Notes - Nocter","description":"Download nocter-v0.12.0-arm64-darwin.tar.gz","url":"https://nocter.dev/releases/v0.12.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.12.0/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.12.0","item":"https://nocter.dev/releases/v0.12.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -121,7 +121,8 @@
             <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.11.0/index.html#content">Read the v0.11.0 release notes</a></li>
+                <li><a href="./index.html#content" aria-current="page">Read the v0.12.0 release notes</a></li>
+                <li><a href="../v0.11.0/index.html#content">Nocter v0.11.0</a></li>
                 <li><a href="../v0.10.0/index.html#content">Nocter v0.10.0</a></li>
                 <li><a href="../v0.9.0/index.html#content">Nocter v0.9.0</a></li>
                 <li><a href="../v0.8.0/index.html#content">Nocter v0.8.0</a></li>
@@ -138,7 +139,7 @@
                 <span class="markdown-path-text">/releases/v0.12.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-12-0-release-notes">Nocter v0.12.0 Release Notes</h1><p>Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic requirements, static dispatch, and ordinary borrow coercions instead of closed compiler tables or collection-specific execution paths.</p><h2 id="extensible-string-interpolation">Extensible String Interpolation</h2><p><code>std/fmt.Format</code> is the source-defined static contract for interpolation:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Format</span> <span class="token-operator">{</span>
+                <h1 id="nocter-v0-12-0-release-notes">Nocter v0.12.0 Release Notes</h1><p><a href="https://github.com/rvo-jp/nocter/releases/download/v0.12.0/nocter-v0.12.0-arm64-darwin.tar.gz">Download nocter-v0.12.0-arm64-darwin.tar.gz</a></p><p>Nocter v0.12.0 returns development to practical standard-library use. Formatting, equality, and indexing now use source-defined contracts, uniform generic requirements, static dispatch, and ordinary borrow coercions instead of closed compiler tables or collection-specific execution paths.</p><h2 id="extensible-string-interpolation">Extensible String Interpolation</h2><p><code>std/fmt.Format</code> is the source-defined static contract for interpolation:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Format</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span>
 <span class="token-operator">}</span>
 </code></pre><p>The standard library conforms text, owned strings, booleans, and every built-in integer. A project type can participate through an ordinary conformance:</p><pre><code class="language-nct">conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
