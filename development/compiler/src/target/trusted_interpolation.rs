@@ -40,7 +40,7 @@ fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<Interpol
     Some(InterpolationRuntime::new(
         string.span,
         runtime_callable(constructor),
-        format_interface.name_span,
+        format_interface.span,
         "std/fmt.Format".to_string(),
         format_method.name_span,
         format_method.name.clone(),
@@ -180,8 +180,17 @@ mod tests {
         ]);
 
         let runtime = interpolation_runtime(&modules).expect("expected runtime");
+        let format_span = fmt
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Interface(interface) => Some(interface.span),
+                _ => None,
+            })
+            .expect("expected format interface");
 
         assert_eq!(runtime.constructor.target_name, "String.with_capacity");
+        assert_eq!(runtime.format_interface_declaration, format_span);
         assert_eq!(runtime.format_interface_canonical_name, "std/fmt.Format");
         assert_eq!(runtime.format_method_name, "format_into");
     }

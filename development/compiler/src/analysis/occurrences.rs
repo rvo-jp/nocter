@@ -123,7 +123,7 @@ struct OccurrenceBuilder<'a> {
 impl OccurrenceBuilder<'_> {
     fn collect(&mut self) {
         self.collect_symbol_declarations();
-        self.collect_callable_instanceementation_occurrences();
+        self.collect_callable_implementation_occurrences();
         self.collect_local_declarations_and_references();
         self.collect_resolved_references();
         self.collect_generic_parameter_declarations();
@@ -131,7 +131,7 @@ impl OccurrenceBuilder<'_> {
         self.collect_typechecked_references();
     }
 
-    fn collect_callable_instanceementation_occurrences(&mut self) {
+    fn collect_callable_implementation_occurrences(&mut self) {
         for item in &self.ast.items {
             match item {
                 Item::Function(function) => {

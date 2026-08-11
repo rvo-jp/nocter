@@ -134,7 +134,7 @@ pub(crate) fn hover_for_file_analysis(
     }
 
     if let Some(interpolation) =
-        crate::analysis::interpolation::interpolation_editor_info_at_offset(file, offset)
+        crate::analysis::interpolation::interpolation_editor_info_at_offset(analysis, file, offset)
     {
         return Some(HoverInfo {
             span: interpolation.focus_span,

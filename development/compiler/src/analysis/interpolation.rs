@@ -1,6 +1,6 @@
 //! Editor-facing interpolation facts and incomplete-source recovery.
 
-use super::FileAnalysis;
+use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{Expr, InterpolatedStringPart, visit_file_expressions};
 use crate::source::ByteSpan;
 
@@ -13,6 +13,7 @@ pub(crate) struct InterpolationEditorInfo {
 }
 
 pub(crate) fn interpolation_editor_info_at_offset(
+    analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<InterpolationEditorInfo> {
@@ -46,26 +47,21 @@ pub(crate) fn interpolation_editor_info_at_offset(
             accepted = Some(&planned.accepted_type);
             break;
         }
-        let result_name = file
-            .resolved
-            .symbols
-            .symbols()
-            .find(|symbol| symbol.declaration_span == plan.string_type_declaration)
-            .map(|symbol| symbol.name.as_str())
-            .unwrap_or("String");
+        let Some(result_name) = resolved_type_label(analysis, file, plan.string_type_declaration)
+        else {
+            return;
+        };
         let mut documentation = Vec::new();
         if let Some(input) = accepted {
             documentation.push(format!(
                 "**Accepted interpolation input:** `{}`.",
                 crate::typecheck::type_expr_presentation_label(input, &file.resolved)
             ));
-            let contract = file
-                .resolved
-                .symbols
-                .symbols()
-                .find(|symbol| symbol.declaration_span == plan.format_interface_declaration)
-                .map(|symbol| symbol.name.as_str())
-                .unwrap_or("Format");
+            let Some(contract) =
+                resolved_type_label(analysis, file, plan.format_interface_declaration)
+            else {
+                return;
+            };
             documentation.push(format!("**Formatting contract:** `{contract}`."));
         }
         candidates.push(InterpolationEditorInfo {
@@ -78,6 +74,29 @@ pub(crate) fn interpolation_editor_info_at_offset(
     candidates
         .into_iter()
         .min_by_key(|candidate| candidate.expression_span.end - candidate.expression_span.start)
+}
+
+fn resolved_type_label(
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    declaration: ByteSpan,
+) -> Option<String> {
+    type_label_in_file(file, declaration).or_else(|| {
+        let declaration_module = file.resolved.module_source(declaration.source);
+        analysis
+            .file_by_source(declaration_module)
+            .and_then(|declaration_file| type_label_in_file(declaration_file, declaration))
+    })
+}
+
+fn type_label_in_file(file: &FileAnalysis, declaration: ByteSpan) -> Option<String> {
+    file.resolved.symbols.symbols().find_map(|symbol| {
+        let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
+            return None;
+        };
+        (symbol.declaration_span == declaration)
+            .then(|| crate::typecheck::type_symbol_presentation_label(type_symbol, &file.resolved))
+    })
 }
 
 pub(crate) fn interpolation_recovery_text(text: &str, offset: usize) -> Option<String> {
