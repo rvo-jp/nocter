@@ -16,6 +16,8 @@ instance Buffer {
 func read(buffer: &Buffer): i32 {
     return buffer[0]
 }
+
+func main(): i32 { return 0 }
 "#,
     );
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
@@ -42,6 +44,8 @@ func replace(buffer: &+Buffer): void {
     buffer[0] = 42
     return
 }
+
+func main(): i32 { return 0 }
 "#,
     );
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");

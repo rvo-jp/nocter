@@ -19,6 +19,15 @@ pub(super) fn expression_is_writable_place(
     }
 }
 
+pub(super) fn expression_supports_readwrite_access(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    type_is_readwrite_borrow(&expression_type(expression, resolved, environment))
+        || expression_is_writable_place(expression, resolved, environment)
+}
+
 pub(super) fn expression_is_established_place(expression: &Expr) -> bool {
     match unwrap_group(expression) {
         Expr::Identifier(_) => true,

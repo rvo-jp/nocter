@@ -55,8 +55,11 @@ pub(super) fn select_index_expression(
 ) -> Result<SelectedIndex, IndexRejection> {
     let target = expression_type(&expression.object, resolved, environment);
     let index = expression_type(&expression.index, resolved, environment);
-    let source_is_writable =
-        super::places::expression_is_writable_place(&expression.object, resolved, environment);
+    let source_is_writable = super::places::expression_supports_readwrite_access(
+        &expression.object,
+        resolved,
+        environment,
+    );
     select_index_types_inner(
         &target,
         &index,
