@@ -105,7 +105,7 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
                 summaries,
             );
             let mut catch_environment = environment_for_catch(
-                expression.error_name.clone(),
+                &expression.binding,
                 &expression.expression,
                 resolved,
                 environment,

@@ -95,6 +95,25 @@ func report(text: &str): void {
 }
 
 #[test]
+fn accepts_discarded_error_inside_catch_block_without_defining_a_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32! {
+    run() catch _ {
+        return 1
+    }
+    return 0
+}
+
+func run(): i32! {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_unknown_error_field() {
     let diagnostics = check_text(
         r#"func main(): i32 {

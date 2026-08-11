@@ -201,12 +201,20 @@ impl Expr {
                 json_span(sources, expression.span),
                 vec![
                     expression.expression.to_json(sources),
-                    JsonAstNode::with_value(
-                        "catch_binding",
-                        expression.error_name.clone(),
-                        json_span(sources, expression.error_span),
-                        Vec::new(),
-                    ),
+                    match &expression.binding {
+                        crate::ast::CatchBinding::Named { name, span } => JsonAstNode::with_value(
+                            "catch_binding",
+                            name.clone(),
+                            json_span(sources, *span),
+                            Vec::new(),
+                        ),
+                        crate::ast::CatchBinding::Discard { span } => JsonAstNode::with_value(
+                            "catch_discard",
+                            "_",
+                            json_span(sources, *span),
+                            Vec::new(),
+                        ),
+                    },
                     expression.catch_block.to_json(sources),
                 ],
             )

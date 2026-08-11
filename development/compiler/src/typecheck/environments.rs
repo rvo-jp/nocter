@@ -280,7 +280,7 @@ fn define_method_owner_generic_parameters(
 }
 
 pub(super) fn environment_for_catch(
-    error_name: String,
+    binding: &crate::ast::CatchBinding,
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
@@ -290,7 +290,9 @@ pub(super) fn environment_for_catch(
         Type::Fallible { error, .. } => *error,
         _ => Type::Unknown,
     };
-    catch_environment.define(error_name, error_type);
+    if let Some(name) = binding.name() {
+        catch_environment.define(name.to_string(), error_type);
+    }
     catch_environment
 }
 

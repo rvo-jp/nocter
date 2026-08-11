@@ -230,12 +230,9 @@ fn collect_expression_scope(
         }
         Expr::Catch(expression) => {
             if contains(expression.catch_block.span, offset) {
-                define(
-                    locals,
-                    &expression.error_name,
-                    expression.error_span,
-                    "error",
-                );
+                if let crate::ast::CatchBinding::Named { name, span } = &expression.binding {
+                    define(locals, name, *span, "error");
+                }
                 collect_block(&expression.catch_block, offset, locals);
             } else {
                 collect_expression_scope(&expression.expression, offset, locals);

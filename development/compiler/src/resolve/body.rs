@@ -368,12 +368,14 @@ impl Resolver<'_> {
             Expr::Catch(expression) => {
                 self.resolve_expression(&expression.expression, scope);
                 let mut catch_scope = scope.clone();
-                self.define_local_name(
-                    expression.error_name.clone(),
-                    expression.error_span,
-                    LocalSymbolKind::CatchError,
-                    &mut catch_scope,
-                );
+                if let crate::ast::CatchBinding::Named { name, span } = &expression.binding {
+                    self.define_local_name(
+                        name.clone(),
+                        *span,
+                        LocalSymbolKind::CatchError,
+                        &mut catch_scope,
+                    );
+                }
                 self.resolve_block(&expression.catch_block, &mut catch_scope);
             }
             Expr::Borrow(expression) => self.resolve_expression(&expression.expression, scope),

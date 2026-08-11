@@ -598,13 +598,15 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
         }
         Expr::Catch(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
-            push_hover_symbol(
-                text,
-                expression.error_span,
-                expression.catch_span.start,
-                format!("catch {}", expression.error_name),
-                symbols,
-            );
+            if let crate::ast::CatchBinding::Named { name, span } = &expression.binding {
+                push_hover_symbol(
+                    text,
+                    *span,
+                    expression.catch_span.start,
+                    format!("catch {name}"),
+                    symbols,
+                );
+            }
             collect_block_hover_symbols(text, &expression.catch_block, symbols);
         }
         Expr::Borrow(expression) => {

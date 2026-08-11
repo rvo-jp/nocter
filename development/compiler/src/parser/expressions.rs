@@ -258,15 +258,26 @@ impl Parser<'_> {
             }
 
             if let Some(catch) = self.match_keyword(Keyword::Catch) {
-                let error = self.expect_name_identifier("expected catch binding name")?;
+                let binding = if self.at_identifier_text("_") {
+                    let discard = self
+                        .match_identifier_text("_")
+                        .expect("at_identifier_text matched `_`");
+                    crate::ast::CatchBinding::Discard { span: discard.span }
+                } else {
+                    let error =
+                        self.expect_name_identifier("expected catch binding name or `_`")?;
+                    crate::ast::CatchBinding::Named {
+                        name: error.value,
+                        span: error.span,
+                    }
+                };
                 let catch_block = self.parse_block()?;
                 let end = catch_block.span.end;
                 expression = Expr::Catch(CatchExpr {
                     span: self.span(expression.span().start, end),
                     catch_span: catch.span,
                     expression: Box::new(expression),
-                    error_name: error.value,
-                    error_span: error.span,
+                    binding,
                     catch_block,
                 });
                 continue;

@@ -1,6 +1,5 @@
 use super::support::{
-    assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
-    parse_text_with_sources,
+    assert_rejects_self_name, find_json_node, parse_text, parse_text_with_sources,
 };
 use crate::ast::{
     BinaryOperator, ClosureCaptureMode, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr,
@@ -142,8 +141,8 @@ fn rejects_removed_optional_question_question_operator() {
 }
 
 #[test]
-fn rejects_discard_name_for_catch_binding() {
-    assert_rejects_discard_name(
+fn parses_discard_catch_binding() {
+    let (sources, output) = parse_text_with_sources(
         r#"func main(): i32 {
     maybe() catch _ {
         return 1
@@ -153,6 +152,11 @@ fn rejects_discard_name_for_catch_binding() {
 }
 "#,
     );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let json = output.ast.expect("expected AST").to_json(&sources);
+    let discard = find_json_node(&json, "catch_discard").expect("expected catch discard");
+    assert_eq!(discard.value.as_deref(), Some("_"));
 }
 
 #[test]

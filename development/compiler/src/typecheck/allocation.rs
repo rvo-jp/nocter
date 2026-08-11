@@ -608,7 +608,7 @@ fn expression_needs_current_allocation_context(
                 &expression.catch_block,
                 resolved,
                 &mut environment_for_catch(
-                    expression.error_name.clone(),
+                    &expression.binding,
                     &expression.expression,
                     resolved,
                     environment,

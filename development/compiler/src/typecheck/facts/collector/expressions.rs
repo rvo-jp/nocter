@@ -83,16 +83,14 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 let mut catch_environment = environment_for_catch(
-                    expression.error_name.clone(),
+                    &expression.binding,
                     &expression.expression,
                     self.resolved,
                     environment,
                 );
-                self.record_environment_binding(
-                    expression.error_span,
-                    &expression.error_name,
-                    &catch_environment,
-                );
+                if let crate::ast::CatchBinding::Named { name, span } = &expression.binding {
+                    self.record_environment_binding(*span, name, &catch_environment);
+                }
                 self.collect_block_facts(
                     &expression.catch_block,
                     &mut catch_environment,

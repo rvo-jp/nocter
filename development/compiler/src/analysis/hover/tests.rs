@@ -1089,6 +1089,25 @@ func main(): i32! {
 }
 
 #[test]
+fn workspace_hover_ignores_discarded_catch_bindings() {
+    let text = r#"func attempt(): i32! {
+    return 1
+}
+
+func main(): i32 {
+    return attempt() catch _ {
+        return 0
+    }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let discard_offset = text.find("_ {").expect("expected discarded catch binding");
+
+    assert!(hover_for_file_analysis(&sources, &analysis, file, discard_offset).is_none());
+}
+
+#[test]
 fn workspace_hover_describes_selected_index_coercion() {
     let text = r#"struct Buffer { values: &[u8] }
 coerce Buffer {

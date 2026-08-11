@@ -850,9 +850,29 @@ pub struct CatchExpr {
     pub span: ByteSpan,
     pub catch_span: ByteSpan,
     pub expression: Box<Expr>,
-    pub error_name: String,
-    pub error_span: ByteSpan,
+    pub binding: CatchBinding,
     pub catch_block: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatchBinding {
+    Named { name: String, span: ByteSpan },
+    Discard { span: ByteSpan },
+}
+
+impl CatchBinding {
+    pub fn span(&self) -> ByteSpan {
+        match self {
+            Self::Named { span, .. } | Self::Discard { span } => *span,
+        }
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Named { name, .. } => Some(name),
+            Self::Discard { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

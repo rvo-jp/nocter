@@ -74,7 +74,7 @@ impl Formatter {
             Expr::Catch(expression) => {
                 self.format_expr(&expression.expression, PREC_POSTFIX);
                 self.write(" catch ");
-                self.write(&expression.error_name);
+                self.write(expression.binding.name().unwrap_or("_"));
                 self.write(" ");
                 self.format_block(&expression.catch_block);
             }

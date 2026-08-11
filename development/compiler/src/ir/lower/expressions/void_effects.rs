@@ -109,12 +109,19 @@ pub(in crate::ir::lower) fn lower_catch_failure_mode(
     reserved_abi_words: usize,
 ) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
-    let (code, message) = catch_context.define_error_local(catch.error_name.clone())?;
+    let destinations = catch
+        .binding
+        .name()
+        .map(|name| catch_context.define_error_local(name.to_string()))
+        .transpose()?;
     let instructions = lower_catch_block(&catch.catch_block, &mut catch_context)?;
 
-    Ok(OutcomeFailureMode::Catch {
-        code,
-        message,
-        instructions,
+    Ok(match destinations {
+        Some((code, message)) => OutcomeFailureMode::Catch {
+            code,
+            message,
+            instructions,
+        },
+        None => OutcomeFailureMode::Handle { instructions },
     })
 }

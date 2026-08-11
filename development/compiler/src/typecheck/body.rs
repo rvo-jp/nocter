@@ -753,7 +753,7 @@ fn check_expression_tree(
                 loop_depth,
             );
             let mut catch_environment = environment_for_catch(
-                expression.error_name.clone(),
+                &expression.binding,
                 &expression.expression,
                 resolved,
                 environment,

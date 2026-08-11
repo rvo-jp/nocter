@@ -670,18 +670,20 @@ pub(super) fn check_expression_ownership(
             );
             let success_ownership = ownership.clone();
             let mut catch_environment = environment_for_catch(
-                expression.error_name.clone(),
+                &expression.binding,
                 &expression.expression,
                 resolved,
                 environment,
             );
             let mut catch_ownership = ownership.clone();
-            catch_ownership.define_binding_from_environment(
-                &expression.error_name,
-                expression.error_span,
-                &catch_environment,
-                resolved,
-            );
+            if let crate::ast::CatchBinding::Named { name, span } = &expression.binding {
+                catch_ownership.define_binding_from_environment(
+                    name,
+                    *span,
+                    &catch_environment,
+                    resolved,
+                );
+            }
             let catch_flow = check_block_ownership(
                 sources,
                 &expression.catch_block,

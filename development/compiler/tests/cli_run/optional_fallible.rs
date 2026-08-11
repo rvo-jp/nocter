@@ -91,7 +91,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error from code | message {
 func main(): i32 {
     let present = lookup(0) catch error { return 1 } otherwise { return 2 }
     let absent = lookup(1) catch error { return 3 } otherwise { 4 }
-    let unused = lookup(2) catch error { return present + absent + 34 } otherwise { return 5 }
+    let unused = lookup(2) catch _ { return present + absent + 34 } otherwise { return 5 }
     return unused
 }
 
