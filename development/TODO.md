@@ -2,9 +2,30 @@
 
 ## Current Task
 
-v0.12.0 Phase 3 stabilization and local release qualification are active. Audit the completed
-Phase 0 through Phase 2 contracts, correct only release-blocking defects, prepare and qualify the
-v0.12.0 candidate, and stop before publication. Do not alter the published v0.11.0 release.
+v0.12.0 Phase 3 is complete and the local candidate is qualified. Stop before publication. Do not
+tag, push, upload the archive, change public download instructions, or alter the published v0.11.0
+release without separate user authorization.
+
+## Completed v0.12.0 Stabilization Checkpoint
+
+- the contract audit found and removed one LSP interpolation label fallback; editor presentation
+  now resolves the exact trusted `String` and `Format` declaration identities through shared
+  compile-unit analysis
+- public examples exercise readonly and readwrite Vec indexing through normal slice coercions,
+  with no Vec-specific typecheck, ownership, IR, or backend execution path
+- candidate identity is `0.12.0` across Cargo metadata, the lockfile, installed `VERSION`, the
+  distribution manifest and archive name, `std/nocter.nct`, CLI output, and LSP initialization
+- incremental and clean verification each passed all 3,520 tests, formatting, warnings-denied
+  Clippy, public examples, source corpus, and the distributed installed-home suite
+- the clean run followed removal of 421 candidate build files totaling 687.4 MiB; documentation
+  generation produced 131 pages and `git diff --check` passed
+- the two-build archive comparison and complete isolated fresh-install matrix passed without
+  `NOCTER_HOME`
+- the retained 3,783,354-byte `arm64-darwin` archive has SHA-256
+  `65514f5b5f5bddbbcd883b72026566109302e96203d3702503615ca26f2f4e60` and contains all 28
+  standard-library files
+- release-content commit `7accfd5a21182b6904d6e2213a18a5c7e80647c3` is frozen; publication remains
+  separately authorized work
 
 ## Completed Test Performance Checkpoint
 
