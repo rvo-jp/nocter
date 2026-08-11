@@ -1167,6 +1167,48 @@ func equal(left: &Text, right: &Text): bool {
         );
     }
 
+    #[test]
+    fn analysis_classifies_index_contract_tokens_without_exposing_internal_names() {
+        let text = r#"struct Buffer { values: [i32; 1] }
+instance Buffer {
+    operator (&self[index: usize]): &i32 { return &self.values[index] }
+}
+func read(buffer: &Buffer, index: usize): i32 {
+    return buffer[index]
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let source = sources.get(file.ast.span.source).expect("source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let operator = identifiers_for_lexeme(text, &identifiers, "operator");
+        assert_eq!(operator.len(), 1);
+        assert_eq!(operator[0].kind, SemanticTokenKind::Keyword);
+
+        let bracket = identifier_starting_at(
+            &identifiers,
+            text.find("[index: usize]").expect("operator declaration"),
+        )
+        .expect("operator semantic token");
+        assert_eq!(bracket.kind, SemanticTokenKind::Method);
+        assert_ne!(bracket.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+
+        for (name, expected_count) in [("self", 2), ("index", 4)] {
+            let tokens = identifiers_for_lexeme(text, &identifiers, name);
+            assert_eq!(tokens.len(), expected_count);
+            assert!(tokens.iter().all(|token| {
+                token.kind == SemanticTokenKind::Parameter
+                    && token.modifiers & SEMANTIC_READONLY_MODIFIER != 0
+            }));
+        }
+        assert!(identifiers.iter().all(|token| {
+            let lexeme = &text[token.start_byte..token.end_byte];
+            lexeme != crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
+                && lexeme != crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+        }));
+    }
+
     fn identifiers_for_lexeme<'a>(
         text: &str,
         identifiers: &'a [ClassifiedIdentifier],
