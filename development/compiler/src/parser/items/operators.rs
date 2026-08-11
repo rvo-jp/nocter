@@ -1,14 +1,26 @@
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_equality_operator_decl(
+    pub(super) fn parse_operator_decl(
         &mut self,
         visibility: Visibility,
-    ) -> ParseResult<EqualityOperatorDecl> {
+    ) -> ParseResult<OperatorDecl> {
         let start = self.expect_keyword(Keyword::Operator, "`operator`")?;
         self.expect_punctuation("(", "`(`")?;
         let receiver =
-            self.parse_self_receiver("expected readonly `&self` as the left equality operand")?;
+            self.parse_self_receiver("expected `&self` or `&+self` operator receiver")?;
+        if self.at_punctuation("[") {
+            return self.parse_index_operator_decl(start, visibility, receiver);
+        }
+        self.parse_equality_operator_decl(start, visibility, receiver)
+    }
+
+    fn parse_equality_operator_decl(
+        &mut self,
+        start: Token,
+        visibility: Visibility,
+        receiver: MethodReceiver,
+    ) -> ParseResult<OperatorDecl> {
         if receiver.mode != MethodReceiverMode::ReadonlyBorrow {
             self.error_at(
                 receiver.span,
@@ -31,7 +43,7 @@ impl Parser<'_> {
         let return_type = self.parse_type()?;
         let body = self.parse_block()?;
         let span = self.span(start.span.start, body.span.end);
-        Ok(EqualityOperatorDecl::new(
+        Ok(OperatorDecl::Equality(EqualityOperatorDecl::new(
             span,
             operator.span,
             MethodDecl {
@@ -51,6 +63,61 @@ impl Parser<'_> {
                 requirements: None,
                 body: Some(body),
             },
-        ))
+        )))
+    }
+
+    fn parse_index_operator_decl(
+        &mut self,
+        start: Token,
+        visibility: Visibility,
+        receiver: MethodReceiver,
+    ) -> ParseResult<OperatorDecl> {
+        let open_bracket = self.expect_punctuation("[", "`[`")?;
+        let name = self.expect_name_identifier("expected index parameter name after `[")?;
+        self.expect_punctuation(":", "`:`")?;
+        let ty = self.parse_type()?;
+        let parameter = Parameter {
+            span: self.span(name.span.start, ty.span().end),
+            name: name.value,
+            name_span: name.span,
+            ty,
+        };
+        let close_bracket = self.expect_punctuation("]", "`]`")?;
+        self.expect_punctuation(")", "`)`")?;
+        self.expect_punctuation(":", "`:`")?;
+        let return_type = self.parse_type()?;
+        let body = self.parse_block()?;
+        let span = self.span(start.span.start, body.span.end);
+        let name = match receiver.mode {
+            MethodReceiverMode::ReadonlyBorrow => crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME,
+            MethodReceiverMode::ReadwriteBorrow => crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME,
+            MethodReceiverMode::Owned => {
+                self.error_at(receiver.span, "index receiver must be `&self` or `&+self`");
+                return Err(());
+            }
+        };
+        Ok(OperatorDecl::Index(IndexOperatorDecl::new(
+            span,
+            start.span,
+            open_bracket.span,
+            close_bracket.span,
+            MethodDecl {
+                span,
+                visibility,
+                keyword_span: start.span,
+                receiver,
+                name: name.to_string(),
+                name_span: open_bracket.span,
+                generics: crate::ast::GenericParamList::empty(),
+                parameters: ParameterList {
+                    span: parameter.span,
+                    parameters: vec![parameter],
+                },
+                return_type,
+                result_provenance: None,
+                requirements: None,
+                body: Some(body),
+            },
+        )))
     }
 }

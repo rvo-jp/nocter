@@ -313,7 +313,7 @@ pub(super) fn check_operator_declarations(
         Item::Instance(instance) => Some(instance),
         _ => None,
     }) {
-        for operator in &instance.operators {
+        for operator in instance.equality_operators() {
             let callable = operator.callable_method();
             if callable.receiver.mode != MethodReceiverMode::ReadonlyBorrow {
                 diagnostics.push(operator_shape_diagnostic(
@@ -349,6 +349,39 @@ pub(super) fn check_operator_declarations(
                     sources,
                     callable.return_type.span(),
                     "equality operator return type must be `bool`",
+                ));
+            }
+        }
+        for operator in instance.index_operators() {
+            let callable = operator.callable_method();
+            if !matches!(
+                callable.receiver.mode,
+                MethodReceiverMode::ReadonlyBorrow | MethodReceiverMode::ReadwriteBorrow
+            ) {
+                diagnostics.push(operator_shape_diagnostic(
+                    sources,
+                    callable.receiver.span,
+                    "index receiver must be `&self` or `&+self`",
+                ));
+            }
+            let result = super::type_expr::type_expr_to_type_in_environment(
+                &callable.return_type,
+                resolved,
+                &super::environments::environment_for_method(callable, resolved, instance),
+            );
+            let expected_readwrite = callable.receiver.mode == MethodReceiverMode::ReadwriteBorrow;
+            if !matches!(
+                result,
+                Type::Borrow { is_readwrite, .. } if is_readwrite == expected_readwrite
+            ) {
+                diagnostics.push(operator_shape_diagnostic(
+                    sources,
+                    callable.return_type.span(),
+                    if expected_readwrite {
+                        "readwrite index operator return type must be `&+T`"
+                    } else {
+                        "readonly index operator return type must be `&T`"
+                    },
                 ));
             }
         }

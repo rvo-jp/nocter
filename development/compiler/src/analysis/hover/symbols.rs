@@ -100,12 +100,31 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             for method in &instance.methods {
                 collect_method_hover_symbols(text, method, symbols);
             }
-            for operator in &instance.operators {
+            for operator in instance.equality_operators() {
                 push_hover_symbol(
                     text,
                     operator.operator_span,
                     operator.span.start,
                     crate::analysis::presentation::ast_equality_operator_presentation(
+                        &instance.target_ty,
+                        operator,
+                    ),
+                    symbols,
+                );
+                let callable = operator.callable_method();
+                let receiver = callable.receiver.implicit_parameter();
+                collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
+                collect_parameter_hover_symbols(&callable.parameters.parameters, symbols);
+                if let Some(body) = &callable.body {
+                    collect_block_hover_symbols(text, body, symbols);
+                }
+            }
+            for operator in instance.index_operators() {
+                push_hover_symbol(
+                    text,
+                    operator.open_bracket_span,
+                    operator.span.start,
+                    crate::analysis::presentation::ast_index_operator_presentation(
                         &instance.target_ty,
                         operator,
                     ),

@@ -1989,6 +1989,48 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
 }
 
 #[test]
+fn parses_readonly_and_readwrite_index_operators() {
+    let (sources, output) = parse_text_with_sources(
+        r#"struct Buffer<T> { values: &+[T] }
+
+instance Buffer<T> {
+    pub operator (&self[index: usize]): &T {
+        return &self.values[index]
+    }
+
+    pub operator (&+self[index: usize]): &+T {
+        return &+self.values[index]
+    }
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Instance(instance) = &ast.items[1] else {
+        panic!("expected instance");
+    };
+    let operators = instance.index_operators().collect::<Vec<_>>();
+    assert_eq!(operators.len(), 2);
+    assert_eq!(
+        operators[0].callable_method().receiver.mode,
+        MethodReceiverMode::ReadonlyBorrow
+    );
+    assert_eq!(
+        operators[1].callable_method().receiver.mode,
+        MethodReceiverMode::ReadwriteBorrow
+    );
+    assert_eq!(
+        operators[0].callable_method().parameters.parameters[0].name,
+        "index"
+    );
+    let json = ast.to_json(&sources);
+    assert_eq!(
+        find_json_node(&json, "operator_decl").and_then(|node| node.value.as_deref()),
+        Some("[]")
+    );
+}
+
+#[test]
 fn rejects_removed_unparenthesized_equality_requirement() {
     let output = parse_text(
         "func equal<T>(left: &T, right: &T): bool where &T == &T { return left == right }",

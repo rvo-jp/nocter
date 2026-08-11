@@ -9,6 +9,7 @@ mod entry;
 mod fallible;
 mod format_support;
 mod generic_bounds;
+mod index_operators;
 mod interfaces;
 mod literals;
 mod methods;

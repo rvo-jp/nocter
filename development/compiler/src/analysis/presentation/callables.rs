@@ -188,10 +188,28 @@ pub(crate) fn method_or_equality_operator_presentation(
     method: &MethodSignature,
     resolved: &ResolveOutput,
 ) -> String {
-    if method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME {
+    if !crate::ast::is_operator_method_name(&method.name) {
         return method_presentation(owner, method, resolved).render();
     }
     let owner = super::type_owner_presentation_label(owner, resolved);
+    if matches!(
+        method.name.as_str(),
+        crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
+            | crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+    ) {
+        let parameter = method.signature.parameters.first();
+        let name = parameter
+            .map(|parameter| parameter.name.as_str())
+            .unwrap_or("index");
+        let index_type = parameter
+            .map(|parameter| type_expr_presentation_label(&parameter.ty, resolved))
+            .unwrap_or_else(|| "?".to_string());
+        let result = type_expr_presentation_label(&method.signature.return_type, resolved);
+        return format!(
+            "operator ({}{owner}[{name}: {index_type}]): {result}",
+            method.receiver.mode.source_prefix(),
+        );
+    }
     let other = method
         .signature
         .parameters

@@ -32,7 +32,7 @@ pub(super) fn member_completion_items(
             .methods
             .iter()
             .filter(|method| {
-                method.is_accessible && method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME
+                method.is_accessible && !crate::ast::is_operator_method_name(&method.name)
             })
             .map(|method| method.name.clone())
             .collect::<HashSet<_>>();
@@ -120,7 +120,7 @@ fn value_member_completion_items(
     let mut methods_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
     for method in owner.symbol.methods.iter().filter(|method| {
         method.is_accessible
-            && method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME
+            && !crate::ast::is_operator_method_name(&method.name)
             && method_receiver_is_available(method, can_readwrite, can_move)
     }) {
         methods_by_name

@@ -108,6 +108,14 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
 }
 
 #[test]
+fn formats_index_operator_declarations_stably() {
+    assert_formats_stably(
+        "instance Buffer<T>{pub operator(&self[index:usize]):&T{return &self.values[index]}pub operator(&+self[index:usize]):&+T{return &+self.values[index]}}\n",
+        "instance Buffer<T> {\n    pub operator (&self[index: usize]): &T {\n        return &self.values[index]\n    }\n\n    pub operator (&+self[index: usize]): &+T {\n        return &+self.values[index]\n    }\n}\n",
+    );
+}
+
+#[test]
 fn formats_borrow_coercions_stably() {
     assert_formats_stably(
         r#"coerce Vec<T>{pub &self as &[T] from self{return self.view()}

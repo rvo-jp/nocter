@@ -28,7 +28,7 @@ impl Parser<'_> {
             } else if self.at_keyword(Keyword::Method) {
                 methods.push(self.parse_method_decl(visibility, true)?);
             } else if self.at_keyword(Keyword::Operator) {
-                operators.push(self.parse_equality_operator_decl(visibility)?);
+                operators.push(self.parse_operator_decl(visibility)?);
             } else if self.at_identifier_text("drop") {
                 self.error_current(
                     "drop members were removed; write `destruct Type(&+self) { ... }` at top level",

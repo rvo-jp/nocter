@@ -108,6 +108,12 @@ impl TypecheckFactCollector<'_> {
                 if expression.is_readwrite
                     && let Expr::Index(index) = super::unwrap_group(&expression.expression)
                 {
+                    self.collect_declared_index_call_facts(
+                        index,
+                        crate::typecheck::indexing::IndexAccess::Readwrite,
+                        environment,
+                        return_type,
+                    );
                     self.record_index_plan(
                         index,
                         crate::typecheck::indexing::IndexAccess::Readwrite,
@@ -432,6 +438,12 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
+                self.collect_declared_index_call_facts(
+                    expression,
+                    crate::typecheck::indexing::IndexAccess::Readonly,
+                    environment,
+                    return_type,
+                );
                 self.record_index_plan(
                     expression,
                     crate::typecheck::indexing::IndexAccess::Readonly,
@@ -749,6 +761,28 @@ impl TypecheckFactCollector<'_> {
                 target_name: format!("{}.call", ty.identity_name()),
             },
         );
+    }
+
+    fn collect_declared_index_call_facts(
+        &mut self,
+        expression: &crate::ast::IndexExpr,
+        access: crate::typecheck::indexing::IndexAccess,
+        environment: &TypeEnvironment,
+        return_type: Option<&TypeExpr>,
+    ) {
+        let Ok(selected) = crate::typecheck::indexing::select_index_expression(
+            expression,
+            access,
+            self.resolved,
+            environment,
+        ) else {
+            return;
+        };
+        if selected.projection != crate::typecheck::indexing::IndexProjection::Declared {
+            return;
+        }
+        let call = crate::typecheck::indexing::synthetic_index_call(expression, access);
+        self.collect_expression_facts_in_context(&Expr::Call(call), environment, return_type);
     }
 }
 

@@ -3,8 +3,8 @@
 use super::{CallablePresentation, LiteralPresentation};
 use crate::ast::{
     CoercionEntry, DestructDecl, EnumDecl, EqualityOperatorDecl, FunctionDecl, GenericParam,
-    InterfaceDecl, LiteralDecl, LiteralShape, MethodDecl, Parameter, PrimitiveDecl, StructDecl,
-    TypeAliasDecl,
+    IndexOperatorDecl, InterfaceDecl, LiteralDecl, LiteralShape, MethodDecl, Parameter,
+    PrimitiveDecl, StructDecl, TypeAliasDecl,
 };
 
 pub(crate) fn ast_type_alias_presentation(alias: &TypeAliasDecl) -> String {
@@ -99,6 +99,22 @@ pub(crate) fn ast_equality_operator_presentation(
     let callable = operator.callable_method();
     let other = &callable.parameters.parameters[0].name;
     format!("operator (&{owner} == {other}: &{owner}): bool")
+}
+
+pub(crate) fn ast_index_operator_presentation(
+    owner: &crate::ast::TypeExpr,
+    operator: &IndexOperatorDecl,
+) -> String {
+    let owner = crate::ast::canonical_type_expr(owner);
+    let callable = operator.callable_method();
+    let parameter = &callable.parameters.parameters[0];
+    format!(
+        "operator ({}{owner}[{}: {}]): {}",
+        callable.receiver.mode.source_prefix(),
+        parameter.name,
+        crate::ast::canonical_type_expr(&parameter.ty),
+        crate::ast::canonical_type_expr(&callable.return_type),
+    )
 }
 
 pub(crate) fn ast_coercion_presentation(entry: &CoercionEntry) -> String {

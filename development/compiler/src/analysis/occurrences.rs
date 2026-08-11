@@ -176,7 +176,7 @@ impl OccurrenceBuilder<'_> {
                         self.push(
                             method.name_span,
                             Some(SemanticIdentity::Member(contract)),
-                            if method.name == crate::ast::EQUALITY_OPERATOR_METHOD_NAME {
+                            if crate::ast::is_operator_method_name(&method.name) {
                                 SemanticOccurrenceRole::Declaration
                             } else {
                                 SemanticOccurrenceRole::Reference

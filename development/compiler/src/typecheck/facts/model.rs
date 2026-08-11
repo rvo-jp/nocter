@@ -419,6 +419,7 @@ pub(crate) enum TypecheckIndexProjection {
     Slice,
     Str,
     Requirement,
+    Declared,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -432,6 +433,7 @@ pub(crate) struct TypecheckIndexPlan {
     pub(crate) access: TypecheckIndexAccess,
     pub(crate) projection: TypecheckIndexProjection,
     pub(crate) requirement_span: Option<ByteSpan>,
+    pub(crate) method: Option<TypecheckProtocolMethod>,
     pub(crate) conversion: Option<TypecheckConversionPlan>,
 }
 
@@ -450,6 +452,10 @@ impl TypecheckIndexPlan {
             access: self.access,
             projection: self.projection,
             requirement_span: self.requirement_span,
+            method: match &self.method {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
             conversion: match &self.conversion {
                 Some(plan) => Some(plan.with_context_substitutions(context_substitutions)?),
                 None => None,

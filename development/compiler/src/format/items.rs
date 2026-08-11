@@ -3,10 +3,10 @@ use crate::ast::{
     AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConformanceDecl,
     ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DestructDecl, EnumDecl,
     EnumVariant, EqualityOperatorDecl, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImportItem, ImportedName, InstanceDecl, InterfaceDecl, Item, LiteralDecl,
-    LiteralShape, MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
-    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
-    WhereClause,
+    GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl,
+    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl, PackageFile,
+    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
+    TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
 };
 
 impl Formatter {
@@ -372,7 +372,7 @@ impl Formatter {
                     formatter.newline();
                 }
                 formatter.write_indent();
-                formatter.format_equality_operator_decl(operator);
+                formatter.format_operator_decl(operator);
                 formatter.newline();
                 wrote_member = true;
             }
@@ -461,6 +461,26 @@ impl Formatter {
         self.format_type(&callable.return_type);
         self.write(" ");
         self.format_block(callable.body.as_ref().expect("operator body"));
+    }
+
+    fn format_index_operator_decl(&mut self, item: &IndexOperatorDecl) {
+        let callable = item.callable_method();
+        self.format_visibility(callable.visibility);
+        self.write("operator (");
+        self.format_method_receiver(&callable.receiver);
+        self.write("[");
+        self.format_parameter(&callable.parameters.parameters[0]);
+        self.write("]): ");
+        self.format_type(&callable.return_type);
+        self.write(" ");
+        self.format_block(callable.body.as_ref().expect("operator body"));
+    }
+
+    fn format_operator_decl(&mut self, item: &OperatorDecl) {
+        match item {
+            OperatorDecl::Equality(operator) => self.format_equality_operator_decl(operator),
+            OperatorDecl::Index(operator) => self.format_index_operator_decl(operator),
+        }
     }
 
     fn format_visibility(&mut self, visibility: Visibility) {

@@ -912,6 +912,7 @@ fn check_generic_interface_bounds(
                             super::indexing::IndexAccess::Readonly
                         },
                         source_is_writable,
+                        call.span,
                         resolved,
                         environment,
                     );

@@ -9,7 +9,7 @@ use super::coercions::{SelectedCoercion, receiver_coercion_candidates};
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::numeric::is_integer_type;
-use crate::ast::IndexExpr;
+use crate::ast::{CallExpr, Expr, IndexExpr, MemberExpr};
 use crate::resolve::ResolveOutput;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub(super) enum IndexProjection {
     Slice,
     Str,
     Requirement,
+    Declared,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,7 @@ pub(super) struct SelectedIndex {
     pub(super) projection: IndexProjection,
     pub(super) coercion: Option<SelectedCoercion>,
     pub(super) requirement_span: Option<crate::source::ByteSpan>,
+    pub(super) method: Option<super::facts::TypecheckProtocolMethod>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,11 +57,13 @@ pub(super) fn select_index_expression(
     let index = expression_type(&expression.index, resolved, environment);
     let source_is_writable =
         super::places::expression_is_writable_place(&expression.object, resolved, environment);
-    select_index_types(
+    select_index_types_inner(
         &target,
         &index,
         access,
         source_is_writable,
+        expression.span,
+        Some(expression),
         resolved,
         environment,
     )
@@ -70,6 +74,30 @@ pub(super) fn select_index_types(
     index: &Type,
     access: IndexAccess,
     source_is_writable: bool,
+    selection_span: crate::source::ByteSpan,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Result<SelectedIndex, IndexRejection> {
+    select_index_types_inner(
+        target,
+        index,
+        access,
+        source_is_writable,
+        selection_span,
+        None,
+        resolved,
+        environment,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_index_types_inner(
+    target: &Type,
+    index: &Type,
+    access: IndexAccess,
+    source_is_writable: bool,
+    selection_span: crate::source::ByteSpan,
+    expression: Option<&IndexExpr>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Result<SelectedIndex, IndexRejection> {
@@ -101,6 +129,19 @@ pub(super) fn select_index_types(
             None,
             Some(requirement.span),
         ));
+    }
+
+    if let Some(selected) = select_declared_index(
+        target,
+        index,
+        access,
+        source_is_writable,
+        selection_span,
+        expression,
+        resolved,
+        environment,
+    ) {
+        return Ok(selected);
     }
 
     let (source, source_is_readwrite) = match target {
@@ -196,6 +237,130 @@ fn direct_projection(ty: &Type) -> Option<(Type, IndexProjection, bool)> {
     }
 }
 
+pub(crate) fn synthetic_index_call(expression: &IndexExpr, access: IndexAccess) -> CallExpr {
+    let method_name = match access {
+        IndexAccess::Readonly => crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME,
+        IndexAccess::Readwrite => crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME,
+    };
+    CallExpr {
+        span: expression.span,
+        callee: Box::new(Expr::Member(MemberExpr {
+            span: expression.span,
+            object: expression.object.clone(),
+            member: method_name.to_string(),
+            member_span: expression.index_span,
+        })),
+        arguments_span: expression.index.span(),
+        arguments: vec![expression.index.as_ref().clone()],
+    }
+}
+
+fn select_declared_index(
+    target: &Type,
+    index: &Type,
+    access: IndexAccess,
+    source_is_writable: bool,
+    selection_span: crate::source::ByteSpan,
+    source_expression: Option<&IndexExpr>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<SelectedIndex> {
+    if access == IndexAccess::Readwrite && !source_is_writable {
+        return None;
+    }
+    let span = selection_span;
+    let mut local = environment.clone();
+    local.define("__nocter_index_target".to_string(), target.clone());
+    local.define("__nocter_index_value".to_string(), index.clone());
+    let synthetic_expression;
+    let expression = match source_expression {
+        Some(expression) => expression,
+        None => {
+            synthetic_expression = IndexExpr {
+                span,
+                object: Box::new(Expr::Identifier(crate::ast::IdentifierExpr {
+                    span,
+                    name: "__nocter_index_target".to_string(),
+                })),
+                index_span: span,
+                index: Box::new(Expr::Identifier(crate::ast::IdentifierExpr {
+                    span,
+                    name: "__nocter_index_value".to_string(),
+                })),
+            };
+            &synthetic_expression
+        }
+    };
+    let call = synthetic_index_call(expression, access);
+    let selected = super::calls::resolved_method_call(resolved, &call, &local)?;
+    let parameter = selected.method.signature.parameters.first()?;
+    let expected_index = super::type_expr::type_expr_to_type_with_substitutions(
+        &parameter.ty,
+        resolved,
+        Some(&selected.self_type),
+        &std::collections::HashMap::new(),
+    );
+    let index_matches = source_expression.is_some_and(|expression| {
+        super::operations::is_expression_assignable(
+            &expected_index,
+            &expression.index,
+            resolved,
+            environment,
+        )
+    }) || (source_expression.is_none()
+        && local.types_equal(&expected_index, index));
+    if !index_matches {
+        return None;
+    }
+    let result = super::type_expr::type_expr_to_type_with_substitutions(
+        &selected.method.signature.return_type,
+        resolved,
+        Some(&selected.self_type),
+        &std::collections::HashMap::new(),
+    );
+    let Type::Borrow {
+        is_readwrite,
+        inner,
+    } = result
+    else {
+        return None;
+    };
+    if is_readwrite != (access == IndexAccess::Readwrite) {
+        return None;
+    }
+    let method = index_method_fact(&selected, span)?;
+    Some(SelectedIndex {
+        target_type: target.clone(),
+        index_type: index.clone(),
+        element_type: *inner,
+        access,
+        projection: IndexProjection::Declared,
+        coercion: selected.receiver_coercion,
+        requirement_span: None,
+        method: Some(method),
+    })
+}
+
+fn index_method_fact(
+    selected: &super::calls::ResolvedMethodCall<'_>,
+    span: crate::source::ByteSpan,
+) -> Option<super::facts::TypecheckProtocolMethod> {
+    let mut free_type_parameters = std::collections::HashSet::new();
+    let self_ty = super::facts::type_to_type_expr_allowing_parameters(
+        selected.self_type.opaque_lowering_view(),
+        span,
+        &mut free_type_parameters,
+    )?;
+    Some(super::facts::TypecheckProtocolMethod::new(
+        selected.method.name_span,
+        super::facts::method_target_name_from_self_ty(&self_ty, &selected.method.name),
+        self_ty,
+        selected.method.receiver.mode,
+        selected.method.name.clone(),
+        free_type_parameters,
+    ))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn selected(
     target: &Type,
@@ -214,6 +379,7 @@ fn selected(
         projection,
         coercion,
         requirement_span,
+        method: None,
     }
 }
 
@@ -243,6 +409,7 @@ pub(crate) fn specialize_index_plan(
             super::facts::TypecheckIndexAccess::Readwrite => IndexAccess::Readwrite,
         },
         source_is_writable,
+        plan.expression_span,
         resolved,
         &TypeEnvironment::default(),
     )
@@ -252,8 +419,10 @@ pub(crate) fn specialize_index_plan(
         IndexProjection::Slice => super::facts::TypecheckIndexProjection::Slice,
         IndexProjection::Str => super::facts::TypecheckIndexProjection::Str,
         IndexProjection::Requirement => return None,
+        IndexProjection::Declared => super::facts::TypecheckIndexProjection::Declared,
     };
     plan.requirement_span = None;
+    plan.method = selected.method;
     plan.conversion = selected.coercion.and_then(|coercion| {
         super::facts::typecheck_conversion_plan(
             plan.object_span,

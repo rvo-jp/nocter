@@ -83,8 +83,12 @@ impl TypecheckFactCollector<'_> {
                     crate::typecheck::indexing::IndexProjection::Requirement => {
                         TypecheckIndexProjection::Requirement
                     }
+                    crate::typecheck::indexing::IndexProjection::Declared => {
+                        TypecheckIndexProjection::Declared
+                    }
                 },
                 requirement_span: selected.requirement_span,
+                method: selected.method,
                 conversion,
             },
         );

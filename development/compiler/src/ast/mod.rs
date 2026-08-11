@@ -262,24 +262,36 @@ pub struct InstanceDecl {
     pub target_ty: TypeExpr,
     pub requirements: Option<WhereClause>,
     pub methods: Vec<MethodDecl>,
-    pub operators: Vec<EqualityOperatorDecl>,
+    pub operators: Vec<OperatorDecl>,
 }
 
 impl InstanceDecl {
     pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
-        self.methods.iter().chain(
-            self.operators
-                .iter()
-                .map(EqualityOperatorDecl::callable_method),
-        )
+        self.methods
+            .iter()
+            .chain(self.operators.iter().map(OperatorDecl::callable_method))
     }
 
     pub fn callable_methods_mut(&mut self) -> impl Iterator<Item = &mut MethodDecl> {
         self.methods.iter_mut().chain(
             self.operators
                 .iter_mut()
-                .map(EqualityOperatorDecl::callable_method_mut),
+                .map(OperatorDecl::callable_method_mut),
         )
+    }
+
+    pub fn equality_operators(&self) -> impl Iterator<Item = &EqualityOperatorDecl> {
+        self.operators.iter().filter_map(|operator| match operator {
+            OperatorDecl::Equality(operator) => Some(operator),
+            OperatorDecl::Index(_) => None,
+        })
+    }
+
+    pub fn index_operators(&self) -> impl Iterator<Item = &IndexOperatorDecl> {
+        self.operators.iter().filter_map(|operator| match operator {
+            OperatorDecl::Index(operator) => Some(operator),
+            OperatorDecl::Equality(_) => None,
+        })
     }
 }
 

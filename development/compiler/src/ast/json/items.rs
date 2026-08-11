@@ -575,6 +575,37 @@ impl crate::ast::EqualityOperatorDecl {
     }
 }
 
+impl crate::ast::IndexOperatorDecl {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        let callable = self.callable_method();
+        JsonAstNode::with_value(
+            "operator_decl",
+            "[]".to_string(),
+            json_span(sources, self.span),
+            vec![
+                visibility_json(callable.visibility),
+                callable.receiver.to_json(sources),
+                callable.parameters.parameters[0].to_json(sources),
+                callable.return_type.to_json(sources),
+                callable
+                    .body
+                    .as_ref()
+                    .expect("operator body")
+                    .to_json(sources),
+            ],
+        )
+    }
+}
+
+impl crate::ast::OperatorDecl {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        match self {
+            Self::Equality(operator) => operator.to_json(sources),
+            Self::Index(operator) => operator.to_json(sources),
+        }
+    }
+}
+
 impl MethodReceiver {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::with_value(
