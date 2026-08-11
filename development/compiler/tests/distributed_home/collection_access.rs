@@ -38,7 +38,7 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_vec_indexes_directly_through_slice_coercions() {
+fn distributed_std_vec_indexes_through_declared_operators() {
     let project = TempProject::new("distributed-home-vec-direct-index-run");
     let source = project.write_source(
         "vec_direct_index.nct",

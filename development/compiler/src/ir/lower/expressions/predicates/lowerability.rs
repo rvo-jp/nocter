@@ -90,8 +90,9 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
         }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
         Expr::Index(index) => {
-            expression_is_lowerable_bool_slice_index_object(&index.object, context)
-                && expression_is_lowerable_usize_expression(&index.index, context)
+            declared_index_has_ir_type(index, Type::Bool, context)
+                || (expression_is_lowerable_bool_slice_index_object(&index.object, context)
+                    && expression_is_lowerable_usize_expression(&index.index, context))
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
@@ -273,8 +274,9 @@ fn expression_is_lowerable_bool_expression(expression: &Expr, context: &Lowering
         }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
         Expr::Index(index) => {
-            expression_is_lowerable_bool_slice_index_object(&index.object, context)
-                && expression_is_lowerable_usize_expression(&index.index, context)
+            declared_index_has_ir_type(index, Type::Bool, context)
+                || (expression_is_lowerable_bool_slice_index_object(&index.object, context)
+                    && expression_is_lowerable_usize_expression(&index.index, context))
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
@@ -331,8 +333,9 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
         }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => {
-            expression_is_lowerable_byte_index_object(&index.object, context)
-                && expression_is_lowerable_usize_expression(&index.index, context)
+            declared_index_has_ir_type(index, Type::U8, context)
+                || (expression_is_lowerable_byte_index_object(&index.object, context)
+                    && expression_is_lowerable_usize_expression(&index.index, context))
         }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::U8) =>
@@ -356,7 +359,10 @@ fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContex
                 || identifier_is_borrow_or_closure_scalar(identifier, Type::U8, context)
         }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
-        Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
+        Expr::Index(index) => {
+            declared_index_has_ir_type(index, Type::U8, context)
+                || expression_is_lowerable_byte_index_object(&index.object, context)
+        }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::U8) =>
         {
@@ -630,8 +636,9 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
                 && expression_is_lowerable_usize_expression(&binary.right, context)
         }
         Expr::Index(index) => {
-            expression_is_lowerable_slice_index_object(&index.object, context)
-                && expression_is_lowerable_usize_expression(&index.index, context)
+            declared_index_has_ir_type(index, Type::Usize, context)
+                || (expression_is_lowerable_slice_index_object(&index.object, context)
+                    && expression_is_lowerable_usize_expression(&index.index, context))
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Usize, context)
@@ -678,8 +685,9 @@ fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringC
                 && expression_is_lowerable_i32_expression(&binary.right, context)
         }
         Expr::Index(index) => {
-            expression_is_lowerable_i32_slice_index_object(&index.object, context)
-                && expression_is_lowerable_usize_expression(&index.index, context)
+            declared_index_has_ir_type(index, Type::I32, context)
+                || (expression_is_lowerable_i32_slice_index_object(&index.object, context)
+                    && expression_is_lowerable_usize_expression(&index.index, context))
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::I32, context)
@@ -687,6 +695,20 @@ fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringC
         Expr::Group(group) => expression_is_lowerable_i32_expression(&group.expression, context),
         _ => expression_is_lowerable_i32_value(expression, context),
     }
+}
+
+/// Declared indexing lowers through the callable selected by typechecking, not through the
+/// receiver's AST shape. Predicate classification must consume that same plan or scalar index
+/// results work in value expressions but are rejected when nested in comparisons.
+fn declared_index_has_ir_type(
+    index: &crate::ast::IndexExpr,
+    expected: Type,
+    context: &LoweringContext,
+) -> bool {
+    context.index_plan(index.span).is_some_and(|plan| {
+        plan.projection == crate::typecheck::TypecheckIndexProjection::Declared
+            && context.ir_type_for_type_expr(&plan.element_ty) == Some(expected)
+    })
 }
 
 pub(in crate::ir::lower::expressions) fn expression_is_aggregate_field_kind(
