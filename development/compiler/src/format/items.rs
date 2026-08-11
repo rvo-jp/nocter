@@ -2,10 +2,11 @@ use super::Formatter;
 use crate::ast::{
     AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConformanceDecl,
     ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DestructDecl, EnumDecl,
-    EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImportItem,
-    ImportedName, InstanceDecl, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl,
-    MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause,
-    StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
+    EnumVariant, EqualityOperatorDecl, FromImportItem, FunctionDecl, GenericParam,
+    GenericParamList, ImportItem, ImportedName, InstanceDecl, InterfaceDecl, Item, LiteralDecl,
+    LiteralShape, MethodDecl, MethodReceiver, PackageFile, Parameter, ParameterList, PrimitiveDecl,
+    ResultProvenanceClause, StructDecl, StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility,
+    WhereClause,
 };
 
 impl Formatter {
@@ -348,7 +349,7 @@ impl Formatter {
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
-        if item.methods.is_empty() {
+        if item.methods.is_empty() && item.operators.is_empty() {
             self.write("{}");
             return;
         }
@@ -356,13 +357,24 @@ impl Formatter {
         self.write("{");
         self.newline();
         self.indented(|formatter| {
-            for (index, method) in item.methods.iter().enumerate() {
-                if index > 0 {
+            let mut wrote_member = false;
+            for method in &item.methods {
+                if wrote_member {
                     formatter.newline();
                 }
                 formatter.write_indent();
                 formatter.format_method_decl(method);
                 formatter.newline();
+                wrote_member = true;
+            }
+            for operator in &item.operators {
+                if wrote_member {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                formatter.format_equality_operator_decl(operator);
+                formatter.newline();
+                wrote_member = true;
             }
         });
         self.write_indent();
@@ -436,6 +448,19 @@ impl Formatter {
             self.write(" ");
             self.format_block(body);
         }
+    }
+
+    fn format_equality_operator_decl(&mut self, item: &EqualityOperatorDecl) {
+        let callable = item.callable_method();
+        self.format_visibility(callable.visibility);
+        self.write("operator (");
+        self.format_method_receiver(&callable.receiver);
+        self.write(" == ");
+        self.format_parameter(&callable.parameters.parameters[0]);
+        self.write("): ");
+        self.format_type(&callable.return_type);
+        self.write(" ");
+        self.format_block(callable.body.as_ref().expect("operator body"));
     }
 
     fn format_visibility(&mut self, visibility: Visibility) {
@@ -537,6 +562,11 @@ impl Formatter {
                     self.format_type(&equality.left);
                     self.write(" = ");
                     self.format_type(&equality.right);
+                }
+                crate::ast::WherePredicate::Operator(requirement) => {
+                    self.format_type(&requirement.left);
+                    self.write(" == ");
+                    self.format_type(&requirement.right);
                 }
             }
         }

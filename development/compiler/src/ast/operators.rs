@@ -1,0 +1,41 @@
+//! Source-owned equality operator declarations.
+
+use super::{MethodDecl, TypeExpr};
+use crate::source::ByteSpan;
+
+pub(crate) const EQUALITY_OPERATOR_METHOD_NAME: &str = "__nocter$operator$equal";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EqualityOperatorDecl {
+    pub span: ByteSpan,
+    pub operator_span: ByteSpan,
+    callable: MethodDecl,
+}
+
+impl EqualityOperatorDecl {
+    /// Adapts the fixed operator shape to the ordinary static method body pipeline. The synthetic
+    /// name is an internal identity and is never presented as source syntax.
+    pub fn new(span: ByteSpan, operator_span: ByteSpan, callable: MethodDecl) -> Self {
+        Self {
+            span,
+            operator_span,
+            callable,
+        }
+    }
+
+    pub fn callable_method(&self) -> &MethodDecl {
+        &self.callable
+    }
+
+    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+        &mut self.callable
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperatorRequirementPredicate {
+    pub span: ByteSpan,
+    pub operator_span: ByteSpan,
+    pub left: TypeExpr,
+    pub right: TypeExpr,
+}

@@ -36,7 +36,7 @@ pub(in crate::typecheck::returns) fn check_instance_member_return_types(
     diagnostics: &mut Vec<Diagnostic>,
     summaries: &CallableProvenanceSummaries,
 ) {
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         check_method_return_type(sources, instance, method, resolved, diagnostics, summaries);
     }
 }

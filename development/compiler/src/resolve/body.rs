@@ -117,7 +117,7 @@ impl Resolver<'_> {
     }
 
     fn resolve_instance_bodies(&mut self, instance: &InstanceDecl) {
-        for method in &instance.methods {
+        for method in instance.callable_methods() {
             self.resolve_method(method);
         }
     }

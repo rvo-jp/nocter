@@ -33,7 +33,7 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
             }
             Item::Test(test) => collect_block(file, &test.body, None, &mut facts),
             Item::Instance(instance) => {
-                for method in &instance.methods {
+                for method in instance.callable_methods() {
                     if let Some(body) = &method.body {
                         collect_block(file, body, None, &mut facts);
                     }

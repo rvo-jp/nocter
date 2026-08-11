@@ -324,6 +324,13 @@ impl<'a> LoweringContext<'a> {
         &self,
         call: &CallExpr,
     ) -> Option<(CallTarget, String)> {
+        if let Expr::Member(member) = call.callee.as_ref()
+            && let Some(plan) = self.equality_plan(member.member_span)
+            && let Some(method) = &plan.method
+        {
+            let target = self.protocol_method_target(method)?;
+            return Some((target, method.target_name.clone()));
+        }
         if let Some((target, target_name)) = self.function_call_specialization_target_and_name(call)
         {
             return Some((target, target_name));
@@ -508,6 +515,9 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
+        if self.equality_plan(member.member_span).is_some() {
+            return Some(&member.object);
+        }
         resolution
             .typecheck_facts
             .method_call_target(member.member_span)?;
@@ -518,10 +528,30 @@ impl<'a> LoweringContext<'a> {
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckMethodReceiverKind> {
+        if let Some(plan) = self.equality_plan(member_span)
+            && plan.method.is_some()
+        {
+            return Some(crate::typecheck::TypecheckMethodReceiverKind::ReadonlyBorrow);
+        }
         self.call_resolution
             .as_ref()?
             .typecheck_facts
             .method_call_receiver_kind(member_span)
+    }
+
+    pub(in crate::ir::lower) fn call_argument_uses_implicit_readonly_borrow(
+        &self,
+        call: &CallExpr,
+        index: usize,
+    ) -> bool {
+        if index != 0 {
+            return false;
+        }
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return false;
+        };
+        self.equality_plan(member.member_span)
+            .is_some_and(|plan| plan.right_implicit_readonly_borrow)
     }
 
     pub(in crate::ir::lower) fn coercion_plan(
@@ -539,11 +569,62 @@ impl<'a> LoweringContext<'a> {
         &self,
         expression_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckConversionPlan> {
-        self.call_resolution
-            .as_ref()?
+        let resolution = self.call_resolution.as_ref()?;
+        if let Some(plan) = resolution
             .typecheck_facts
-            .conversion_plan(expression_span)?
-            .with_context_substitutions(&self.generic_substitutions)
+            .conversion_plan(expression_span)
+            .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
+        {
+            return Some(plan);
+        }
+        resolution
+            .typecheck_facts
+            .equality_plans()
+            .find_map(|plan| {
+                let plan = plan.with_context_substitutions(&self.generic_substitutions)?;
+                if plan.left_span == expression_span {
+                    plan.left_conversion
+                } else if plan.right_span == expression_span {
+                    plan.right_conversion
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub(in crate::ir::lower) fn equality_plan(
+        &self,
+        operator_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckEqualityPlan> {
+        let resolution = self.call_resolution.as_ref()?;
+        let plan = resolution
+            .typecheck_facts
+            .equality_plan(operator_span)?
+            .with_context_substitutions(&self.generic_substitutions)?;
+        if plan.method.is_some() {
+            return Some(plan);
+        }
+
+        // A generic callable can be declared in one module and specialized with
+        // a type declared in another. Resolve the substituted type in its own
+        // source context so its instance surface and any visible coercions are
+        // available. The declaration's resolver remains the deterministic
+        // fallback for primitive and same-module substitutions.
+        let mut candidate_sources = Vec::new();
+        collect_type_expr_resolution_sources(&plan.left_ty, &mut candidate_sources);
+        collect_type_expr_resolution_sources(&plan.right_ty, &mut candidate_sources);
+        candidate_sources.dedup();
+        for source in candidate_sources {
+            let Some(resolved) = self.resolved_source(source) else {
+                continue;
+            };
+            if let Some(specialized) =
+                crate::typecheck::specialize_equality_plan(plan.clone(), resolved)
+            {
+                return Some(specialized);
+            }
+        }
+        crate::typecheck::specialize_equality_plan(plan, resolution.resolved)
     }
 
     pub(in crate::ir::lower) fn coercion_call_target(
@@ -729,6 +810,57 @@ impl<'a> LoweringContext<'a> {
             &ty,
             &self.generic_substitutions,
         ))
+    }
+}
+
+fn collect_type_expr_resolution_sources(ty: &TypeExpr, sources: &mut Vec<SourceId>) {
+    match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &callable.parameters {
+                collect_type_expr_resolution_sources(&parameter.ty, sources);
+            }
+            collect_type_expr_resolution_sources(&callable.return_type, sources);
+        }
+        TypeExpr::Closure(closure) => {
+            for capture in &closure.captures {
+                collect_type_expr_resolution_sources(&capture.ty, sources);
+            }
+            for parameter in &closure.parameters {
+                collect_type_expr_resolution_sources(parameter, sources);
+            }
+            collect_type_expr_resolution_sources(&closure.return_type, sources);
+        }
+        TypeExpr::Opaque(opaque) => {
+            collect_type_expr_resolution_sources(&opaque.interface, sources);
+            for binding in &opaque.associated_bindings {
+                collect_type_expr_resolution_sources(&binding.value, sources);
+            }
+            if let Some(witness) = &opaque.witness {
+                collect_type_expr_resolution_sources(witness, sources);
+            }
+        }
+        TypeExpr::Reference(reference) => sources.push(reference.span.source),
+        TypeExpr::Generic(generic) => {
+            sources.push(generic.name_span.source);
+            for argument in &generic.arguments {
+                collect_type_expr_resolution_sources(argument, sources);
+            }
+        }
+        TypeExpr::Projection(projection) => {
+            collect_type_expr_resolution_sources(&projection.base, sources);
+            sources.push(projection.name_span.source);
+        }
+        TypeExpr::Pointer(pointer) => collect_type_expr_resolution_sources(&pointer.inner, sources),
+        TypeExpr::Borrow(borrow) => collect_type_expr_resolution_sources(&borrow.inner, sources),
+        TypeExpr::View(view) => collect_type_expr_resolution_sources(&view.element, sources),
+        TypeExpr::Array(array) => collect_type_expr_resolution_sources(&array.element, sources),
+        TypeExpr::Optional(optional) => {
+            collect_type_expr_resolution_sources(&optional.inner, sources)
+        }
+        TypeExpr::Fallible(fallible) => {
+            collect_type_expr_resolution_sources(&fallible.success, sources);
+            collect_type_expr_resolution_sources(&fallible.error, sources);
+        }
     }
 }
 

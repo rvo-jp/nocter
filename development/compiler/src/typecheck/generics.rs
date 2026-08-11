@@ -231,7 +231,7 @@ fn check_instance_types(
     );
     check_type_expr(sources, &instance.target_ty, resolved, &scope, diagnostics);
     let member_scope = scope.clone().with_self_type();
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         let method_scope = member_scope
             .clone()
             .with_generics(&method.generics)
@@ -510,6 +510,49 @@ fn check_where_clause(
                 equality.span,
                 first_span,
             ));
+        }
+    }
+
+    let mut seen_operators = HashMap::<String, ByteSpan>::new();
+    for requirement in clause.operator_requirements() {
+        check_type_expr(sources, &requirement.left, resolved, scope, diagnostics);
+        check_type_expr(sources, &requirement.right, resolved, scope, diagnostics);
+        let valid = match (&requirement.left, &requirement.right) {
+            (TypeExpr::Borrow(left), TypeExpr::Borrow(right))
+                if !left.is_readwrite && !right.is_readwrite =>
+            {
+                matches!(
+                    (left.inner.as_ref(), right.inner.as_ref()),
+                    (TypeExpr::Reference(left), TypeExpr::Reference(right))
+                        if left.name == right.name && scope.parameters.contains_key(left.name.as_str())
+                )
+            }
+            _ => false,
+        };
+        if !valid {
+            let mut diagnostic = Diagnostic::error(
+                "E0471",
+                "equality requirement must have the form `&T == &T` for one generic parameter",
+            );
+            diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        let key = format!(
+            "{}=={}",
+            crate::ast::canonical_type_expr(&requirement.left),
+            crate::ast::canonical_type_expr(&requirement.right)
+        );
+        if let Some(first_span) = seen_operators.insert(key, requirement.span) {
+            let mut diagnostic = Diagnostic::error("E0472", "duplicate equality requirement");
+            diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
+            if let Ok(span) = sources.span_to_json(first_span) {
+                diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
+                    message: "the first requirement is here".to_string(),
+                    span: Some(span),
+                });
+            }
+            diagnostics.push(diagnostic);
         }
     }
 }

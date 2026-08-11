@@ -97,7 +97,7 @@ impl TypecheckFactCollector<'_> {
                 self.collect_generic_param_type_references(&instance.generics);
                 self.collect_type_expr_references(&instance.target_ty);
                 self.collect_where_clause_type_references(instance.requirements.as_ref());
-                for method in &instance.methods {
+                for method in instance.callable_methods() {
                     self.with_generic_scope(&method.generics, |collector| {
                         collector.collect_method_signature_type_references(method)
                     });
@@ -250,6 +250,10 @@ impl TypecheckFactCollector<'_> {
         for equality in clause.equalities() {
             self.collect_type_expr_references(&equality.left);
             self.collect_type_expr_references(&equality.right);
+        }
+        for requirement in clause.operator_requirements() {
+            self.collect_type_expr_references(&requirement.left);
+            self.collect_type_expr_references(&requirement.right);
         }
         for refinement in clause.refinements() {
             self.record_type_reference(

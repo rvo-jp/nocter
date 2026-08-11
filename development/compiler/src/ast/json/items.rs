@@ -178,6 +178,11 @@ impl Item {
                     children.push(clause.to_json(sources));
                 }
                 children.extend(item.methods.iter().map(|method| method.to_json(sources)));
+                children.extend(
+                    item.operators
+                        .iter()
+                        .map(|operator| operator.to_json(sources)),
+                );
                 JsonAstNode::new("instance_decl", json_span(sources, item.span), children)
             }
             Item::Conformance(item) => {
@@ -468,6 +473,14 @@ impl WhereClause {
                             equality.right.to_json(sources),
                         ],
                     ),
+                    crate::ast::WherePredicate::Operator(requirement) => JsonAstNode::new(
+                        "operator_requirement",
+                        json_span(sources, requirement.span),
+                        vec![
+                            requirement.left.to_json(sources),
+                            requirement.right.to_json(sources),
+                        ],
+                    ),
                 })
                 .collect(),
         )
@@ -516,6 +529,28 @@ impl MethodDecl {
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl crate::ast::EqualityOperatorDecl {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        let callable = self.callable_method();
+        JsonAstNode::with_value(
+            "operator_decl",
+            "==".to_string(),
+            json_span(sources, self.span),
+            vec![
+                visibility_json(callable.visibility),
+                callable.receiver.to_json(sources),
+                callable.parameters.parameters[0].to_json(sources),
+                callable.return_type.to_json(sources),
+                callable
+                    .body
+                    .as_ref()
+                    .expect("operator body")
+                    .to_json(sources),
+            ],
         )
     }
 }

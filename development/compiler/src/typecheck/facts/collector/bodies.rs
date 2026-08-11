@@ -170,7 +170,7 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         instance: &InstanceDecl,
     ) {
-        for method in &instance.methods {
+        for method in instance.callable_methods() {
             self.collect_method_body_facts(instance, method);
         }
     }

@@ -183,6 +183,24 @@ pub(crate) fn method_presentation(
     )
 }
 
+pub(crate) fn method_or_equality_operator_presentation(
+    owner: &TypeSymbol,
+    method: &MethodSignature,
+    resolved: &ResolveOutput,
+) -> String {
+    if method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME {
+        return method_presentation(owner, method, resolved).render();
+    }
+    let owner = super::type_owner_presentation_label(owner, resolved);
+    let other = method
+        .signature
+        .parameters
+        .first()
+        .map(|parameter| parameter.name.as_str())
+        .unwrap_or("other");
+    format!("operator (&{owner} == {other}: &{owner}): bool")
+}
+
 pub(crate) fn method_presentation_with_substitutions(
     method: &MethodSignature,
     substitutions: &std::collections::HashMap<String, TypeExpr>,
@@ -294,6 +312,11 @@ fn where_predicate_labels_with(
                 "{} = {}",
                 type_label(&equality.left),
                 type_label(&equality.right)
+            ),
+            crate::ast::WherePredicate::Operator(requirement) => format!(
+                "{} == {}",
+                type_label(&requirement.left),
+                type_label(&requirement.right)
             ),
         })
         .collect()

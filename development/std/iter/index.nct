@@ -57,6 +57,10 @@ pub struct FoldStep<T, U> {
     pub item: T
 }
 
+func iterator_items_equal<T>(left: &T, right: &T): bool where &T == &T {
+    return left == right
+}
+
 /// Advances a mutable iterator and returns one item, or `none` at exhaustion.
 pub interface Iterator {
     pub type Item
@@ -171,6 +175,32 @@ pub interface Iterator {
             }
         }
         return true
+    }
+
+    /// Consumes the iterator and returns whether it yields an equal item.
+    pub method self.contains<T>(expected: &T): bool where Self.Item = T, &T == &T {
+        var source = move self
+        while true {
+            let item = source.next() otherwise { return false }
+            if iterator_items_equal(&item, expected) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Consumes the iterator and returns the index of its first equal item.
+    pub method self.position<T>(expected: &T): usize? where Self.Item = T, &T == &T {
+        var source = move self
+        var index: usize = 0
+        while true {
+            let item = source.next() otherwise { return none }
+            if iterator_items_equal(&item, expected) {
+                return index
+            }
+            index = index + 1
+        }
+        return none
     }
 
     /// Reduces every item into one accumulator value.

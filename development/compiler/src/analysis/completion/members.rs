@@ -31,7 +31,9 @@ pub(super) fn member_completion_items(
             .symbol
             .methods
             .iter()
-            .filter(|method| method.is_accessible)
+            .filter(|method| {
+                method.is_accessible && method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME
+            })
             .map(|method| method.name.clone())
             .collect::<HashSet<_>>();
         if let Some(self_ty) = owner.substitutions.get("Self") {
@@ -117,7 +119,9 @@ fn value_member_completion_items(
     );
     let mut methods_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
     for method in owner.symbol.methods.iter().filter(|method| {
-        method.is_accessible && method_receiver_is_available(method, can_readwrite, can_move)
+        method.is_accessible
+            && method.name != crate::ast::EQUALITY_OPERATOR_METHOD_NAME
+            && method_receiver_is_available(method, can_readwrite, can_move)
     }) {
         methods_by_name
             .entry(method.name.as_str())

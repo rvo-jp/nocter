@@ -15,6 +15,23 @@ pub(/) primitive str_len_raw(value: &str): usize
 pub(/) primitive str_ptr_addr_raw(value: &str): usize
 
 instance str {
+    /// Compares UTF-8 encoding bytes without allocation.
+    pub operator (&self == other: &Self): bool {
+        let left = bytes_from_str(self)
+        let right = bytes_from_str(other)
+        if left.len() != right.len() {
+            return false
+        }
+        var index: usize = 0
+        while index < left.len() {
+            if left[index] != right[index] {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
     pub method &self.len(): usize {
         return str_len_raw(self)
     }

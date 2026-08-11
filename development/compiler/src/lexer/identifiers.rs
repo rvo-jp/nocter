@@ -17,6 +17,7 @@ pub(in crate::lexer) fn keyword(text: &str) -> Option<Keyword> {
         "conform" => Keyword::Conform,
         "destruct" => Keyword::Destruct,
         "method" => Keyword::Method,
+        "operator" => Keyword::Operator,
         "let" => Keyword::Let,
         "var" => Keyword::Var,
         "return" => Keyword::Return,

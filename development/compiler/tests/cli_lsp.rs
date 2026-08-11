@@ -2797,6 +2797,97 @@ func main(): i32 {
     );
 }
 
+#[test]
+fn lsp_equality_operator_uses_exact_source_identity_and_range() {
+    let project = TempProject::new("cli-lsp-equality-operator");
+    let source_text = r#"struct Text { value: i32 }
+instance Text {
+    pub operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+}
+func equal(left: &Text, right: &Text): bool { return left == right }
+func main(): i32 { return 0 }
+"#;
+    let source = project.write_source("index.nct", source_text);
+    let uri = file_uri(&source);
+    let declaration_offset = source_text.find("== other").unwrap();
+    let use_offset = source_text.rfind("== right").unwrap();
+    let (declaration_line, declaration_character) =
+        lsp_position_for_ascii_byte_offset(source_text, declaration_offset);
+    let (use_line, use_character) = lsp_position_for_ascii_byte_offset(source_text, use_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            initialize_request(1),
+            did_open_notification(&uri, source_text),
+            text_document_position_request(2, "textDocument/hover", &uri, use_line, use_character),
+            text_document_position_request(
+                3,
+                "textDocument/definition",
+                &uri,
+                use_line,
+                use_character,
+            ),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/references",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": {
+                        "line": declaration_line,
+                        "character": declaration_character
+                    },
+                    "context": { "includeDeclaration": true }
+                }
+            }),
+            shutdown_request(5),
+            exit_notification(),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(hover["range"]["start"]["line"], use_line);
+    assert_eq!(hover["range"]["start"]["character"], use_character);
+    assert_eq!(hover["range"]["end"]["character"], use_character + 2);
+    assert!(
+        hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| value.contains("operator (&Text == other: &Text): bool"))
+    );
+
+    let definition = &response_with_id(&messages, 3)["result"][0];
+    assert_eq!(definition["targetUri"], uri);
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["line"],
+        declaration_line
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        declaration_character
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["end"]["character"],
+        declaration_character + 2
+    );
+
+    let references = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected equality references");
+    assert_eq!(references.len(), 2, "{references:#?}");
+    assert_eq!(references[0]["range"]["start"]["line"], declaration_line);
+    assert_eq!(references[1]["range"]["start"]["line"], use_line);
+}
+
 fn response_with_id(messages: &[Value], id: u64) -> &Value {
     messages
         .iter()

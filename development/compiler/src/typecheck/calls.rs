@@ -300,6 +300,19 @@ fn resolve_receiver_coerced_method<'a>(
     candidates.is_empty().then_some(candidate)
 }
 
+pub(super) fn receiver_coerced_method_candidates_for_call<'a>(
+    resolved: &'a ResolveOutput,
+    call: &CallExpr,
+    environment: &TypeEnvironment,
+) -> Vec<ResolvedMethodCall<'a>> {
+    let Some(member) = method_member_for_call(call) else {
+        return Vec::new();
+    };
+    let receiver_type = expression_type(&member.object, resolved, environment);
+    let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
+    receiver_coerced_method_candidates(resolved, member, &receiver_type, &self_type, environment)
+}
+
 fn receiver_coerced_method_candidates<'a>(
     resolved: &'a ResolveOutput,
     member: &MemberExpr,
@@ -807,6 +820,49 @@ fn check_generic_interface_bounds(
             &right,
             equality.span,
         ));
+    }
+    if let Some(clause) = &signature.signature.where_clause {
+        for requirement in clause.operator_requirements() {
+            let left = type_expr_to_type_with_substitutions(
+                &requirement.left,
+                resolved,
+                specialized_self_type.as_ref(),
+                substitutions,
+            );
+            let right = type_expr_to_type_with_substitutions(
+                &requirement.right,
+                resolved,
+                specialized_self_type.as_ref(),
+                substitutions,
+            );
+            if left.is_unknown_or_unresolved() || right.is_unknown_or_unresolved() {
+                continue;
+            }
+            if !super::operators::types_support_equality(
+                &left,
+                &right,
+                requirement.operator_span,
+                resolved,
+                environment,
+            ) {
+                let mut diagnostic = Diagnostic::error(
+                    "E0473",
+                    format!(
+                        "equality requirement `{}` == `{}` is not satisfied",
+                        left.display(),
+                        right.display()
+                    ),
+                );
+                diagnostic.primary_span = sources.span_to_json(call.span).ok().map(Box::new);
+                if let Ok(span) = sources.span_to_json(requirement.operator_span) {
+                    diagnostic.notes.push(DiagnosticNote {
+                        message: "required by this generic equality contract".to_string(),
+                        span: Some(span),
+                    });
+                }
+                diagnostics.push(diagnostic);
+            }
+        }
     }
 }
 

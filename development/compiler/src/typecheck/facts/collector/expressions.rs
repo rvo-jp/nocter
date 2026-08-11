@@ -117,6 +117,107 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
+                if matches!(
+                    expression.operator,
+                    crate::ast::BinaryOperator::Equal | crate::ast::BinaryOperator::NotEqual
+                ) {
+                    let selected = crate::typecheck::operators::resolved_equality_method(
+                        expression,
+                        self.resolved,
+                        environment,
+                    );
+                    let adjustment = selected.as_ref().and_then(|selected| {
+                        let parameter = selected.method.signature.parameters.first()?;
+                        let expected = type_expr_to_type_with_substitutions(
+                            &parameter.ty,
+                            self.resolved,
+                            Some(&selected.self_type),
+                            &std::collections::HashMap::new(),
+                        );
+                        let actual = expression_type(&expression.right, self.resolved, environment);
+                        crate::typecheck::operators::equality_right_adjustment(
+                            &expected,
+                            &expression.right,
+                            &actual,
+                            self.resolved,
+                            environment,
+                        )
+                    });
+                    if selected.is_some() && adjustment.is_some() {
+                        let call = crate::typecheck::operators::synthetic_equality_call(expression);
+                        self.collect_expression_facts_in_context(
+                            &Expr::Call(call),
+                            environment,
+                            return_type,
+                        );
+                    }
+                    let mut free_type_parameters = std::collections::HashSet::new();
+                    let left_type = expression_type(&expression.left, self.resolved, environment);
+                    let right_type = expression_type(&expression.right, self.resolved, environment);
+                    if let (Some(left_ty), Some(right_ty)) = (
+                        type_to_type_expr_allowing_parameters(
+                            &left_type,
+                            expression.left.span(),
+                            &mut free_type_parameters,
+                        ),
+                        type_to_type_expr_allowing_parameters(
+                            &right_type,
+                            expression.right.span(),
+                            &mut free_type_parameters,
+                        ),
+                    ) {
+                        let method = selected.as_ref().and_then(|selected| {
+                            crate::typecheck::operators::equality_method_fact(
+                                selected,
+                                expression.operator_span,
+                            )
+                        });
+                        if (method.is_some() && adjustment.is_some())
+                            || environment
+                                .equality_requirement_span(&left_type, &right_type)
+                                .is_some()
+                        {
+                            self.facts.equality_plans.insert(
+                                expression.operator_span,
+                                TypecheckEqualityPlan {
+                                    operator_span: expression.operator_span,
+                                    call_span: expression.span,
+                                    left_span: expression.left.span(),
+                                    right_span: expression.right.span(),
+                                    left_ty,
+                                    right_ty,
+                                    method,
+                                    right_implicit_readonly_borrow: adjustment
+                                        .as_ref()
+                                        .is_some_and(|adjustment| {
+                                            adjustment.implicit_readonly_borrow
+                                        }),
+                                    left_conversion: self
+                                        .facts
+                                        .conversion_plans
+                                        .get(&expression.left.span())
+                                        .cloned(),
+                                    right_conversion: adjustment
+                                        .and_then(|adjustment| adjustment.conversion)
+                                        .and_then(|conversion| {
+                                            super::super::typecheck_conversion_plan(
+                                                expression.right.span(),
+                                                expression.right.span(),
+                                                None,
+                                                conversion,
+                                            )
+                                        })
+                                        .or_else(|| {
+                                            self.facts
+                                                .conversion_plans
+                                                .get(&expression.right.span())
+                                                .cloned()
+                                        }),
+                                },
+                            );
+                        }
+                    }
+                }
             }
             Expr::Unary(expression) => {
                 self.collect_expression_facts_in_context(

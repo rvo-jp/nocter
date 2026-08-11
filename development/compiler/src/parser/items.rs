@@ -2,11 +2,12 @@ use super::support::ParsedIdentifier;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AssociatedTypeBinding, AssociatedTypeDecl, AstFile, BorrowType, ConformanceDecl,
-    ConformanceMember, DestructDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
-    FunctionOwner, ImportAlias, ImportItem, ImportedName, InstanceDecl, InterfaceDecl, Item,
-    MethodDecl, MethodReceiver, MethodReceiverMode, ModulePath, Parameter, ParameterList,
-    PrimitiveDecl, ResultProvenanceClause, ResultProvenanceOrigin, ResultProvenanceOriginKind,
-    StructDecl, StructField, TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, Visibility,
+    ConformanceMember, DestructDecl, EnumDecl, EnumVariant, EqualityOperatorDecl, FromImportItem,
+    FunctionDecl, FunctionOwner, ImportAlias, ImportItem, ImportedName, InstanceDecl,
+    InterfaceDecl, Item, MethodDecl, MethodReceiver, MethodReceiverMode, ModulePath, Parameter,
+    ParameterList, PrimitiveDecl, ResultProvenanceClause, ResultProvenanceOrigin,
+    ResultProvenanceOriginKind, StructDecl, StructField, TargetDirective, TypeAliasDecl, TypeExpr,
+    TypeReference, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::literals::decode_string_literal_bytes;
@@ -22,6 +23,7 @@ mod imports;
 mod instances;
 mod interfaces;
 mod methods;
+mod operators;
 mod package_directives;
 mod parameters;
 mod provenance;

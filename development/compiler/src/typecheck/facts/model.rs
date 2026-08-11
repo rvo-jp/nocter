@@ -6,6 +6,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
+    pub(super) equality_plans: HashMap<ByteSpan, TypecheckEqualityPlan>,
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
@@ -63,6 +64,14 @@ impl TypecheckFacts {
         expression_span: ByteSpan,
     ) -> Option<&TypecheckInterpolationPlan> {
         self.interpolation_plans.get(&expression_span)
+    }
+
+    pub(crate) fn equality_plan(&self, operator_span: ByteSpan) -> Option<&TypecheckEqualityPlan> {
+        self.equality_plans.get(&operator_span)
+    }
+
+    pub(crate) fn equality_plans(&self) -> impl Iterator<Item = &TypecheckEqualityPlan> {
+        self.equality_plans.values()
     }
 
     pub(crate) fn interpolation_plans(
@@ -373,6 +382,49 @@ pub(crate) struct TypecheckInterpolationPart {
     pub(crate) expression_span: Option<ByteSpan>,
     pub(crate) accepted_type: TypeExpr,
     pub(crate) formatter: TypecheckProtocolMethod,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckEqualityPlan {
+    pub(crate) operator_span: ByteSpan,
+    pub(crate) call_span: ByteSpan,
+    pub(crate) left_span: ByteSpan,
+    pub(crate) right_span: ByteSpan,
+    pub(crate) left_ty: TypeExpr,
+    pub(crate) right_ty: TypeExpr,
+    pub(crate) method: Option<TypecheckProtocolMethod>,
+    pub(crate) right_implicit_readonly_borrow: bool,
+    pub(crate) left_conversion: Option<TypecheckConversionPlan>,
+    pub(crate) right_conversion: Option<TypecheckConversionPlan>,
+}
+
+impl TypecheckEqualityPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            operator_span: self.operator_span,
+            call_span: self.call_span,
+            left_span: self.left_span,
+            right_span: self.right_span,
+            left_ty: substitute_type_expr_parameters(&self.left_ty, context_substitutions),
+            right_ty: substitute_type_expr_parameters(&self.right_ty, context_substitutions),
+            method: match &self.method {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            right_implicit_readonly_borrow: self.right_implicit_readonly_borrow,
+            left_conversion: match &self.left_conversion {
+                Some(plan) => Some(plan.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            right_conversion: match &self.right_conversion {
+                Some(plan) => Some(plan.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+        })
+    }
 }
 
 impl TypecheckInterpolationPlan {

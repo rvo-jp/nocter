@@ -15,6 +15,8 @@ mod builtin_std;
 mod authoring;
 #[path = "distributed_home/collection_access.rs"]
 mod collection_access;
+#[path = "distributed_home/equality.rs"]
+mod equality;
 #[path = "distributed_home/interpolation.rs"]
 mod interpolation;
 #[path = "distributed_home/iteration.rs"]
@@ -4938,16 +4940,31 @@ fn distributed_std_string_view_equality_runs() {
     let project = TempProject::new("distributed-home-string-view-equality-run");
     let source = project.write_source(
         "string_view_equality.nct",
-        r#"use std/mem.page_allocator
+        r#"func owned_owned(left: &String, right: &String): bool {
+    return left == right
+}
+
+func owned_view(left: &String, right: &str): bool {
+    return left == right
+}
+
+func view_owned(left: &str, right: &String): bool {
+    return left == right
+}
+
+func view_view(left: &str, right: &str): bool {
+    return left == right
+}
 
 func main(): i32! {
-    var allocator = page_allocator()
-    let text = String.from_str("Nocter")
-    if (&text as &str) == "Nocter" && (&text as &str) != "Other" {
-        return 42
-    } else {
-        return 1
-    }
+    let left = String.from_str("Nocter")
+    let right = String.from_str("Nocter")
+    if !owned_owned(&left, &right) { return 1 }
+    if !owned_view(&left, "Nocter") { return 2 }
+    if !view_owned("Nocter", &right) { return 3 }
+    if !view_view("Nocter", "Nocter") { return 4 }
+    if owned_view(&left, "Other") { return 5 }
+    return 42
 }
 "#,
     );

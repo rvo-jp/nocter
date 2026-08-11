@@ -20,7 +20,7 @@ fn completion_context_in_item_at_offset(
             .as_ref()
             .and_then(|body| completion_context_in_block_at_offset(body, offset)),
         Item::Test(test) => completion_context_in_block_at_offset(&test.body, offset),
-        Item::Instance(instance) => instance.methods.iter().find_map(|method| {
+        Item::Instance(instance) => instance.callable_methods().find_map(|method| {
             method
                 .body
                 .as_ref()

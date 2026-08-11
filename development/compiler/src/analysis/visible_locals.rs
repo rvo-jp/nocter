@@ -39,7 +39,7 @@ pub(super) fn visible_local_bindings_at_offset(
                 return locals;
             }
             Item::Instance(instance) => {
-                for method in &instance.methods {
+                for method in instance.callable_methods() {
                     if collect_method(method, offset, &mut locals) {
                         return locals;
                     }

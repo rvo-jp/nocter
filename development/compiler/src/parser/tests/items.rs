@@ -2,7 +2,9 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{ConformanceMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::ast::{
+    ConformanceMember, Item, MethodReceiverMode, TypeExpr, Visibility, WherePredicate,
+};
 
 #[test]
 fn parses_required_associated_types_and_conformance_bindings() {
@@ -1927,5 +1929,69 @@ fn rejects_concrete_and_nested_declaration_pattern_arguments() {
                 .message
                 .contains("pattern arguments must be bare binders")
         );
+    }
+}
+
+#[test]
+fn parses_instance_equality_operator_and_generic_requirement() {
+    let (sources, output) = parse_text_with_sources(
+        r#"struct Text { value: i32 }
+
+instance Text {
+    pub operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+}
+
+func equal<T>(left: &T, right: &T): bool where &T == &T {
+    return left == right
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Instance(instance) = &ast.items[1] else {
+        panic!("expected instance");
+    };
+    let operator = &instance.operators[0];
+    assert_eq!(operator.callable_method().visibility, Visibility::Public);
+    assert_eq!(
+        operator.callable_method().receiver.mode,
+        MethodReceiverMode::ReadonlyBorrow
+    );
+    assert_eq!(
+        operator.callable_method().parameters.parameters[0].name,
+        "other"
+    );
+
+    let Item::Function(function) = &ast.items[2] else {
+        panic!("expected function");
+    };
+    let Some(clause) = &function.requirements else {
+        panic!("expected where clause");
+    };
+    assert!(matches!(
+        &clause.predicates[0],
+        WherePredicate::Operator(requirement)
+            if requirement.operator_span.len() == 2
+                && matches!(&requirement.left, TypeExpr::Borrow(_))
+                && matches!(&requirement.right, TypeExpr::Borrow(_))
+    ));
+
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "operator_decl").is_some());
+    assert!(find_json_node(&json, "operator_requirement").is_some());
+}
+
+#[test]
+fn rejects_non_equality_instance_operator_shapes_during_parsing() {
+    for source in [
+        "struct Text {}\ninstance Text { operator (&+self == other: &Self): bool { return true } }",
+        "struct Text {}\ninstance Text { operator (&self != other: &Self): bool { return true } }",
+        "struct Text {}\ninstance Text { operator (&self == other: &Self): bool }",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert!(!output.diagnostics.is_empty(), "{source}");
     }
 }

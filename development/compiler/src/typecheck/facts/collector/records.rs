@@ -8,81 +8,14 @@ impl TypecheckFactCollector<'_> {
         operator_span: Option<ByteSpan>,
         selected: crate::typecheck::conversions::SelectedConversion,
     ) {
-        let mut free_type_parameters = HashSet::new();
-        let Some(source_ty) = type_to_type_expr_allowing_parameters(
-            &selected.source_type,
+        if let Some(plan) = super::super::typecheck_conversion_plan(
             expression_span,
-            &mut free_type_parameters,
-        ) else {
-            return;
-        };
-        let Some(target_ty) = type_to_type_expr_allowing_parameters(
-            &selected.target_type,
-            expression_span,
-            &mut free_type_parameters,
-        ) else {
-            return;
-        };
-        let kind = match selected.kind {
-            crate::typecheck::conversions::SelectedConversionKind::Exact => return,
-            crate::typecheck::conversions::SelectedConversionKind::LosslessInteger => {
-                TypecheckConversionKind::LosslessInteger
-            }
-            crate::typecheck::conversions::SelectedConversionKind::CapabilityWeakening => {
-                TypecheckConversionKind::CapabilityWeakening
-            }
-            crate::typecheck::conversions::SelectedConversionKind::BorrowCoercion(coercion) => {
-                let Some(self_ty) = type_to_type_expr_allowing_parameters(
-                    &coercion.source_type,
-                    expression_span,
-                    &mut free_type_parameters,
-                ) else {
-                    return;
-                };
-                let substitutions = coercion
-                    .substitutions
-                    .iter()
-                    .filter_map(|(name, ty)| {
-                        type_to_type_expr_allowing_parameters(
-                            ty,
-                            expression_span,
-                            &mut free_type_parameters,
-                        )
-                        .map(|ty| (name.clone(), ty))
-                    })
-                    .collect::<HashMap<_, _>>();
-                if substitutions.len() != coercion.substitutions.len() {
-                    return;
-                }
-                TypecheckConversionKind::BorrowCoercion(TypecheckCoercionPlan {
-                    declaration_span: coercion.declaration_span,
-                    focus_span: coercion.focus_span,
-                    receiver_mode: coercion.receiver_mode,
-                    source_is_readwrite: coercion.source_is_readwrite,
-                    target_name: format!(
-                        "{}.__nocter$coerce${}",
-                        canonical_type_expr(&self_ty),
-                        coercion.focus_span.start
-                    ),
-                    self_ty,
-                    target_ty: target_ty.clone(),
-                    substitutions,
-                    has_explicit_result_provenance: coercion.has_explicit_result_provenance,
-                    free_type_parameters: free_type_parameters.clone(),
-                })
-            }
-        };
-        self.facts.conversion_plans.insert(
-            expression_span,
-            TypecheckConversionPlan {
-                expression_span,
-                source_span,
-                operator_span,
-                source_ty,
-                target_ty,
-                kind,
-            },
-        );
+            source_span,
+            operator_span,
+            selected,
+        ) {
+            self.facts.conversion_plans.insert(expression_span, plan);
+        }
     }
 
     pub(in crate::typecheck::facts::collector) fn record_interpolation_plan(

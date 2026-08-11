@@ -210,7 +210,7 @@ fn check_instance_member_ownership(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         check_method_ownership(sources, instance, method, resolved, summaries, diagnostics)
     }
 }

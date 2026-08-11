@@ -50,7 +50,7 @@ pub(super) fn select_expression_conversion(
     select_conversion(mode, target, &source, expression, resolved, environment)
 }
 
-fn select_conversion(
+pub(super) fn select_conversion(
     mode: ConversionMode,
     target: &Type,
     source: &Type,

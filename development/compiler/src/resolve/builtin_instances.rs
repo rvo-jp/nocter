@@ -123,7 +123,7 @@ fn builtin_instance_shape(
             return Err("scalar built-in types do not define inherent instance surfaces");
         }
     }
-    if instance.methods.iter().any(|method| {
+    if instance.callable_methods().any(|method| {
         method.body.is_none()
             || method.visibility != Visibility::Public
             || method.receiver.mode == MethodReceiverMode::Owned

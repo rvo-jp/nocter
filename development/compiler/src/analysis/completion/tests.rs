@@ -1467,3 +1467,62 @@ func main(box: &Box<i32>): i32 {
     assert_eq!(hover.label, signature.label);
     assert_eq!(signature.label, "method &Box<i32>.replace(value: i32): i32");
 }
+
+#[test]
+fn instance_completion_offers_one_fixed_equality_declaration() {
+    let text = r#"struct Text { value: i32 }
+
+instance Text {
+
+}
+"#;
+    let offset = text.find("\n}").unwrap() + 1;
+    let items = completion_items_for_text_at_offset(text, offset).expect("completion items");
+    let operator = items
+        .iter()
+        .find(|item| item.label == "operator")
+        .expect("operator completion");
+
+    assert_eq!(operator.kind, CompletionItemKind::Method);
+    assert_eq!(
+        operator.detail.as_deref(),
+        Some("operator (&Text == other: &Text): bool")
+    );
+    assert_eq!(
+        operator.insert_text.as_deref(),
+        Some("operator (&self == other: &Self): bool {\n    return false\n}")
+    );
+
+    let existing = r#"struct Text { value: i32 }
+instance Text {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+
+}
+"#;
+    let existing_offset = existing.rfind("\n}").unwrap() + 1;
+    let existing_items = completion_items_for_text_at_offset(existing, existing_offset)
+        .expect("completion items after operator");
+    assert!(!existing_items.iter().any(|item| item.label == "operator"));
+
+    let outside = completion_items_for_text_at_offset(text, 0).expect("top-level completion");
+    assert!(!outside.iter().any(|item| item.label == "operator"));
+}
+
+#[test]
+fn member_completion_hides_equality_internal_call_identity() {
+    let text = r#"struct Text { value: i32 }
+instance Text {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+    method &self.value_copy(): i32 { return self.value }
+}
+func read(value: &Text): i32 { return value. }
+"#;
+    let offset = text.rfind("value. ").unwrap() + "value.".len();
+    let items = completion_items_for_text_at_offset(text, offset).expect("member completion");
+    assert!(items.iter().any(|item| item.label == "value_copy"));
+    assert!(
+        !items
+            .iter()
+            .any(|item| item.label == crate::ast::EQUALITY_OPERATOR_METHOD_NAME)
+    );
+}

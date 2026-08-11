@@ -22,7 +22,7 @@ pub(super) fn elaborate_file(
                 &mut diagnostics,
             ),
             Item::Instance(instance) => {
-                for method in &mut instance.methods {
+                for method in instance.callable_methods_mut() {
                     elaborate_callable(
                         sources,
                         &mut method.return_type,

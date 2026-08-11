@@ -487,6 +487,7 @@ instance File {
         return self.fd
     }
 }
+
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -497,6 +498,42 @@ instance File {
 
     assert_eq!(hover.label, "parameter self: &File");
     assert_eq!(&text[hover.span.start..hover.span.end], "self");
+}
+
+#[test]
+fn equality_operator_hover_uses_source_syntax_and_exact_operator_range() {
+    let text = r#"struct Text { value: i32 }
+
+instance Text {
+    pub operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+}
+
+func equal(left: &Text, right: &Text): bool {
+    return left == right
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let declaration_offset = text.find("== other").expect("operator declaration");
+    let call_offset = text.rfind("== right").expect("operator use");
+
+    for offset in [declaration_offset, call_offset] {
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("equality operator hover");
+        assert_eq!(hover.label, "operator (&Text == other: &Text): bool");
+        assert_eq!(&text[hover.span.start..hover.span.end], "==");
+    }
+
+    let self_offset = text.find("self ==").expect("self parameter");
+    let self_hover =
+        hover_for_file_analysis(&sources, &analysis, file, self_offset).expect("self hover");
+    assert_eq!(self_hover.label, "parameter self: &Text");
+    let other_offset = text.find("other: &Self").expect("other parameter");
+    let other_hover =
+        hover_for_file_analysis(&sources, &analysis, file, other_offset).expect("other hover");
+    assert_eq!(other_hover.label, "parameter other: &Text");
 }
 
 #[test]

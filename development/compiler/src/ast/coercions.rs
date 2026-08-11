@@ -38,6 +38,7 @@ impl CoerceDecl {
                 .iter()
                 .map(CoercionEntry::callable_method)
                 .collect(),
+            operators: Vec::new(),
         }
     }
 }

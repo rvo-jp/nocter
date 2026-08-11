@@ -10,6 +10,7 @@ mod documentation;
 mod generic_requirements;
 mod json;
 mod literals;
+mod operators;
 mod packages;
 mod provenance;
 mod receivers;
@@ -29,6 +30,7 @@ pub(crate) use declaration_patterns::{
 pub use generic_requirements::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
+pub use operators::*;
 pub use packages::*;
 pub use provenance::*;
 pub use receivers::*;
@@ -260,6 +262,25 @@ pub struct InstanceDecl {
     pub target_ty: TypeExpr,
     pub requirements: Option<WhereClause>,
     pub methods: Vec<MethodDecl>,
+    pub operators: Vec<EqualityOperatorDecl>,
+}
+
+impl InstanceDecl {
+    pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
+        self.methods.iter().chain(
+            self.operators
+                .iter()
+                .map(EqualityOperatorDecl::callable_method),
+        )
+    }
+
+    pub fn callable_methods_mut(&mut self) -> impl Iterator<Item = &mut MethodDecl> {
+        self.methods.iter_mut().chain(
+            self.operators
+                .iter_mut()
+                .map(EqualityOperatorDecl::callable_method_mut),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -304,7 +325,7 @@ impl MethodOwnerDecl for InstanceDecl {
     }
 
     fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_> {
-        Box::new(self.methods.iter())
+        Box::new(self.callable_methods())
     }
 }
 

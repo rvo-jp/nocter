@@ -42,6 +42,14 @@ pub(super) fn prepare_rename(query: &RenameQuery<'_>) -> Option<Value> {
 }
 
 pub(super) fn rename_workspace_edit(query: &RenameQuery<'_>, new_name: &str) -> Option<Value> {
+    let occurrence = query.file.occurrences.at_offset(query.offset)?;
+    let current_name = query
+        .document
+        .text
+        .get(occurrence.focus_span.start..occurrence.focus_span.end)?;
+    if !crate::lexer::is_valid_identifier_name(current_name) {
+        return None;
+    }
     let identity =
         stable_semantic_identity_at(query.sources, query.file, query.offset, query.graph)?;
     let plan = query.index.rename_plan(

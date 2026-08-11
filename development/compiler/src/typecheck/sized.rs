@@ -228,7 +228,7 @@ fn check_instance(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let self_type = method_owner_self_type(instance, resolved);
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         let prefix = format!("method `{}`", method.name);
         check_method_with_prefix(
             sources,

@@ -115,6 +115,7 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     if !copy_requirement_completion_is_allowed(&file.ast, offset) {
         items.retain(|item| item.label != "copy");
     }
+    apply_equality_operator_completion(&file.ast, offset, &mut items);
     items
 }
 
@@ -129,6 +130,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                         crate::ast::WherePredicate::Generic(requirement) => requirement.span,
                         crate::ast::WherePredicate::Refinement(refinement) => refinement.span,
                         crate::ast::WherePredicate::Equality(equality) => equality.span,
+                        crate::ast::WherePredicate::Operator(requirement) => requirement.span,
                     };
                     span.start < offset && offset <= span.end
                 })
@@ -285,7 +287,47 @@ pub(crate) fn completion_items_for_text_at_offset(
     if !copy_requirement_completion_is_allowed(&parsed.ast, offset) {
         items.retain(|item| item.label != "copy");
     }
+    apply_equality_operator_completion(&parsed.ast, offset, &mut items);
     Some(items)
+}
+
+fn apply_equality_operator_completion(
+    ast: &AstFile,
+    offset: usize,
+    items: &mut Vec<CompletionItemInfo>,
+) {
+    items.retain(|item| item.label != "operator");
+    let Some(instance) = ast.items.iter().find_map(|item| {
+        let Item::Instance(instance) = item else {
+            return None;
+        };
+        (instance.target_ty.span().end < offset
+            && offset < instance.span.end
+            && instance.operators.is_empty()
+            && instance
+                .callable_methods()
+                .all(|method| !(method.span.start <= offset && offset <= method.span.end)))
+        .then_some(instance)
+    }) else {
+        return;
+    };
+    let owner = crate::ast::canonical_type_expr(&instance.target_ty);
+    items.push(CompletionItemInfo {
+        label: "operator".to_string(),
+        kind: CompletionItemKind::Method,
+        detail: Some(format!(
+            "operator (&{owner} == other: &{owner}): bool"
+        )),
+        documentation: Some(
+            "Declares readonly homogeneous equality for this instance. `!=` is derived automatically."
+                .to_string(),
+        ),
+        insert_text: Some(
+            "operator (&self == other: &Self): bool {\n    return false\n}".to_string(),
+        ),
+        sort_text: None,
+        declaration_span: None,
+    });
 }
 
 fn associated_type_completion_items(

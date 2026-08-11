@@ -1,4 +1,4 @@
-use super::TypeExpr;
+use super::{OperatorRequirementPredicate, TypeExpr};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +43,7 @@ pub enum WherePredicate {
     Generic(GenericRequirementPredicate),
     Refinement(BinderRefinementPredicate),
     Equality(TypeEqualityPredicate),
+    Operator(OperatorRequirementPredicate),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +71,8 @@ impl WhereClause {
                 WherePredicate::Generic(requirement) => Some(requirement),
                 WherePredicate::Copy(_)
                 | WherePredicate::Refinement(_)
-                | WherePredicate::Equality(_) => None,
+                | WherePredicate::Equality(_)
+                | WherePredicate::Operator(_) => None,
             })
     }
 
@@ -81,7 +83,8 @@ impl WhereClause {
                 WherePredicate::Copy(requirement) => Some(requirement),
                 WherePredicate::Generic(_)
                 | WherePredicate::Refinement(_)
-                | WherePredicate::Equality(_) => None,
+                | WherePredicate::Equality(_)
+                | WherePredicate::Operator(_) => None,
             })
     }
 
@@ -92,7 +95,8 @@ impl WhereClause {
                 WherePredicate::Refinement(refinement) => Some(refinement),
                 WherePredicate::Copy(_)
                 | WherePredicate::Generic(_)
-                | WherePredicate::Equality(_) => None,
+                | WherePredicate::Equality(_)
+                | WherePredicate::Operator(_) => None,
             })
     }
 
@@ -103,7 +107,20 @@ impl WhereClause {
                 WherePredicate::Equality(equality) => Some(equality),
                 WherePredicate::Copy(_)
                 | WherePredicate::Generic(_)
-                | WherePredicate::Refinement(_) => None,
+                | WherePredicate::Refinement(_)
+                | WherePredicate::Operator(_) => None,
+            })
+    }
+
+    pub fn operator_requirements(&self) -> impl Iterator<Item = &OperatorRequirementPredicate> {
+        self.predicates
+            .iter()
+            .filter_map(|predicate| match predicate {
+                WherePredicate::Operator(requirement) => Some(requirement),
+                WherePredicate::Copy(_)
+                | WherePredicate::Generic(_)
+                | WherePredicate::Refinement(_)
+                | WherePredicate::Equality(_) => None,
             })
     }
 }

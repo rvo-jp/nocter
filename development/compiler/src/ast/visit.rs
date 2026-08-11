@@ -31,7 +31,7 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
             }
             Item::Test(test) => visit_block_expressions(&test.body, visitor),
             Item::Instance(instance) => {
-                for method in &instance.methods {
+                for method in instance.callable_methods() {
                     if let Some(body) = &method.body {
                         visit_block_expressions(body, visitor);
                     }

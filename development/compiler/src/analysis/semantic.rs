@@ -118,6 +118,7 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_provenance_references();
         self.collect_generic_requirement_keywords();
         self.collect_opaque_type_keywords();
+        self.collect_operator_keywords();
         self.collect_editor_targets();
     }
 
@@ -317,6 +318,20 @@ impl SemanticIdentifierCollector<'_> {
         for item in &self.ast.items {
             collect_item_opaque_keyword_spans(item, &mut spans);
         }
+        for span in spans {
+            self.push(span, SemanticTokenKind::Keyword, false, 0);
+        }
+    }
+
+    fn collect_operator_keywords(&mut self) {
+        let spans = self.ast.items.iter().flat_map(|item| match item {
+            crate::ast::Item::Instance(instance) => instance
+                .operators
+                .iter()
+                .map(|operator| operator.callable_method().keyword_span)
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        });
         for span in spans {
             self.push(span, SemanticTokenKind::Keyword, false, 0);
         }
@@ -1104,6 +1119,52 @@ func main(choice: Choice): i32 {
         );
         assert_eq!(where_tokens.len(), 1);
         assert_eq!(where_tokens[0].kind, SemanticTokenKind::Keyword);
+    }
+
+    #[test]
+    fn analysis_classifies_equality_contract_tokens_without_exposing_internal_names() {
+        let text = r#"struct Text { value: i32 }
+instance Text {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+}
+func equal(left: &Text, right: &Text): bool {
+    return left == right
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let source = sources.get(file.ast.span.source).expect("source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let operator = identifiers_for_lexeme(text, &identifiers, "operator");
+        assert_eq!(operator.len(), 1);
+        assert_eq!(operator[0].kind, SemanticTokenKind::Keyword);
+
+        let equality_declaration = identifier_starting_at(
+            &identifiers,
+            text.find("== other").expect("operator declaration"),
+        )
+        .expect("operator semantic token");
+        assert_eq!(equality_declaration.kind, SemanticTokenKind::Method);
+        assert_ne!(
+            equality_declaration.modifiers & SEMANTIC_DECLARATION_MODIFIER,
+            0
+        );
+
+        for name in ["self", "other"] {
+            let token = identifiers_for_lexeme(text, &identifiers, name)
+                .into_iter()
+                .next()
+                .expect("parameter token");
+            assert_eq!(token.kind, SemanticTokenKind::Parameter);
+            assert_ne!(token.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
+        }
+        assert!(
+            identifiers
+                .iter()
+                .all(|token| &text[token.start_byte..token.end_byte]
+                    != crate::ast::EQUALITY_OPERATOR_METHOD_NAME)
+        );
     }
 
     fn identifiers_for_lexeme<'a>(

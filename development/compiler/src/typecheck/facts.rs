@@ -43,6 +43,7 @@ use std::collections::{HashMap, HashSet};
 
 mod callables;
 mod collector;
+mod conversions;
 mod hover_labels;
 mod model;
 mod specializations;
@@ -54,20 +55,22 @@ mod tests;
 
 pub(crate) use callables::{CallableCallFact, CallableCallSpecialization};
 pub(crate) use collector::collect_typecheck_facts;
+pub(crate) use conversions::typecheck_conversion_plan;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
     TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
-    TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts, TypecheckInterpolationPart,
-    TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckProtocolMethod, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
-    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
+    TypecheckConversionKind, TypecheckConversionPlan, TypecheckEqualityPlan, TypecheckFacts,
+    TypecheckInterpolationPart, TypecheckInterpolationPlan, TypecheckMethodReceiverKind,
+    TypecheckPayloadBindingMode, TypecheckProtocolMethod, TypecheckScalarViewKind,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 
 use callables::*;
 use hover_labels::*;
 pub(crate) use specializations::drop_type_specialization_from_self_ty;
+pub(crate) use specializations::method_target_name_from_self_ty;
 use specializations::*;
 use type_exprs::*;
 use utility::*;

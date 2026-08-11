@@ -8,6 +8,10 @@ use std/ptr.from_addr
 pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 
+func values_equal<T>(left: &T, right: &T): bool where &T == &T {
+    return left == right
+}
+
 instance [T] {
     pub method &self.len(): usize {
         return slice_len_raw(self)
@@ -19,5 +23,40 @@ instance [T] {
 
     pub method &self.ptr(): *T {
         return from_addr(slice_ptr_addr_raw(self))
+    }
+}
+
+instance [T] where &T == &T {
+    /// Compares elements from left to right without consuming either slice.
+    pub operator (&self == other: &Self): bool {
+        if self.len() != other.len() {
+            return false
+        }
+        var index: usize = 0
+        while index < self.len() {
+            if !values_equal(&self[index], &other[index]) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+
+    /// Returns whether an equal element is present.
+    pub method &self.contains(expected: &T): bool {
+        let _index: usize = self.position(expected) otherwise { return false }
+        return true
+    }
+
+    /// Returns the first index containing an equal element.
+    pub method &self.position(expected: &T): usize? {
+        var index: usize = 0
+        while index < self.len() {
+            if values_equal(&self[index], expected) {
+                return index
+            }
+            index = index + 1
+        }
+        return none
     }
 }

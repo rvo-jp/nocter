@@ -10,6 +10,7 @@ impl Parser<'_> {
         self.classify_declaration_pattern_refinements(&mut requirements, &generics);
         let open = self.expect_punctuation("{", "`{`")?;
         let mut methods = Vec::new();
+        let mut operators = Vec::new();
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -26,13 +27,15 @@ impl Parser<'_> {
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {
                 methods.push(self.parse_method_decl(visibility, true)?);
+            } else if self.at_keyword(Keyword::Operator) {
+                operators.push(self.parse_equality_operator_decl(visibility)?);
             } else if self.at_identifier_text("drop") {
                 self.error_current(
                     "drop members were removed; write `destruct Type(&+self) { ... }` at top level",
                 );
                 return Err(());
             } else {
-                self.error_current("expected `method` in instance block");
+                self.error_current("expected `method` or `operator` in instance block");
                 return Err(());
             }
             self.skip_newlines();
@@ -45,6 +48,7 @@ impl Parser<'_> {
             target_ty,
             requirements,
             methods,
+            operators,
         }))
     }
 }

@@ -33,6 +33,7 @@ mod model;
 mod numeric;
 mod opaque_results;
 mod operations;
+mod operators;
 mod ownership;
 mod places;
 mod protocol_methods;
@@ -67,7 +68,7 @@ pub(crate) use facts::{
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckConversionKind, TypecheckConversionPlan,
-    TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckEqualityPlan, TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
     TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
     TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
@@ -79,6 +80,7 @@ pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
+pub(crate) use operators::{specialize_equality_plan, synthetic_equality_call};
 
 pub(crate) fn type_expr_is_assignable(
     expected: &crate::ast::TypeExpr,
@@ -238,6 +240,7 @@ pub(crate) fn check_module_with_summary_sources(
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_conformances(sources, ast, resolved, &mut diagnostics);
     literals::check_literal_declarations(sources, ast, resolved, &mut diagnostics);
+    operators::check_operator_declarations(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_region_statements(sources, ast, &mut diagnostics);
     let provenance_summaries = callable_provenance_summaries(summary_sources);

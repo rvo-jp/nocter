@@ -134,7 +134,7 @@ pub(super) fn infer_callable_allocation_effects(
                         }
                     }
                     Item::Instance(instance) => {
-                        for method in &instance.methods {
+                        for method in instance.callable_methods() {
                             let Some(body) = &method.body else {
                                 continue;
                             };
@@ -251,7 +251,7 @@ pub(super) fn infer_callable_allocation_effects(
                     }
                     Item::Coerce(coerce) => {
                         let instance = coerce.callable_instance();
-                        for method in &instance.methods {
+                        for method in instance.callable_methods() {
                             let Some(body) = &method.body else {
                                 continue;
                             };

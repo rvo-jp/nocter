@@ -1,7 +1,7 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    CopyRequirementPredicate, GenericRequirementPredicate, TypeEqualityPredicate, TypeExpr,
-    WhereClause, WherePredicate,
+    CopyRequirementPredicate, GenericRequirementPredicate, OperatorRequirementPredicate,
+    TypeEqualityPredicate, TypeExpr, WhereClause, WherePredicate,
 };
 
 impl Parser<'_> {
@@ -29,7 +29,15 @@ impl Parser<'_> {
                 }));
             } else {
                 let left = self.parse_type()?;
-                if let Some(equals) = self.match_punctuation("=") {
+                if let Some(equals) = self.match_punctuation("==") {
+                    let right = self.parse_type()?;
+                    predicates.push(WherePredicate::Operator(OperatorRequirementPredicate {
+                        span: self.span(left.span().start, right.span().end),
+                        operator_span: equals.span,
+                        left,
+                        right,
+                    }));
+                } else if let Some(equals) = self.match_punctuation("=") {
                     let right = self.parse_type()?;
                     predicates.push(WherePredicate::Equality(TypeEqualityPredicate {
                         span: self.span(left.span().start, right.span().end),
@@ -45,7 +53,10 @@ impl Parser<'_> {
                         return Err(());
                     };
                     if self.match_punctuation(":").is_none() {
-                        self.error_at(reference.span, "a where predicate must contain `:` or `=`");
+                        self.error_at(
+                            reference.span,
+                            "a where predicate must contain `:`, `=`, or `==`",
+                        );
                         return Err(());
                     }
                     let bounds = self.parse_required_where_bounds()?;
@@ -71,6 +82,7 @@ impl Parser<'_> {
                 WherePredicate::Generic(requirement) => requirement.span.end,
                 WherePredicate::Refinement(refinement) => refinement.span.end,
                 WherePredicate::Equality(equality) => equality.span.end,
+                WherePredicate::Operator(requirement) => requirement.span.end,
             });
         Ok(Some(WhereClause {
             span: self.span(keyword.span.start, end),

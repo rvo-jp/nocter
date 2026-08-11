@@ -30,7 +30,7 @@ fn call_in_item_at_offset(
             .as_ref()
             .and_then(|body| call_in_block_at_offset(body, offset, region)),
         Item::Test(test) => call_in_block_at_offset(&test.body, offset, region),
-        Item::Instance(instance) => instance.methods.iter().find_map(|method| {
+        Item::Instance(instance) => instance.callable_methods().find_map(|method| {
             method
                 .body
                 .as_ref()

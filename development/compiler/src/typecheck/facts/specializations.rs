@@ -137,7 +137,7 @@ pub(super) fn specialized_target_name(
     Some(format!("{base_target_name}<{}>", type_arguments.join(", ")))
 }
 
-pub(super) fn method_target_name_from_self_ty(self_ty: &TypeExpr, method_name: &str) -> String {
+pub(crate) fn method_target_name_from_self_ty(self_ty: &TypeExpr, method_name: &str) -> String {
     format!("{}.{}", canonical_type_expr(self_ty), method_name)
 }
 

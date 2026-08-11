@@ -115,7 +115,7 @@ pub(super) fn associated_function_signature(
 pub(super) fn instance_method_signatures(
     instance: &InstanceDecl,
 ) -> impl Iterator<Item = MethodSignature> + '_ {
-    instance.methods.iter().map(|method| {
+    instance.callable_methods().map(|method| {
         method_signature_for_owner(
             method,
             &instance.target_ty,
@@ -171,7 +171,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     }
     let mut current_methods = HashMap::<&str, ByteSpan>::new();
 
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         let (name, span) = (method.name.as_str(), method.name_span);
         let first = fixed_names
             .get(name)

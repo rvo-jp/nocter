@@ -128,7 +128,7 @@ pub(super) fn check_result_provenance_contracts(
             Item::Instance(instance) => check_method_contracts(
                 sources,
                 instance,
-                instance.methods.iter(),
+                instance.callable_methods(),
                 false,
                 resolved,
                 summaries,
@@ -224,7 +224,7 @@ pub(super) fn check_result_provenance_contracts(
                 check_method_contracts(
                     sources,
                     &instance,
-                    instance.methods.iter(),
+                    instance.callable_methods(),
                     false,
                     resolved,
                     summaries,

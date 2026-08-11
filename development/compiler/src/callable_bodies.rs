@@ -352,7 +352,7 @@ fn collect_inherent_methods(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in &instance.methods {
+    for method in instance.callable_methods() {
         classify(
             sources,
             record_for_method(module, instance, method),

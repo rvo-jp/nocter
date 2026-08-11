@@ -174,7 +174,7 @@ impl Resolver<'_> {
                             "instance block",
                             &instance.generics,
                         ));
-                    for method in &instance.methods {
+                    for method in instance.callable_methods() {
                         let subject = format!("method `{}`", method.name);
                         self.output
                             .diagnostics

@@ -32,7 +32,7 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
         }
         Item::Test(test) => collect_block_import_paths(&test.body, paths),
         Item::Instance(instance) => {
-            for method in &instance.methods {
+            for method in instance.callable_methods() {
                 if let Some(body) = &method.body {
                     collect_block_import_paths(body, paths);
                 }

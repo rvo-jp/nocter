@@ -32,6 +32,8 @@ mod diagnostics;
 mod drops;
 #[path = "cli_run/entry.rs"]
 mod entry;
+#[path = "cli_run/equality_operators.rs"]
+mod equality_operators;
 #[path = "cli_run/generics.rs"]
 mod generics;
 #[path = "cli_run/imports.rs"]

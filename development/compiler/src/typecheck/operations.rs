@@ -91,6 +91,7 @@ pub(super) fn check_binary_expression(
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
             if !equality_operands_match(
+                expression,
                 &left_type,
                 &expression.left,
                 &right_type,
@@ -98,12 +99,26 @@ pub(super) fn check_binary_expression(
                 resolved,
                 environment,
             ) {
-                diagnostics.push(equality_operand_type_mismatch_diagnostic(
-                    sources,
+                let candidates = super::operators::ambiguous_equality_methods(
                     expression,
-                    &left_type,
                     &right_type,
-                ));
+                    resolved,
+                    environment,
+                );
+                if candidates.len() > 1 {
+                    diagnostics.push(super::operators::equality_ambiguity_diagnostic(
+                        sources,
+                        expression,
+                        &candidates,
+                    ));
+                } else {
+                    diagnostics.push(equality_operand_type_mismatch_diagnostic(
+                        sources,
+                        expression,
+                        &left_type,
+                        &right_type,
+                    ));
+                }
             }
         }
         BinaryOperator::Less
@@ -541,7 +556,34 @@ fn is_str_type(ty: &Type) -> bool {
     matches!(ty, Type::Str)
 }
 
+pub(super) fn types_have_builtin_equality(
+    left_type: &Type,
+    right_type: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    if let (
+        Type::Borrow {
+            is_readwrite: false,
+            inner: left_inner,
+        },
+        Type::Borrow {
+            is_readwrite: false,
+            inner: right_inner,
+        },
+    ) = (left_type, right_type)
+    {
+        return types_have_builtin_equality(left_inner, right_inner, resolved);
+    }
+    (is_bool_type(left_type) && is_bool_type(right_type))
+        || (is_str_type(left_type) && is_str_type(right_type))
+        || types_are_same_payloadless_enum(left_type, right_type, resolved)
+        || (is_integer_type(left_type)
+            && is_integer_type(right_type)
+            && same_known_type(left_type, right_type))
+}
+
 fn equality_operands_match(
+    expression: &BinaryExpr,
     left_type: &Type,
     left: &Expr,
     right_type: &Type,
@@ -549,19 +591,18 @@ fn equality_operands_match(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    if is_bool_type(left_type) || is_bool_type(right_type) {
-        return is_bool_type(left_type) && is_bool_type(right_type);
-    }
-
-    if is_str_type(left_type) || is_str_type(right_type) {
-        return is_str_type(left_type) && is_str_type(right_type);
-    }
-
-    if types_are_same_payloadless_enum(left_type, right_type, resolved) {
+    if types_have_builtin_equality(left_type, right_type, resolved) {
         return true;
     }
 
     integer_operands_match(left_type, left, right_type, right, resolved, environment)
+        || super::operators::equality_operator_matches(
+            expression,
+            left_type,
+            right_type,
+            resolved,
+            environment,
+        )
 }
 
 fn arithmetic_operands_match(

@@ -27,6 +27,28 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
         }
     }
     match expression {
+        Expr::Binary(binary)
+            if context
+                .equality_plan(binary.operator_span)
+                .is_some_and(|plan| plan.method.is_some()) =>
+        {
+            let call = crate::typecheck::synthetic_equality_call(binary);
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                &Expr::Call(call),
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            if binary.operator == BinaryOperator::NotEqual {
+                lowered.value = BoolValue::Not(Box::new(lowered.value));
+            }
+            lowered.instructions.push(Instruction::SetBool {
+                destination,
+                value: lowered.value,
+            });
+            Ok(lowered.instructions)
+        }
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_location(
                 binary,
@@ -289,6 +311,23 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
         }
     }
     match expression {
+        Expr::Binary(binary)
+            if context
+                .equality_plan(binary.operator_span)
+                .is_some_and(|plan| plan.method.is_some()) =>
+        {
+            let call = crate::typecheck::synthetic_equality_call(binary);
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                &Expr::Call(call),
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            if binary.operator == BinaryOperator::NotEqual {
+                lowered.value = BoolValue::Not(Box::new(lowered.value));
+            }
+            Ok(lowered)
+        }
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_value_with_temporaries(
                 binary,

@@ -48,7 +48,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
         .chain(call.arguments.iter().enumerate().map(|(index, argument)| {
             (
                 argument,
-                false,
+                context.call_argument_uses_implicit_readonly_borrow(call, index),
                 explicit_parameter_types
                     .and_then(|types| types.get(index).cloned())
                     .or_else(|| context.call_argument_parameter_type_expr(call, index)),

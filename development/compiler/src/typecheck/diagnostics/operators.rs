@@ -9,7 +9,7 @@ pub(in crate::typecheck) fn equality_operand_type_mismatch_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0347",
         format!(
-            "operator `{}` compares `{}` with `{}`, but equality operands must use the same supported equality type",
+            "operator `{}` cannot compare `{}` with `{}` because no accessible equality operation accepts both operands",
             expression.operator.spelling(),
             left.display(),
             right.display()
@@ -20,7 +20,7 @@ pub(in crate::typecheck) fn equality_operand_type_mismatch_diagnostic(
         .ok()
         .map(Box::new);
     diagnostic.help = Some(
-        "compare `bool`, integer, `str`, or supported payloadless enum values of the same type"
+        "declare `operator (&self == other: &Self): bool`, satisfy its operand types directly, or use one readonly coercion per operand"
             .to_string(),
     );
     diagnostic

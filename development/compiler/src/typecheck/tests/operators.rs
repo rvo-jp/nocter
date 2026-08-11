@@ -1,6 +1,140 @@
 use super::check_text;
 
 #[test]
+fn accepts_instance_owned_equality_and_generic_requirement() {
+    let diagnostics = check_text(
+        r#"struct Text { value: i32 }
+
+instance Text {
+    operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+}
+
+func equal<T>(left: &T, right: &T): bool where &T == &T {
+    return left == right
+}
+
+func main(): i32 {
+    let left = Text { value: 1 }
+    let right = Text { value: 1 }
+    if equal(&left, &right) { return 0 }
+    return 1
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_malformed_equality_declaration_contracts() {
+    let wrong_operand = check_text(
+        r#"struct Text {}
+instance Text {
+    operator (&self == other: &i32): bool { return true }
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        wrong_operand
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0470"
+                && diagnostic.message.contains("right operand")),
+        "{wrong_operand:?}"
+    );
+
+    let wrong_result = check_text(
+        r#"struct Text {}
+instance Text {
+    operator (&self == other: &Self): i32 { return 1 }
+}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        wrong_result
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0470"
+                && diagnostic.message.contains("return type")),
+        "{wrong_result:?}"
+    );
+}
+
+#[test]
+fn diagnoses_duplicate_equality_declarations_on_one_instance_surface() {
+    let diagnostics = check_text(
+        r#"struct Text { value: i32 }
+instance Text {
+    operator (&self == left: &Self): bool { return true }
+    operator (&self == right: &Self): bool { return false }
+}
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("duplicate")
+                || diagnostic.message.contains("overlap")
+                || diagnostic.message.contains("already")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_invalid_duplicate_and_unsatisfied_equality_requirements() {
+    let invalid = check_text(
+        r#"func equal<T, U>(left: &T, right: &U): bool where &T == &U {
+    return false
+}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        invalid.iter().any(|diagnostic| diagnostic.code == "E0471"),
+        "{invalid:?}"
+    );
+
+    let duplicate = check_text(
+        r#"func equal<T>(left: &T, right: &T): bool where &T == &T, &T == &T {
+    return left == right
+}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        duplicate
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0472"),
+        "{duplicate:?}"
+    );
+
+    let unsatisfied = check_text(
+        r#"struct Text { value: i32 }
+func equal<T>(left: &T, right: &T): bool where &T == &T {
+    return left == right
+}
+func main(): i32 {
+    let left = Text { value: 1 }
+    let right = Text { value: 1 }
+    if equal(&left, &right) { return 1 }
+    return 0
+}
+"#,
+    );
+    assert!(
+        unsatisfied
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0473"),
+        "{unsatisfied:?}"
+    );
+}
+
+#[test]
 fn accepts_equality_comparison_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -244,6 +378,43 @@ fn diagnoses_equality_operand_type_mismatch() {
     assert_eq!(diagnostics[0].code, "E0347");
     assert!(diagnostics[0].message.contains("i32"));
     assert!(diagnostics[0].message.contains("str"));
+}
+
+#[test]
+fn diagnoses_equality_ambiguity_across_readonly_coercions() {
+    let diagnostics = check_text(
+        r#"struct First { value: i32 }
+struct Second { value: i32 }
+
+instance First {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+}
+
+instance Second {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+}
+
+struct Owner {
+    first: First,
+    second: Second,
+}
+
+coerce Owner {
+    &self as &First { return &self.first }
+    &self as &Second { return &self.second }
+}
+
+func same(left: &Owner, right: &Owner): bool {
+    return left == right
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0474");
+    assert_eq!(diagnostics[0].notes.len(), 2, "{diagnostics:?}");
 }
 
 #[test]

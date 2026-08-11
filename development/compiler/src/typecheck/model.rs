@@ -429,6 +429,7 @@ pub(super) struct TypeEnvironment {
     generic_parameters: HashSet<String>,
     generic_requirements: HashMap<String, crate::resolve::GenericRequirements>,
     type_equalities: Vec<(Type, Type)>,
+    equality_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
 }
 
 impl TypeEnvironment {
@@ -440,6 +441,7 @@ impl TypeEnvironment {
             generic_parameters: HashSet::new(),
             generic_requirements: HashMap::new(),
             type_equalities: Vec::new(),
+            equality_requirements: Vec::new(),
         }
     }
 
@@ -454,6 +456,7 @@ impl TypeEnvironment {
             generic_parameters: self.generic_parameters.clone(),
             generic_requirements: self.generic_requirements.clone(),
             type_equalities: self.type_equalities.clone(),
+            equality_requirements: self.equality_requirements.clone(),
         }
     }
 
@@ -549,6 +552,20 @@ impl TypeEnvironment {
                 super::type_expr::type_expr_to_type_in_environment(&equality.right, resolved, self);
             self.type_equalities.push((left, right));
         }
+        for requirement in clause.operator_requirements() {
+            let left = super::type_expr::type_expr_to_type_in_environment(
+                &requirement.left,
+                resolved,
+                self,
+            );
+            let right = super::type_expr::type_expr_to_type_in_environment(
+                &requirement.right,
+                resolved,
+                self,
+            );
+            self.equality_requirements
+                .push((left, right, requirement.operator_span));
+        }
     }
 
     pub(super) fn generic_requirements(
@@ -574,6 +591,19 @@ impl TypeEnvironment {
 
     pub(super) fn types_equal(&self, left: &Type, right: &Type) -> bool {
         types_equal_with_relations(left, right, &self.type_equalities, &mut Vec::new())
+    }
+
+    pub(super) fn equality_requirement_span(
+        &self,
+        left: &Type,
+        right: &Type,
+    ) -> Option<crate::source::ByteSpan> {
+        self.equality_requirements
+            .iter()
+            .find_map(|(required_left, required_right, span)| {
+                (self.types_equal(left, required_left) && self.types_equal(right, required_right))
+                    .then_some(*span)
+            })
     }
 
     pub(super) fn generic_parameter_substitutions(&self) -> HashMap<String, Type> {

@@ -224,6 +224,25 @@ func make(): some Source<Item = i32> { return NumberSource { value: 7 } }
     }
 
     #[test]
+    fn reference_query_joins_equality_declaration_and_operator_uses() {
+        let text = r#"struct Text { value: i32 }
+instance Text {
+    operator (&self == other: &Self): bool { return self.value == other.value }
+}
+func equal(left: &Text, right: &Text): bool { return left == right }
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let offset = text.find("== other").expect("operator declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(span_fragments(text, &spans), vec!["==", "=="]);
+        assert_eq!(spans[0].start, offset);
+        assert_eq!(spans[1].start, text.rfind("== right").unwrap());
+    }
+
+    #[test]
     fn reference_query_groups_construct_function_declaration_and_calls() {
         let text = r#"struct Bucket<T> { value: T }
 
