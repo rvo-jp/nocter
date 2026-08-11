@@ -2,9 +2,12 @@
 
 ## Current Task
 
-v0.12.0 Phase 1 is complete under [`milestones/v0.12.0.md`](milestones/v0.12.0.md). No Phase 2
-scope has been adopted. Do not broaden the completed equality work into heterogeneous, ordering,
-arithmetic, hashing, or derived operators, and do not alter the published v0.11.0 release.
+Implement v0.12.0 Phase 2 under [`milestones/v0.12.0.md`](milestones/v0.12.0.md): uniform
+parenthesized operator requirements with explicit results, direct and one-step-coerced indexing,
+generic index requirements, and one recorded index plan across semantic and native consumers. Do
+not add source-defined index declarations, arithmetic or ordering operators, compatibility grammar,
+transitive coercion, or a Vec-specific indexing path, and do not alter the published v0.11.0
+release.
 
 ## Completed v0.12.0 Phase 1 Checkpoint
 
