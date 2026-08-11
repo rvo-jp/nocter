@@ -79,7 +79,7 @@ pub(crate) use facts::{
     TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
     type_expr_presentation_label, type_symbol_presentation_label,
 };
-pub(crate) use indexing::specialize_index_plan;
+pub(crate) use indexing::specialize_index_plan_across_resolvers;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;

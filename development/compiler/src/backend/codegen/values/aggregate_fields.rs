@@ -768,7 +768,7 @@ impl EntryEmitter {
         self.emit_w_to_bool_location(destination_register, destination)
     }
 
-    pub(in crate::backend::codegen::values) fn emit_checked_aggregate_index_address_to_x(
+    pub(in crate::backend::codegen) fn emit_checked_aggregate_index_address_to_x(
         &mut self,
         location: AggregateLocation,
         base_offset: u32,
@@ -784,49 +784,68 @@ impl EntryEmitter {
                 "indexed aggregate access requires non-empty fixed array metadata",
             ));
         }
-        let AggregateLocation::Slot(slot_index) = location else {
-            return Err(aggregate_load_diagnostic(
-                "indexed aggregate accesses can currently use only aggregate slots",
-            ));
+        let stack_offset = match location {
+            AggregateLocation::Slot(slot_index) => {
+                let Some(frame) = frame else {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "indexed aggregate access emission requires a stack frame",
+                    )]);
+                };
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("indexed aggregate access slot {slot_index} is not reserved"),
+                    )]
+                })?;
+                Self::validate_aggregate_indexed_access_range(
+                    slot,
+                    base_offset,
+                    length,
+                    stride,
+                    access_bytes,
+                )?;
+                Some(slot.offset().checked_add(base_offset).ok_or_else(|| {
+                    aggregate_load_diagnostic("indexed aggregate base offset overflows")
+                })?)
+            }
+            AggregateLocation::Parameter(index) => {
+                self.emit_parameter_word_to_x(index, destination)?;
+                if base_offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(destination, destination, base_offset);
+                }
+                None
+            }
+            _ => {
+                return Err(aggregate_load_diagnostic(
+                    "indexed aggregate accesses require addressable aggregate storage",
+                ));
+            }
         };
-        let Some(frame) = frame else {
-            return Err(vec![Diagnostic::error(
-                "E9005",
-                "indexed aggregate access emission requires a stack frame",
-            )]);
-        };
-        let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "E9005",
-                format!("indexed aggregate access slot {slot_index} is not reserved"),
-            )]
-        })?;
-        Self::validate_aggregate_indexed_access_range(
-            slot,
-            base_offset,
-            length,
-            stride,
-            access_bytes,
-        )?;
 
-        self.emit_usize_value_to_x(index, XReg::X16)?;
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X17, length);
-        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        let (index_register, scratch_register) = match destination {
+            XReg::X16 => (XReg::X17, XReg::X15),
+            XReg::X17 => (XReg::X16, XReg::X15),
+            _ => (XReg::X16, XReg::X17),
+        };
+        self.emit_usize_value_to_x(index, index_register)?;
+        emit_mov_u64_to_x(&mut self.encoder, scratch_register, length);
+        self.emit_index_in_bounds_check(index_register, scratch_register)?;
         if stride > 1 && stride.is_power_of_two() {
             self.encoder
-                .emit_lsl_x_imm(XReg::X16, XReg::X16, stride.trailing_zeros());
+                .emit_lsl_x_imm(index_register, index_register, stride.trailing_zeros());
         } else if stride > 1 {
-            emit_mov_u64_to_x(&mut self.encoder, XReg::X17, u64::from(stride));
-            self.encoder.emit_mul_x(XReg::X16, XReg::X16, XReg::X17);
+            emit_mov_u64_to_x(&mut self.encoder, scratch_register, u64::from(stride));
+            self.encoder
+                .emit_mul_x(index_register, index_register, scratch_register);
         }
 
-        let stack_offset = slot
-            .offset()
-            .checked_add(base_offset)
-            .ok_or_else(|| aggregate_load_diagnostic("indexed aggregate base offset overflows"))?;
-        self.encoder.emit_add_x_sp_imm(destination, stack_offset);
+        if let Some(stack_offset) = stack_offset {
+            self.encoder.emit_add_x_sp_imm(destination, stack_offset);
+        }
         self.encoder
-            .emit_adds_x(destination, destination, XReg::X16);
+            .emit_adds_x(destination, destination, index_register);
         Ok(())
     }
 

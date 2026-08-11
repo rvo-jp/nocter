@@ -246,6 +246,12 @@ pub(super) fn record_borrow_source_parameter_spill_request(
             record_slice_location_parameter_pair_spill_requests(source, requests);
             record_slice_element_index_parameter_spill_request(index, requests);
         }
+        BorrowSource::AggregateIndex { source, index, .. } => {
+            if let AggregateLocation::Parameter(index) = source {
+                requests.insert(index);
+            }
+            record_slice_element_index_parameter_spill_request(index, requests);
+        }
         BorrowSource::PointerOffset {
             pointer, offset, ..
         } => {

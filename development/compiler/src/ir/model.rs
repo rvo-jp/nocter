@@ -924,6 +924,13 @@ pub(crate) enum BorrowSource {
         index: SliceElementIndex,
         element: SliceElementAddressKind,
     },
+    AggregateIndex {
+        source: AggregateLocation,
+        base_offset: u32,
+        index: SliceElementIndex,
+        length: u64,
+        stride: u32,
+    },
     AggregateSlot(usize),
     AggregateSlotField {
         slot_index: usize,

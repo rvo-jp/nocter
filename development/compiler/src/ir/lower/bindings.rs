@@ -29,7 +29,7 @@ use super::expressions::{
     lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
     lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_composed_outcome_call, lower_fallible_bool_normal_call,
+    lower_composed_outcome_call, lower_declared_index_pointer, lower_fallible_bool_normal_call,
     lower_fallible_borrow_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,

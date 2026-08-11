@@ -117,7 +117,7 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
             {
                 return Some(HoverInfo {
                     span: occurrence.focus_span,
-                    label: crate::analysis::presentation::method_or_equality_operator_presentation(
+                    label: crate::analysis::presentation::method_or_operator_presentation(
                         &surface.symbol,
                         method,
                         &file.resolved,
@@ -304,7 +304,7 @@ pub(in crate::analysis::hover) fn callable_member_occurrence_hover_for_file_anal
             {
                 return Some(HoverInfo {
                     span: occurrence.focus_span,
-                    label: crate::analysis::presentation::method_or_equality_operator_presentation(
+                    label: crate::analysis::presentation::method_or_operator_presentation(
                         owner,
                         method,
                         &file.resolved,

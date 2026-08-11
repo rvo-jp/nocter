@@ -370,3 +370,42 @@ func main(): i32 { return 0 }
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn diagnoses_ambiguity_between_declared_and_primitive_coercion_targets() {
+    let diagnostics = check_text(
+        r#"struct Indexed {
+    values: &[u8]
+}
+
+instance Indexed {
+    pub operator (&self[index: usize]): &u8 {
+        return &self.values[index]
+    }
+}
+
+struct Buffer {
+    indexed: Indexed
+    bytes: &[u8]
+}
+
+coerce Buffer {
+    pub &self as &Indexed from self { return &self.indexed }
+    pub &self as &[u8] from self { return self.bytes }
+}
+
+func first(buffer: &Buffer): u8 {
+    return buffer[0]
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0476"),
+        "{diagnostics:?}"
+    );
+}

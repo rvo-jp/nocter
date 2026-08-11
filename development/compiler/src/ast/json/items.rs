@@ -578,21 +578,27 @@ impl crate::ast::EqualityOperatorDecl {
 impl crate::ast::IndexOperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let callable = self.callable_method();
+        let mut children = vec![
+            visibility_json(callable.visibility),
+            callable.receiver.to_json(sources),
+            callable.parameters.parameters[0].to_json(sources),
+            callable.return_type.to_json(sources),
+        ];
+        if let Some(provenance) = &callable.result_provenance {
+            children.push(provenance.to_json(sources));
+        }
+        children.push(
+            callable
+                .body
+                .as_ref()
+                .expect("operator body")
+                .to_json(sources),
+        );
         JsonAstNode::with_value(
             "operator_decl",
             "[]".to_string(),
             json_span(sources, self.span),
-            vec![
-                visibility_json(callable.visibility),
-                callable.receiver.to_json(sources),
-                callable.parameters.parameters[0].to_json(sources),
-                callable.return_type.to_json(sources),
-                callable
-                    .body
-                    .as_ref()
-                    .expect("operator body")
-                    .to_json(sources),
-            ],
+            children,
         )
     }
 }

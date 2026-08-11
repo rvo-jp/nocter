@@ -511,8 +511,7 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
             }
             Item::Instance(instance) => spans.extend(
                 instance
-                    .methods
-                    .iter()
+                    .callable_methods()
                     .filter(|method| is_public(method.visibility))
                     .map(|method| method.span),
             ),

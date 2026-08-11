@@ -284,12 +284,70 @@ fn lower_outcome_borrow_call_source(
 fn lower_borrow_source_from_slice_index_expression(
     expression: &IndexExpr,
     inner: &Type,
-    _is_readwrite: bool,
+    is_readwrite: bool,
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    if let Some((instructions, pointer)) =
+        lower_declared_index_pointer(expression, context, temporaries)?
+    {
+        return Ok((instructions, BorrowSource::BorrowLocal(pointer)));
+    }
+    if let Some(access) = fixed_array_element_access(expression, context, temporaries, || {
+        unsupported_borrow_argument_diagnostic(callee_name, parameter_type)
+    })? {
+        if access.out_of_bounds || (is_readwrite && !access.is_readwrite) {
+            return Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+        let source = match access.source {
+            AggregateLocation::Slot(slot_index) => BorrowSource::AggregateSlotField {
+                slot_index,
+                offset: access.offset,
+            },
+            AggregateLocation::Parameter(parameter_index) => {
+                BorrowSource::AggregateParameterField {
+                    parameter_index,
+                    offset: access.offset,
+                }
+            }
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        };
+        return Ok((access.instructions, source));
+    }
+    if let Some(access) =
+        fixed_array_element_indexed_access(expression, context, temporaries, || {
+            unsupported_borrow_argument_diagnostic(callee_name, parameter_type)
+        })?
+    {
+        if is_readwrite && !access.is_readwrite {
+            return Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+        let mut instructions = access.index_instructions;
+        let index = materialize_slice_borrow_index(&mut instructions, access.index, temporaries)?;
+        return Ok((
+            instructions,
+            BorrowSource::AggregateIndex {
+                source: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+            },
+        ));
+    }
     let element_kind = slice_index_borrow_element_kind(&expression.object, context);
     let Some(element) = slice_element_address_kind_for_borrow(element_kind, inner) else {
         return Err(unsupported_borrow_argument_diagnostic(

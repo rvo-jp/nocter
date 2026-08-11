@@ -38,6 +38,8 @@ mod equality_operators;
 mod generics;
 #[path = "cli_run/imports.rs"]
 mod imports;
+#[path = "cli_run/index_operators.rs"]
+mod index_operators;
 #[path = "cli_run/opaque_results.rs"]
 mod opaque_results;
 #[path = "cli_run/optional_fallible.rs"]

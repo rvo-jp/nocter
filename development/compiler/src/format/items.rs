@@ -472,6 +472,7 @@ impl Formatter {
         self.format_parameter(&callable.parameters.parameters[0]);
         self.write("]): ");
         self.format_type(&callable.return_type);
+        self.format_result_provenance(callable.result_provenance.as_ref());
         self.write(" ");
         self.format_block(callable.body.as_ref().expect("operator body"));
     }

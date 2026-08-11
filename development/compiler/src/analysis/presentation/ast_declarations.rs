@@ -108,8 +108,14 @@ pub(crate) fn ast_index_operator_presentation(
     let owner = crate::ast::canonical_type_expr(owner);
     let callable = operator.callable_method();
     let parameter = &callable.parameters.parameters[0];
+    let provenance = super::result_origin_labels(callable.result_provenance.as_ref());
+    let provenance = if provenance.is_empty() {
+        String::new()
+    } else {
+        format!(" from {}", provenance.join(" | "))
+    };
     format!(
-        "operator ({}{owner}[{}: {}]): {}",
+        "operator ({}{owner}[{}: {}]): {}{provenance}",
         callable.receiver.mode.source_prefix(),
         parameter.name,
         crate::ast::canonical_type_expr(&parameter.ty),

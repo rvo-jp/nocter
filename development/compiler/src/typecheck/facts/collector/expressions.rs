@@ -763,12 +763,12 @@ impl TypecheckFactCollector<'_> {
         );
     }
 
-    fn collect_declared_index_call_facts(
+    pub(in crate::typecheck::facts::collector) fn collect_declared_index_call_facts(
         &mut self,
         expression: &crate::ast::IndexExpr,
         access: crate::typecheck::indexing::IndexAccess,
-        environment: &TypeEnvironment,
-        return_type: Option<&TypeExpr>,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
     ) {
         let Ok(selected) = crate::typecheck::indexing::select_index_expression(
             expression,

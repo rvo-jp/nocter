@@ -437,6 +437,16 @@ pub func index_out_of_bounds(): error {
 }
 
 instance Vec<T> {
+    /// Returns the element at `index`, trapping when the index is out of bounds.
+    pub operator (&self[index: usize]): &T {
+        return &view(self)[index]
+    }
+
+    /// Returns a readwrite element place, trapping when the index is out of bounds.
+    pub operator (&+self[index: usize]): &+T {
+        return &+view_mut(self)[index]
+    }
+
     pub method &self.capacity(): usize {
         return capacity(self)
     }

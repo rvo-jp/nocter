@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::SliceElementIndex;
 
 impl EntryEmitter {
     pub(in crate::backend::codegen) fn emit_borrow_source_address_to_x(
@@ -84,6 +85,28 @@ impl EntryEmitter {
             } => {
                 return self
                     .emit_checked_slice_element_address_to_x(source, index, element, register);
+            }
+            BorrowSource::AggregateIndex {
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => {
+                let index = match index {
+                    SliceElementIndex::Const(value) => UsizeValue::Const(value),
+                    SliceElementIndex::Location(location) => UsizeValue::Location(location),
+                };
+                return self.emit_checked_aggregate_index_address_to_x(
+                    source,
+                    base_offset,
+                    &index,
+                    length,
+                    stride,
+                    stride,
+                    register,
+                    Some(frame),
+                );
             }
             BorrowSource::PointerOffset {
                 pointer,

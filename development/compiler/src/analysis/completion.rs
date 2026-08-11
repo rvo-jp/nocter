@@ -115,7 +115,7 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     if !copy_requirement_completion_is_allowed(&file.ast, offset) {
         items.retain(|item| item.label != "copy");
     }
-    apply_equality_operator_completion(&file.ast, offset, &mut items);
+    apply_operator_completion(&file.ast, offset, &mut items);
     apply_operator_requirement_completion(&file.ast, offset, &mut items);
     items
 }
@@ -288,7 +288,7 @@ pub(crate) fn completion_items_for_text_at_offset(
     if !copy_requirement_completion_is_allowed(&parsed.ast, offset) {
         items.retain(|item| item.label != "copy");
     }
-    apply_equality_operator_completion(&parsed.ast, offset, &mut items);
+    apply_operator_completion(&parsed.ast, offset, &mut items);
     apply_operator_requirement_completion(&parsed.ast, offset, &mut items);
     Some(items)
 }
@@ -398,11 +398,7 @@ fn apply_operator_requirement_completion(
     }
 }
 
-fn apply_equality_operator_completion(
-    ast: &AstFile,
-    offset: usize,
-    items: &mut Vec<CompletionItemInfo>,
-) {
+fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<CompletionItemInfo>) {
     items.retain(|item| item.label != "operator");
     let Some(instance) = ast.items.iter().find_map(|item| {
         let Item::Instance(instance) = item else {
@@ -410,7 +406,6 @@ fn apply_equality_operator_completion(
         };
         (instance.target_ty.span().end < offset
             && offset < instance.span.end
-            && instance.operators.is_empty()
             && instance
                 .callable_methods()
                 .all(|method| !(method.span.start <= offset && offset <= method.span.end)))
@@ -419,22 +414,49 @@ fn apply_equality_operator_completion(
         return;
     };
     let owner = crate::ast::canonical_type_expr(&instance.target_ty);
-    items.push(CompletionItemInfo {
-        label: "operator".to_string(),
-        kind: CompletionItemKind::Method,
-        detail: Some(format!(
-            "operator (&{owner} == other: &{owner}): bool"
-        )),
-        documentation: Some(
-            "Declares readonly homogeneous equality for this instance. `!=` is derived automatically."
-                .to_string(),
-        ),
-        insert_text: Some(
-            "operator (&self == other: &Self): bool {\n    return false\n}".to_string(),
-        ),
-        sort_text: None,
-        declaration_span: None,
+    let has_equality = instance
+        .operators
+        .iter()
+        .any(|operator| matches!(operator, crate::ast::OperatorDecl::Equality(_)));
+    let has_readonly_index = instance.index_operators().any(|operator| {
+        operator.callable_method().receiver.mode == MethodReceiverMode::ReadonlyBorrow
     });
+    let has_readwrite_index = instance.index_operators().any(|operator| {
+        operator.callable_method().receiver.mode == MethodReceiverMode::ReadwriteBorrow
+    });
+    let candidates = [
+        (
+            !has_equality,
+            format!("operator (&{owner} == other: &{owner}): bool"),
+            "Declares readonly homogeneous equality for this instance. `!=` is derived automatically.",
+            "operator (&self == other: &Self): bool {\n    return false\n}",
+        ),
+        (
+            !has_readonly_index,
+            format!("operator (&{owner}[index: usize]): &Element"),
+            "Declares readonly indexing for this instance.",
+            "operator (&self[index: usize]): &Element {\n    return &self.values[index]\n}",
+        ),
+        (
+            !has_readwrite_index,
+            format!("operator (&+{owner}[index: usize]): &+Element"),
+            "Declares readwrite indexing for this instance.",
+            "operator (&+self[index: usize]): &+Element {\n    return &+self.values[index]\n}",
+        ),
+    ];
+    for (_, detail, documentation, insert_text) in
+        candidates.into_iter().filter(|(available, ..)| *available)
+    {
+        items.push(CompletionItemInfo {
+            label: "operator".to_string(),
+            kind: CompletionItemKind::Method,
+            detail: Some(detail),
+            documentation: Some(documentation.to_string()),
+            insert_text: Some(insert_text.to_string()),
+            sort_text: None,
+            declaration_span: None,
+        });
+    }
 }
 
 fn associated_type_completion_items(

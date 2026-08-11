@@ -495,6 +495,29 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
+    for plan in file.typecheck_facts.index_plans() {
+        if !span_contains(span, plan.expression_span) {
+            continue;
+        }
+        let Some(plan) = plan.with_context_substitutions(context_substitutions) else {
+            continue;
+        };
+        let selected = crate::typecheck::specialize_index_plan_across_resolvers(
+            plan,
+            analysis.files.iter().map(|candidate| &candidate.resolved),
+        );
+        let Some(method) = selected.and_then(|selected| selected.method) else {
+            continue;
+        };
+        let Some(specialization) = protocol_method_call_specialization(analysis, &method) else {
+            continue;
+        };
+        if let Some(specialization) =
+            specialization.with_context_substitutions(context_substitutions)
+        {
+            queue.push_back(PendingCallSpecialization::Method(specialization));
+        }
+    }
     for (expression_span, plan) in file.typecheck_facts.interpolation_plans() {
         if !span_contains(span, expression_span) {
             continue;

@@ -66,6 +66,83 @@ func main(): i32 {
 }
 
 #[test]
+fn records_declared_index_method_as_the_selected_operation() {
+    let text = r#"struct Buffer {
+    values: [i32; 1]
+}
+
+instance Buffer {
+    operator (&self[index: usize]): &i32 {
+        return &self.values[0]
+    }
+}
+
+func read(buffer: &Buffer, index: usize): i32 {
+    return buffer[index]
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let start = text.rfind("buffer[index]").expect("index expression");
+    let span = ByteSpan::new(ast.span.source, start, start + "buffer[index]".len());
+    let plan = facts.index_plan(span).expect("index plan");
+    assert_eq!(plan.projection, TypecheckIndexProjection::Declared);
+    let method = plan.method.as_ref().expect("declared index method");
+    assert_eq!(
+        method.method_name,
+        crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
+    );
+}
+
+#[test]
+fn specializes_structural_index_requirement_to_a_declared_operator() {
+    let text = r#"struct Buffer {
+    values: [i32; 1]
+}
+
+instance Buffer {
+    operator (&self[index: usize]): &i32 {
+        return &self.values[0]
+    }
+}
+
+func at<C, V>(container: &C, index: usize): V where copy V, (&C[usize]): &V {
+    return container[index]
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let start = text.rfind("container[index]").expect("index expression");
+    let span = ByteSpan::new(ast.span.source, start, start + "container[index]".len());
+    let plan = facts.index_plan(span).expect("generic index plan");
+    assert_eq!(plan.projection, TypecheckIndexProjection::Requirement);
+    let substitutions = std::collections::HashMap::from([
+        (
+            "C".to_string(),
+            TypeExpr::Reference(crate::ast::TypeReference {
+                span,
+                name: "Buffer".to_string(),
+            }),
+        ),
+        (
+            "V".to_string(),
+            TypeExpr::Reference(crate::ast::TypeReference {
+                span,
+                name: "i32".to_string(),
+            }),
+        ),
+    ]);
+    let plan = plan
+        .with_context_substitutions(&substitutions)
+        .expect("concrete plan");
+    let specialized =
+        crate::typecheck::specialize_index_plan_across_resolvers(plan, std::iter::once(&resolved))
+            .expect("specialized index plan");
+    assert_eq!(specialized.projection, TypecheckIndexProjection::Declared);
+    assert!(specialized.method.is_some());
+}
+
+#[test]
 fn records_receiver_coercion_and_builtin_method_declaration_identity() {
     let text = r#"struct Text { value: &str }
 coerce Text { pub &self as &str { return self.value } }

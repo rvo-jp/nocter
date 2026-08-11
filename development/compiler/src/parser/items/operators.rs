@@ -86,6 +86,7 @@ impl Parser<'_> {
         self.expect_punctuation(")", "`)`")?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
+        let result_provenance = self.parse_result_provenance_clause()?;
         let body = self.parse_block()?;
         let span = self.span(start.span.start, body.span.end);
         let name = match receiver.mode {
@@ -114,7 +115,7 @@ impl Parser<'_> {
                     parameters: vec![parameter],
                 },
                 return_type,
-                result_provenance: None,
+                result_provenance,
                 requirements: None,
                 body: Some(body),
             },

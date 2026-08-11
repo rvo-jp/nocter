@@ -183,7 +183,7 @@ pub(crate) fn method_presentation(
     )
 }
 
-pub(crate) fn method_or_equality_operator_presentation(
+pub(crate) fn method_or_operator_presentation(
     owner: &TypeSymbol,
     method: &MethodSignature,
     resolved: &ResolveOutput,

@@ -29,7 +29,7 @@ use super::literals::{
 use super::outcome_propagation::propagating_outcome_mode;
 use super::outcome_values::lower_stored_outcome_expression;
 use super::types::{
-    return_type_expr_is_top_level_optional_with_resolver,
+    return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
     top_level_optional_success_abi_value_with_resolver,
 };
 mod aggregate_fields;
@@ -43,6 +43,7 @@ mod calls;
 mod closure_captures;
 mod coercions;
 mod control_flow_values;
+mod declared_indexes;
 mod diagnostics;
 mod fallible;
 mod fixed_array_accesses;
@@ -68,6 +69,11 @@ pub(in crate::ir::lower) use calls::lower_borrow_source_from_expression;
 pub(super) use closure_captures::*;
 pub(in crate::ir::lower) use coercions::*;
 use control_flow_values::*;
+pub(in crate::ir::lower) use declared_indexes::lower_declared_index_pointer;
+use declared_indexes::{
+    lower_declared_bool_index, lower_declared_i32_index, lower_declared_str_index,
+    lower_declared_u8_index, lower_declared_usize_index,
+};
 use diagnostics::*;
 use fallible::*;
 pub(super) use fixed_array_accesses::*;

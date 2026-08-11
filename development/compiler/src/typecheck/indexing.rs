@@ -13,7 +13,7 @@ use crate::ast::{CallExpr, Expr, IndexExpr, MemberExpr};
 use crate::resolve::ResolveOutput;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum IndexAccess {
+pub(crate) enum IndexAccess {
     Readonly,
     Readwrite,
 }
@@ -131,7 +131,7 @@ fn select_index_types_inner(
         ));
     }
 
-    if let Some(selected) = select_declared_index(
+    let declared = select_declared_index(
         target,
         index,
         access,
@@ -140,8 +140,12 @@ fn select_index_types_inner(
         expression,
         resolved,
         environment,
-    ) {
-        return Ok(selected);
+    );
+    if declared
+        .as_ref()
+        .is_some_and(|selected| selected.coercion.is_none())
+    {
+        return Ok(declared.expect("checked direct declared index"));
     }
 
     let (source, source_is_readwrite) = match target {
@@ -156,6 +160,9 @@ fn select_index_types_inner(
         return Err(IndexRejection::RequiresReadwrite);
     }
     if !is_integer_type(index) {
+        if let Some(declared) = declared {
+            return Ok(declared);
+        }
         return Err(IndexRejection::InvalidIndex);
     }
 
@@ -170,6 +177,9 @@ fn select_index_types_inner(
         })
         .collect::<Vec<_>>();
     if candidates.is_empty() {
+        if let Some(declared) = declared {
+            return Ok(declared);
+        }
         return Err(IndexRejection::UnsupportedTarget);
     }
 
@@ -179,6 +189,22 @@ fn select_index_types_inner(
             .any(|candidate| !projection_is_readwrite(&candidate.0.target_type))
     {
         candidates.retain(|candidate| !projection_is_readwrite(&candidate.0.target_type));
+    }
+
+    if let Some(declared) = declared {
+        let declared_target = declared
+            .coercion
+            .as_ref()
+            .expect("non-direct declared index has a coercion")
+            .target_type
+            .clone();
+        if candidates
+            .iter()
+            .any(|candidate| candidate.0.target_type != declared_target)
+        {
+            return Err(IndexRejection::AmbiguousCoercion);
+        }
+        return Ok(declared);
     }
 
     // Capability-equivalent declarations of the same projection are ordered
@@ -292,13 +318,32 @@ fn select_declared_index(
         }
     };
     let call = synthetic_index_call(expression, access);
-    let selected = super::calls::resolved_method_call(resolved, &call, &local)?;
+    let selected = super::calls::resolved_method_call(resolved, &call, &local);
+    let selected = selected?;
     let parameter = selected.method.signature.parameters.first()?;
+    let parameters = selected
+        .method
+        .signature
+        .generic_parameters
+        .iter()
+        .map(String::as_str)
+        .collect::<std::collections::HashSet<_>>();
+    let mut substitutions = std::collections::HashMap::new();
+    if let Some(owner_target) = &selected.method.owner_target_ty {
+        super::type_expr::infer_type_expr_substitutions(
+            owner_target,
+            selected.self_type.opaque_lowering_view(),
+            resolved,
+            None,
+            &parameters,
+            &mut substitutions,
+        );
+    }
     let expected_index = super::type_expr::type_expr_to_type_with_substitutions(
         &parameter.ty,
         resolved,
         Some(&selected.self_type),
-        &std::collections::HashMap::new(),
+        &substitutions,
     );
     let index_matches = source_expression.is_some_and(|expression| {
         super::operations::is_expression_assignable(
@@ -316,7 +361,7 @@ fn select_declared_index(
         &selected.method.signature.return_type,
         resolved,
         Some(&selected.self_type),
-        &std::collections::HashMap::new(),
+        &substitutions,
     );
     let Type::Borrow {
         is_readwrite,
@@ -432,4 +477,25 @@ pub(crate) fn specialize_index_plan(
         )
     });
     Some(plan)
+}
+
+pub(crate) fn specialize_index_plan_across_resolvers<'a>(
+    plan: super::facts::TypecheckIndexPlan,
+    resolvers: impl IntoIterator<Item = &'a ResolveOutput>,
+) -> Option<super::facts::TypecheckIndexPlan> {
+    let rank = |plan: &super::facts::TypecheckIndexPlan| match (
+        plan.conversion.is_some(),
+        plan.projection,
+    ) {
+        (false, super::facts::TypecheckIndexProjection::Array)
+        | (false, super::facts::TypecheckIndexProjection::Slice)
+        | (false, super::facts::TypecheckIndexProjection::Str) => 0,
+        (false, super::facts::TypecheckIndexProjection::Declared) => 1,
+        (true, _) => 2,
+        (false, super::facts::TypecheckIndexProjection::Requirement) => 3,
+    };
+    resolvers
+        .into_iter()
+        .filter_map(|resolved| specialize_index_plan(plan.clone(), resolved))
+        .min_by_key(rank)
 }

@@ -1490,7 +1490,7 @@ func main(box: &Box<i32>): i32 {
 }
 
 #[test]
-fn instance_completion_offers_one_fixed_equality_declaration() {
+fn instance_completion_offers_each_missing_operator_declaration() {
     let text = r#"struct Text { value: i32 }
 
 instance Text {
@@ -1499,20 +1499,28 @@ instance Text {
 "#;
     let offset = text.find("\n}").unwrap() + 1;
     let items = completion_items_for_text_at_offset(text, offset).expect("completion items");
-    let operator = items
+    let operators = items
         .iter()
-        .find(|item| item.label == "operator")
-        .expect("operator completion");
+        .filter(|item| item.label == "operator")
+        .collect::<Vec<_>>();
 
-    assert_eq!(operator.kind, CompletionItemKind::Method);
-    assert_eq!(
-        operator.detail.as_deref(),
-        Some("operator (&Text == other: &Text): bool")
+    assert_eq!(operators.len(), 3);
+    assert!(
+        operators
+            .iter()
+            .all(|item| item.kind == CompletionItemKind::Method)
     );
-    assert_eq!(
-        operator.insert_text.as_deref(),
-        Some("operator (&self == other: &Self): bool {\n    return false\n}")
-    );
+    assert!(operators.iter().any(|item| {
+        item.detail.as_deref() == Some("operator (&Text == other: &Text): bool")
+            && item.insert_text.as_deref()
+                == Some("operator (&self == other: &Self): bool {\n    return false\n}")
+    }));
+    assert!(operators.iter().any(|item| {
+        item.detail.as_deref() == Some("operator (&Text[index: usize]): &Element")
+    }));
+    assert!(operators.iter().any(|item| {
+        item.detail.as_deref() == Some("operator (&+Text[index: usize]): &+Element")
+    }));
 
     let existing = r#"struct Text { value: i32 }
 instance Text {
@@ -1523,7 +1531,16 @@ instance Text {
     let existing_offset = existing.rfind("\n}").unwrap() + 1;
     let existing_items = completion_items_for_text_at_offset(existing, existing_offset)
         .expect("completion items after operator");
-    assert!(!existing_items.iter().any(|item| item.label == "operator"));
+    let remaining = existing_items
+        .iter()
+        .filter(|item| item.label == "operator")
+        .collect::<Vec<_>>();
+    assert_eq!(remaining.len(), 2);
+    assert!(remaining.iter().all(|item| {
+        item.detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("[index: usize]"))
+    }));
 
     let outside = completion_items_for_text_at_offset(text, 0).expect("top-level completion");
     assert!(!outside.iter().any(|item| item.label == "operator"));

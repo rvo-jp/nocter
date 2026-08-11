@@ -92,6 +92,9 @@ pub(super) fn lower_i32_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_declared_i32_index(expression, context, temporaries)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) =
         lower_fixed_array_i32_index_expression_to_value(expression, context, temporaries)?
     {
@@ -182,6 +185,9 @@ pub(super) fn lower_u8_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_declared_u8_index(expression, context, temporaries)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) =
         lower_fixed_array_u8_index_expression_to_value(expression, context, temporaries)?
     {
@@ -348,6 +354,9 @@ pub(super) fn lower_usize_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_declared_usize_index(expression, context, temporaries)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) =
         lower_fixed_array_usize_index_expression_to_value(expression, context, temporaries)?
     {
@@ -529,6 +538,9 @@ pub(super) fn lower_bool_index_expression_to_value(
     diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_declared_bool_index(expression, context, temporaries)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) = lower_fixed_array_bool_index_expression_to_value(
         expression,
         context,
@@ -646,6 +658,9 @@ pub(super) fn lower_str_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_declared_str_index(expression, context, temporaries)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) =
         lower_fixed_array_str_index_expression_to_value(expression, context, temporaries)?
     {

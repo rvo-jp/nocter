@@ -537,6 +537,36 @@ func equal(left: &Text, right: &Text): bool {
 }
 
 #[test]
+fn index_operator_hover_uses_source_syntax_and_semantic_use_range() {
+    let text = r#"struct Buffer { values: [i32; 1] }
+
+instance Buffer {
+    pub operator (&self[index: usize]): &i32 {
+        return &self.values[0]
+    }
+}
+
+func read(buffer: &Buffer, index: usize): i32 {
+    return buffer[index]
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+
+    let declaration_offset = text.find("[index: usize]").expect("declaration bracket");
+    let declaration = hover_for_file_analysis(&sources, &analysis, file, declaration_offset)
+        .expect("index declaration hover");
+    assert_eq!(declaration.label, "operator (&Buffer[index: usize]): &i32");
+    assert_eq!(&text[declaration.span.start..declaration.span.end], "[");
+
+    let use_offset = text.rfind("[index]").expect("index use");
+    let usage =
+        hover_for_file_analysis(&sources, &analysis, file, use_offset).expect("index use hover");
+    assert_eq!(usage.label, declaration.label);
+    assert_eq!(&text[usage.span.start..usage.span.end], "[index]");
+}
+
+#[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call() {
     let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
     let (sources, analysis) = analyze_text(text);

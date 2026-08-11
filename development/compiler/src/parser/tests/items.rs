@@ -1994,7 +1994,7 @@ fn parses_readonly_and_readwrite_index_operators() {
         r#"struct Buffer<T> { values: &+[T] }
 
 instance Buffer<T> {
-    pub operator (&self[index: usize]): &T {
+    pub operator (&self[index: usize]): &T from self {
         return &self.values[index]
     }
 
@@ -2023,11 +2023,13 @@ instance Buffer<T> {
         operators[0].callable_method().parameters.parameters[0].name,
         "index"
     );
+    assert!(operators[0].callable_method().result_provenance.is_some());
     let json = ast.to_json(&sources);
     assert_eq!(
         find_json_node(&json, "operator_decl").and_then(|node| node.value.as_deref()),
         Some("[]")
     );
+    assert!(find_json_node(&json, "result_provenance").is_some());
 }
 
 #[test]

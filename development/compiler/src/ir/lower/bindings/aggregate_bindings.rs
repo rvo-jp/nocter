@@ -881,6 +881,22 @@ pub(super) fn lower_aggregate_slice_index_binding(
         element.fields,
     );
     let mut temporaries = TemporaryAllocator::new(context)?;
+    if let Some((declared_instructions, pointer)) =
+        lower_declared_index_pointer(index, context, &mut temporaries)?
+    {
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: element.layout,
+        }];
+        instructions.extend(declared_instructions);
+        instructions.push(Instruction::CopyPointerToAggregate {
+            destination: AggregateLocation::Slot(slot_index),
+            pointer: UsizeValue::Location(pointer),
+            offset: UsizeValue::Const(0),
+            layout: element.layout,
+        });
+        return Ok(Some(instructions));
+    }
     let lowered_slice = lower_slice_expression_to_value(&index.object, context, &mut temporaries)?;
     let SliceValue::Location(source) = lowered_slice.value else {
         return Err(unsupported_binding_diagnostic(

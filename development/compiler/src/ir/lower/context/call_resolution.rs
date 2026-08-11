@@ -325,6 +325,17 @@ impl<'a> LoweringContext<'a> {
         call: &CallExpr,
     ) -> Option<(CallTarget, String)> {
         if let Expr::Member(member) = call.callee.as_ref()
+            && matches!(
+                member.member.as_str(),
+                crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
+                    | crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+            )
+            && let Some(method) = self.index_plan(call.span)?.method
+        {
+            let target = self.protocol_method_target(&method)?;
+            return Some((target, method.target_name));
+        }
+        if let Expr::Member(member) = call.callee.as_ref()
             && let Some(plan) = self.equality_plan(member.member_span)
             && let Some(method) = &plan.method
         {
@@ -595,17 +606,15 @@ impl<'a> LoweringContext<'a> {
         let mut candidate_sources = Vec::new();
         collect_type_expr_resolution_sources(&plan.target_ty, &mut candidate_sources);
         candidate_sources.dedup();
+        let mut resolvers = Vec::new();
         for source in candidate_sources {
             let Some(resolved) = self.resolved_source(source) else {
                 continue;
             };
-            if let Some(specialized) =
-                crate::typecheck::specialize_index_plan(plan.clone(), resolved)
-            {
-                return Some(specialized);
-            }
+            resolvers.push(resolved);
         }
-        crate::typecheck::specialize_index_plan(plan, resolution.resolved)
+        resolvers.push(resolution.resolved);
+        crate::typecheck::specialize_index_plan_across_resolvers(plan, resolvers)
     }
 
     pub(in crate::ir::lower) fn conversion_plan(

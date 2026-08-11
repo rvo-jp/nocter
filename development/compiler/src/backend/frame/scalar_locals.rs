@@ -954,6 +954,9 @@ pub(super) fn record_borrow_source(source: BorrowSource, highest_local_index: &m
             record_slice_location(source, highest_local_index);
             record_slice_element_index(index, highest_local_index);
         }
+        BorrowSource::AggregateIndex { index, .. } => {
+            record_slice_element_index(index, highest_local_index);
+        }
         BorrowSource::PointerOffset {
             pointer, offset, ..
         } => {

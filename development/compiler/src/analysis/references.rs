@@ -243,6 +243,25 @@ func equal(left: &Text, right: &Text): bool { return left == right }
     }
 
     #[test]
+    fn reference_query_joins_index_declaration_and_operator_uses() {
+        let text = r#"struct Buffer { values: [i32; 1] }
+instance Buffer {
+    operator (&self[index: usize]): &i32 { return &self.values[index] }
+}
+func read(buffer: &Buffer, index: usize): i32 { return buffer[index] }
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let offset = text.find("[index: usize]").expect("operator declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(span_fragments(text, &spans), vec!["[", "[index]"]);
+        assert_eq!(spans[0].start, offset);
+        assert_eq!(spans[1].start, text.rfind("[index]").unwrap());
+    }
+
+    #[test]
     fn reference_query_groups_construct_function_declaration_and_calls() {
         let text = r#"struct Bucket<T> { value: T }
 

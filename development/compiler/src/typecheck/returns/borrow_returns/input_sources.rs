@@ -149,19 +149,41 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
             }
             provenance
         }
-        Expr::Index(index)
-            if type_contains_borrow_like(
-                &expression_type(&index.object, resolved, environment),
-                resolved,
-            ) =>
-        {
-            borrow_return_provenance_for_index(
+        Expr::Index(index) => {
+            let mut provenance = borrow_return_provenance_for_index(
                 index,
                 resolved,
                 environment,
                 borrow_provenance,
                 summaries,
-            )
+            );
+            if let Some(identifier) = expression_root_identifier(&index.object) {
+                let root_type = environment.get(&identifier.name);
+                let root_provenance =
+                    if root_type.is_some_and(|ty| type_contains_borrow_like(ty, resolved)) {
+                        borrow_return_provenance_for_identifier(
+                            identifier,
+                            resolved,
+                            environment,
+                            borrow_provenance,
+                        )
+                    } else {
+                        borrow_return_provenance_for_local_storage(identifier, resolved)
+                    };
+                merge_provenance(&mut provenance, root_provenance);
+            } else if !type_contains_borrow_like(
+                &expression_type(&index.object, resolved, environment),
+                resolved,
+            ) {
+                merge_provenance(
+                    &mut provenance,
+                    Some(ValueProvenance::scope(
+                        index.span,
+                        "temporary expression".to_string(),
+                    )),
+                );
+            }
+            provenance
         }
         expression => Some(ValueProvenance::scope(
             expression.span(),

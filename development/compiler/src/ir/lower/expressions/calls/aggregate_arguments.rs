@@ -867,6 +867,25 @@ fn lower_aggregate_slice_index_argument_source(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    if let Some((mut instructions, pointer)) =
+        lower_declared_index_pointer(expression, context, temporaries)?
+    {
+        let slot_index = temporaries.next_aggregate_slot();
+        instructions.insert(
+            0,
+            Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: expected_layout,
+            },
+        );
+        instructions.push(Instruction::CopyPointerToAggregate {
+            destination: AggregateLocation::Slot(slot_index),
+            pointer: UsizeValue::Location(pointer),
+            offset: UsizeValue::Const(0),
+            layout: expected_layout,
+        });
+        return Ok((instructions, AggregateArgumentSource::Slot(slot_index)));
+    }
     let source = lower_slice_expression_to_value(&expression.object, context, temporaries)
         .map_err(|_| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
     let index = lower_usize_expression_to_value(&expression.index, context, temporaries)

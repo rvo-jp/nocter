@@ -581,6 +581,25 @@ func equal(left: &Text, right: &Text): bool { return left == right }
     }
 
     #[test]
+    fn definition_query_resolves_index_use_to_operator_bracket() {
+        let text = r#"struct Buffer { values: [i32; 1] }
+instance Buffer {
+    operator (&self[index: usize]): &i32 { return &self.values[index] }
+}
+func read(buffer: &Buffer, index: usize): i32 { return buffer[index] }
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let use_offset = text.rfind("[index]").expect("operator use");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, use_offset)
+            .expect("operator definition");
+
+        assert_eq!(&text[span.start..span.end], "[");
+        assert_eq!(span.start, text.find("[index: usize]").unwrap());
+    }
+
+    #[test]
     fn definition_query_resolves_concrete_call_to_conformance_member() {
         let text = r#"interface Measure {
     pub method &self.measure(): i32

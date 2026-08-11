@@ -33,6 +33,12 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 if let Expr::Index(index) = super::unwrap_group(&statement.target) {
+                    self.collect_declared_index_call_facts(
+                        index,
+                        crate::typecheck::indexing::IndexAccess::Readwrite,
+                        environment,
+                        return_type,
+                    );
                     self.record_index_plan(
                         index,
                         crate::typecheck::indexing::IndexAccess::Readwrite,

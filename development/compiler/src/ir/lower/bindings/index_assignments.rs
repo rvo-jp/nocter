@@ -5,6 +5,9 @@ pub(super) fn lower_index_assignment(
     value: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_declared_index_assignment(target, value, context)? {
+        return Ok(instructions);
+    }
     if let Some(instructions) = lower_fixed_array_index_assignment(target, value, context)? {
         return Ok(instructions);
     }
@@ -12,6 +15,137 @@ pub(super) fn lower_index_assignment(
         return Ok(instructions);
     }
     lower_slice_index_assignment(target, value, context)
+}
+
+fn lower_declared_index_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some((mut instructions, pointer)) =
+        lower_declared_index_pointer(target, context, &mut temporaries)?
+    else {
+        return Ok(None);
+    };
+    let Some(plan) = context.index_plan(target.span) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let element_kind = slice_element_kind_from_element_type_expr(&plan.element_ty, context);
+    match element_kind {
+        TypecheckSliceElementKind::U8 => {
+            let (value_instructions, value) =
+                lower_u8_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreU8ToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value,
+            });
+        }
+        TypecheckSliceElementKind::I32 => {
+            let (value_instructions, value) =
+                lower_i32_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreI32ToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value,
+            });
+        }
+        TypecheckSliceElementKind::Usize => {
+            let (value_instructions, value) =
+                lower_usize_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreUsizeToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value,
+            });
+        }
+        TypecheckSliceElementKind::Integer(kind) => {
+            let mut lowered =
+                lower_integer_expression_to_value(value, kind, context, &mut temporaries)?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreIntegerToPointer {
+                kind,
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value: lowered.value,
+            });
+        }
+        TypecheckSliceElementKind::Bool => {
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                value,
+                context,
+                "E8008",
+                &mut temporaries,
+            )?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreBoolToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value: lowered.value,
+            });
+        }
+        TypecheckSliceElementKind::Str => {
+            let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreStrToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                value: lowered.value,
+            });
+        }
+        TypecheckSliceElementKind::Other => {
+            let element_ty = plan.element_ty.clone();
+            let abi = context
+                .abi_value_for_type_expr(&element_ty)
+                .ok_or_else(unsupported_assignment_diagnostic)?;
+            if !supported_aggregate_copy_layout(abi.layout) {
+                return Err(unsupported_assignment_diagnostic());
+            }
+            let replacement_slot = temporaries.next_aggregate_slot();
+            instructions.push(Instruction::ReserveAggregateSlot {
+                slot_index: replacement_slot,
+                layout: abi.layout,
+            });
+            instructions.extend(lower_aggregate_assignment_to_slot(
+                replacement_slot,
+                abi.layout,
+                Some(&element_ty),
+                value,
+                context,
+            )?);
+            if let Some(drop_kind) = context.aggregate_drop_for_type_expr(&element_ty) {
+                let old_slot = temporaries.next_aggregate_slot();
+                instructions.push(Instruction::ReserveAggregateSlot {
+                    slot_index: old_slot,
+                    layout: abi.layout,
+                });
+                instructions.push(Instruction::CopyPointerToAggregate {
+                    destination: AggregateLocation::Slot(old_slot),
+                    pointer: UsizeValue::Location(pointer),
+                    offset: UsizeValue::Const(0),
+                    layout: abi.layout,
+                });
+                instructions.extend(lower_aggregate_drop_instructions(
+                    "indexed element",
+                    old_slot,
+                    abi.layout,
+                    &drop_kind,
+                    context,
+                )?);
+            }
+            instructions.push(Instruction::CopyAggregateToPointer {
+                pointer: UsizeValue::Location(pointer),
+                offset: UsizeValue::Const(0),
+                source: AggregateLocation::Slot(replacement_slot),
+                layout: abi.layout,
+            });
+        }
+    }
+    Ok(Some(instructions))
 }
 
 pub(super) fn lower_fixed_array_index_assignment(
