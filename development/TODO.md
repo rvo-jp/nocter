@@ -2,10 +2,11 @@
 
 ## Current Task
 
-v0.12.0 publication and its independent public-asset audit are complete under
-[`releases/v0.12.0.md`](releases/v0.12.0.md). Annotated tag `v0.12.0` resolves to publication commit
-`358576fb`, and GitHub exposes the qualified archive as the only asset of the latest
-non-prerelease release. Stop at this published boundary.
+Implement [v0.13.0 Phase 0 source-defined indexing](milestones/v0.13.0.md). Add readonly and
+readwrite index declarations to `instance`, integrate them with the existing structural
+requirement selector and immutable index plan, lower them through ordinary static calls, complete
+diagnostics and LSP identity, update the public contract, and stop at the fully verified Phase 0
+boundary. The published v0.12.0 release remains immutable.
 
 ## Completed v0.12.0 Stabilization Checkpoint
 

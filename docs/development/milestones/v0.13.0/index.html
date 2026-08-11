@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocter v0.13.0 - Nocter</title>
+    <meta name="description" content="Status: Phase 0 active.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.13.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Nocter v0.13.0 - Nocter">
+    <meta property="og:description" content="Status: Phase 0 active.">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.13.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-11">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nocter v0.13.0 - Nocter">
+    <meta name="twitter:description" content="Status: Phase 0 active.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.13.0 - Nocter","description":"Status: Phase 0 active.","url":"https://nocter.dev/development/milestones/v0.13.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.13.0/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.13.0","item":"https://nocter.dev/development/milestones/v0.13.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="./index.html#content" aria-current="page">v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
+                <li><a href="../../releases/v0.12.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
+                <li><a href="../../releases/v0.11.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
+                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
+                <li><a href="../../releases/v0.10.0/index.html#content">the release record</a></li>
+                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.13.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="nocter-v0-13-0">Nocter v0.13.0</h1><p><strong>Status:</strong> Phase 0 active.</p><p>v0.13.0 completes user-defined collection capabilities before expanding the practical standard library. Phase 0 makes structural indexing requirements implementable by ordinary instance declarations instead of limiting concrete satisfaction to compiler-owned arrays, views, and types that coerce to those views.</p><p>The published v0.12.0 language, tag, archive, download instructions, and qualification record are immutable. v0.13.0 work must not alter or relabel that release.</p><h2 id="phase-0-source-defined-indexing">Phase 0: Source-Defined Indexing</h2><h3 id="problem">Problem</h3><p>The language can state readonly and readwrite index requirements:</p><pre><code class="language-nct"><span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">V</span>
+<span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">K</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">V</span>
+</code></pre><p>Concrete programs can currently satisfy them only through arrays, views, or one visible borrow coercion to an indexable built-in view. A user type cannot declare the operation directly. This makes the generic capability language more expressive than the declaration language and forces a collection either to expose a representation coercion or to abandon index syntax.</p><p>Phase 0 closes that asymmetry. It does not introduce a second index expression, a named indexing interface, compiler recognition of collection names, or arbitrary operator overloading.</p><h3 id="public-declaration-forms">Public Declaration Forms</h3><p>An <code>instance</code> may own readonly and readwrite index declarations:</p><pre><code class="language-nct">instance <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">pub</span> <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p>The receiver token, index binding, index type, and borrowed element type are authored source. Readonly indexing must return <code>&amp;V</code>; readwrite indexing must return <code>&amp;+V</code>. This is deliberately a place-producing capability: assignment, loan tracking, and result provenance all retain one meaning for <code>container[index]</code>. A partial lookup belongs in an ordinary method such as <code>get(key): &amp;V?</code>; Phase 0 does not overload index syntax with a second value-producing operation.</p><p>Phase 0 accepts exactly one index operand. Readonly declarations start with <code>&amp;self</code>; readwrite declarations start with <code>&amp;+self</code>. An owned <code>self</code>, unnamed index operand, missing parameter type, multiple indices, equality token, or bodyless declaration is invalid. Ordinary <code>pub</code>, <code>pub(path)</code>, declaration type-pattern, and declaration-wide <code>where</code> rules apply unchanged.</p><p>The result provenance follows the existing callable contract rules. Compiler-inferable origins remain omitted from normal source. A declaration must use an explicit <code>from</code> clause only when the public result origin cannot be inferred unambiguously by the common provenance service.</p><h3 id="selection-and-requirements">Selection and Requirements</h3><p>Index selection preserves one deterministic order:</p><ol><li>1. Direct compiler-owned array or view indexing on the original receiver remains the primitive
+   leaf operation.</li><li>An accessible declaration on the original nominal receiver is selected before considering a
+   receiver coercion.</li><li>If neither direct indexing nor an original-owner declaration applies, each accessible one-step
+   borrow coercion is considered. The target may provide a primitive index operation or a declared
+   index operator.</li><li>Coercions do not chain and have no implicit ranking. Multiple viable targets are ambiguous.</li><li>The index expression must satisfy the selected declaration or structural requirement using
+   ordinary contextual typing rather than a collection-specific conversion rule.</li></ol><p>A lexical <code>where (&amp;C[K]): R</code> requirement is evidence for an unknown generic receiver. At concrete specialization, the same selector proves the substituted operation through a primitive leaf, declared operator, or one-step receiver coercion. Requirement checking and ordinary expression selection must not use separate algorithms.</p><p>Readonly and readwrite declarations are independent capabilities. Assignment through <code>container[index]</code> requires a selected readwrite result compatible with the assigned place. A readonly declaration cannot be upgraded because the source binding happens to be mutable.</p><h3 id="compiler-architecture">Compiler Architecture</h3><p>The authored declaration is an <code>IndexOperatorDecl</code>; equality and index declarations form an explicit operator-member enum inside <code>instance</code> rather than parallel optional lists. Each index declaration exposes one compiler-private callable view so signature qualification, body joining, visibility, generics, provenance summaries, specialization, reachability, and static calls reuse ordinary method infrastructure.</p><p><code>TypecheckIndexPlan</code> remains the only post-typecheck authority. Its selected operation records one of:</p><ul><li>a primitive array or view projection;</li><li>a lexical generic requirement;</li><li>a source index declaration and its resolved callable identity.</li></ul><p>Receiver and index adjustments, concrete input and result types, access capability, zero or one coercion, and owner provenance travel with that plan. Ownership, place checking, specialization, buildability, IR, diagnostics, and editor analysis consume it without repeating declaration lookup or reconstructing an operation from source spelling.</p><p>Declared operator calls lower through the shared static-call boundary. Primitive array and view indexing remain checked projections and do not become synthetic source functions. A declaration that implements its body by indexing another value receives that nested expression's independent plan; recursive selection cycles fail deterministically before lowering.</p><h3 id="ownership-and-native-semantics">Ownership and Native Semantics</h3><p>Receiver and index expressions evaluate once, from left to right. Any deferred scalar index value is stabilized before the selected call can reuse backend scratch state. A declared operator borrows its receiver according to the authored capability and never consumes an owned receiver.</p><p>A returned borrow retains the provenance of the callable result contract, normally the receiver. Owner move, destruction, replacement, and conflicting mutable access remain rejected while that borrow is live. Readwrite results support mutation only when the receiver and declaration both provide readwrite capability. The index operand itself uses the ordinary call argument and cleanup paths; the result remains a borrow-place rather than an owned call result.</p><p>The operator body owns bounds policy. A direct array or view keeps the existing checked trap; source declarations may return <code>none</code>, return an error, or call another checked projection. The compiler must not insert a second bounds check or translate a user failure into a trap.</p><h3 id="diagnostics-and-editor-contract">Diagnostics and Editor Contract</h3><p>Malformed declarations receive focused parser or type diagnostics on the receiver, bracket, binding, index type, or result type. Duplicate and overlapping declaration patterns use the common instance-member overlap service. Missing, inaccessible, unsatisfied, cyclic, and ambiguous selection remain distinct errors and include candidate declaration or coercion notes.</p><p>Hover presents the normalized source declaration and selected concrete specialization. Definition, references, and rename use the operator bracket/declaration identity and the index binding's own parameter identity. Completion inside an instance offers readonly and readwrite index templates only when their structural patterns do not overlap an existing declaration. Semantic tokens color <code>self</code> and the index binding as parameters, not types. LSP code must consume semantic plans and shared presentation services; it must not search for <code>operator</code>, brackets, type names, or method spelling independently.</p><h3 id="implementation-sequence">Implementation Sequence</h3><ol><li>1. Add the authored index declaration and operator-member enum to parser, AST, formatting, AST
+   JSON, visitors, and recovery tests.</li><li>Generalize instance collection, type-pattern overlap, callable views, body joining,
+   qualification, visibility, and source-backed identity for both operator kinds.</li><li>Extend the common index selector and <code>TypecheckIndexPlan</code> with declared candidates and exact
+   requirement satisfaction.</li><li>Route signature checking, provenance inference, ownership, place capability, specialization,
+   reachability, and buildability through the selected callable plan.</li><li>Lower declared readonly/readwrite calls through the ordinary ABI while preserving primitive
+   projection leaves, evaluation order, cleanup, and owner loans.</li><li>Add diagnostics and complete hover, completion, semantic-token, definition, references,
+   rename, and signature-presentation coverage.</li><li>Add unit, CLI build/run, installed-home, source-corpus, and public-example coverage; then update
+   the public specification, implementation document, generated website, and completion record.</li></ol><h3 id="completion-definition">Completion Definition</h3><p>Phase 0 is complete only when readonly and readwrite index declarations parse, format, serialize, resolve, specialize, and execute for local, imported, generic, and refined instance patterns; structural requirements are satisfied by the same selector; direct and one-step-coerced calls retain deterministic precedence and ambiguity behavior; indexed assignment preserves capability, evaluation order, provenance, and exactly-once index-operand cleanup; invalid result shapes and cyclic selection have exact diagnostics; all editor operations use semantic declaration identity; no collection-name recognition, compatibility grammar, textual fallback, duplicate selector, or required TODO remains; and the complete repository, distributed-home, public-example, source-corpus, documentation, formatting, warnings-denied Clippy, and diff verification gates pass.</p><h3 id="non-goals">Non-goals</h3><p>Phase 0 does not add multiple index operands, ranges as index syntax, owned-receiver indexing, value- or optional-producing index operators, index-move places, automatic bounds policy, compound assignment operators, arithmetic or ordering operator declarations, operator precedence declarations, transitive coercion, coercion ranking, runtime dispatch, mutable iteration, hashing, maps, Unicode scalar types, source-level lifetime parameters, or another native target.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

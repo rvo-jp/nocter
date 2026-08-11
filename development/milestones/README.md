@@ -4,6 +4,11 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
+The active milestone is [v0.13.0](v0.13.0.md). Phase 0 adds source-defined readonly and readwrite
+index declarations and makes existing structural index requirements implementable by user-owned
+types through the same semantic plan and static-call infrastructure. No later v0.13.0 phase is
+active.
+
 The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are complete: closed
 interpolation formatting was replaced with a source-defined `Format` contract, fixed
 instance-owned equality now drives generic and collection comparison, and equality plus indexing
