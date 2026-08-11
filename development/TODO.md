@@ -1,10 +1,12 @@
 # Nocter Development Handoff
 
-## Current Boundary
+## Current Task
 
-[v0.13.0 Phase 0 source-defined indexing](milestones/v0.13.0.md) is complete. No later v0.13.0
-phase is active. Do not begin Phase 1, change release identity, package an archive, tag, or publish
-without a new plan. The published v0.12.0 release remains immutable.
+Implement [v0.13.0 Phase 1 canonical built-in surfaces and core prelude](milestones/v0.13.0.md).
+Make `error` the only failure type spelling, add source-backed construction and `catch _`, replace
+fixed built-in authority paths with one common registry, adopt the minimal owning/iteration
+prelude, and stop at the fully verified Phase 1 boundary. Do not change release identity, package,
+tag, or publish. The published v0.12.0 release remains immutable.
 
 ## Completed v0.13.0 Phase 0 Checkpoint
 
@@ -464,6 +466,5 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the completed v0.13.0 Phase 0 boundary. Define the next phase before changing compiler or
-standard-library behavior. Do not alter the published v0.12.0 archive, tag, or qualification
-evidence; published artifacts remain immutable.
+Complete v0.13.0 Phase 1 and stop before Phase 2 or publication. Do not alter the published v0.12.0
+archive, tag, or qualification evidence; published artifacts remain immutable.
