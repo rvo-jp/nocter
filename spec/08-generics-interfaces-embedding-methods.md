@@ -83,8 +83,9 @@ type satisfies it through an accessible instance-owned equality declaration or t
 readonly borrow coercions used by a non-generic equality expression. The index forms describe a
 readonly or readwrite projection from a borrowed generic container. Their result borrow must have
 the same capability as the container borrow. A concrete container satisfies an index requirement
-when it is directly indexable or has one accessible receiver coercion to an array, slice, or
-`str`. Operator requirements produce no runtime witness.
+through a built-in projection, an accessible instance-owned index declaration, or one accessible
+receiver coercion to either operation. Generic specialization uses the same selector as an ordinary
+index expression. Operator requirements produce no runtime witness.
 
 `instance` and `conform` do not have a prefix generic parameter list. Their interface and target
 headers are declaration type patterns. Each generic argument slot contains a bare binder name; its

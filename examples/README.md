@@ -25,13 +25,21 @@ nocter check examples/custom-format.nct
 nocter run examples/custom-format.nct
 ```
 
-[equality.nct](equality.nct) defines instance-owned equality for a project type, uses the same
-operation through `Vec.contains`, and exercises readonly plus readwrite Vec indexing through slice
-coercion.
+[equality.nct](equality.nct) defines instance-owned equality for a project type, compares an
+indexed `Vec` element, and exercises readonly plus readwrite Vec indexing.
 
 ```sh
 nocter check examples/equality.nct
 nocter run examples/equality.nct
+```
+
+[indexing.nct](indexing.nct) defines readonly and readwrite index operators for a project-owned
+collection, assigns through the resulting place, and satisfies a generic structural index
+requirement.
+
+```sh
+nocter check examples/indexing.nct
+nocter run examples/indexing.nct
 ```
 
 ## Package Example

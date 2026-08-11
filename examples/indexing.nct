@@ -1,0 +1,26 @@
+struct Buffer {
+    values: [i32; 3],
+}
+
+instance Buffer {
+    operator (&self[index: usize]): &i32 {
+        return &self.values[index]
+    }
+
+    operator (&+self[index: usize]): &+i32 {
+        return &+self.values[index]
+    }
+}
+
+func at<C>(container: &C, index: usize): i32 where (&C[usize]): &i32 {
+    return container[index]
+}
+
+func main(): i32 {
+    var buffer = Buffer { values: [3, 4, 5] }
+    buffer[1] = 9
+    if at(&buffer, 1) != 9 {
+        return 1
+    }
+    return 0
+}

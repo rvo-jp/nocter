@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>examples/custom-format.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for examples/custom-format.nct.">
+    <title>examples/indexing.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/indexing.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/examples/custom-format/">
+    <link rel="canonical" href="https://nocter.dev/examples/indexing/">
     <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="examples/custom-format.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for examples/custom-format.nct.">
-    <meta property="og:url" content="https://nocter.dev/examples/custom-format/">
+    <meta property="og:title" content="examples/indexing.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/indexing.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/indexing/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-10">
+    <meta property="article:modified_time" content="2026-08-11">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="examples/custom-format.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for examples/custom-format.nct.">
+    <meta name="twitter:title" content="examples/indexing.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/indexing.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/custom-format.nct - Nocter","description":"Nocter source code for examples/custom-format.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/custom-format/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Custom Format","item":"https://nocter.dev/examples/custom-format/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/indexing.nct - Nocter","description":"Nocter source code for examples/indexing.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/indexing/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Indexing","item":"https://nocter.dev/examples/indexing/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -121,9 +121,9 @@
             <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
                 <li><a href="../hello/index.html#content">hello.nct</a></li>
-                <li><a href="./index.html#content" aria-current="page">custom-format.nct</a></li>
+                <li><a href="../custom-format/index.html#content">custom-format.nct</a></li>
                 <li><a href="../equality/index.html#content">equality.nct</a></li>
-                <li><a href="../indexing/index.html#content">indexing.nct</a></li>
+                <li><a href="./index.html#content" aria-current="page">indexing.nct</a></li>
                 <li><a href="../file-summary/index/index.html#content">file-summary/index.nct</a></li>
                 <li><a href="../file-summary/summary/index.html#content">summary.nct</a></li>
                 <li><a href="../../spec/index.html#content">language specification</a></li>
@@ -132,33 +132,33 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/examples/custom-format.nct</span>
+                <span class="markdown-path-text">/examples/indexing.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>custom-format.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Format</span><span class="token-operator">,</span> append_i32<span class="token-operator">,</span> append_str<span class="token-operator">}</span>
-
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
-
-<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
-    x<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
-    y<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+                <h1>indexing.nct</h1><pre><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span><span class="token-operator">,</span>
 <span class="token-operator">}</span>
 
-conform <span class="token-type">Format</span> <span class="token-keyword">for</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
-        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">"("</span><span class="token-operator">)</span>
-        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>x<span class="token-operator">)</span>
-        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">", "</span><span class="token-operator">)</span>
-        <span class="token-function">append_i32</span><span class="token-operator">(</span>output<span class="token-operator">,</span> self<span class="token-operator">.</span>y<span class="token-operator">)</span>
-        <span class="token-function">append_str</span><span class="token-operator">(</span>output<span class="token-operator">,</span> <span class="token-string">")"</span><span class="token-operator">)</span>
-        <span class="token-keyword">return</span>
+instance <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre>

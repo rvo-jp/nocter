@@ -56,8 +56,8 @@ operations before publication; buffer machinery does not acquire text semantics.
 
 Owned containers expose construction, mutation, capacity management, and ownership transfer.
 Borrowed observation belongs to the built-in `str` and `[T]` surfaces. Private `String` and
-`Vec<T>` raw-view helpers bridge initialized representation into coercion and interface
-implementations; they are not public forwarding APIs.
+`Vec<T>` raw-view helpers bridge initialized representation into coercion, index-operator, and
+interface implementations; they are not public forwarding APIs.
 
 ## Borrowed Text Views
 

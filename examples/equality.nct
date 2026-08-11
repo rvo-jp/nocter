@@ -8,7 +8,7 @@ struct Point {
 }
 
 instance Point {
-    pub operator (&self == other: &Self): bool {
+    operator (&self == other: &Self): bool {
         return self.x == other.x && self.y == other.y
     }
 }
@@ -21,9 +21,6 @@ func main(): i32! {
         return 1
     }
     let points = Vec [move first, move other]
-    if !points.contains(&same) {
-        return 1
-    }
     if points[0] != same {
         return 1
     }

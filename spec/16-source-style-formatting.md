@@ -147,6 +147,10 @@ Rules:
   `where (&T == &T): bool` or `where (&C[K]): &V`.
 - An equality declaration is `operator (&self == other: &Self): bool`; spaces surround `==`, the
   named right binding follows it, and the complete operand expression stays in parentheses.
+- A readonly index declaration is `operator (&self[index: K]): &V`; a readwrite declaration is
+  `operator (&+self[index: K]): &+V`. There is no space before `[`, and the index binding follows
+  ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
+  result type.
 - An opaque result is `some Interface` or `some Interface<Item = Type>`. Associated binding `=`
   uses one space on each side, comma spacing follows ordinary generic arguments, and `?` or `!`
   attaches to the complete opaque type without extra parentheses.

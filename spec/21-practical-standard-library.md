@@ -23,9 +23,10 @@ through a compiler-validated typed projection; raw-pointer reconstruction is not
 Returning owned `split` components keeps their lifetime independent of the input.
 
 Text and collection observation are type-owned. `str` declares text methods and `[T]` declares
-slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. Their internal
-raw-view helpers are not importable APIs. Explicit view construction uses `as`, for example
-`(&text) as &str` and `(&values) as &[T]`.
+slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. `Vec<T>` owns
+readonly and readwrite index declarations whose bodies project through its initialized slice.
+Their internal raw-view helpers are not importable APIs. Explicit view construction uses `as`, for
+example `(&text) as &str` and `(&values) as &[T]`.
 
 `Vec<T>.retain` preserves relative order. Rejected elements are dropped exactly once, retained
 elements move at most once, and the initialized prefix is updated only after compaction.

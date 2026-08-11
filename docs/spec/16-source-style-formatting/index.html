@@ -185,7 +185,10 @@
   interface-member line.</li><li>An associated type binding is <code>type Name = Type</code> and precedes method implementations in a
   conformance body.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li><li>A type-equality predicate uses one space around <code>=</code>: <code>R.Item = L.Item</code>.</li><li>An operator requirement encloses its expression and writes an explicit result type:
   <code>where (&amp;T == &amp;T): bool</code> or <code>where (&amp;C[K]): &amp;V</code>.</li><li>An equality declaration is <code>operator (&amp;self == other: &amp;Self): bool</code>; spaces surround <code>==</code>, the
-  named right binding follows it, and the complete operand expression stays in parentheses.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface&lt;Item = Type&gt;</code>. Associated binding <code>=</code>
+  named right binding follows it, and the complete operand expression stays in parentheses.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
+  <code>operator (&amp;+self[index: K]): &amp;+V</code>. There is no space before <code>[</code>, and the index binding follows
+  ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
+  result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface&lt;Item = Type&gt;</code>. Associated binding <code>=</code>
   uses one space on each side, comma spacing follows ordinary generic arguments, and <code>?</code> or <code>!</code>
   attaches to the complete opaque type without extra parentheses.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 

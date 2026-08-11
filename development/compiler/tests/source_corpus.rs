@@ -21,6 +21,7 @@ const VALID_FIXTURES: &[ValidFixture] = &[
         "development/compiler/tests/fixtures/source_corpus/valid/fallible-propagation.nct",
     ),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/if-is-enum.nct"),
+    ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/index-operator.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/imports/app.nct"),
     ValidFixture::new(
         "development/compiler/tests/fixtures/source_corpus/valid/optional-otherwise-default.nct",

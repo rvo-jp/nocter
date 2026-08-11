@@ -1,12 +1,27 @@
 # Nocter Development Handoff
 
-## Current Task
+## Current Boundary
 
-Implement [v0.13.0 Phase 0 source-defined indexing](milestones/v0.13.0.md). Add readonly and
-readwrite index declarations to `instance`, integrate them with the existing structural
-requirement selector and immutable index plan, lower them through ordinary static calls, complete
-diagnostics and LSP identity, update the public contract, and stop at the fully verified Phase 0
-boundary. The published v0.12.0 release remains immutable.
+[v0.13.0 Phase 0 source-defined indexing](milestones/v0.13.0.md) is complete. No later v0.13.0
+phase is active. Do not begin Phase 1, change release identity, package an archive, tag, or publish
+without a new plan. The published v0.12.0 release remains immutable.
+
+## Completed v0.13.0 Phase 0 Checkpoint
+
+- source-defined readonly and readwrite index declarations share one instance operator-member
+  model with equality and expose ordinary callable views to all downstream services
+- one immutable index plan selects primitive projections, lexical requirements, direct
+  declarations, and one-step-coerced declarations; analysis and lowering share specialization
+- declared operations execute as static borrow-return calls for scalar and aggregate reads,
+  assignment, generic requirements, dynamic fixed-array borrows, and owner-loan enforcement
+- `Vec<T>` owns its index behavior in source, including checked move-only replacement and bounds
+  behavior, without compiler recognition of collection names or representation
+- hover, completion, semantic tokens, definition, references, rename, and source presentation use
+  exact semantic identity and never expose compiler-private callable names
+- public specification, compiler architecture documentation, standard source, the public example,
+  source corpus, and generated website describe the same declaration and selection contract
+- all 3,534 repository tests, formatting, warnings-denied Clippy, documentation generation, and
+  diff verification pass
 
 ## Completed v0.12.0 Stabilization Checkpoint
 
@@ -449,7 +464,6 @@ The published v0.7.0 qualification remains in its immutable
 
 ## Next Work
 
-Stop at the published and audited v0.12.0 boundary. Do not begin another milestone or alter the
-published asset without a new plan. Any compiler, standard-library, or packaging change belongs to
-a later version and requires complete qualification. Published archives, tags, and their evidence
-are immutable.
+Stop at the completed v0.13.0 Phase 0 boundary. Define the next phase before changing compiler or
+standard-library behavior. Do not alter the published v0.12.0 archive, tag, or qualification
+evidence; published artifacts remain immutable.

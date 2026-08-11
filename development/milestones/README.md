@@ -4,10 +4,9 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.13.0](v0.13.0.md). Phase 0 adds source-defined readonly and readwrite
-index declarations and makes existing structural index requirements implementable by user-owned
-types through the same semantic plan and static-call infrastructure. No later v0.13.0 phase is
-active.
+The active milestone is [v0.13.0](v0.13.0.md). Phase 0 is complete: source-defined readonly and
+readwrite index declarations make structural index requirements implementable by user-owned types
+through the same semantic plan and static-call infrastructure. No later v0.13.0 phase is active.
 
 The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are complete: closed
 interpolation formatting was replaced with a source-defined `Format` contract, fixed
@@ -16,7 +15,7 @@ share uniform structural operator requirements with coercion-driven execution. P
 the semantic audit, candidate identity, incremental and clean verification, and archive
 qualification. Its publication and independent public-asset audit are preserved in
 [the release record](../releases/v0.12.0.md), and the published baseline is v0.12.0. No later
-milestone is active.
+release has been qualified.
 
 The latest completed milestone record is [v0.11.0](v0.11.0.md). Phases 0 through 8 completed
 unified generic requirements, associated types and bounds, declaration-wide `where` clauses,
