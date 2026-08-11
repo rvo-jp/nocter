@@ -476,10 +476,30 @@ impl WhereClause {
                     crate::ast::WherePredicate::Operator(requirement) => JsonAstNode::new(
                         "operator_requirement",
                         json_span(sources, requirement.span),
-                        vec![
-                            requirement.left.to_json(sources),
-                            requirement.right.to_json(sources),
-                        ],
+                        {
+                            let mut children = match &requirement.shape {
+                                crate::ast::OperatorRequirementShape::Equality {
+                                    left,
+                                    right,
+                                    ..
+                                } => vec![JsonAstNode::new(
+                                    "equality_operator_shape",
+                                    json_span(sources, requirement.span),
+                                    vec![left.to_json(sources), right.to_json(sources)],
+                                )],
+                                crate::ast::OperatorRequirementShape::Index {
+                                    target,
+                                    index,
+                                    ..
+                                } => vec![JsonAstNode::new(
+                                    "index_operator_shape",
+                                    json_span(sources, requirement.span),
+                                    vec![target.to_json(sources), index.to_json(sources)],
+                                )],
+                            };
+                            children.push(requirement.result.to_json(sources));
+                            children
+                        },
                     ),
                 })
                 .collect(),

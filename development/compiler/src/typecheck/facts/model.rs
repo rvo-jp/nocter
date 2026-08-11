@@ -7,6 +7,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) equality_plans: HashMap<ByteSpan, TypecheckEqualityPlan>,
+    pub(super) index_plans: HashMap<ByteSpan, TypecheckIndexPlan>,
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
@@ -72,6 +73,14 @@ impl TypecheckFacts {
 
     pub(crate) fn equality_plans(&self) -> impl Iterator<Item = &TypecheckEqualityPlan> {
         self.equality_plans.values()
+    }
+
+    pub(crate) fn index_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckIndexPlan> {
+        self.index_plans.get(&expression_span)
+    }
+
+    pub(crate) fn index_plans(&self) -> impl Iterator<Item = &TypecheckIndexPlan> {
+        self.index_plans.values()
     }
 
     pub(crate) fn interpolation_plans(
@@ -396,6 +405,57 @@ pub(crate) struct TypecheckEqualityPlan {
     pub(crate) right_implicit_readonly_borrow: bool,
     pub(crate) left_conversion: Option<TypecheckConversionPlan>,
     pub(crate) right_conversion: Option<TypecheckConversionPlan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckIndexAccess {
+    Readonly,
+    Readwrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckIndexProjection {
+    Array,
+    Slice,
+    Str,
+    Requirement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckIndexPlan {
+    pub(crate) expression_span: ByteSpan,
+    pub(crate) object_span: ByteSpan,
+    pub(crate) index_span: ByteSpan,
+    pub(crate) target_ty: TypeExpr,
+    pub(crate) index_ty: TypeExpr,
+    pub(crate) element_ty: TypeExpr,
+    pub(crate) access: TypecheckIndexAccess,
+    pub(crate) projection: TypecheckIndexProjection,
+    pub(crate) requirement_span: Option<ByteSpan>,
+    pub(crate) conversion: Option<TypecheckConversionPlan>,
+}
+
+impl TypecheckIndexPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            expression_span: self.expression_span,
+            object_span: self.object_span,
+            index_span: self.index_span,
+            target_ty: substitute_type_expr_parameters(&self.target_ty, context_substitutions),
+            index_ty: substitute_type_expr_parameters(&self.index_ty, context_substitutions),
+            element_ty: substitute_type_expr_parameters(&self.element_ty, context_substitutions),
+            access: self.access,
+            projection: self.projection,
+            requirement_span: self.requirement_span,
+            conversion: match &self.conversion {
+                Some(plan) => Some(plan.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+        })
+    }
 }
 
 impl TypecheckEqualityPlan {

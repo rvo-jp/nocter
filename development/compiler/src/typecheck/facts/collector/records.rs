@@ -1,6 +1,95 @@
 use super::*;
 
 impl TypecheckFactCollector<'_> {
+    pub(in crate::typecheck::facts::collector) fn record_index_plan(
+        &mut self,
+        expression: &crate::ast::IndexExpr,
+        access: crate::typecheck::indexing::IndexAccess,
+        environment: &TypeEnvironment,
+    ) {
+        let Ok(selected) = crate::typecheck::indexing::select_index_expression(
+            expression,
+            access,
+            self.resolved,
+            environment,
+        ) else {
+            return;
+        };
+        let mut free_type_parameters = std::collections::HashSet::new();
+        let Some(target_ty) = crate::typecheck::facts::type_to_type_expr_allowing_parameters(
+            &selected.target_type,
+            expression.object.span(),
+            &mut free_type_parameters,
+        ) else {
+            return;
+        };
+        let Some(index_ty) = crate::typecheck::facts::type_to_type_expr_allowing_parameters(
+            &selected.index_type,
+            expression.index.span(),
+            &mut free_type_parameters,
+        ) else {
+            return;
+        };
+        let Some(element_ty) = crate::typecheck::facts::type_to_type_expr_allowing_parameters(
+            &selected.element_type,
+            expression.span,
+            &mut free_type_parameters,
+        ) else {
+            return;
+        };
+        let conversion = selected.coercion.and_then(|coercion| {
+            crate::typecheck::facts::typecheck_conversion_plan(
+                expression.object.span(),
+                expression.object.span(),
+                None,
+                crate::typecheck::conversions::selected_receiver_coercion(
+                    &selected.target_type,
+                    coercion,
+                ),
+            )
+        });
+        if let Some(conversion) = &conversion {
+            self.facts
+                .conversion_plans
+                .insert(expression.object.span(), conversion.clone());
+        }
+        self.facts.index_plans.insert(
+            expression.span,
+            TypecheckIndexPlan {
+                expression_span: expression.span,
+                object_span: expression.object.span(),
+                index_span: expression.index.span(),
+                target_ty,
+                index_ty,
+                element_ty,
+                access: match selected.access {
+                    crate::typecheck::indexing::IndexAccess::Readonly => {
+                        TypecheckIndexAccess::Readonly
+                    }
+                    crate::typecheck::indexing::IndexAccess::Readwrite => {
+                        TypecheckIndexAccess::Readwrite
+                    }
+                },
+                projection: match selected.projection {
+                    crate::typecheck::indexing::IndexProjection::Array => {
+                        TypecheckIndexProjection::Array
+                    }
+                    crate::typecheck::indexing::IndexProjection::Slice => {
+                        TypecheckIndexProjection::Slice
+                    }
+                    crate::typecheck::indexing::IndexProjection::Str => {
+                        TypecheckIndexProjection::Str
+                    }
+                    crate::typecheck::indexing::IndexProjection::Requirement => {
+                        TypecheckIndexProjection::Requirement
+                    }
+                },
+                requirement_span: selected.requirement_span,
+                conversion,
+            },
+        );
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_conversion_plan(
         &mut self,
         expression_span: ByteSpan,

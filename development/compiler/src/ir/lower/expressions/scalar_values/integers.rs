@@ -1,5 +1,39 @@
 use super::*;
 
+fn i32_value_requires_snapshot(value: &I32Value) -> bool {
+    match value {
+        I32Value::SliceIndex { .. } => true,
+        I32Value::U8ZeroExtend(value) => u8_value_requires_snapshot(value),
+        I32Value::IntegerWord(value) => usize_value_requires_snapshot(value),
+        I32Value::Const(_) | I32Value::Location(_) => false,
+    }
+}
+
+fn u8_value_requires_snapshot(value: &U8Value) -> bool {
+    matches!(
+        value,
+        U8Value::StrIndex { .. } | U8Value::StaticStrIndex { .. } | U8Value::SliceIndex { .. }
+    )
+}
+
+fn usize_value_requires_snapshot(value: &UsizeValue) -> bool {
+    match value {
+        UsizeValue::SliceIndex { .. } | UsizeValue::IntegerSliceIndex { .. } => true,
+        UsizeValue::U8ZeroExtend(value) => u8_value_requires_snapshot(value),
+        UsizeValue::I32SignExtend(value) => i32_value_requires_snapshot(value),
+        UsizeValue::Const(_)
+        | UsizeValue::Location(_)
+        | UsizeValue::ProcessArgCount
+        | UsizeValue::ProcessEnvironmentCount
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind
+        | UsizeValue::StrPointer(_)
+        | UsizeValue::SlicePointer(_)
+        | UsizeValue::StrLen(_)
+        | UsizeValue::SliceLen(_) => false,
+    }
+}
+
 pub(in crate::ir::lower::expressions) fn lower_i32_binary_expression_to_location(
     binary: &BinaryExpr,
     destination: I32Location,
@@ -20,8 +54,24 @@ pub(in crate::ir::lower::expressions) fn lower_i32_binary_expression_to_location
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let left = lower_i32_expression_to_value(&binary.left, context, temporaries)?;
-    let right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
+    let mut left = lower_i32_expression_to_value(&binary.left, context, temporaries)?;
+    if i32_value_requires_snapshot(&left.value) {
+        let snapshot = temporaries.next_i32()?;
+        left.instructions.push(Instruction::SetI32 {
+            destination: snapshot,
+            value: left.value,
+        });
+        left.value = I32Value::Location(snapshot);
+    }
+    let mut right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
+    if i32_value_requires_snapshot(&right.value) {
+        let snapshot = temporaries.next_i32()?;
+        right.instructions.push(Instruction::SetI32 {
+            destination: snapshot,
+            value: right.value,
+        });
+        right.value = I32Value::Location(snapshot);
+    }
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
     instructions.push(i32_binary_instruction(
@@ -379,8 +429,24 @@ pub(in crate::ir::lower::expressions) fn lower_u8_binary_expression_to_location_
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let left = lower_u8_expression_to_value(&binary.left, context, temporaries)?;
-    let right = lower_u8_expression_to_value(&binary.right, context, temporaries)?;
+    let mut left = lower_u8_expression_to_value(&binary.left, context, temporaries)?;
+    if u8_value_requires_snapshot(&left.value) {
+        let snapshot = temporaries.next_u8()?;
+        left.instructions.push(Instruction::SetU8 {
+            destination: snapshot,
+            value: left.value,
+        });
+        left.value = U8Value::Location(snapshot);
+    }
+    let mut right = lower_u8_expression_to_value(&binary.right, context, temporaries)?;
+    if u8_value_requires_snapshot(&right.value) {
+        let snapshot = temporaries.next_u8()?;
+        right.instructions.push(Instruction::SetU8 {
+            destination: snapshot,
+            value: right.value,
+        });
+        right.value = U8Value::Location(snapshot);
+    }
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
     instructions.push(u8_binary_instruction(
@@ -519,8 +585,24 @@ pub(in crate::ir::lower::expressions) fn lower_usize_binary_expression_to_locati
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let left = lower_usize_expression_to_value(&binary.left, context, temporaries)?;
-    let right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
+    let mut left = lower_usize_expression_to_value(&binary.left, context, temporaries)?;
+    if usize_value_requires_snapshot(&left.value) {
+        let snapshot = temporaries.next_usize()?;
+        left.instructions.push(Instruction::SetUsize {
+            destination: snapshot,
+            value: left.value,
+        });
+        left.value = UsizeValue::Location(snapshot);
+    }
+    let mut right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
+    if usize_value_requires_snapshot(&right.value) {
+        let snapshot = temporaries.next_usize()?;
+        right.instructions.push(Instruction::SetUsize {
+            destination: snapshot,
+            value: right.value,
+        });
+        right.value = UsizeValue::Location(snapshot);
+    }
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
     if let Some(kind) = binary_integer_type(binary, context).filter(|kind| !kind.legacy_ir_type()) {

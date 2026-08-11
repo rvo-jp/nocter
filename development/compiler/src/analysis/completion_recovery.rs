@@ -11,6 +11,7 @@ pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(
         super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
             incomplete_member_completion_text(text, offset)
                 .or_else(|| incomplete_result_provenance_completion_text(text, offset))
+                .or_else(|| incomplete_operator_requirement_completion_text(text, offset))
                 .or_else(|| incomplete_where_predicate_completion_text(text, offset))
                 .or_else(|| incomplete_generic_bound_completion_text(text, offset))
                 .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
@@ -29,6 +30,35 @@ pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(
     let recovered =
         super::delimiter_recovery::close_unmatched_braces(&recovery.0).unwrap_or(recovery.0);
     Some((recovered, recovery.1))
+}
+
+fn incomplete_operator_requirement_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    let where_start = prefix.rfind("where")?;
+    let predicates = prefix.get(where_start + "where".len()..)?.trim();
+    if !(predicates == "(" || predicates.ends_with(", (")) {
+        return None;
+    }
+    let insertion =
+        format!("&{COMPLETION_PLACEHOLDER_IDENT} == &{COMPLETION_PLACEHOLDER_IDENT}): bool");
+    let mut recovered = String::with_capacity(text.len() + insertion.len());
+    recovered.push_str(&text[..offset]);
+    recovered.push_str(&insertion);
+    let suffix = &text[offset..];
+    let body_start = suffix
+        .char_indices()
+        .find_map(|(index, character)| (!character.is_whitespace()).then_some(index));
+    if let Some(body_start) = body_start.filter(|index| suffix[*index..].starts_with('{')) {
+        recovered.push(' ');
+        recovered.push_str(&suffix[body_start..]);
+    } else {
+        recovered.push_str(suffix);
+    }
+    Some(recovered)
 }
 
 fn incomplete_where_predicate_completion_text(text: &str, offset: usize) -> Option<String> {

@@ -515,36 +515,74 @@ fn check_where_clause(
 
     let mut seen_operators = HashMap::<String, ByteSpan>::new();
     for requirement in clause.operator_requirements() {
-        check_type_expr(sources, &requirement.left, resolved, scope, diagnostics);
-        check_type_expr(sources, &requirement.right, resolved, scope, diagnostics);
-        let valid = match (&requirement.left, &requirement.right) {
-            (TypeExpr::Borrow(left), TypeExpr::Borrow(right))
-                if !left.is_readwrite && !right.is_readwrite =>
-            {
+        let valid = match &requirement.shape {
+            crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                check_type_expr(sources, left, resolved, scope, diagnostics);
+                check_type_expr(sources, right, resolved, scope, diagnostics);
+                let operands_valid = match (left, right) {
+                    (TypeExpr::Borrow(left), TypeExpr::Borrow(right))
+                        if !left.is_readwrite && !right.is_readwrite =>
+                    {
+                        matches!(
+                            (left.inner.as_ref(), right.inner.as_ref()),
+                            (TypeExpr::Reference(left), TypeExpr::Reference(right))
+                                if left.name == right.name
+                                    && scope.parameters.contains_key(left.name.as_str())
+                        )
+                    }
+                    _ => false,
+                };
+                operands_valid
+                    && matches!(
+                        &requirement.result,
+                        TypeExpr::Reference(reference) if reference.name == "bool"
+                    )
+            }
+            crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                check_type_expr(sources, target, resolved, scope, diagnostics);
+                check_type_expr(sources, index, resolved, scope, diagnostics);
                 matches!(
-                    (left.inner.as_ref(), right.inner.as_ref()),
-                    (TypeExpr::Reference(left), TypeExpr::Reference(right))
-                        if left.name == right.name && scope.parameters.contains_key(left.name.as_str())
+                    (target, &requirement.result),
+                    (TypeExpr::Borrow(target), TypeExpr::Borrow(result))
+                        if target.is_readwrite == result.is_readwrite
+                            && matches!(target.inner.as_ref(), TypeExpr::Reference(reference)
+                                if scope.parameters.contains_key(reference.name.as_str()))
                 )
             }
-            _ => false,
         };
+        check_type_expr(sources, &requirement.result, resolved, scope, diagnostics);
         if !valid {
             let mut diagnostic = Diagnostic::error(
                 "E0471",
-                "equality requirement must have the form `&T == &T` for one generic parameter",
+                match &requirement.shape {
+                    crate::ast::OperatorRequirementShape::Equality { .. } => {
+                        "equality requirement must have the form `(&T == &T): bool` for one generic parameter"
+                    }
+                    crate::ast::OperatorRequirementShape::Index { .. } => {
+                        "index requirement must borrow a generic target and return a borrow with the same capability, such as `(&C[K]): &V`"
+                    }
+                },
             );
             diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
             diagnostics.push(diagnostic);
             continue;
         }
-        let key = format!(
-            "{}=={}",
-            crate::ast::canonical_type_expr(&requirement.left),
-            crate::ast::canonical_type_expr(&requirement.right)
-        );
+        let key = match &requirement.shape {
+            crate::ast::OperatorRequirementShape::Equality { left, right, .. } => format!(
+                "{}=={}:{}",
+                crate::ast::canonical_type_expr(left),
+                crate::ast::canonical_type_expr(right),
+                crate::ast::canonical_type_expr(&requirement.result),
+            ),
+            crate::ast::OperatorRequirementShape::Index { target, index, .. } => format!(
+                "{}[{}]:{}",
+                crate::ast::canonical_type_expr(target),
+                crate::ast::canonical_type_expr(index),
+                crate::ast::canonical_type_expr(&requirement.result),
+            ),
+        };
         if let Some(first_span) = seen_operators.insert(key, requirement.span) {
-            let mut diagnostic = Diagnostic::error("E0472", "duplicate equality requirement");
+            let mut diagnostic = Diagnostic::error("E0472", "duplicate operator requirement");
             diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
             if let Ok(span) = sources.span_to_json(first_span) {
                 diagnostic.notes.push(crate::diagnostics::DiagnosticNote {

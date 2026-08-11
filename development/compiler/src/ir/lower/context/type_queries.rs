@@ -9,7 +9,13 @@ impl LoweringContext<'_> {
         &self,
         expression: &crate::ast::Expr,
     ) -> Option<crate::ir::Type> {
-        let ty = self.expression_type_expr(expression.span())?;
+        let ty = match expression {
+            crate::ast::Expr::Index(index) => self
+                .index_plan(index.span)
+                .map(|plan| plan.element_ty)
+                .or_else(|| self.expression_type_expr(expression.span()))?,
+            _ => self.expression_type_expr(expression.span())?,
+        };
         self.ir_type_for_type_expr(&ty)
     }
 
@@ -21,7 +27,10 @@ impl LoweringContext<'_> {
         &self,
         expression: &crate::ast::Expr,
     ) -> Option<TypecheckSliceElementKind> {
-        let ty = self.expression_type_expr(expression.span())?;
+        let ty = self
+            .coercion_plan(expression.span())
+            .map(|plan| plan.target_ty)
+            .or_else(|| self.expression_type_expr(expression.span()))?;
         let (_root_source, resolved) = self.resolved_calls()?;
         let element = crate::ir::lower::types::view_element_type_from_type_expr_with_resolver(
             &ty,

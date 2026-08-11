@@ -564,9 +564,22 @@ impl Formatter {
                     self.format_type(&equality.right);
                 }
                 crate::ast::WherePredicate::Operator(requirement) => {
-                    self.format_type(&requirement.left);
-                    self.write(" == ");
-                    self.format_type(&requirement.right);
+                    self.write("(");
+                    match &requirement.shape {
+                        crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                            self.format_type(left);
+                            self.write(" == ");
+                            self.format_type(right);
+                        }
+                        crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                            self.format_type(target);
+                            self.write("[");
+                            self.format_type(index);
+                            self.write("]");
+                        }
+                    }
+                    self.write("): ");
+                    self.format_type(&requirement.result);
                 }
             }
         }

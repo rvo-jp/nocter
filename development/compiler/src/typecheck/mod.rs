@@ -23,6 +23,7 @@ mod expressions;
 mod facts;
 mod fallible;
 mod generics;
+mod indexing;
 mod interface_bounds;
 mod interface_methods;
 mod interfaces;
@@ -68,12 +69,14 @@ pub(crate) use facts::{
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckConversionKind, TypecheckConversionPlan,
-    TypecheckEqualityPlan, TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckEqualityPlan, TypecheckFacts, TypecheckIndexAccess, TypecheckIndexPlan,
+    TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
     TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
     TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
     type_expr_presentation_label, type_symbol_presentation_label,
 };
+pub(crate) use indexing::specialize_index_plan;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;

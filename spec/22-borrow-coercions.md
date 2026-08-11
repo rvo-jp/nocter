@@ -181,8 +181,9 @@ Borrow coercions are deliberately one-step in v0.8.0:
 - user-defined coercions never chain
 - coercion does not choose or infer an otherwise unconstrained generic argument
 - method lookup may use one receiver coercion only after original-receiver lookup has no candidate
-- equality selection may use one readonly coercion per operand after exact left-owner lookup;
-  coercion does not participate in any other operator, construction, or literal selection
+- equality selection may use one readonly coercion per operand after exact left-owner lookup
+- indexing may use one receiver coercion whose exact result is a built-in index projection;
+  no other additional operator, construction, or literal selection uses coercion
 - coercion does not convert an owned value and does not consume a value
 - coercion cannot return an owned, optional, or fallible value
 - coercion cannot declare fresh, static, allocator, parameter, or aggregate result provenance

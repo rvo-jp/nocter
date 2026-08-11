@@ -26,6 +26,13 @@ struct TypecheckFactCollector<'a> {
     associated_types: Vec<(String, ByteSpan)>,
 }
 
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        expression => expression,
+    }
+}
+
 impl TypecheckFactCollector<'_> {
     fn with_generic_scope(&mut self, generics: &GenericParamList, collect: impl FnOnce(&mut Self)) {
         let previous_len = self.generic_parameters.len();

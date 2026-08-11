@@ -258,3 +258,115 @@ fn diagnoses_non_integer_index_value() {
     assert_eq!(diagnostics[0].code, "E0345");
     assert!(diagnostics[0].message.contains("str"));
 }
+
+#[test]
+fn accepts_indexing_through_one_readonly_coercion() {
+    let diagnostics = check_text(
+        r#"struct Buffer {
+    values: &[u8]
+}
+
+coerce Buffer {
+    pub &self as &[u8] from self {
+        return self.values
+    }
+}
+
+func first(buffer: &Buffer): u8 {
+    return buffer[0]
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_generic_index_requirement_and_checks_concrete_coercion() {
+    let diagnostics = check_text(
+        r#"struct Buffer {
+    values: &[u8]
+}
+
+coerce Buffer {
+    pub &self as &[u8] from self {
+        return self.values
+    }
+}
+
+func at<C, K, V>(container: &C, index: K, marker: &V): &V from container where (&C[K]): &V {
+    return &container[index]
+}
+
+func check(bytes: &[u8]): void {
+    let buffer = Buffer { values: bytes }
+    let marker: u8 = 0
+    let value = at(&buffer, 0, &marker)
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_unsatisfied_generic_index_requirement() {
+    let diagnostics = check_text(
+        r#"struct Scalar { value: i32 }
+
+func at<C, K, V>(container: &C, index: K, marker: &V): &V from container where (&C[K]): &V {
+    return &container[index]
+}
+
+func main(): i32 {
+    let scalar = Scalar { value: 0 }
+    let marker: u8 = 0
+    let value = at(&scalar, 0, &marker)
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0475"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_ambiguous_index_coercion_targets() {
+    let diagnostics = check_text(
+        r#"struct Buffer {
+    bytes: &[u8]
+    words: &[usize]
+}
+
+coerce Buffer {
+    pub &self as &[u8] from self { return self.bytes }
+    pub &self as &[usize] from self { return self.words }
+}
+
+func first(buffer: &Buffer): u8 {
+    return buffer[0]
+}
+
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0476"),
+        "{diagnostics:?}"
+    );
+}

@@ -88,7 +88,7 @@ fn formats_equality_operator_declarations_and_requirements_stably() {
     assert_formats_stably(
         r#"struct Text{value:i32}
 instance Text{pub operator(&self==other:&Self):bool{return self.value==other.value}}
-func equal<T>(left:&T,right:&T):bool where &T==&T{return left==right}
+func equal<T>(left:&T,right:&T):bool where(&T==&T):bool{return left==right}
 "#,
         r#"struct Text {
     value: i32,
@@ -100,7 +100,7 @@ instance Text {
     }
 }
 
-func equal<T>(left: &T, right: &T): bool where &T == &T {
+func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 "#,

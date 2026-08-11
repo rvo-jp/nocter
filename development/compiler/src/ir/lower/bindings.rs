@@ -86,6 +86,7 @@ use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
 mod aggregate_bindings;
 mod aggregate_field_assignments;
+mod aggregate_index_replacements;
 mod aggregate_slot_assignments;
 mod compound_assignments;
 mod diagnostics;
@@ -104,6 +105,7 @@ mod utility;
 
 use aggregate_bindings::*;
 use aggregate_field_assignments::*;
+use aggregate_index_replacements::*;
 use aggregate_slot_assignments::*;
 use compound_assignments::*;
 use diagnostics::*;

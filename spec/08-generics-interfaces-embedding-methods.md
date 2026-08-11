@@ -70,11 +70,21 @@ conformance must prove every specialized equality. Cycles that cannot normalize 
 unresolved operands, duplicate predicates, and equalities without a projection are invalid. An
 `conform Interface for Type` clause uses the same predicate model and places `where` after the target.
 
-An operator requirement has the exact form `&T == &T`, where both occurrences name the same
-visible generic parameter. It states that readonly values of the eventual concrete type can use
-the equality expression. A concrete type may satisfy the requirement through an accessible
-instance-owned equality declaration or the same one-step readonly borrow coercions used by a
-non-generic equality expression. The requirement produces no runtime witness.
+An operator requirement encloses the required expression in parentheses and states its result type:
+
+```nct
+where (&T == &T): bool
+where (&C[K]): &V
+where (&+C[K]): &+V
+```
+
+The equality form requires two readonly borrows of the same visible generic parameter. A concrete
+type satisfies it through an accessible instance-owned equality declaration or the same one-step
+readonly borrow coercions used by a non-generic equality expression. The index forms describe a
+readonly or readwrite projection from a borrowed generic container. Their result borrow must have
+the same capability as the container borrow. A concrete container satisfies an index requirement
+when it is directly indexable or has one accessible receiver coercion to an array, slice, or
+`str`. Operator requirements produce no runtime witness.
 
 `instance` and `conform` do not have a prefix generic parameter list. Their interface and target
 headers are declaration type patterns. Each generic argument slot contains a bare binder name; its

@@ -277,6 +277,7 @@ func project(choice: Choice, value: &Box<i32>): &i32 from value {
     let forced: &i32 = maybe(value)!
     return grouped
 }
+
 func main(): i32 {
     let box = Box<i32> { value: 42 }
     let result = project(Choice.first, &box)
@@ -297,4 +298,41 @@ func main(): i32 {
     let coercion_calls = count_borrow_calls(&project.instructions, &coercion.target);
 
     assert_eq!(coercion_calls, 6, "{project:#?}");
+}
+
+#[test]
+fn lowers_vec_indexing_through_slice_coercions() {
+    let ir = lower_text_with_development_home(
+        r#"use std/vec.Vec
+func main(): i32 {
+    var values: Vec<i32> = Vec [20, 21]
+    values[1] = values[1] + 1
+    return values[0] + values[1]
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected main");
+    let slice_calls = main
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction, Instruction::CallSlice { .. }))
+        .count();
+    assert_eq!(slice_calls, 4, "{main:#?}");
+    assert!(
+        main.instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::AddI32 { left, right, .. } => Some((left, right)),
+                _ => None,
+            })
+            .all(|(left, right)| {
+                matches!(left, I32Value::Const(_) | I32Value::Location(_))
+                    && matches!(right, I32Value::Const(_) | I32Value::Location(_))
+            }),
+        "binary operands must be snapshotted before backend scratch-register selection: {main:#?}"
+    );
 }

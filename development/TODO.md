@@ -2,17 +2,28 @@
 
 ## Current Task
 
-Implement v0.12.0 Phase 2 under [`milestones/v0.12.0.md`](milestones/v0.12.0.md): uniform
-parenthesized operator requirements with explicit results, direct and one-step-coerced indexing,
-generic index requirements, and one recorded index plan across semantic and native consumers. Do
-not add source-defined index declarations, arithmetic or ordering operators, compatibility grammar,
-transitive coercion, or a Vec-specific indexing path, and do not alter the published v0.11.0
-release.
+v0.12.0 Phase 2 is complete. Stop at this checkpoint before selecting the next stabilization or
+language-development phase, and do not alter the published v0.11.0 release.
+
+## Completed v0.12.0 Phase 2 Checkpoint
+
+- equality and index requirements share the uniform `where (operation): Result` AST, and the old
+  equality spelling remains only in a focused rejection test
+- one immutable index plan carries direct, generic, and one-step-coerced projections through type
+  checking, ownership, specialization, IR, diagnostics, and editor analysis
+- readonly and readwrite Vec indexing execute through existing slice coercions and checked slice
+  lowering without a Vec-specific semantic or native path
+- generic index requirements specialize for direct and user-owned coerced containers; indexed
+  borrows retain the original owner loan and ambiguous coercions require an explicit `as`
+- deferred indexed integer operands are snapshotted at the common lowering boundary, preserving
+  left-to-right evaluation without forcing stable values into temporaries
+- all 3,565 tests, warnings-denied Clippy, formatting, public examples, source corpus, generated
+  documentation, and diff checks pass; the documentation build contains 128 pages
 
 ## Completed v0.12.0 Phase 1 Checkpoint
 
 - fixed instance-owned `operator (&self == other: &Self): bool` declarations and structural
-  `where &T == &T` requirements share one resolved equality plan
+  `where (&T == &T): bool` requirements share one resolved equality plan
 - exact, imported, generic, primitive, and one-step readonly-coercion selections execute through
   ordinary static calls; owned operands remain usable and ambiguity is diagnosed explicitly
 - `str` equality serves all `str`/`String` combinations; slice, Vec, and iterator equality/search

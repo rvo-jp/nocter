@@ -11,7 +11,7 @@ instance Text {
     }
 }
 
-func equal<T>(left: &T, right: &T): bool where &T == &T {
+func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 
@@ -88,7 +88,7 @@ func main(): i32 { return 0 }
 #[test]
 fn diagnoses_invalid_duplicate_and_unsatisfied_equality_requirements() {
     let invalid = check_text(
-        r#"func equal<T, U>(left: &T, right: &U): bool where &T == &U {
+        r#"func equal<T, U>(left: &T, right: &U): bool where (&T == &U): bool {
     return false
 }
 func main(): i32 { return 0 }
@@ -100,7 +100,7 @@ func main(): i32 { return 0 }
     );
 
     let duplicate = check_text(
-        r#"func equal<T>(left: &T, right: &T): bool where &T == &T, &T == &T {
+        r#"func equal<T>(left: &T, right: &T): bool where (&T == &T): bool, (&T == &T): bool {
     return left == right
 }
 func main(): i32 { return 0 }
@@ -115,7 +115,7 @@ func main(): i32 { return 0 }
 
     let unsatisfied = check_text(
         r#"struct Text { value: i32 }
-func equal<T>(left: &T, right: &T): bool where &T == &T {
+func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 func main(): i32 {

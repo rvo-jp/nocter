@@ -1057,3 +1057,24 @@ func main(): i32! {
     assert_eq!(reference.label, "catch problem: error");
     assert_eq!(&text[reference.span.start..reference.span.end], "problem");
 }
+
+#[test]
+fn workspace_hover_describes_selected_index_coercion() {
+    let text = r#"struct Buffer { values: &[u8] }
+coerce Buffer {
+    pub &self as &[u8] from self { return self.values }
+}
+func first(buffer: &Buffer): u8 { return buffer[0] }
+func main(): i32 { return 0 }
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("buffer[0]").expect("expected index target");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected index target hover");
+    let documentation = hover.documentation.expect("expected index documentation");
+
+    assert!(documentation.contains("**Index projection:** `&Buffer` → `&[u8]`"));
+    assert!(documentation.contains("**Element:** `u8`"));
+    assert!(documentation.contains("**Access:** readonly"));
+}

@@ -75,6 +75,27 @@ fn completion_recovers_an_empty_where_predicate_and_offers_copy() {
 }
 
 #[test]
+fn completion_recovers_operator_requirement_and_offers_fixed_shapes() {
+    let text = r#"func at<C, K, V>(container: &C, index: K): &V where (
+{
+    return &container[index]
+}
+"#;
+    let offset = text.find("where (").expect("operator requirement") + "where (".len();
+    let recovered = completion_recovery_text(text, offset).expect("expected recovery text");
+    assert!(
+        parse_single_file_text("completion.nct", &recovered).is_some(),
+        "{recovered}"
+    );
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered operator-requirement completion");
+
+    assert!(items.iter().any(|item| item.label == "C"));
+    assert!(items.iter().any(|item| item.label == "=="));
+    assert!(items.iter().any(|item| item.label == "[]"));
+}
+
+#[test]
 fn copy_completion_is_not_offered_as_an_interface_bound() {
     let text = r#"interface Copyable {}
 

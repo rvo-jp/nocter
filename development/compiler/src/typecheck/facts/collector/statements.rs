@@ -32,6 +32,13 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
+                if let Expr::Index(index) = super::unwrap_group(&statement.target) {
+                    self.record_index_plan(
+                        index,
+                        crate::typecheck::indexing::IndexAccess::Readwrite,
+                        environment,
+                    );
+                }
                 if statement.operator == crate::ast::AssignmentOperator::Assign {
                     let expected = expression_type(&statement.target, self.resolved, environment);
                     self.collect_expression_facts_with_expected(

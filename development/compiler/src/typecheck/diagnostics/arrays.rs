@@ -62,3 +62,23 @@ pub(in crate::typecheck) fn index_value_type_mismatch_diagnostic(
     diagnostic.help = Some("use an integer value as the index".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn ambiguous_index_coercion_diagnostic(
+    sources: &SourceMap,
+    index: &IndexExpr,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0476",
+        format!(
+            "index expression target `{}` has more than one applicable coercion",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(index.object.span()).ok().map(Box::new);
+    diagnostic.help = Some(
+        "remove the competing coercion or use an explicit `as` conversion to select one target"
+            .to_string(),
+    );
+    diagnostic
+}

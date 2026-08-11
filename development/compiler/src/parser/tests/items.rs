@@ -1943,7 +1943,7 @@ instance Text {
     }
 }
 
-func equal<T>(left: &T, right: &T): bool where &T == &T {
+func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 "#,
@@ -1973,14 +1973,33 @@ func equal<T>(left: &T, right: &T): bool where &T == &T {
     assert!(matches!(
         &clause.predicates[0],
         WherePredicate::Operator(requirement)
-            if requirement.operator_span.len() == 2
-                && matches!(&requirement.left, TypeExpr::Borrow(_))
-                && matches!(&requirement.right, TypeExpr::Borrow(_))
+            if matches!(
+                &requirement.shape,
+                crate::ast::OperatorRequirementShape::Equality {
+                    operator_span,
+                    left: TypeExpr::Borrow(_),
+                    right: TypeExpr::Borrow(_),
+                } if operator_span.len() == 2
+            ) && matches!(&requirement.result, TypeExpr::Reference(result) if result.name == "bool")
     ));
 
     let json = ast.to_json(&sources);
     assert!(find_json_node(&json, "operator_decl").is_some());
     assert!(find_json_node(&json, "operator_requirement").is_some());
+}
+
+#[test]
+fn rejects_removed_unparenthesized_equality_requirement() {
+    let output = parse_text(
+        "func equal<T>(left: &T, right: &T): bool where &T == &T { return left == right }",
+    );
+    assert!(output.ast.is_none());
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("where (&T == &T): bool"))
+    );
 }
 
 #[test]

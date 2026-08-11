@@ -252,8 +252,17 @@ impl TypecheckFactCollector<'_> {
             self.collect_type_expr_references(&equality.right);
         }
         for requirement in clause.operator_requirements() {
-            self.collect_type_expr_references(&requirement.left);
-            self.collect_type_expr_references(&requirement.right);
+            match &requirement.shape {
+                crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                    self.collect_type_expr_references(left);
+                    self.collect_type_expr_references(right);
+                }
+                crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                    self.collect_type_expr_references(target);
+                    self.collect_type_expr_references(index);
+                }
+            }
+            self.collect_type_expr_references(&requirement.result);
         }
         for refinement in clause.refinements() {
             self.record_type_reference(

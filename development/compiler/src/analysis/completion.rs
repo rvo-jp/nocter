@@ -116,6 +116,7 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         items.retain(|item| item.label != "copy");
     }
     apply_equality_operator_completion(&file.ast, offset, &mut items);
+    apply_operator_requirement_completion(&file.ast, offset, &mut items);
     items
 }
 
@@ -288,7 +289,113 @@ pub(crate) fn completion_items_for_text_at_offset(
         items.retain(|item| item.label != "copy");
     }
     apply_equality_operator_completion(&parsed.ast, offset, &mut items);
+    apply_operator_requirement_completion(&parsed.ast, offset, &mut items);
     Some(items)
+}
+
+fn apply_operator_requirement_completion(
+    ast: &AstFile,
+    offset: usize,
+    items: &mut Vec<CompletionItemInfo>,
+) {
+    fn clause_contains(clause: Option<&crate::ast::WhereClause>, offset: usize) -> bool {
+        clause.is_some_and(|clause| {
+            clause.operator_requirements().any(|requirement| {
+                requirement.open_paren_span.end <= offset && offset <= requirement.span.end
+            })
+        })
+    }
+    fn method_contains(method: &crate::ast::MethodDecl, offset: usize) -> bool {
+        clause_contains(method.requirements.as_ref(), offset)
+    }
+    let active = ast.items.iter().any(|item| match item {
+        Item::Function(function) => clause_contains(function.requirements.as_ref(), offset),
+        Item::Primitive(primitive) => clause_contains(primitive.requirements.as_ref(), offset),
+        Item::TypeAlias(alias) => clause_contains(alias.requirements.as_ref(), offset),
+        Item::Struct(struct_) => clause_contains(struct_.requirements.as_ref(), offset),
+        Item::Enum(enum_) => clause_contains(enum_.requirements.as_ref(), offset),
+        Item::Interface(interface) => {
+            clause_contains(interface.requirements.as_ref(), offset)
+                || interface
+                    .methods
+                    .iter()
+                    .any(|method| method_contains(method, offset))
+        }
+        Item::Instance(_) | Item::Conformance(_) => {
+            let owner = item.method_owner().expect("matched method owner");
+            clause_contains(owner.requirements(), offset)
+                || owner
+                    .methods()
+                    .any(|method| method_contains(method, offset))
+        }
+        Item::Construct(construct) => {
+            construct
+                .functions()
+                .any(|(_, function)| clause_contains(function.requirements.as_ref(), offset))
+                || construct
+                    .literals()
+                    .any(|(_, literal)| clause_contains(literal.requirements.as_ref(), offset))
+        }
+        Item::Coerce(_)
+        | Item::Destruct(_)
+        | Item::Import(_)
+        | Item::FromImport(_)
+        | Item::Test(_) => false,
+    });
+    if !active {
+        return;
+    }
+    for parameter in ast.items.iter().flat_map(|item| match item {
+        Item::Function(function) if clause_contains(function.requirements.as_ref(), offset) => {
+            function.generics.parameters.as_slice()
+        }
+        Item::Primitive(primitive) if clause_contains(primitive.requirements.as_ref(), offset) => {
+            primitive.generics.parameters.as_slice()
+        }
+        Item::TypeAlias(alias) if clause_contains(alias.requirements.as_ref(), offset) => {
+            alias.generics.parameters.as_slice()
+        }
+        Item::Struct(struct_) if clause_contains(struct_.requirements.as_ref(), offset) => {
+            struct_.generics.parameters.as_slice()
+        }
+        Item::Enum(enum_) if clause_contains(enum_.requirements.as_ref(), offset) => {
+            enum_.generics.parameters.as_slice()
+        }
+        Item::Interface(interface) if clause_contains(interface.requirements.as_ref(), offset) => {
+            interface.generics.parameters.as_slice()
+        }
+        _ => &[],
+    }) {
+        if items.iter().any(|item| item.label == parameter.name) {
+            continue;
+        }
+        items.push(CompletionItemInfo {
+            label: parameter.name.clone(),
+            kind: CompletionItemKind::Class,
+            detail: Some("generic type parameter".to_string()),
+            documentation: None,
+            insert_text: None,
+            sort_text: None,
+            declaration_span: Some(parameter.name_span),
+        });
+    }
+    for (label, detail, insert_text) in [
+        ("==", "equality operator requirement", "&T == &T): bool"),
+        ("[]", "index operator requirement", "&C[K]): &V"),
+    ] {
+        if items.iter().any(|item| item.label == label) {
+            continue;
+        }
+        items.push(CompletionItemInfo {
+            label: label.to_string(),
+            kind: CompletionItemKind::Keyword,
+            detail: Some(detail.to_string()),
+            documentation: None,
+            insert_text: Some(insert_text.to_string()),
+            sort_text: None,
+            declaration_span: None,
+        });
+    }
 }
 
 fn apply_equality_operator_completion(

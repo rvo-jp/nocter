@@ -129,6 +129,7 @@
                 <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
                 <li><a href="../equality-operators/index.html#content">Equality Operators</a></li>
+                <li><a href="../indexing/index.html#content">Index Selection and Lowering</a></li>
                 <li><a href="../builtin-type-methods/index.html#content">Built-in Type Source Surfaces</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
@@ -168,8 +169,10 @@
    same resolved equality plan as an ordinary expression.</li></ol><p>AST JSON, normalized presentation, type occurrences, semantic tokens, signature help, and diagnostics derive from these representations. Editor code must not scan source text to rediscover requirements.</p><h2 id="standard-library-contract">Standard-Library Contract</h2><p>Readonly generic copying must be stated at the public declaration. <code>Vec.from_slice</code>, <code>Vec.try_from_slice</code>, and their top-level forwarding functions use <code>where copy T</code>. Moving iteration and construction APIs remain unconstrained.</p><h2 id="source-invariants">Source Invariants</h2><ul><li><code>&lt;T, U&gt;</code> declares names and arity; <code>&lt;copy T&gt;</code> and <code>&lt;T: Interface&gt;</code> are rejected syntax.</li><li><code>where T: Capability</code> is reserved for interface and structural callable conformance.</li><li><code>where copy T</code> is the only intrinsic copy spelling; <code>where T: copy</code> is rejected.</li><li><code>where Left = Right</code> on an ordinary generic declaration relates types and requires at least one
   associated projection. <code>instance</code> and <code>conform</code> classify <code>where Binder = Type</code> separately as a
   directed declaration-pattern refinement; see
-  <a href="../declaration-type-patterns/index.html#content">Declaration Type Pattern Architecture</a>.</li><li><code>where &amp;T == &amp;T</code> is the only operator requirement. Both operands must name the same visible
-  parameter; it is not a nominal interface bound or an associated-type equality.</li><li>functions, methods, literals, nominal declarations, aliases, instances, and conformances all own the same clause
+  <a href="../declaration-type-patterns/index.html#content">Declaration Type Pattern Architecture</a>.</li><li>Operator requirements use one structural form with an explicit result:
+  <code>where (&amp;T == &amp;T): bool</code>, <code>where (&amp;C[K]): &amp;V</code>, or <code>where (&amp;+C[K]): &amp;+V</code>. Equality operands name
+  the same visible parameter. Index requirements preserve the borrow capability from container to
+  result. These predicates are neither nominal interface bounds nor associated-type equalities.</li><li>functions, methods, literals, nominal declarations, aliases, instances, and conformances all own the same clause
   representation; no declaration kind carries an inline fallback.</li><li>associated type declarations may retain <code>pub type Item: Interface</code> because that bound constrains
   the type selected for the member, not a generic parameter.</li></ul><p>Parser recovery, AST JSON, formatting, qualification, diagnostics, hover, completion, signature help, and semantic tokens consume these authored nodes or their resolved identities. Editor code must not scan source text or parse a presentation label to rediscover a requirement.</p>
             </div>

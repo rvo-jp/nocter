@@ -4,6 +4,9 @@ pub(super) fn slice_index_element_type_expr(
     index: &IndexExpr,
     context: &LoweringContext,
 ) -> Option<TypeExpr> {
+    if let Some(plan) = context.index_plan(index.span) {
+        return Some(plan.element_ty);
+    }
     slice_target_element_type_expr(&index.object, context)
 }
 

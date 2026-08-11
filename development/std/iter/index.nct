@@ -57,7 +57,7 @@ pub struct FoldStep<T, U> {
     pub item: T
 }
 
-func iterator_items_equal<T>(left: &T, right: &T): bool where &T == &T {
+func iterator_items_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 
@@ -178,7 +178,7 @@ pub interface Iterator {
     }
 
     /// Consumes the iterator and returns whether it yields an equal item.
-    pub method self.contains<T>(expected: &T): bool where Self.Item = T, &T == &T {
+    pub method self.contains<T>(expected: &T): bool where Self.Item = T, (&T == &T): bool {
         var source = move self
         while true {
             let item = source.next() otherwise { return false }
@@ -190,7 +190,7 @@ pub interface Iterator {
     }
 
     /// Consumes the iterator and returns the index of its first equal item.
-    pub method self.position<T>(expected: &T): usize? where Self.Item = T, &T == &T {
+    pub method self.position<T>(expected: &T): usize? where Self.Item = T, (&T == &T): bool {
         var source = move self
         var index: usize = 0
         while true {

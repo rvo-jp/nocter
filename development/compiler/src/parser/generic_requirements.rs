@@ -1,7 +1,7 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
     CopyRequirementPredicate, GenericRequirementPredicate, OperatorRequirementPredicate,
-    TypeEqualityPredicate, TypeExpr, WhereClause, WherePredicate,
+    OperatorRequirementShape, TypeEqualityPredicate, TypeExpr, WhereClause, WherePredicate,
 };
 
 impl Parser<'_> {
@@ -27,16 +27,56 @@ impl Parser<'_> {
                     name: name.value,
                     name_span: name.span,
                 }));
-            } else {
+            } else if let Some(open_paren) = self.match_punctuation("(") {
                 let left = self.parse_type()?;
-                if let Some(equals) = self.match_punctuation("==") {
+                let shape = if let Some(equals) = self.match_punctuation("==") {
                     let right = self.parse_type()?;
-                    predicates.push(WherePredicate::Operator(OperatorRequirementPredicate {
-                        span: self.span(left.span().start, right.span().end),
+                    OperatorRequirementShape::Equality {
                         operator_span: equals.span,
                         left,
                         right,
-                    }));
+                    }
+                } else if let Some(open_bracket) = self.match_punctuation("[") {
+                    let index = self.parse_type()?;
+                    let close_bracket = self.expect_punctuation(
+                        "]",
+                        "expected `]` after index operand type in operator requirement",
+                    )?;
+                    OperatorRequirementShape::Index {
+                        open_bracket_span: open_bracket.span,
+                        close_bracket_span: close_bracket.span,
+                        target: left,
+                        index,
+                    }
+                } else {
+                    self.error_current(
+                        "expected `==` or `[` in parenthesized operator requirement",
+                    );
+                    return Err(());
+                };
+                let close_paren = self
+                    .expect_punctuation(")", "expected `)` after operator requirement operands")?;
+                let colon = self.expect_punctuation(
+                    ":",
+                    "expected `:` and result type after operator requirement",
+                )?;
+                let result = self.parse_type()?;
+                predicates.push(WherePredicate::Operator(OperatorRequirementPredicate {
+                    span: self.span(open_paren.span.start, result.span().end),
+                    open_paren_span: open_paren.span,
+                    close_paren_span: close_paren.span,
+                    colon_span: colon.span,
+                    shape,
+                    result,
+                }));
+            } else {
+                let left = self.parse_type()?;
+                if let Some(equals) = self.match_punctuation("==") {
+                    self.error_at(
+                        equals.span,
+                        "operator requirements use `where (&T == &T): bool`",
+                    );
+                    return Err(());
                 } else if let Some(equals) = self.match_punctuation("=") {
                     let right = self.parse_type()?;
                     predicates.push(WherePredicate::Equality(TypeEqualityPredicate {

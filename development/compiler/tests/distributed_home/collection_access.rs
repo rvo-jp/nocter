@@ -8,6 +8,8 @@ fn distributed_std_vec_access_and_mutation_surface_passes_check() {
         r#"use std/vec.{Vec, insert, remove, try_insert}
 
 func mutate(values: &+Vec<i32>): void! {
+    let direct_read: i32 = values[0]
+    values[0] = direct_read
     let read: &i32 = values.get(0) otherwise { return }
     let write: &+i32 = values.get_mut(0) otherwise { return }
     try_insert(values, 0, 1)?
@@ -32,6 +34,98 @@ func main(): i32 {
     );
 
     assert_success(&nocter_check(&project, &source));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_indexes_directly_through_slice_coercions() {
+    let project = TempProject::new("distributed-home-vec-direct-index-run");
+    let source = project.write_source(
+        "vec_direct_index.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var values: Vec<i32> = Vec [20, 21]
+    let marker: i32 = 0
+    let first_index: usize = 0
+    if at(&values, first_index, &marker) != 20 { return 7 }
+    if values[0] != 20 { return 2 }
+    if values[1] != 21 { return 3 }
+    values[1] = values[1] + 1
+    if values[0] != 20 { return 4 }
+    if values[1] != 22 { return 5 }
+    let total = values[0] + values[1]
+    if total != 42 { return 6 }
+    return total
+}
+
+func at<C, K, V>(container: &C, index: K, marker: &V): V where copy V, (&C[K]): &V {
+    return container[index]
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_direct_index_preserves_checked_move_only_semantics() {
+    let project = TempProject::new("distributed-home-vec-direct-index-move-run");
+    let source = project.write_source(
+        "vec_direct_index_move.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var values = Vec [String "before"]
+    if (&values[0] as &str) != "before" { return 1 }
+    values[0] = String "after"
+    if (&values[0] as &str) != "after" { return 2 }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+
+    let bounds_project = TempProject::new("distributed-home-vec-direct-index-bounds-run");
+    let bounds_source = bounds_project.write_source(
+        "vec_direct_index_bounds.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values = Vec [41]
+    let index: usize = 1
+    return values[index]
+}
+"#,
+    );
+
+    let bounds_output = nocter_run(&bounds_project, &bounds_source);
+    assert!(
+        !bounds_output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&bounds_output.stdout),
+        text(&bounds_output.stderr)
+    );
 }
 
 #[test]
@@ -67,6 +161,20 @@ func invalid_readwrite(): i32 {
     return read_mut(cell)
 }
 
+func invalid_direct_readonly(): i32 {
+    var values = Vec [Cell { value: 42 }]
+    let cell = &values[0]
+    values.push(Cell { value: 1 })
+    return read(cell)
+}
+
+func invalid_direct_readwrite(): i32 {
+    var values = Vec [Cell { value: 42 }]
+    let cell = &+values[0]
+    values.push(Cell { value: 1 })
+    return read_mut(cell)
+}
+
 func main(): i32 {
     return 0
 }
@@ -76,7 +184,7 @@ func main(): i32 {
     let output = nocter_check(&project, &source);
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
-    assert_eq!(stderr.matches("error[E0434]").count(), 2, "{stderr}");
+    assert_eq!(stderr.matches("error[E0434]").count(), 4, "{stderr}");
     assert!(
         stderr.contains("values") && stderr.contains("cell"),
         "{stderr}"

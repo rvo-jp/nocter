@@ -49,18 +49,13 @@ fn index_expression_is_writable_place(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    match expression_type(&index.object, resolved, environment) {
-        Type::View {
-            is_readwrite: true, ..
-        } => true,
-        Type::View {
-            is_readwrite: false,
-            ..
-        }
-        | Type::Str => false,
-        Type::Array { .. } => expression_is_writable_place(&index.object, resolved, environment),
-        _ => false,
-    }
+    super::indexing::select_index_expression(
+        index,
+        super::indexing::IndexAccess::Readwrite,
+        resolved,
+        environment,
+    )
+    .is_ok()
 }
 
 fn type_is_readwrite_borrow(ty: &Type) -> bool {

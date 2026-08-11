@@ -402,7 +402,7 @@ pub(super) fn lower_slice_index_assignment(
             });
             Ok(instructions)
         }
-        TypecheckSliceElementKind::Other => lower_copy_aggregate_slice_index_assignment(
+        TypecheckSliceElementKind::Other => lower_aggregate_slice_index_replacement(
             target,
             value,
             destination,
@@ -426,6 +426,7 @@ pub(super) fn lower_copy_aggregate_slice_index_assignment(
     let Some(element) = copy_aggregate_slice_index_element(target, context) else {
         return Err(unsupported_assignment_diagnostic());
     };
+    let index = materialize_slice_aggregate_index(&mut instructions, index, temporaries)?;
     let source_slot = temporaries.next_aggregate_slot();
     instructions.push(Instruction::ReserveAggregateSlot {
         slot_index: source_slot,
@@ -438,7 +439,6 @@ pub(super) fn lower_copy_aggregate_slice_index_assignment(
         context,
         temporaries,
     )?);
-    let index = materialize_slice_aggregate_index(&mut instructions, index, temporaries)?;
     instructions.push(Instruction::CopyAggregateToSliceElement {
         destination,
         index,

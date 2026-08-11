@@ -313,11 +313,17 @@ fn where_predicate_labels_with(
                 type_label(&equality.left),
                 type_label(&equality.right)
             ),
-            crate::ast::WherePredicate::Operator(requirement) => format!(
-                "{} == {}",
-                type_label(&requirement.left),
-                type_label(&requirement.right)
-            ),
+            crate::ast::WherePredicate::Operator(requirement) => {
+                let operands = match &requirement.shape {
+                    crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                        format!("{} == {}", type_label(left), type_label(right))
+                    }
+                    crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                        format!("{}[{}]", type_label(target), type_label(index))
+                    }
+                };
+                format!("({operands}): {}", type_label(&requirement.result))
+            }
         })
         .collect()
 }

@@ -3,8 +3,9 @@ use super::diagnostics::{
     index_value_type_mismatch_diagnostic,
 };
 use super::expressions::expression_type;
+use super::indexing::{IndexAccess, IndexRejection, select_index_expression};
 use super::model::{Type, TypeEnvironment, same_known_type};
-use super::numeric::{integer_literal_value, is_integer_type};
+use super::numeric::integer_literal_value;
 use crate::ast::{ArrayLiteralExpr, Expr, IndexExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -88,19 +89,28 @@ pub(super) fn check_index_expression(
     environment: &TypeEnvironment,
 ) {
     let target = expression_type(&index.object, resolved, environment);
-    if !target.is_unknown_or_unresolved() && !is_indexable_type(&target) {
-        diagnostics.push(index_target_type_mismatch_diagnostic(
-            sources, index, &target,
-        ));
-    }
-
     let index_type = expression_type(&index.index, resolved, environment);
-    if !index_type.is_unknown_or_unresolved() && !is_integer_type(&index_type) {
-        diagnostics.push(index_value_type_mismatch_diagnostic(
-            sources,
-            index,
-            &index_type,
-        ));
+    match select_index_expression(index, IndexAccess::Readonly, resolved, environment) {
+        Ok(_) => {}
+        Err(IndexRejection::InvalidIndex) => {
+            if !index_type.is_unknown_or_unresolved() {
+                diagnostics.push(index_value_type_mismatch_diagnostic(
+                    sources,
+                    index,
+                    &index_type,
+                ));
+            }
+        }
+        Err(IndexRejection::UnsupportedTarget | IndexRejection::RequiresReadwrite) => {
+            if !target.is_unknown_or_unresolved() {
+                diagnostics.push(index_target_type_mismatch_diagnostic(
+                    sources, index, &target,
+                ));
+            }
+        }
+        Err(IndexRejection::AmbiguousCoercion) => diagnostics.push(
+            super::diagnostics::ambiguous_index_coercion_diagnostic(sources, index, &target),
+        ),
     }
 }
 
@@ -109,15 +119,9 @@ pub(super) fn index_expression_type(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
-    match expression_type(&index.object, resolved, environment) {
-        Type::Array { element, .. } | Type::View { element, .. } => *element,
-        Type::Str => Type::Primitive("u8".to_string()),
-        _ => Type::Unknown,
-    }
-}
-
-fn is_indexable_type(ty: &Type) -> bool {
-    matches!(ty, Type::Array { .. } | Type::View { .. } | Type::Str)
+    select_index_expression(index, IndexAccess::Readonly, resolved, environment)
+        .map(|selected| selected.element_type)
+        .unwrap_or(Type::Unknown)
 }
 
 pub(super) fn array_length_matches(expected: &str, actual: usize) -> bool {

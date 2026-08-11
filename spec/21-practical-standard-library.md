@@ -32,7 +32,7 @@ elements move at most once, and the initialized prefix is updated only after com
 `Vec<T>.truncate` drops the removed suffix.
 
 `str` defines equality once, and `String` reaches it through readonly coercion. `[T]` defines
-element-wise equality, `contains`, and `position` under `where &T == &T`; `Vec<T>` reaches the same
+element-wise equality, `contains`, and `position` under `where (&T == &T): bool`; `Vec<T>` reaches the same
 implementation through its readonly slice coercion.
 
 The iterator terminal operations `find`, `contains`, `position`, `any`, `all`, `fold`, and `to_vec`

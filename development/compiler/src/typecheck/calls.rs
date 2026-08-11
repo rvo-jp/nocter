@@ -823,44 +823,125 @@ fn check_generic_interface_bounds(
     }
     if let Some(clause) = &signature.signature.where_clause {
         for requirement in clause.operator_requirements() {
-            let left = type_expr_to_type_with_substitutions(
-                &requirement.left,
-                resolved,
-                specialized_self_type.as_ref(),
-                substitutions,
-            );
-            let right = type_expr_to_type_with_substitutions(
-                &requirement.right,
-                resolved,
-                specialized_self_type.as_ref(),
-                substitutions,
-            );
-            if left.is_unknown_or_unresolved() || right.is_unknown_or_unresolved() {
-                continue;
-            }
-            if !super::operators::types_support_equality(
-                &left,
-                &right,
-                requirement.operator_span,
-                resolved,
-                environment,
-            ) {
-                let mut diagnostic = Diagnostic::error(
-                    "E0473",
-                    format!(
-                        "equality requirement `{}` == `{}` is not satisfied",
-                        left.display(),
-                        right.display()
-                    ),
-                );
-                diagnostic.primary_span = sources.span_to_json(call.span).ok().map(Box::new);
-                if let Ok(span) = sources.span_to_json(requirement.operator_span) {
-                    diagnostic.notes.push(DiagnosticNote {
-                        message: "required by this generic equality contract".to_string(),
-                        span: Some(span),
-                    });
+            match &requirement.shape {
+                crate::ast::OperatorRequirementShape::Equality {
+                    left: left_expr,
+                    operator_span,
+                    right: right_expr,
+                } => {
+                    let left = type_expr_to_type_with_substitutions(
+                        left_expr,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let right = type_expr_to_type_with_substitutions(
+                        right_expr,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    if left.is_unknown_or_unresolved() || right.is_unknown_or_unresolved() {
+                        continue;
+                    }
+                    if !super::operators::types_support_equality(
+                        &left,
+                        &right,
+                        *operator_span,
+                        resolved,
+                        environment,
+                    ) {
+                        let mut diagnostic = Diagnostic::error(
+                            "E0473",
+                            format!(
+                                "equality requirement `{}` == `{}` is not satisfied",
+                                left.display(),
+                                right.display()
+                            ),
+                        );
+                        diagnostic.primary_span =
+                            sources.span_to_json(call.span).ok().map(Box::new);
+                        if let Ok(span) = sources.span_to_json(*operator_span) {
+                            diagnostic.notes.push(DiagnosticNote {
+                                message: "required by this generic equality contract".to_string(),
+                                span: Some(span),
+                            });
+                        }
+                        diagnostics.push(diagnostic);
+                    }
                 }
-                diagnostics.push(diagnostic);
+                crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                    let target = type_expr_to_type_with_substitutions(
+                        target,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let index = type_expr_to_type_with_substitutions(
+                        index,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let result = type_expr_to_type_with_substitutions(
+                        &requirement.result,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let Type::Borrow {
+                        is_readwrite,
+                        inner: expected_element,
+                    } = result
+                    else {
+                        continue;
+                    };
+                    let source_is_writable = matches!(
+                        target,
+                        Type::Borrow {
+                            is_readwrite: true,
+                            ..
+                        }
+                    );
+                    let selected = super::indexing::select_index_types(
+                        &target,
+                        &index,
+                        if is_readwrite {
+                            super::indexing::IndexAccess::Readwrite
+                        } else {
+                            super::indexing::IndexAccess::Readonly
+                        },
+                        source_is_writable,
+                        resolved,
+                        environment,
+                    );
+                    if !selected.is_ok_and(|selected| {
+                        environment.types_equal(&selected.element_type, &expected_element)
+                    }) {
+                        let mut diagnostic = Diagnostic::error(
+                            "E0475",
+                            format!(
+                                "index requirement `({}[{}]): {}` is not satisfied",
+                                target.display(),
+                                index.display(),
+                                Type::Borrow {
+                                    is_readwrite,
+                                    inner: expected_element,
+                                }
+                                .display(),
+                            ),
+                        );
+                        diagnostic.primary_span =
+                            sources.span_to_json(call.span).ok().map(Box::new);
+                        if let Ok(span) = sources.span_to_json(requirement.span) {
+                            diagnostic.notes.push(DiagnosticNote {
+                                message: "required by this generic index contract".to_string(),
+                                span: Some(span),
+                            });
+                        }
+                        diagnostics.push(diagnostic);
+                    }
+                }
             }
         }
     }

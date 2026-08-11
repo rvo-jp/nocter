@@ -354,14 +354,33 @@ fn qualify_where_clause(
                 );
             }
             crate::ast::WherePredicate::Operator(requirement) => {
+                match &mut requirement.shape {
+                    crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                        qualify_type_expr(left, import_path, local_type_names, imported_type_names);
+                        qualify_type_expr(
+                            right,
+                            import_path,
+                            local_type_names,
+                            imported_type_names,
+                        );
+                    }
+                    crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                        qualify_type_expr(
+                            target,
+                            import_path,
+                            local_type_names,
+                            imported_type_names,
+                        );
+                        qualify_type_expr(
+                            index,
+                            import_path,
+                            local_type_names,
+                            imported_type_names,
+                        );
+                    }
+                }
                 qualify_type_expr(
-                    &mut requirement.left,
-                    import_path,
-                    local_type_names,
-                    imported_type_names,
-                );
-                qualify_type_expr(
-                    &mut requirement.right,
+                    &mut requirement.result,
                     import_path,
                     local_type_names,
                     imported_type_names,

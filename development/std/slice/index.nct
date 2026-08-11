@@ -8,7 +8,7 @@ use std/ptr.from_addr
 pub(/) primitive slice_len_raw<T>(value: &[T]): usize
 pub(/) primitive slice_ptr_addr_raw<T>(value: &[T]): usize
 
-func values_equal<T>(left: &T, right: &T): bool where &T == &T {
+func values_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 
@@ -26,7 +26,7 @@ instance [T] {
     }
 }
 
-instance [T] where &T == &T {
+instance [T] where (&T == &T): bool {
     /// Compares elements from left to right without consuming either slice.
     pub operator (&self == other: &Self): bool {
         if self.len() != other.len() {

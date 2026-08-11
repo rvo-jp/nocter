@@ -61,14 +61,15 @@ Rules:
 - Assignment target must be a writable place.
 - Writable places are `var` bindings, fields reachable through writable
   places, fields reachable through `&+T` borrow bindings or parameters,
-  elements of fixed-size arrays reached through writable places, and elements
-  of `&+[T]` readwrite slices.
+  elements of fixed-size arrays reached through writable places, elements of
+  `&+[T]` readwrite slices, and elements reached through one selected coercion
+  to a readwrite built-in index projection.
 - `let` bindings are not writable places.
 - Fields reached through `&T` are not writable places.
 - Elements reached through `&[T]` are not writable places.
-- Built-in index assignment applies to fixed-size arrays and `&+[T]` slices.
-  Owned collection indexing is ordinary library API behavior and is not a
-  compiler-provided writable place.
+- Built-in index assignment applies to fixed-size arrays and `&+[T]` slices. A
+  nominal collection becomes a writable index place only through one
+  accessible coercion to a readwrite built-in projection.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
@@ -529,6 +530,14 @@ instance Text {
 The declaration shape is fixed: both operands are readonly borrows of the same `Self` type and the
 result is `bool`. It may be private or use an ordinary `pub` boundary. `!=` cannot be declared; it
 negates the selected `==` result. Nocter does not derive structural equality.
+
+Arrays, slices, and `str` are directly indexable. If a nominal value is not directly indexable,
+index selection may apply one accessible receiver coercion whose result is an array, slice, or
+`str`. This makes a `Vec<T>` with `&Vec<T> as &[T]` and `&+Vec<T> as &+[T]` coercions support
+`values[index]`, `&values[index]`, and writable `values[index] = replacement` without duplicating
+slice semantics in `Vec<T>`. Readonly indexing prefers the readonly projection; assignment and
+`&+values[index]` require the readwrite projection. Bounds checking and evaluation order remain
+the built-in projection's behavior.
 
 Comparison rules:
 

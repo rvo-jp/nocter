@@ -558,11 +558,54 @@ impl<'a> LoweringContext<'a> {
         &self,
         expression_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckCoercionPlan> {
-        self.call_resolution
-            .as_ref()?
+        let resolution = self.call_resolution.as_ref()?;
+        if let Some(plan) = resolution
             .typecheck_facts
-            .coercion_plan(expression_span)?
-            .with_context_substitutions(&self.generic_substitutions)
+            .coercion_plan(expression_span)
+            .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
+        {
+            return Some(plan);
+        }
+        resolution.typecheck_facts.index_plans().find_map(|plan| {
+            let plan = self.index_plan(plan.expression_span)?;
+            if plan.object_span != expression_span {
+                return None;
+            }
+            let crate::typecheck::TypecheckConversionKind::BorrowCoercion(coercion) =
+                plan.conversion?.kind
+            else {
+                return None;
+            };
+            Some(coercion)
+        })
+    }
+
+    pub(in crate::ir::lower) fn index_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckIndexPlan> {
+        let resolution = self.call_resolution.as_ref()?;
+        let plan = resolution
+            .typecheck_facts
+            .index_plan(expression_span)?
+            .with_context_substitutions(&self.generic_substitutions)?;
+        if plan.projection != crate::typecheck::TypecheckIndexProjection::Requirement {
+            return Some(plan);
+        }
+        let mut candidate_sources = Vec::new();
+        collect_type_expr_resolution_sources(&plan.target_ty, &mut candidate_sources);
+        candidate_sources.dedup();
+        for source in candidate_sources {
+            let Some(resolved) = self.resolved_source(source) else {
+                continue;
+            };
+            if let Some(specialized) =
+                crate::typecheck::specialize_index_plan(plan.clone(), resolved)
+            {
+                return Some(specialized);
+            }
+        }
+        crate::typecheck::specialize_index_plan(plan, resolution.resolved)
     }
 
     pub(in crate::ir::lower) fn conversion_plan(
@@ -589,6 +632,16 @@ impl<'a> LoweringContext<'a> {
                 } else {
                     None
                 }
+            })
+            .or_else(|| {
+                resolution.typecheck_facts.index_plans().find_map(|plan| {
+                    let plan = self.index_plan(plan.expression_span)?;
+                    if plan.object_span == expression_span {
+                        plan.conversion
+                    } else {
+                        None
+                    }
+                })
             })
     }
 

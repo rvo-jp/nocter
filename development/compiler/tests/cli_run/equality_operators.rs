@@ -132,7 +132,7 @@ coerce Owner {
     }
 }
 
-func equal<T>(left: &T, right: &T): bool where &T == &T {
+func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 

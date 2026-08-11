@@ -430,6 +430,16 @@ pub(super) struct TypeEnvironment {
     generic_requirements: HashMap<String, crate::resolve::GenericRequirements>,
     type_equalities: Vec<(Type, Type)>,
     equality_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
+    index_requirements: Vec<IndexRequirement>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct IndexRequirement {
+    pub(super) target: Type,
+    pub(super) index: Type,
+    pub(super) element: Type,
+    pub(super) is_readwrite: bool,
+    pub(super) span: crate::source::ByteSpan,
 }
 
 impl TypeEnvironment {
@@ -442,6 +452,7 @@ impl TypeEnvironment {
             generic_requirements: HashMap::new(),
             type_equalities: Vec::new(),
             equality_requirements: Vec::new(),
+            index_requirements: Vec::new(),
         }
     }
 
@@ -457,6 +468,7 @@ impl TypeEnvironment {
             generic_requirements: self.generic_requirements.clone(),
             type_equalities: self.type_equalities.clone(),
             equality_requirements: self.equality_requirements.clone(),
+            index_requirements: self.index_requirements.clone(),
         }
     }
 
@@ -553,18 +565,55 @@ impl TypeEnvironment {
             self.type_equalities.push((left, right));
         }
         for requirement in clause.operator_requirements() {
-            let left = super::type_expr::type_expr_to_type_in_environment(
-                &requirement.left,
-                resolved,
-                self,
-            );
-            let right = super::type_expr::type_expr_to_type_in_environment(
-                &requirement.right,
-                resolved,
-                self,
-            );
-            self.equality_requirements
-                .push((left, right, requirement.operator_span));
+            match &requirement.shape {
+                crate::ast::OperatorRequirementShape::Equality {
+                    left,
+                    operator_span,
+                    right,
+                } => {
+                    let left =
+                        super::type_expr::type_expr_to_type_in_environment(left, resolved, self);
+                    let right =
+                        super::type_expr::type_expr_to_type_in_environment(right, resolved, self);
+                    self.equality_requirements
+                        .push((left, right, *operator_span));
+                }
+                crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
+                    let target =
+                        super::type_expr::type_expr_to_type_in_environment(target, resolved, self);
+                    let index =
+                        super::type_expr::type_expr_to_type_in_environment(index, resolved, self);
+                    let result = super::type_expr::type_expr_to_type_in_environment(
+                        &requirement.result,
+                        resolved,
+                        self,
+                    );
+                    let Type::Borrow {
+                        is_readwrite: result_is_readwrite,
+                        inner: element,
+                    } = result
+                    else {
+                        continue;
+                    };
+                    let is_readwrite = matches!(
+                        target,
+                        Type::Borrow {
+                            is_readwrite: true,
+                            ..
+                        }
+                    );
+                    if result_is_readwrite != is_readwrite {
+                        continue;
+                    }
+                    self.index_requirements.push(IndexRequirement {
+                        target,
+                        index,
+                        element: *element,
+                        is_readwrite,
+                        span: requirement.span,
+                    });
+                }
+            }
         }
     }
 
@@ -604,6 +653,19 @@ impl TypeEnvironment {
                 (self.types_equal(left, required_left) && self.types_equal(right, required_right))
                     .then_some(*span)
             })
+    }
+
+    pub(super) fn index_requirement(
+        &self,
+        target: &Type,
+        index: &Type,
+        require_readwrite: bool,
+    ) -> Option<&IndexRequirement> {
+        self.index_requirements.iter().find(|requirement| {
+            (!require_readwrite || requirement.is_readwrite)
+                && self.types_equal(target, &requirement.target)
+                && self.types_equal(index, &requirement.index)
+        })
     }
 
     pub(super) fn generic_parameter_substitutions(&self) -> HashMap<String, Type> {

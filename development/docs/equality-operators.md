@@ -50,7 +50,7 @@ field. A specialized call must construct a concrete equality plan before IR lowe
 ## Standard-Library Boundary
 
 `std/str` owns byte equality. `String` reaches it through its existing readonly `str` coercion.
-`std/slice` owns element equality and readonly search under `where &T == &T`; `Vec<T>` reaches that
+`std/slice` owns element equality and readonly search under `where (&T == &T): bool`; `Vec<T>` reaches that
 surface through its slice coercion. Iterator default methods use the same requirement and borrow
 each yielded owner only for the comparison so ordinary cleanup remains authoritative.
 

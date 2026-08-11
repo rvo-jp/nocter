@@ -35,7 +35,37 @@ impl EqualityOperatorDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorRequirementPredicate {
     pub span: ByteSpan,
-    pub operator_span: ByteSpan,
-    pub left: TypeExpr,
-    pub right: TypeExpr,
+    pub open_paren_span: ByteSpan,
+    pub close_paren_span: ByteSpan,
+    pub colon_span: ByteSpan,
+    pub shape: OperatorRequirementShape,
+    pub result: TypeExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OperatorRequirementShape {
+    Equality {
+        operator_span: ByteSpan,
+        left: TypeExpr,
+        right: TypeExpr,
+    },
+    Index {
+        open_bracket_span: ByteSpan,
+        close_bracket_span: ByteSpan,
+        target: TypeExpr,
+        index: TypeExpr,
+    },
+}
+
+impl OperatorRequirementPredicate {
+    pub fn equality(&self) -> Option<(&TypeExpr, ByteSpan, &TypeExpr)> {
+        match &self.shape {
+            OperatorRequirementShape::Equality {
+                operator_span,
+                left,
+                right,
+            } => Some((left, *operator_span, right)),
+            OperatorRequirementShape::Index { .. } => None,
+        }
+    }
 }

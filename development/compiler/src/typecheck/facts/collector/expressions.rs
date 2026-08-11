@@ -105,6 +105,15 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
+                if expression.is_readwrite
+                    && let Expr::Index(index) = super::unwrap_group(&expression.expression)
+                {
+                    self.record_index_plan(
+                        index,
+                        crate::typecheck::indexing::IndexAccess::Readwrite,
+                        environment,
+                    );
+                }
             }
             Expr::Binary(expression) => {
                 self.collect_expression_facts_in_context(
@@ -422,6 +431,11 @@ impl TypecheckFactCollector<'_> {
                     &expression.index,
                     environment,
                     return_type,
+                );
+                self.record_index_plan(
+                    expression,
+                    crate::typecheck::indexing::IndexAccess::Readonly,
+                    environment,
                 );
             }
             Expr::ArrayLiteral(expression) => {

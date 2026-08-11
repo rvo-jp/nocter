@@ -75,7 +75,13 @@ pub(crate) fn hover_for_file_analysis(
         return Some(hover);
     }
 
-    if let Some(hover) = local_occurrence_hover_for_file_analysis(sources, analysis, file, offset) {
+    if let Some(mut hover) =
+        local_occurrence_hover_for_file_analysis(sources, analysis, file, offset)
+    {
+        hover.documentation = combine_documentation(
+            hover.documentation,
+            index_projection_markdown(file, hover.span),
+        );
         return Some(hover);
     }
 
@@ -149,6 +155,29 @@ pub(crate) fn hover_for_file_analysis(
             ),
         }
     })
+}
+
+fn index_projection_markdown(file: &FileAnalysis, focus: ByteSpan) -> Option<String> {
+    let plan = file
+        .typecheck_facts
+        .index_plans()
+        .find(|plan| plan.object_span == focus)?;
+    let source = crate::typecheck::type_expr_presentation_label(&plan.target_ty, &file.resolved);
+    let projected = plan
+        .conversion
+        .as_ref()
+        .map(|conversion| {
+            crate::typecheck::type_expr_presentation_label(&conversion.target_ty, &file.resolved)
+        })
+        .unwrap_or_else(|| source.clone());
+    let element = crate::typecheck::type_expr_presentation_label(&plan.element_ty, &file.resolved);
+    let access = match plan.access {
+        crate::typecheck::TypecheckIndexAccess::Readonly => "readonly",
+        crate::typecheck::TypecheckIndexAccess::Readwrite => "readwrite",
+    };
+    Some(format!(
+        "**Index projection:** `{source}` → `{projected}`\n\n**Element:** `{element}`\n\n**Access:** {access}"
+    ))
 }
 
 pub(crate) fn hover_for_text(text: &str, offset: usize) -> Option<HoverInfo> {

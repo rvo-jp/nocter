@@ -63,8 +63,10 @@ and construction APIs remain unconstrained.
   associated projection. `instance` and `conform` classify `where Binder = Type` separately as a
   directed declaration-pattern refinement; see
   [Declaration Type Pattern Architecture](declaration-type-patterns.md).
-- `where &T == &T` is the only operator requirement. Both operands must name the same visible
-  parameter; it is not a nominal interface bound or an associated-type equality.
+- Operator requirements use one structural form with an explicit result:
+  `where (&T == &T): bool`, `where (&C[K]): &V`, or `where (&+C[K]): &+V`. Equality operands name
+  the same visible parameter. Index requirements preserve the borrow capability from container to
+  result. These predicates are neither nominal interface bounds nor associated-type equalities.
 - functions, methods, literals, nominal declarations, aliases, instances, and conformances all own the same clause
   representation; no declaration kind carries an inline fallback.
 - associated type declarations may retain `pub type Item: Interface` because that bound constrains

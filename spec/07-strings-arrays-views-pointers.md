@@ -465,7 +465,7 @@ Slices own element-wise equality and search only when their element type satisfi
 operation used by the implementation:
 
 ```nct
-instance [T] where &T == &T {
+instance [T] where (&T == &T): bool {
     pub operator (&self == other: &Self): bool
     pub method &self.contains(expected: &T): bool
     pub method &self.position(expected: &T): usize?
