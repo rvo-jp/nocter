@@ -20,6 +20,10 @@ split-debuginfo = "off"
 incremental = false
 
 [profile.test]
+# Integration tests execute the compiler binary hundreds of times. Level 1
+# removes the dominant unoptimized-compiler cost while retaining test-profile
+# debug assertions and keeping compile time close to the development profile.
+opt-level = 1
 debug = "line-tables-only"
 split-debuginfo = "off"
 incremental = false
