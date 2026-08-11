@@ -9,21 +9,24 @@ pub(super) fn elaborate_file(
     ast: &mut AstFile,
     resolved: &ResolveOutput,
     facts: &TypecheckFacts,
-) -> Vec<Diagnostic> {
+) -> (Vec<Diagnostic>, bool) {
     let mut diagnostics = Vec::new();
+    let mut changed = false;
     for item in &mut ast.items {
         match item {
-            Item::Function(function) => elaborate_callable(
-                sources,
-                &mut function.return_type,
-                function.body.as_ref(),
-                resolved,
-                facts,
-                &mut diagnostics,
-            ),
+            Item::Function(function) => {
+                changed |= elaborate_callable(
+                    sources,
+                    &mut function.return_type,
+                    function.body.as_ref(),
+                    resolved,
+                    facts,
+                    &mut diagnostics,
+                );
+            }
             Item::Instance(instance) => {
                 for method in instance.callable_methods_mut() {
-                    elaborate_callable(
+                    changed |= elaborate_callable(
                         sources,
                         &mut method.return_type,
                         method.body.as_ref(),
@@ -35,7 +38,7 @@ pub(super) fn elaborate_file(
             }
             Item::Interface(interface) => {
                 for method in &mut interface.methods {
-                    elaborate_callable(
+                    changed |= elaborate_callable(
                         sources,
                         &mut method.return_type,
                         method.body.as_ref(),
@@ -50,7 +53,7 @@ pub(super) fn elaborate_file(
                     if let crate::ast::ConstructMemberDecl::Function(function) =
                         &mut member.declaration
                     {
-                        elaborate_callable(
+                        changed |= elaborate_callable(
                             sources,
                             &mut function.return_type,
                             function.body.as_ref(),
@@ -73,7 +76,7 @@ pub(super) fn elaborate_file(
             | Item::Coerce(_) => {}
         }
     }
-    diagnostics
+    (diagnostics, changed)
 }
 
 fn elaborate_callable(
@@ -83,13 +86,13 @@ fn elaborate_callable(
     resolved: &ResolveOutput,
     facts: &TypecheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let declared = return_type.clone();
     let Some(opaque) = opaque_payload_mut(return_type) else {
-        return;
+        return false;
     };
     let Some(body) = body else {
-        return;
+        return false;
     };
 
     let mut expressions = Vec::new();
@@ -125,7 +128,7 @@ fn elaborate_callable(
                     ),
                     "return one concrete witness type from every reachable result path",
                 ));
-                return;
+                return false;
             }
         } else {
             witness = Some(candidate);
@@ -139,9 +142,10 @@ fn elaborate_callable(
             "could not infer a concrete witness for this opaque result",
             "return one concrete value that conforms to the advertised interface",
         ));
-        return;
+        return false;
     };
     opaque.witness = Some(Box::new(witness));
+    true
 }
 
 fn opaque_payload_mut(ty: &mut TypeExpr) -> Option<&mut crate::ast::OpaqueType> {

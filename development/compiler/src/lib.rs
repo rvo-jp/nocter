@@ -31,6 +31,7 @@ pub mod target;
 mod test_entry;
 #[cfg(test)]
 mod test_files;
+mod timing;
 mod type_names;
 mod type_notation;
 pub mod typecheck;

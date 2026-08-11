@@ -2,9 +2,29 @@
 
 ## Current Task
 
-v0.12.0 Phase 2 and the post-phase test-consolidation audit are complete. Stop at this checkpoint
-before selecting the next stabilization or language-development phase, and do not alter the
-published v0.11.0 release.
+v0.12.0 Phase 2 and the post-phase test consolidation and performance work are complete. Stop at
+this checkpoint before selecting the next stabilization or language-development phase, and do not
+alter the published v0.11.0 release.
+
+## Completed Test Performance Checkpoint
+
+- the Cargo test profile compiles Nocter at optimization level 1 while retaining debug assertions;
+  compiler-heavy integration tests no longer execute an unoptimized compiler hundreds of times
+- opt-in JSON phase timing and `scripts/benchmark-check.sh` provide process-cold medians without
+  changing normal compiler output or turning machine-dependent elapsed time into a test assertion
+- compile-unit resolution builds immutable module indexes once, and opaque-result elaboration
+  re-resolves only the reverse import, same-module, and prelude dependency closure of changed
+  witnesses instead of every loaded source
+- release `check examples/hello.nct` fell from 18.318 seconds to a three-run median of 8.661 seconds;
+  the remaining dominant phase is initial compile-unit resolution
+- public examples no longer repeat successful check/build compilation; all documented runnable
+  examples now build and execute, exposing and fixing instance equality method calls composed with
+  short-circuit logic
+- all 3,520 tests pass in 686.78 seconds, down from 2,808.33 seconds; distributed-home passes in
+  435.81 seconds, down from 2,438.41 seconds, while the expanded public-example suite passes all
+  five contracts
+- warnings-denied Clippy, formatting, generated documentation, and diff checks pass; the
+  documentation build contains 129 pages
 
 ## Completed Test Consolidation Checkpoint
 

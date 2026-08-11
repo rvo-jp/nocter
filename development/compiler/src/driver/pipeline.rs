@@ -155,7 +155,9 @@ pub(super) fn build_package_test_to_path_with_target(
             )],
         };
     };
-    let diagnostics = v0_test_buildability_diagnostics(&output.sources, analysis, test);
+    let diagnostics = crate::timing::measure("buildability.test", || {
+        v0_test_buildability_diagnostics(&output.sources, analysis, test)
+    });
     if !diagnostics.is_empty() {
         return BuildOutput {
             output_path: output_path.to_path_buf(),
@@ -163,18 +165,20 @@ pub(super) fn build_package_test_to_path_with_target(
             diagnostics,
         };
     }
-    let diagnostics = match build_test(
-        BuildRequest {
-            analysis,
-            sources: &output.sources,
-            output_path,
-            target: options.target.as_str(),
-        },
-        test,
-    ) {
-        Ok(()) => Vec::new(),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics = crate::timing::measure("backend.build_test", || {
+        match build_test(
+            BuildRequest {
+                analysis,
+                sources: &output.sources,
+                output_path,
+                target: options.target.as_str(),
+            },
+            test,
+        ) {
+            Ok(()) => Vec::new(),
+            Err(diagnostics) => diagnostics,
+        }
+    });
     BuildOutput {
         output_path: output_path.to_path_buf(),
         sources: output.sources,
@@ -208,7 +212,9 @@ fn build_file_to_path_with_options(
         };
     };
 
-    let diagnostics = v0_buildability_diagnostics(&output.sources, analysis);
+    let diagnostics = crate::timing::measure("buildability.executable", || {
+        v0_buildability_diagnostics(&output.sources, analysis)
+    });
     if !diagnostics.is_empty() {
         return BuildOutput {
             output_path: output_path.to_path_buf(),
@@ -217,15 +223,18 @@ fn build_file_to_path_with_options(
         };
     }
 
-    let diagnostics = match build_executable(BuildRequest {
-        analysis,
-        sources: &output.sources,
-        output_path,
-        target: options.target.as_str(),
-    }) {
-        Ok(()) => Vec::new(),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        crate::timing::measure("backend.build_executable", || {
+            match build_executable(BuildRequest {
+                analysis,
+                sources: &output.sources,
+                output_path,
+                target: options.target.as_str(),
+            }) {
+                Ok(()) => Vec::new(),
+                Err(diagnostics) => diagnostics,
+            }
+        });
 
     BuildOutput {
         output_path: output_path.to_path_buf(),
@@ -255,7 +264,8 @@ fn frontend_options_for_package(
 fn analyze_file(file: &Path, options: &FrontendOptions, executable: bool) -> FrontendOutput {
     let mut sources = SourceMap::new();
 
-    match sources.load_file(file) {
+    let loaded = crate::timing::measure("source.load_root", || sources.load_file(file));
+    match loaded {
         Ok(source) => {
             let source_file = sources
                 .get(source)
@@ -293,16 +303,20 @@ fn analyze_source(
     Option<crate::analysis::CompileUnitAnalysis>,
     Vec<Diagnostic>,
 ) {
-    let unit = match load_compile_unit(sources, source, options) {
+    let unit = match crate::timing::measure("frontend.load_compile_unit", || {
+        load_compile_unit(sources, source, options)
+    }) {
         Ok(unit) => unit,
         Err(diagnostics) => return (None, diagnostics),
     };
 
-    let analysis = if executable {
-        analyze_executable_compile_unit(sources, &unit)
-    } else {
-        analyze_module_compile_unit(sources, &unit)
-    };
+    let analysis = crate::timing::measure("analysis.compile_unit", || {
+        if executable {
+            analyze_executable_compile_unit(sources, &unit)
+        } else {
+            analyze_module_compile_unit(sources, &unit)
+        }
+    });
     let diagnostics = analysis.diagnostics();
 
     (Some(analysis), diagnostics)

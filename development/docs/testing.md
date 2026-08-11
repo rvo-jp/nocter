@@ -61,3 +61,28 @@ Record behavior and boundary coverage, not a requirement that historical test to
 When the complete suite regresses materially, report time by integration binary. A small test
 binary that dominates wall-clock time is a boundary-ownership problem; adding parallelism or
 ignoring the tests does not resolve it.
+
+## Compiler Performance Measurements
+
+Integration tests run the compiler from the Cargo test profile. That profile uses optimization
+level 1 because the suite exercises the compiler binary hundreds of times; test-profile debug
+assertions remain enabled. Do not restore an unoptimized compiler merely to make test and
+development profiles identical.
+
+Use the process-cold check benchmark to investigate compiler cost independently from the Rust test
+harness:
+
+```sh
+development/compiler/scripts/benchmark-check.sh
+```
+
+The script builds the release compiler, checks `examples/hello.nct` in three separate processes,
+prints internal JSON timing events, and reports the median total. Pass another source as the first
+argument. `NOCTER_BENCHMARK_RUNS` changes the sample count and
+`NOCTER_BENCHMARK_PROFILE=dev` selects the development compiler.
+
+`NOCTER_INTERNAL_TIMINGS=1` is an internal instrumentation boundary used by this script. It emits
+source loading, compile-unit loading, resolution, opaque-result elaboration, typecheck/index,
+buildability, backend, program execution, and total events. Normal compiler invocations perform no
+clock reads and emit no timing output. Do not turn elapsed time into a correctness assertion;
+compare medians on the same machine and use phase events to choose an implementation target.

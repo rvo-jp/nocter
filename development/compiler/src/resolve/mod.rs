@@ -84,9 +84,46 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
     callable_bodies: &CallableBodyIndex,
     source_scopes: &SourceScopeMap,
 ) -> ResolveOutput {
-    let source_modules = SourceModuleMap::new(files, import_sources);
-    let merged_modules = MergedModules::new(files, import_sources);
-    let module_index = ModuleIndex::new(&merged_modules);
+    let context = ResolveCompileUnitContext::new(files, import_sources);
+    resolve_compile_unit_with_context(
+        sources,
+        root,
+        files,
+        import_sources,
+        prelude_sources,
+        callable_bodies,
+        source_scopes,
+        &context,
+    )
+}
+
+pub(crate) struct ResolveCompileUnitContext {
+    source_modules: SourceModuleMap,
+    merged_modules: MergedModules,
+}
+
+impl ResolveCompileUnitContext {
+    pub(crate) fn new(files: &[AstFile], import_sources: &ImportSourceMap) -> Self {
+        Self {
+            source_modules: SourceModuleMap::new(files, import_sources),
+            merged_modules: MergedModules::new(files, import_sources),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn resolve_compile_unit_with_context(
+    sources: &SourceMap,
+    root: &AstFile,
+    files: &[AstFile],
+    import_sources: &ImportSourceMap,
+    prelude_sources: &PreludeSourceMap,
+    callable_bodies: &CallableBodyIndex,
+    source_scopes: &SourceScopeMap,
+    context: &ResolveCompileUnitContext,
+) -> ResolveOutput {
+    let source_modules = &context.source_modules;
+    let module_index = ModuleIndex::new(&context.merged_modules);
     let module_ast = module_index
         .ast_for_source(root.span.source)
         .map(|ast| callable_bodies.declaration_surface(ast))
@@ -112,7 +149,7 @@ pub(crate) fn resolve_compile_unit_with_callable_bodies(
         prelude_sources,
         output: ResolveOutput::new(access)
             .with_callable_bodies(callable_bodies.clone())
-            .with_source_modules(source_modules)
+            .with_source_modules(source_modules.clone())
             .with_source_scopes(source_scopes.clone()),
         synthetic_prelude_symbol_spans: HashSet::new(),
         collected_hidden_type_dependencies: HashSet::new(),

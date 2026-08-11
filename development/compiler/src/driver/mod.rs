@@ -47,7 +47,8 @@ where
     let _program_name = args.next();
     let rest: Vec<OsString> = args.collect();
 
-    match parse_command(&rest) {
+    let parsed = parse_command(&rest);
+    crate::timing::measure("command.total", || match parsed {
         Ok(Command::Help) => match write_usage(io::stdout().lock()) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
@@ -75,7 +76,7 @@ where
         Ok(Command::Ast(file)) => run_ast_json(&file),
         Ok(Command::Lsp) => run_lsp(),
         Err(error) => run_command_error(error),
-    }
+    })
 }
 
 fn run_command_error(error: command::CommandError) -> ExitCode {

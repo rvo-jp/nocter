@@ -37,7 +37,10 @@ fn run_with_builder(build: impl FnOnce(&Path) -> super::pipeline::BuildOutput) -
         return write_human_diagnostics(&output.diagnostics, Some(&output.sources), exit);
     }
 
-    let status = match Command::new(&output.output_path).status() {
+    let execution = crate::timing::measure("program.execute", || {
+        Command::new(&output.output_path).status()
+    });
+    let status = match execution {
         Ok(status) => status,
         Err(error) => {
             let diagnostic = temporary_executable_diagnostic(format!(

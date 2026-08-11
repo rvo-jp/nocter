@@ -18,6 +18,7 @@ pub(crate) mod implementation;
 mod import_completion;
 pub(crate) mod inlay_hints;
 pub(crate) mod interpolation;
+mod invalidation;
 pub(crate) mod iteration;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
@@ -198,103 +199,147 @@ fn analyze_compile_unit_with_root_policy(
 ) -> CompileUnitAnalysis {
     let root_source = unit.root_ast.span.source;
     let mut analyzed_files = unit.files.clone();
-    let initial_resolved_files = analyzed_files
+    let initial_resolution_context = crate::timing::measure("analysis.index_modules", || {
+        crate::resolve::ResolveCompileUnitContext::new(&analyzed_files, &unit.import_sources)
+    });
+    let initial_resolved_files = crate::timing::measure("analysis.resolve_initial", || {
+        analyzed_files
+            .iter()
+            .map(|file| {
+                let mut resolved = crate::resolve::resolve_compile_unit_with_context(
+                    sources,
+                    file,
+                    &unit.files,
+                    &unit.import_sources,
+                    &unit.prelude_sources,
+                    &unit.callable_bodies,
+                    &unit.source_scopes,
+                    &initial_resolution_context,
+                );
+                resolved.trusted_declarations = unit.trusted_declarations.clone();
+                resolved.diagnostics.retain(|diagnostic| {
+                    diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                        || (diagnostic.primary_span.is_none() && file.span.source == root_source)
+                });
+                resolved
+            })
+            .collect::<Vec<_>>()
+    });
+    let (opaque_diagnostics, opaque_changed_files) =
+        crate::timing::measure("analysis.elaborate_opaque", || {
+            let mut diagnostics = Vec::new();
+            let mut changed_files = Vec::with_capacity(analyzed_files.len());
+            for (file, resolved) in analyzed_files.iter_mut().zip(initial_resolved_files.iter()) {
+                let facts = collect_typecheck_facts(file, resolved);
+                let (file_diagnostics, file_changed) =
+                    opaque_results::elaborate_file(sources, file, resolved, &facts);
+                diagnostics.extend(file_diagnostics);
+                changed_files.push(file_changed);
+            }
+            (diagnostics, changed_files)
+        });
+    let opaque_changed_sources = analyzed_files
         .iter()
-        .map(|file| {
-            let mut resolved = crate::resolve::resolve_compile_unit_with_callable_bodies(
-                sources,
-                file,
-                &unit.files,
-                &unit.import_sources,
-                &unit.prelude_sources,
-                &unit.callable_bodies,
-                &unit.source_scopes,
-            );
-            resolved.trusted_declarations = unit.trusted_declarations.clone();
-            resolved.diagnostics.retain(|diagnostic| {
-                diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
-                    || (diagnostic.primary_span.is_none() && file.span.source == root_source)
+        .zip(opaque_changed_files.iter())
+        .filter_map(|(file, changed)| changed.then_some(file.span.source))
+        .collect::<std::collections::HashSet<_>>();
+    let opaque_affected_sources = invalidation::reverse_dependency_closure(
+        &opaque_changed_sources,
+        &unit.import_sources,
+        &unit.prelude_sources,
+    );
+    let resolved_files = if !opaque_affected_sources.is_empty() {
+        let elaborated_resolution_context =
+            crate::timing::measure("analysis.index_opaque_modules", || {
+                crate::resolve::ResolveCompileUnitContext::new(
+                    &analyzed_files,
+                    &unit.import_sources,
+                )
             });
-            resolved
+        crate::timing::measure("analysis.resolve_opaque_dependents", || {
+            initial_resolved_files
+                .into_iter()
+                .enumerate()
+                .map(|(index, initial)| {
+                    if !opaque_affected_sources.contains(&analyzed_files[index].span.source) {
+                        return initial;
+                    }
+                    let file = &analyzed_files[index];
+                    let mut resolved = crate::resolve::resolve_compile_unit_with_context(
+                        sources,
+                        file,
+                        &analyzed_files,
+                        &unit.import_sources,
+                        &unit.prelude_sources,
+                        &unit.callable_bodies,
+                        &unit.source_scopes,
+                        &elaborated_resolution_context,
+                    );
+                    resolved.trusted_declarations = unit.trusted_declarations.clone();
+                    resolved.diagnostics.retain(|diagnostic| {
+                        diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                            || (diagnostic.primary_span.is_none()
+                                && file.span.source == root_source)
+                    });
+                    resolved
+                })
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
-    let mut opaque_diagnostics = Vec::new();
-    for (file, resolved) in analyzed_files.iter_mut().zip(initial_resolved_files.iter()) {
-        let facts = collect_typecheck_facts(file, resolved);
-        opaque_diagnostics.extend(opaque_results::elaborate_file(
-            sources, file, resolved, &facts,
-        ));
-    }
-    let resolved_files = analyzed_files
-        .iter()
-        .map(|file| {
-            let mut resolved = crate::resolve::resolve_compile_unit_with_callable_bodies(
-                sources,
-                file,
-                &analyzed_files,
-                &unit.import_sources,
-                &unit.prelude_sources,
-                &unit.callable_bodies,
-                &unit.source_scopes,
-            );
-            resolved.trusted_declarations = unit.trusted_declarations.clone();
-            resolved.diagnostics.retain(|diagnostic| {
-                diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
-                    || (diagnostic.primary_span.is_none() && file.span.source == root_source)
-            });
-            resolved
-        })
-        .collect::<Vec<_>>();
+    } else {
+        initial_resolved_files
+    };
     let typecheck_sources = analyzed_files
         .iter()
         .zip(resolved_files.iter())
         .map(|(file, resolved)| TypecheckSource::new(file, resolved))
         .collect::<Vec<_>>();
-    let files = analyzed_files
-        .iter()
-        .zip(resolved_files.iter())
-        .map(|(file, resolved)| {
-            let is_root = file.span.source == root_source;
-            let mut diagnostics = resolved.diagnostics.clone();
-            diagnostics.extend(
-                opaque_diagnostics
-                    .iter()
-                    .filter(|diagnostic| {
-                        diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
-                    })
-                    .cloned(),
-            );
-            if is_root && root_policy == RootPolicy::ExecutableEntry {
-                diagnostics.extend(check_with_summary_sources(
-                    sources,
-                    file,
-                    resolved,
-                    &typecheck_sources,
-                ));
-            } else {
-                diagnostics.extend(check_module_with_summary_sources(
-                    sources,
-                    file,
-                    resolved,
-                    &typecheck_sources,
-                ));
-            }
-            let typecheck_facts = collect_typecheck_facts(file, resolved);
-            let occurrences =
-                occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
-            let callable_declarations = presentation::CallableDeclarationIndex::new(file);
+    let files = crate::timing::measure("analysis.typecheck_and_indexes", || {
+        analyzed_files
+            .iter()
+            .zip(resolved_files.iter())
+            .map(|(file, resolved)| {
+                let is_root = file.span.source == root_source;
+                let mut diagnostics = resolved.diagnostics.clone();
+                diagnostics.extend(
+                    opaque_diagnostics
+                        .iter()
+                        .filter(|diagnostic| {
+                            diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
+                        })
+                        .cloned(),
+                );
+                if is_root && root_policy == RootPolicy::ExecutableEntry {
+                    diagnostics.extend(check_with_summary_sources(
+                        sources,
+                        file,
+                        resolved,
+                        &typecheck_sources,
+                    ));
+                } else {
+                    diagnostics.extend(check_module_with_summary_sources(
+                        sources,
+                        file,
+                        resolved,
+                        &typecheck_sources,
+                    ));
+                }
+                let typecheck_facts = collect_typecheck_facts(file, resolved);
+                let occurrences =
+                    occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
+                let callable_declarations = presentation::CallableDeclarationIndex::new(file);
 
-            FileAnalysis {
-                ast: file.clone(),
-                resolved: resolved.clone(),
-                typecheck_facts,
-                occurrences,
-                callable_declarations,
-                diagnostics,
-                is_root,
-            }
-        })
-        .collect();
+                FileAnalysis {
+                    ast: file.clone(),
+                    resolved: resolved.clone(),
+                    typecheck_facts,
+                    occurrences,
+                    callable_declarations,
+                    diagnostics,
+                    is_root,
+                }
+            })
+            .collect()
+    });
 
     CompileUnitAnalysis {
         files,
