@@ -23,7 +23,8 @@ fn bool_expression_needs_temporaries(expression: &Expr, context: &LoweringContex
             bool_expression_needs_temporaries(&unary.operand, context)
         }
         Expr::Binary(binary) => {
-            short_circuit_bool_expression_needs_branch(binary, context)
+            equality_method_call_is_planned(binary, context)
+                || short_circuit_bool_expression_needs_branch(binary, context)
                 || binary_integer_type(binary, context).is_some_and(|kind| !kind.legacy_ir_type())
                 || bool_comparison_contains_call(binary, context)
                 || bool_comparison_needs_temporaries(binary, context)

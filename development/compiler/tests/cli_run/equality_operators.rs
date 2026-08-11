@@ -43,6 +43,32 @@ func main(): i32 {
 }
 
 #[test]
+fn instance_equality_calls_compose_with_short_circuit_logic() {
+    run_source(
+        "instance-equality-short-circuit",
+        r#"struct Point {
+    value: i32,
+}
+
+instance Point {
+    operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+}
+
+func main(): i32 {
+    let first = Point { value: 7 }
+    let same = Point { value: 7 }
+    let other = Point { value: 9 }
+    if first != same || first == other { return 1 }
+    if first == same && first != other { return 0 }
+    return 2
+}
+"#,
+    );
+}
+
+#[test]
 fn equality_uses_one_readonly_coercion_per_operand() {
     run_source(
         "coerced-equality-operator",

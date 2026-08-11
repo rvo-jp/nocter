@@ -17,6 +17,15 @@ use crate::typecheck::TypecheckSliceElementKind;
 mod effects;
 mod lowerability;
 
+fn equality_method_call_is_planned(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && context
+        .equality_plan(binary.operator_span)
+        .is_some_and(|plan| plan.method.is_some())
+}
+
 pub(in crate::ir::lower) use effects::{
     expression_contains_call, short_circuit_bool_expression_needs_branch,
 };

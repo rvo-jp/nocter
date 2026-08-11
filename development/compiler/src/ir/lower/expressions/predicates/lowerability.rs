@@ -101,7 +101,8 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
                 && expression_is_lowerable_bool_binding(&unary.operand, context)
         }
         Expr::Binary(binary) => {
-            expression_is_lowerable_comparison_binding(binary, context)
+            equality_method_call_is_planned(binary, context)
+                || expression_is_lowerable_comparison_binding(binary, context)
                 || (is_bool_logical_operator(binary.operator)
                     && expression_is_lowerable_bool_binding(&binary.left, context)
                     && expression_is_lowerable_bool_binding(&binary.right, context))
@@ -289,6 +290,10 @@ fn expression_is_lowerable_bool_expression(expression: &Expr, context: &Lowering
 }
 
 fn expression_is_lowerable_bool_binary(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    if equality_method_call_is_planned(binary, context) {
+        return true;
+    }
+
     match binary.operator {
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
             expression_is_lowerable_bool_expression(&binary.left, context)
