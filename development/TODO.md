@@ -2,10 +2,12 @@
 
 ## Current Task
 
-[v0.13.0 Phase 5](milestones/v0.13.0.md) is complete. No implementation phase is active. Stop
-before ordered algorithms, element relocation, sorting, release preparation, packaging, tagging,
-or publication. The next phase requires a separate reviewed plan. The published v0.12.0 release
-remains immutable.
+[v0.13.0 Phase 6](milestones/v0.13.0.md) is active. Move borrow coercions into `instance` members,
+remove standalone coercion declarations and their synthetic instance adapter, add structural
+`where Source as Target` evidence through the common one-step selector, migrate compiler consumers,
+standard source, fixtures, editor behavior, and documentation, run the complete verification gate,
+record completion, and stop. Do not begin release preparation, package, tag, or publish. The
+published v0.12.0 release remains immutable.
 
 ## Completed v0.13.0 Phase 5 Checkpoint
 

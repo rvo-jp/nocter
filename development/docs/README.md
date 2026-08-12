@@ -24,6 +24,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   default selection, lowering reuse, and editor boundaries
 - [Borrow Coercions](borrow-coercions.md): type-owned view declarations, contextual plans,
   ownership, lowering, and editor boundaries
+- [Instance Coercions and Generic Evidence](instance-coercions.md): instance member ownership,
+  structural coercion requirements, delayed evidence, specialization, and consumer boundaries
 - [Equality Operators](equality-operators.md): fixed instance-owned equality, structural generic
   requirements, coercion selection, plans, lowering, and editor identity
 - [Strict Ordering Operators](ordering-operators.md): shared fixed-comparison selection, derived
@@ -106,6 +108,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Path-sensitive aggregate cleanup and runtime live state | `control-flow-drop-state.md` |
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
+| Instance-owned coercions and structural generic evidence | `instance-coercions.md` |
 | Equality operator declaration, selection, and lowering | `equality-operators.md` |
 | Strict ordering declaration, derivation, and lowering | `ordering-operators.md` |
 | Index declarations, requirements, coercion selection, and lowering | `indexing.md` |
