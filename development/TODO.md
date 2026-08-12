@@ -2,10 +2,27 @@
 
 ## Current Task
 
-v0.14.0 Phase 0 is active. Replace parallel instance member vectors with one source-ordered member
-model, then introduce compile-unit semantic IDs and migrate one callable path end to end without
-retaining span or synthetic-name identity. Do not add language features or standard-library APIs.
-The v0.13.0 tag, archive, release notes, and qualification record are immutable.
+v0.14.0 Phase 0 is active. Source-ordered instance members, the compile-unit `DefId` database, and
+the borrow-coercion vertical migration are complete. Continue by moving callable-body pairing,
+trusted declaration roles, operators, monomorphization, and editor declaration identities onto the
+same database. Remove each old span or synthetic-name authority as its replacement lands; do not
+add table-only ID scaffolding, language features, or standard-library APIs. The v0.13.0 tag,
+archive, release notes, and qualification record are immutable.
+
+## Completed v0.14.0 Phase 0 Identity Checkpoint
+
+- `InstanceDecl` owns one source-ordered member sequence across parser, formatter, AST JSON,
+  resolver, checker, analysis, and lowering consumers
+- one shared `SemanticDb` indexes top-level, member, and nested block-import declarations and
+  survives opaque-result elaboration without creating mixed semantic generations
+- resolver symbols retain `SymbolId` only as a local table handle and carry compile-unit `DefId`
+  for declaration identity
+- borrow coercions retain `DefId` from source surface through selection, facts, generic evidence,
+  specialization, and IR callable indexing
+- coercion plans no longer store declaration spans or generated target strings as identity;
+  backend-only symbol presentation lives in its own lowering file
+- all 3,588 repository tests, formatting, warnings-denied Clippy, documentation generation, and
+  diff checks pass at this checkpoint
 
 ## Completed v0.13.0 Stabilization Checkpoint
 
