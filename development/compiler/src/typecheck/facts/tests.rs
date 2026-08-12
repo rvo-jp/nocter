@@ -237,6 +237,11 @@ func main(): i32 { return 0 }
     assert_eq!(canonical_type_expr(&plan.target_ty), "&i32");
     assert_eq!(plan.receiver_mode, MethodReceiverMode::ReadonlyBorrow);
     assert!(!plan.source_is_readwrite);
+    assert_eq!(
+        plan.def_id,
+        resolved.semantic_db.definition_at(plan.focus_span),
+        "the persisted conversion must retain the selected coercion identity"
+    );
     assert!(plan.target_name.starts_with("Box<i32>.__nocter$coerce$"));
 }
 

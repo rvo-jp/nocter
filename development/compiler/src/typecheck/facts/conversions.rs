@@ -46,6 +46,7 @@ pub(crate) fn typecheck_conversion_plan(
                 })
                 .collect::<Option<HashMap<_, _>>>()?;
             TypecheckConversionKind::BorrowCoercion(TypecheckCoercionPlan {
+                def_id: coercion.def_id,
                 declaration_span: coercion.declaration_span,
                 focus_span: coercion.focus_span,
                 receiver_mode: coercion.receiver_mode,

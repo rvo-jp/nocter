@@ -658,6 +658,7 @@ pub struct AssociatedTypeSignature {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoercionSignature {
+    pub(crate) def_id: DefId,
     pub declaration_span: ByteSpan,
     pub focus_span: ByteSpan,
     pub visibility: Visibility,

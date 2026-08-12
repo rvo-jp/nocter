@@ -4,6 +4,7 @@ use crate::ast::{
     DestructDecl, FunctionDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
     substitute_type_expr_parameters,
 };
+use crate::semantic::DefId;
 use crate::source::ByteSpan;
 use crate::typecheck::{
     CallableCallSpecialization, DropTypeSpecialization, FunctionCallSpecialization,
@@ -15,7 +16,7 @@ pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
     pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
-    pub(crate) coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>>,
+    pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
     pub(crate) method_target_aliases: Vec<MethodTargetAlias>,
@@ -40,7 +41,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
     let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
-    let mut coercions: HashMap<ByteSpan, Vec<TypecheckCoercionPlan>> = HashMap::new();
+    let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut method_target_aliases = Vec::new();
     let mut queue = VecDeque::new();
@@ -235,6 +236,12 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 insert_callable_specialization(&mut callables, specialization);
             }
             PendingCallSpecialization::Coercion(plan) => {
+                let Some(plan) = crate::typecheck::specialize_coercion_plan_across_resolvers(
+                    plan,
+                    analysis.files.iter().map(|file| &file.resolved),
+                ) else {
+                    continue;
+                };
                 if !insert_coercion_specialization(&mut coercions, plan.clone()) {
                     continue;
                 }
@@ -361,10 +368,13 @@ enum PendingCallSpecialization {
 }
 
 fn insert_coercion_specialization(
-    specializations: &mut HashMap<ByteSpan, Vec<TypecheckCoercionPlan>>,
+    specializations: &mut HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     plan: TypecheckCoercionPlan,
 ) -> bool {
-    let entries = specializations.entry(plan.declaration_span).or_default();
+    let Some(def_id) = plan.def_id else {
+        return false;
+    };
+    let entries = specializations.entry(def_id).or_default();
     if entries
         .iter()
         .any(|entry| entry.target_name == plan.target_name)

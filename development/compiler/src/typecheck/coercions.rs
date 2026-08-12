@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SelectedCoercion {
+    pub(super) def_id: Option<crate::semantic::DefId>,
     pub(super) declaration_span: crate::source::ByteSpan,
     pub(super) focus_span: crate::source::ByteSpan,
     pub(super) receiver_mode: MethodReceiverMode,
@@ -115,6 +116,7 @@ pub(super) fn receiver_coercion_candidates(
                         &substitutions,
                     );
                     SelectedCoercion {
+                        def_id: Some(coercion.def_id),
                         declaration_span: coercion.declaration_span,
                         focus_span: coercion.focus_span,
                         receiver_mode: coercion.receiver.mode,
@@ -213,6 +215,7 @@ fn selected_candidate(
         substitutions,
     );
     (target_type == *expected).then(|| SelectedCoercion {
+        def_id: Some(coercion.def_id),
         declaration_span: coercion.declaration_span,
         focus_span: coercion.focus_span,
         receiver_mode: coercion.receiver.mode,
@@ -238,6 +241,7 @@ fn selected_requirement(
         _ => MethodReceiverMode::ReadonlyBorrow,
     };
     SelectedCoercion {
+        def_id: None,
         declaration_span: requirement.as_span,
         focus_span: requirement.as_span,
         receiver_mode,
@@ -305,6 +309,7 @@ pub(crate) fn specialize_coercion_plan(
         return None;
     }
     plan.declaration_span = selected.declaration_span;
+    plan.def_id = selected.def_id;
     plan.focus_span = selected.focus_span;
     plan.receiver_mode = selected.receiver_mode;
     plan.target_name = format!(

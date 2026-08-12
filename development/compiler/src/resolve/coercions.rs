@@ -5,6 +5,7 @@ use crate::ast::{
     CoercionEntry, InstanceDecl, MethodReceiverMode, ResultProvenanceOriginKind, TypeExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
+use crate::semantic::SemanticDb;
 use crate::source::ByteSpan;
 
 impl Resolver<'_> {
@@ -58,7 +59,7 @@ impl Resolver<'_> {
         let mut accepted = Vec::new();
         for entry in instance.coercions() {
             match validate_entry(entry) {
-                Ok(()) => accepted.push(coercion_signature(entry)),
+                Ok(()) => accepted.push(coercion_signature(entry, &self.output.semantic_db)),
                 Err((message, span)) => self.push_coercion_error(message, span, None),
             }
         }
@@ -205,9 +206,12 @@ fn nominal_name(target: &TypeExpr) -> Option<&str> {
     }
 }
 
-fn coercion_signature(entry: &CoercionEntry) -> CoercionSignature {
+fn coercion_signature(entry: &CoercionEntry, semantic_db: &SemanticDb) -> CoercionSignature {
     let callable = entry.callable_method();
     CoercionSignature {
+        def_id: semantic_db
+            .definition_at(entry.as_span)
+            .expect("validated coercion must have a semantic definition"),
         declaration_span: entry.span,
         focus_span: entry.as_span,
         visibility: callable.visibility,
@@ -256,6 +260,7 @@ pub(super) fn attach_coercions_to_symbol(
     symbol: &mut TypeSymbol,
     ast: &crate::ast::AstFile,
     expected_source_name: &str,
+    semantic_db: &SemanticDb,
 ) {
     for item in &ast.items {
         let crate::ast::Item::Instance(instance) = item else {
@@ -266,7 +271,9 @@ pub(super) fn attach_coercions_to_symbol(
         }
         for entry in instance.coercions() {
             if validate_entry(entry).is_ok() {
-                symbol.coercions.push(coercion_signature(entry));
+                symbol
+                    .coercions
+                    .push(coercion_signature(entry, semantic_db));
             }
         }
     }

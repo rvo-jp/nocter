@@ -145,6 +145,7 @@ impl Resolver<'_> {
                     &mut symbol,
                     ast,
                     &struct_.name,
+                    &self.output.semantic_db,
                 );
                 Some(type_importable_symbol(
                     struct_.span,
@@ -161,6 +162,7 @@ impl Resolver<'_> {
                     &mut symbol,
                     ast,
                     &enum_.name,
+                    &self.output.semantic_db,
                 );
                 Some(type_importable_symbol(
                     enum_.span,

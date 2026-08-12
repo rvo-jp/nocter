@@ -474,9 +474,14 @@ impl<'a> FunctionIndex<'a> {
                             }
                             let declaration =
                                 analysis.callable_bodies.canonical_identity(entry.span);
+                            let def_id = file
+                                .resolved
+                                .semantic_db
+                                .definition_at(entry.as_span)
+                                .expect("lowered coercion must have a semantic definition");
                             for plan in call_specializations
                                 .coercions
-                                .get(&declaration)
+                                .get(&def_id)
                                 .into_iter()
                                 .flatten()
                             {
