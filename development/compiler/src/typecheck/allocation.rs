@@ -802,7 +802,6 @@ mod tests {
     use crate::lexer::lex;
     use crate::parser::parse;
     use crate::resolve::resolve;
-    use crate::semantics::TrustedDeclarationFacts;
     use crate::source::SourceMap;
 
     #[test]
@@ -833,16 +832,16 @@ func main(): i32 {
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
         let ast = parsed.ast.unwrap();
         let mut resolved = resolve(&sources, &ast);
-        let mut trusted = TrustedDeclarationFacts::default();
         let mut direct = None;
         let mut indirect = None;
         for item in &ast.items {
             match item {
-                Item::Primitive(primitive) if primitive.name == "current_allocator" => trusted
-                    .insert(
+                Item::Primitive(primitive) if primitive.name == "current_allocator" => {
+                    resolved.trusted_declarations.insert(
                         primitive.name_span,
                         TrustedDeclarationRole::CurrentAllocationContext,
-                    ),
+                    )
+                }
                 Item::Function(function) if function.name == "direct" => {
                     direct = Some(CallableId::declared_at(function.name_span));
                 }
@@ -852,7 +851,6 @@ func main(): i32 {
                 _ => {}
             }
         }
-        resolved.trusted_declarations = trusted;
         let mut summaries = CallableProvenanceSummaries::default();
         infer_callable_allocation_effects(&[TypecheckSource::new(&ast, &resolved)], &mut summaries);
 

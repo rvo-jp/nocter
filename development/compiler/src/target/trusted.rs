@@ -2,14 +2,14 @@
 
 use crate::ast::{AstFile, Item, canonical_type_expr};
 use crate::semantics::{
-    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationFacts,
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationInputs,
     TrustedDeclarationRole,
 };
 
 pub(crate) fn trusted_declarations_for_module(
     module_path: &str,
     ast: &AstFile,
-) -> TrustedDeclarationFacts {
+) -> TrustedDeclarationInputs {
     if module_path == "std/io" {
         return super::trusted_io::trusted_io_declarations(ast);
     }
@@ -22,7 +22,7 @@ pub(crate) fn trusted_declarations_for_module(
     if module_path == "std/string" {
         return super::trusted_string_views::trusted_string_view_declarations(ast);
     }
-    let mut facts = TrustedDeclarationFacts::default();
+    let mut facts = TrustedDeclarationInputs::default();
     if module_path != "std/mem" {
         return facts;
     }

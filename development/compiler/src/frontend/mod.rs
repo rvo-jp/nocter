@@ -88,7 +88,7 @@ pub(crate) fn load_compile_unit_with_trace(
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
-    let mut trusted_declarations = crate::semantics::TrustedDeclarationFacts::default();
+    let mut trusted_declarations = crate::semantics::TrustedDeclarationInputs::default();
 
     for (path, source) in sources.sources_with_absolute_paths() {
         loaded_sources_by_path.insert(path.to_path_buf(), source);

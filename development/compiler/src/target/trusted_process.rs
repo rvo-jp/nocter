@@ -1,10 +1,10 @@
 //! Validated process-lifetime view declarations.
 
 use crate::ast::{AstFile, Item, canonical_type_expr};
-use crate::semantics::{TrustedDeclarationFacts, TrustedDeclarationRole};
+use crate::semantics::{TrustedDeclarationInputs, TrustedDeclarationRole};
 
-pub(super) fn trusted_process_declarations(ast: &AstFile) -> TrustedDeclarationFacts {
-    let mut facts = TrustedDeclarationFacts::default();
+pub(super) fn trusted_process_declarations(ast: &AstFile) -> TrustedDeclarationInputs {
+    let mut facts = TrustedDeclarationInputs::default();
     for item in &ast.items {
         let Item::Primitive(primitive) = item else {
             continue;

@@ -55,7 +55,7 @@ use crate::callable_bodies::CallableBodyIndex;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput};
 use crate::semantic::SemanticDb;
-use crate::semantics::TrustedDeclarationFacts;
+use crate::semantics::TrustedDeclarationInputs;
 use crate::source::SourceMap;
 use crate::source_scopes::SourceScopeMap;
 use crate::typecheck::{
@@ -74,7 +74,7 @@ pub(crate) struct CompileUnit {
     import_sources: ImportSourceMap,
     prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
-    trusted_declarations: TrustedDeclarationFacts,
+    trusted_declarations: TrustedDeclarationInputs,
     callable_bodies: CallableBodyIndex,
     source_scopes: SourceScopeMap,
 }
@@ -93,7 +93,7 @@ impl CompileUnit {
             import_sources,
             prelude_sources,
             nocter_home,
-            trusted_declarations: TrustedDeclarationFacts::default(),
+            trusted_declarations: TrustedDeclarationInputs::default(),
             callable_bodies: CallableBodyIndex::default(),
             source_scopes: SourceScopeMap::default(),
         }
@@ -101,7 +101,7 @@ impl CompileUnit {
 
     pub(crate) fn with_trusted_declarations(
         mut self,
-        trusted_declarations: TrustedDeclarationFacts,
+        trusted_declarations: TrustedDeclarationInputs,
     ) -> Self {
         self.trusted_declarations = trusted_declarations;
         self
@@ -206,6 +206,9 @@ fn analyze_compile_unit_with_root_policy(
     let initial_resolution_context = crate::timing::measure("analysis.index_modules", || {
         crate::resolve::ResolveCompileUnitContext::new(&analyzed_files, &unit.import_sources)
     });
+    let trusted_declarations = unit
+        .trusted_declarations
+        .bind(initial_resolution_context.semantic_db());
     let initial_resolved_files = crate::timing::measure("analysis.resolve_initial", || {
         analyzed_files
             .iter()
@@ -220,7 +223,7 @@ fn analyze_compile_unit_with_root_policy(
                     &unit.source_scopes,
                     &initial_resolution_context,
                 );
-                resolved.trusted_declarations = unit.trusted_declarations.clone();
+                resolved.trusted_declarations = trusted_declarations.clone();
                 resolved.diagnostics.retain(|diagnostic| {
                     diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
                         || (diagnostic.primary_span.is_none() && file.span.source == root_source)
@@ -280,7 +283,7 @@ fn analyze_compile_unit_with_root_policy(
                         &unit.source_scopes,
                         &elaborated_resolution_context,
                     );
-                    resolved.trusted_declarations = unit.trusted_declarations.clone();
+                    resolved.trusted_declarations = trusted_declarations.clone();
                     resolved.diagnostics.retain(|diagnostic| {
                         diagnostic_belongs_to_file(sources, diagnostic, file.span.source)
                             || (diagnostic.primary_span.is_none()

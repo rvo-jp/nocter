@@ -394,7 +394,6 @@ impl ResolveOutput {
     pub(super) fn new(access: ImportAccess, semantic_db: Arc<SemanticDb>) -> Self {
         Self {
             symbols: SymbolTable::new(semantic_db.clone()),
-            semantic_db,
             access,
             diagnostics: Vec::new(),
             identifier_targets: HashMap::new(),
@@ -404,7 +403,8 @@ impl ResolveOutput {
             local_identifier_targets: HashMap::new(),
             builtin_type_identifier_targets: HashMap::new(),
             builtin_type_surfaces: HashMap::new(),
-            trusted_declarations: TrustedDeclarationFacts::default(),
+            trusted_declarations: TrustedDeclarationFacts::new(semantic_db.clone()),
+            semantic_db,
             callable_bodies: CallableBodyIndex::default(),
             source_modules: SourceModuleMap::default(),
             source_scopes: SourceScopeMap::default(),

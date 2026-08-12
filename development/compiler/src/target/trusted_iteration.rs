@@ -4,13 +4,13 @@ use crate::ast::{
     AstFile, InterfaceDecl, Item, MethodReceiverMode, ResultProvenanceOriginKind, Visibility,
 };
 use crate::semantics::{
-    IterationAssociatedType, IterationProtocol, IterationRuntime, TrustedDeclarationFacts,
+    IterationAssociatedType, IterationProtocol, IterationRuntime, TrustedDeclarationInputs,
 };
 use std::collections::HashMap;
 
 pub(crate) fn attach_iteration_runtime(
     modules: &HashMap<String, &AstFile>,
-    facts: &mut TrustedDeclarationFacts,
+    facts: &mut TrustedDeclarationInputs,
 ) {
     let Some(runtime) = iteration_runtime(modules) else {
         return;

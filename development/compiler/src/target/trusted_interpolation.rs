@@ -4,12 +4,12 @@ use crate::ast::{
     AstFile, FunctionDecl, InterfaceDecl, Item, MethodDecl, MethodReceiverMode, StructDecl,
     Visibility, canonical_type_expr,
 };
-use crate::semantics::{InterpolationRuntime, RuntimeCallable, TrustedDeclarationFacts};
+use crate::semantics::{InterpolationRuntime, RuntimeCallable, TrustedDeclarationInputs};
 use std::collections::HashMap;
 
 pub(crate) fn attach_interpolation_runtime(
     modules: &HashMap<String, &AstFile>,
-    facts: &mut TrustedDeclarationFacts,
+    facts: &mut TrustedDeclarationInputs,
 ) {
     let Some(runtime) = interpolation_runtime(modules) else {
         return;

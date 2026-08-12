@@ -4,7 +4,7 @@ use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{ImportAccess, ImportSource};
 use crate::semantics::{
-    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationFacts,
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationInputs,
     TrustedDeclarationRole,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -26,7 +26,7 @@ pub(crate) fn analyze_text_with_trusted_allocator_capabilities(
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());
     let ast = parse_source(&sources, source);
-    let mut trusted = TrustedDeclarationFacts::default();
+    let mut trusted = TrustedDeclarationInputs::default();
     for item in &ast.items {
         let Item::Struct(struct_) = item else {
             continue;
@@ -107,7 +107,7 @@ pub(crate) fn analyze_text_with_trusted_current_allocation_operation(
             _ => None,
         })
         .expect("expected trusted allocation primitive");
-    let mut trusted = TrustedDeclarationFacts::default();
+    let mut trusted = TrustedDeclarationInputs::default();
     trusted.insert(
         declaration,
         TrustedDeclarationRole::AllocationOperation {
