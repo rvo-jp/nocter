@@ -43,7 +43,7 @@ use super::expressions::{
     PointerTakeDestination, TemporaryAllocator, lower_aggregate_member_field_access,
     lower_bool_expression_to_location, lower_bool_return_expression,
     lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
-    lower_catch_failure_mode, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_i32_expression_to_location, lower_i32_return_expression,
@@ -52,7 +52,7 @@ use super::expressions::{
     lower_str_expression_to_location, lower_str_return_expression,
     lower_take_value_at_ptr_primitive_call, lower_u8_expression_to_location,
     lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
-    lower_void_expression_statement, mark_outcome_success_returns,
+    lower_value_catch_failure_mode, lower_void_expression_statement, mark_outcome_success_returns,
     primitive_take_value_at_ptr_call, success_return_instruction,
 };
 use super::types::{

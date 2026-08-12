@@ -757,6 +757,7 @@ pub(crate) enum OutcomeFailureMode {
         code: StrLocation,
         message: StrLocation,
         instructions: Vec<Instruction>,
+        recovers: bool,
     },
 }
 

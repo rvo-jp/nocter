@@ -232,10 +232,16 @@ pub(super) fn collect_direct_borrow_expressions(
                 environment,
                 borrows,
             );
+            let catch_environment = environment_for_catch(
+                &expression.binding,
+                &expression.expression,
+                resolved,
+                environment,
+            );
             collect_direct_borrow_expressions_in_block(
                 &expression.catch_block,
                 resolved,
-                environment,
+                &catch_environment,
                 borrows,
             );
         }
@@ -480,10 +486,12 @@ pub(super) fn returned_borrow_sources(
                 active_borrows,
             );
             if let Some(result) = &catch.catch_block.result {
+                let catch_environment =
+                    environment_for_catch(&catch.binding, &catch.expression, resolved, environment);
                 sources.extend(returned_borrow_sources(
                     result,
                     resolved,
-                    environment,
+                    &catch_environment,
                     summaries,
                     active_borrows,
                 ));

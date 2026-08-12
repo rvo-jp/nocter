@@ -6,11 +6,11 @@ use super::calls::{
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     body_result_type_mismatch_diagnostic, borrow_return_escapes_diagnostic,
-    catch_block_fallthrough_diagnostic, fallible_success_error_diagnostic,
-    missing_return_diagnostic, missing_return_value_diagnostic, never_return_statement_diagnostic,
-    non_copy_struct_return_diagnostic, region_binding_escape_diagnostic,
-    region_return_escape_diagnostic, return_type_mismatch_diagnostic,
-    unexpected_body_result_diagnostic, unexpected_return_value_diagnostic,
+    fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
+    never_return_statement_diagnostic, non_copy_struct_return_diagnostic,
+    region_binding_escape_diagnostic, region_return_escape_diagnostic,
+    return_type_mismatch_diagnostic, unexpected_body_result_diagnostic,
+    unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding, environment_for_destruct,

@@ -486,13 +486,35 @@ pub(super) fn lower_aggregate_member_value_assignment(
             let Expr::Call(call) = unwrap_group(&catch.expression) else {
                 return Err(unsupported_assignment_diagnostic());
             };
-            lower_aggregate_fallible_call_member_value_assignment(
+            lower_aggregate_fallible_call_member_value_assignment_with(
                 destination,
                 destination_offset,
                 layout,
                 call,
-                lower_catch_failure_mode(catch, context, 0)?,
                 context,
+                |source, success, context| {
+                    let Some((_root_source, resolved)) = context.resolved_calls() else {
+                        return Err(unsupported_assignment_diagnostic());
+                    };
+                    let function_name = context.function_name().to_string();
+                    lower_value_catch_failure_mode(
+                        catch,
+                        context,
+                        0,
+                        None,
+                        |result, context| {
+                            lower_aggregate_return_expression_to_location(
+                                result,
+                                success,
+                                source,
+                                &function_name,
+                                resolved,
+                                context,
+                            )
+                        },
+                        "native lowering can only lower aggregate `catch` fallback blocks that produce a matching aggregate value or exit",
+                    )
+                },
             )
         }
         Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
@@ -637,6 +659,31 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_member_value_assignment_with(
+        destination,
+        destination_offset,
+        layout,
+        call,
+        context,
+        |_, _, _| Ok(failure_mode),
+    )
+}
+
+fn lower_aggregate_fallible_call_member_value_assignment_with<F>(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    call: &CallExpr,
+    context: &LoweringContext,
+    failure_mode_for: F,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>>
+where
+    F: FnOnce(
+        AggregateLocation,
+        &Type,
+        &LoweringContext,
+    ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>,
+{
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -655,6 +702,8 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
 
     let mut temporaries = TemporaryAllocator::new(context)?;
     let source_slot = temporaries.next_aggregate_slot();
+    let source = AggregateLocation::Slot(source_slot);
+    let failure_mode = failure_mode_for(source, success, context)?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index: source_slot,
         layout,
@@ -671,7 +720,7 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success,
-        AggregateLocation::Slot(source_slot),
+        source,
         target,
         arguments,
         layout,
@@ -680,7 +729,7 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     instructions.push(Instruction::CopyAggregateRange {
         destination,
         destination_offset,
-        source: AggregateLocation::Slot(source_slot),
+        source,
         source_offset: 0,
         layout,
     });

@@ -153,10 +153,15 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
                     &catch.expression,
                     temporary,
                     context,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         i32_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_i32_expression_to_location(result, temporary, context)
+                        },
+                        "native lowering can only lower i32 `catch` fallback blocks that produce an i32 value or exit",
                     )?,
                 )?,
                 value: I32Value::Location(temporary),
@@ -335,10 +340,15 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
                     &catch.expression,
                     temporary,
                     context,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         u8_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_u8_expression_to_location(result, temporary, context)
+                        },
+                        "native lowering can only lower u8 `catch` fallback blocks that produce a u8 value or exit",
                     )?,
                 )?,
                 value: U8Value::Location(temporary),
@@ -784,10 +794,15 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     &catch.expression,
                     temporary,
                     context,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         usize_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_usize_expression_to_location(result, temporary, context)
+                        },
+                        "native lowering can only lower integer `catch` fallback blocks that produce a matching value or exit",
                     )?,
                 )?,
                 value: UsizeValue::Location(temporary),

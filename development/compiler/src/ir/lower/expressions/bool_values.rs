@@ -187,10 +187,15 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 bool_destination_reserved_abi_words(destination),
+                None,
+                |result, context| {
+                    lower_bool_expression_to_location(result, destination, context, diagnostic_code)
+                },
+                "native lowering can only lower bool `catch` fallback blocks that produce a bool value or exit",
             )?,
         ),
         Expr::Otherwise(_) => {
@@ -435,10 +440,20 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         bool_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_bool_expression_to_location(
+                                result,
+                                temporary,
+                                context,
+                                diagnostic_code,
+                            )
+                        },
+                        "native lowering can only lower bool `catch` fallback blocks that produce a bool value or exit",
                     )?,
                 )?,
                 value: BoolValue::Location(temporary),

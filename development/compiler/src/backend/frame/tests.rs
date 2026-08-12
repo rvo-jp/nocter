@@ -259,6 +259,7 @@ fn deduplicates_aggregate_slot_requests_from_nested_control_flow() {
                         slot_index: 1,
                         layout: ValueLayout::new(16, 16),
                     }],
+                    recovers: false,
                 },
             },
             Instruction::Return,

@@ -52,13 +52,32 @@ fn borrow_return_provenance_for_expression_unfiltered(
             borrow_provenance,
             summaries,
         ),
-        Expr::Catch(expression) => borrow_return_success_provenance_for_expression(
-            &expression.expression,
-            resolved,
-            environment,
-            borrow_provenance,
-            summaries,
-        ),
+        Expr::Catch(expression) => {
+            let mut provenance = borrow_return_success_provenance_for_expression(
+                &expression.expression,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            let catch_environment = environment_for_catch(
+                &expression.binding,
+                &expression.expression,
+                resolved,
+                environment,
+            );
+            merge_provenance(
+                &mut provenance,
+                borrow_return_provenance_for_block_result(
+                    &expression.catch_block,
+                    resolved,
+                    &catch_environment,
+                    borrow_provenance,
+                    summaries,
+                ),
+            );
+            provenance
+        }
         Expr::TypedSequenceLiteral(literal) => borrow_return_provenance_for_typed_literal(
             literal.span,
             literal.using.as_ref(),

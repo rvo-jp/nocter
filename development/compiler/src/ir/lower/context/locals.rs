@@ -184,6 +184,21 @@ impl<'a> LoweringContext<'a> {
         Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
     }
 
+    pub(in crate::ir::lower) fn error_local_locations(
+        &self,
+        name: &str,
+    ) -> Option<(StrLocation, StrLocation)> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::Error)
+            .map(|local| {
+                (
+                    StrLocation::Local(local.index),
+                    StrLocation::Local(local.index + 2),
+                )
+            })
+    }
+
     pub(in crate::ir::lower) fn i32_location(&self, name: &str) -> Option<I32Location> {
         self.locals
             .iter()

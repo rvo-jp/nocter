@@ -1025,25 +1025,24 @@ func recover_right(): i32 {
 
 func recover_byte(): i32 {
     let value: u8 = fail_byte() catch failure {
-        return 10
+        10
     }
     return value as i32
 }
 
 func recover_size(): i32 {
     let value: usize = fail_size() catch failure {
+        11
+    }
+    if value == 11 {
         return 11
     }
-    if value == 0 {
-        return 0
-    } else {
-        return 1
-    }
+    return 0
 }
 
 func recover_bool(): i32 {
     let value: bool = fail_flag() catch failure {
-        return 12
+        false
     }
     if value {
         return 0
@@ -1054,14 +1053,13 @@ func recover_bool(): i32 {
 
 func recover_str(): i32 {
     let value: &str = fail_text() catch failure {
-        return 13
+        failure.message
     }
     return 1
 }
 
 func recover_void(): i32 {
     fail_effect() catch failure {
-        return 14
     }
     return 1
 }
@@ -1096,7 +1094,75 @@ func fail_effect(): void! {
     assert_diagnostics_empty(&output.diagnostics);
     assert_eq!(output.output_path, executable);
     let output = std::process::Command::new(&executable).output().unwrap();
-    assert_eq!(output.status.code(), Some(60));
+    assert_eq!(output.status.code(), Some(24));
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn build_file_output_runs_aggregate_value_catch_recovery() {
+    let root = make_temp_project("build-run-aggregate-value-catch-recovery");
+    let nocter_home = make_nocter_home(&root);
+    write_std_error(&nocter_home);
+    let source = root.join("aggregate_value_catch_recovery.nct");
+    crate::test_files::write(
+        &source,
+        r#"struct Pair {
+    left: i32
+    right: i32
+}
+
+struct Wrapper {
+    pair: Pair
+}
+
+func main(): i32 {
+    let pair = fail_pair() catch _ {
+        Pair { left: 19, right: 23 }
+    }
+    let direct = (fail_pair() catch _ {
+        Pair { left: 17, right: 25 }
+    }).right
+    let consumed = consume(fail_pair() catch _ {
+        Pair { left: 18, right: 24 }
+    })
+    let wrapper = Wrapper {
+        pair: fail_pair() catch _ {
+            Pair { left: 20, right: 22 }
+        },
+    }
+    let stored: Pair! = fail_pair()
+    let recovered = stored catch _ {
+        Pair { left: 21, right: 21 }
+    }
+    if pair.left + pair.right != 42 { return 1 }
+    if direct != 25 { return 2 }
+    if consumed != 42 { return 3 }
+    if wrapper.pair.left + wrapper.pair.right != 42 { return 4 }
+    if recovered.left + recovered.right != 42 { return 5 }
+    return 42
+}
+
+func consume(pair: Pair): i32 {
+    return pair.left + pair.right
+}
+
+func fail_pair(): Pair! {
+    return error.new("app.pair", "pair failed")
+}
+"#,
+    )
+    .unwrap();
+
+    let executable = default_executable_path(&source);
+    let output =
+        build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+    assert_diagnostics_empty(&output.diagnostics);
+    assert_eq!(output.output_path, executable);
+    let output = std::process::Command::new(&executable).output().unwrap();
+    assert_eq!(output.status.code(), Some(42));
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
 }

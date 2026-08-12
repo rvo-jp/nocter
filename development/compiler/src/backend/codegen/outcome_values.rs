@@ -348,6 +348,7 @@ impl EntryEmitter {
                 code,
                 message,
                 instructions,
+                ..
             } => {
                 self.emit_x_pair_to_str_location(XReg::X1, XReg::X2, *code)?;
                 self.emit_x_pair_to_str_location(XReg::X3, XReg::X4, *message)?;

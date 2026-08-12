@@ -1563,7 +1563,7 @@ func take(text: Text): i32 {
 }
 
 #[test]
-fn diagnoses_maybe_uninitialized_after_catch_fallthrough_moves() {
+fn diagnoses_maybe_uninitialized_after_value_producing_catch_moves() {
     let diagnostics = check_text(
         r#"struct Text {
     start: i32
@@ -1575,6 +1575,7 @@ func main(): i32 {
     let text = Text { start: 1, len: 42, capacity: 3 }
     let value = fallible() catch error {
         let moved = take(move text)
+        moved
     }
     return text.len + value
 }
@@ -1589,18 +1590,12 @@ func take(text: Text): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert!(
         diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "E0385"
                 && diagnostic.message.contains("may be uninitialized")),
-        "{diagnostics:?}"
-    );
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0337" && diagnostic.message.contains("catch")),
         "{diagnostics:?}"
     );
 }

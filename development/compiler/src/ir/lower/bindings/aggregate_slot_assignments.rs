@@ -433,12 +433,34 @@ pub(super) fn lower_aggregate_assignment_to_slot(
             let Expr::Call(call) = unwrap_group(&catch.expression) else {
                 return Err(unsupported_assignment_diagnostic());
             };
-            lower_aggregate_fallible_call_assignment(
+            lower_aggregate_fallible_call_assignment_with(
                 slot_index,
                 layout,
                 call,
-                lower_catch_failure_mode(catch, context, 0)?,
                 context,
+                |destination, success, context| {
+                    let Some((_root_source, resolved)) = context.resolved_calls() else {
+                        return Err(unsupported_assignment_diagnostic());
+                    };
+                    let function_name = context.function_name().to_string();
+                    lower_value_catch_failure_mode(
+                        catch,
+                        context,
+                        0,
+                        None,
+                        |result, context| {
+                            lower_aggregate_return_expression_to_location(
+                                result,
+                                success,
+                                destination,
+                                &function_name,
+                                resolved,
+                                context,
+                            )
+                        },
+                        "native lowering can only lower aggregate `catch` fallback blocks that produce a matching aggregate value or exit",
+                    )
+                },
             )
         }
         Expr::Otherwise(otherwise) => {
@@ -701,6 +723,25 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
     failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_assignment_with(slot_index, layout, call, context, |_, _, _| {
+        Ok(failure_mode)
+    })
+}
+
+fn lower_aggregate_fallible_call_assignment_with<F>(
+    slot_index: usize,
+    layout: ValueLayout,
+    call: &CallExpr,
+    context: &LoweringContext,
+    failure_mode_for: F,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>>
+where
+    F: FnOnce(
+        AggregateLocation,
+        &Type,
+        &LoweringContext,
+    ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>,
+{
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -718,12 +759,14 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
         return Err(unsupported_assignment_diagnostic());
     }
 
+    let destination = AggregateLocation::Slot(slot_index);
+    let failure_mode = failure_mode_for(destination, success, context)?;
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success,
-        AggregateLocation::Slot(slot_index),
+        destination,
         target,
         arguments,
         layout,

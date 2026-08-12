@@ -104,6 +104,15 @@ pub(in crate::ir::lower) fn lower_aggregate_member_field_access(
                 failure_mode,
             )
         }
+        AggregateMemberRoot::CatchCall(call, catch) => {
+            lower_aggregate_catch_call_member_field_access(
+                call,
+                catch,
+                &access.field_path,
+                context,
+                temporaries,
+            )
+        }
         AggregateMemberRoot::OptionalCall(otherwise) => {
             lower_aggregate_optional_otherwise_member_field_access(
                 otherwise,
@@ -132,6 +141,9 @@ pub(in crate::ir::lower) fn aggregate_member_field_kind_from_member(
             aggregate_call_member_field_kind(call, &field_path, context)
         }
         AggregateMemberRoot::FallibleCall(call, _) => {
+            aggregate_outcome_call_member_field_kind(call, &field_path, context)
+        }
+        AggregateMemberRoot::CatchCall(call, _) => {
             aggregate_outcome_call_member_field_kind(call, &field_path, context)
         }
         AggregateMemberRoot::OptionalCall(otherwise) => {

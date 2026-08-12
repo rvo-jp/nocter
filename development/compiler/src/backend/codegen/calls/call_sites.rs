@@ -445,8 +445,11 @@ impl EntryEmitter {
         &mut self,
         failure_mode: &OutcomeFailureMode,
     ) -> Option<BranchPatch> {
-        matches!(failure_mode, OutcomeFailureMode::Recover { .. })
-            .then(|| self.emit_branch_placeholder())
+        matches!(
+            failure_mode,
+            OutcomeFailureMode::Recover { .. } | OutcomeFailureMode::Catch { recovers: true, .. }
+        )
+        .then(|| self.emit_branch_placeholder())
     }
 
     pub(in crate::backend::codegen) fn patch_recover_done_branch(

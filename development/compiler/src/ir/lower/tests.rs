@@ -338,6 +338,7 @@ fn assert_contains_fallible_direct_aggregate_catch_call(
                 code,
                 message,
                 instructions,
+                ..
             },
     }) = function.instructions.iter().find(|instruction| {
         matches!(

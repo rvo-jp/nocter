@@ -491,6 +491,7 @@ func answer(): i32! {
                 code,
                 message,
                 instructions,
+                ..
             },
         ..
     }) = main

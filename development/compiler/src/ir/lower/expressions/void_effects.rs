@@ -89,11 +89,17 @@ pub(in crate::ir::lower) fn lower_void_expression_statement(
         Expr::Catch(catch) => lower_fallible_void_expression_statement(
             &catch.expression,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 discarded_fallible_statement_reserved_abi_words(&catch.expression, context)
                     .unwrap_or(0),
+                None,
+                |result, context| {
+                    lower_void_expression_statement(result, context)?
+                        .ok_or_else(unsupported_catch_block_diagnostic)
+                },
+                "native lowering can only lower void `catch` fallback blocks that produce void or exit",
             )?,
         ),
         Expr::StructLiteral(literal) => {
@@ -121,7 +127,56 @@ pub(in crate::ir::lower) fn lower_catch_failure_mode(
             code,
             message,
             instructions,
+            recovers: false,
         },
+        None => OutcomeFailureMode::Handle { instructions },
+    })
+}
+
+pub(in crate::ir::lower) fn lower_value_catch_failure_mode<F>(
+    catch: &CatchExpr,
+    context: &LoweringContext,
+    reserved_abi_words: usize,
+    loop_control: Option<LoopControlContext<'_>>,
+    lower_result: F,
+    unsupported_message: &'static str,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+{
+    let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
+    let destinations = catch
+        .binding
+        .name()
+        .map(|name| catch_context.define_error_local(name.to_string()))
+        .transpose()?;
+    let handler = if catch.catch_block.result.is_none() && catch.catch_block.statements.is_empty() {
+        OutcomeFailureMode::Recover {
+            instructions: Vec::new(),
+        }
+    } else {
+        lower_otherwise_recover_or_handle_failure_mode(
+            &catch.catch_block,
+            &catch_context,
+            loop_control,
+            lower_result,
+            unsupported_message,
+        )?
+    };
+    let (instructions, recovers) = match handler {
+        OutcomeFailureMode::Handle { instructions } => (instructions, false),
+        OutcomeFailureMode::Recover { instructions } => (instructions, true),
+        _ => unreachable!("value fallback lowering produces handle or recover mode"),
+    };
+
+    Ok(match destinations {
+        Some((code, message)) => OutcomeFailureMode::Catch {
+            code,
+            message,
+            instructions,
+            recovers,
+        },
+        None if recovers => OutcomeFailureMode::Recover { instructions },
         None => OutcomeFailureMode::Handle { instructions },
     })
 }

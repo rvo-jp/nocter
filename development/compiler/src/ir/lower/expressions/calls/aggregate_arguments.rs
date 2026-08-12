@@ -719,13 +719,37 @@ pub(super) fn lower_aggregate_argument_source(
                     parameter_type,
                 ));
             };
-            lower_aggregate_fallible_call_argument_source(
+            lower_aggregate_fallible_call_argument_source_with(
                 call,
                 parameter_type,
                 callee_name,
                 context,
                 temporaries,
-                lower_catch_failure_mode(catch, context, 0)?,
+                |destination, success_type, context| {
+                    let Some((_root_source, resolved)) = context.resolved_calls() else {
+                        return Err(unsupported_aggregate_argument_diagnostic(
+                            callee_name,
+                            parameter_type,
+                        ));
+                    };
+                    lower_value_catch_failure_mode(
+                        catch,
+                        context,
+                        0,
+                        None,
+                        |result, context| {
+                            lower_aggregate_return_expression_to_location(
+                                result,
+                                success_type,
+                                destination,
+                                context.function_name(),
+                                resolved,
+                                context,
+                            )
+                        },
+                        "native lowering can only lower aggregate `catch` arguments whose fallback produces the parameter type or exits",
+                    )
+                },
             )
         }
         Expr::Otherwise(otherwise) => {
@@ -1014,6 +1038,31 @@ fn lower_aggregate_fallible_call_argument_source(
     temporaries: &mut TemporaryAllocator,
     failure_mode: OutcomeFailureMode,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_argument_source_with(
+        call,
+        parameter_type,
+        callee_name,
+        context,
+        temporaries,
+        |_, _, _| Ok(failure_mode),
+    )
+}
+
+fn lower_aggregate_fallible_call_argument_source_with<F>(
+    call: &CallExpr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode_for: F,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>>
+where
+    F: FnOnce(
+        AggregateLocation,
+        &Type,
+        &LoweringContext,
+    ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>,
+{
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
@@ -1042,6 +1091,8 @@ fn lower_aggregate_fallible_call_argument_source(
         ));
     };
     let slot_index = temporaries.next_aggregate_slot();
+    let destination = AggregateLocation::Slot(slot_index);
+    let failure_mode = failure_mode_for(destination, success_type, context)?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (call_instructions, arguments) =
         lower_call_arguments(call, &target, &call_name, context, temporaries)?;
@@ -1049,7 +1100,7 @@ fn lower_aggregate_fallible_call_argument_source(
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success_type,
-        AggregateLocation::Slot(slot_index),
+        destination,
         target,
         arguments,
         layout,

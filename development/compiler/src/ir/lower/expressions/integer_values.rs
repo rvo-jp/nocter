@@ -49,10 +49,13 @@ pub(in crate::ir::lower) fn lower_i32_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 i32_destination_reserved_abi_words(destination),
+                None,
+                |result, context| lower_i32_expression_to_location(result, destination, context),
+                "native lowering can only lower i32 `catch` fallback blocks that produce an i32 value or exit",
             )?,
         ),
         Expr::Otherwise(_) => {
@@ -163,10 +166,13 @@ pub(in crate::ir::lower) fn lower_u8_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 u8_destination_reserved_abi_words(destination),
+                None,
+                |result, context| lower_u8_expression_to_location(result, destination, context),
+                "native lowering can only lower u8 `catch` fallback blocks that produce a u8 value or exit",
             )?,
         ),
         Expr::Otherwise(_) => {
@@ -341,10 +347,13 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 usize_destination_reserved_abi_words(destination),
+                None,
+                |result, context| lower_usize_expression_to_location(result, destination, context),
+                "native lowering can only lower integer `catch` fallback blocks that produce a matching value or exit",
             )?,
         ),
         Expr::Otherwise(_) => {

@@ -104,6 +104,7 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
                 borrow_provenance,
                 summaries,
             );
+            let success_borrow_provenance = borrow_provenance.clone();
             let mut catch_environment = environment_for_catch(
                 &expression.binding,
                 &expression.expression,
@@ -121,16 +122,15 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
                 &mut catch_borrow_provenance,
                 summaries,
             );
+            let mut incoming = vec![success_borrow_provenance];
             if !block_guarantees_control_exit_or_never(
                 &expression.catch_block,
                 resolved,
                 &catch_environment,
             ) {
-                diagnostics.push(catch_block_fallthrough_diagnostic(
-                    sources,
-                    &expression.catch_block,
-                ));
+                incoming.push(catch_borrow_provenance);
             }
+            borrow_provenance.join_reachable(&incoming);
         }
         Expr::Force(expression) => {
             check_expression_for_nested_returns(

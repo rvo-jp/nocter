@@ -120,7 +120,7 @@ pub(super) fn lower_enum_field_value_to_location(
                     subject,
                 ));
             };
-            lower_aggregate_fallible_call_field_value_to_location(
+            lower_aggregate_fallible_call_field_value_to_location_with(
                 call,
                 expected_layout,
                 destination,
@@ -129,7 +129,31 @@ pub(super) fn lower_enum_field_value_to_location(
                 subject,
                 context,
                 temporaries,
-                lower_catch_failure_mode(catch, context, 0)?,
+                |source, success_type, context| {
+                    let Some((_root_source, resolved)) = context.resolved_calls() else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_value_catch_failure_mode(
+                        catch,
+                        context,
+                        0,
+                        None,
+                        |result, context| {
+                            lower_aggregate_return_expression_to_location(
+                                result,
+                                success_type,
+                                source,
+                                context.function_name(),
+                                resolved,
+                                context,
+                            )
+                        },
+                        "enum payload `catch` fallback must produce the payload type or exit",
+                    )
+                },
             )
         }
         Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(

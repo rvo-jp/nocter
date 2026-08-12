@@ -391,7 +391,7 @@ pub(super) fn lower_aggregate_field_to_location(
                             subject,
                         ));
                     };
-                    lower_aggregate_fallible_call_field_value_to_location(
+                    lower_aggregate_fallible_call_field_value_to_location_with(
                         call,
                         expected_layout,
                         destination,
@@ -400,7 +400,31 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        lower_catch_failure_mode(catch, context, 0)?,
+                        |source, success_type, context| {
+                            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                                    diagnostic_code,
+                                    subject,
+                                ));
+                            };
+                            lower_value_catch_failure_mode(
+                                catch,
+                                context,
+                                0,
+                                None,
+                                |result, context| {
+                                    lower_aggregate_return_expression_to_location(
+                                        result,
+                                        success_type,
+                                        source,
+                                        context.function_name(),
+                                        resolved,
+                                        context,
+                                    )
+                                },
+                                "aggregate field `catch` fallback must produce the field type or exit",
+                            )
+                        },
                     )
                 }
                 Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
@@ -584,7 +608,7 @@ pub(super) fn lower_aggregate_field_to_location(
                             subject,
                         ));
                     };
-                    lower_aggregate_fallible_call_field_value_to_location(
+                    lower_aggregate_fallible_call_field_value_to_location_with(
                         call,
                         expected_layout,
                         destination,
@@ -593,7 +617,31 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        lower_catch_failure_mode(catch, context, 0)?,
+                        |source, success_type, context| {
+                            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                                    diagnostic_code,
+                                    subject,
+                                ));
+                            };
+                            lower_value_catch_failure_mode(
+                                catch,
+                                context,
+                                0,
+                                None,
+                                |result, context| {
+                                    lower_aggregate_return_expression_to_location(
+                                        result,
+                                        success_type,
+                                        source,
+                                        context.function_name(),
+                                        resolved,
+                                        context,
+                                    )
+                                },
+                                "aggregate field `catch` fallback must produce the field type or exit",
+                            )
+                        },
                     )
                 }
                 Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
@@ -1019,6 +1067,37 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     temporaries: &mut TemporaryAllocator,
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_field_value_to_location_with(
+        call,
+        expected_layout,
+        destination,
+        destination_offset,
+        diagnostic_code,
+        subject,
+        context,
+        temporaries,
+        |_, _, _| Ok(failure_mode),
+    )
+}
+
+pub(super) fn lower_aggregate_fallible_call_field_value_to_location_with<F>(
+    call: &CallExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    destination_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode_for: F,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>>
+where
+    F: FnOnce(
+        AggregateLocation,
+        &Type,
+        &LoweringContext,
+    ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>,
+{
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
@@ -1048,6 +1127,8 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     }
 
     let source_slot = temporaries.next_aggregate_slot();
+    let source = AggregateLocation::Slot(source_slot);
+    let failure_mode = failure_mode_for(source, success_type, context)?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index: source_slot,
         layout,
@@ -1064,7 +1145,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success_type,
-        AggregateLocation::Slot(source_slot),
+        source,
         target,
         arguments,
         layout,
@@ -1073,7 +1154,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     instructions.push(Instruction::CopyAggregateRange {
         destination,
         destination_offset,
-        source: AggregateLocation::Slot(source_slot),
+        source,
         source_offset: 0,
         layout,
     });

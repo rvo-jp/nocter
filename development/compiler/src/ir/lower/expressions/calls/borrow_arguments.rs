@@ -222,10 +222,21 @@ pub(in crate::ir::lower) fn lower_borrow_source_from_expression_without_coercion
                 ));
             };
             let destination = temporaries.next_usize()?;
-            let failure_mode = lower_catch_failure_mode(
+            let failure_mode = lower_value_catch_failure_mode(
                 catch,
                 context,
                 usize_destination_reserved_abi_words(destination),
+                None,
+                |result, context| {
+                    let Some(borrow_type) = context.expression_ir_type(result) else {
+                        return Err(unsupported_borrow_argument_diagnostic(
+                            callee_name,
+                            parameter_type,
+                        ));
+                    };
+                    lower_borrow_expression_to_location(result, destination, &borrow_type, context)
+                },
+                "native lowering can only lower borrow `catch` arguments whose fallback produces a matching borrow or exits",
             )?;
             let instructions = lower_fallible_borrow_normal_call(
                 call,

@@ -173,6 +173,7 @@ pub(super) enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
     FallibleCall(&'a CallExpr, OutcomeFailureMode),
+    CatchCall(&'a CallExpr, &'a CatchExpr),
     OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
@@ -229,10 +230,7 @@ pub(super) fn aggregate_member_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberRoot::FallibleCall(
-                    call,
-                    lower_catch_failure_mode(catch, context, 0)?,
-                ),
+                AggregateMemberRoot::CatchCall(call, catch),
                 Vec::new(),
             )))
         }
@@ -482,6 +480,66 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
     temporaries: &mut TemporaryAllocator,
     failure_mode: OutcomeFailureMode,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_member_field_access_with(
+        call,
+        member_name,
+        context,
+        temporaries,
+        |_, _, _| Ok(failure_mode),
+    )
+}
+
+pub(super) fn lower_aggregate_catch_call_member_field_access(
+    call: &CallExpr,
+    catch: &CatchExpr,
+    member_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    lower_aggregate_fallible_call_member_field_access_with(
+        call,
+        member_name,
+        context,
+        temporaries,
+        |destination, success_type, context| {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_aggregate_member_field_access_diagnostic());
+            };
+            lower_value_catch_failure_mode(
+                catch,
+                context,
+                0,
+                None,
+                |result, context| {
+                    lower_aggregate_return_expression_to_location(
+                        result,
+                        success_type,
+                        destination,
+                        context.function_name(),
+                        resolved,
+                        context,
+                    )
+                },
+                "aggregate member `catch` fallback must produce the aggregate success type or exit",
+            )
+        },
+    )
+}
+
+fn lower_aggregate_fallible_call_member_field_access_with<F>(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode_for: F,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>>
+where
+    F: FnOnce(
+        AggregateLocation,
+        &Type,
+        &LoweringContext,
+    ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>,
+{
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
@@ -502,6 +560,8 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
     };
 
     let slot_index = temporaries.next_aggregate_slot();
+    let destination = AggregateLocation::Slot(slot_index);
+    let failure_mode = failure_mode_for(destination, success_type, context)?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
         lower_call_arguments(call, &target, &call_name, context, temporaries)?;
@@ -509,7 +569,7 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success_type,
-        AggregateLocation::Slot(slot_index),
+        destination,
         target,
         arguments,
         layout,
@@ -518,7 +578,7 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
 
     Ok(Some(LoweredAggregateFieldAccess {
         instructions,
-        source: AggregateLocation::Slot(slot_index),
+        source: destination,
         offset: field.offset,
         kind: field.kind,
         is_readwrite: false,

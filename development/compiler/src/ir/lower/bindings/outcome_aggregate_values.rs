@@ -114,12 +114,27 @@ pub(super) fn lower_stored_outcome_aggregate_binding(
             copy,
             propagating_outcome_mode_for_layer(layer.layer, context)?,
         )?,
-        StoredAggregateConsumer::Catch(catch) => stored_fallible_aggregate_check(
-            &local,
-            layer,
-            copy,
-            lower_catch_failure_mode(catch, context, 0)?,
-        )?,
+        StoredAggregateConsumer::Catch(catch) => {
+            let destination = AggregateLocation::Slot(destination_slot);
+            let failure_mode = lower_value_catch_failure_mode(
+                catch,
+                context,
+                0,
+                None,
+                |expression, fallback_context| {
+                    lower_aggregate_return_expression_to_location(
+                        expression,
+                        &local.payload_type,
+                        destination,
+                        fallback_context.function_name(),
+                        resolved,
+                        fallback_context,
+                    )
+                },
+                "stored aggregate `catch` fallback must produce the payload type or exit",
+            )?;
+            stored_fallible_aggregate_check(&local, layer, copy, failure_mode)?
+        }
         StoredAggregateConsumer::Otherwise(fallback) => {
             let failure = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,

@@ -903,6 +903,7 @@ pub(super) fn record_failure_mode_scalar_locals(
             code,
             message,
             instructions,
+            ..
         } => {
             record_str_location(*code, highest_local_index);
             record_str_location(*message, highest_local_index);

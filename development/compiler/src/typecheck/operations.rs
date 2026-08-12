@@ -2,15 +2,18 @@ use super::arrays::array_length_matches;
 use super::calls::{infer_generic_substitutions, resolved_call_signature};
 use super::copyability::non_copy_owned_type_kind;
 use super::diagnostics::{
-    arithmetic_operand_type_mismatch_diagnostic, equality_operand_type_mismatch_diagnostic,
-    logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
-    move_operand_must_be_binding_diagnostic, move_operand_not_move_only_diagnostic,
-    negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
+    arithmetic_operand_type_mismatch_diagnostic, catch_fallback_type_mismatch_diagnostic,
+    equality_operand_type_mismatch_diagnostic, logical_not_operand_type_mismatch_diagnostic,
+    logical_operand_type_mismatch_diagnostic, move_operand_must_be_binding_diagnostic,
+    move_operand_not_move_only_diagnostic, negative_shift_count_diagnostic,
+    numeric_negate_operand_type_mismatch_diagnostic,
     ordered_comparison_operand_type_mismatch_diagnostic,
     otherwise_fallback_type_mismatch_diagnostic, otherwise_non_optional_diagnostic,
     shift_operand_type_mismatch_diagnostic, type_conversion_not_supported_diagnostic,
 };
-use super::environments::{environment_for_if_is_binding, environment_for_switch_arm};
+use super::environments::{
+    environment_for_catch, environment_for_if_is_binding, environment_for_switch_arm,
+};
 use super::expressions::{block_result_environment, block_result_type, expression_type};
 use super::model::{Type, TypeEnvironment, same_known_type};
 use super::numeric::{
@@ -27,8 +30,8 @@ use super::variants::{
     types_are_same_payloadless_enum,
 };
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OtherwiseExpr, TypeConversionExpr,
-    UnaryExpr, UnaryOperator,
+    AssignmentOperator, BinaryExpr, BinaryOperator, CatchExpr, Expr, OtherwiseExpr,
+    TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -266,6 +269,48 @@ pub(super) fn check_otherwise_expression(
             sources,
             expression,
             &payload_type,
+            &fallback_type,
+        ));
+    }
+}
+
+pub(super) fn check_catch_expression(
+    sources: &SourceMap,
+    expression: &CatchExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let value_type = expression_type(&expression.expression, resolved, environment);
+    let Type::Fallible {
+        success: success_type,
+        ..
+    } = value_type
+    else {
+        return;
+    };
+
+    let catch_environment = environment_for_catch(
+        &expression.binding,
+        &expression.expression,
+        resolved,
+        environment,
+    );
+    let fallback_type = block_result_type(&expression.catch_block, resolved, &catch_environment);
+    if fallback_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    if !block_result_is_assignable(
+        &success_type,
+        &expression.catch_block,
+        resolved,
+        &catch_environment,
+    ) {
+        diagnostics.push(catch_fallback_type_mismatch_diagnostic(
+            sources,
+            &expression.catch_block,
+            &success_type,
             &fallback_type,
         ));
     }

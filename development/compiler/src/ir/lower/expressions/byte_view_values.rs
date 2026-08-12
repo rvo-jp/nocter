@@ -5,6 +5,12 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(source) = error_member_str_location(expression, context) {
+        return Ok(vec![Instruction::SetStr {
+            destination,
+            value: StrValue::Location(source),
+        }]);
+    }
     let mut coercion_temporaries = TemporaryAllocator::new(context)?;
     if let Some(lowered) =
         lower_str_coercion_to_location(expression, destination, context, &mut coercion_temporaries)
@@ -58,10 +64,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 str_destination_reserved_abi_words(destination),
+                None,
+                |result, context| lower_str_expression_to_location(result, destination, context),
+                "native lowering can only lower &str `catch` fallback blocks that produce &str or exit",
             )?,
         ),
         Expr::Otherwise(_) => {
@@ -148,10 +157,13 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 slice_destination_reserved_abi_words(destination),
+                None,
+                |result, context| lower_slice_expression_to_location(result, destination, context),
+                "native lowering can only lower slice `catch` fallback blocks that produce a matching slice or exit",
             )?,
         ),
         Expr::Otherwise(_) => {
@@ -194,6 +206,12 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    if let Some(source) = error_member_str_location(expression, context) {
+        return Ok(LoweredStrValue {
+            instructions: Vec::new(),
+            value: StrValue::Location(source),
+        });
+    }
     if context.coercion_plan(expression.span()).is_some() {
         let temporary = temporaries.next_str()?;
         return Ok(LoweredStrValue {
@@ -280,10 +298,15 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     &catch.expression,
                     temporary,
                     context,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         str_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_str_expression_to_location(result, temporary, context)
+                        },
+                        "native lowering can only lower &str `catch` fallback blocks that produce &str or exit",
                     )?,
                 )?,
                 value: StrValue::Location(temporary),
@@ -325,6 +348,21 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
             instructions: Vec::new(),
             value: lower_str_value(expression, context)?,
         }),
+    }
+}
+
+fn error_member_str_location(expression: &Expr, context: &LoweringContext) -> Option<StrLocation> {
+    let Expr::Member(member) = unwrap_group(expression) else {
+        return None;
+    };
+    let Expr::Identifier(identifier) = unwrap_group(&member.object) else {
+        return None;
+    };
+    let (code, message) = context.error_local_locations(&identifier.name)?;
+    match member.member.as_str() {
+        "code" => Some(code),
+        "message" => Some(message),
+        _ => None,
     }
 }
 
@@ -406,10 +444,15 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
                     &catch.expression,
                     temporary,
                     context,
-                    lower_catch_failure_mode(
+                    lower_value_catch_failure_mode(
                         catch,
                         context,
                         slice_destination_reserved_abi_words(temporary),
+                        None,
+                        |result, context| {
+                            lower_slice_expression_to_location(result, temporary, context)
+                        },
+                        "native lowering can only lower slice `catch` fallback blocks that produce a matching slice or exit",
                     )?,
                 )?,
                 value: SliceValue::Location(temporary),

@@ -292,6 +292,7 @@ fn rejects_fallible_only_failure_mode_for_optional_call() {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(1),
                     instructions: vec![Instruction::Trap],
+                    recovers: false,
                 },
             }],
         },

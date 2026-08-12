@@ -1,5 +1,5 @@
 use super::{
-    Block, ByteSpan, Diagnostic, ReturnContext, SourceMap, Type, add_declared_return_note,
+    Block, ByteSpan, Diagnostic, Expr, ReturnContext, SourceMap, Type, add_declared_return_note,
 };
 
 pub(in crate::typecheck) fn propagation_on_non_propagatable_diagnostic(
@@ -37,19 +37,28 @@ pub(in crate::typecheck) fn catch_on_non_fallible_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn catch_block_fallthrough_diagnostic(
+pub(in crate::typecheck) fn catch_fallback_type_mismatch_diagnostic(
     sources: &SourceMap,
     block: &Block,
+    expected: &Type,
+    actual: &Type,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0337",
-        "`catch` block may reach the end without leaving the current control path",
+        format!(
+            "`catch` fallback has type `{}`, but the fallible success value has type `{}`",
+            actual.display(),
+            expected.display()
+        ),
     );
-    diagnostic.primary_span = sources.span_to_json(block.span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "end the `catch` block with `return`, `break`, `continue`, or a `never` expression"
-            .to_string(),
-    );
+    diagnostic.primary_span = sources
+        .span_to_json(block.result.as_deref().map_or(block.span, Expr::span))
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(format!(
+        "produce `{}` at the end of the `catch` block or leave the current control path",
+        expected.display()
+    ));
     diagnostic
 }
 

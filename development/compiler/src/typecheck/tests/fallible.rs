@@ -298,7 +298,7 @@ func answer(): i32! {
 }
 
 #[test]
-fn diagnoses_catch_block_fallthrough() {
+fn diagnoses_catch_fallback_without_required_value() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return answer() catch error {
@@ -315,11 +315,50 @@ func answer(): i32! {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0337");
     assert!(diagnostics[0].message.contains("catch"));
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("without leaving the current control path")
+    assert!(diagnostics[0].message.contains("fallible success value"));
+    assert!(diagnostics[0].message.contains("void"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn accepts_value_producing_catch_fallback() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let recovered = answer() catch error {
+        let fallback = 41
+        fallback + 1
+    }
+    return recovered
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
     );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_incompatible_catch_fallback_value() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return answer() catch _ {
+        "wrong"
+    }
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0337");
+    assert!(diagnostics[0].message.contains("&str"));
+    assert!(diagnostics[0].message.contains("i32"));
 }
 
 #[test]

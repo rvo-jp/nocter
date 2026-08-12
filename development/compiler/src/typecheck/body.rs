@@ -30,8 +30,9 @@ use super::literals::{
 };
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
-    check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
-    check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
+    check_binary_expression, check_catch_expression, check_otherwise_expression,
+    check_type_conversion_expression, check_unary_expression, compound_assignment_operands_match,
+    is_expression_assignable,
 };
 use super::places::expression_is_writable_place;
 use super::strings::check_interpolated_string_expression;
@@ -766,6 +767,7 @@ fn check_expression_tree(
                 &mut catch_environment,
                 loop_depth,
             );
+            check_catch_expression(sources, expression, resolved, diagnostics, environment);
         }
         Expr::Borrow(expression) => {
             check_expression_tree(

@@ -98,7 +98,23 @@ pub(in crate::ir::lower) fn lower_aggregate_return_expression_to_location(
                 destination,
                 function_name,
                 context,
-                lower_catch_failure_mode(catch, context, 0)?,
+                lower_value_catch_failure_mode(
+                    catch,
+                    context,
+                    0,
+                    None,
+                    |result, context| {
+                        lower_aggregate_return_expression_to_location(
+                            result,
+                            return_type,
+                            destination,
+                            function_name,
+                            resolved,
+                            context,
+                        )
+                    },
+                    "native lowering can only lower aggregate `catch` fallback blocks that produce a matching aggregate value or exit",
+                )?,
             )
         }
         Expr::Otherwise(otherwise) => lower_aggregate_otherwise_return_to_location(

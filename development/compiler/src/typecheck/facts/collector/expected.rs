@@ -188,6 +188,18 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
+                let mut catch_environment = environment_for_catch(
+                    &expression.binding,
+                    &expression.expression,
+                    self.resolved,
+                    environment,
+                );
+                self.collect_expected_block_result_facts(
+                    &expression.catch_block,
+                    expected,
+                    &mut catch_environment,
+                    return_type,
+                );
             }
             Expr::Call(call) => {
                 self.record_expected_generic_function_call_specialization(

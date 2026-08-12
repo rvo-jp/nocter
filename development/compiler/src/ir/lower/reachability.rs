@@ -391,6 +391,7 @@ mod tests {
                         target: CallTarget::same_file("recover"),
                         arguments: vec![],
                     }],
+                    recovers: false,
                 },
             }],
         };

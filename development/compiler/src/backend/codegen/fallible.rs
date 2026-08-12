@@ -361,6 +361,7 @@ impl EntryEmitter {
                 code,
                 message,
                 instructions,
+                ..
             } => {
                 self.emit_scalar_reloads(frame)?;
                 self.emit_x_pair_to_str_location(XReg::X1, XReg::X2, *code)?;

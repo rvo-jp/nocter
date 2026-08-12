@@ -42,9 +42,9 @@ use super::expressions::{
     lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_u8_expression_to_word_with_temporaries, lower_usize_closure_capture_assignment,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
-    lower_usize_expression_to_word_with_temporaries, lower_void_expression_statement,
-    primitive_take_value_at_ptr_call, push_store_slice_view_to_aggregate_field,
-    push_store_str_view_to_aggregate_field,
+    lower_usize_expression_to_word_with_temporaries, lower_value_catch_failure_mode,
+    lower_void_expression_statement, primitive_take_value_at_ptr_call,
+    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
@@ -71,8 +71,8 @@ use crate::abi::{
     AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Block, CallExpr, Expr,
-    IndexExpr, MemberExpr, Stmt, TypeExpr, UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Block, CallExpr, CatchExpr,
+    Expr, IndexExpr, MemberExpr, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

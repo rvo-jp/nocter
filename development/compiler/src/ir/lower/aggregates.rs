@@ -6,12 +6,13 @@ use super::context::{
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_borrow_coercion_to_location_with_temporaries, lower_borrow_expression_to_location,
-    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_i32_expression_to_word, lower_integer_expression_to_value,
-    lower_macos_syscall_primitive_call_to_location, lower_slice_expression_to_value,
-    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_i32_expression_to_word,
+    lower_integer_expression_to_value, lower_macos_syscall_primitive_call_to_location,
+    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
+    lower_usize_expression_to_word, lower_value_catch_failure_mode,
     push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
+use super::functions::lower_aggregate_return_expression_to_location;
 use super::outcome_propagation::propagating_outcome_mode;
 use super::types::{
     return_type_from_type_expr_with_resolver, view_element_type_from_type_expr_with_resolver,
@@ -55,7 +56,9 @@ pub(super) use literals::*;
 pub(super) use payload_initialization::*;
 pub(super) use struct_initialization::*;
 
-use field_values::lower_aggregate_field_to_location;
+use field_values::{
+    lower_aggregate_fallible_call_field_value_to_location_with, lower_aggregate_field_to_location,
+};
 pub(super) use outcome_fields::lower_outcome_field_to_location;
 
 pub(super) fn unsupported_aggregate_struct_literal_diagnostic(

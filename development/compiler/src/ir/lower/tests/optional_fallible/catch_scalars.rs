@@ -37,6 +37,7 @@ func text(): &str! {
                             },
                             Instruction::Return,
                         ],
+                        recovers: false,
                     },
                 },
                 Instruction::SetI32 {
@@ -143,6 +144,7 @@ func answer(): i32! {
                             code: StrValue::StaticBytes(b"app.answer".to_vec()),
                             message: StrValue::Location(StrLocation::Local(3)),
                         }],
+                        recovers: false,
                     },
                 },
                 Instruction::SetI32 {
@@ -203,6 +205,7 @@ pub func print_catch(text: &str): void! {
                         code: StrValue::StaticBytes(b"app.write".to_vec()),
                         message: StrValue::Location(StrLocation::Local(2)),
                     }],
+                    recovers: false,
                 },
             },
             Instruction::ReturnOutcomeSuccess,
@@ -253,6 +256,7 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
                         code: StrValue::StaticBytes(b"app.write".to_vec()),
                         message: StrValue::Location(StrLocation::Local(2)),
                     }],
+                    recovers: false,
                 },
             },
             Instruction::ReturnOutcomeSuccess,
@@ -302,6 +306,7 @@ pub func read_count_catch(buffer: &+[u8]): usize! {
                         code: StrValue::StaticBytes(b"app.read".to_vec()),
                         message: StrValue::Location(StrLocation::Local(3)),
                     }],
+                    recovers: false,
                 },
             },
             Instruction::SetUsize {
@@ -585,6 +590,7 @@ func answer(): i32! {
                             code: StrValue::Location(StrLocation::Local(1)),
                             message: StrValue::Location(StrLocation::Local(3)),
                         }],
+                        recovers: false,
                     },
                 },
                 Instruction::SetI32 {

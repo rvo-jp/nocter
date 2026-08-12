@@ -57,10 +57,15 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
             &catch.expression,
             destination,
             context,
-            lower_catch_failure_mode(
+            lower_value_catch_failure_mode(
                 catch,
                 context,
                 usize_destination_reserved_abi_words(destination),
+                None,
+                |result, context| {
+                    lower_borrow_expression_to_location(result, destination, borrow_type, context)
+                },
+                "native lowering can only lower borrow `catch` fallback blocks that produce a matching borrow or exit",
             )?,
         );
     }
