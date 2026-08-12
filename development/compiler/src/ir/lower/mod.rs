@@ -441,9 +441,13 @@ impl<'a> FunctionIndex<'a> {
                                 } else {
                                     declaration.source
                                 };
+                                let def_id = analysis
+                                    .semantic_db
+                                    .definition_at(declaration)
+                                    .expect("indexed method must have a semantic definition");
                                 for specialization in call_specializations
                                     .methods
-                                    .get(&declaration)
+                                    .get(&def_id)
                                     .into_iter()
                                     .flatten()
                                 {
@@ -540,9 +544,13 @@ impl<'a> FunctionIndex<'a> {
                                 } else {
                                     declaration.source
                                 };
+                                let def_id = analysis
+                                    .semantic_db
+                                    .definition_at(declaration)
+                                    .expect("indexed method must have a semantic definition");
                                 for specialization in call_specializations
                                     .methods
-                                    .get(&declaration)
+                                    .get(&def_id)
                                     .into_iter()
                                     .flatten()
                                 {
@@ -616,9 +624,13 @@ impl<'a> FunctionIndex<'a> {
                             if method.body.is_none() {
                                 continue;
                             }
+                            let def_id = analysis
+                                .semantic_db
+                                .definition_at(method.name_span)
+                                .expect("interface method must have a semantic definition");
                             for specialization in call_specializations
                                 .methods
-                                .get(&method.name_span)
+                                .get(&def_id)
                                 .into_iter()
                                 .flatten()
                             {

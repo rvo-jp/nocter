@@ -542,6 +542,7 @@ pub(crate) enum TypecheckCollectionForSourceMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TypecheckProtocolMethod {
+    pub(crate) def_id: crate::semantic::DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
@@ -552,6 +553,7 @@ pub(crate) struct TypecheckProtocolMethod {
 
 impl TypecheckProtocolMethod {
     pub(crate) fn new(
+        def_id: crate::semantic::DefId,
         declaration_span: ByteSpan,
         target_name: String,
         self_ty: TypeExpr,
@@ -560,6 +562,7 @@ impl TypecheckProtocolMethod {
         free_type_parameters: HashSet<String>,
     ) -> Self {
         Self {
+            def_id,
             declaration_span,
             target_name,
             self_ty,
@@ -578,6 +581,7 @@ impl TypecheckProtocolMethod {
             return None;
         }
         Some(Self {
+            def_id: self.def_id,
             declaration_span: self.declaration_span,
             target_name: method_target_name_from_self_ty(&self_ty, &self.method_name),
             self_ty,
@@ -593,6 +597,7 @@ impl TypecheckProtocolMethod {
         substitutions: HashMap<String, TypeExpr>,
     ) -> MethodCallSpecialization {
         MethodCallSpecialization {
+            def_id: self.def_id,
             declaration_span: self.declaration_span,
             method_name: self.method_name.clone(),
             target_name: self.target_name.clone(),
@@ -905,6 +910,7 @@ impl FunctionCallSpecialization {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MethodCallSpecialization {
+    pub(crate) def_id: crate::semantic::DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(crate) method_name: String,
     pub(crate) target_name: String,
@@ -967,6 +973,7 @@ impl MethodCallSpecialization {
         let target_name = method_target_name_from_self_ty(&self_ty, &self.method_name);
 
         Some(Self {
+            def_id: self.def_id,
             declaration_span: self.declaration_span,
             method_name: self.method_name.clone(),
             target_name,

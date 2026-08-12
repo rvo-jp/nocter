@@ -115,6 +115,10 @@ pub(super) fn method_call_specialization(
     }
 
     Some(MethodCallSpecialization {
+        def_id: resolved
+            .semantic_db
+            .definition_at(method.name_span)
+            .expect("resolved method must have a semantic definition"),
         declaration_span: method.name_span,
         method_name: method.name.clone(),
         target_name: method_target_name_from_self_ty(&self_ty, &method.name),

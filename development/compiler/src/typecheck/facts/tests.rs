@@ -92,6 +92,10 @@ func read(buffer: &Buffer, index: usize): i32 {
         method.method_name,
         crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
     );
+    assert_eq!(
+        resolved.semantic_db.definition_at(method.declaration_span),
+        Some(method.def_id)
+    );
 }
 
 #[test]

@@ -188,6 +188,7 @@ impl TypecheckFactCollector<'_> {
                             crate::typecheck::operators::operator_method_fact(
                                 selected,
                                 expression.operator_span,
+                                self.resolved,
                             )
                         });
                         let (semantic_left_type, semantic_right_type) =
@@ -528,7 +529,7 @@ impl TypecheckFactCollector<'_> {
                             self.resolved,
                             environment,
                         )
-                        && let Some(plan) = sequence_spread_fact(spread, &resolution)
+                        && let Some(plan) = sequence_spread_fact(spread, &resolution, self.resolved)
                     {
                         self.facts.sequence_spread_plans.insert(spread.span, plan);
                         self.record_drop_type_specialization(
@@ -834,6 +835,7 @@ impl TypecheckFactCollector<'_> {
 fn sequence_spread_fact(
     spread: &crate::ast::UnaryExpr,
     resolution: &crate::typecheck::iteration::SequenceSpreadResolution,
+    resolved: &crate::resolve::ResolveOutput,
 ) -> Option<TypecheckSequenceSpreadPlan> {
     let mut free_type_parameters = std::collections::HashSet::new();
     let source_type = type_to_type_expr_allowing_parameters(
@@ -894,17 +896,20 @@ fn sequence_spread_fact(
                 method,
                 source_type.clone(),
                 &free_type_parameters,
+                resolved,
             )
         }),
         exact_size: super::statements::iteration_method_fact(
             &resolution.exact_size,
             iterator_type.clone(),
             &free_type_parameters,
+            resolved,
         ),
         step: super::statements::iteration_method_fact(
             &resolution.iteration.step,
             iterator_type,
             &free_type_parameters,
+            resolved,
         ),
     })
 }

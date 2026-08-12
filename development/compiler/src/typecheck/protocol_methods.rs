@@ -29,13 +29,14 @@ pub(super) fn resolved_protocol_method(
     } else {
         conformance_method_for_interface(receiver, interface_canonical_name, method_name, resolved)?
     };
-    protocol_method_fact(receiver, method, span)
+    protocol_method_fact(receiver, method, span, resolved)
 }
 
 fn protocol_method_fact(
     receiver: &Type,
     method: &MethodSignature,
     span: ByteSpan,
+    resolved: &ResolveOutput,
 ) -> Option<TypecheckProtocolMethod> {
     let mut free_type_parameters = HashSet::new();
     let self_ty = type_to_type_expr_allowing_parameters(
@@ -44,6 +45,10 @@ fn protocol_method_fact(
         &mut free_type_parameters,
     )?;
     Some(TypecheckProtocolMethod::new(
+        resolved
+            .semantic_db
+            .definition_at(method.name_span)
+            .expect("resolved protocol method must have a semantic definition"),
         method.name_span,
         format!("{}.{}", receiver.display(), method.name),
         self_ty,

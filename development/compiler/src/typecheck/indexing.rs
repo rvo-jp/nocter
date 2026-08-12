@@ -377,7 +377,7 @@ fn select_declared_index(
     if is_readwrite != (access == IndexAccess::Readwrite) {
         return None;
     }
-    let method = index_method_fact(&selected, span)?;
+    let method = index_method_fact(&selected, span, resolved)?;
     Some(SelectedIndex {
         target_type: target.clone(),
         index_type: index.clone(),
@@ -393,6 +393,7 @@ fn select_declared_index(
 fn index_method_fact(
     selected: &super::calls::ResolvedMethodCall<'_>,
     span: crate::source::ByteSpan,
+    resolved: &ResolveOutput,
 ) -> Option<super::facts::TypecheckProtocolMethod> {
     let mut free_type_parameters = std::collections::HashSet::new();
     let self_ty = super::facts::type_to_type_expr_allowing_parameters(
@@ -401,6 +402,10 @@ fn index_method_fact(
         &mut free_type_parameters,
     )?;
     Some(super::facts::TypecheckProtocolMethod::new(
+        resolved
+            .semantic_db
+            .definition_at(selected.method.name_span)
+            .expect("resolved index operator must have a semantic definition"),
         selected.method.name_span,
         super::facts::method_target_name_from_self_ty(&self_ty, &selected.method.name),
         self_ty,

@@ -157,7 +157,7 @@ impl TypecheckFactCollector<'_> {
                     self.collect_block_facts(&statement.body, &mut body_environment, return_type);
                     return;
                 };
-                if let Some(plan) = collection_for_fact(statement, &resolution) {
+                if let Some(plan) = collection_for_fact(statement, &resolution, self.resolved) {
                     self.facts.collection_for_plans.insert(statement.span, plan);
                 }
                 self.record_drop_type_specialization(
@@ -275,6 +275,7 @@ impl TypecheckFactCollector<'_> {
 pub(super) fn collection_for_fact(
     statement: &crate::ast::CollectionForStmt,
     resolution: &crate::typecheck::iteration::CollectionIterationResolution,
+    resolved: &crate::resolve::ResolveOutput,
 ) -> Option<TypecheckCollectionForPlan> {
     let mut free_type_parameters = HashSet::new();
     let source_type = type_to_type_expr_allowing_parameters(
@@ -292,14 +293,14 @@ pub(super) fn collection_for_fact(
         statement.name_span,
         &mut free_type_parameters,
     )?;
-    let conversion = resolution
-        .conversion
-        .as_ref()
-        .map(|method| iteration_method_fact(method, source_type.clone(), &free_type_parameters));
+    let conversion = resolution.conversion.as_ref().map(|method| {
+        iteration_method_fact(method, source_type.clone(), &free_type_parameters, resolved)
+    });
     let step = iteration_method_fact(
         &resolution.step,
         iterator_type.clone(),
         &free_type_parameters,
+        resolved,
     );
     Some(TypecheckCollectionForPlan {
         binding_span: statement.name_span,
@@ -330,8 +331,13 @@ pub(super) fn iteration_method_fact(
     resolution: &crate::typecheck::iteration::IterationMethodResolution,
     self_ty: TypeExpr,
     free_type_parameters: &HashSet<String>,
+    resolved: &crate::resolve::ResolveOutput,
 ) -> TypecheckProtocolMethod {
     TypecheckProtocolMethod {
+        def_id: resolved
+            .semantic_db
+            .definition_at(resolution.declaration)
+            .expect("resolved iteration method must have a semantic definition"),
         declaration_span: resolution.declaration,
         target_name: resolution.target_name.clone(),
         self_ty,

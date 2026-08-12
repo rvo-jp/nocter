@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
     pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
-    pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
+    pub(crate) methods: HashMap<DefId, Vec<MethodCallSpecialization>>,
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
@@ -40,7 +40,7 @@ pub(crate) struct DropSpecialization {
 pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
     let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
     let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
-    let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
+    let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut method_target_aliases = Vec::new();
@@ -332,6 +332,10 @@ fn redirect_interface_method_specialization(
         return specialization;
     };
     specialization.declaration_span = actual_method.name_span;
+    specialization.def_id = analysis
+        .semantic_db
+        .definition_at(actual_method.name_span)
+        .expect("resolved conformance method must have a semantic definition");
     let runtime_self_ty = substitute_type_expr_parameters(owner.target_ty(), &owner_substitutions);
     specialization.target_name = format!(
         "{}.{}",
@@ -425,12 +429,10 @@ fn insert_function_specialization(
 }
 
 fn insert_method_specialization(
-    specializations: &mut HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
+    specializations: &mut HashMap<DefId, Vec<MethodCallSpecialization>>,
     specialization: MethodCallSpecialization,
 ) -> bool {
-    let entries = specializations
-        .entry(specialization.declaration_span)
-        .or_default();
+    let entries = specializations.entry(specialization.def_id).or_default();
     if entries.iter().any(|entry| {
         entry.target_name == specialization.target_name
             && entry.self_ty == specialization.self_ty

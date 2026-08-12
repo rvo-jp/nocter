@@ -352,6 +352,7 @@ pub(super) fn comparison_ambiguity_diagnostic(
 pub(super) fn operator_method_fact(
     selected: &super::calls::ResolvedMethodCall<'_>,
     span: ByteSpan,
+    resolved: &ResolveOutput,
 ) -> Option<super::facts::TypecheckProtocolMethod> {
     let mut free_type_parameters = HashSet::new();
     let self_ty = super::facts::type_to_type_expr_allowing_parameters(
@@ -360,6 +361,10 @@ pub(super) fn operator_method_fact(
         &mut free_type_parameters,
     )?;
     Some(super::facts::TypecheckProtocolMethod::new(
+        resolved
+            .semantic_db
+            .definition_at(selected.method.name_span)
+            .expect("resolved operator must have a semantic definition"),
         selected.method.name_span,
         super::facts::method_target_name_from_self_ty(&self_ty, &selected.method.name),
         self_ty,
@@ -402,7 +407,7 @@ pub(crate) fn specialize_comparison_plan(
         right: Box::new(identifier("__nocter_operator_right", plan.right_span)),
     };
     let selected = resolved_comparison_method(&expression, resolved, &environment)?;
-    plan.method = operator_method_fact(&selected, plan.operator_span);
+    plan.method = operator_method_fact(&selected, plan.operator_span, resolved);
     let (semantic_left_type, semantic_right_type, semantic_left_span, semantic_right_span) =
         if plan.reverse_operands {
             (&right_type, &left_type, plan.right_span, plan.left_span)

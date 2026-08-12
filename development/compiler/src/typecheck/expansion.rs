@@ -121,7 +121,7 @@ pub(super) fn select_expansion(
     if iterator_type.is_unknown_or_unresolved() {
         return None;
     }
-    let protocol_method = super::operators::operator_method_fact(&selected, span);
+    let protocol_method = super::operators::operator_method_fact(&selected, span, resolved);
     Some(SelectedExpansion {
         iterator_type,
         method: Some(super::iteration::IterationMethodResolution {
