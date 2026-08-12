@@ -2,16 +2,28 @@
 
 ## Current Task
 
-v0.14.0 Phase 0 is active. Source-ordered instance members, the compile-unit `DefId` database, and
-the borrow-coercion vertical migration are complete. Trusted roles, callable contract/body pairing,
-and the shared protocol-method specialization table are also keyed by `DefId`. Authored executable
-bodies have a separate `BodyId`, and all declaration- and closure-backed monomorphization tables use
-the appropriate ID domain. Trusted interpolation and iteration descriptors bind their validated
-source inputs to `DefId` before type checking. Continue by moving editor declaration identities
-onto the same database, then remove synthetic operator/coercion callables from AST.
-Remove each old span or synthetic-name authority as its replacement lands; do not add table-only ID
-scaffolding, language features, or standard-library APIs. The v0.13.0 tag, archive, release notes,
-and qualification record are immutable.
+v0.14.0 Phase 0 and Phase 1 are complete. Phase 2 is next: migrate hover, completion, navigation,
+semantic tokens, signature help, and edit planning from compatibility span tables onto the shared
+syntax index plus checker-owned partial typed HIR. Do not start MIR, language features, or
+standard-library APIs during Phase 2. Remove each successful-language AST walker and its old fact
+authority as the corresponding editor query moves; recovery may degrade only when no semantic
+identity exists. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
+
+## Completed v0.14.0 Phase 1 Typed HIR Checkpoint
+
+- every authored expression has an `ExprId` and owning `BodyId`; normalized checked types use a
+  checked-file `TyId` arena within the compile-unit generation
+- `TypedExpression` stores known or explicit error semantics, so diagnostics do not erase the
+  partial typed result needed by editor recovery
+- one `TypecheckOutput` owns diagnostics and `TypedHir`; normal compile-unit analysis and
+  single-file LSP recovery retain that exact output
+- the raw typed-HIR builder is private to type checking; only the named opaque-result prepass may
+  construct a provisional product before final witness elaboration
+- downstream analysis, specialization, buildability, and IR fields consistently refer to
+  `typed_hir`; the former fact-collector API and independently recollected normal-analysis path are
+  gone
+- the complete repository verification matrix, formatting, warnings-denied Clippy, and diff gates
+  pass
 
 ## Completed v0.14.0 Phase 0 Identity Checkpoint
 
@@ -39,6 +51,12 @@ and qualification record are immutable.
   or `BodyId` rather than a declaration or expression span
 - trusted String/Format/Iterator runtime descriptors convert validated source locations into
   `DefId` facts once; type checking, analysis, buildability, and lowering consume those facts
+- source-backed editor identities use `DefId`; generic parameters use owner-relative ordinal
+  identity and project to spans only for navigation or edits
+- callable AST is name-free below actual named methods; operators and coercions no longer create
+  synthetic `MethodDecl` identities
+- buildability and IR callable names are keyed by canonical `DefId`; specialization walks
+  definition-owned body records, including operator and coercion bodies, instead of matching spans
 - the complete repository test suite, formatting, warnings-denied Clippy, documentation
   generation, and diff checks pass at this checkpoint
 

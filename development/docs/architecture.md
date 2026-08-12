@@ -44,9 +44,11 @@ external runtime library. The released and active-development native target is `
 | `diagnostics` | structured diagnostics and text/JSON rendering |
 | `driver` | CLI, pipeline, and LSP protocol orchestration |
 
-The pipeline above is the v0.14.0 target architecture. During migration, the current span-keyed
-typecheck facts, buildability preflight, and AST-driven IR lowering remain only until their named
-replacement phase completes. See [Semantic Identity and Typed Model](semantic-model.md).
+The pipeline above is the v0.14.0 target architecture. Phase 0 established definition and body
+identity; Phase 1 established checker-owned partial typed HIR. During Phase 2 and Phase 3, remaining
+span-keyed compatibility facts, buildability preflight, and AST-driven IR lowering remain only
+until their named replacement completes. See
+[Semantic Identity and Typed Model](semantic-model.md).
 
 Later phases consume facts from earlier phases; they do not reimplement earlier decisions. When a
 new responsibility does not fit an existing area, introduce a focused module and narrow API before

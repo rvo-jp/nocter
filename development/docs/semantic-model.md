@@ -5,14 +5,14 @@ syntax and behavior remain owned by the [language specification](../../spec/READ
 work order and acceptance gates live in the
 [v0.14.0 milestone](../milestones/v0.14.0.md).
 
-## Problem
+## Migration Context
 
-The v0.13.0 compiler has strong feature-specific plans, but no single semantic object graph. A
-definition is variously identified by a `ByteSpan`, a canonical type string, a private synthetic
-method name, a resolver-local `SymbolId`, or a stable editor span. Type-check facts are collected by
-a later AST traversal, lowering reconstructs supported shapes from AST plus span maps, and editor
-features retain their own syntax walkers. These representations can agree under tests while still
-allowing new consumers to repeat or subtly change earlier decisions.
+The published v0.13.0 compiler had strong feature-specific plans, but no single semantic object
+graph. Definitions were variously identified by a `ByteSpan`, canonical type string, private
+synthetic method name, resolver-local `SymbolId`, or stable editor span. Phase 0 replaced source
+declaration and body equality with a compile-unit identity domain. Phase 1 made type checking own
+an error-tolerant typed result. Phase 2 and Phase 3 remove the remaining compatibility span tables
+and AST-shaped control-flow lowering.
 
 The migration makes identity and semantic ownership explicit. It does not hide the existing split
 behind more helper functions.
@@ -28,27 +28,31 @@ Different domains are not interchangeable.
 | `BodyId` | owning `DefId`, source body, parameters, root expression/block | callable naming |
 | `ExprId` | owning body and typed expression node | cross-generation edit identity |
 | `TyId` | interned normalized semantic type | source spelling |
-| `RequirementId` | authored requirement and selected evidence | runtime witness lookup |
-| `IntrinsicId` | validated target primitive role | standard-library public name lookup |
-| `MonoItemId` | `DefId`, `TyId` substitutions, requirement evidence | emitted symbol presentation |
+
+`RequirementId`, `IntrinsicId`, and `MonoItemId` are planned domains. They are not introduced as
+empty wrappers before their phases can remove the corresponding old authority.
 
 `SourceId` continues to identify loaded source within a generation. `ByteSpan` continues to locate
 text. Neither is a declaration identity.
 
 ## Semantic Database
 
-`SemanticDb` owns compact tables and typed lookup methods. Construction follows source loading and
-syntax parsing, then resolution fills ownership and reference edges without changing IDs.
+`SemanticDb` owns compact syntax-identity tables and typed lookup methods. Construction follows
+source loading and parsing; resolution refers to those records without changing IDs. The checked
+file's `TypedHir` owns the type arena and partial expression semantics for the same immutable
+generation.
 
 ```text
 SemanticDb
   definitions: DefId -> Definition
   bodies:       BodyId -> BodyRecord
-  expressions:  ExprId -> TypedExpr        (Phase 1)
-  types:        TyId -> Ty
-  requirements: RequirementId -> Evidence
-  intrinsics:   IntrinsicId -> Intrinsic
-  locations:    SemanticId -> SourceLocation
+  expressions:  ExprId -> ExpressionRecord
+  locations:    DefId / BodyId / ExprId -> ByteSpan
+
+TypedHir
+  typed expressions: ExprId -> PartialSemantic<TyId>
+  types:             TyId -> normalized TypeExpr
+  compatibility facts keyed by source location (Phase 2/3 removal boundary)
 ```
 
 The database is passed as one immutable semantic context after construction. Phase-specific mutable
@@ -73,26 +77,32 @@ original definition plus their own import occurrence; they do not clone definiti
 
 ## Typed Semantic Result
 
-Phase 1 changes checking from `diagnostics + span maps` into a typed result:
+Phase 1 changed checking from an externally recollected fact bundle into one typed result:
 
 ```text
-CheckedUnit {
-  db,
-  typed_bodies,
+TypecheckOutput {
   diagnostics,
+  typed_hir: {
+    expressions: ExprId -> { body: BodyId, ty: Known(TyId) | Error },
+    types: TyId -> normalized TypeExpr,
+    compatibility facts,
+  },
 }
 ```
 
-Every expression node records its `ExprId`, `TyId`, value category, ownership transition,
-provenance, selected callable/operator/coercion/requirement IDs, and required adjustments. Invalid
-or incomplete source records explicit error nodes and missing edges. Later phases may render or
-lower this result; they may not invoke selectors again.
+Every authored expression has an `ExprId` and owning `BodyId`. Its type is either a known `TyId` or
+an explicit error. Existing value-category, ownership, provenance, call, operator, coercion, and
+adjustment facts remain in the same checker-owned `TypedHir` while Phase 2 and Phase 3 move them
+from compatibility span maps into identity-keyed expression and control-flow records. Invalid or
+incomplete source therefore remains partial rather than becoming an alternate successful model.
+Later phases may render or lower this result; they may not invoke selectors again.
 
 ## Migration Enforcement
 
 - New semantic maps use typed IDs as keys. A new `HashMap<ByteSpan, SemanticFact>` requires a
   documented diagnostic-only reason.
-- New call targets use `DefId` or `IntrinsicId`, never a `String`.
+- Semantic call selection uses `DefId`. Backend linkage strings are generated only after selection
+  and never flow back into resolver or type-check equality.
 - An adapter module names its replacement phase in a comment and has no public export outside the
   compiler crate.
 - Tests compare source presentation only at formatter, diagnostic, or LSP boundaries. Semantic
