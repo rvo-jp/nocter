@@ -2,10 +2,29 @@
 
 ## Current Task
 
-v0.13.0 stabilization and release qualification are active. Freeze the completed Phase 0 through
-Phase 6 language, correct only release-blocking defects, qualify one immutable archive, and publish
-that exact candidate. The published v0.12.0 release remains immutable. New language behavior and
-the v0.14.0 semantic-architecture migration begin only after v0.13.0 publication is complete.
+v0.13.0 is locally qualified. Publish only the exact qualified archive, update public English
+download and release-status documentation, tag and push the publication commit, create the GitHub
+Release, and audit the downloaded asset independently. The published v0.12.0 release remains
+immutable. New language behavior and the v0.14.0 semantic-architecture migration begin only after
+v0.13.0 publication is complete.
+
+## Completed v0.13.0 Stabilization Checkpoint
+
+- the Phase 0 through Phase 6 public contract is frozen; the architecture audit separates known
+  v0.14.0 migration work from v0.13.0 public behavior instead of adding release-time workarounds
+- candidate identity is `0.13.0` across Cargo metadata, the lockfile, installed `VERSION`, the
+  distribution manifest and archive name, `std/nocter.nct`, CLI output, and LSP initialization
+- incremental and clean verification each passed all 3,584 tests, formatting, warnings-denied
+  Clippy, public examples, source corpus, and the distributed installed-home suite
+- the clean run followed removal of 424 candidate build files totaling 643.9 MiB; documentation
+  generation produced 143 pages and `git diff --check` passed
+- the two-build archive comparison and complete isolated fresh-install matrix passed without
+  `NOCTER_HOME`
+- the retained 3,888,262-byte `arm64-darwin` archive has SHA-256
+  `515b4c696bfc3f3a9bd96d9278904d16ca70a8cd32d57ddaa159836aa04bd761` and contains all 27
+  standard-library files
+- release-content commit `718b8ca80ec96553f4e4d13d054a9f9eca3f1e70` is frozen; publication must not
+  rebuild or replace its qualified archive
 
 ## Completed v0.13.0 Phase 6 Checkpoint
 
