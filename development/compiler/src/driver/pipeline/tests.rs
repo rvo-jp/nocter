@@ -1169,6 +1169,69 @@ func fail_pair(): Pair! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn build_file_output_runs_composed_value_catch_recovery() {
+    let root = make_temp_project("build-run-composed-value-catch-recovery");
+    let nocter_home = make_nocter_home(&root);
+    write_std_error(&nocter_home);
+    let source = root.join("composed_value_catch_recovery.nct");
+    crate::test_files::write(
+        &source,
+        r#"func main(): i32 {
+    let success = lookup(0) catch _ { 41 } otherwise { 42 }
+    let absent = lookup(1) catch _ { 41 } otherwise { 42 }
+    let recovered = lookup(2) catch failure {
+        inspect(failure.code)
+        inspect(failure.message)
+        41
+    } otherwise { 42 }
+    let recovered_none = lookup(2) catch _ { none } otherwise { 42 }
+    let replacement: i32? = optional_value(40)
+    let recovered_stored = lookup(2) catch _ { replacement } otherwise { 42 }
+    let recovered_call = lookup(2) catch _ { optional_value(41) } otherwise { 42 }
+    let stored_composed: i32?! = lookup(2)
+    let recovered_stored_composed = stored_composed catch _ { 41 } otherwise { 42 }
+
+    if success != 40 { return 2 }
+    if absent != 42 { return 3 }
+    if recovered != 41 { return 4 }
+    if recovered_none != 42 { return 5 }
+    if recovered_stored != 40 { return 6 }
+    if recovered_call != 41 { return 7 }
+    if recovered_stored_composed != 41 { return 8 }
+    return 42
+}
+
+func lookup(mode: i32): i32?! {
+    if mode == 0 { return 40 }
+    if mode == 1 { return none }
+    return error.new("app.lookup", "lookup failed")
+}
+
+func optional_value(value: i32): i32? {
+    return value
+}
+
+func inspect(text: &str): void {
+    return
+}
+"#,
+    )
+    .unwrap();
+
+    let executable = default_executable_path(&source);
+    let output =
+        build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+    assert_diagnostics_empty(&output.diagnostics);
+    assert_eq!(output.output_path, executable);
+    let output = std::process::Command::new(&executable).output().unwrap();
+    assert_eq!(output.status.code(), Some(42));
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn build_file_output_runs_fallible_scalar_call_success_propagation() {
     let root = make_temp_project("build-run-fallible-scalar-success-propagation");
     let nocter_home = make_nocter_home(&root);

@@ -4,7 +4,7 @@ pub(super) fn lower_stored_optional_otherwise<F>(
     value: &Expr,
     destination: ComposedOutcomeDestination,
     context: &LoweringContext,
-    lower_result: F,
+    mut lower_result: F,
     unsupported_message: &'static str,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>>
 where
@@ -13,8 +13,8 @@ where
     let Expr::Otherwise(otherwise) = unwrap_group(value) else {
         return Ok(None);
     };
-    let (identifier, outer_failure_mode) = match unwrap_group(&otherwise.value) {
-        Expr::Identifier(identifier) => (identifier, None),
+    let (identifier, outer_failure_mode, outer_catch) = match unwrap_group(&otherwise.value) {
+        Expr::Identifier(identifier) => (identifier, None, None),
         Expr::Propagate(propagation) => {
             let Expr::Identifier(identifier) = unwrap_group(&propagation.expression) else {
                 return Ok(None);
@@ -22,36 +22,31 @@ where
             (
                 identifier,
                 Some(propagating_outcome_mode(&propagation.expression, context)?),
+                None,
             )
         }
         Expr::Force(force) => {
             let Expr::Identifier(identifier) = unwrap_group(&force.expression) else {
                 return Ok(None);
             };
-            (identifier, Some(OutcomeFailureMode::Trap))
+            (identifier, Some(OutcomeFailureMode::Trap), None)
         }
         Expr::Catch(catch) => {
             let Expr::Identifier(identifier) = unwrap_group(&catch.expression) else {
                 return Ok(None);
             };
-            (
-                identifier,
-                Some(lower_catch_failure_mode(
-                    catch,
-                    context,
-                    outcome_destination_reserved_words(destination),
-                )?),
-            )
+            (identifier, None, Some(catch))
         }
         _ => return Ok(None),
     };
     let Some(local) = context.outcome_local(&identifier.name) else {
         return Ok(None);
     };
-    let optional_layer_index = usize::from(outer_failure_mode.is_some());
+    let optional_layer_index = usize::from(outer_failure_mode.is_some() || outer_catch.is_some());
     if local.storage.layers.len() != optional_layer_index + 1
         || local.storage.layers[optional_layer_index].layer != OutcomeLayer::Optional
-        || (outer_failure_mode.is_some() && local.storage.layers[0].layer != OutcomeLayer::Fallible)
+        || ((outer_failure_mode.is_some() || outer_catch.is_some())
+            && local.storage.layers[0].layer != OutcomeLayer::Fallible)
         || !outcome_payload_destination_matches(&local.payload_type, destination)
     {
         return Ok(None);
@@ -61,12 +56,12 @@ where
         &otherwise.fallback,
         context,
         None,
-        lower_result,
+        &mut lower_result,
         unsupported_message,
     )?;
-    let outcome_instructions = match failure_mode {
+    let outcome_instructions = match &failure_mode {
         OutcomeFailureMode::Handle { instructions }
-        | OutcomeFailureMode::Recover { instructions } => instructions,
+        | OutcomeFailureMode::Recover { instructions } => instructions.clone(),
         _ => {
             return Err(vec![Diagnostic::error(
                 "E8008",
@@ -96,6 +91,18 @@ where
             offset: payload_offset,
         }],
         outcome_instructions,
+    };
+    let outer_failure_mode = if let Some(catch) = outer_catch {
+        Some(lower_optional_value_catch_failure_mode(
+            catch,
+            destination,
+            &failure_mode,
+            context,
+            outcome_destination_reserved_words(destination),
+            &mut lower_result,
+        )?)
+    } else {
+        outer_failure_mode
     };
     if let Some(failure_mode) = outer_failure_mode {
         let outer = local.storage.layers[0];

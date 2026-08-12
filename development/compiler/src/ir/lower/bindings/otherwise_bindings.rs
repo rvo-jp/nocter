@@ -173,40 +173,79 @@ pub(in crate::ir::lower) fn lower_otherwise_recover_or_handle_failure_mode<F>(
 where
     F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 {
+    lower_fallback_block_with_result_mode(
+        fallback,
+        context,
+        loop_control,
+        |result, context| lower_result(result, context).map(LoweredFallbackResult::Continue),
+        unsupported_message,
+    )
+}
+
+#[derive(Debug)]
+pub(in crate::ir::lower) enum LoweredFallbackResult {
+    Continue(Vec<Instruction>),
+    Terminate(Vec<Instruction>),
+}
+
+pub(in crate::ir::lower) fn lower_fallback_block_with_result_mode<F>(
+    fallback: &Block,
+    context: &LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+    mut lower_result: F,
+    unsupported_message: &'static str,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<LoweredFallbackResult, Vec<Diagnostic>>,
+{
     let mut fallback_context = context.clone();
     let local_mark = fallback_context.local_mark();
 
-    if let Some(result) = &fallback.result {
-        let mut instructions = Vec::new();
-        for statement in &fallback.statements {
-            instructions.extend(lower_otherwise_leading_statement(
-                statement,
-                &mut fallback_context,
-                loop_control,
-            )?);
-        }
+    let Some(result) = &fallback.result else {
+        let instructions =
+            lower_otherwise_terminal_block(fallback, &mut fallback_context, loop_control)?;
+        return Ok(OutcomeFailureMode::Handle { instructions });
+    };
 
-        if let Some(terminating_instructions) =
-            lower_never_expression(result, &mut fallback_context)?
-        {
-            instructions.extend(terminating_instructions);
-            return Ok(OutcomeFailureMode::Handle { instructions });
-        }
-
-        instructions.extend(
-            lower_result(result, &fallback_context)
-                .map_err(|_| unsupported_binding_diagnostic(unsupported_message))?,
-        );
-        instructions.extend(lower_scope_end_drops_for_locals_since(
+    let mut leading_instructions = Vec::new();
+    for statement in &fallback.statements {
+        leading_instructions.extend(lower_otherwise_leading_statement(
+            statement,
             &mut fallback_context,
-            local_mark,
+            loop_control,
         )?);
-        return Ok(OutcomeFailureMode::Recover { instructions });
+    }
+    if let Some(terminating_instructions) = lower_never_expression(result, &mut fallback_context)? {
+        leading_instructions.extend(terminating_instructions);
+        return Ok(OutcomeFailureMode::Handle {
+            instructions: leading_instructions,
+        });
     }
 
-    let instructions =
-        lower_otherwise_terminal_block(fallback, &mut fallback_context, loop_control)?;
-    Ok(OutcomeFailureMode::Handle { instructions })
+    let result = lower_result(result, &fallback_context)
+        .map_err(|_| unsupported_binding_diagnostic(unsupported_message))?;
+    match result {
+        LoweredFallbackResult::Continue(instructions) => {
+            leading_instructions.extend(instructions);
+            leading_instructions.extend(lower_scope_end_drops_for_locals_since(
+                &mut fallback_context,
+                local_mark,
+            )?);
+            Ok(OutcomeFailureMode::Recover {
+                instructions: leading_instructions,
+            })
+        }
+        LoweredFallbackResult::Terminate(instructions) => {
+            leading_instructions.extend(lower_scope_end_drops_for_locals_since(
+                &mut fallback_context,
+                local_mark,
+            )?);
+            leading_instructions.extend(instructions);
+            Ok(OutcomeFailureMode::Handle {
+                instructions: leading_instructions,
+            })
+        }
+    }
 }
 
 pub(super) fn lower_otherwise_scalar_binding(
@@ -232,7 +271,7 @@ pub(super) fn lower_otherwise_scalar_binding(
             call,
             &otherwise.fallback,
             kind,
-            propagating_outcome_mode(&propagate.expression, context)?,
+            ComposedOuterHandler::Mode(propagating_outcome_mode(&propagate.expression, context)?),
             context,
             loop_control,
         )
@@ -248,14 +287,12 @@ pub(super) fn lower_otherwise_scalar_binding(
         }) = context.call_return_type(&target).cloned()
         && let Some(kind) = optional_success_scalar_binding_kind(statement, &payload, context)?
     {
-        let reserved_abi_words = kind.abi_word_count();
-        let outer_mode = lower_catch_failure_mode(catch, context, reserved_abi_words)?;
         return lower_composed_otherwise_scalar_call_binding(
             statement,
             call,
             &otherwise.fallback,
             kind,
-            outer_mode,
+            ComposedOuterHandler::Catch(catch),
             context,
             loop_control,
         )
@@ -299,12 +336,17 @@ pub(super) fn lower_otherwise_scalar_binding(
     .map(Some)
 }
 
-pub(super) fn lower_composed_otherwise_scalar_call_binding(
+enum ComposedOuterHandler<'a> {
+    Mode(OutcomeFailureMode),
+    Catch(&'a CatchExpr),
+}
+
+fn lower_composed_otherwise_scalar_call_binding(
     statement: &BindingStmt,
     call: &CallExpr,
     fallback: &Block,
     kind: ScalarBindingKind,
-    outer_mode: OutcomeFailureMode,
+    outer_handler: ComposedOuterHandler<'_>,
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -417,6 +459,16 @@ pub(super) fn lower_composed_otherwise_scalar_call_binding(
         }
     };
 
+    let outer_mode = match outer_handler {
+        ComposedOuterHandler::Mode(mode) => mode,
+        ComposedOuterHandler::Catch(catch) => lower_composed_value_catch_failure_mode(
+            catch,
+            &kind,
+            destination,
+            &inner_mode,
+            &expression_context,
+        )?,
+    };
     let instructions = lower_composed_outcome_call(
         call,
         destination,
@@ -440,6 +492,185 @@ pub(super) fn lower_composed_otherwise_scalar_call_binding(
         }
     }
     Ok(instructions)
+}
+
+fn lower_composed_value_catch_failure_mode(
+    catch: &CatchExpr,
+    kind: &ScalarBindingKind,
+    destination: ComposedOutcomeDestination,
+    absence_mode: &OutcomeFailureMode,
+    context: &LoweringContext,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
+    lower_optional_value_catch_failure_mode(
+        catch,
+        destination,
+        absence_mode,
+        context,
+        kind.abi_word_count(),
+        |result, context| match (kind, destination) {
+            (ScalarBindingKind::I32, ComposedOutcomeDestination::I32(destination)) => {
+                lower_i32_expression_to_location(result, destination, context)
+            }
+            (ScalarBindingKind::U8, ComposedOutcomeDestination::U8(destination)) => {
+                lower_u8_expression_to_location(result, destination, context)
+            }
+            (ScalarBindingKind::Usize, ComposedOutcomeDestination::Usize(destination)) => {
+                lower_usize_expression_to_location(result, destination, context)
+            }
+            (
+                ScalarBindingKind::Borrow {
+                    is_readwrite,
+                    inner,
+                },
+                ComposedOutcomeDestination::Borrow(destination),
+            ) => lower_borrow_expression_to_location(
+                result,
+                destination,
+                &Type::Borrow {
+                    is_readwrite: *is_readwrite,
+                    inner: Box::new(inner.clone()),
+                },
+                context,
+            ),
+            (ScalarBindingKind::Bool, ComposedOutcomeDestination::Bool(destination)) => {
+                lower_bool_expression_to_location(result, destination, context, "E8008")
+            }
+            (ScalarBindingKind::Str, ComposedOutcomeDestination::Str(destination)) => {
+                lower_str_expression_to_location(result, destination, context)
+            }
+            (ScalarBindingKind::Slice(_), ComposedOutcomeDestination::Slice(destination)) => {
+                lower_slice_expression_to_location(result, destination, context)
+            }
+            _ => Err(unsupported_binding_diagnostic(
+                "composed `catch` destination does not match its payload",
+            )),
+        },
+    )
+}
+
+pub(super) fn lower_optional_value_catch_failure_mode<F>(
+    catch: &CatchExpr,
+    destination: ComposedOutcomeDestination,
+    absence_mode: &OutcomeFailureMode,
+    context: &LoweringContext,
+    reserved_abi_words: usize,
+    mut lower_payload: F,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+{
+    lower_value_catch_failure_mode_with_result(
+        catch,
+        context,
+        reserved_abi_words,
+        None,
+        |result, catch_context| {
+            lower_optional_catch_result(
+                result,
+                destination,
+                absence_mode,
+                catch_context,
+                &mut lower_payload,
+            )
+        },
+        "native lowering can only lower `catch` fallbacks that produce the optional success value or exit",
+    )
+}
+
+fn lower_optional_catch_result<F>(
+    result: &Expr,
+    destination: ComposedOutcomeDestination,
+    absence_mode: &OutcomeFailureMode,
+    context: &LoweringContext,
+    lower_payload: &mut F,
+) -> Result<LoweredFallbackResult, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+{
+    if matches!(unwrap_group(result), Expr::NoneLiteral(_)) {
+        return match absence_mode {
+            OutcomeFailureMode::Handle { instructions } => {
+                Ok(LoweredFallbackResult::Terminate(instructions.clone()))
+            }
+            OutcomeFailureMode::Recover { instructions } => {
+                Ok(LoweredFallbackResult::Continue(instructions.clone()))
+            }
+            _ => Err(unsupported_binding_diagnostic(
+                "composed `catch` absence received an invalid handler",
+            )),
+        };
+    }
+
+    if let Some(instructions) =
+        lower_stored_outcome_expression(result, destination, context, absence_mode.clone())?
+    {
+        return Ok(LoweredFallbackResult::Continue(instructions));
+    }
+
+    if let Expr::Call(call) = unwrap_group(result)
+        && let Some((target, _)) = context.direct_call_target_and_name(call)
+        && matches!(context.call_return_type(&target), Some(Type::Optional(_)))
+    {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let instructions = match destination {
+            ComposedOutcomeDestination::I32(destination) => lower_fallible_i32_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::U8(destination) => lower_fallible_u8_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Usize(destination) => lower_fallible_usize_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Borrow(destination) => lower_fallible_borrow_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Bool(destination) => lower_fallible_bool_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Str(destination) => lower_fallible_str_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Slice(destination) => lower_fallible_slice_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                absence_mode.clone(),
+            ),
+            ComposedOutcomeDestination::Integer { .. } => Err(unsupported_binding_diagnostic(
+                "composed `catch` destination does not match its payload",
+            )),
+        }?;
+        return Ok(LoweredFallbackResult::Continue(instructions));
+    }
+
+    let instructions = lower_payload(result, context)?;
+    Ok(LoweredFallbackResult::Continue(instructions))
 }
 
 pub(super) fn lower_otherwise_scalar_call_binding(

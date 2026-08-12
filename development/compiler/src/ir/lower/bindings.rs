@@ -28,8 +28,8 @@ use super::expressions::{
     lower_bool_closure_capture_assignment, lower_bool_expression_to_location,
     lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
     lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
-    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_composed_outcome_call, lower_declared_index_pointer, lower_fallible_bool_normal_call,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_composed_outcome_call,
+    lower_declared_index_pointer, lower_fallible_bool_normal_call,
     lower_fallible_borrow_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
@@ -43,8 +43,9 @@ use super::expressions::{
     lower_u8_expression_to_word_with_temporaries, lower_usize_closure_capture_assignment,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
     lower_usize_expression_to_word_with_temporaries, lower_value_catch_failure_mode,
-    lower_void_expression_statement, primitive_take_value_at_ptr_call,
-    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
+    lower_value_catch_failure_mode_with_result, lower_void_expression_statement,
+    primitive_take_value_at_ptr_call, push_store_slice_view_to_aggregate_field,
+    push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
@@ -61,6 +62,7 @@ use super::outcome_propagation::{
     propagating_outcome_mode, propagating_outcome_mode_for_layer,
     stored_optional_propagation_instructions,
 };
+use super::outcome_values::lower_stored_outcome_expression;
 use super::regions::CleanupScopeMark;
 use super::types::{
     parameter_type_from_type_expr_with_resolver, return_type_expr_is_top_level_optional,
@@ -112,8 +114,11 @@ use diagnostics::*;
 use identifier_assignments::*;
 use index_assignments::*;
 use optional_assignments::*;
-pub(in crate::ir::lower) use otherwise_bindings::lower_otherwise_recover_or_handle_failure_mode;
 use otherwise_bindings::*;
+pub(in crate::ir::lower) use otherwise_bindings::{
+    LoweredFallbackResult, lower_fallback_block_with_result_mode,
+    lower_otherwise_recover_or_handle_failure_mode,
+};
 use outcome_aggregate_values::*;
 use outcome_values::*;
 use payload_field_assignments::*;

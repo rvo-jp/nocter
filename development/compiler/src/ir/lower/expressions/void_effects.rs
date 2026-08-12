@@ -109,31 +109,28 @@ pub(in crate::ir::lower) fn lower_void_expression_statement(
     }
 }
 
-pub(in crate::ir::lower) fn lower_catch_failure_mode(
+pub(in crate::ir::lower) fn lower_value_catch_failure_mode<F>(
     catch: &CatchExpr,
     context: &LoweringContext,
     reserved_abi_words: usize,
-) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
-    let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
-    let destinations = catch
-        .binding
-        .name()
-        .map(|name| catch_context.define_error_local(name.to_string()))
-        .transpose()?;
-    let instructions = lower_catch_block(&catch.catch_block, &mut catch_context)?;
-
-    Ok(match destinations {
-        Some((code, message)) => OutcomeFailureMode::Catch {
-            code,
-            message,
-            instructions,
-            recovers: false,
-        },
-        None => OutcomeFailureMode::Handle { instructions },
-    })
+    loop_control: Option<LoopControlContext<'_>>,
+    mut lower_result: F,
+    unsupported_message: &'static str,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+{
+    lower_value_catch_failure_mode_with_result(
+        catch,
+        context,
+        reserved_abi_words,
+        loop_control,
+        |result, context| lower_result(result, context).map(LoweredFallbackResult::Continue),
+        unsupported_message,
+    )
 }
 
-pub(in crate::ir::lower) fn lower_value_catch_failure_mode<F>(
+pub(in crate::ir::lower) fn lower_value_catch_failure_mode_with_result<F>(
     catch: &CatchExpr,
     context: &LoweringContext,
     reserved_abi_words: usize,
@@ -142,7 +139,7 @@ pub(in crate::ir::lower) fn lower_value_catch_failure_mode<F>(
     unsupported_message: &'static str,
 ) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
 where
-    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+    F: FnMut(&Expr, &LoweringContext) -> Result<LoweredFallbackResult, Vec<Diagnostic>>,
 {
     let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
     let destinations = catch
@@ -155,7 +152,7 @@ where
             instructions: Vec::new(),
         }
     } else {
-        lower_otherwise_recover_or_handle_failure_mode(
+        lower_fallback_block_with_result_mode(
             &catch.catch_block,
             &catch_context,
             loop_control,

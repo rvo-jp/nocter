@@ -168,3 +168,99 @@ func lookup(mode: i32): i32?! {
         value: I32Value::Const(8),
     }));
 }
+
+#[test]
+fn lowers_composed_value_catch_before_optional_fallback() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    let value = lookup() catch failure { 41 } otherwise { 42 }
+    return value
+}
+
+func lookup(): i32?! {
+    return 40
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "lookup",
+            Type::ComposedOutcome {
+                outer: OutcomeLayer::Fallible,
+                inner: OutcomeLayer::Optional,
+                payload: Box::new(Type::I32),
+            },
+            Vec::new(),
+        )]),
+    )
+    .unwrap();
+
+    let Some((outer_mode, inner_mode)) = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallComposedOutcome {
+            outer_mode,
+            inner_mode,
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        Some((outer_mode, inner_mode))
+    }) else {
+        panic!("{function:?}");
+    };
+    assert!(matches!(
+        outer_mode,
+        OutcomeFailureMode::Catch { recovers: true, instructions, .. }
+            if instructions.contains(&Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: I32Value::Const(41),
+            })
+    ));
+    assert!(matches!(
+        inner_mode,
+        OutcomeFailureMode::Recover { instructions }
+            if instructions.contains(&Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: I32Value::Const(42),
+            })
+    ));
+}
+
+#[test]
+fn lowers_composed_catch_none_through_the_optional_fallback() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    let value = lookup() catch _ { none } otherwise { 42 }
+    return value
+}
+
+func lookup(): i32?! {
+    return 40
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "lookup",
+            Type::ComposedOutcome {
+                outer: OutcomeLayer::Fallible,
+                inner: OutcomeLayer::Optional,
+                payload: Box::new(Type::I32),
+            },
+            Vec::new(),
+        )]),
+    )
+    .unwrap();
+
+    let Instruction::CallComposedOutcome {
+        outer_mode,
+        inner_mode,
+        ..
+    } = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallComposedOutcome { .. }))
+        .expect("composed call")
+    else {
+        unreachable!();
+    };
+    assert_eq!(outer_mode, inner_mode);
+}
