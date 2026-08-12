@@ -47,8 +47,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
             accepted = Some(&planned.accepted_type);
             break;
         }
-        let Some(result_name) = resolved_type_label(analysis, file, plan.string_type_definition)
-        else {
+        let Some(result_name) = resolved_type_label(analysis, plan.string_type_definition) else {
             return;
         };
         let mut documentation = Vec::new();
@@ -57,8 +56,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
                 "**Accepted interpolation input:** `{}`.",
                 crate::typecheck::type_expr_presentation_label(input, &file.resolved)
             ));
-            let Some(contract) =
-                resolved_type_label(analysis, file, plan.format_interface_definition)
+            let Some(contract) = resolved_type_label(analysis, plan.format_interface_definition)
             else {
                 return;
             };
@@ -78,25 +76,24 @@ pub(crate) fn interpolation_editor_info_at_offset(
 
 fn resolved_type_label(
     analysis: &CompileUnitAnalysis,
-    file: &FileAnalysis,
     definition: crate::semantic::DefId,
 ) -> Option<String> {
-    let declaration = analysis.semantic_db.definition_anchor(definition)?;
-    type_label_in_file(file, declaration).or_else(|| {
-        let declaration_module = file.resolved.module_source(declaration.source);
-        analysis
-            .file_by_source(declaration_module)
-            .and_then(|declaration_file| type_label_in_file(declaration_file, declaration))
-    })
-}
-
-fn type_label_in_file(file: &FileAnalysis, declaration: ByteSpan) -> Option<String> {
-    file.resolved.symbols.symbols().find_map(|symbol| {
-        let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
-            return None;
-        };
-        (symbol.declaration_span == declaration)
-            .then(|| crate::typecheck::type_symbol_presentation_label(type_symbol, &file.resolved))
+    analysis.files.iter().find_map(|candidate_file| {
+        candidate_file
+            .resolved
+            .symbols
+            .symbols()
+            .find_map(|symbol| {
+                let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
+                    return None;
+                };
+                (symbol.def_id == definition).then(|| {
+                    crate::typecheck::type_symbol_presentation_label(
+                        type_symbol,
+                        &candidate_file.resolved,
+                    )
+                })
+            })
     })
 }
 
