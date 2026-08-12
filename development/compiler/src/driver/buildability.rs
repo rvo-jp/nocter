@@ -128,12 +128,13 @@ pub(super) fn v0_test_buildability_diagnostics(
 
 struct CallableIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
-    names: HashMap<ByteSpan, String>,
+    names: CallableNames,
     resolved_sources: ResolvedSources<'a>,
     root_source: SourceId,
 }
 
 type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
+type CallableNames = HashMap<DefId, String>;
 
 impl<'a> CallableIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
@@ -157,13 +158,14 @@ impl<'a> CallableIndex<'a> {
                         } else {
                             function.name_span
                         };
-                        let (_, declaration) = canonical_callable_definition(analysis, identity);
+                        let (definition, declaration) =
+                            canonical_callable_definition(analysis, identity);
                         let target = call_target_for_source(
                             declaration.source,
                             root_source,
                             function.name.clone(),
                         );
-                        names.insert(declaration, function.name.clone());
+                        names.insert(definition, function.name.clone());
                         definitions.insert(
                             target,
                             IndexedCallable::new_function(
@@ -212,7 +214,7 @@ impl<'a> CallableIndex<'a> {
                                 let Some(body) = method.body.as_ref() else {
                                     continue;
                                 };
-                                let (_, declaration) =
+                                let (definition, declaration) =
                                     canonical_callable_definition(analysis, method.name_span);
                                 let declaration_source = declaration.source;
                                 let name = method_target_name(type_name, &method.name);
@@ -221,7 +223,7 @@ impl<'a> CallableIndex<'a> {
                                     root_source,
                                     name.clone(),
                                 );
-                                names.insert(declaration, name.clone());
+                                names.insert(definition, name.clone());
                                 definitions.insert(
                                     target,
                                     IndexedCallable::new_method(
@@ -280,7 +282,11 @@ impl<'a> CallableIndex<'a> {
                                 root_source,
                                 name.clone(),
                             );
-                            names.insert(destruct.keyword_span, name.clone());
+                            let definition = analysis
+                                .semantic_db
+                                .definition_at(destruct.keyword_span)
+                                .expect("indexed destructor must have a semantic definition");
+                            names.insert(definition, name.clone());
                             definitions.insert(
                                 target,
                                 IndexedCallable::new_drop(
@@ -367,7 +373,7 @@ impl<'a> CallableIndex<'a> {
                                     root_source,
                                     function.name.clone(),
                                 );
-                                names.insert(declaration, function.name.clone());
+                                names.insert(definition, function.name.clone());
                                 let substitutions =
                                     HashMap::from([("Self".to_string(), construct.target.clone())]);
                                 definitions.insert(

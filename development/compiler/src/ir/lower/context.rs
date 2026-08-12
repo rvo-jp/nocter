@@ -14,6 +14,7 @@ use crate::ir::{
 };
 use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
+use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{
     TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind, TypedHir,
@@ -335,23 +336,23 @@ struct CallResolution<'a> {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
-    by_declaration_span: HashMap<ByteSpan, String>,
+    by_definition: HashMap<DefId, String>,
     unique_targets: UniqueCallTargets,
 }
 
 impl FunctionNames {
     pub(super) fn from_index(
-        functions: Vec<(ByteSpan, String)>,
+        functions: Vec<(DefId, String)>,
         targets: Vec<(String, CallTarget)>,
     ) -> Self {
         Self {
-            by_declaration_span: functions.into_iter().collect(),
+            by_definition: functions.into_iter().collect(),
             unique_targets: UniqueCallTargets::new(targets),
         }
     }
 
-    fn name_for_declaration(&self, span: ByteSpan) -> Option<&String> {
-        self.by_declaration_span.get(&span)
+    fn name_for_definition(&self, definition: DefId) -> Option<&String> {
+        self.by_definition.get(&definition)
     }
 
     fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {

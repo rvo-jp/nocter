@@ -7,7 +7,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
-    names: &HashMap<ByteSpan, String>,
+    names: &CallableNames,
     resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
@@ -52,12 +52,19 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                         .formatter
                         .with_context_substitutions(generic_substitutions)
                     {
+                        let definition = resolved
+                            .callable_bodies
+                            .canonical_definition(formatter.def_id);
+                        let declaration = resolved
+                            .semantic_db
+                            .definition_anchor(definition)
+                            .unwrap_or(formatter.declaration_span);
                         let target_name = names
-                            .get(&formatter.declaration_span)
+                            .get(&definition)
                             .cloned()
                             .unwrap_or(formatter.target_name);
                         queue.push_back(call_target_for_source(
-                            formatter.declaration_span.source,
+                            declaration.source,
                             root_source,
                             target_name,
                         ));
@@ -888,7 +895,7 @@ fn collect_index_expression_diagnostics(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
-    names: &HashMap<ByteSpan, String>,
+    names: &CallableNames,
     resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,

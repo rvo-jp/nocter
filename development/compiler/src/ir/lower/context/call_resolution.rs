@@ -247,27 +247,34 @@ impl<'a> LoweringContext<'a> {
         method: &crate::typecheck::TypecheckProtocolMethod,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
+        let definition = resolution
+            .resolved
+            .callable_bodies
+            .canonical_definition(method.def_id);
+        let declaration = resolution
+            .resolved
+            .semantic_db
+            .definition_anchor(definition)?;
         if let Some(target) = self
             .function_names
             .unique_target_for_name(&method.target_name)
         {
             return Some(target.clone());
         }
-        if let Some(target_name) = self
-            .function_names
-            .name_for_declaration(method.declaration_span)
-        {
-            return Some(call_target_for_source(
-                method.declaration_span.source,
+        if let Some(target_name) = self.function_names.name_for_definition(definition) {
+            let target = call_target_for_source(
+                declaration.source,
                 resolution.root_source,
                 target_name.clone(),
-            ));
+            );
+            return Some(target);
         }
-        Some(call_target_for_source(
-            method.declaration_span.source,
+        let target = call_target_for_source(
+            declaration.source,
             resolution.root_source,
             method.target_name.clone(),
-        ))
+        );
+        Some(target)
     }
 
     pub(in crate::ir::lower) fn runtime_callable_target(
@@ -378,14 +385,20 @@ impl<'a> LoweringContext<'a> {
                 ) {
                     return None;
                 }
-                let target = call_target_for_source(
-                    symbol.declaration_span.source,
-                    resolution.root_source,
-                    self.function_names
-                        .name_for_declaration(symbol.declaration_span)
-                        .unwrap_or(&symbol.name)
-                        .clone(),
-                );
+                let definition = resolution
+                    .resolved
+                    .canonical_callable_definition(symbol.declaration_span)?;
+                let declaration = resolution
+                    .resolved
+                    .semantic_db
+                    .definition_anchor(definition)?;
+                let target_name = self
+                    .function_names
+                    .name_for_definition(definition)
+                    .unwrap_or(&symbol.name)
+                    .clone();
+                let target =
+                    call_target_for_source(declaration.source, resolution.root_source, target_name);
                 Some((target, symbol.name.clone()))
             }
             _ => None,
@@ -429,17 +442,24 @@ impl<'a> LoweringContext<'a> {
         };
 
         match &symbol.kind {
-            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_)
-                if symbol.declaration_span.source != resolution.root_source =>
-            {
+            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => {
+                let Some(definition) = resolution
+                    .resolved
+                    .canonical_callable_definition(symbol.declaration_span)
+                else {
+                    return CallTarget::same_file(symbol.name.clone());
+                };
+                let declaration_source = resolution
+                    .resolved
+                    .semantic_db
+                    .definition_anchor(definition)
+                    .map_or(symbol.declaration_span.source, |anchor| anchor.source);
                 let target_name = self
                     .function_names
-                    .name_for_declaration(symbol.declaration_span)
-                    .unwrap_or(&symbol.name);
-                CallTarget::imported(symbol.declaration_span.source, target_name.clone())
-            }
-            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => {
-                CallTarget::same_file(symbol.name.clone())
+                    .name_for_definition(definition)
+                    .unwrap_or(&symbol.name)
+                    .clone();
+                call_target_for_source(declaration_source, resolution.root_source, target_name)
             }
             SymbolKind::Imported(_) => CallTarget::same_file(fallback_name),
         }
@@ -747,13 +767,17 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
+            let declaration = resolution
+                .resolved
+                .semantic_db
+                .definition_anchor(specialization.def_id)?;
             let target = self
                 .function_names
                 .unique_target_for_name(&specialization.target_name)
                 .cloned()
                 .unwrap_or_else(|| {
                     call_target_for_source(
-                        method_name_span.source,
+                        declaration.source,
                         resolution.root_source,
                         specialization.target_name.clone(),
                     )
@@ -767,12 +791,16 @@ impl<'a> LoweringContext<'a> {
         {
             return None;
         }
-        let target_name = self
-            .function_names
-            .name_for_declaration(method_name_span)?
-            .clone();
+        let definition = resolution
+            .resolved
+            .canonical_callable_definition(method_name_span)?;
+        let declaration = resolution
+            .resolved
+            .semantic_db
+            .definition_anchor(definition)?;
+        let target_name = self.function_names.name_for_definition(definition)?.clone();
         let target = call_target_for_source(
-            method_name_span.source,
+            declaration.source,
             resolution.root_source,
             target_name.clone(),
         );

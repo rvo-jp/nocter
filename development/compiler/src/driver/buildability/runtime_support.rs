@@ -762,13 +762,20 @@ pub(super) fn call_target_for_call(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
-    names: &HashMap<ByteSpan, String>,
+    names: &CallableNames,
 ) -> Option<CallTarget> {
     if let Some(specialization) =
         concrete_function_call_specialization(call, typed_hir, generic_substitutions)
     {
+        let definition = resolved
+            .callable_bodies
+            .canonical_definition(specialization.def_id);
+        let declaration = resolved
+            .semantic_db
+            .definition_anchor(definition)
+            .unwrap_or(specialization.declaration_span);
         return Some(call_target_for_source(
-            specialization.declaration_span.source,
+            declaration.source,
             root_source,
             specialization.target_name.clone(),
         ));
@@ -776,26 +783,40 @@ pub(super) fn call_target_for_call(
 
     if let Expr::Member(member) = call.callee.as_ref() {
         if let Some(method_name_span) = typed_hir.method_call_target(member.member_span) {
-            let target_name = if typed_hir
+            let (definition, target_name) = if typed_hir
                 .generic_method_call_target(member.member_span)
                 .is_some()
             {
-                concrete_method_call_specialization(member, typed_hir, generic_substitutions)?
-                    .target_name
+                let specialization =
+                    concrete_method_call_specialization(member, typed_hir, generic_substitutions)?;
+                (
+                    resolved
+                        .callable_bodies
+                        .canonical_definition(specialization.def_id),
+                    specialization.target_name,
+                )
             } else {
-                names.get(&method_name_span).cloned()?
+                let definition = resolved.canonical_callable_definition(method_name_span)?;
+                (definition, names.get(&definition).cloned()?)
             };
+            let declaration = resolved.semantic_db.definition_anchor(definition)?;
             return Some(call_target_for_source(
-                method_name_span.source,
+                declaration.source,
                 root_source,
                 target_name,
             ));
         }
         if let Some((_owner, function)) = resolved.associated_function_for_call(call) {
+            let definition = resolved.canonical_callable_definition(function.name_span)?;
+            let declaration = resolved.semantic_db.definition_anchor(definition)?;
+            let target_name = names
+                .get(&definition)
+                .cloned()
+                .unwrap_or_else(|| function.target_name.clone());
             return Some(call_target_for_source(
-                function.name_span.source,
+                declaration.source,
                 root_source,
-                function.target_name.clone(),
+                target_name,
             ));
         }
     }
@@ -806,16 +827,14 @@ pub(super) fn call_target_for_call(
     let symbol = resolved.symbol_for_call(call)?;
     match &symbol.kind {
         SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => {
-            let target_name = if symbol.declaration_span.source != root_source {
-                names
-                    .get(&symbol.declaration_span)
-                    .cloned()
-                    .unwrap_or_else(|| symbol.name.clone())
-            } else {
-                symbol.name.clone()
-            };
+            let definition = resolved.canonical_callable_definition(symbol.declaration_span)?;
+            let declaration = resolved.semantic_db.definition_anchor(definition)?;
+            let target_name = names
+                .get(&definition)
+                .cloned()
+                .unwrap_or_else(|| symbol.name.clone());
             Some(call_target_for_source(
-                symbol.declaration_span.source,
+                declaration.source,
                 root_source,
                 target_name,
             ))

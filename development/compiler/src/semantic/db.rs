@@ -79,6 +79,7 @@ pub(crate) struct SemanticDb {
     definitions_by_location: HashMap<ByteSpan, DefId>,
     bodies: Vec<BodyDefinition>,
     bodies_by_location: HashMap<ByteSpan, BodyId>,
+    declaration_bodies_by_owner: HashMap<DefId, BodyId>,
     expressions: Vec<ExpressionDefinition>,
     expressions_by_location: HashMap<ByteSpan, ExprId>,
 }
@@ -118,6 +119,12 @@ impl SemanticDb {
 
     pub(crate) fn body_anchor(&self, id: BodyId) -> Option<ByteSpan> {
         self.bodies.get(id.index()).map(|body| body.anchor)
+    }
+
+    pub(crate) fn declaration_body_for_owner(&self, owner: DefId) -> Option<&BodyDefinition> {
+        self.declaration_bodies_by_owner
+            .get(&owner)
+            .and_then(|body| self.bodies.get(body.index()))
     }
 
     pub(crate) fn expression_at(&self, location: ByteSpan) -> Option<ExprId> {
@@ -201,6 +208,9 @@ impl SemanticDbBuilder {
         });
         self.db.bodies_by_location.insert(anchor, id);
         self.db.bodies_by_location.entry(span).or_insert(id);
+        if kind == BodyKind::Declaration {
+            self.db.declaration_bodies_by_owner.insert(owner, id);
+        }
         id
     }
 
@@ -614,6 +624,13 @@ instance Text {
         assert_eq!(definitions[8].owner, Some(definitions[7].id));
         assert_eq!(definitions[9].owner, Some(definitions[7].id));
         assert_eq!(definitions[9].id.raw(), 9);
+        for definition in [definitions[3].id, definitions[5].id, definitions[7].id] {
+            assert_eq!(
+                db.declaration_body_for_owner(definition)
+                    .map(|body| body.owner),
+                Some(definition)
+            );
+        }
     }
 
     #[test]

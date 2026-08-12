@@ -8,7 +8,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_expression_diagno
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
-    names: &HashMap<ByteSpan, String>,
+    names: &CallableNames,
     resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,

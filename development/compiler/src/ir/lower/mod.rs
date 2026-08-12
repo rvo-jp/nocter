@@ -304,6 +304,8 @@ struct FunctionIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     resolved_sources: ResolvedSources<'a>,
     method_target_aliases: Vec<(String, CallTarget)>,
+    semantic_db: &'a crate::semantic::SemanticDb,
+    callable_bodies: &'a crate::callable_bodies::CallableBodyIndex,
     root_source: SourceId,
 }
 
@@ -764,6 +766,8 @@ impl<'a> FunctionIndex<'a> {
             definitions,
             resolved_sources,
             method_target_aliases,
+            semantic_db: &analysis.semantic_db,
+            callable_bodies: &analysis.callable_bodies,
             root_source,
         }
     }
@@ -823,6 +827,11 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .values()
                 .filter_map(|function| function.name_declaration())
+                .filter_map(|(span, name)| {
+                    let authored = self.semantic_db.definition_at(span)?;
+                    let definition = self.callable_bodies.canonical_definition(authored);
+                    Some((definition, name))
+                })
                 .collect(),
             self.definitions
                 .keys()

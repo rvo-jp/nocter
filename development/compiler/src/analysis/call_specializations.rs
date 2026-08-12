@@ -1,7 +1,7 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DestructDecl, FunctionDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
+    DestructDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
     substitute_type_expr_parameters,
 };
 use crate::semantic::{BodyId, DefId};
@@ -164,8 +164,8 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_function_specialization(&mut functions, specialization.clone()) {
                     continue;
                 }
-                let Some((file, function)) =
-                    function_body_declaration_for_span(analysis, specialization.declaration_span)
+                let Some((file, _owner, body_span)) =
+                    callable_body_for_definition(analysis, specialization.def_id)
                 else {
                     continue;
                 };
@@ -178,7 +178,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
-                    function.span,
+                    body_span,
                     &context_substitutions,
                     &mut queue,
                 );
@@ -197,14 +197,11 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
-                let Some((file, owner, method)) =
-                    method_body_declaration_for_span(analysis, specialization.declaration_span)
+                let Some((file, owner, body_span)) =
+                    callable_body_for_definition(analysis, specialization.def_id)
                 else {
                     continue;
                 };
-                if method.body.is_none() {
-                    continue;
-                }
                 let context_substitutions = owner.map_or_else(
                     || {
                         let mut substitutions = specialization.substitutions.clone();
@@ -228,7 +225,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
-                    method.span,
+                    body_span,
                     &context_substitutions,
                     &mut queue,
                 );
@@ -643,12 +640,19 @@ fn protocol_method_call_specialization(
     analysis: &CompileUnitAnalysis,
     method: &crate::typecheck::TypecheckProtocolMethod,
 ) -> Option<MethodCallSpecialization> {
-    let Some((_file, Some(owner), _declaration)) =
-        method_declaration_for_span(analysis, method.declaration_span)
-    else {
-        return interface_method_identity_for_span(analysis, method.declaration_span)
-            .is_some()
-            .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
+    let definition = analysis.semantic_db.definition(method.def_id)?;
+    let owner_id = definition.owner?;
+    let Some(owner) = analysis.files.iter().find_map(|file| {
+        file.ast.items.iter().find_map(|item| {
+            let owner = item.method_owner()?;
+            (analysis.semantic_db.definition_at(item.span()) == Some(owner_id)).then_some(owner)
+        })
+    }) else {
+        return matches!(
+            analysis.semantic_db.definition(owner_id)?.kind,
+            crate::semantic::DefinitionKind::Interface
+        )
+        .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
     };
     let substitutions = method_owner_substitutions_for_self_ty(owner, &method.self_ty)?;
     let generic_parameters = owner
@@ -658,45 +662,6 @@ fn protocol_method_call_specialization(
         .map(|parameter| parameter.name.clone())
         .collect();
     Some(method.as_method_call_specialization(generic_parameters, substitutions))
-}
-
-fn function_declaration_for_span(
-    analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &FunctionDecl)> {
-    analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let function = match item {
-                Item::Function(function)
-                    if function.name_span == declaration_span
-                        || function.member_name_span == declaration_span =>
-                {
-                    Some(function)
-                }
-                Item::Construct(construct) => construct.functions().find_map(|(_, function)| {
-                    (function.name_span == declaration_span
-                        || function.member_name_span == declaration_span)
-                        .then_some(function)
-                }),
-                _ => None,
-            }?;
-            Some((file, function))
-        })
-    })
-}
-
-fn function_body_declaration_for_span(
-    analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &FunctionDecl)> {
-    let authored = analysis.semantic_db.definition_at(declaration_span)?;
-    let declaration = analysis.callable_bodies.canonical_definition(authored);
-    let body = analysis
-        .callable_bodies
-        .implementation_id(declaration)
-        .unwrap_or(declaration);
-    let body_span = analysis.semantic_db.definition_anchor(body)?;
-    function_declaration_for_span(analysis, body_span)
 }
 
 fn method_declaration_for_span(
@@ -718,18 +683,27 @@ fn method_declaration_for_span(
     })
 }
 
-fn method_body_declaration_for_span(
+fn callable_body_for_definition(
     analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, &MethodDecl)> {
-    let authored = analysis.semantic_db.definition_at(declaration_span)?;
+    authored: DefId,
+) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, ByteSpan)> {
     let declaration = analysis.callable_bodies.canonical_definition(authored);
     let body = analysis
         .callable_bodies
         .implementation_id(declaration)
         .unwrap_or(declaration);
-    let body_span = analysis.semantic_db.definition_anchor(body)?;
-    method_declaration_for_span(analysis, body_span)
+    let body_span = analysis.semantic_db.declaration_body_for_owner(body)?.span;
+    let file = analysis.file_by_source(body_span.source)?;
+    let owner_id = analysis.semantic_db.definition(body)?.owner;
+    let owner = owner_id.and_then(|owner_id| {
+        analysis.files.iter().find_map(|file| {
+            file.ast.items.iter().find_map(|item| {
+                let owner = item.method_owner()?;
+                (analysis.semantic_db.definition_at(item.span()) == Some(owner_id)).then_some(owner)
+            })
+        })
+    });
+    Some((file, owner, body_span))
 }
 
 fn destruct_declaration_for_span(
