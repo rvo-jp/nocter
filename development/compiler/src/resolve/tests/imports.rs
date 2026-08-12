@@ -24,6 +24,10 @@ func main(): i32 {
         .and_then(|id| output.symbols.get(*id))
         .unwrap();
     assert_eq!(symbol.name, "print");
+    assert_eq!(
+        output.semantic_db.definition_at(symbol.name_span),
+        Some(symbol.def_id)
+    );
     assert!(
         matches!(&symbol.kind, SymbolKind::Imported(imported) if imported.kind == ImportedSymbolKind::UnloadedName)
     );
@@ -113,6 +117,10 @@ fn block_scoped_imported_calls_resolve_inside_block() {
         .and_then(|id| output.symbols.get(*id))
         .unwrap();
     assert_eq!(symbol.name, "print");
+    assert_eq!(
+        output.semantic_db.definition_at(symbol.name_span),
+        Some(symbol.def_id)
+    );
     assert!(
         matches!(&symbol.kind, SymbolKind::Imported(imported) if imported.kind == ImportedSymbolKind::UnloadedName)
     );

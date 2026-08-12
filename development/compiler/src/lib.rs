@@ -22,6 +22,7 @@ mod outcomes;
 pub mod package;
 pub mod parser;
 pub mod resolve;
+mod semantic;
 mod semantics;
 pub mod source;
 mod source_layout;

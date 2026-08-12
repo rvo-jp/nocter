@@ -136,7 +136,7 @@ pub(crate) fn resolve_compile_unit_with_context(
         module_index,
         import_sources,
         prelude_sources,
-        output: ResolveOutput::new(access)
+        output: ResolveOutput::new(access, context.semantic_db.clone())
             .with_callable_bodies(callable_bodies.clone())
             .with_source_modules(source_modules.clone())
             .with_source_scopes(source_scopes.clone()),

@@ -5,11 +5,13 @@ use crate::ast::{
 use crate::builtin_types::BuiltinTypeOwner;
 use crate::callable_bodies::CallableBodyIndex;
 use crate::diagnostics::Diagnostic;
+use crate::semantic::{DefId, SemanticDb};
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use crate::source_modules::SourceModuleMap;
 use crate::source_scopes::SourceScopeMap;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::builtin_surfaces::BuiltinTypeSurface;
 use super::generic_requirements::GenericRequirements;
@@ -29,6 +31,7 @@ impl SymbolId {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolveOutput {
+    pub(crate) semantic_db: Arc<SemanticDb>,
     pub symbols: SymbolTable,
     pub access: ImportAccess,
     pub diagnostics: Vec<Diagnostic>,
@@ -388,9 +391,10 @@ impl ResolveOutput {
             })
     }
 
-    pub(super) fn new(access: ImportAccess) -> Self {
+    pub(super) fn new(access: ImportAccess, semantic_db: Arc<SemanticDb>) -> Self {
         Self {
-            symbols: SymbolTable::new(),
+            symbols: SymbolTable::new(semantic_db.clone()),
+            semantic_db,
             access,
             diagnostics: Vec::new(),
             identifier_targets: HashMap::new(),
@@ -478,13 +482,15 @@ pub enum LocalSymbolKind {
 pub struct SymbolTable {
     pub(super) symbols: Vec<Symbol>,
     pub(super) by_name: HashMap<String, SymbolId>,
+    semantic_db: Arc<SemanticDb>,
 }
 
 impl SymbolTable {
-    pub fn new() -> Self {
+    fn new(semantic_db: Arc<SemanticDb>) -> Self {
         Self {
             symbols: Vec::new(),
             by_name: HashMap::new(),
+            semantic_db,
         }
     }
 
@@ -569,8 +575,18 @@ impl SymbolTable {
         is_hidden: bool,
     ) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
+        let def_id = self
+            .semantic_db
+            .definition_at(declaration_span)
+            .or_else(|| self.semantic_db.definition_at(name_span))
+            .unwrap_or_else(|| {
+                panic!(
+                    "resolver symbol `{name}` has no semantic definition at {declaration_span:?} or {name_span:?}"
+                )
+            });
         self.symbols.push(Symbol {
             id,
+            def_id,
             name,
             name_span,
             declaration_span,
@@ -581,15 +597,10 @@ impl SymbolTable {
     }
 }
 
-impl Default for SymbolTable {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbol {
     pub id: SymbolId,
+    pub(crate) def_id: DefId,
     pub name: String,
     pub name_span: ByteSpan,
     pub declaration_span: ByteSpan,

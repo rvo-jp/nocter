@@ -343,6 +343,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::resolve::{ImportedSymbol, ImportedSymbolKind, SymbolId};
+    use crate::semantic::DefId;
     use crate::source::{ByteSpan, SourceMap};
 
     #[test]
@@ -350,6 +351,7 @@ mod tests {
         let root_source = SourceId::new(0);
         let symbol = Symbol {
             id: SymbolId::new(0),
+            def_id: DefId::for_test(0),
             name: "print".to_string(),
             name_span: ByteSpan::new(root_source, 0, 5),
             declaration_span: ByteSpan::new(root_source, 0, 20),
