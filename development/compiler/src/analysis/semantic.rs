@@ -2,12 +2,10 @@
 
 use super::FileAnalysis;
 use super::occurrences::{SemanticOccurrenceIndex, SemanticOccurrenceKind, SemanticOccurrenceRole};
-use super::scoped_imports::scoped_import_name_spans;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use crate::ast::MethodOwnerDecl;
-use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, TypeSymbol};
+use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
-use std::collections::HashSet;
 
 pub(crate) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
 pub(crate) const SEMANTIC_READONLY_MODIFIER: u32 = 1 << 1;
@@ -99,7 +97,6 @@ fn classified_identifiers_for_analysis(
         source: ast.span.source,
         resolved,
         occurrences,
-        scoped_import_spans: scoped_import_name_spans(ast),
         identifiers: Vec::new(),
     };
     collector.collect();
@@ -111,35 +108,17 @@ struct SemanticIdentifierCollector<'a> {
     source: SourceId,
     resolved: &'a ResolveOutput,
     occurrences: &'a SemanticOccurrenceIndex,
-    scoped_import_spans: HashSet<ByteSpan>,
     identifiers: Vec<ClassifiedIdentifier>,
 }
 
 impl SemanticIdentifierCollector<'_> {
     fn collect(&mut self) {
         self.collect_semantic_occurrences();
-        self.collect_test_declarations();
-        self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
         self.collect_generic_requirement_keywords();
         self.collect_opaque_type_keywords();
         self.collect_operator_keywords();
         self.collect_editor_targets();
-    }
-
-    fn collect_test_declarations(&mut self) {
-        let declarations = self
-            .ast
-            .items
-            .iter()
-            .filter_map(|item| match item {
-                crate::ast::Item::Test(test) => Some(test.name_span),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for span in declarations {
-            self.push(span, SemanticTokenKind::Function, true, 0);
-        }
     }
 
     fn finish(mut self) -> Vec<ClassifiedIdentifier> {
@@ -174,55 +153,6 @@ impl SemanticIdentifierCollector<'_> {
                 occurrence.role == SemanticOccurrenceRole::Declaration,
                 modifiers,
             );
-        }
-    }
-
-    fn collect_signature_parameter_declarations(&mut self) {
-        for symbol in self.resolved.symbols.symbols() {
-            if symbol.is_hidden && !self.scoped_import_spans.contains(&symbol.name_span) {
-                continue;
-            }
-            match &symbol.kind {
-                SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
-                    self.collect_function_signature_parameters(signature);
-                }
-                SymbolKind::Type(type_symbol) => {
-                    self.collect_type_symbol_parameter_declarations(type_symbol);
-                }
-                SymbolKind::Imported(_) => {}
-            }
-        }
-        for surface in self.resolved.builtin_type_surfaces() {
-            if surface.declaration_span.source == self.ast.span.source {
-                self.collect_type_symbol_parameter_declarations(&surface.symbol);
-            }
-        }
-    }
-
-    fn collect_type_symbol_parameter_declarations(&mut self, symbol: &TypeSymbol) {
-        for variant in &symbol.variants {
-            for parameter in &variant.payload {
-                self.push_parameter(parameter.name_span);
-            }
-        }
-
-        for function in &symbol.associated_functions {
-            self.collect_function_signature_parameters(&function.signature);
-        }
-
-        for method in &symbol.methods {
-            self.push_parameter(method.receiver.name_span);
-            self.collect_function_signature_parameters(&method.signature);
-        }
-
-        if let Some(drop_) = &symbol.destructor {
-            self.push_parameter(drop_.binding.name_span);
-        }
-    }
-
-    fn collect_function_signature_parameters(&mut self, signature: &FunctionSignature) {
-        for parameter in &signature.parameters {
-            self.push_parameter(parameter.name_span);
         }
     }
 

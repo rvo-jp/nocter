@@ -135,7 +135,6 @@ impl SemanticDb {
         self.expressions.get(id.index())
     }
 
-    #[cfg(test)]
     pub(crate) fn definitions(&self) -> &[Definition] {
         &self.definitions
     }

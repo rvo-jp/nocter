@@ -226,11 +226,7 @@ fn specialization_for_expression(
         }
     };
     Some(LiteralSpecialization {
-        def_id: file
-            .resolved
-            .semantic_db
-            .definition_at(declaration.span)
-            .expect("resolved literal must have a semantic definition"),
+        def_id: resolution.literal_definition,
         declaration_span: declaration.span,
         expression_span: span,
         target_name: literal_target_name(&result_type, shape, &specialization_key),

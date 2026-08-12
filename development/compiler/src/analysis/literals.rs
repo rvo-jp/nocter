@@ -59,21 +59,24 @@ pub(crate) fn literal_definition_span_at_offset(
         .map(|target| target.declaration_span)
 }
 
+#[cfg(test)]
 pub(crate) fn literal_definition_target_at_offset(
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<crate::analysis::editor_targets::SourceTarget> {
-    literal_editor_info_at_offset(analysis, file, offset, LiteralCursorRegion::Hover).map(|info| {
-        crate::analysis::editor_targets::SourceTarget::new(
-            info.focus_span,
-            info.declaration_shape_span,
-        )
-    })
+    let site = literal_site_at_offset(file, offset, LiteralCursorRegion::Hover)?;
+    let specialization =
+        literal_specialization_for_expression_span(analysis, file, site.expression_span)?;
+    crate::analysis::editor_targets::SourceTarget::for_definition(
+        literal_focus_span(site, offset),
+        specialization.def_id,
+        &analysis.semantic_db,
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LiteralSite {
+pub(crate) struct LiteralSite {
     expression_span: ByteSpan,
     target_span: ByteSpan,
     argument_span: ByteSpan,
@@ -110,7 +113,7 @@ fn literal_site_at_offset(
     match_
 }
 
-fn literal_site(expression: &Expr) -> Option<LiteralSite> {
+pub(crate) fn literal_site(expression: &Expr) -> Option<LiteralSite> {
     match expression {
         Expr::TypedSequenceLiteral(literal) => {
             let left = ByteSpan::new(
@@ -141,6 +144,28 @@ fn literal_site(expression: &Expr) -> Option<LiteralSite> {
             shape: LiteralShape::String,
         }),
         _ => None,
+    }
+}
+
+pub(crate) fn literal_navigation_spans(expression: &Expr) -> Option<Vec<ByteSpan>> {
+    let site = literal_site(expression)?;
+    let mut spans = vec![
+        site.target_span,
+        site.left_delimiter_span,
+        site.right_delimiter_span,
+    ];
+    spans.sort_by_key(|span| (span.start, span.end));
+    spans.dedup();
+    Some(spans)
+}
+
+fn literal_focus_span(site: LiteralSite, offset: usize) -> ByteSpan {
+    if span_contains(site.target_span, offset) {
+        site.target_span
+    } else if span_contains(site.left_delimiter_span, offset) {
+        site.left_delimiter_span
+    } else {
+        site.right_delimiter_span
     }
 }
 
@@ -217,13 +242,7 @@ fn editor_info(
     .render();
     LiteralEditorInfo {
         expression_span: site.expression_span,
-        focus_span: if span_contains(site.target_span, offset) {
-            site.target_span
-        } else if span_contains(site.left_delimiter_span, offset) {
-            site.left_delimiter_span
-        } else {
-            site.right_delimiter_span
-        },
+        focus_span: literal_focus_span(site, offset),
         declaration_span: specialization.declaration_span,
         declaration_shape_span: declaration.shape_span,
         label,

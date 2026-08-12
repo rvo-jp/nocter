@@ -168,14 +168,13 @@ pub(in crate::analysis::hover) fn local_occurrence_hover_for_file_analysis(
     offset: usize,
 ) -> Option<HoverInfo> {
     let occurrence = file.occurrences.at_offset(offset)?;
-    let crate::analysis::occurrences::SemanticIdentity::Local(target) = occurrence.identity? else {
+    let crate::analysis::occurrences::SemanticIdentity::Local(symbol_id) = occurrence.identity?
+    else {
         return None;
     };
-    let target_file = analysis.file_by_source(target.source)?;
-    let symbol = target_file
-        .resolved
-        .local_symbols()
-        .find(|symbol| symbol.name_span == target)?;
+    let target_file = analysis.file_by_source(occurrence.focus_span.source)?;
+    let symbol = target_file.resolved.local_symbol(symbol_id)?;
+    let target = symbol.name_span;
     let label = crate::analysis::presentation::local_presentation(
         symbol,
         target_file.typed_hir.binding_type_expr(target),

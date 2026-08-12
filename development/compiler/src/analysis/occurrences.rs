@@ -5,8 +5,11 @@
 //! classification cannot develop independent target-selection rules.
 
 use super::CompileUnitAnalysis;
-use crate::ast::{AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, TypeExpr};
-use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
+use crate::ast::{
+    AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, TypeExpr,
+    visit_file_expressions,
+};
+use crate::resolve::{LocalSymbol, LocalSymbolId, LocalSymbolKind, ResolveOutput, SymbolKind};
 use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::TypedHir;
@@ -14,7 +17,7 @@ use crate::typecheck::TypedHir;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SemanticIdentity {
     Definition(DefId),
-    Local(ByteSpan),
+    Local(LocalSymbolId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +58,13 @@ impl SemanticOccurrence {
             SemanticIdentity::Definition(definition) => {
                 analysis.semantic_db.definition_anchor(definition)?
             }
-            SemanticIdentity::Local(span) => span,
+            SemanticIdentity::Local(symbol) => {
+                analysis
+                    .file_by_source(self.focus_span.source)?
+                    .resolved
+                    .local_symbol(symbol)?
+                    .name_span
+            }
         };
         Some(super::editor_targets::SourceTarget::new(
             self.focus_span,
@@ -111,12 +120,15 @@ struct OccurrenceBuilder<'a> {
 impl OccurrenceBuilder<'_> {
     fn collect(&mut self) {
         self.collect_symbol_declarations();
+        self.collect_semantic_declarations();
         self.collect_callable_implementation_occurrences();
         self.collect_local_declarations_and_references();
         self.collect_resolved_references();
         self.collect_generic_parameter_declarations();
         self.collect_type_references();
         self.collect_typechecked_references();
+        self.collect_conversion_references();
+        self.collect_literal_references();
     }
 
     fn collect_callable_implementation_occurrences(&mut self) {
@@ -251,8 +263,12 @@ impl OccurrenceBuilder<'_> {
     }
 
     fn collect_symbol_declarations(&mut self) {
+        let scoped_imports = super::scoped_imports::scoped_import_name_spans(self.ast);
         for symbol in self.resolved.symbols.symbols() {
             if symbol.name_span.source != self.source {
+                continue;
+            }
+            if symbol.is_hidden && !scoped_imports.contains(&symbol.name_span) {
                 continue;
             }
             let role = if symbol.declaration_span.source == self.source {
@@ -342,6 +358,49 @@ impl OccurrenceBuilder<'_> {
         }
     }
 
+    fn collect_semantic_declarations(&mut self) {
+        let definitions = self
+            .resolved
+            .semantic_db
+            .definitions()
+            .iter()
+            .filter(|definition| definition.anchor.source == self.source)
+            .filter_map(|definition| {
+                let (kind, is_readonly) = match definition.kind {
+                    crate::semantic::DefinitionKind::Test => {
+                        (SemanticOccurrenceKind::Function, false)
+                    }
+                    crate::semantic::DefinitionKind::Parameter
+                    | crate::semantic::DefinitionKind::Receiver => {
+                        (SemanticOccurrenceKind::Parameter, true)
+                    }
+                    crate::semantic::DefinitionKind::LiteralCapture => {
+                        (SemanticOccurrenceKind::Variable, true)
+                    }
+                    _ => return None,
+                };
+                let identity = self
+                    .resolved
+                    .local_symbols()
+                    .find(|symbol| symbol.name_span == definition.anchor)
+                    .map(|symbol| SemanticIdentity::Local(symbol.id))
+                    .unwrap_or(SemanticIdentity::Definition(definition.id));
+                Some((identity, definition.anchor, kind, is_readonly))
+            })
+            .collect::<Vec<_>>();
+        for (identity, span, kind, is_readonly) in definitions {
+            self.push(
+                span,
+                Some(identity),
+                SemanticOccurrenceRole::Declaration,
+                kind,
+                is_readonly,
+                None,
+                1,
+            );
+        }
+    }
+
     fn push_member_declaration(&mut self, span: ByteSpan, kind: SemanticOccurrenceKind) {
         if span.source == self.source {
             self.push(
@@ -394,7 +453,7 @@ impl OccurrenceBuilder<'_> {
         };
         self.push(
             span,
-            Some(SemanticIdentity::Local(symbol.name_span)),
+            Some(SemanticIdentity::Local(symbol.id)),
             role,
             kind,
             local_is_readonly(symbol, span, self.facts),
@@ -544,6 +603,44 @@ impl OccurrenceBuilder<'_> {
             .collect::<Vec<_>>();
         for (span, target) in variants {
             self.push_reference(span, target, SemanticOccurrenceKind::Property, false, true);
+        }
+    }
+
+    fn collect_conversion_references(&mut self) {
+        let references = self
+            .facts
+            .conversion_plans()
+            .filter_map(|(_, plan)| {
+                let crate::typecheck::TypecheckConversionKind::BorrowCoercion(coercion) =
+                    &plan.kind
+                else {
+                    return None;
+                };
+                Some((plan.operator_span?, coercion.def_id?))
+            })
+            .collect::<Vec<_>>();
+        for (span, target) in references {
+            self.push_reference(span, target, SemanticOccurrenceKind::Method, true, true);
+        }
+    }
+
+    fn collect_literal_references(&mut self) {
+        let mut references = Vec::new();
+        visit_file_expressions(self.ast, &mut |expression| {
+            let Some(resolution) = self.resolved.literal_resolution(expression.span()) else {
+                return;
+            };
+            let Some(spans) = super::literals::literal_navigation_spans(expression) else {
+                return;
+            };
+            references.extend(
+                spans
+                    .into_iter()
+                    .map(|span| (span, resolution.literal_definition)),
+            );
+        });
+        for (span, target) in references {
+            self.push_reference(span, target, SemanticOccurrenceKind::Literal, true, true);
         }
     }
 

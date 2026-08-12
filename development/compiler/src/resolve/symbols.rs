@@ -767,6 +767,7 @@ pub struct LiteralCaptureSignature {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiteralResolution {
     pub type_symbol: SymbolId,
+    pub(crate) literal_definition: crate::semantic::DefId,
     pub literal_declaration_span: ByteSpan,
 }
 

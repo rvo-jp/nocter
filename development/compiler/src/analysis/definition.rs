@@ -22,7 +22,7 @@ pub(crate) fn definition_span_for_file_analysis(
 }
 
 pub(crate) fn definition_target_for_file_analysis(
-    sources: &SourceMap,
+    _sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
@@ -30,23 +30,9 @@ pub(crate) fn definition_target_for_file_analysis(
     crate::analysis::editor_targets::editor_target_at_offset(file, offset)
         .and_then(|target| target.source_target(analysis))
         .or_else(|| {
-            crate::analysis::conversions::conversion_definition_target_at_offset(
-                &file.typed_hir,
-                &file.resolved.semantic_db,
-                offset,
-            )
-        })
-        .or_else(|| {
-            crate::analysis::literals::literal_definition_target_at_offset(analysis, file, offset)
-        })
-        .or_else(|| {
             file.occurrences
                 .at_offset(offset)
                 .and_then(|occurrence| occurrence.source_target(analysis))
-        })
-        .or_else(|| {
-            let text = sources.get(file.ast.span.source)?.text();
-            hover_definition_target_for_ast(text, &file.ast, &file.resolved, offset)
         })
 }
 

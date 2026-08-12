@@ -6,7 +6,7 @@ use crate::analysis::occurrences::{SemanticIdentity, SemanticOccurrence};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::Item;
 use crate::package::PackageGraph;
-use crate::resolve::SymbolKind;
+use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::semantic::{DefinitionKind, SemanticDb};
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
@@ -45,9 +45,12 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         for file in &analysis.files {
             self.add_exports(sources, analysis, file);
             for occurrence in file.occurrences.iter() {
-                let Some(indexed) =
-                    self.index_occurrence(sources, &analysis.semantic_db, occurrence)
-                else {
+                let Some(indexed) = self.index_occurrence(
+                    sources,
+                    &analysis.semantic_db,
+                    &file.resolved,
+                    occurrence,
+                ) else {
                     continue;
                 };
                 self.occurrences.push(indexed);
@@ -62,7 +65,12 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         offset: usize,
     ) -> Option<StableSemanticIdentity> {
         let occurrence = file.occurrences.at_offset(offset)?;
-        self.stable_identity(sources, &file.resolved.semantic_db, occurrence.identity?)
+        self.stable_identity(
+            sources,
+            &file.resolved.semantic_db,
+            &file.resolved,
+            occurrence.identity?,
+        )
     }
 
     pub(crate) fn finish(mut self) -> PackageSemanticIndex {
@@ -221,10 +229,11 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         &mut self,
         sources: &SourceMap,
         semantic_db: &SemanticDb,
+        resolved: &ResolveOutput,
         occurrence: &SemanticOccurrence,
     ) -> Option<IndexedOccurrence> {
         Some(IndexedOccurrence {
-            identity: self.stable_identity(sources, semantic_db, occurrence.identity?)?,
+            identity: self.stable_identity(sources, semantic_db, resolved, occurrence.identity?)?,
             span: self.stable_span(sources, occurrence.focus_span)?,
             role: occurrence.role,
             kind: occurrence.kind,
@@ -235,10 +244,14 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         &mut self,
         sources: &SourceMap,
         semantic_db: &SemanticDb,
+        resolved: &ResolveOutput,
         identity: SemanticIdentity,
     ) -> Option<StableSemanticIdentity> {
         let (kind, declaration) = match identity {
-            SemanticIdentity::Local(span) => (StableIdentityKind::Local, span),
+            SemanticIdentity::Local(symbol) => (
+                StableIdentityKind::Local,
+                resolved.local_symbol(symbol)?.name_span,
+            ),
             SemanticIdentity::Definition(id) => {
                 let definition = semantic_db.definition(id)?;
                 let kind = if definition.kind == DefinitionKind::GenericParameter {

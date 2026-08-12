@@ -155,10 +155,15 @@ impl Resolver<'_> {
                 ));
             return;
         };
+        let Some(literal_definition) = self.output.semantic_db.definition_at(definition.shape_span)
+        else {
+            return;
+        };
         self.output.typed_literal_targets.insert(
             expression_span,
             LiteralResolution {
                 type_symbol: symbol_id,
+                literal_definition,
                 literal_declaration_span: definition.declaration_span,
             },
         );
