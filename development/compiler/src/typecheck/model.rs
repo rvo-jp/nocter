@@ -447,7 +447,6 @@ pub(super) struct IndexRequirement {
 pub(super) struct ExpansionRequirement {
     pub(super) source: Type,
     pub(super) result: Type,
-    pub(super) span: crate::source::ByteSpan,
 }
 
 impl TypeEnvironment {
@@ -631,11 +630,8 @@ impl TypeEnvironment {
                         resolved,
                         self,
                     );
-                    self.expansion_requirements.push(ExpansionRequirement {
-                        source,
-                        result,
-                        span: requirement.span,
-                    });
+                    self.expansion_requirements
+                        .push(ExpansionRequirement { source, result });
                 }
             }
         }
