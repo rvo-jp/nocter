@@ -2,11 +2,10 @@
 
 ## Current Task
 
-v0.13.0 is locally qualified. Publish only the exact qualified archive, update public English
-download and release-status documentation, tag and push the publication commit, create the GitHub
-Release, and audit the downloaded asset independently. The published v0.12.0 release remains
-immutable. New language behavior and the v0.14.0 semantic-architecture migration begin only after
-v0.13.0 publication is complete.
+v0.13.0 is published and independently audited. No release repair or later milestone phase is
+active. Define and review v0.14.0 Phase 0 before changing compiler architecture, language behavior,
+or standard-library APIs. The v0.13.0 tag, archive, release notes, and qualification record are
+immutable.
 
 ## Completed v0.13.0 Stabilization Checkpoint
 
@@ -25,6 +24,13 @@ v0.13.0 publication is complete.
   standard-library files
 - release-content commit `718b8ca80ec96553f4e4d13d054a9f9eca3f1e70` is frozen; publication must not
   rebuild or replace its qualified archive
+- annotated tag `v0.13.0` resolves to publication commit
+  `07dec92c87d5209b85d6e807404158742d270bfe`
+- GitHub resolves v0.13.0 as the latest release with exactly the qualified archive and marks it
+  neither draft nor prerelease
+- a separate public download reproduced the qualified bytes, size, and SHA-256 and passed version,
+  installed-home, locked/offline package, native test, deterministic graph, run, build, direct
+  execution, and framed LSP checks
 
 ## Completed v0.13.0 Phase 6 Checkpoint
 
