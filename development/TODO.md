@@ -2,12 +2,26 @@
 
 ## Current Task
 
-Implement [v0.13.0 Phase 3 expansion operators and mutable iteration](milestones/v0.13.0.md).
-Replace collection conversion interfaces with source-owned readonly, readwrite, and consuming
-`...` operators; make collection `for` and sequence spread consume one semantic plan; and complete
-safe `for item in &+source` borrowing. Stop at the fully verified Phase 3 boundary. Do not add
-source-defined ordering, mutable sequence spread, sorting, infer Phase 4 scope, change release
-identity, package, tag, or publish. The published v0.12.0 release remains immutable.
+No implementation phase is active. [v0.13.0 Phase 3](milestones/v0.13.0.md) is complete. Define and
+approve the next phase before implementation. Do not infer Phase 4 scope, change release identity,
+package, tag, or publish. The published v0.12.0 release remains immutable.
+
+## Completed v0.13.0 Phase 3 Checkpoint
+
+- source-owned readonly, readwrite, and consuming expansion operators replace `Iterable` and
+  `IntoIterator` as the sole collection-to-iterator conversion authority
+- one immutable expansion plan serves collection `for`, sequence spread, generic requirements,
+  specialization, ownership, provenance, buildability, lowering, diagnostics, and editor analysis
+- `for item in &+source` yields mutable element borrows under one exclusive source loan and common
+  path-sensitive cleanup; aggregate mutation uses a reusable aggregate-location borrow operation
+- sequence spread uses the same readonly and consuming selector, retains exact-size and
+  exactly-once rules, and rejects mutable expansion because packs retain multiple elements
+- `Vec<T>` owns all three expansion forms in standard source, and a focused mutable view iterator
+  provides allocation-free forward iteration without compiler recognition of collection names
+- public specification, compiler architecture documentation, standard source, examples, source
+  corpus, LSP presentation, and the generated website describe the same expansion model
+- all 3,563 tests, `cargo check`, formatting, warnings-denied Clippy, documentation generation, and
+  diff verification pass
 
 ## Completed v0.13.0 Phase 2 Checkpoint
 
