@@ -18,11 +18,20 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_local_return_to_location(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
-    Ok(vec![Instruction::CopyAggregate {
+    let mut instructions = vec![Instruction::CopyAggregate {
         destination,
         source: AggregateLocation::Slot(local.slot_index),
         layout: local.layout,
-    }])
+    }];
+    if value_use == AggregateValueUse::ExplicitMove
+        && let Some(transition) = context.aggregate_runtime_live_transition(name, false)
+    {
+        // Runtime-tracked owners remain compile-time drop candidates so path-dependent moves can
+        // rejoin safely.  A return move is an unconditional transfer on this path, therefore its
+        // liveness must end after the value is copied and before scope cleanup runs.
+        instructions.push(transition);
+    }
+    Ok(instructions)
 }
 
 pub(in crate::ir::lower::functions) fn lower_aggregate_member_return_to_location(

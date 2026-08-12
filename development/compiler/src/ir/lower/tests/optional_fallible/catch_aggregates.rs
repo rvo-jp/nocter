@@ -600,3 +600,97 @@ func make(): File! {
         Some(&Instruction::ReturnOutcomeSuccess)
     );
 }
+
+#[test]
+fn clears_recovered_aggregate_runtime_liveness_after_return_move() {
+    let ir = lower_text_with_std_error(
+        r#"struct File {
+    fd: i32
+}
+
+destruct File(&+self) {
+    return
+}
+
+func main(): i32! {
+    let file = forward()?
+    drop file
+    return 0
+}
+
+func forward(): File! {
+    let file: File = make() catch _ {
+        File { fd: 2 }
+    }
+    return move file
+}
+
+func make(): File! {
+    return File { fd: 1 }
+}
+"#,
+    );
+
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "forward")
+        .unwrap();
+    let Some(runtime_live) =
+        forward
+            .instructions
+            .iter()
+            .find_map(|instruction| match instruction {
+                Instruction::SetBool {
+                    destination,
+                    value: BoolValue::Const(false),
+                } => Some(*destination),
+                _ => None,
+            })
+    else {
+        panic!("missing uninitialized aggregate state: {forward:?}");
+    };
+    let return_copy = forward
+        .instructions
+        .iter()
+        .rposition(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    ..
+                }
+            )
+        })
+        .expect("missing aggregate return copy");
+    let moved_state = forward
+        .instructions
+        .iter()
+        .rposition(|instruction| {
+            instruction
+                == &Instruction::SetBool {
+                    destination: runtime_live,
+                    value: BoolValue::Const(false),
+                }
+        })
+        .expect("missing moved aggregate state");
+    assert_eq!(
+        forward
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                *instruction
+                    == &Instruction::SetBool {
+                        destination: runtime_live,
+                        value: BoolValue::Const(false),
+                    }
+            })
+            .count(),
+        2
+    );
+    assert!(moved_state < return_copy);
+    assert_eq!(
+        forward.instructions.get(return_copy + 1),
+        Some(&Instruction::ReturnOutcomeSuccess)
+    );
+}
