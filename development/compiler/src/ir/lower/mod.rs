@@ -739,37 +739,42 @@ impl<'a> FunctionIndex<'a> {
                 }
             }
         }
-        for specialization in call_specializations.callables.values().flatten() {
-            let TypeExpr::Closure(closure_ty) = &specialization.callable_ty else {
+        for (body_id, specializations) in &call_specializations.callables {
+            let closure_span = analysis
+                .semantic_db
+                .body_anchor(*body_id)
+                .expect("specialized closure must have an authored body");
+            let Some(file) = analysis.file_by_source(closure_span.source) else {
                 continue;
             };
-            let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
-                continue;
-            };
-            let Some(expression) =
-                crate::ast::closure_expression_by_span(&file.ast, closure_ty.span)
+            let Some(expression) = crate::ast::closure_expression_by_span(&file.ast, closure_span)
             else {
                 continue;
             };
-            let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
-                continue;
-            };
-            let receiver_mode = specialization.receiver_mode();
-            let target = call_target_for_source(
-                closure_ty.span.source,
-                root_source,
-                specialization.target_name.clone(),
-            );
-            definitions.insert(
-                target,
-                IndexedCallable::new_closure(
-                    expression,
-                    plan,
-                    receiver_mode,
+            for specialization in specializations {
+                if !matches!(specialization.callable_ty, TypeExpr::Closure(_)) {
+                    continue;
+                }
+                let Some(plan) = file.typecheck_facts.closure_plan(closure_span).cloned() else {
+                    continue;
+                };
+                let receiver_mode = specialization.receiver_mode();
+                let target = call_target_for_source(
+                    closure_span.source,
+                    root_source,
                     specialization.target_name.clone(),
-                    file,
-                ),
-            );
+                );
+                definitions.insert(
+                    target,
+                    IndexedCallable::new_closure(
+                        expression,
+                        plan,
+                        receiver_mode,
+                        specialization.target_name.clone(),
+                        file,
+                    ),
+                );
+            }
         }
         let method_target_aliases = call_specializations
             .method_target_aliases

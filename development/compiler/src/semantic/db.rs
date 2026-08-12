@@ -1,10 +1,11 @@
 //! Compile-unit definition and body identity.
 
-use super::DefId;
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
+use super::{BodyId, DefId};
 use crate::ast::{
-    AstFile, Block, ConformanceMember, ConstructMemberDecl, FromImportItem, ImportItem,
+    AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, ImportItem,
     InstanceMember, Item, LiteralDecl, MethodDecl, OperatorDecl, ParameterList,
+    visit_block_expressions_without_nested_closures,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -47,10 +48,28 @@ pub(crate) struct Definition {
     pub(crate) span: ByteSpan,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BodyKind {
+    Declaration,
+    Closure,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BodyDefinition {
+    pub(crate) id: BodyId,
+    pub(crate) kind: BodyKind,
+    pub(crate) owner: DefId,
+    pub(crate) parent: Option<BodyId>,
+    pub(crate) anchor: ByteSpan,
+    pub(crate) span: ByteSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SemanticDb {
     definitions: Vec<Definition>,
     definitions_by_location: HashMap<ByteSpan, DefId>,
+    bodies: Vec<BodyDefinition>,
+    bodies_by_location: HashMap<ByteSpan, BodyId>,
 }
 
 impl SemanticDb {
@@ -78,9 +97,22 @@ impl SemanticDb {
             .map(|definition| definition.anchor)
     }
 
+    pub(crate) fn body_at(&self, location: ByteSpan) -> Option<BodyId> {
+        self.bodies_by_location.get(&location).copied()
+    }
+
+    pub(crate) fn body_anchor(&self, id: BodyId) -> Option<ByteSpan> {
+        self.bodies.get(id.index()).map(|body| body.anchor)
+    }
+
     #[cfg(test)]
     pub(crate) fn definitions(&self) -> &[Definition] {
         &self.definitions
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bodies(&self) -> &[BodyDefinition] {
+        &self.bodies
     }
 }
 
@@ -122,6 +154,28 @@ impl SemanticDbBuilder {
             .or_insert(id);
     }
 
+    fn define_body(
+        &mut self,
+        kind: BodyKind,
+        owner: DefId,
+        parent: Option<BodyId>,
+        anchor: ByteSpan,
+        span: ByteSpan,
+    ) -> BodyId {
+        let id = BodyId::from_index(self.db.bodies.len());
+        self.db.bodies.push(BodyDefinition {
+            id,
+            kind,
+            owner,
+            parent,
+            anchor,
+            span,
+        });
+        self.db.bodies_by_location.insert(anchor, id);
+        self.db.bodies_by_location.entry(span).or_insert(id);
+        id
+    }
+
     fn collect_file(&mut self, file: &AstFile) {
         for item in &file.items {
             self.collect_item(item);
@@ -154,6 +208,31 @@ impl SemanticDbBuilder {
         });
     }
 
+    fn collect_body(&mut self, owner: DefId, body: &Block) {
+        self.collect_body_declarations(owner, body);
+        let body_id = self.define_body(BodyKind::Declaration, owner, None, body.span, body.span);
+        self.collect_closure_bodies(owner, body_id, body);
+    }
+
+    fn collect_closure_bodies(&mut self, owner: DefId, parent: BodyId, body: &Block) {
+        let mut closures = Vec::new();
+        visit_block_expressions_without_nested_closures(body, &mut |expression| {
+            if let Expr::Closure(closure) = expression {
+                closures.push(closure);
+            }
+        });
+        for closure in closures {
+            let body_id = self.define_body(
+                BodyKind::Closure,
+                owner,
+                Some(parent),
+                closure.span,
+                closure.body.span,
+            );
+            self.collect_closure_bodies(owner, body_id, &closure.body);
+        }
+    }
+
     fn collect_item(&mut self, item: &Item) {
         match item {
             Item::Import(import) => {
@@ -172,12 +251,12 @@ impl SemanticDbBuilder {
                 self.define_location(id, function.member_name_span);
                 self.collect_parameters(id, &function.parameters);
                 if let Some(body) = &function.body {
-                    self.collect_body_declarations(id, body);
+                    self.collect_body(id, body);
                 }
             }
             Item::Test(test) => {
                 let id = self.define(DefinitionKind::Test, None, test.name_span, test.span);
-                self.collect_body_declarations(id, &test.body);
+                self.collect_body(id, &test.body);
             }
             Item::Primitive(primitive) => {
                 let id = self.define(
@@ -242,7 +321,7 @@ impl SemanticDbBuilder {
                     );
                     self.collect_method_inputs(id, method);
                     if let Some(body) = &method.body {
-                        self.collect_body_declarations(id, body);
+                        self.collect_body(id, body);
                     }
                 }
             }
@@ -283,7 +362,7 @@ impl SemanticDbBuilder {
                             );
                             self.collect_method_inputs(id, method);
                             if let Some(body) = &method.body {
-                                self.collect_body_declarations(id, body);
+                                self.collect_body(id, body);
                             }
                         }
                     }
@@ -302,7 +381,7 @@ impl SemanticDbBuilder {
                     destruct.binding.name_span,
                     destruct.binding.span,
                 );
-                self.collect_body_declarations(id, &destruct.body);
+                self.collect_body(id, &destruct.body);
             }
             Item::Construct(construct) => {
                 let owner = self.define(
@@ -324,7 +403,7 @@ impl SemanticDbBuilder {
                             self.define_location(id, function.member_name_span);
                             self.collect_parameters(id, &function.parameters);
                             if let Some(body) = &function.body {
-                                self.collect_body_declarations(id, body);
+                                self.collect_body(id, body);
                             }
                         }
                         ConstructMemberDecl::Literal(literal) => {
@@ -337,7 +416,7 @@ impl SemanticDbBuilder {
                             self.define_location(id, literal.span);
                             self.collect_literal_inputs(id, literal);
                             if let Some(body) = &literal.body {
-                                self.collect_body_declarations(id, body);
+                                self.collect_body(id, body);
                             }
                         }
                     }
@@ -367,7 +446,7 @@ impl SemanticDbBuilder {
         let id = self.define(kind, Some(owner), anchor, callable.span);
         self.collect_method_inputs(id, callable);
         if let Some(body) = &callable.body {
-            self.collect_body_declarations(id, body);
+            self.collect_body(id, body);
         }
     }
 
@@ -512,5 +591,33 @@ func File.open(): Self { return File { fd: 1 } }
             Some(definition)
         );
         assert_eq!(db.definition_anchor(definition), Some(function.name_span));
+    }
+
+    #[test]
+    fn assigns_nested_authored_bodies_to_their_own_identity_domain() {
+        let file = parse_file(
+            r#"func main(): i32 {
+    let outer = () {
+        let inner = () { 1 }
+        2
+    }
+    return 0
+}
+"#,
+        );
+        let db = SemanticDb::from_files(std::slice::from_ref(&file));
+        let bodies = db.bodies();
+        assert_eq!(bodies.len(), 3);
+        assert_eq!(bodies[0].kind, BodyKind::Declaration);
+        assert_eq!(bodies[0].parent, None);
+        assert_eq!(bodies[1].kind, BodyKind::Closure);
+        assert_eq!(bodies[1].parent, Some(bodies[0].id));
+        assert_eq!(bodies[2].kind, BodyKind::Closure);
+        assert_eq!(bodies[2].parent, Some(bodies[1].id));
+        assert_eq!(bodies[2].id.raw(), 2);
+        for body in bodies {
+            assert_eq!(db.body_at(body.anchor), Some(body.id));
+            assert_eq!(db.body_anchor(body.id), Some(body.anchor));
+        }
     }
 }

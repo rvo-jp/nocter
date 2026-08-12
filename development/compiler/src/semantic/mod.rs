@@ -5,4 +5,4 @@ mod db;
 mod ids;
 
 pub(crate) use db::SemanticDb;
-pub(crate) use ids::DefId;
+pub(crate) use ids::{BodyId, DefId};

@@ -18,6 +18,7 @@ macro_rules! semantic_id {
 }
 
 semantic_id!(DefId);
+semantic_id!(BodyId);
 
 #[cfg(test)]
 impl DefId {
@@ -27,5 +28,12 @@ impl DefId {
 
     pub(crate) const fn for_test(raw: u32) -> Self {
         Self(raw)
+    }
+}
+
+#[cfg(test)]
+impl BodyId {
+    pub(crate) const fn raw(self) -> u32 {
+        self.0
     }
 }

@@ -4,7 +4,7 @@ use crate::ast::{
     DestructDecl, FunctionDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
     substitute_type_expr_parameters,
 };
-use crate::semantic::DefId;
+use crate::semantic::{BodyId, DefId};
 use crate::source::ByteSpan;
 use crate::typecheck::{
     CallableCallSpecialization, DropTypeSpecialization, FunctionCallSpecialization,
@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<DefId, Vec<FunctionCallSpecialization>>,
-    pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
+    pub(crate) callables: HashMap<BodyId, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<DefId, Vec<MethodCallSpecialization>>,
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<DefId, Vec<DropSpecialization>>,
@@ -40,7 +40,7 @@ pub(crate) struct DropSpecialization {
 
 pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
     let mut functions: HashMap<DefId, Vec<FunctionCallSpecialization>> = HashMap::new();
-    let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
+    let mut callables: HashMap<BodyId, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
     let mut drops: HashMap<DefId, Vec<DropSpecialization>> = HashMap::new();
@@ -234,7 +234,11 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 );
             }
             PendingCallSpecialization::Callable(specialization) => {
-                insert_callable_specialization(&mut callables, specialization);
+                insert_callable_specialization(
+                    &analysis.semantic_db,
+                    &mut callables,
+                    specialization,
+                );
             }
             PendingCallSpecialization::Coercion(plan) => {
                 let Some(plan) = crate::typecheck::specialize_coercion_plan_across_resolvers(
@@ -395,12 +399,14 @@ fn insert_coercion_specialization(
 }
 
 fn insert_callable_specialization(
-    specializations: &mut HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
+    semantic_db: &crate::semantic::SemanticDb,
+    specializations: &mut HashMap<BodyId, Vec<CallableCallSpecialization>>,
     specialization: CallableCallSpecialization,
 ) -> bool {
-    let entries = specializations
-        .entry(specialization.callable_ty.span())
-        .or_default();
+    let Some(body_id) = semantic_db.body_at(specialization.callable_ty.span()) else {
+        return false;
+    };
+    let entries = specializations.entry(body_id).or_default();
     if entries.iter().any(|entry| {
         entry.target_name == specialization.target_name
             && entry.callable_ty == specialization.callable_ty
@@ -988,4 +994,35 @@ fn short_type_name(name: &str) -> &str {
 
 fn span_contains(outer: ByteSpan, inner: ByteSpan) -> bool {
     outer.source == inner.source && outer.start <= inner.start && inner.end <= outer.end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::test_support::analyze_text;
+
+    #[test]
+    fn keys_closure_specializations_by_body_identity() {
+        let (_sources, analysis) = analyze_text(
+            r#"func apply<F>(callback: F): i32 where F: &func(i32): i32 {
+    return callback(3)
+}
+
+func main(): i32 {
+    return apply((value) { value * 2 })
+}
+"#,
+        );
+        let specializations = collect_call_specializations(&analysis);
+        let (body, entries) = specializations
+            .callables
+            .iter()
+            .next()
+            .expect("closure specialization");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            analysis.semantic_db.body_at(entries[0].callable_ty.span()),
+            Some(*body)
+        );
+    }
 }
