@@ -70,6 +70,10 @@ pub(super) fn function_call_specialization(
         .collect::<Option<HashMap<_, _>>>()?;
 
     Some(FunctionCallSpecialization {
+        def_id: resolved
+            .semantic_db
+            .definition_at(declaration_span)
+            .expect("resolved function must have a semantic definition"),
         declaration_span,
         base_target_name: base_target_name.to_string(),
         generic_parameters: signature.generic_parameters.clone(),

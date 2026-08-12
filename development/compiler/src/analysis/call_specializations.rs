@@ -13,7 +13,7 @@ use crate::typecheck::{
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) struct CallSpecializations {
-    pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
+    pub(crate) functions: HashMap<DefId, Vec<FunctionCallSpecialization>>,
     pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<DefId, Vec<MethodCallSpecialization>>,
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
@@ -38,7 +38,7 @@ pub(crate) struct DropSpecialization {
 }
 
 pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
-    let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
+    let mut functions: HashMap<DefId, Vec<FunctionCallSpecialization>> = HashMap::new();
     let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
@@ -412,12 +412,10 @@ fn insert_callable_specialization(
 }
 
 fn insert_function_specialization(
-    specializations: &mut HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
+    specializations: &mut HashMap<DefId, Vec<FunctionCallSpecialization>>,
     specialization: FunctionCallSpecialization,
 ) -> bool {
-    let entries = specializations
-        .entry(specialization.declaration_span)
-        .or_default();
+    let entries = specializations.entry(specialization.def_id).or_default();
     if entries.iter().any(|entry| {
         entry.target_name == specialization.target_name
             && entry.substitutions == specialization.substitutions

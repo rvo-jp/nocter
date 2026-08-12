@@ -99,6 +99,31 @@ func read(buffer: &Buffer, index: usize): i32 {
 }
 
 #[test]
+fn records_generic_function_specialization_with_definition_identity() {
+    let (ast, resolved) = parse_and_resolve_text(
+        r#"func identity<T>(value: T): T {
+    return value
+}
+
+func main(): i32 {
+    return identity(1)
+}
+"#,
+    );
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let specialization = facts
+        .function_call_specializations()
+        .next()
+        .expect("generic function specialization");
+    assert_eq!(
+        resolved
+            .semantic_db
+            .definition_at(specialization.declaration_span),
+        Some(specialization.def_id)
+    );
+}
+
+#[test]
 fn specializes_structural_index_requirement_to_a_declared_operator() {
     let text = r#"struct Buffer {
     values: [i32; 1]

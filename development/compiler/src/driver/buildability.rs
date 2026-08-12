@@ -175,16 +175,16 @@ impl<'a> CallableIndex<'a> {
                         );
                     }
                     Item::Function(function) if function.body.is_some() => {
-                        let name_identity = analysis
-                            .callable_bodies
-                            .canonical_identity(function.name_span);
                         let member_identity = analysis
                             .callable_bodies
                             .canonical_identity(function.member_name_span);
+                        let definition = analysis
+                            .semantic_db
+                            .definition_at(member_identity)
+                            .expect("indexed function must have a semantic definition");
                         for specialization in call_specializations
                             .functions
-                            .get(&name_identity)
-                            .or_else(|| call_specializations.functions.get(&member_identity))
+                            .get(&definition)
                             .into_iter()
                             .flatten()
                         {
@@ -398,9 +398,13 @@ impl<'a> CallableIndex<'a> {
                                 );
                                 continue;
                             }
+                            let definition = analysis
+                                .semantic_db
+                                .definition_at(declaration)
+                                .expect("indexed constructor must have a semantic definition");
                             for specialization in call_specializations
                                 .functions
-                                .get(&declaration)
+                                .get(&definition)
                                 .into_iter()
                                 .flatten()
                             {

@@ -864,6 +864,7 @@ pub(crate) struct GenericParameterFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FunctionCallSpecialization {
+    pub(crate) def_id: crate::semantic::DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(super) base_target_name: String,
     pub(super) generic_parameters: Vec<String>,
@@ -898,6 +899,7 @@ impl FunctionCallSpecialization {
         )?;
 
         Some(Self {
+            def_id: self.def_id,
             declaration_span: self.declaration_span,
             base_target_name: self.base_target_name.clone(),
             generic_parameters: self.generic_parameters.clone(),
