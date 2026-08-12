@@ -85,8 +85,8 @@ instance View {
 
 struct Owner { view: View }
 
-coerce Owner {
-    &self as &View { return &self.view }
+instance Owner {
+    coerce &self as &View { return &self.view }
 }
 
 func less<T>(left: &T, right: &T): bool where (&T < &T): bool {

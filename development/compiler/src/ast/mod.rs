@@ -65,7 +65,6 @@ pub enum Item {
     Conformance(ConformanceDecl),
     Destruct(DestructDecl),
     Construct(ConstructDecl),
-    Coerce(CoerceDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,21 +262,35 @@ pub struct InstanceDecl {
     pub requirements: Option<WhereClause>,
     pub methods: Vec<MethodDecl>,
     pub operators: Vec<OperatorDecl>,
+    pub coercions: Vec<CoercionEntry>,
 }
 
 impl InstanceDecl {
-    pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
+    /// Returns named methods and operators that participate in ordinary member lookup.
+    pub fn behavior_methods(&self) -> impl Iterator<Item = &MethodDecl> {
         self.methods
             .iter()
             .chain(self.operators.iter().map(OperatorDecl::callable_method))
     }
 
+    pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
+        self.behavior_methods()
+            .chain(self.coercions.iter().map(CoercionEntry::callable_method))
+    }
+
     pub fn callable_methods_mut(&mut self) -> impl Iterator<Item = &mut MethodDecl> {
-        self.methods.iter_mut().chain(
-            self.operators
-                .iter_mut()
-                .map(OperatorDecl::callable_method_mut),
-        )
+        self.methods
+            .iter_mut()
+            .chain(
+                self.operators
+                    .iter_mut()
+                    .map(OperatorDecl::callable_method_mut),
+            )
+            .chain(
+                self.coercions
+                    .iter_mut()
+                    .map(CoercionEntry::callable_method_mut),
+            )
     }
 
     pub fn comparison_operators(&self) -> impl Iterator<Item = &ComparisonOperatorDecl> {
@@ -1016,7 +1029,6 @@ impl Item {
             Item::Conformance(item) => item.span,
             Item::Destruct(item) => item.span,
             Item::Construct(item) => item.span,
-            Item::Coerce(item) => item.span,
         }
     }
 }

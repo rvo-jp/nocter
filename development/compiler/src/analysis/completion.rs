@@ -132,6 +132,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                         crate::ast::WherePredicate::Refinement(refinement) => refinement.span,
                         crate::ast::WherePredicate::Equality(equality) => equality.span,
                         crate::ast::WherePredicate::Operator(requirement) => requirement.span,
+                        crate::ast::WherePredicate::Coercion(requirement) => requirement.span,
                     };
                     span.start < offset && offset <= span.end
                 })
@@ -166,7 +167,7 @@ fn copy_requirement_completion_is_allowed(ast: &AstFile, offset: usize) -> bool 
                     .literals()
                     .any(|(_, literal)| clause(literal.requirements.as_ref(), offset))
         }
-        Item::Coerce(_) | Item::Destruct(_) => false,
+        Item::Destruct(_) => false,
         Item::Import(_) | Item::FromImport(_) | Item::Test(_) => false,
     })
 }
@@ -336,11 +337,7 @@ fn apply_operator_requirement_completion(
                     .literals()
                     .any(|(_, literal)| clause_contains(literal.requirements.as_ref(), offset))
         }
-        Item::Coerce(_)
-        | Item::Destruct(_)
-        | Item::Import(_)
-        | Item::FromImport(_)
-        | Item::Test(_) => false,
+        Item::Destruct(_) | Item::Import(_) | Item::FromImport(_) | Item::Test(_) => false,
     });
     if !active {
         return;
@@ -655,13 +652,6 @@ fn result_provenance_completion_items(
                             None,
                             &literal.parameters.parameters,
                         ));
-                    }
-                }
-            }
-            Item::Coerce(coerce) => {
-                for entry in &coerce.entries {
-                    if clause_contains_offset(entry.result_provenance.as_ref(), offset) {
-                        return Some(provenance_origin_items(Some(entry.receiver.mode), &[]));
                     }
                 }
             }

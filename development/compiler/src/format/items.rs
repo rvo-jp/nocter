@@ -1,12 +1,12 @@
 use super::Formatter;
 use crate::ast::{
-    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry,
-    ComparisonOperatorDecl, ConformanceDecl, ConformanceMember, ConstructDecl, ConstructMember,
-    ConstructMemberDecl, DestructDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
-    GenericParam, GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl,
-    InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl,
-    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
-    StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
+    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoercionEntry, ComparisonOperatorDecl,
+    ConformanceDecl, ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl,
+    DestructDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
+    GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl,
+    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl, PackageFile,
+    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
+    TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
 };
 
 impl Formatter {
@@ -45,40 +45,18 @@ impl Formatter {
             Item::Conformance(item) => self.format_conformance_decl(item),
             Item::Destruct(item) => self.format_destruct_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
-            Item::Coerce(item) => self.format_coerce_decl(item),
         }
-    }
-
-    fn format_coerce_decl(&mut self, item: &CoerceDecl) {
-        self.write("coerce ");
-        self.format_type(&item.target);
-        if item.entries.is_empty() {
-            self.write(" {}");
-            return;
-        }
-        self.write(" {");
-        self.newline();
-        self.indented(|formatter| {
-            for (index, entry) in item.entries.iter().enumerate() {
-                if index > 0 {
-                    formatter.newline();
-                }
-                formatter.write_indent();
-                formatter.format_coercion_entry(entry);
-                formatter.newline();
-            }
-        });
-        self.write_indent();
-        self.write("}");
     }
 
     fn format_coercion_entry(&mut self, entry: &CoercionEntry) {
-        self.format_visibility(entry.visibility);
-        self.format_method_receiver(&entry.receiver);
+        let callable = entry.callable_method();
+        self.format_visibility(callable.visibility);
+        self.write("coerce ");
+        self.format_method_receiver(&callable.receiver);
         self.write(" as ");
-        self.format_type(&entry.target);
-        self.format_result_provenance(entry.result_provenance.as_ref());
-        if let Some(body) = &entry.body {
+        self.format_type(entry.target());
+        self.format_result_provenance(callable.result_provenance.as_ref());
+        if let Some(body) = &callable.body {
             self.write(" ");
             self.format_block(body);
         }
@@ -349,7 +327,7 @@ impl Formatter {
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
-        if item.methods.is_empty() && item.operators.is_empty() {
+        if item.methods.is_empty() && item.operators.is_empty() && item.coercions.is_empty() {
             self.write("{}");
             return;
         }
@@ -373,6 +351,15 @@ impl Formatter {
                 }
                 formatter.write_indent();
                 formatter.format_operator_decl(operator);
+                formatter.newline();
+                wrote_member = true;
+            }
+            for coercion in &item.coercions {
+                if wrote_member {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                formatter.format_coercion_entry(coercion);
                 formatter.newline();
                 wrote_member = true;
             }
@@ -625,6 +612,11 @@ impl Formatter {
                     }
                     self.write("): ");
                     self.format_type(&requirement.result);
+                }
+                crate::ast::WherePredicate::Coercion(requirement) => {
+                    self.format_type(&requirement.source);
+                    self.write(" as ");
+                    self.format_type(&requirement.target);
                 }
             }
         }

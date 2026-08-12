@@ -64,7 +64,6 @@ fn visible_export_spans(ast: &AstFile, access: ImportAccess) -> HashSet<ByteSpan
             | Item::Conformance(_)
             | Item::FromImport(_)
             | Item::Construct(_)
-            | Item::Coerce(_)
             | Item::Destruct(_)
             | Item::Test(_) => {}
             Item::Function(_)

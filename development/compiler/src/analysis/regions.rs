@@ -68,13 +68,6 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                for entry in &coerce.entries {
-                    if let Some(body) = &entry.body {
-                        collect_block(file, body, None, &mut facts);
-                    }
-                }
-            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

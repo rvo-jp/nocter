@@ -183,6 +183,29 @@ impl Item {
                         .iter()
                         .map(|operator| operator.to_json(sources)),
                 );
+                children.extend(item.coercions.iter().map(|entry| {
+                    let callable = entry.callable_method();
+                    let mut entry_children = vec![
+                        visibility_json(callable.visibility),
+                        callable.receiver.to_json(sources),
+                        JsonAstNode::new(
+                            "coerce_target_type",
+                            json_span(sources, entry.target().span()),
+                            vec![entry.target().to_json(sources)],
+                        ),
+                    ];
+                    if let Some(provenance) = &callable.result_provenance {
+                        entry_children.push(provenance.to_json(sources));
+                    }
+                    if let Some(body) = &callable.body {
+                        entry_children.push(body.to_json(sources));
+                    }
+                    JsonAstNode::new(
+                        "coercion_entry",
+                        json_span(sources, entry.span),
+                        entry_children,
+                    )
+                }));
                 JsonAstNode::new("instance_decl", json_span(sources, item.span), children)
             }
             Item::Conformance(item) => {
@@ -302,36 +325,6 @@ impl Item {
                     )
                 }));
                 JsonAstNode::new("construct_decl", json_span(sources, item.span), children)
-            }
-            Item::Coerce(item) => {
-                let mut children = vec![JsonAstNode::new(
-                    "coerce_source_type",
-                    json_span(sources, item.target.span()),
-                    vec![item.target.to_json(sources)],
-                )];
-                children.extend(item.entries.iter().map(|entry| {
-                    let mut entry_children = vec![
-                        visibility_json(entry.visibility),
-                        entry.receiver.to_json(sources),
-                        JsonAstNode::new(
-                            "coerce_target_type",
-                            json_span(sources, entry.target.span()),
-                            vec![entry.target.to_json(sources)],
-                        ),
-                    ];
-                    if let Some(provenance) = &entry.result_provenance {
-                        entry_children.push(provenance.to_json(sources));
-                    }
-                    if let Some(body) = &entry.body {
-                        entry_children.push(body.to_json(sources));
-                    }
-                    JsonAstNode::new(
-                        "coercion_entry",
-                        json_span(sources, entry.span),
-                        entry_children,
-                    )
-                }));
-                JsonAstNode::new("coerce_decl", json_span(sources, item.span), children)
             }
         }
     }
@@ -509,6 +502,14 @@ impl WhereClause {
                             children.push(requirement.result.to_json(sources));
                             children
                         },
+                    ),
+                    crate::ast::WherePredicate::Coercion(requirement) => JsonAstNode::new(
+                        "coercion_requirement",
+                        json_span(sources, requirement.span),
+                        vec![
+                            requirement.source.to_json(sources),
+                            requirement.target.to_json(sources),
+                        ],
                     ),
                 })
                 .collect(),

@@ -748,6 +748,7 @@ pub(crate) struct TypecheckCoercionPlan {
     pub(crate) target_ty: TypeExpr,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
     pub(crate) has_explicit_result_provenance: bool,
+    pub(crate) requirement_span: Option<ByteSpan>,
     pub(super) free_type_parameters: HashSet<String>,
 }
 
@@ -834,6 +835,7 @@ impl TypecheckCoercionPlan {
             target_ty,
             substitutions,
             has_explicit_result_provenance: self.has_explicit_result_provenance,
+            requirement_span: self.requirement_span,
             free_type_parameters: HashSet::new(),
         })
     }

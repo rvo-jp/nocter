@@ -240,7 +240,7 @@ func make(): some Source<Item = i32> { return Number { value: 7 } }
     #[test]
     fn definition_query_resolves_explicit_as_to_the_selected_coercion_entry() {
         let text = r#"struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 func project(value: &Text): &str from value { return value as &str }
 "#;
         let (sources, analysis) = analyze_text(text);
@@ -275,7 +275,7 @@ func project(value: &Text): &str from value { return value as &str }
 func project(value: &Text): &str from value { return value as &str }
 "#;
         let module_text = r#"pub struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 "#;
         let (sources, analysis) = analyze_import_text(root_text, module_text);
         let file = analysis.root_file().expect("expected root file");
@@ -303,7 +303,7 @@ coerce Text { pub &self as &str from self { return self.value } }
 func project(value: &Text): &str from value { return value as &str }
 "#;
         let module_text = r#"pub struct Text { value: &str }
-coerce Text { &self as &str from self { return self.value } }
+instance Text { coerce &self as &str from self { return self.value } }
 "#;
         let (_sources, analysis) = analyze_import_text(root_text, module_text);
         let diagnostics = analysis.diagnostics();

@@ -154,18 +154,17 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Coerce) {
             if target.is_some() {
-                self.error_current("`#target` does not apply to coerce declarations");
+                self.error_current("`#target` does not apply to standalone `coerce`");
                 return Err(());
             }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
-            if visibility != Visibility::Private {
-                self.error_current("`coerce` declarations do not use visibility modifiers");
-                return Err(());
-            }
-            return self.parse_coerce_decl();
+            self.error_current(
+                "standalone `coerce` declarations were removed; declare `coerce &self as Target` inside `instance Type { ... }`",
+            );
+            return Err(());
         }
 
         if self.at_keyword(Keyword::Type) {

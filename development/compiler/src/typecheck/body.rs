@@ -128,12 +128,6 @@ pub(super) fn check_body_expressions(
                     check_literal_body_expressions(sources, literal, resolved, diagnostics);
                 }
             }
-            Item::Coerce(coerce) => check_instance_member_expressions(
-                sources,
-                &coerce.callable_instance(),
-                resolved,
-                diagnostics,
-            ),
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

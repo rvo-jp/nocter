@@ -159,9 +159,9 @@ construct String {
     }
 }
 
-coerce String {
+instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub &self as &str {
+    pub coerce &self as &str {
         return view(self)
     }
 }

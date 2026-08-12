@@ -3235,7 +3235,7 @@ fn coerced_builtin_method_editor_features_share_the_source_declaration() {
     crate::test_files::write(
         home.join("std/string/index.nct"),
         r#"pub struct String { value: &str }
-coerce String { pub &self as &str { return self.value } }
+instance String { pub coerce &self as &str { return self.value } }
 "#,
     )
     .unwrap();
@@ -4538,8 +4538,8 @@ fn vec_string_completion_specializes_methods_and_includes_std_documentation() {
     data: &[T]
 }
 
-coerce Vec<T> {
-    pub &self as &[T] { return self.data }
+instance Vec<T> {
+    pub coerce &self as &[T] { return self.data }
 }
 
 instance Vec<T> {

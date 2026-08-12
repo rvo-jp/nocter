@@ -24,8 +24,8 @@ struct Wrapper {
     buffer: Buffer,
 }
 
-coerce Wrapper {
-    pub &self as &Buffer from self {
+instance Wrapper {
+    pub coerce &self as &Buffer from self {
         return &self.buffer
     }
 }

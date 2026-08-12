@@ -152,13 +152,6 @@ pub(super) fn check_opaque_results(
                     );
                 }
             }
-            Item::Coerce(coerce) => check_method_owner(
-                sources,
-                &coerce.callable_instance(),
-                resolved,
-                false,
-                diagnostics,
-            ),
             Item::Import(_) | Item::FromImport(_) | Item::Test(_) | Item::Destruct(_) => {}
         }
     }

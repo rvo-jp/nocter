@@ -468,9 +468,9 @@ struct Owner {
     second: Second,
 }
 
-coerce Owner {
-    &self as &First { return &self.first }
-    &self as &Second { return &self.second }
+instance Owner {
+    coerce &self as &First { return &self.first }
+    coerce &self as &Second { return &self.second }
 }
 
 func same(left: &Owner, right: &Owner): bool {
@@ -502,9 +502,9 @@ instance Second {
 
 struct Owner { first: First, second: Second }
 
-coerce Owner {
-    &self as &First { return &self.first }
-    &self as &Second { return &self.second }
+instance Owner {
+    coerce &self as &First { return &self.first }
+    coerce &self as &Second { return &self.second }
 }
 
 func less(left: &Owner, right: &Owner): bool { return left < right }

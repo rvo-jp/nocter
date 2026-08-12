@@ -1222,9 +1222,9 @@ fn member_completion_omits_methods_ambiguous_across_receiver_coercions() {
 struct Left { value: usize }
 struct Right { value: usize }
 
-coerce Source {
-    pub &self as &Left { return &self.left }
-    pub &self as &Right { return &self.right }
+instance Source {
+    pub coerce &self as &Left { return &self.left }
+    pub coerce &self as &Right { return &self.right }
 }
 
 instance Left {
@@ -1251,8 +1251,8 @@ func read(source: &Source): usize {
 fn unavailable_original_method_still_shadows_receiver_coercion_completion() {
     let text = r#"struct Text { value: &str }
 
-coerce Text {
-    pub &self as &str { return self.value }
+instance Text {
+    pub coerce &self as &str { return self.value }
 }
 
 instance Text {
@@ -1279,9 +1279,9 @@ func read(text: &Text): usize {
 fn readwrite_receiver_coercion_completion_keeps_target_capability() {
     let text = r#"struct Buffer { read: &[u8], write: &+[u8] }
 
-coerce Buffer {
-    pub &self as &[u8] { return self.read }
-    pub &+self as &+[u8] { return self.write }
+instance Buffer {
+    pub coerce &self as &[u8] { return self.read }
+    pub coerce &+self as &+[u8] { return self.write }
 }
 
 instance [T] {

@@ -231,8 +231,8 @@ construct Text {
     pub default literal ""(text: &str): Self
 }
 
-coerce Text {
-    pub &self as &str from self
+instance Text {
+    pub coerce &self as &str from self
 }
 
 func main(): i32 {
@@ -249,8 +249,8 @@ func main(): i32 {
     }
 }
 
-coerce Text {
-    &self as &str from self {
+instance Text {
+    coerce &self as &str from self {
         return self.value
     }
 }

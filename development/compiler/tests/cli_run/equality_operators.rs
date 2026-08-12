@@ -86,8 +86,8 @@ struct Text {
     view: TextView,
 }
 
-coerce Text {
-    &self as &TextView {
+instance Text {
+    coerce &self as &TextView {
         return &self.view
     }
 }
@@ -152,8 +152,8 @@ struct Owner {
     view: View,
 }
 
-coerce Owner {
-    &self as &View {
+instance Owner {
+    coerce &self as &View {
         return &self.view
     }
 }

@@ -80,13 +80,6 @@ pub(super) fn check_region_statements(
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                for entry in &coerce.entries {
-                    if let Some(body) = &entry.body {
-                        check_block(sources, body, None, &mut tree, diagnostics);
-                    }
-                }
-            }
         }
     }
 }

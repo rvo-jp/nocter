@@ -163,14 +163,14 @@ construct Vec<T> {
     }
 }
 
-coerce Vec<T> {
+instance Vec<T> {
     /// Exposes the initialized element prefix as a readonly view.
-    pub &self as &[T] {
+    pub coerce &self as &[T] {
         return view(self)
     }
 
     /// Exposes the initialized element prefix as a readwrite view.
-    pub &+self as &+[T] {
+    pub coerce &+self as &+[T] {
         return view_mut(self)
     }
 }

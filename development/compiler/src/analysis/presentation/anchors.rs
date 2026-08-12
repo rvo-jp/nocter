@@ -77,19 +77,6 @@ impl CallableDeclarationIndex {
                         }
                     }
                 }
-                Item::Coerce(coerce) => {
-                    for entry in &coerce.entries {
-                        index.insert(CallableAnchors::with_return_type(
-                            entry.as_span,
-                            entry.as_span,
-                            entry.target.span(),
-                            entry
-                                .result_provenance
-                                .as_ref()
-                                .map(|provenance| provenance.span),
-                        ));
-                    }
-                }
                 Item::Import(_)
                 | Item::FromImport(_)
                 | Item::TypeAlias(_)

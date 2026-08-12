@@ -16,9 +16,9 @@ construct Utf8Path {
     }
 }
 
-coerce Utf8Path {
+instance Utf8Path {
     /// Exposes the validated UTF-8 path text without transferring ownership.
-    pub &self as &str {
+    pub coerce &self as &str {
         return &self.text as &str
     }
 }

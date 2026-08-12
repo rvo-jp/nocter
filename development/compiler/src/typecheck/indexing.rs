@@ -169,16 +169,17 @@ fn select_index_types_inner(
         return Err(IndexRejection::InvalidIndex);
     }
 
-    let mut candidates = receiver_coercion_candidates(source, source_is_readwrite, resolved)
-        .into_iter()
-        .filter_map(|coercion| {
-            let (element, projection, writable) = direct_projection(&coercion.target_type)?;
-            if access == IndexAccess::Readwrite && !writable {
-                return None;
-            }
-            Some((coercion, element, projection))
-        })
-        .collect::<Vec<_>>();
+    let mut candidates =
+        receiver_coercion_candidates(source, source_is_readwrite, resolved, environment)
+            .into_iter()
+            .filter_map(|coercion| {
+                let (element, projection, writable) = direct_projection(&coercion.target_type)?;
+                if access == IndexAccess::Readwrite && !writable {
+                    return None;
+                }
+                Some((coercion, element, projection))
+            })
+            .collect::<Vec<_>>();
     if candidates.is_empty() {
         if let Some(declared) = declared {
             return Ok(declared);

@@ -399,7 +399,100 @@ impl<'a> FunctionIndex<'a> {
                         }
                     }
                     Item::Function(_) => {}
-                    Item::Instance(_) | Item::Conformance(_) => {
+                    Item::Instance(instance) => {
+                        let owner = item.method_owner().expect("matched method owner");
+                        let Some(type_name) = declaration_target_type_name(owner.target_ty())
+                        else {
+                            continue;
+                        };
+                        for method in instance.behavior_methods() {
+                            if method.body.is_some() && owner.generics().parameters.is_empty() {
+                                let declaration = analysis
+                                    .callable_bodies
+                                    .canonical_identity(method.name_span);
+                                let declaration_source = if declaration == method.name_span {
+                                    file.ast.span.source
+                                } else {
+                                    declaration.source
+                                };
+                                let name = method_target_name(type_name, &method.name);
+                                let target = call_target_for_source(
+                                    declaration_source,
+                                    root_source,
+                                    name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        owner.target_ty().clone(),
+                                        HashMap::new(),
+                                        name,
+                                        file,
+                                    ),
+                                );
+                            } else if method.body.is_some() {
+                                let declaration = analysis
+                                    .callable_bodies
+                                    .canonical_identity(method.name_span);
+                                let declaration_source = if declaration == method.name_span {
+                                    file.ast.span.source
+                                } else {
+                                    declaration.source
+                                };
+                                for specialization in call_specializations
+                                    .methods
+                                    .get(&declaration)
+                                    .into_iter()
+                                    .flatten()
+                                {
+                                    let target = call_target_for_source(
+                                        declaration_source,
+                                        root_source,
+                                        specialization.target_name.clone(),
+                                    );
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_method(
+                                            method,
+                                            substitute_type_expr_parameters(
+                                                owner.target_ty(),
+                                                &specialization.substitutions,
+                                            ),
+                                            specialization.substitutions.clone(),
+                                            specialization.target_name.clone(),
+                                            file,
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        for entry in &instance.coercions {
+                            let callable = entry.callable_method();
+                            if callable.body.is_none() {
+                                continue;
+                            }
+                            let declaration =
+                                analysis.callable_bodies.canonical_identity(entry.span);
+                            for plan in call_specializations
+                                .coercions
+                                .get(&declaration)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    declaration.source,
+                                    root_source,
+                                    plan.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_coercion(entry, plan, file),
+                                );
+                            }
+                        }
+                    }
+                    Item::Conformance(_) => {
                         let owner = item.method_owner().expect("matched method owner");
                         let Some(type_name) = declaration_target_type_name(owner.target_ty())
                         else {
@@ -611,31 +704,6 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
-                    Item::Coerce(coerce) => {
-                        for entry in &coerce.entries {
-                            if entry.body.is_none() {
-                                continue;
-                            }
-                            let declaration =
-                                analysis.callable_bodies.canonical_identity(entry.span);
-                            for plan in call_specializations
-                                .coercions
-                                .get(&declaration)
-                                .into_iter()
-                                .flatten()
-                            {
-                                let target = call_target_for_source(
-                                    declaration.source,
-                                    root_source,
-                                    plan.target_name.clone(),
-                                );
-                                definitions.insert(
-                                    target,
-                                    IndexedCallable::new_coercion(entry, plan, file),
-                                );
-                            }
-                        }
-                    }
                     _ => {}
                 }
             }
@@ -842,13 +910,13 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_coercion(
-        declaration: &crate::ast::CoercionEntry,
+        declaration: &'a crate::ast::CoercionEntry,
         plan: &crate::typecheck::TypecheckCoercionPlan,
         file: &'a FileAnalysis,
     ) -> Self {
         Self {
             declaration: IndexedDeclaration::Method {
-                declaration: Cow::Owned(declaration.callable_method()),
+                declaration: Cow::Borrowed(declaration.callable_method()),
                 self_ty: plan.self_ty.clone(),
                 substitutions: plan.substitutions.clone(),
                 name: plan.target_name.clone(),

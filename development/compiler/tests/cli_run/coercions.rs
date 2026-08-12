@@ -2,6 +2,44 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn generic_coercion_requirement_specializes_to_the_concrete_instance_body() {
+    let project = TempProject::new("cli-run-generic-coercion-requirement");
+    let source = project.write_source(
+        "index.nct",
+        r#"struct Payload { code: i32 }
+struct Box { selected: Payload }
+
+instance Box {
+    pub coerce &self as &Payload from self { return &self.selected }
+}
+
+func project<T>(value: &T): &Payload from value where &T as &Payload {
+    return value
+}
+
+func read_code(value: &Payload): i32 { return value.code }
+
+func main(): i32 {
+    let box = Box { selected: Payload { code: 47 } }
+    let projected = project(&box)
+    return read_code(projected)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(47),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn explicit_generic_coercion_invokes_the_selected_body_once() {
     let project = TempProject::new("cli-run-explicit-generic-coercion-once");
     let source = project.write_source(
@@ -19,8 +57,8 @@ struct Counter {
     calls: i32
 }
 
-coerce Box<T> {
-    pub &self as &Payload from self {
+instance Box<T> {
+    pub coerce &self as &Payload from self {
         return &self.selected
     }
 }
@@ -69,8 +107,8 @@ fn contextual_coercion_lowers_each_borrow_valued_control_flow_branch() {
     selected: i32
 }
 
-coerce Box {
-    pub &self as &i32 from self {
+instance Box {
+    pub coerce &self as &i32 from self {
         return &self.selected
     }
 }
@@ -117,8 +155,8 @@ struct Box {
     selected: Payload
 }
 
-coerce Box {
-    pub &self as &Payload from self {
+instance Box {
+    pub coerce &self as &Payload from self {
         return &self.selected
     }
 }

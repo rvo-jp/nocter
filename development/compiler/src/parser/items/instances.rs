@@ -11,6 +11,7 @@ impl Parser<'_> {
         let open = self.expect_punctuation("{", "`{`")?;
         let mut methods = Vec::new();
         let mut operators = Vec::new();
+        let mut coercions = Vec::new();
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -29,13 +30,15 @@ impl Parser<'_> {
                 methods.push(self.parse_method_decl(visibility, true)?);
             } else if self.at_keyword(Keyword::Operator) {
                 operators.push(self.parse_operator_decl(visibility)?);
+            } else if self.at_keyword(Keyword::Coerce) {
+                coercions.push(self.parse_coercion_entry(visibility)?);
             } else if self.at_identifier_text("drop") {
                 self.error_current(
                     "drop members were removed; write `destruct Type(&+self) { ... }` at top level",
                 );
                 return Err(());
             } else {
-                self.error_current("expected `method` or `operator` in instance block");
+                self.error_current("expected `method`, `operator`, or `coerce` in instance block");
                 return Err(());
             }
             self.skip_newlines();
@@ -49,6 +52,7 @@ impl Parser<'_> {
             requirements,
             methods,
             operators,
+            coercions,
         }))
     }
 }

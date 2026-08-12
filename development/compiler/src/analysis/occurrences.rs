@@ -222,7 +222,6 @@ impl OccurrenceBuilder<'_> {
                 | Item::Enum(_)
                 | Item::Interface(_)
                 | Item::Conformance(_)
-                | Item::Coerce(_)
                 | Item::Destruct(_) => {}
             }
         }

@@ -433,6 +433,7 @@ pub(super) struct TypeEnvironment {
     ordering_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
     index_requirements: Vec<IndexRequirement>,
     expansion_requirements: Vec<ExpansionRequirement>,
+    coercion_requirements: Vec<CoercionRequirement>,
 }
 
 #[derive(Debug, Clone)]
@@ -450,6 +451,13 @@ pub(super) struct ExpansionRequirement {
     pub(super) result: Type,
 }
 
+#[derive(Debug, Clone)]
+pub(super) struct CoercionRequirement {
+    pub(super) source: Type,
+    pub(super) target: Type,
+    pub(super) as_span: crate::source::ByteSpan,
+}
+
 impl TypeEnvironment {
     pub(super) fn with_self_type(self_type: Type) -> Self {
         Self {
@@ -463,6 +471,7 @@ impl TypeEnvironment {
             ordering_requirements: Vec::new(),
             index_requirements: Vec::new(),
             expansion_requirements: Vec::new(),
+            coercion_requirements: Vec::new(),
         }
     }
 
@@ -481,6 +490,7 @@ impl TypeEnvironment {
             ordering_requirements: self.ordering_requirements.clone(),
             index_requirements: self.index_requirements.clone(),
             expansion_requirements: self.expansion_requirements.clone(),
+            coercion_requirements: self.coercion_requirements.clone(),
         }
     }
 
@@ -645,6 +655,23 @@ impl TypeEnvironment {
                 }
             }
         }
+        for requirement in clause.coercion_requirements() {
+            let source = super::type_expr::type_expr_to_type_in_environment(
+                &requirement.source,
+                resolved,
+                self,
+            );
+            let target = super::type_expr::type_expr_to_type_in_environment(
+                &requirement.target,
+                resolved,
+                self,
+            );
+            self.coercion_requirements.push(CoercionRequirement {
+                source,
+                target,
+                as_span: requirement.as_span,
+            });
+        }
     }
 
     pub(super) fn generic_requirements(
@@ -652,6 +679,42 @@ impl TypeEnvironment {
         name: &str,
     ) -> Option<&crate::resolve::GenericRequirements> {
         self.generic_requirements.get(name)
+    }
+
+    pub(super) fn coercion_requirement(
+        &self,
+        source: &Type,
+        target: &Type,
+    ) -> Option<&CoercionRequirement> {
+        self.coercion_requirements.iter().find(|requirement| {
+            self.types_equal(&requirement.target, target)
+                && (self.types_equal(&requirement.source, source)
+                    || matches!(
+                        (&requirement.source, source),
+                        (
+                            Type::Borrow { is_readwrite: false, inner: required },
+                            Type::Borrow { is_readwrite: true, inner: actual },
+                        ) if self.types_equal(required, actual)
+                    ))
+        })
+    }
+
+    pub(super) fn coercion_requirements_for_source<'a>(
+        &'a self,
+        source: &'a Type,
+    ) -> impl Iterator<Item = &'a CoercionRequirement> + 'a {
+        self.coercion_requirements
+            .iter()
+            .filter(move |requirement| {
+                self.types_equal(&requirement.source, source)
+                    || matches!(
+                        (&requirement.source, source),
+                        (
+                            Type::Borrow { is_readwrite: false, inner: required },
+                            Type::Borrow { is_readwrite: true, inner: actual },
+                        ) if self.types_equal(required, actual)
+                    )
+            })
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&Type> {

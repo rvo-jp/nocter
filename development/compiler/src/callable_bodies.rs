@@ -1,9 +1,9 @@
 //! Source-backed callable contract and implementation identity.
 
 use crate::ast::{
-    AstFile, CoerceDecl, ConformanceMember, ConstructDecl, ConstructMemberDecl, FunctionDecl,
-    GenericParamList, InstanceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodOwnerDecl,
-    ParameterList, ResultProvenanceClause, Visibility, canonical_type_expr,
+    AstFile, ConformanceMember, ConstructDecl, ConstructMemberDecl, FunctionDecl, GenericParamList,
+    InstanceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodOwnerDecl, ParameterList,
+    ResultProvenanceClause, Visibility, canonical_type_expr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::ImportSourceMap;
@@ -137,6 +137,12 @@ impl CallableBodyIndex {
                 filtered
                     .methods
                     .retain(|method| !self.is_implementation(method.name_span));
+                filtered.operators.retain(|operator| {
+                    !self.is_implementation(operator.callable_method().name_span)
+                });
+                filtered
+                    .coercions
+                    .retain(|entry| !self.is_implementation(entry.as_span));
                 Some(Item::Instance(filtered))
             }
             Item::Conformance(conformance) => {
@@ -158,13 +164,6 @@ impl CallableBodyIndex {
                 });
                 (!filtered.members.is_empty() || construct.members.is_empty())
                     .then_some(Item::Construct(filtered))
-            }
-            Item::Coerce(coerce) => {
-                let mut filtered = coerce.clone();
-                filtered
-                    .entries
-                    .retain(|entry| !self.is_implementation(entry.as_span));
-                Some(Item::Coerce(filtered))
             }
             _ => Some(item.clone()),
         }
@@ -269,6 +268,15 @@ fn collect_file_callables(
                     implementations,
                     diagnostics,
                 );
+                collect_coercions(
+                    sources,
+                    module,
+                    instance,
+                    is_root,
+                    contracts,
+                    implementations,
+                    diagnostics,
+                );
             }
             Item::Conformance(conformance) => {
                 for member in &conformance.members {
@@ -287,15 +295,6 @@ fn collect_file_callables(
                 sources,
                 module,
                 construct,
-                is_root,
-                contracts,
-                implementations,
-                diagnostics,
-            ),
-            Item::Coerce(coerce) => collect_coercions(
-                sources,
-                module,
-                coerce,
                 is_root,
                 contracts,
                 implementations,
@@ -352,7 +351,12 @@ fn collect_inherent_methods(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in instance.callable_methods() {
+    for method in instance.methods.iter().chain(
+        instance
+            .operators
+            .iter()
+            .map(crate::ast::OperatorDecl::callable_method),
+    ) {
         classify(
             sources,
             record_for_method(module, instance, method),
@@ -413,13 +417,14 @@ fn collect_construct_callables(
 fn collect_coercions(
     sources: &SourceMap,
     module: SourceId,
-    coerce: &CoerceDecl,
+    instance: &InstanceDecl,
     is_root: bool,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for entry in &coerce.entries {
+    for entry in &instance.coercions {
+        let callable = entry.callable_method();
         classify(
             sources,
             CallableRecord {
@@ -427,22 +432,22 @@ fn collect_coercions(
                 identity: entry.as_span,
                 declaration_span: entry.span,
                 key: CallableKey::Coercion {
-                    owner: canonical_type_expr(&coerce.target),
-                    target: canonical_type_expr(&entry.target),
-                    receiver: entry.receiver.mode.label(),
+                    owner: canonical_type_expr(&instance.target_ty),
+                    target: canonical_type_expr(entry.target()),
+                    receiver: callable.receiver.mode.label(),
                 },
                 signature: CallableSignature {
-                    owner_generics: generic_signature(&coerce.generics),
+                    owner_generics: generic_signature(&instance.generics),
                     generics: Vec::new(),
-                    receiver: Some(entry.receiver.mode.label()),
+                    receiver: Some(callable.receiver.mode.label()),
                     parameters: Vec::new(),
-                    return_type: canonical_type_expr(&entry.target),
-                    provenance: provenance_signature(entry.result_provenance.as_ref()),
+                    return_type: canonical_type_expr(entry.target()),
+                    provenance: provenance_signature(callable.result_provenance.as_ref()),
                 },
-                inputs: vec![entry.receiver.name_span],
+                inputs: vec![callable.receiver.name_span],
             },
-            entry.visibility,
-            entry.body.is_some(),
+            callable.visibility,
+            callable.body.is_some(),
             is_root,
             contracts,
             implementations,

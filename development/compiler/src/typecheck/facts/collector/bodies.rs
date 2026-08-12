@@ -12,7 +12,6 @@ impl TypecheckFactCollector<'_> {
             Item::Instance(item) => Some(&item.generics),
             Item::Destruct(item) => Some(&item.generics),
             Item::Conformance(item) => Some(&item.generics),
-            Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
         if let Some(generics) = generics {
@@ -132,9 +131,6 @@ impl TypecheckFactCollector<'_> {
                         Some(return_type.success_type()),
                     );
                 }
-            }
-            Item::Coerce(coerce) => {
-                self.collect_instance_member_body_facts(&coerce.callable_instance());
             }
             Item::Import(_)
             | Item::FromImport(_)

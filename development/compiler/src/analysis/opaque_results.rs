@@ -72,8 +72,7 @@ pub(super) fn elaborate_file(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Destruct(_)
-            | Item::Conformance(_)
-            | Item::Coerce(_) => {}
+            | Item::Conformance(_) => {}
         }
     }
     (diagnostics, changed)

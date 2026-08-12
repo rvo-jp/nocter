@@ -40,7 +40,7 @@ pub(super) fn type_decl_names(ast: &AstFile) -> Vec<String> {
             | Item::Primitive(_)
             | Item::Instance(_)
             | Item::Conformance(_) => None,
-            Item::Construct(_) | Item::Coerce(_) | Item::Destruct(_) => None,
+            Item::Construct(_) | Item::Destruct(_) => None,
         })
         .collect()
 }

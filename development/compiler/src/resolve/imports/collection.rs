@@ -540,8 +540,7 @@ impl Resolver<'_> {
                 | Item::Instance(_)
                 | Item::Conformance(_)
                 | Item::Destruct(_)
-                | Item::Construct(_)
-                | Item::Coerce(_) => {}
+                | Item::Construct(_) => {}
             }
         }
     }

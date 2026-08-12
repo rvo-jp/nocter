@@ -185,8 +185,7 @@ fn root_access(
             | Item::Instance(_)
             | Item::Conformance(_)
             | Item::Destruct(_)
-            | Item::Construct(_)
-            | Item::Coerce(_) => continue,
+            | Item::Construct(_) => continue,
         };
         if let Some(import_source) = import_sources.get(&path_span) {
             return import_source.access;

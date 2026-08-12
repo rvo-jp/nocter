@@ -62,7 +62,7 @@ fn formats_source_backed_callable_contracts_stably() {
 instance Value{pub method &self.render():String}
 construct Value{pub default func new():Self
 pub literal [](...items:i32):Self}
-coerce Value{pub &self as &str from self}
+instance Value{pub coerce &self as &str from self}
 "#,
         r#"pub func parse(text: &str): Value! from text
 
@@ -76,8 +76,8 @@ construct Value {
     pub literal [](...items: i32): Self
 }
 
-coerce Value {
-    pub &self as &str from self
+instance Value {
+    pub coerce &self as &str from self
 }
 "#,
     );
@@ -126,15 +126,15 @@ fn formats_expansion_operator_declarations_and_requirements_stably() {
 #[test]
 fn formats_borrow_coercions_stably() {
     assert_formats_stably(
-        r#"coerce Vec<T>{pub &self as &[T] from self{return self.view()}
-&+self as &+[T] from self{return self.view_mut()}}
+        r#"instance Vec<T>{pub coerce &self as &[T] from self{return self.view()}
+coerce &+self as &+[T] from self{return self.view_mut()}}
 "#,
-        r#"coerce Vec<T> {
-    pub &self as &[T] from self {
+        r#"instance Vec<T> {
+    pub coerce &self as &[T] from self {
         return self.view()
     }
 
-    &+self as &+[T] from self {
+    coerce &+self as &+[T] from self {
         return self.view_mut()
     }
 }

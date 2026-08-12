@@ -121,20 +121,37 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 .map(method_document_symbol)
                 .collect(),
         )),
-        Item::Instance(instance) => Some(document_symbol(
-            format!(
-                "instance {}",
-                source_fragment(text, instance.target_ty.span())
-            ),
-            DocumentSymbolKind::Class,
-            instance.span,
-            instance.target_ty.span(),
-            instance
+        Item::Instance(instance) => {
+            let children = instance
                 .methods
                 .iter()
                 .map(method_document_symbol)
-                .collect(),
-        )),
+                .chain(instance.coercions.iter().map(|entry| {
+                    let callable = entry.callable_method();
+                    document_symbol(
+                        format!(
+                            "coerce {}self as {}",
+                            callable.receiver.mode.source_prefix(),
+                            source_fragment(text, entry.target().span())
+                        ),
+                        DocumentSymbolKind::Method,
+                        entry.span,
+                        entry.as_span,
+                        Vec::new(),
+                    )
+                }))
+                .collect();
+            Some(document_symbol(
+                format!(
+                    "instance {}",
+                    source_fragment(text, instance.target_ty.span())
+                ),
+                DocumentSymbolKind::Class,
+                instance.span,
+                instance.target_ty.span(),
+                children,
+            ))
+        }
         Item::Destruct(destruct) => Some(document_symbol(
             format!(
                 "destruct {}",
@@ -189,29 +206,6 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                         literal.shape_span,
                         Vec::new(),
                     ),
-                })
-                .collect(),
-        )),
-        Item::Coerce(coerce) => Some(document_symbol(
-            format!("coerce {}", source_fragment(text, coerce.target.span())),
-            DocumentSymbolKind::Class,
-            coerce.span,
-            coerce.target.span(),
-            coerce
-                .entries
-                .iter()
-                .map(|entry| {
-                    document_symbol(
-                        format!(
-                            "{}self as {}",
-                            entry.receiver.mode.source_prefix(),
-                            source_fragment(text, entry.target.span())
-                        ),
-                        DocumentSymbolKind::Method,
-                        entry.span,
-                        entry.as_span,
-                        Vec::new(),
-                    )
                 })
                 .collect(),
         )),

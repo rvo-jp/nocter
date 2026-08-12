@@ -394,6 +394,20 @@ fn qualify_where_clause(
                     imported_type_names,
                 );
             }
+            crate::ast::WherePredicate::Coercion(requirement) => {
+                qualify_type_expr(
+                    &mut requirement.source,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+                qualify_type_expr(
+                    &mut requirement.target,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
         }
     }
 }

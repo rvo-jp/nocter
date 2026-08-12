@@ -7,9 +7,9 @@ fn indexes_type_owned_coercions_with_stable_contracts() {
     let output = resolve_text(
         r#"struct Vec<T> {}
 
-coerce Vec<T> {
-    pub &self as &[T] from self { return self.view() }
-    &+self as &+[T] from self { return self.view_mut() }
+instance Vec<T> {
+    pub coerce &self as &[T] from self { return self.view() }
+    coerce &+self as &+[T] from self { return self.view_mut() }
 }
 "#,
     );
@@ -39,9 +39,9 @@ fn rejects_non_borrowed_and_capability_strengthening_targets() {
     let output = resolve_text(
         r#"struct Text {}
 
-coerce Text {
-    pub &self as Text from self { return make() }
-    pub &self as &+Text from self { return self }
+instance Text {
+    pub coerce &self as Text from self { return make() }
+    pub coerce &self as &+Text from self { return self }
 }
 "#,
     );
@@ -62,8 +62,8 @@ coerce Text {
 fn accepts_elided_self_provenance_and_rejects_other_origins() {
     let elided = resolve_text(
         r#"struct Text {}
-coerce Text {
-    pub &self as &str { return self.view() }
+instance Text {
+    pub coerce &self as &str { return self.view() }
 }
 "#,
     );
@@ -71,8 +71,8 @@ coerce Text {
 
     let wrong = resolve_text(
         r#"struct Text {}
-coerce Text {
-    pub &self as &str from static { return "fixed" }
+instance Text {
+    pub coerce &self as &str from static { return "fixed" }
 }
 "#,
     );
@@ -88,11 +88,11 @@ coerce Text {
 fn rejects_duplicate_coercion_keys_across_blocks() {
     let output = resolve_text(
         r#"struct Text {}
-coerce Text {
-    pub &self as &str from self { return self.first() }
+instance Text {
+    pub coerce &self as &str from self { return self.first() }
 }
-coerce Text {
-    pub &self as &str from self { return self.second() }
+instance Text {
+    pub coerce &self as &str from self { return self.second() }
 }
 "#,
     );
@@ -110,8 +110,8 @@ coerce Text {
 fn validates_source_generic_binding_order() {
     let output = resolve_text(
         r#"struct Pair<A, B> {}
-coerce Pair<B, A> {
-    pub &self as &[A] from self { return self.values() }
+instance Pair<B, A> {
+    pub coerce &self as &[A] from self { return self.values() }
 }
 "#,
     );

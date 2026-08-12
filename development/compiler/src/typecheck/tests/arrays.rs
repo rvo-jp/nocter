@@ -266,8 +266,8 @@ fn accepts_indexing_through_one_readonly_coercion() {
     values: &[u8]
 }
 
-coerce Buffer {
-    pub &self as &[u8] from self {
+instance Buffer {
+    pub coerce &self as &[u8] from self {
         return self.values
     }
 }
@@ -290,8 +290,8 @@ fn accepts_generic_index_requirement_and_checks_concrete_coercion() {
     values: &[u8]
 }
 
-coerce Buffer {
-    pub &self as &[u8] from self {
+instance Buffer {
+    pub coerce &self as &[u8] from self {
         return self.values
     }
 }
@@ -350,9 +350,9 @@ fn diagnoses_ambiguous_index_coercion_targets() {
     words: &[usize]
 }
 
-coerce Buffer {
-    pub &self as &[u8] from self { return self.bytes }
-    pub &self as &[usize] from self { return self.words }
+instance Buffer {
+    pub coerce &self as &[u8] from self { return self.bytes }
+    pub coerce &self as &[usize] from self { return self.words }
 }
 
 func first(buffer: &Buffer): u8 {
@@ -389,9 +389,9 @@ struct Buffer {
     bytes: &[u8]
 }
 
-coerce Buffer {
-    pub &self as &Indexed from self { return &self.indexed }
-    pub &self as &[u8] from self { return self.bytes }
+instance Buffer {
+    pub coerce &self as &Indexed from self { return &self.indexed }
+    pub coerce &self as &[u8] from self { return self.bytes }
 }
 
 func first(buffer: &Buffer): u8 {

@@ -206,9 +206,6 @@ pub(super) fn check_generic_type_arities(
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                check_instance_types(sources, &coerce.callable_instance(), resolved, diagnostics);
-            }
             Item::Import(_) | Item::FromImport(_) => {}
         }
     }
@@ -613,6 +610,52 @@ fn check_where_clause(
             if let Ok(span) = sources.span_to_json(first_span) {
                 diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
                     message: "the first requirement is here".to_string(),
+                    span: Some(span),
+                });
+            }
+            diagnostics.push(diagnostic);
+        }
+    }
+
+    let mut seen_coercions = HashMap::<String, ByteSpan>::new();
+    for requirement in clause.coercion_requirements() {
+        check_type_expr(sources, &requirement.source, resolved, scope, diagnostics);
+        check_type_expr(sources, &requirement.target, resolved, scope, diagnostics);
+        let valid_source = matches!(
+            &requirement.source,
+            TypeExpr::Borrow(borrow)
+                if matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference)
+                    if scope.parameters.contains_key(reference.name.as_str()))
+        );
+        let valid_target = matches!(&requirement.target, TypeExpr::Borrow(_));
+        let capability_is_valid = !matches!(
+            (&requirement.source, &requirement.target),
+            (
+                TypeExpr::Borrow(source),
+                TypeExpr::Borrow(target),
+            ) if !source.is_readwrite && target.is_readwrite
+        );
+        if !valid_source || !valid_target || !capability_is_valid {
+            let mut diagnostic = Diagnostic::error(
+                "E0477",
+                "a coercion requirement must have the form `&T as &View` or `&+T as &+View`",
+            );
+            diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        let key = format!(
+            "{} as {}",
+            crate::ast::canonical_type_expr(&requirement.source),
+            crate::ast::canonical_type_expr(&requirement.target)
+        );
+        if let Some(first_span) = seen_coercions.insert(key.clone(), requirement.span) {
+            let mut diagnostic =
+                Diagnostic::error("E0478", format!("duplicate coercion requirement `{key}`"));
+            diagnostic.primary_span = sources.span_to_json(requirement.span).ok().map(Box::new);
+            if let Ok(span) = sources.span_to_json(first_span) {
+                diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
+                    message: "first required here".to_string(),
                     span: Some(span),
                 });
             }

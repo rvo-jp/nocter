@@ -25,8 +25,8 @@ fn count_borrow_calls(instructions: &[Instruction], target: &CallTarget) -> usiz
 fn lowers_a_generic_borrow_coercion_as_a_reachable_callable() {
     let ir = lower_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> {
-    pub &self as &T from self { return &self.value }
+instance Box<T> {
+    pub coerce &self as &T from self { return &self.value }
 }
 func accept(value: &i32): i32 { return 7 }
 func main(): i32 {
@@ -74,8 +74,8 @@ func main(): i32 {
 fn lowers_string_view_coercion_through_the_same_plan() {
     let ir = lower_text(
         r#"struct Text { data: &str }
-coerce Text {
-    pub &self as &str from self { return self.data }
+instance Text {
+    pub coerce &self as &str from self { return self.data }
 }
 
 func accept(value: &str): i32 { return 1 }
@@ -108,8 +108,8 @@ func main(): i32 {
 fn lowers_receiver_coercion_before_the_selected_source_method() {
     let ir = lower_text_with_nocter_home_files(
         r#"struct Text { data: &str }
-coerce Text {
-    pub &self as &str { return self.data }
+instance Text {
+    pub coerce &self as &str { return self.data }
 }
 func main(): usize {
     let text = Text { data: "hello" }
@@ -153,7 +153,7 @@ func main(): usize {
 fn lowers_one_coercion_plan_at_each_expected_type_boundary() {
     let ir = lower_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 struct Holder { value: &i32 }
 func accept(value: &i32): void { return }
 func project(value: &Box<i32>): &i32 from value {
@@ -191,7 +191,7 @@ func main(): i32 {
 fn lowers_explicit_as_through_the_selected_coercion_body() {
     let ir = lower_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 func accept(value: &i32): i32 { return 7 }
 func main(): i32 {
     let box = Box<i32> { value: 42 }
@@ -219,7 +219,7 @@ func main(): i32 {
 fn explicit_coercion_evaluates_its_source_once() {
     let ir = lower_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 func borrow(value: &Box<i32>): &Box<i32> from value { return value }
 func accept(value: &i32): i32 { return 7 }
 func main(): i32 {
@@ -264,7 +264,7 @@ func main(): i32 {
 fn lowers_contextual_coercions_on_each_compound_expression_result() {
     let ir = lower_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 enum Choice { first second }
 func maybe(value: &Box<i32>): &Box<i32>? from value { return value }
 func project(choice: Choice, value: &Box<i32>): &i32 from value {

@@ -146,21 +146,22 @@ pub(crate) fn ast_expansion_operator_presentation(
 }
 
 pub(crate) fn ast_coercion_presentation(entry: &CoercionEntry) -> String {
-    let visibility = if entry.visibility.is_private() {
+    let callable = entry.callable_method();
+    let visibility = if callable.visibility.is_private() {
         String::new()
     } else {
-        format!("{} ", entry.visibility.source_notation())
+        format!("{} ", callable.visibility.source_notation())
     };
-    let provenance = super::result_origin_labels(entry.result_provenance.as_ref());
+    let provenance = super::result_origin_labels(callable.result_provenance.as_ref());
     let provenance = if provenance.is_empty() {
         String::new()
     } else {
         format!(" from {}", provenance.join(" | "))
     };
     format!(
-        "{visibility}{}self as {}{provenance}",
-        entry.receiver.mode.source_prefix(),
-        crate::ast::canonical_type_expr(&entry.target),
+        "{visibility}coerce {}self as {}{provenance}",
+        callable.receiver.mode.source_prefix(),
+        crate::ast::canonical_type_expr(entry.target()),
     )
 }
 

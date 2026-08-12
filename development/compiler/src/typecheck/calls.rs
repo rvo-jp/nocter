@@ -233,15 +233,25 @@ pub(super) fn resolved_method_call<'a>(
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
     match &self_type {
         Type::Parameter(_) | Type::Projection { .. } => {
-            let mut candidates =
-                bounded_method_candidates(&self_type, member, environment, resolved).into_iter();
-            let (owner, method) = candidates.next()?;
-            candidates.next().is_none().then_some(ResolvedMethodCall {
-                owner,
-                method,
-                self_type,
-                receiver_coercion: None,
-            })
+            let candidates = bounded_method_candidates(&self_type, member, environment, resolved);
+            if let [(owner, method)] = candidates.as_slice() {
+                return Some(ResolvedMethodCall {
+                    owner,
+                    method,
+                    self_type,
+                    receiver_coercion: None,
+                });
+            }
+            if !candidates.is_empty() {
+                return None;
+            }
+            resolve_receiver_coerced_method(
+                resolved,
+                member,
+                &receiver_type,
+                &self_type,
+                environment,
+            )
         }
         _ => {
             let inherent = inherent_method_owner_for_type(&self_type, resolved).and_then(|owner| {
@@ -331,7 +341,8 @@ fn receiver_coerced_method_candidates<'a>(
             ..
         }
     ) || receiver_is_mutable_binding(member, environment);
-    let coercions = receiver_coercion_candidates(source_self_type, source_is_readwrite, resolved);
+    let coercions =
+        receiver_coercion_candidates(source_self_type, source_is_readwrite, resolved, environment);
     let mut candidates = Vec::new();
     for coercion in coercions {
         let target_self_type =
@@ -1095,6 +1106,42 @@ fn check_generic_interface_bounds(
                 }
             }
         }
+    }
+    for requirement in clause.coercion_requirements() {
+        let source = type_expr_to_type_with_substitutions(
+            &requirement.source,
+            resolved,
+            specialized_self_type.as_ref(),
+            substitutions,
+        );
+        let target = type_expr_to_type_with_substitutions(
+            &requirement.target,
+            resolved,
+            specialized_self_type.as_ref(),
+            substitutions,
+        );
+        if source.is_unknown_or_unresolved() || target.is_unknown_or_unresolved() {
+            continue;
+        }
+        if super::coercions::select_coercion(&target, &source, resolved, environment).is_some() {
+            continue;
+        }
+        let mut diagnostic = Diagnostic::error(
+            "E0479",
+            format!(
+                "coercion requirement `{} as {}` is not satisfied",
+                source.display(),
+                target.display()
+            ),
+        );
+        diagnostic.primary_span = sources.span_to_json(call.span).ok().map(Box::new);
+        if let Ok(span) = sources.span_to_json(requirement.as_span) {
+            diagnostic.notes.push(DiagnosticNote {
+                message: "required by this generic coercion contract".to_string(),
+                span: Some(span),
+            });
+        }
+        diagnostics.push(diagnostic);
     }
 }
 

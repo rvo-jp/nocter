@@ -1,8 +1,8 @@
-//! Coherence and type-owned indexing for borrowed-view coercions.
+//! Coherence and type-owned indexing for instance borrow coercions.
 
 use super::{CoercionSignature, Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{
-    CoerceDecl, CoercionEntry, MethodReceiverMode, ResultProvenanceOriginKind, TypeExpr,
+    CoercionEntry, InstanceDecl, MethodReceiverMode, ResultProvenanceOriginKind, TypeExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::ByteSpan;
@@ -10,21 +10,24 @@ use crate::source::ByteSpan;
 impl Resolver<'_> {
     pub(super) fn collect_coercion_surfaces(&mut self, ast: &crate::ast::AstFile) {
         for item in &ast.items {
-            let crate::ast::Item::Coerce(coerce) = item else {
+            let crate::ast::Item::Instance(instance) = item else {
                 continue;
             };
-            self.collect_coercion_surface(ast, coerce);
+            if instance.coercions.is_empty() {
+                continue;
+            }
+            self.collect_coercion_surface(ast, instance);
         }
     }
 
-    fn collect_coercion_surface(&mut self, ast: &crate::ast::AstFile, coerce: &CoerceDecl) {
-        let Some(target_name) = nominal_name(&coerce.target) else {
+    fn collect_coercion_surface(&mut self, ast: &crate::ast::AstFile, instance: &InstanceDecl) {
+        let Some(target_name) = nominal_name(&instance.target_ty) else {
             return;
         };
         let Some(symbol_id) = self.output.symbols.id_by_name(target_name) else {
             self.push_coercion_error(
                 format!("coerce source type `{target_name}` is not visible"),
-                coerce.target.span(),
+                instance.target_ty.span(),
                 None,
             );
             return;
@@ -34,18 +37,18 @@ impl Resolver<'_> {
             let SymbolKind::Type(target) = &symbol.kind else {
                 return None;
             };
-            Some(validate_source(ast, coerce, symbol, target))
+            Some(validate_source(ast, instance, symbol, target))
         });
         match validation {
             Some(Ok(())) => {}
             Some(Err((message, note))) => {
-                self.push_coercion_error(message, coerce.target.span(), note);
+                self.push_coercion_error(message, instance.target_ty.span(), note);
                 return;
             }
             None => {
                 self.push_coercion_error(
                     format!("coerce source `{target_name}` is not a type"),
-                    coerce.target.span(),
+                    instance.target_ty.span(),
                     None,
                 );
                 return;
@@ -53,7 +56,7 @@ impl Resolver<'_> {
         }
 
         let mut accepted = Vec::new();
-        for entry in &coerce.entries {
+        for entry in &instance.coercions {
             match validate_entry(entry) {
                 Ok(()) => accepted.push(coercion_signature(entry)),
                 Err((message, span)) => self.push_coercion_error(message, span, None),
@@ -104,13 +107,13 @@ type ValidationError = (String, Option<(&'static str, ByteSpan)>);
 
 fn validate_source(
     ast: &crate::ast::AstFile,
-    coerce: &CoerceDecl,
+    instance: &InstanceDecl,
     symbol: &super::Symbol,
     target: &TypeSymbol,
 ) -> Result<(), ValidationError> {
     if symbol.declaration_span.source != ast.span.source {
         return Err((
-            "coerce declarations must be in the source type's module".to_string(),
+            "coercion members must be in the source type's module".to_string(),
             Some(("source type is declared here", symbol.declaration_span)),
         ));
     }
@@ -120,10 +123,10 @@ fn validate_source(
             Some(("source type is declared here", symbol.declaration_span)),
         ));
     }
-    let arguments = match &coerce.target {
+    let arguments = match &instance.target_ty {
         TypeExpr::Reference(_) => &[][..],
         TypeExpr::Generic(generic) => generic.arguments.as_slice(),
-        _ => unreachable!("parser accepts only nominal coerce sources"),
+        _ => unreachable!("instance coercions require a nominal source"),
     };
     if arguments.len() != target.generic_parameters.len() {
         return Err((
@@ -155,21 +158,22 @@ fn validate_source(
 }
 
 fn validate_entry(entry: &CoercionEntry) -> Result<(), (String, ByteSpan)> {
-    if !is_borrowed_target(&entry.target) {
+    let callable = entry.callable_method();
+    if !is_borrowed_target(entry.target()) {
         return Err((
             "coercion target must be a borrowed type or view".to_string(),
-            entry.target.span(),
+            entry.target().span(),
         ));
     }
-    if entry.receiver.mode == MethodReceiverMode::ReadonlyBorrow
-        && target_is_readwrite(&entry.target)
+    if callable.receiver.mode == MethodReceiverMode::ReadonlyBorrow
+        && target_is_readwrite(entry.target())
     {
         return Err((
             "readonly coercion receiver cannot produce a readwrite target".to_string(),
-            entry.target.span(),
+            entry.target().span(),
         ));
     }
-    if let Some(provenance) = &entry.result_provenance
+    if let Some(provenance) = &callable.result_provenance
         && (provenance.origins.len() != 1
             || provenance.origins[0].kind != ResultProvenanceOriginKind::Receiver)
     {
@@ -202,14 +206,15 @@ fn nominal_name(target: &TypeExpr) -> Option<&str> {
 }
 
 fn coercion_signature(entry: &CoercionEntry) -> CoercionSignature {
+    let callable = entry.callable_method();
     CoercionSignature {
         declaration_span: entry.span,
         focus_span: entry.as_span,
-        visibility: entry.visibility,
+        visibility: callable.visibility,
         is_accessible: true,
-        receiver: entry.receiver.clone(),
-        target: entry.target.clone(),
-        result_provenance: entry.result_provenance.clone(),
+        receiver: callable.receiver.clone(),
+        target: entry.target().clone(),
+        result_provenance: callable.result_provenance.clone(),
     }
 }
 
@@ -253,13 +258,13 @@ pub(super) fn attach_coercions_to_symbol(
     expected_source_name: &str,
 ) {
     for item in &ast.items {
-        let crate::ast::Item::Coerce(coerce) = item else {
+        let crate::ast::Item::Instance(instance) = item else {
             continue;
         };
-        if nominal_name(&coerce.target) != Some(expected_source_name) {
+        if nominal_name(&instance.target_ty) != Some(expected_source_name) {
             continue;
         }
-        for entry in &coerce.entries {
+        for entry in &instance.coercions {
             if validate_entry(entry).is_ok() {
                 symbol.coercions.push(coercion_signature(entry));
             }

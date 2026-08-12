@@ -2299,8 +2299,8 @@ fn lsp_command_rejects_requests_after_shutdown_and_ignores_notifications() {
 fn lsp_conversion_hover_and_definition_use_exact_as_ranges() {
     let project = TempProject::new("cli-lsp-conversion-plans");
     let source_text = r#"struct Text { value: &str }
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 func project(value: &Text): &str from value { return value as &str }
 func widen(): i64 { return 1 as i64 }
@@ -2402,7 +2402,7 @@ fn lsp_conversion_definition_crosses_a_public_reexport() {
 func project(value: &Text): &str from value { return value as &str }
 "#;
     let model_text = r#"pub struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 "#;
     let app = project.write_source("index.nct", app_text);
     project.write_source("api/index.nct", "pub use ../model.Text\n");
@@ -2506,7 +2506,7 @@ func project(value: &Text): &str from value { return value as &str }
     let private_app = private_project.write_source("index.nct", private_app_text);
     private_project.write_source(
         "model/index.nct",
-        "pub struct Text { value: &str }\ncoerce Text { &self as &str from self { return self.value } }\n",
+        "pub struct Text { value: &str }\ncoerce Text { coerce &self as &str from self { return self.value } }\n",
     );
     let private_uri = file_uri(&private_app);
     let private_operator = private_app_text.rfind("as &str").unwrap();
@@ -2565,7 +2565,7 @@ func project(value: &Text): &str from value { return value as &str }
 
     let incomplete_project = TempProject::new("cli-lsp-incomplete-coercion");
     let incomplete_text = r#"struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 func project(value: &Text): &str from value { return value as &
 "#;
     let incomplete_source = incomplete_project.write_source("index.nct", incomplete_text);

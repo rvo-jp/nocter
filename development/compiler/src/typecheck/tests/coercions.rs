@@ -5,8 +5,8 @@ struct Box<T> {
     pub value: T,
 }
 
-coerce Box<T> {
-    pub &self as &T from self {
+instance Box<T> {
+    pub coerce &self as &T from self {
         return &self.value
     }
 }
@@ -68,8 +68,8 @@ fn coercions_do_not_chain() {
         r#"
 struct First { pub value: Second }
 struct Second { pub value: i32 }
-coerce First { pub &self as &Second from self { return &self.value } }
-coerce Second { pub &self as &i32 from self { return &self.value } }
+instance First { pub coerce &self as &Second from self { return &self.value } }
+instance Second { pub coerce &self as &i32 from self { return &self.value } }
 func accept(value: &i32): void { return }
 func demo(value: &First): void { accept(value) return }
 func main(): i32 { return 0 }
@@ -87,7 +87,7 @@ fn coercions_apply_at_every_concrete_expected_type_boundary() {
     let diagnostics = check_text(
         r#"
 struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 struct Holder { value: &i32 }
 func accept(value: &i32): void { return }
 func project(value: &Box<i32>): &i32 from value {
@@ -132,7 +132,7 @@ fn explicit_as_requires_the_source_borrow_to_be_written() {
 fn explicit_as_reports_insufficient_readwrite_capability() {
     let diagnostics = check_text(
         r#"struct Cell { value: i32 }
-coerce Cell { pub &+self as &+i32 from self { return &+self.value } }
+instance Cell { pub coerce &+self as &+i32 from self { return &+self.value } }
 func project(value: &Cell): &+i32 from value { return value as &+i32 }
 func main(): i32 { return 0 }
 "#,
@@ -162,8 +162,8 @@ fn explicit_as_does_not_implicitly_chain_coercions() {
     let diagnostics = check_text(
         r#"struct First { value: Second }
 struct Second { value: i32 }
-coerce First { pub &self as &Second from self { return &self.value } }
-coerce Second { pub &self as &i32 from self { return &self.value } }
+instance First { pub coerce &self as &Second from self { return &self.value } }
+instance Second { pub coerce &self as &i32 from self { return &self.value } }
 func project(value: &First): &i32 from value { return value as &i32 }
 func main(): i32 { return 0 }
 "#,
@@ -195,7 +195,7 @@ func main(): i32 { return 0 }
 fn contextual_coercion_applies_to_enum_payload_arguments() {
     let diagnostics = check_text(
         r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 enum View<T> { one(value: &T) }
 func project(value: &Box<i32>): View<i32> from value { return View.one(value) }
 func main(): i32 { return 0 }
@@ -203,4 +203,73 @@ func main(): i32 { return 0 }
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn generic_coercion_requirement_supports_contextual_and_explicit_selection() {
+    let diagnostics = check_text(
+        r#"struct Text { value: &str }
+instance Text { pub coerce &self as &str from self { return self.value } }
+func contextual<T>(value: &T): &str from value where &T as &str { return value }
+func explicit<T>(value: &T): &str from value where &T as &str { return value as &str }
+func demo(value: &Text): &str from value { return contextual(value) }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn generic_coercion_requirement_supports_receiver_method_selection() {
+    let diagnostics = check_text(
+        r#"struct View {}
+instance View { pub method &self.len(): usize { return 0 } }
+struct Text { view: View }
+instance Text { pub coerce &self as &View from self { return &self.view } }
+func len<T>(value: &T): usize where &T as &View { return value.len() }
+func demo(value: &Text): usize { return len(value) }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn generic_coercion_requirement_supports_comparison_and_index_selection() {
+    let diagnostics = check_text(
+        r#"struct View { value: i32 }
+instance View {
+    pub operator (&self == other: &Self): bool { return self.value == other.value }
+}
+struct Text { view: View }
+instance Text { pub coerce &self as &View from self { return &self.view } }
+struct Buffer { values: &[u8] }
+instance Buffer { pub coerce &self as &[u8] from self { return self.values } }
+func same<T>(left: &T, right: &T): bool where &T as &View { return left == right }
+func first<T>(value: &T): u8 where &T as &[u8] { return value[0] }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn generic_coercion_requirement_is_checked_at_concrete_calls() {
+    let diagnostics = check_text(
+        r#"struct Other {}
+func view<T>(value: &T): &str from value where &T as &str { return value }
+func demo(value: &Other): &str from value { return view(value) }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "E0479"
+            && diagnostic
+                .message
+                .contains("coercion requirement `&Other as &str` is not satisfied")
+    }));
 }

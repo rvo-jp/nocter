@@ -70,13 +70,6 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                for entry in &coerce.entries {
-                    if let Some(body) = &entry.body {
-                        visit_block_expressions(body, visitor);
-                    }
-                }
-            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

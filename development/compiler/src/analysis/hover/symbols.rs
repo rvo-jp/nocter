@@ -63,6 +63,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
     item: &Item,
     symbols: &mut Vec<HoverSymbol>,
 ) {
+    collect_item_coercion_requirement_hover_symbols(text, item, symbols);
     match item {
         Item::Import(_) | Item::FromImport(_) => {}
         Item::Function(function) => {
@@ -156,6 +157,21 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     collect_block_hover_symbols(text, body, symbols);
                 }
             }
+            for entry in &instance.coercions {
+                push_hover_symbol(
+                    text,
+                    entry.as_span,
+                    entry.span.start,
+                    crate::analysis::presentation::ast_coercion_presentation(entry),
+                    symbols,
+                );
+                let callable = entry.callable_method();
+                let receiver = callable.receiver.implicit_parameter();
+                collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
+                if let Some(body) = &callable.body {
+                    collect_block_hover_symbols(text, body, symbols);
+                }
+            }
         }
         Item::Conformance(conformance) => {
             for method in conformance.methods() {
@@ -175,22 +191,65 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 collect_literal_hover_symbols(text, literal, symbols);
             }
         }
-        Item::Coerce(coerce) => {
-            for entry in &coerce.entries {
-                push_hover_symbol(
-                    text,
-                    entry.as_span,
-                    entry.span.start,
-                    crate::analysis::presentation::ast_coercion_presentation(entry),
-                    symbols,
-                );
-                let receiver = entry.receiver.implicit_parameter();
-                collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
-                if let Some(body) = &entry.body {
-                    collect_block_hover_symbols(text, body, symbols);
-                }
-            }
+    }
+}
+
+fn collect_item_coercion_requirement_hover_symbols(
+    text: &str,
+    item: &Item,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    let mut clauses = Vec::new();
+    match item {
+        Item::Function(function) => clauses.push(function.requirements.as_ref()),
+        Item::Primitive(primitive) => clauses.push(primitive.requirements.as_ref()),
+        Item::TypeAlias(alias) => clauses.push(alias.requirements.as_ref()),
+        Item::Struct(struct_) => clauses.push(struct_.requirements.as_ref()),
+        Item::Enum(enum_) => clauses.push(enum_.requirements.as_ref()),
+        Item::Interface(interface) => {
+            clauses.push(interface.requirements.as_ref());
+            clauses.extend(
+                interface
+                    .methods
+                    .iter()
+                    .map(|method| method.requirements.as_ref()),
+            );
         }
+        Item::Instance(_) | Item::Conformance(_) => {
+            let owner = item.method_owner().expect("matched method owner");
+            clauses.push(owner.requirements());
+            clauses.extend(owner.methods().map(|method| method.requirements.as_ref()));
+        }
+        Item::Construct(construct) => {
+            clauses.extend(
+                construct
+                    .functions()
+                    .map(|(_, function)| function.requirements.as_ref()),
+            );
+            clauses.extend(
+                construct
+                    .literals()
+                    .map(|(_, literal)| literal.requirements.as_ref()),
+            );
+        }
+        Item::Import(_) | Item::FromImport(_) | Item::Test(_) | Item::Destruct(_) => {}
+    }
+    for requirement in clauses
+        .into_iter()
+        .flatten()
+        .flat_map(crate::ast::WhereClause::coercion_requirements)
+    {
+        push_hover_symbol(
+            text,
+            requirement.as_span,
+            requirement.span.start,
+            format!(
+                "where {} as {}",
+                crate::ast::canonical_type_expr(&requirement.source),
+                crate::ast::canonical_type_expr(&requirement.target)
+            ),
+            symbols,
+        );
     }
 }
 

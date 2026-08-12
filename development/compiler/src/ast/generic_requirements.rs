@@ -1,4 +1,4 @@
-use super::{OperatorRequirementPredicate, TypeExpr};
+use super::{CoercionRequirementPredicate, OperatorRequirementPredicate, TypeExpr};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +44,7 @@ pub enum WherePredicate {
     Refinement(BinderRefinementPredicate),
     Equality(TypeEqualityPredicate),
     Operator(OperatorRequirementPredicate),
+    Coercion(CoercionRequirementPredicate),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,7 +73,8 @@ impl WhereClause {
                 WherePredicate::Copy(_)
                 | WherePredicate::Refinement(_)
                 | WherePredicate::Equality(_)
-                | WherePredicate::Operator(_) => None,
+                | WherePredicate::Operator(_)
+                | WherePredicate::Coercion(_) => None,
             })
     }
 
@@ -84,7 +86,8 @@ impl WhereClause {
                 WherePredicate::Generic(_)
                 | WherePredicate::Refinement(_)
                 | WherePredicate::Equality(_)
-                | WherePredicate::Operator(_) => None,
+                | WherePredicate::Operator(_)
+                | WherePredicate::Coercion(_) => None,
             })
     }
 
@@ -96,7 +99,8 @@ impl WhereClause {
                 WherePredicate::Copy(_)
                 | WherePredicate::Generic(_)
                 | WherePredicate::Equality(_)
-                | WherePredicate::Operator(_) => None,
+                | WherePredicate::Operator(_)
+                | WherePredicate::Coercion(_) => None,
             })
     }
 
@@ -108,7 +112,8 @@ impl WhereClause {
                 WherePredicate::Copy(_)
                 | WherePredicate::Generic(_)
                 | WherePredicate::Refinement(_)
-                | WherePredicate::Operator(_) => None,
+                | WherePredicate::Operator(_)
+                | WherePredicate::Coercion(_) => None,
             })
     }
 
@@ -120,7 +125,21 @@ impl WhereClause {
                 WherePredicate::Copy(_)
                 | WherePredicate::Generic(_)
                 | WherePredicate::Refinement(_)
-                | WherePredicate::Equality(_) => None,
+                | WherePredicate::Equality(_)
+                | WherePredicate::Coercion(_) => None,
+            })
+    }
+
+    pub fn coercion_requirements(&self) -> impl Iterator<Item = &CoercionRequirementPredicate> {
+        self.predicates
+            .iter()
+            .filter_map(|predicate| match predicate {
+                WherePredicate::Coercion(requirement) => Some(requirement),
+                WherePredicate::Copy(_)
+                | WherePredicate::Generic(_)
+                | WherePredicate::Refinement(_)
+                | WherePredicate::Equality(_)
+                | WherePredicate::Operator(_) => None,
             })
     }
 }

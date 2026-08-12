@@ -187,7 +187,7 @@ func leak(): &i32 {
 fn diagnoses_explicit_coercion_returning_a_borrow_of_a_local_binding() {
     let diagnostics = check_text(
         r#"struct Box { value: i32 }
-coerce Box { pub &self as &i32 from self { return &self.value } }
+instance Box { pub coerce &self as &i32 from self { return &self.value } }
 
 func leak(): &i32 {
     let box = Box { value: 1 }

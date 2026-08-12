@@ -544,13 +544,6 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
                         .map(|(_, literal)| literal.span),
                 );
             }
-            Item::Coerce(coerce) => spans.extend(
-                coerce
-                    .entries
-                    .iter()
-                    .filter(|entry| is_public(entry.visibility))
-                    .map(|entry| entry.span),
-            ),
             _ => {}
         }
     }
@@ -634,8 +627,7 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
             }
             Item::Instance(instance) => declarations.extend(
                 instance
-                    .methods
-                    .iter()
+                    .callable_methods()
                     .map(|method| (method.visibility, method.span)),
             ),
             Item::Conformance(conformance) => declarations.extend(
@@ -657,12 +649,6 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
                     }
                 },
             )),
-            Item::Coerce(coerce) => declarations.extend(
-                coerce
-                    .entries
-                    .iter()
-                    .map(|entry| (entry.visibility, entry.span)),
-            ),
             Item::Test(_) => {}
             Item::Destruct(_) => {}
         }

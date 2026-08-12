@@ -196,8 +196,7 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 | Item::Interface(_)
                 | Item::Instance(_)
                 | Item::Conformance(_)
-                | Item::Construct(_)
-                | Item::Coerce(_) => None,
+                | Item::Construct(_) => None,
                 Item::Destruct(_) => None,
             };
             if let Some((name, kind, visibility)) = export

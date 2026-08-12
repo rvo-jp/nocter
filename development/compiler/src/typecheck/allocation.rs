@@ -61,8 +61,7 @@ pub(super) fn infer_callable_allocation_effects(
                     Item::Function(function) => usize::from(function.body.is_some()),
                     Item::Test(_) => 1,
                     Item::Instance(instance) => instance
-                        .methods
-                        .iter()
+                        .callable_methods()
                         .filter(|method| method.body.is_some())
                         .count(),
                     Item::Conformance(conformance) => conformance
@@ -79,9 +78,6 @@ pub(super) fn infer_callable_allocation_effects(
                                 .literals()
                                 .filter(|(_, literal)| literal.body.is_some())
                                 .count()
-                    }
-                    Item::Coerce(coerce) => {
-                        coerce.entries.iter().filter(|entry| entry.body.is_some()).count()
                     }
                     _ => 0,
                 }
@@ -241,30 +237,6 @@ pub(super) fn infer_callable_allocation_effects(
                                     body,
                                     source.resolved,
                                     &mut environment_for_literal(literal, source.resolved),
-                                    summaries,
-                                )
-                            {
-                                summaries.set_needs_current_allocation_context(callable);
-                                changed = true;
-                            }
-                        }
-                    }
-                    Item::Coerce(coerce) => {
-                        let instance = coerce.callable_instance();
-                        for method in instance.callable_methods() {
-                            let Some(body) = &method.body else {
-                                continue;
-                            };
-                            let callable = CallableId::declared_at(
-                                source
-                                    .resolved
-                                    .canonical_callable_identity(method.name_span),
-                            );
-                            if !summaries.needs_current_allocation_context(callable)
-                                && block_needs_current_allocation_context(
-                                    body,
-                                    source.resolved,
-                                    &mut environment_for_method(method, source.resolved, &instance),
                                     summaries,
                                 )
                             {

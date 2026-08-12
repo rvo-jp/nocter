@@ -1,7 +1,8 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    CopyRequirementPredicate, GenericRequirementPredicate, OperatorRequirementPredicate,
-    OperatorRequirementShape, TypeEqualityPredicate, TypeExpr, WhereClause, WherePredicate,
+    CoercionRequirementPredicate, CopyRequirementPredicate, GenericRequirementPredicate,
+    OperatorRequirementPredicate, OperatorRequirementShape, TypeEqualityPredicate, TypeExpr,
+    WhereClause, WherePredicate,
 };
 
 impl Parser<'_> {
@@ -98,7 +99,15 @@ impl Parser<'_> {
                 }));
             } else {
                 let left = self.parse_type()?;
-                if let Some(equals) = self.match_punctuation("==") {
+                if let Some(as_token) = self.match_keyword(crate::lexer::Keyword::As) {
+                    let target = self.parse_type()?;
+                    predicates.push(WherePredicate::Coercion(CoercionRequirementPredicate {
+                        span: self.span(left.span().start, target.span().end),
+                        source: left,
+                        as_span: as_token.span,
+                        target,
+                    }));
+                } else if let Some(equals) = self.match_punctuation("==") {
                     self.error_at(
                         equals.span,
                         "operator requirements use `where (&T == &T): bool`",
@@ -150,6 +159,7 @@ impl Parser<'_> {
                 WherePredicate::Refinement(refinement) => refinement.span.end,
                 WherePredicate::Equality(equality) => equality.span.end,
                 WherePredicate::Operator(requirement) => requirement.span.end,
+                WherePredicate::Coercion(requirement) => requirement.span.end,
             });
         Ok(Some(WhereClause {
             span: self.span(keyword.span.start, end),

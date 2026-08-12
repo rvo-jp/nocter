@@ -190,13 +190,6 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                for entry in &coerce.entries {
-                    if let Some(body) = &entry.body {
-                        collect_block_import_sites(body, sites);
-                    }
-                }
-            }
             Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
         }
     }

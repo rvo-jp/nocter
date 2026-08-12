@@ -68,6 +68,7 @@ use sized::*;
 
 pub(crate) use compile_unit_context::TypecheckCompileUnitContext;
 
+pub(crate) use coercions::specialize_coercion_plan_across_resolvers;
 pub(crate) use expansion::{specialize_collection_plan, specialize_sequence_spread_plan};
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,

@@ -145,7 +145,7 @@ func at<C, V>(container: &C, index: usize): V where copy V, (&C[usize]): &V {
 #[test]
 fn records_receiver_coercion_and_builtin_method_declaration_identity() {
     let text = r#"struct Text { value: &str }
-coerce Text { pub &self as &str { return self.value } }
+instance Text { pub coerce &self as &str { return self.value } }
 instance str { pub method &self.count(): usize { return 1 } }
 func count(text: &Text): usize { return text.count() }
 func main(): i32 { return 0 }
@@ -177,7 +177,7 @@ interface Iterator {
     pub type Item
     pub method &+self.next(): Self.Item?
 }
-coerce Text { pub &self as &View { return &self.view } }
+instance Text { pub coerce &self as &View { return &self.view } }
 instance View {
     pub method &self.bytes_iter(): Iter<u8> {
         return Iter<u8> { marker: 0 }
@@ -218,8 +218,8 @@ func main(): i32 {
 #[test]
 fn records_a_concrete_coercion_plan_at_the_expected_type_boundary() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> {
-    pub &self as &T from self { return &self.value }
+instance Box<T> {
+    pub coerce &self as &T from self { return &self.value }
 }
 func accept(value: &i32): void { return }
 func demo(value: &Box<i32>): void { accept(value) return }
@@ -243,7 +243,7 @@ func main(): i32 { return 0 }
 #[test]
 fn records_coercion_plans_at_all_concrete_expected_type_boundaries() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 struct Holder { value: &i32 }
 func accept(value: &i32): void { return }
 func project(value: &Box<i32>): &i32 from value {
@@ -271,7 +271,7 @@ func main(): i32 { return 0 }
 #[test]
 fn records_explicit_borrow_coercion_on_the_as_expression_boundary() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 func project(value: &Box<i32>): &i32 from value { return value as &i32 }
 func main(): i32 { return 0 }
 "#;
@@ -329,7 +329,7 @@ func main(): i32 { return 0 }
 #[test]
 fn records_contextual_coercions_inside_typed_sequence_literals() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 struct Vec<T> { marker: i32 }
 construct Vec<T> {
     pub default literal [](...items: T): Self { return Self { marker: 0 } }
@@ -355,7 +355,7 @@ func main(): i32 { return 0 }
 #[test]
 fn records_contextual_coercions_on_compound_expression_results() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 enum Choice { first second }
 func maybe(value: &Box<i32>): &Box<i32>? from value { return value }
 func project(choice: Choice, value: &Box<i32>): &i32 from value {
@@ -388,7 +388,7 @@ func main(): i32 { return 0 }
 #[test]
 fn records_contextual_coercion_for_an_enum_payload_argument() {
     let text = r#"struct Box<T> { value: T }
-coerce Box<T> { pub &self as &T from self { return &self.value } }
+instance Box<T> { pub coerce &self as &T from self { return &self.value } }
 enum View<T> { one(value: &T) }
 func project(value: &Box<i32>): View<i32> from value { return View.one(value) }
 func main(): i32 { return 0 }

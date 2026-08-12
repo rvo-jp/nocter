@@ -106,9 +106,6 @@ pub(super) fn check_sized_value_types(
                     check_literal(sources, literal, resolved, diagnostics);
                 }
             }
-            Item::Coerce(coerce) => {
-                check_instance(sources, &coerce.callable_instance(), resolved, diagnostics);
-            }
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
     }

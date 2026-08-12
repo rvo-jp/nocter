@@ -369,6 +369,11 @@ fn where_predicate_labels_with(
                 };
                 format!("({operands}): {}", type_label(&requirement.result))
             }
+            crate::ast::WherePredicate::Coercion(requirement) => format!(
+                "{} as {}",
+                type_label(&requirement.source),
+                type_label(&requirement.target)
+            ),
         })
         .collect()
 }

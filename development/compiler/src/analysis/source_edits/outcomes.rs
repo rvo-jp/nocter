@@ -67,16 +67,6 @@ pub(crate) fn plan_outcome_contract(
                 }
                 ConstructMemberDecl::Function(_) | ConstructMemberDecl::Literal(_) => None,
             }),
-            Item::Coerce(coerce) => coerce
-                .entries
-                .iter()
-                .find(|entry| {
-                    entry
-                        .body
-                        .as_ref()
-                        .is_some_and(|body| contains(body.span, diagnostic_offset))
-                })
-                .map(|entry| &entry.target),
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Function(_)

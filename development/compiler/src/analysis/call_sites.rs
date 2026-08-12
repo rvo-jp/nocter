@@ -68,12 +68,6 @@ fn call_in_item_at_offset(
                         .and_then(|body| call_in_block_at_offset(body, offset, region))
                 })
             }),
-        Item::Coerce(coerce) => coerce.entries.iter().find_map(|entry| {
-            entry
-                .body
-                .as_ref()
-                .and_then(|body| call_in_block_at_offset(body, offset, region))
-        }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

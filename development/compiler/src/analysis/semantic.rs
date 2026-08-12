@@ -261,14 +261,6 @@ impl SemanticIdentifierCollector<'_> {
                         );
                     }
                 }
-                crate::ast::Item::Coerce(coerce) => {
-                    for entry in &coerce.entries {
-                        collect_provenance_parameter_spans(
-                            entry.result_provenance.as_ref(),
-                            &mut spans,
-                        );
-                    }
-                }
                 crate::ast::Item::Import(_)
                 | crate::ast::Item::Test(_)
                 | crate::ast::Item::FromImport(_)
@@ -334,6 +326,7 @@ impl SemanticIdentifierCollector<'_> {
                 .operators
                 .iter()
                 .map(|operator| operator.callable_method().keyword_span)
+                .chain(instance.coercions.iter().map(|entry| entry.keyword_span))
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         });
@@ -538,11 +531,6 @@ fn collect_item_opaque_keyword_spans(item: &crate::ast::Item, spans: &mut Vec<By
                 ty(&literal.return_type, spans);
             }
         }
-        crate::ast::Item::Coerce(coerce) => {
-            for member in coerce.callable_instance().methods() {
-                method(member, spans);
-            }
-        }
         crate::ast::Item::Import(_)
         | crate::ast::Item::FromImport(_)
         | crate::ast::Item::Test(_) => {}
@@ -560,6 +548,11 @@ fn collect_item_generic_requirement_keyword_spans(
                 clause
                     .copy_requirements()
                     .map(|requirement| requirement.keyword_span),
+            );
+            spans.extend(
+                clause
+                    .coercion_requirements()
+                    .map(|requirement| requirement.as_span),
             );
         }
     }
@@ -597,7 +590,6 @@ fn collect_item_generic_requirement_keyword_spans(
                 clause(literal.requirements.as_ref(), spans);
             }
         }
-        crate::ast::Item::Coerce(_) => {}
         crate::ast::Item::Destruct(_) => {}
         crate::ast::Item::Import(_)
         | crate::ast::Item::FromImport(_)
@@ -857,8 +849,8 @@ instance File {
     #[test]
     fn analysis_classifies_coercion_self_as_a_readonly_parameter() {
         let text = r#"struct Text { value: &str }
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 "#;
         let identifiers =

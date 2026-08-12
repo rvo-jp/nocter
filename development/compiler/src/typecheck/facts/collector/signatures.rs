@@ -15,7 +15,6 @@ impl TypecheckFactCollector<'_> {
             Item::Instance(item) => Some(&item.generics),
             Item::Destruct(item) => Some(&item.generics),
             Item::Conformance(item) => Some(&item.generics),
-            Item::Coerce(item) => Some(&item.generics),
             Item::Import(_) | Item::FromImport(_) | Item::Construct(_) | Item::Test(_) => None,
         };
         if let Some(generics) = generics {
@@ -178,13 +177,6 @@ impl TypecheckFactCollector<'_> {
                     self.collect_type_expr_references(&literal.return_type);
                 }
             }
-            Item::Coerce(coerce) => {
-                self.collect_generic_param_type_references(&coerce.generics);
-                self.collect_type_expr_references(&coerce.target);
-                for entry in &coerce.entries {
-                    self.collect_type_expr_references(&entry.target);
-                }
-            }
         }
     }
 
@@ -266,6 +258,10 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             self.collect_type_expr_references(&requirement.result);
+        }
+        for requirement in clause.coercion_requirements() {
+            self.collect_type_expr_references(&requirement.source);
+            self.collect_type_expr_references(&requirement.target);
         }
         for refinement in clause.refinements() {
             self.record_type_reference(

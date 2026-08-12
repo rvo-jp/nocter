@@ -74,8 +74,8 @@ func make(): some Source<Item = i32> { return Number { value: 7 } }
 #[test]
 fn workspace_hover_presents_coercion_entries_on_the_as_anchor() {
     let text = r#"struct Text { value: &str }
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 "#;
     let (sources, analysis) = analyze_text(text);
@@ -84,15 +84,28 @@ coerce Text {
     let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
         .expect("expected coercion hover");
 
-    assert_eq!(hover.label, "pub &self as &str from self");
+    assert_eq!(hover.label, "pub coerce &self as &str from self");
+    assert_eq!(&text[hover.span.start..hover.span.end], "as");
+}
+
+#[test]
+fn workspace_hover_presents_generic_coercion_requirements_on_the_as_anchor() {
+    let text = "func view<T>(value: &T): &str where &T as &str { return value }\n";
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("as &str").expect("expected as anchor");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected requirement hover");
+
+    assert_eq!(hover.label, "where &T as &str");
     assert_eq!(&text[hover.span.start..hover.span.end], "as");
 }
 
 #[test]
 fn type_hover_lists_the_accessible_coercion_surface() {
     let text = r#"pub struct Text { value: &str }
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 "#;
     let (sources, analysis) = analyze_text(text);
@@ -103,14 +116,14 @@ coerce Text {
     let documentation = hover.documentation.expect("expected type documentation");
 
     assert!(documentation.contains("**Coercions**"));
-    assert!(documentation.contains("`&Text as &str from self`"));
+    assert!(documentation.contains("`pub coerce &Text as &str from self`"));
 }
 
 #[test]
 fn coercion_hover_preserves_an_elided_result_origin() {
     let text = r#"pub struct Text { value: &str }
-coerce Text {
-    pub &self as &str { return self.value }
+instance Text {
+    pub coerce &self as &str { return self.value }
 }
 func project(value: &Text): &str { return value as &str }
 "#;
@@ -123,7 +136,7 @@ func project(value: &Text): &str { return value as &str }
     let type_documentation = type_hover
         .documentation
         .expect("expected type documentation");
-    assert!(type_documentation.contains("`&Text as &str`"));
+    assert!(type_documentation.contains("`pub coerce &Text as &str`"));
     assert!(!type_documentation.contains("from self"));
 
     let conversion_offset = text.rfind("as &str").expect("expected expression as");
@@ -139,7 +152,7 @@ func project(value: &Text): &str { return value as &str }
 #[test]
 fn explicit_coercion_hover_uses_the_exact_as_operator_and_selected_plan() {
     let text = r#"struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 func project(value: &Text): &str from value { return value as &str }
 "#;
     let (sources, analysis) = analyze_text(text);
@@ -180,7 +193,7 @@ fn imported_explicit_coercion_hover_uses_the_selected_module_surface() {
 func project(value: &Text): &str from value { return value as &str }
 "#;
     let module_text = r#"pub struct Text { value: &str }
-coerce Text { pub &self as &str from self { return self.value } }
+instance Text { pub coerce &self as &str from self { return self.value } }
 "#;
     let (sources, analysis) = analyze_import_text(root_text, module_text);
     let file = analysis.root_file().expect("expected root file");
@@ -1156,8 +1169,8 @@ func main(): i32 {
 #[test]
 fn workspace_hover_describes_selected_index_coercion() {
     let text = r#"struct Buffer { values: &[u8] }
-coerce Buffer {
-    pub &self as &[u8] from self { return self.values }
+instance Buffer {
+    pub coerce &self as &[u8] from self { return self.values }
 }
 func first(buffer: &Buffer): u8 { return buffer[0] }
 func main(): i32 { return 0 }

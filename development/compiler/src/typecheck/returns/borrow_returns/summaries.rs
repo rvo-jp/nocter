@@ -87,19 +87,6 @@ fn body_backed_summary_floor(
                         );
                     }
                 }
-                Item::Coerce(coerce) => {
-                    let instance = coerce.callable_instance();
-                    for method in instance.methods() {
-                        summaries.insert_result(
-                            CallableId::declared_at(
-                                source
-                                    .resolved
-                                    .canonical_callable_identity(method.name_span),
-                            ),
-                            ValueProvenance::Independent,
-                        );
-                    }
-                }
                 Item::Primitive(_)
                 | Item::Test(_)
                 | Item::Import(_)
@@ -148,7 +135,6 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
             .methods()
             .filter(|method| method.body.is_some())
             .count(),
-        Item::Coerce(coerce) => coerce.entries.len(),
         _ => 0,
     }
 }
@@ -342,15 +328,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     previous,
                     &mut summaries,
                 ),
-                Item::Coerce(coerce) => {
-                    let instance = coerce.callable_instance();
-                    collect_method_provenance_summaries(
-                        &instance,
-                        source.resolved,
-                        previous,
-                        &mut summaries,
-                    );
-                }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         let Some(body) = &function.body else {

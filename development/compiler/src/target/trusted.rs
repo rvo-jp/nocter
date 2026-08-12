@@ -194,8 +194,7 @@ pub(crate) fn trusted_declarations_for_module(
             | Item::Interface(_)
             | Item::Instance(_)
             | Item::Conformance(_)
-            | Item::Construct(_)
-            | Item::Coerce(_) => {}
+            | Item::Construct(_) => {}
             Item::Destruct(_) => {}
         }
     }

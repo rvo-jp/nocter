@@ -466,8 +466,8 @@ fn explicit_coercion_result_keeps_the_source_loan_until_last_use() {
     value: &str
 }
 
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 
 func inspect(value: &str): void { return }
@@ -497,8 +497,8 @@ fn explicit_coercion_loan_ends_after_its_last_use() {
     value: &str
 }
 
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 
 func inspect(value: &str): void { return }
@@ -523,8 +523,8 @@ fn receiver_coercion_method_result_keeps_the_original_source_loan() {
         r#"struct View { value: &str }
 struct Text { view: View }
 
-coerce Text {
-    pub &self as &View { return &self.view }
+instance Text {
+    pub coerce &self as &View { return &self.view }
 }
 
 instance View {
@@ -557,7 +557,7 @@ fn receiver_coercion_method_loan_ends_after_its_last_use() {
         r#"struct View { value: &str }
 struct Text { view: View }
 
-coerce Text { pub &self as &View { return &self.view } }
+instance Text { pub coerce &self as &View { return &self.view } }
 instance View { pub method &self.project(): &str { return self.value } }
 
 func inspect(value: &str): void { return }
@@ -583,8 +583,8 @@ fn explicit_coercion_of_a_branch_result_keeps_every_possible_source_loan() {
     value: &str
 }
 
-coerce Text {
-    pub &self as &str from self { return self.value }
+instance Text {
+    pub coerce &self as &str from self { return self.value }
 }
 
 func inspect(value: &str): void { return }

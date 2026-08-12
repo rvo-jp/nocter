@@ -59,6 +59,7 @@ pub(crate) fn typecheck_conversion_plan(
                 target_ty: target_ty.clone(),
                 substitutions,
                 has_explicit_result_provenance: coercion.has_explicit_result_provenance,
+                requirement_span: coercion.requirement_span,
                 free_type_parameters: free_type_parameters.clone(),
             })
         }

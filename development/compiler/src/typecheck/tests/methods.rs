@@ -7,9 +7,9 @@ fn diagnoses_ambiguous_receiver_coercions_without_ranking_them() {
 struct Left { value: usize }
 struct Right { value: usize }
 
-coerce Source {
-    pub &self as &Left { return &self.left }
-    pub &self as &Right { return &self.right }
+instance Source {
+    pub coerce &self as &Left { return &self.left }
+    pub coerce &self as &Right { return &self.right }
 }
 
 instance Left {
@@ -85,8 +85,8 @@ fn accepts_one_step_receiver_coercion_to_a_source_declared_builtin_method() {
     value: &str
 }
 
-coerce Text {
-    pub &self as &str {
+instance Text {
+    pub coerce &self as &str {
         return self.value
     }
 }
@@ -115,9 +115,9 @@ fn receiver_coercion_selects_the_minimum_capability_for_one_method_identity() {
     let diagnostics = check_text(
         r#"struct Buffer { read: &[u8], write: &+[u8] }
 
-coerce Buffer {
-    pub &self as &[u8] { return self.read }
-    pub &+self as &+[u8] { return self.write }
+instance Buffer {
+    pub coerce &self as &[u8] { return self.read }
+    pub coerce &+self as &+[u8] { return self.write }
 }
 
 instance [T] {

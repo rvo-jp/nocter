@@ -88,7 +88,8 @@ pub(super) fn select_conversion(
             SelectedConversionKind::LosslessInteger,
         ));
     }
-    if let Some(coercion) = super::coercions::select_coercion(target, source, resolved) {
+    if let Some(coercion) = super::coercions::select_coercion(target, source, resolved, environment)
+    {
         return Ok(selected(
             source,
             target,

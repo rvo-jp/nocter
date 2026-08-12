@@ -219,18 +219,6 @@ pub(super) fn check_result_provenance_contracts(
                     }
                 }
             }
-            Item::Coerce(coerce) => {
-                let instance = coerce.callable_instance();
-                check_method_contracts(
-                    sources,
-                    &instance,
-                    instance.callable_methods(),
-                    false,
-                    resolved,
-                    summaries,
-                    diagnostics,
-                )
-            }
             _ => {}
         }
     }

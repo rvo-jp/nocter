@@ -585,7 +585,19 @@ impl<'a> LoweringContext<'a> {
             .coercion_plan(expression_span)
             .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
         {
-            return Some(plan);
+            if plan.requirement_span.is_none() {
+                return Some(plan);
+            }
+            let mut candidate_sources = Vec::new();
+            collect_type_expr_resolution_sources(&plan.self_ty, &mut candidate_sources);
+            collect_type_expr_resolution_sources(&plan.target_ty, &mut candidate_sources);
+            candidate_sources.dedup();
+            let mut resolvers = candidate_sources
+                .into_iter()
+                .filter_map(|source| self.resolved_source(source))
+                .collect::<Vec<_>>();
+            resolvers.push(resolution.resolved);
+            return crate::typecheck::specialize_coercion_plan_across_resolvers(plan, resolvers);
         }
         resolution.typecheck_facts.index_plans().find_map(|plan| {
             let plan = self.index_plan(plan.expression_span)?;
