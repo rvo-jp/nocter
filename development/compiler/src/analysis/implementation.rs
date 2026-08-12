@@ -11,9 +11,12 @@ pub(crate) fn implementation_target_for_file_analysis(
 ) -> Option<SourceTarget> {
     let occurrence = file.occurrences.at_offset(offset)?;
     let declaration = match occurrence.identity? {
-        SemanticIdentity::Declaration(span) | SemanticIdentity::Member(span) => span,
-        SemanticIdentity::Local(_) | SemanticIdentity::GenericParameter(_) => return None,
+        SemanticIdentity::Definition(definition) => definition,
+        SemanticIdentity::Local(_) => return None,
     };
-    let implementation = analysis.callable_bodies.implementation(declaration)?;
+    let implementation = analysis
+        .callable_bodies
+        .implementation_id(declaration)
+        .and_then(|implementation| analysis.semantic_db.definition_anchor(implementation))?;
     Some(SourceTarget::new(occurrence.focus_span, implementation))
 }

@@ -9,15 +9,14 @@ use crate::ast::{
     AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, MethodOwnerDecl, TypeExpr,
 };
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
+use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::TypecheckFacts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SemanticIdentity {
-    Declaration(ByteSpan),
-    Member(ByteSpan),
+    Definition(DefId),
     Local(ByteSpan),
-    GenericParameter(ByteSpan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,19 +54,10 @@ impl SemanticOccurrence {
         analysis: &CompileUnitAnalysis,
     ) -> Option<super::editor_targets::SourceTarget> {
         let target = match self.identity? {
-            SemanticIdentity::Member(span)
-            | SemanticIdentity::Local(span)
-            | SemanticIdentity::GenericParameter(span) => span,
-            SemanticIdentity::Declaration(declaration_span) => analysis
-                .file_by_source(declaration_span.source)
-                .and_then(|file| {
-                    file.resolved
-                        .symbols
-                        .symbols()
-                        .find(|symbol| symbol.declaration_span == declaration_span)
-                        .map(|symbol| symbol.name_span)
-                })
-                .unwrap_or(declaration_span),
+            SemanticIdentity::Definition(definition) => {
+                analysis.semantic_db.definition_anchor(definition)?
+            }
+            SemanticIdentity::Local(span) => span,
         };
         Some(super::editor_targets::SourceTarget::new(
             self.focus_span,
@@ -140,27 +130,21 @@ impl OccurrenceBuilder<'_> {
                     } else {
                         function.name_span
                     };
-                    let Some(contract) =
-                        self.resolved.callable_bodies.declaration(physical_identity)
+                    let Some(implementation) =
+                        self.resolved.semantic_db.definition_at(physical_identity)
                     else {
                         continue;
                     };
-                    let (identity, kind) = if function.owner.is_some() {
-                        (
-                            SemanticIdentity::Member(contract),
-                            SemanticOccurrenceKind::Function,
-                        )
-                    } else {
-                        (
-                            SemanticIdentity::Declaration(contract),
-                            SemanticOccurrenceKind::Function,
-                        )
+                    let Some(contract) =
+                        self.resolved.callable_bodies.declaration_id(implementation)
+                    else {
+                        continue;
                     };
                     self.push(
                         function.member_name_span,
-                        Some(identity),
+                        Some(SemanticIdentity::Definition(contract)),
                         SemanticOccurrenceRole::Reference,
-                        kind,
+                        SemanticOccurrenceKind::Function,
                         false,
                         None,
                         2,
@@ -168,14 +152,19 @@ impl OccurrenceBuilder<'_> {
                 }
                 Item::Instance(instance) => {
                     for method in instance.methods() {
+                        let Some(implementation) =
+                            self.resolved.semantic_db.definition_at(method.name_span)
+                        else {
+                            continue;
+                        };
                         let Some(contract) =
-                            self.resolved.callable_bodies.declaration(method.name_span)
+                            self.resolved.callable_bodies.declaration_id(implementation)
                         else {
                             continue;
                         };
                         self.push(
                             method.name_span,
-                            Some(SemanticIdentity::Member(contract)),
+                            Some(SemanticIdentity::Definition(contract)),
                             if crate::ast::is_operator_method_name(&method.name) {
                                 SemanticOccurrenceRole::Declaration
                             } else {
@@ -198,13 +187,18 @@ impl OccurrenceBuilder<'_> {
                                 (literal.shape_span, SemanticOccurrenceKind::Literal)
                             }
                         };
-                        let Some(contract) = self.resolved.callable_bodies.declaration(focus)
+                        let Some(implementation) = self.resolved.semantic_db.definition_at(focus)
+                        else {
+                            continue;
+                        };
+                        let Some(contract) =
+                            self.resolved.callable_bodies.declaration_id(implementation)
                         else {
                             continue;
                         };
                         self.push(
                             focus,
-                            Some(SemanticIdentity::Member(contract)),
+                            Some(SemanticIdentity::Definition(contract)),
                             SemanticOccurrenceRole::Reference,
                             kind,
                             false,
@@ -259,7 +253,7 @@ impl OccurrenceBuilder<'_> {
             match &symbol.kind {
                 SymbolKind::Function(_) | SymbolKind::Primitive(_) => self.push(
                     symbol.name_span,
-                    Some(SemanticIdentity::Declaration(symbol.declaration_span)),
+                    Some(SemanticIdentity::Definition(symbol.def_id)),
                     role,
                     SemanticOccurrenceKind::Function,
                     false,
@@ -269,7 +263,7 @@ impl OccurrenceBuilder<'_> {
                 SymbolKind::Type(type_symbol) => {
                     self.push(
                         symbol.name_span,
-                        Some(SemanticIdentity::Declaration(symbol.declaration_span)),
+                        Some(SemanticIdentity::Definition(symbol.def_id)),
                         role,
                         SemanticOccurrenceKind::Type,
                         false,
@@ -342,7 +336,7 @@ impl OccurrenceBuilder<'_> {
         if span.source == self.source {
             self.push(
                 span,
-                Some(SemanticIdentity::Member(span)),
+                self.definition_identity(span),
                 SemanticOccurrenceRole::Declaration,
                 kind,
                 false,
@@ -410,7 +404,7 @@ impl OccurrenceBuilder<'_> {
             };
             self.push(
                 span,
-                Some(SemanticIdentity::Declaration(symbol.declaration_span)),
+                Some(SemanticIdentity::Definition(symbol.def_id)),
                 SemanticOccurrenceRole::Reference,
                 kind,
                 false,
@@ -421,7 +415,7 @@ impl OccurrenceBuilder<'_> {
         for (span, surface) in self.resolved.builtin_type_identifier_references() {
             self.push(
                 span,
-                Some(SemanticIdentity::Declaration(surface.declaration_span)),
+                self.definition_identity(surface.declaration_span),
                 SemanticOccurrenceRole::Reference,
                 SemanticOccurrenceKind::Type,
                 false,
@@ -435,17 +429,9 @@ impl OccurrenceBuilder<'_> {
         for occurrence in self.facts.type_occurrences() {
             self.push(
                 occurrence.focus_span,
-                occurrence.target.map(|target| match target {
-                    crate::typecheck::TypeOccurrenceTarget::Declaration(span) => {
-                        SemanticIdentity::Declaration(span)
-                    }
-                    crate::typecheck::TypeOccurrenceTarget::GenericParameter(span) => {
-                        SemanticIdentity::GenericParameter(span)
-                    }
-                    crate::typecheck::TypeOccurrenceTarget::Member(span) => {
-                        SemanticIdentity::Member(span)
-                    }
-                }),
+                occurrence
+                    .target
+                    .and_then(|target| self.definition_identity(target.span())),
                 SemanticOccurrenceRole::Reference,
                 SemanticOccurrenceKind::Type,
                 false,
@@ -464,7 +450,7 @@ impl OccurrenceBuilder<'_> {
         for span in spans {
             self.push(
                 span,
-                Some(SemanticIdentity::GenericParameter(span)),
+                self.definition_identity(span),
                 SemanticOccurrenceRole::Declaration,
                 SemanticOccurrenceKind::Type,
                 false,
@@ -557,22 +543,24 @@ impl OccurrenceBuilder<'_> {
         target: ByteSpan,
         kind: SemanticOccurrenceKind,
         is_readonly: bool,
-        is_member: bool,
+        _is_member: bool,
     ) {
-        let identity = if is_member {
-            SemanticIdentity::Member(target)
-        } else {
-            SemanticIdentity::Declaration(target)
-        };
         self.push(
             span,
-            Some(identity),
+            self.definition_identity(target),
             SemanticOccurrenceRole::Reference,
             kind,
             is_readonly,
             None,
             0,
         );
+    }
+
+    fn definition_identity(&self, location: ByteSpan) -> Option<SemanticIdentity> {
+        self.resolved
+            .semantic_db
+            .definition_at(location)
+            .map(SemanticIdentity::Definition)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -705,10 +693,10 @@ interface Transform<T> {
         let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
         let reference = file.occurrences.at_offset(reference_offset).unwrap();
 
-        assert_eq!(
+        assert!(matches!(
             declaration.identity,
-            Some(SemanticIdentity::GenericParameter(declaration.focus_span))
-        );
+            Some(SemanticIdentity::Definition(_))
+        ));
         assert_eq!(reference.identity, declaration.identity);
         assert_eq!(declaration.role, SemanticOccurrenceRole::Declaration);
         assert_eq!(reference.role, SemanticOccurrenceRole::Reference);

@@ -4,5 +4,5 @@ mod body_declarations;
 mod db;
 mod ids;
 
-pub(crate) use db::SemanticDb;
+pub(crate) use db::{DefinitionKind, SemanticDb};
 pub(crate) use ids::{BodyId, DefId};

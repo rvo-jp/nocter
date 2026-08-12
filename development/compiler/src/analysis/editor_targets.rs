@@ -58,14 +58,8 @@ impl EditorTarget<'_> {
                 | SymbolKind::Primitive(_)
                 | SymbolKind::Type(_)
                 | SymbolKind::Imported(_) => analysis
-                    .file_by_source(symbol.declaration_span.source)
-                    .and_then(|file| {
-                        file.resolved
-                            .symbols
-                            .symbols()
-                            .find(|candidate| candidate.declaration_span == symbol.declaration_span)
-                            .map(|candidate| candidate.name_span)
-                    })
+                    .semantic_db
+                    .definition_anchor(symbol.def_id)
                     .unwrap_or(symbol.declaration_span),
             },
         };

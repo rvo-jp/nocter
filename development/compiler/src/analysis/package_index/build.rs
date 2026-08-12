@@ -7,6 +7,7 @@ use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::Item;
 use crate::package::PackageGraph;
 use crate::resolve::SymbolKind;
+use crate::semantic::{DefinitionKind, SemanticDb};
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -44,7 +45,9 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         for file in &analysis.files {
             self.add_exports(sources, analysis, file);
             for occurrence in file.occurrences.iter() {
-                let Some(indexed) = self.index_occurrence(sources, occurrence) else {
+                let Some(indexed) =
+                    self.index_occurrence(sources, &analysis.semantic_db, occurrence)
+                else {
                     continue;
                 };
                 self.occurrences.push(indexed);
@@ -59,7 +62,7 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
         offset: usize,
     ) -> Option<StableSemanticIdentity> {
         let occurrence = file.occurrences.at_offset(offset)?;
-        self.stable_identity(sources, occurrence.identity?)
+        self.stable_identity(sources, &file.resolved.semantic_db, occurrence.identity?)
     }
 
     pub(crate) fn finish(mut self) -> PackageSemanticIndex {
@@ -217,10 +220,11 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
     fn index_occurrence(
         &mut self,
         sources: &SourceMap,
+        semantic_db: &SemanticDb,
         occurrence: &SemanticOccurrence,
     ) -> Option<IndexedOccurrence> {
         Some(IndexedOccurrence {
-            identity: self.stable_identity(sources, occurrence.identity?)?,
+            identity: self.stable_identity(sources, semantic_db, occurrence.identity?)?,
             span: self.stable_span(sources, occurrence.focus_span)?,
             role: occurrence.role,
             kind: occurrence.kind,
@@ -230,14 +234,21 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
     fn stable_identity(
         &mut self,
         sources: &SourceMap,
+        semantic_db: &SemanticDb,
         identity: SemanticIdentity,
     ) -> Option<StableSemanticIdentity> {
         let (kind, declaration) = match identity {
-            SemanticIdentity::Declaration(span) => (StableIdentityKind::Declaration, span),
-            SemanticIdentity::Member(span) => (StableIdentityKind::Member, span),
             SemanticIdentity::Local(span) => (StableIdentityKind::Local, span),
-            SemanticIdentity::GenericParameter(span) => {
-                (StableIdentityKind::GenericParameter, span)
+            SemanticIdentity::Definition(id) => {
+                let definition = semantic_db.definition(id)?;
+                let kind = if definition.kind == DefinitionKind::GenericParameter {
+                    StableIdentityKind::GenericParameter
+                } else if definition.owner.is_some() {
+                    StableIdentityKind::Member
+                } else {
+                    StableIdentityKind::Declaration
+                };
+                (kind, definition.anchor)
             }
         };
         Some(StableSemanticIdentity {

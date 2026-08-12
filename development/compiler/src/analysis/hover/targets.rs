@@ -17,11 +17,7 @@ pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
     }
     let signature =
         crate::analysis::signature_help::call_signature_at_offset(sources, analysis, file, offset)?;
-    let target = match occurrence.identity {
-        Some(crate::analysis::occurrences::SemanticIdentity::Declaration(target))
-        | Some(crate::analysis::occurrences::SemanticIdentity::Member(target)) => Some(target),
-        _ => None,
-    };
+    let target = definition_anchor(analysis, occurrence.identity);
     Some(HoverInfo {
         span: occurrence.focus_span,
         label: signature.label,
@@ -50,10 +46,7 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Property {
         return None;
     }
-    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
-    else {
-        return None;
-    };
+    let target = definition_anchor(analysis, occurrence.identity)?;
     for target_file in &analysis.files {
         for symbol in target_file.resolved.symbols.symbols() {
             let SymbolKind::Type(owner) = &symbol.kind else {
@@ -137,10 +130,7 @@ pub(in crate::analysis::hover) fn literal_declaration_hover_for_file_analysis(
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Literal {
         return None;
     }
-    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
-    else {
-        return None;
-    };
+    let target = definition_anchor(analysis, occurrence.identity)?;
     for target_file in &analysis.files {
         for symbol in target_file.resolved.symbols.symbols() {
             let SymbolKind::Type(owner) = &symbol.kind else {
@@ -218,10 +208,7 @@ pub(in crate::analysis::hover) fn callable_symbol_occurrence_hover_for_file_anal
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Function {
         return None;
     }
-    let crate::analysis::occurrences::SemanticIdentity::Declaration(target) = occurrence.identity?
-    else {
-        return None;
-    };
+    let target = definition_anchor(analysis, occurrence.identity)?;
     let target_file = analysis.file_by_source(target.source)?;
     let symbol = target_file
         .resolved
@@ -263,10 +250,7 @@ pub(in crate::analysis::hover) fn callable_member_occurrence_hover_for_file_anal
     ) {
         return None;
     }
-    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
-    else {
-        return None;
-    };
+    let target = definition_anchor(analysis, occurrence.identity)?;
     for target_file in &analysis.files {
         for symbol in target_file.resolved.symbols.symbols() {
             let SymbolKind::Type(owner) = &symbol.kind else {
@@ -421,9 +405,17 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Type {
         return None;
     }
-    if let crate::analysis::occurrences::SemanticIdentity::GenericParameter(span) =
+    let crate::analysis::occurrences::SemanticIdentity::Definition(definition) =
         occurrence.identity?
-    {
+    else {
+        return None;
+    };
+    let semantic_definition = analysis.semantic_db.definition(definition)?;
+    let declaration_span = semantic_definition
+        .owner
+        .map_or(semantic_definition.span, |_| semantic_definition.anchor);
+    if semantic_definition.kind == crate::semantic::DefinitionKind::GenericParameter {
+        let span = declaration_span;
         let parameter = file.typecheck_facts.generic_parameter(span)?;
         return Some(HoverInfo {
             span: occurrence.focus_span,
@@ -435,7 +427,8 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
             documentation: None,
         });
     }
-    if let crate::analysis::occurrences::SemanticIdentity::Member(span) = occurrence.identity? {
+    if semantic_definition.kind == crate::semantic::DefinitionKind::AssociatedType {
+        let span = declaration_span;
         let (owner, associated) = associated_type_for_declaration_span(analysis, span)?;
         let label = if matches!(occurrence.contextual_type, Some(TypeExpr::Projection(_)))
             || occurrence.role == crate::analysis::occurrences::SemanticOccurrenceRole::Declaration
@@ -462,11 +455,6 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
             documentation: target_documentation(sources, analysis, associated.name_span),
         });
     }
-    let crate::analysis::occurrences::SemanticIdentity::Declaration(declaration_span) =
-        occurrence.identity?
-    else {
-        return None;
-    };
     let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
     let construction_symbol = file
         .resolved
@@ -516,6 +504,21 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         label,
         documentation,
     })
+}
+
+fn definition_anchor(
+    analysis: &CompileUnitAnalysis,
+    identity: Option<crate::analysis::occurrences::SemanticIdentity>,
+) -> Option<ByteSpan> {
+    let crate::analysis::occurrences::SemanticIdentity::Definition(definition) = identity? else {
+        return None;
+    };
+    let definition = analysis.semantic_db.definition(definition)?;
+    Some(
+        definition
+            .owner
+            .map_or(definition.span, |_| definition.anchor),
+    )
 }
 
 fn associated_type_for_declaration_span(

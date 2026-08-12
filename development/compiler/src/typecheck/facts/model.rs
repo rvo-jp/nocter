@@ -854,6 +854,14 @@ pub(crate) enum TypeOccurrenceTarget {
     GenericParameter(ByteSpan),
 }
 
+impl TypeOccurrenceTarget {
+    pub(crate) const fn span(self) -> ByteSpan {
+        match self {
+            Self::Declaration(span) | Self::Member(span) | Self::GenericParameter(span) => span,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GenericParameterFact {
     pub(crate) name: String,

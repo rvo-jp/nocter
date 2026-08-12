@@ -3,8 +3,8 @@
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
 use super::{BodyId, DefId};
 use crate::ast::{
-    AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, ImportItem,
-    InstanceMember, Item, LiteralDecl, MethodDecl, OperatorDecl, ParameterList,
+    AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, GenericParamList,
+    ImportItem, InstanceMember, Item, LiteralDecl, MethodDecl, OperatorDecl, ParameterList,
     visit_block_expressions_without_nested_closures,
 };
 use crate::source::ByteSpan;
@@ -14,6 +14,7 @@ use std::collections::HashMap;
 pub(crate) enum DefinitionKind {
     Import,
     Function,
+    GenericParameter,
     Parameter,
     Receiver,
     LiteralCapture,
@@ -95,6 +96,10 @@ impl SemanticDb {
         self.definitions
             .get(id.index())
             .map(|definition| definition.anchor)
+    }
+
+    pub(crate) fn definition(&self, id: DefId) -> Option<&Definition> {
+        self.definitions.get(id.index())
     }
 
     pub(crate) fn body_at(&self, location: ByteSpan) -> Option<BodyId> {
@@ -249,6 +254,7 @@ impl SemanticDbBuilder {
                     function.span,
                 );
                 self.define_location(id, function.member_name_span);
+                self.collect_generics(id, &function.generics);
                 self.collect_parameters(id, &function.parameters);
                 if let Some(body) = &function.body {
                     self.collect_body(id, body);
@@ -265,10 +271,13 @@ impl SemanticDbBuilder {
                     primitive.name_span,
                     primitive.span,
                 );
+                self.collect_generics(id, &primitive.generics);
                 self.collect_parameters(id, &primitive.parameters);
             }
             Item::TypeAlias(alias) => {
-                self.define(DefinitionKind::TypeAlias, None, alias.name_span, alias.span);
+                let owner =
+                    self.define(DefinitionKind::TypeAlias, None, alias.name_span, alias.span);
+                self.collect_generics(owner, &alias.generics);
             }
             Item::Struct(struct_) => {
                 let owner = self.define(
@@ -277,6 +286,7 @@ impl SemanticDbBuilder {
                     struct_.name_span,
                     struct_.span,
                 );
+                self.collect_generics(owner, &struct_.generics);
                 for field in &struct_.fields {
                     self.define(
                         DefinitionKind::StructField,
@@ -288,6 +298,7 @@ impl SemanticDbBuilder {
             }
             Item::Enum(enum_) => {
                 let owner = self.define(DefinitionKind::Enum, None, enum_.name_span, enum_.span);
+                self.collect_generics(owner, &enum_.generics);
                 for variant in &enum_.variants {
                     self.define(
                         DefinitionKind::EnumVariant,
@@ -304,6 +315,7 @@ impl SemanticDbBuilder {
                     interface.name_span,
                     interface.span,
                 );
+                self.collect_generics(owner, &interface.generics);
                 for associated in &interface.associated_types {
                     self.define(
                         DefinitionKind::AssociatedType,
@@ -332,6 +344,7 @@ impl SemanticDbBuilder {
                     instance.target_ty.span(),
                     instance.span,
                 );
+                self.collect_generics(owner, &instance.generics);
                 for member in &instance.members {
                     self.collect_instance_member(owner, member);
                 }
@@ -343,6 +356,7 @@ impl SemanticDbBuilder {
                     conformance.interface_ty.span(),
                     conformance.span,
                 );
+                self.collect_generics(owner, &conformance.generics);
                 for member in &conformance.members {
                     match member {
                         ConformanceMember::AssociatedType(binding) => {
@@ -375,6 +389,7 @@ impl SemanticDbBuilder {
                     destruct.keyword_span,
                     destruct.span,
                 );
+                self.collect_generics(id, &destruct.generics);
                 self.define(
                     DefinitionKind::Parameter,
                     Some(id),
@@ -401,6 +416,7 @@ impl SemanticDbBuilder {
                             );
                             self.define_location(id, function.span);
                             self.define_location(id, function.member_name_span);
+                            self.collect_generics(id, &function.generics);
                             self.collect_parameters(id, &function.parameters);
                             if let Some(body) = &function.body {
                                 self.collect_body(id, body);
@@ -451,6 +467,7 @@ impl SemanticDbBuilder {
     }
 
     fn collect_method_inputs(&mut self, owner: DefId, method: &MethodDecl) {
+        self.collect_generics(owner, &method.generics);
         self.define(
             DefinitionKind::Receiver,
             Some(owner),
@@ -458,6 +475,17 @@ impl SemanticDbBuilder {
             method.receiver.span,
         );
         self.collect_parameters(owner, &method.parameters);
+    }
+
+    fn collect_generics(&mut self, owner: DefId, generics: &GenericParamList) {
+        for parameter in &generics.parameters {
+            self.define(
+                DefinitionKind::GenericParameter,
+                Some(owner),
+                parameter.name_span,
+                parameter.span,
+            );
+        }
     }
 
     fn collect_literal_inputs(&mut self, owner: DefId, literal: &LiteralDecl) {

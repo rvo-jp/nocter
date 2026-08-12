@@ -106,11 +106,22 @@ impl CallableBodyIndex {
         (index, diagnostics)
     }
 
-    pub(crate) fn implementation(&self, declaration: ByteSpan) -> Option<ByteSpan> {
-        let declaration = self.semantic_db.definition_at(declaration)?;
+    pub(crate) fn implementation_id(&self, declaration: DefId) -> Option<DefId> {
         self.declaration_to_implementation
             .get(&declaration)
-            .and_then(|implementation| self.identity_location(*implementation))
+            .copied()
+    }
+
+    pub(crate) fn implementation(&self, declaration: ByteSpan) -> Option<ByteSpan> {
+        let declaration = self.semantic_db.definition_at(declaration)?;
+        self.implementation_id(declaration)
+            .and_then(|implementation| self.identity_location(implementation))
+    }
+
+    pub(crate) fn declaration_id(&self, implementation: DefId) -> Option<DefId> {
+        self.implementation_to_declaration
+            .get(&implementation)
+            .copied()
     }
 
     pub(crate) fn semantic_db(&self) -> Arc<SemanticDb> {
@@ -119,7 +130,7 @@ impl CallableBodyIndex {
 
     pub(crate) fn declaration(&self, implementation: ByteSpan) -> Option<ByteSpan> {
         let implementation_id = self.semantic_db.definition_at(implementation)?;
-        let declaration_id = *self.implementation_to_declaration.get(&implementation_id)?;
+        let declaration_id = self.declaration_id(implementation_id)?;
         if self.declaration_locations.get(&implementation_id) == Some(&implementation) {
             self.declaration_locations.get(&declaration_id).copied()
         } else {

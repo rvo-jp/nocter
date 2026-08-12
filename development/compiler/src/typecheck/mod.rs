@@ -73,7 +73,7 @@ pub(crate) use expansion::{specialize_collection_plan, specialize_sequence_sprea
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
-    TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
+    TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckComparisonPlan, TypecheckConversionKind,
     TypecheckConversionPlan, TypecheckFacts, TypecheckIndexAccess, TypecheckIndexPlan,
     TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
