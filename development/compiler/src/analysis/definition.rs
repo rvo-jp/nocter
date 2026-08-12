@@ -581,6 +581,25 @@ func equal(left: &Text, right: &Text): bool { return left == right }
     }
 
     #[test]
+    fn definition_query_resolves_derived_ordering_to_strict_order_token() {
+        let text = r#"struct Rank { value: i32 }
+instance Rank {
+    operator (&self < other: &Self): bool { return self.value < other.value }
+}
+func ordered(left: &Rank, right: &Rank): bool { return left >= right }
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let use_offset = text.rfind(">= right").expect("derived operator use");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, use_offset)
+            .expect("strict-order definition");
+
+        assert_eq!(&text[span.start..span.end], "<");
+        assert_eq!(span.start, text.find("< other").unwrap());
+    }
+
+    #[test]
     fn definition_query_resolves_index_use_to_operator_bracket() {
         let text = r#"struct Buffer { values: [i32; 1] }
 instance Buffer {

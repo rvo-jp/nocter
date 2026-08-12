@@ -1975,7 +1975,8 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
         WherePredicate::Operator(requirement)
             if matches!(
                 &requirement.shape,
-                crate::ast::OperatorRequirementShape::Equality {
+                crate::ast::OperatorRequirementShape::Comparison {
+                    kind: crate::ast::ComparisonOperatorKind::Equality,
                     operator_span,
                     left: TypeExpr::Borrow(_),
                     right: TypeExpr::Borrow(_),
@@ -1986,6 +1987,59 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     let json = ast.to_json(&sources);
     assert!(find_json_node(&json, "operator_decl").is_some());
     assert!(find_json_node(&json, "operator_requirement").is_some());
+}
+
+#[test]
+fn parses_instance_strict_order_operator_and_generic_requirement() {
+    let (sources, output) = parse_text_with_sources(
+        r#"struct Rank { value: i32 }
+
+instance Rank {
+    pub operator (&self < other: &Self): bool {
+        return self.value < other.value
+    }
+}
+
+func less<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Instance(instance) = &ast.items[1] else {
+        panic!("expected instance");
+    };
+    let crate::ast::OperatorDecl::Comparison(operator) = &instance.operators[0] else {
+        panic!("expected comparison operator");
+    };
+    assert_eq!(
+        operator.kind,
+        crate::ast::ComparisonOperatorKind::StrictOrder
+    );
+    assert_eq!(operator.operator_span.len(), 1);
+
+    let Item::Function(function) = &ast.items[2] else {
+        panic!("expected function");
+    };
+    let requirement = function
+        .requirements
+        .as_ref()
+        .unwrap()
+        .operator_requirements()
+        .next()
+        .unwrap();
+    assert!(matches!(
+        requirement.shape,
+        crate::ast::OperatorRequirementShape::Comparison {
+            kind: crate::ast::ComparisonOperatorKind::StrictOrder,
+            ..
+        }
+    ));
+
+    let json = ast.to_json(&sources);
+    let operator_json = find_json_node(&json, "operator_decl").expect("operator json");
+    assert_eq!(operator_json.value.as_deref(), Some("<"));
 }
 
 #[test]

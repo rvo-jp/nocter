@@ -19,7 +19,7 @@ impl Parser<'_> {
         if self.at_punctuation("[") {
             return self.parse_index_operator_decl(start, visibility, receiver);
         }
-        self.parse_equality_operator_decl(start, visibility, receiver)
+        self.parse_comparison_operator_decl(start, visibility, receiver)
     }
 
     fn parse_expansion_operator_decl(
@@ -69,7 +69,7 @@ impl Parser<'_> {
         )))
     }
 
-    fn parse_equality_operator_decl(
+    fn parse_comparison_operator_decl(
         &mut self,
         start: Token,
         visibility: Visibility,
@@ -78,12 +78,22 @@ impl Parser<'_> {
         if receiver.mode != MethodReceiverMode::ReadonlyBorrow {
             self.error_at(
                 receiver.span,
-                "equality left operand must be readonly `&self`",
+                "comparison left operand must be readonly `&self`",
             );
             return Err(());
         }
-        let operator = self.expect_punctuation("==", "`==`")?;
-        let name = self.expect_name_identifier("expected right operand name after `==`")?;
+        let (operator, kind) = if let Some(operator) = self.match_punctuation("==") {
+            (operator, ComparisonOperatorKind::Equality)
+        } else if let Some(operator) = self.match_punctuation("<") {
+            (operator, ComparisonOperatorKind::StrictOrder)
+        } else {
+            self.error_current("expected `==` or `<` after comparison receiver");
+            return Err(());
+        };
+        let name = self.expect_name_identifier(&format!(
+            "expected right operand name after `{}`",
+            kind.source_token()
+        ))?;
         self.expect_punctuation(":", "`:`")?;
         let ty = self.parse_type()?;
         let other = Parameter {
@@ -97,15 +107,16 @@ impl Parser<'_> {
         let return_type = self.parse_type()?;
         let body = self.parse_block()?;
         let span = self.span(start.span.start, body.span.end);
-        Ok(OperatorDecl::Equality(EqualityOperatorDecl::new(
+        Ok(OperatorDecl::Comparison(ComparisonOperatorDecl::new(
             span,
             operator.span,
+            kind,
             MethodDecl {
                 span,
                 visibility,
                 keyword_span: start.span,
                 receiver,
-                name: crate::ast::EQUALITY_OPERATOR_METHOD_NAME.to_string(),
+                name: kind.callable_name().to_string(),
                 name_span: operator.span,
                 generics: crate::ast::GenericParamList::empty(),
                 parameters: ParameterList {

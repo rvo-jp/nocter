@@ -516,7 +516,7 @@ fn check_where_clause(
     let mut seen_operators = HashMap::<String, ByteSpan>::new();
     for requirement in clause.operator_requirements() {
         let valid = match &requirement.shape {
-            crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+            crate::ast::OperatorRequirementShape::Comparison { left, right, .. } => {
                 check_type_expr(sources, left, resolved, scope, diagnostics);
                 check_type_expr(sources, right, resolved, scope, diagnostics);
                 let operands_valid = match (left, right) {
@@ -566,8 +566,12 @@ fn check_where_clause(
             let mut diagnostic = Diagnostic::error(
                 "E0471",
                 match &requirement.shape {
-                    crate::ast::OperatorRequirementShape::Equality { .. } => {
-                        "equality requirement must have the form `(&T == &T): bool` for one generic parameter"
+                    crate::ast::OperatorRequirementShape::Comparison { kind, .. } => {
+                        if *kind == crate::ast::ComparisonOperatorKind::Equality {
+                            "equality requirement must have the form `(&T == &T): bool` for one generic parameter"
+                        } else {
+                            "ordering requirement must have the form `(&T < &T): bool` for one generic parameter"
+                        }
                     }
                     crate::ast::OperatorRequirementShape::Index { .. } => {
                         "index requirement must borrow a generic target and return a borrow with the same capability, such as `(&C[K]): &V`"
@@ -582,9 +586,12 @@ fn check_where_clause(
             continue;
         }
         let key = match &requirement.shape {
-            crate::ast::OperatorRequirementShape::Equality { left, right, .. } => format!(
-                "{}=={}:{}",
+            crate::ast::OperatorRequirementShape::Comparison {
+                kind, left, right, ..
+            } => format!(
+                "{}{}{}:{}",
                 crate::ast::canonical_type_expr(left),
+                kind.source_token(),
                 crate::ast::canonical_type_expr(right),
                 crate::ast::canonical_type_expr(&requirement.result),
             ),

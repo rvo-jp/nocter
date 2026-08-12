@@ -100,12 +100,12 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             for method in &instance.methods {
                 collect_method_hover_symbols(text, method, symbols);
             }
-            for operator in instance.equality_operators() {
+            for operator in instance.comparison_operators() {
                 push_hover_symbol(
                     text,
                     operator.operator_span,
                     operator.span.start,
-                    crate::analysis::presentation::ast_equality_operator_presentation(
+                    crate::analysis::presentation::ast_comparison_operator_presentation(
                         &instance.target_ty,
                         operator,
                     ),

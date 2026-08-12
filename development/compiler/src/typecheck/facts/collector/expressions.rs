@@ -130,11 +130,10 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
-                if matches!(
-                    expression.operator,
-                    crate::ast::BinaryOperator::Equal | crate::ast::BinaryOperator::NotEqual
-                ) {
-                    let selected = crate::typecheck::operators::resolved_equality_method(
+                if let Some(semantics) =
+                    crate::typecheck::operators::comparison_semantics(expression.operator)
+                {
+                    let selected = crate::typecheck::operators::resolved_comparison_method(
                         expression,
                         self.resolved,
                         environment,
@@ -147,17 +146,23 @@ impl TypecheckFactCollector<'_> {
                             Some(&selected.self_type),
                             &std::collections::HashMap::new(),
                         );
-                        let actual = expression_type(&expression.right, self.resolved, environment);
-                        crate::typecheck::operators::equality_right_adjustment(
+                        let semantic_right = if semantics.reverse_operands {
+                            expression.left.as_ref()
+                        } else {
+                            expression.right.as_ref()
+                        };
+                        let actual = expression_type(semantic_right, self.resolved, environment);
+                        crate::typecheck::operators::comparison_operand_adjustment(
                             &expected,
-                            &expression.right,
+                            semantic_right,
                             &actual,
                             self.resolved,
                             environment,
                         )
                     });
                     if selected.is_some() && adjustment.is_some() {
-                        let call = crate::typecheck::operators::synthetic_equality_call(expression);
+                        let call =
+                            crate::typecheck::operators::synthetic_comparison_call(expression);
                         self.collect_expression_facts_in_context(
                             &Expr::Call(call),
                             environment,
@@ -185,14 +190,77 @@ impl TypecheckFactCollector<'_> {
                                 expression.operator_span,
                             )
                         });
-                        if (method.is_some() && adjustment.is_some())
-                            || environment
-                                .equality_requirement_span(&left_type, &right_type)
-                                .is_some()
+                        let (semantic_left_type, semantic_right_type) =
+                            if semantics.reverse_operands {
+                                (&right_type, &left_type)
+                            } else {
+                                (&left_type, &right_type)
+                            };
+                        let requirement_span = match semantics.kind {
+                            crate::ast::ComparisonOperatorKind::Equality => environment
+                                .equality_requirement_span(semantic_left_type, semantic_right_type),
+                            crate::ast::ComparisonOperatorKind::StrictOrder => environment
+                                .ordering_requirement_span(semantic_left_type, semantic_right_type),
+                        };
+                        if (method.is_some() && adjustment.is_some()) || requirement_span.is_some()
                         {
-                            self.facts.equality_plans.insert(
+                            let semantic_left_span = if semantics.reverse_operands {
+                                expression.right.span()
+                            } else {
+                                expression.left.span()
+                            };
+                            let semantic_right_span = if semantics.reverse_operands {
+                                expression.left.span()
+                            } else {
+                                expression.right.span()
+                            };
+                            let semantic_left_conversion = self
+                                .facts
+                                .conversion_plans
+                                .get(&semantic_left_span)
+                                .cloned();
+                            let semantic_right_conversion = adjustment
+                                .as_ref()
+                                .and_then(|adjustment| adjustment.conversion.clone())
+                                .and_then(|conversion| {
+                                    super::super::typecheck_conversion_plan(
+                                        semantic_right_span,
+                                        semantic_right_span,
+                                        None,
+                                        conversion,
+                                    )
+                                })
+                                .or_else(|| {
+                                    self.facts
+                                        .conversion_plans
+                                        .get(&semantic_right_span)
+                                        .cloned()
+                                });
+                            let (left_conversion, right_conversion) = if semantics.reverse_operands
+                            {
+                                (semantic_right_conversion, semantic_left_conversion)
+                            } else {
+                                (semantic_left_conversion, semantic_right_conversion)
+                            };
+                            let right_implicit_readonly_borrow =
+                                selected.as_ref().is_some_and(|selected| {
+                                    let expected = crate::typecheck::model::Type::Borrow {
+                                        is_readwrite: false,
+                                        inner: Box::new(selected.self_type.clone()),
+                                    };
+                                    crate::typecheck::operators::comparison_operand_adjustment(
+                                        &expected,
+                                        &expression.right,
+                                        &right_type,
+                                        self.resolved,
+                                        environment,
+                                    )
+                                    .is_some_and(|adjustment| adjustment.implicit_readonly_borrow)
+                                });
+                            self.facts.comparison_plans.insert(
                                 expression.operator_span,
-                                TypecheckEqualityPlan {
+                                TypecheckComparisonPlan {
+                                    kind: semantics.kind,
                                     operator_span: expression.operator_span,
                                     call_span: expression.span,
                                     left_span: expression.left.span(),
@@ -200,32 +268,11 @@ impl TypecheckFactCollector<'_> {
                                     left_ty,
                                     right_ty,
                                     method,
-                                    right_implicit_readonly_borrow: adjustment
-                                        .as_ref()
-                                        .is_some_and(|adjustment| {
-                                            adjustment.implicit_readonly_borrow
-                                        }),
-                                    left_conversion: self
-                                        .facts
-                                        .conversion_plans
-                                        .get(&expression.left.span())
-                                        .cloned(),
-                                    right_conversion: adjustment
-                                        .and_then(|adjustment| adjustment.conversion)
-                                        .and_then(|conversion| {
-                                            super::super::typecheck_conversion_plan(
-                                                expression.right.span(),
-                                                expression.right.span(),
-                                                None,
-                                                conversion,
-                                            )
-                                        })
-                                        .or_else(|| {
-                                            self.facts
-                                                .conversion_plans
-                                                .get(&expression.right.span())
-                                                .cloned()
-                                        }),
+                                    right_implicit_readonly_borrow,
+                                    left_conversion,
+                                    right_conversion,
+                                    reverse_operands: semantics.reverse_operands,
+                                    invert_result: semantics.invert_result,
                                 },
                             );
                         }

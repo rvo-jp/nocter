@@ -1505,7 +1505,7 @@ instance Text {
         .filter(|item| item.label == "operator")
         .collect::<Vec<_>>();
 
-    assert_eq!(operators.len(), 6);
+    assert_eq!(operators.len(), 7);
     assert!(
         operators
             .iter()
@@ -1515,6 +1515,11 @@ instance Text {
         item.detail.as_deref() == Some("operator (&Text == other: &Text): bool")
             && item.insert_text.as_deref()
                 == Some("operator (&self == other: &Self): bool {\n    return false\n}")
+    }));
+    assert!(operators.iter().any(|item| {
+        item.detail.as_deref() == Some("operator (&Text < other: &Text): bool")
+            && item.insert_text.as_deref()
+                == Some("operator (&self < other: &Self): bool {\n    return false\n}")
     }));
     assert!(operators.iter().any(|item| {
         item.detail.as_deref() == Some("operator (&Text[index: usize]): &Element")
@@ -1548,7 +1553,12 @@ instance Text {
         .iter()
         .filter(|item| item.label == "operator")
         .collect::<Vec<_>>();
-    assert_eq!(remaining.len(), 5);
+    assert_eq!(remaining.len(), 6);
+    assert!(
+        remaining.iter().any(|item| {
+            item.detail.as_deref() == Some("operator (&Text < other: &Text): bool")
+        })
+    );
 
     let outside = completion_items_for_text_at_offset(text, 0).expect("top-level completion");
     assert!(!outside.iter().any(|item| item.label == "operator"));

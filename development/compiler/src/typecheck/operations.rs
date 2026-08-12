@@ -102,14 +102,14 @@ pub(super) fn check_binary_expression(
                 resolved,
                 environment,
             ) {
-                let candidates = super::operators::ambiguous_equality_methods(
+                let candidates = super::operators::ambiguous_comparison_methods(
                     expression,
                     &right_type,
                     resolved,
                     environment,
                 );
                 if candidates.len() > 1 {
-                    diagnostics.push(super::operators::equality_ambiguity_diagnostic(
+                    diagnostics.push(super::operators::comparison_ambiguity_diagnostic(
                         sources,
                         expression,
                         &candidates,
@@ -129,6 +129,7 @@ pub(super) fn check_binary_expression(
         | BinaryOperator::Greater
         | BinaryOperator::GreaterEqual => {
             if !ordered_comparison_operands_match(
+                expression,
                 &left_type,
                 &expression.left,
                 &right_type,
@@ -136,12 +137,34 @@ pub(super) fn check_binary_expression(
                 resolved,
                 environment,
             ) {
-                diagnostics.push(ordered_comparison_operand_type_mismatch_diagnostic(
-                    sources,
+                let semantic_right_type = if matches!(
+                    expression.operator,
+                    BinaryOperator::Greater | BinaryOperator::LessEqual
+                ) {
+                    &left_type
+                } else {
+                    &right_type
+                };
+                let candidates = super::operators::ambiguous_comparison_methods(
                     expression,
-                    &left_type,
-                    &right_type,
-                ));
+                    semantic_right_type,
+                    resolved,
+                    environment,
+                );
+                if candidates.len() > 1 {
+                    diagnostics.push(super::operators::comparison_ambiguity_diagnostic(
+                        sources,
+                        expression,
+                        &candidates,
+                    ));
+                } else {
+                    diagnostics.push(ordered_comparison_operand_type_mismatch_diagnostic(
+                        sources,
+                        expression,
+                        &left_type,
+                        &right_type,
+                    ));
+                }
             }
         }
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
@@ -641,7 +664,7 @@ fn equality_operands_match(
     }
 
     integer_operands_match(left_type, left, right_type, right, resolved, environment)
-        || super::operators::equality_operator_matches(
+        || super::operators::comparison_operator_matches(
             expression,
             left_type,
             right_type,
@@ -664,6 +687,7 @@ fn arithmetic_operands_match(
 }
 
 fn ordered_comparison_operands_match(
+    expression: &BinaryExpr,
     left_type: &Type,
     left: &Expr,
     right_type: &Type,
@@ -671,9 +695,27 @@ fn ordered_comparison_operands_match(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    (is_integer_type(left_type)
+        && is_integer_type(right_type)
+        && integer_operands_match(left_type, left, right_type, right, resolved, environment))
+        || super::operators::comparison_operator_matches(
+            expression,
+            left_type,
+            right_type,
+            resolved,
+            environment,
+        )
+}
+
+pub(super) fn types_have_builtin_ordering(left_type: &Type, right_type: &Type) -> bool {
+    if let (Type::Borrow { inner: left, .. }, Type::Borrow { inner: right, .. }) =
+        (left_type, right_type)
+    {
+        return types_have_builtin_ordering(left, right);
+    }
     is_integer_type(left_type)
         && is_integer_type(right_type)
-        && integer_operands_match(left_type, left, right_type, right, resolved, environment)
+        && same_known_type(left_type, right_type)
 }
 
 fn shift_operands_match(

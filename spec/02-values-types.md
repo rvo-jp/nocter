@@ -572,8 +572,11 @@ Comparison rules:
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not supported. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.
-- Ordering comparisons require numeric operands of the same type.
-- Ordering comparisons are not defined for `bool`, structs, strings, or enums.
+- Matching integer operands have primitive ordering.
+- Other types may own strict ordering through
+  `operator (&self < other: &Self): bool`; the complete declaration, generic-requirement,
+  derivation, coercion, and evaluation rules are specified in
+  [Strict Ordering Operators](24-ordering-operators.md).
 
 Logical rules:
 

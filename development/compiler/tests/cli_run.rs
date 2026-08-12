@@ -44,6 +44,8 @@ mod index_operators;
 mod opaque_results;
 #[path = "cli_run/optional_fallible.rs"]
 mod optional_fallible;
+#[path = "cli_run/ordering_operators.rs"]
+mod ordering_operators;
 #[path = "cli_run/payload_enums.rs"]
 mod payload_enums;
 #[path = "cli_run/process_context.rs"]

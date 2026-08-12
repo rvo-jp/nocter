@@ -1,11 +1,11 @@
-//! Validation and static selection for instance-owned equality.
+//! Validation and static selection for instance-owned fixed comparisons.
 
 use super::calls::{
     receiver_coerced_method_candidates_for_call, resolved_call_signature, resolved_method_call,
 };
 use super::model::{Type, TypeEnvironment};
 use crate::ast::{
-    AstFile, BinaryExpr, BorrowType, CallExpr, EQUALITY_OPERATOR_METHOD_NAME, Expr, Item,
+    AstFile, BinaryExpr, BinaryOperator, BorrowType, CallExpr, ComparisonOperatorKind, Expr, Item,
     MemberExpr, MethodReceiverMode, TypeExpr, TypeReference,
 };
 use crate::diagnostics::Diagnostic;
@@ -13,13 +13,84 @@ use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashSet;
 
-pub(crate) fn synthetic_equality_call(expression: &BinaryExpr) -> CallExpr {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ComparisonSemantics {
+    pub(crate) kind: ComparisonOperatorKind,
+    pub(crate) reverse_operands: bool,
+    pub(crate) invert_result: bool,
+}
+
+pub(crate) fn comparison_semantics(operator: BinaryOperator) -> Option<ComparisonSemantics> {
+    Some(match operator {
+        BinaryOperator::Equal => ComparisonSemantics {
+            kind: ComparisonOperatorKind::Equality,
+            reverse_operands: false,
+            invert_result: false,
+        },
+        BinaryOperator::NotEqual => ComparisonSemantics {
+            kind: ComparisonOperatorKind::Equality,
+            reverse_operands: false,
+            invert_result: true,
+        },
+        BinaryOperator::Less => ComparisonSemantics {
+            kind: ComparisonOperatorKind::StrictOrder,
+            reverse_operands: false,
+            invert_result: false,
+        },
+        BinaryOperator::Greater => ComparisonSemantics {
+            kind: ComparisonOperatorKind::StrictOrder,
+            reverse_operands: true,
+            invert_result: false,
+        },
+        BinaryOperator::LessEqual => ComparisonSemantics {
+            kind: ComparisonOperatorKind::StrictOrder,
+            reverse_operands: true,
+            invert_result: true,
+        },
+        BinaryOperator::GreaterEqual => ComparisonSemantics {
+            kind: ComparisonOperatorKind::StrictOrder,
+            reverse_operands: false,
+            invert_result: true,
+        },
+        _ => return None,
+    })
+}
+
+fn semantic_operands(expression: &BinaryExpr) -> (&Expr, &Expr) {
+    if comparison_semantics(expression.operator).is_some_and(|semantics| semantics.reverse_operands)
+    {
+        (&expression.right, &expression.left)
+    } else {
+        (&expression.left, &expression.right)
+    }
+}
+
+pub(crate) fn synthetic_comparison_call(expression: &BinaryExpr) -> CallExpr {
+    let semantics = comparison_semantics(expression.operator).expect("comparison operator");
+    let (left, right) = semantic_operands(expression);
+    CallExpr {
+        span: expression.span,
+        callee: Box::new(Expr::Member(MemberExpr {
+            span: expression.operator_span,
+            object: Box::new(left.clone()),
+            member: semantics.kind.callable_name().to_string(),
+            member_span: expression.operator_span,
+        })),
+        arguments_span: right.span(),
+        arguments: vec![right.clone()],
+    }
+}
+
+/// Preserves authored left-to-right evaluation. Native call lowering swaps the already evaluated
+/// scalar arguments when the comparison plan uses reversed strict-order orientation.
+pub(crate) fn synthetic_comparison_runtime_call(expression: &BinaryExpr) -> CallExpr {
+    let semantics = comparison_semantics(expression.operator).expect("comparison operator");
     CallExpr {
         span: expression.span,
         callee: Box::new(Expr::Member(MemberExpr {
             span: expression.operator_span,
             object: expression.left.clone(),
-            member: EQUALITY_OPERATOR_METHOD_NAME.to_string(),
+            member: semantics.kind.callable_name().to_string(),
             member_span: expression.operator_span,
         })),
         arguments_span: expression.right.span(),
@@ -27,20 +98,31 @@ pub(crate) fn synthetic_equality_call(expression: &BinaryExpr) -> CallExpr {
     }
 }
 
-pub(super) fn equality_operator_matches(
+pub(super) fn comparison_operator_matches(
     expression: &BinaryExpr,
     left_type: &Type,
     right_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    if environment
-        .equality_requirement_span(left_type, right_type)
-        .is_some()
-    {
+    let semantics = comparison_semantics(expression.operator).expect("comparison operator");
+    let (semantic_left_type, semantic_right_type) = if semantics.reverse_operands {
+        (right_type, left_type)
+    } else {
+        (left_type, right_type)
+    };
+    let requirement = match semantics.kind {
+        ComparisonOperatorKind::Equality => {
+            environment.equality_requirement_span(semantic_left_type, semantic_right_type)
+        }
+        ComparisonOperatorKind::StrictOrder => {
+            environment.ordering_requirement_span(semantic_left_type, semantic_right_type)
+        }
+    };
+    if requirement.is_some() {
         return true;
     }
-    let call = synthetic_equality_call(expression);
+    let call = synthetic_comparison_call(expression);
     let Some(signature) = resolved_call_signature(resolved, &call, environment) else {
         return false;
     };
@@ -54,10 +136,10 @@ pub(super) fn equality_operator_matches(
         &std::collections::HashMap::new(),
     );
     !expected.is_unknown_or_unresolved()
-        && equality_right_adjustment(
+        && comparison_operand_adjustment(
             &expected,
-            &expression.right,
-            right_type,
+            semantic_operands(expression).1,
+            semantic_right_type,
             resolved,
             environment,
         )
@@ -65,18 +147,18 @@ pub(super) fn equality_operator_matches(
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct EqualityOperandAdjustment {
+pub(super) struct ComparisonOperandAdjustment {
     pub(super) implicit_readonly_borrow: bool,
     pub(super) conversion: Option<super::conversions::SelectedConversion>,
 }
 
-pub(super) fn equality_right_adjustment(
+pub(super) fn comparison_operand_adjustment(
     expected: &Type,
     expression: &Expr,
     actual: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-) -> Option<EqualityOperandAdjustment> {
+) -> Option<ComparisonOperandAdjustment> {
     if let Ok(conversion) = super::conversions::select_expression_conversion(
         super::conversions::ConversionMode::Contextual,
         expected,
@@ -84,7 +166,7 @@ pub(super) fn equality_right_adjustment(
         resolved,
         environment,
     ) {
-        return Some(EqualityOperandAdjustment {
+        return Some(ComparisonOperandAdjustment {
             implicit_readonly_borrow: false,
             conversion: Some(conversion),
         });
@@ -98,7 +180,7 @@ pub(super) fn equality_right_adjustment(
         return None;
     };
     if environment.types_equal(expected_inner, actual) {
-        return Some(EqualityOperandAdjustment {
+        return Some(ComparisonOperandAdjustment {
             implicit_readonly_borrow: true,
             conversion: None,
         });
@@ -117,7 +199,7 @@ pub(super) fn equality_right_adjustment(
         environment,
     )
     .ok()?;
-    Some(EqualityOperandAdjustment {
+    Some(ComparisonOperandAdjustment {
         implicit_readonly_borrow: true,
         conversion: Some(conversion),
     })
@@ -149,26 +231,59 @@ pub(super) fn types_support_equality(
         operator_span: span,
         right: Box::new(identifier("__nocter_operator_right")),
     };
-    equality_operator_matches(&expression, left_type, right_type, resolved, &local)
+    comparison_operator_matches(&expression, left_type, right_type, resolved, &local)
 }
 
-pub(super) fn resolved_equality_method<'a>(
+pub(super) fn types_support_ordering(
+    left_type: &Type,
+    right_type: &Type,
+    span: ByteSpan,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    if super::operations::types_have_builtin_ordering(left_type, right_type) {
+        return true;
+    }
+    let mut local = environment.clone();
+    local.define("__nocter_operator_left".to_string(), left_type.clone());
+    local.define("__nocter_operator_right".to_string(), right_type.clone());
+    let identifier = |name: &str| {
+        Expr::Identifier(crate::ast::IdentifierExpr {
+            span,
+            name: name.to_string(),
+        })
+    };
+    let expression = BinaryExpr {
+        span,
+        left: Box::new(identifier("__nocter_operator_left")),
+        operator: BinaryOperator::Less,
+        operator_span: span,
+        right: Box::new(identifier("__nocter_operator_right")),
+    };
+    comparison_operator_matches(&expression, left_type, right_type, resolved, &local)
+}
+
+pub(super) fn resolved_comparison_method<'a>(
     expression: &BinaryExpr,
     resolved: &'a ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<super::calls::ResolvedMethodCall<'a>> {
-    resolved_method_call(resolved, &synthetic_equality_call(expression), environment)
+    resolved_method_call(
+        resolved,
+        &synthetic_comparison_call(expression),
+        environment,
+    )
 }
 
-pub(super) fn ambiguous_equality_methods<'a>(
+pub(super) fn ambiguous_comparison_methods<'a>(
     expression: &BinaryExpr,
-    right_type: &Type,
+    semantic_right_type: &Type,
     resolved: &'a ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Vec<super::calls::ResolvedMethodCall<'a>> {
     receiver_coerced_method_candidates_for_call(
         resolved,
-        &synthetic_equality_call(expression),
+        &synthetic_comparison_call(expression),
         environment,
     )
     .into_iter()
@@ -182,10 +297,10 @@ pub(super) fn ambiguous_equality_methods<'a>(
             Some(&selected.self_type),
             &std::collections::HashMap::new(),
         );
-        equality_right_adjustment(
+        comparison_operand_adjustment(
             &expected,
-            &expression.right,
-            right_type,
+            semantic_operands(expression).1,
+            semantic_right_type,
             resolved,
             environment,
         )
@@ -194,14 +309,21 @@ pub(super) fn ambiguous_equality_methods<'a>(
     .collect()
 }
 
-pub(super) fn equality_ambiguity_diagnostic(
+pub(super) fn comparison_ambiguity_diagnostic(
     sources: &SourceMap,
     expression: &BinaryExpr,
     candidates: &[super::calls::ResolvedMethodCall<'_>],
 ) -> Diagnostic {
+    let description = if comparison_semantics(expression.operator)
+        .is_some_and(|semantics| semantics.kind == ComparisonOperatorKind::StrictOrder)
+    {
+        "ordering"
+    } else {
+        "equality"
+    };
     let mut diagnostic = Diagnostic::error(
         "E0474",
-        "equality is ambiguous across readonly operand coercions",
+        format!("{description} is ambiguous across readonly operand coercions"),
     );
     diagnostic.primary_span = sources
         .span_to_json(expression.operator_span)
@@ -214,7 +336,7 @@ pub(super) fn equality_ambiguity_diagnostic(
         if let Ok(span) = sources.span_to_json(coercion.focus_span) {
             diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
                 message: format!(
-                    "coercion to `{}` selects the equality operator declared for `{}`",
+                    "coercion to `{}` selects the {description} operator declared for `{}`",
                     coercion.target_type.display(),
                     candidate.owner.canonical_name,
                 ),
@@ -247,10 +369,10 @@ pub(super) fn operator_method_fact(
     ))
 }
 
-pub(crate) fn specialize_equality_plan(
-    mut plan: super::facts::TypecheckEqualityPlan,
+pub(crate) fn specialize_comparison_plan(
+    mut plan: super::facts::TypecheckComparisonPlan,
     resolved: &ResolveOutput,
-) -> Option<super::facts::TypecheckEqualityPlan> {
+) -> Option<super::facts::TypecheckComparisonPlan> {
     if plan.method.is_some() {
         return Some(plan);
     }
@@ -271,16 +393,35 @@ pub(crate) fn specialize_equality_plan(
     let expression = BinaryExpr {
         span: plan.call_span,
         left: Box::new(identifier("__nocter_operator_left", plan.left_span)),
-        operator: crate::ast::BinaryOperator::Equal,
+        operator: match (plan.kind, plan.reverse_operands) {
+            (ComparisonOperatorKind::Equality, _) => BinaryOperator::Equal,
+            (ComparisonOperatorKind::StrictOrder, false) => BinaryOperator::Less,
+            (ComparisonOperatorKind::StrictOrder, true) => BinaryOperator::Greater,
+        },
         operator_span: plan.operator_span,
         right: Box::new(identifier("__nocter_operator_right", plan.right_span)),
     };
-    let selected = resolved_equality_method(&expression, resolved, &environment)?;
+    let selected = resolved_comparison_method(&expression, resolved, &environment)?;
     plan.method = operator_method_fact(&selected, plan.operator_span);
+    let (semantic_left_type, semantic_right_type, semantic_left_span, semantic_right_span) =
+        if plan.reverse_operands {
+            (&right_type, &left_type, plan.right_span, plan.left_span)
+        } else {
+            (&left_type, &right_type, plan.left_span, plan.right_span)
+        };
     if let Some(coercion) = selected.receiver_coercion.clone() {
-        let selected = super::conversions::selected_receiver_coercion(&left_type, coercion);
-        plan.left_conversion =
-            super::facts::typecheck_conversion_plan(plan.left_span, plan.left_span, None, selected);
+        let selected = super::conversions::selected_receiver_coercion(semantic_left_type, coercion);
+        let conversion = super::facts::typecheck_conversion_plan(
+            semantic_left_span,
+            semantic_left_span,
+            None,
+            selected,
+        );
+        if plan.reverse_operands {
+            plan.right_conversion = conversion;
+        } else {
+            plan.left_conversion = conversion;
+        }
     }
     let parameter = selected.method.signature.parameters.first()?;
     let expected = super::type_expr::type_expr_to_type_with_substitutions(
@@ -289,17 +430,38 @@ pub(crate) fn specialize_equality_plan(
         Some(&selected.self_type),
         &std::collections::HashMap::new(),
     );
-    let adjustment = equality_right_adjustment(
+    let adjustment = comparison_operand_adjustment(
         &expected,
+        semantic_operands(&expression).1,
+        semantic_right_type,
+        resolved,
+        &environment,
+    )?;
+    let semantic_right_conversion = adjustment.conversion.and_then(|conversion| {
+        super::facts::typecheck_conversion_plan(
+            semantic_right_span,
+            semantic_right_span,
+            None,
+            conversion,
+        )
+    });
+    if plan.reverse_operands {
+        plan.left_conversion = semantic_right_conversion;
+    } else {
+        plan.right_conversion = semantic_right_conversion;
+    }
+    let expected_receiver = Type::Borrow {
+        is_readwrite: false,
+        inner: Box::new(selected.self_type.clone()),
+    };
+    plan.right_implicit_readonly_borrow = comparison_operand_adjustment(
+        &expected_receiver,
         &expression.right,
         &right_type,
         resolved,
         &environment,
-    )?;
-    plan.right_implicit_readonly_borrow = adjustment.implicit_readonly_borrow;
-    plan.right_conversion = adjustment.conversion.and_then(|conversion| {
-        super::facts::typecheck_conversion_plan(plan.right_span, plan.right_span, None, conversion)
-    });
+    )
+    .is_some_and(|adjustment| adjustment.implicit_readonly_borrow);
     Some(plan)
 }
 
@@ -313,13 +475,17 @@ pub(super) fn check_operator_declarations(
         Item::Instance(instance) => Some(instance),
         _ => None,
     }) {
-        for operator in instance.equality_operators() {
+        for operator in instance.comparison_operators() {
             let callable = operator.callable_method();
+            let description = match operator.kind {
+                ComparisonOperatorKind::Equality => "equality",
+                ComparisonOperatorKind::StrictOrder => "ordering",
+            };
             if callable.receiver.mode != MethodReceiverMode::ReadonlyBorrow {
                 diagnostics.push(operator_shape_diagnostic(
                     sources,
                     callable.receiver.span,
-                    "equality left operand must be readonly `&self`",
+                    &format!("{description} left operand must be readonly `&self`"),
                 ));
             }
             let valid_right = callable.parameters.parameters.first().is_some_and(|parameter| {
@@ -336,7 +502,7 @@ pub(super) fn check_operator_declarations(
                 diagnostics.push(operator_shape_diagnostic(
                     sources,
                     callable.parameters.span,
-                    "equality right operand type must be readonly `&Self`",
+                    &format!("{description} right operand type must be readonly `&Self`"),
                 ));
             }
             let return_type = super::type_expr::type_expr_to_type_in_environment(
@@ -348,7 +514,7 @@ pub(super) fn check_operator_declarations(
                 diagnostics.push(operator_shape_diagnostic(
                     sources,
                     callable.return_type.span(),
-                    "equality operator return type must be `bool`",
+                    &format!("{description} operator return type must be `bool`"),
                 ));
             }
         }

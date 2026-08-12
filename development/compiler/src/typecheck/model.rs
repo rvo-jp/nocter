@@ -430,6 +430,7 @@ pub(super) struct TypeEnvironment {
     generic_requirements: HashMap<String, crate::resolve::GenericRequirements>,
     type_equalities: Vec<(Type, Type)>,
     equality_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
+    ordering_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
     index_requirements: Vec<IndexRequirement>,
     expansion_requirements: Vec<ExpansionRequirement>,
 }
@@ -459,6 +460,7 @@ impl TypeEnvironment {
             generic_requirements: HashMap::new(),
             type_equalities: Vec::new(),
             equality_requirements: Vec::new(),
+            ordering_requirements: Vec::new(),
             index_requirements: Vec::new(),
             expansion_requirements: Vec::new(),
         }
@@ -476,6 +478,7 @@ impl TypeEnvironment {
             generic_requirements: self.generic_requirements.clone(),
             type_equalities: self.type_equalities.clone(),
             equality_requirements: self.equality_requirements.clone(),
+            ordering_requirements: self.ordering_requirements.clone(),
             index_requirements: self.index_requirements.clone(),
             expansion_requirements: self.expansion_requirements.clone(),
         }
@@ -575,7 +578,8 @@ impl TypeEnvironment {
         }
         for requirement in clause.operator_requirements() {
             match &requirement.shape {
-                crate::ast::OperatorRequirementShape::Equality {
+                crate::ast::OperatorRequirementShape::Comparison {
+                    kind,
                     left,
                     operator_span,
                     right,
@@ -584,8 +588,14 @@ impl TypeEnvironment {
                         super::type_expr::type_expr_to_type_in_environment(left, resolved, self);
                     let right =
                         super::type_expr::type_expr_to_type_in_environment(right, resolved, self);
-                    self.equality_requirements
-                        .push((left, right, *operator_span));
+                    match kind {
+                        crate::ast::ComparisonOperatorKind::Equality => self
+                            .equality_requirements
+                            .push((left, right, *operator_span)),
+                        crate::ast::ComparisonOperatorKind::StrictOrder => self
+                            .ordering_requirements
+                            .push((left, right, *operator_span)),
+                    }
                 }
                 crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
                     let target =
@@ -673,6 +683,19 @@ impl TypeEnvironment {
                 (self.types_equal(left, required_left) && self.types_equal(right, required_right))
                     .then_some(*span)
             })
+    }
+
+    pub(super) fn ordering_requirement_span(
+        &self,
+        left: &Type,
+        right: &Type,
+    ) -> Option<crate::source::ByteSpan> {
+        self.ordering_requirements
+            .iter()
+            .find(|(required_left, required_right, _)| {
+                self.types_equal(required_left, left) && self.types_equal(required_right, right)
+            })
+            .map(|(_, _, span)| *span)
     }
 
     pub(super) fn index_requirement(

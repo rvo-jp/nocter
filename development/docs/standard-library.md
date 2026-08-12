@@ -59,6 +59,10 @@ Borrowed observation belongs to the built-in `str` and `[T]` surfaces. Private `
 `Vec<T>` raw-view helpers bridge initialized representation into coercion, index-operator, and
 interface implementations; they are not public forwarding APIs.
 
+The built-in `str` and `[T]` instance surfaces own equality and strict lexical ordering in ordinary
+source. `String` and `Vec<T>` obtain both capabilities only through their readonly coercions. The
+compiler and standard nominal containers do not maintain parallel comparison tables or algorithms.
+
 ## Borrowed Text Views
 
 `std/string/index.nct` owns the public contracts for UTF-8 ranges, `SplitIter`, and `LinesIter`.

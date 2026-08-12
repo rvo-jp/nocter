@@ -58,6 +58,15 @@ nocter check examples/mutable-iteration.nct
 nocter run examples/mutable-iteration.nct
 ```
 
+[ordering.nct](ordering.nct) defines strict ordering for a project type, uses the same structural
+requirement from generic code, and compares `String` plus `Vec` values through standard source
+declarations and readonly coercions.
+
+```sh
+nocter check examples/ordering.nct
+nocter run examples/ordering.nct
+```
+
 ## Package Example
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line

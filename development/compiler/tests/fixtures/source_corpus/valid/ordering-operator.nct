@@ -1,0 +1,22 @@
+struct Rank {
+    value: i32,
+}
+
+instance Rank {
+    operator (&self < other: &Self): bool {
+        return self.value < other.value
+    }
+}
+
+func earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+
+func main(): i32 {
+    let low = Rank { value: 1 }
+    let high = Rank { value: 2 }
+    if earlier(&low, &high) {
+        return 0
+    }
+    return 1
+}

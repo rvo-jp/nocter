@@ -28,6 +28,75 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_instance_owned_strict_order_and_all_derived_spellings() {
+    let diagnostics = check_text(
+        r#"struct Rank { value: i32 }
+
+instance Rank {
+    operator (&self < other: &Self): bool {
+        return self.value < other.value
+    }
+}
+
+func less<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+
+func main(): i32 {
+    let low = Rank { value: 1 }
+    let high = Rank { value: 2 }
+    if !less(&low, &high) { return 1 }
+    if low >= high { return 2 }
+    if high <= low { return 3 }
+    if low > high { return 4 }
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_malformed_and_unsatisfied_strict_order_contracts() {
+    let malformed = check_text(
+        r#"struct Rank {}
+instance Rank {
+    operator (&self < other: &i32): i32 { return 0 }
+}
+func main(): i32 { return 0 }
+"#,
+    );
+    assert!(
+        malformed
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "E0470")
+            .count()
+            >= 2,
+        "{malformed:?}"
+    );
+
+    let unsatisfied = check_text(
+        r#"struct Rank { value: i32 }
+func less<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+func main(): i32 {
+    let left = Rank { value: 1 }
+    let right = Rank { value: 2 }
+    if less(&left, &right) { return 1 }
+    return 0
+}
+"#,
+    );
+    assert!(
+        unsatisfied.iter().any(|diagnostic| diagnostic.code == "E0473"
+            && diagnostic.message.contains("ordering")),
+        "{unsatisfied:?}"
+    );
+}
+
+#[test]
 fn diagnoses_malformed_equality_declaration_contracts() {
     let wrong_operand = check_text(
         r#"struct Text {}
@@ -414,6 +483,38 @@ func main(): i32 { return 0 }
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0474");
+    assert_eq!(diagnostics[0].notes.len(), 2, "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_ordering_ambiguity_across_readonly_coercions() {
+    let diagnostics = check_text(
+        r#"struct First { value: i32 }
+struct Second { value: i32 }
+
+instance First {
+    operator (&self < other: &Self): bool { return self.value < other.value }
+}
+
+instance Second {
+    operator (&self < other: &Self): bool { return self.value < other.value }
+}
+
+struct Owner { first: First, second: Second }
+
+coerce Owner {
+    &self as &First { return &self.first }
+    &self as &Second { return &self.second }
+}
+
+func less(left: &Owner, right: &Owner): bool { return left < right }
+func main(): i32 { return 0 }
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0474");
+    assert!(diagnostics[0].message.contains("ordering"));
     assert_eq!(diagnostics[0].notes.len(), 2, "{diagnostics:?}");
 }
 

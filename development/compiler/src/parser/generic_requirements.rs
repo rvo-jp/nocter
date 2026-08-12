@@ -35,7 +35,13 @@ impl Parser<'_> {
                     self.bump();
                     span
                 });
-                let left = self.parse_type()?;
+                let left = if expansion.is_none()
+                    && (self.at_punctuation("&") || self.at_punctuation("&+"))
+                {
+                    self.parse_operator_requirement_borrow_operand()?
+                } else {
+                    self.parse_type()?
+                };
                 let shape = if let Some(operator_span) = expansion {
                     OperatorRequirementShape::Expansion {
                         operator_span,
@@ -43,8 +49,17 @@ impl Parser<'_> {
                     }
                 } else if let Some(equals) = self.match_punctuation("==") {
                     let right = self.parse_type()?;
-                    OperatorRequirementShape::Equality {
+                    OperatorRequirementShape::Comparison {
+                        kind: crate::ast::ComparisonOperatorKind::Equality,
                         operator_span: equals.span,
+                        left,
+                        right,
+                    }
+                } else if let Some(less) = self.match_punctuation("<") {
+                    let right = self.parse_type()?;
+                    OperatorRequirementShape::Comparison {
+                        kind: crate::ast::ComparisonOperatorKind::StrictOrder,
+                        operator_span: less.span,
                         left,
                         right,
                     }
@@ -62,7 +77,7 @@ impl Parser<'_> {
                     }
                 } else {
                     self.error_current(
-                        "expected `...`, `==`, or `[` in parenthesized operator requirement",
+                        "expected `...`, `==`, `<`, or `[` in parenthesized operator requirement",
                     );
                     return Err(());
                 };
@@ -156,5 +171,23 @@ impl Parser<'_> {
             }
         }
         Ok(bounds)
+    }
+
+    /// Comparison and index requirements deliberately accept a direct generic borrow as their
+    /// left structural operand. Parsing that fixed shape here keeps `<` unambiguously available as
+    /// the strict-order token instead of treating it as the start of type arguments on `T`.
+    fn parse_operator_requirement_borrow_operand(&mut self) -> ParseResult<TypeExpr> {
+        let borrow = self.bump();
+        let is_readwrite = self.lexeme(&borrow) == "&+";
+        let name = self.expect_identifier("expected generic parameter after borrow capability")?;
+        let inner = TypeExpr::Reference(crate::ast::TypeReference {
+            span: name.span,
+            name: name.value,
+        });
+        Ok(TypeExpr::Borrow(crate::ast::BorrowType {
+            span: self.span(borrow.span.start, inner.span().end),
+            is_readwrite,
+            inner: Box::new(inner),
+        }))
     }
 }

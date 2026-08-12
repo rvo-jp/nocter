@@ -25,6 +25,8 @@ mod iteration;
 mod iteration_cleanup;
 #[path = "distributed_home/iterator_adapters.rs"]
 mod iterator_adapters;
+#[path = "distributed_home/ordering.rs"]
+mod ordering;
 #[path = "distributed_home/outcome_values.rs"]
 mod outcome_values;
 #[path = "distributed_home/practical_std.rs"]

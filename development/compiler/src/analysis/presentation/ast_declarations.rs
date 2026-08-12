@@ -2,7 +2,7 @@
 
 use super::{CallablePresentation, LiteralPresentation};
 use crate::ast::{
-    CoercionEntry, DestructDecl, EnumDecl, EqualityOperatorDecl, ExpansionOperatorDecl,
+    CoercionEntry, ComparisonOperatorDecl, DestructDecl, EnumDecl, ExpansionOperatorDecl,
     FunctionDecl, GenericParam, IndexOperatorDecl, InterfaceDecl, LiteralDecl, LiteralShape,
     MethodDecl, Parameter, PrimitiveDecl, StructDecl, TypeAliasDecl,
 };
@@ -91,14 +91,17 @@ pub(crate) fn ast_method_presentation(method: &MethodDecl) -> String {
     )
 }
 
-pub(crate) fn ast_equality_operator_presentation(
+pub(crate) fn ast_comparison_operator_presentation(
     owner: &crate::ast::TypeExpr,
-    operator: &EqualityOperatorDecl,
+    operator: &ComparisonOperatorDecl,
 ) -> String {
     let owner = crate::ast::canonical_type_expr(owner);
     let callable = operator.callable_method();
     let other = &callable.parameters.parameters[0].name;
-    format!("operator (&{owner} == {other}: &{owner}): bool")
+    format!(
+        "operator (&{owner} {} {other}: &{owner}): bool",
+        operator.kind.source_token()
+    )
 }
 
 pub(crate) fn ast_index_operator_presentation(

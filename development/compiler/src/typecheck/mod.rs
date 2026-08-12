@@ -73,8 +73,8 @@ pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
-    TypecheckCollectionForSourceMode, TypecheckConversionKind, TypecheckConversionPlan,
-    TypecheckEqualityPlan, TypecheckFacts, TypecheckIndexAccess, TypecheckIndexPlan,
+    TypecheckCollectionForSourceMode, TypecheckComparisonPlan, TypecheckConversionKind,
+    TypecheckConversionPlan, TypecheckFacts, TypecheckIndexAccess, TypecheckIndexPlan,
     TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
     TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
@@ -88,7 +88,9 @@ pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
-pub(crate) use operators::{specialize_equality_plan, synthetic_equality_call};
+pub(crate) use operators::{
+    comparison_semantics, specialize_comparison_plan, synthetic_comparison_runtime_call,
+};
 
 pub(crate) fn type_expr_is_assignable(
     expected: &crate::ast::TypeExpr,

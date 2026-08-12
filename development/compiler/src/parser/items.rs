@@ -1,13 +1,13 @@
 use super::support::ParsedIdentifier;
 use super::{ParseResult, Parser};
 use crate::ast::{
-    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, BorrowType, ConformanceDecl,
-    ConformanceMember, DestructDecl, EnumDecl, EnumVariant, EqualityOperatorDecl,
-    ExpansionOperatorDecl, FromImportItem, FunctionDecl, FunctionOwner, ImportAlias, ImportItem,
-    ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl, Item, MethodDecl, MethodReceiver,
-    MethodReceiverMode, ModulePath, OperatorDecl, Parameter, ParameterList, PrimitiveDecl,
-    ResultProvenanceClause, ResultProvenanceOrigin, ResultProvenanceOriginKind, StructDecl,
-    StructField, TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, Visibility,
+    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, BorrowType, ComparisonOperatorDecl,
+    ComparisonOperatorKind, ConformanceDecl, ConformanceMember, DestructDecl, EnumDecl,
+    EnumVariant, ExpansionOperatorDecl, FromImportItem, FunctionDecl, FunctionOwner, ImportAlias,
+    ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl, Item, MethodDecl,
+    MethodReceiver, MethodReceiverMode, ModulePath, OperatorDecl, Parameter, ParameterList,
+    PrimitiveDecl, ResultProvenanceClause, ResultProvenanceOrigin, ResultProvenanceOriginKind,
+    StructDecl, StructField, TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, Visibility,
 };
 use crate::lexer::{Keyword, Token};
 use crate::literals::decode_string_literal_bytes;

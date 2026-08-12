@@ -29,10 +29,13 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
     match expression {
         Expr::Binary(binary)
             if context
-                .equality_plan(binary.operator_span)
+                .comparison_plan(binary.operator_span)
                 .is_some_and(|plan| plan.method.is_some()) =>
         {
-            let call = crate::typecheck::synthetic_equality_call(binary);
+            let plan = context
+                .comparison_plan(binary.operator_span)
+                .expect("planned source comparison");
+            let call = crate::typecheck::synthetic_comparison_runtime_call(binary);
             let mut temporaries = TemporaryAllocator::new(context)?;
             let mut lowered = lower_bool_expression_to_value_with_temporaries(
                 &Expr::Call(call),
@@ -40,7 +43,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
                 diagnostic_code,
                 &mut temporaries,
             )?;
-            if binary.operator == BinaryOperator::NotEqual {
+            if plan.invert_result {
                 lowered.value = BoolValue::Not(Box::new(lowered.value));
             }
             lowered.instructions.push(Instruction::SetBool {
@@ -318,17 +321,20 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
     match expression {
         Expr::Binary(binary)
             if context
-                .equality_plan(binary.operator_span)
+                .comparison_plan(binary.operator_span)
                 .is_some_and(|plan| plan.method.is_some()) =>
         {
-            let call = crate::typecheck::synthetic_equality_call(binary);
+            let plan = context
+                .comparison_plan(binary.operator_span)
+                .expect("planned source comparison");
+            let call = crate::typecheck::synthetic_comparison_runtime_call(binary);
             let mut lowered = lower_bool_expression_to_value_with_temporaries(
                 &Expr::Call(call),
                 context,
                 diagnostic_code,
                 temporaries,
             )?;
-            if binary.operator == BinaryOperator::NotEqual {
+            if plan.invert_result {
                 lowered.value = BoolValue::Not(Box::new(lowered.value));
             }
             Ok(lowered)

@@ -144,9 +144,11 @@ Rules:
 - A projected type uses no spaces around the dot: `Self.Item` or `S.Item`.
 - A type-equality predicate uses one space around `=`: `R.Item = L.Item`.
 - An operator requirement encloses its expression and writes an explicit result type:
-  `where (&T == &T): bool` or `where (&C[K]): &V`.
+  `where (&T == &T): bool`, `where (&T < &T): bool`, or `where (&C[K]): &V`.
 - An equality declaration is `operator (&self == other: &Self): bool`; spaces surround `==`, the
   named right binding follows it, and the complete operand expression stays in parentheses.
+- A strict-order declaration is `operator (&self < other: &Self): bool`; spaces surround `<`, the
+  named right binding follows it, and `>`, `<=`, and `>=` have no declaration forms.
 - A readonly index declaration is `operator (&self[index: K]): &V`; a readwrite declaration is
   `operator (&+self[index: K]): &+V`. There is no space before `[`, and the index binding follows
   ordinary parameter spacing. An explicit result provenance clause, when needed, follows the

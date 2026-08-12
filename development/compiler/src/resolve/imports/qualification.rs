@@ -355,7 +355,7 @@ fn qualify_where_clause(
             }
             crate::ast::WherePredicate::Operator(requirement) => {
                 match &mut requirement.shape {
-                    crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                    crate::ast::OperatorRequirementShape::Comparison { left, right, .. } => {
                         qualify_type_expr(left, import_path, local_type_names, imported_type_names);
                         qualify_type_expr(
                             right,

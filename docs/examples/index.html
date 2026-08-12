@@ -126,6 +126,7 @@
                 <li><a href="./indexing/index.html#content">indexing.nct</a></li>
                 <li><a href="./recovery/index.html#content">recovery.nct</a></li>
                 <li><a href="./mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
+                <li><a href="./ordering/index.html#content">ordering.nct</a></li>
                 <li><a href="./file-summary/index/index.html#content">file-summary/index.nct</a></li>
                 <li><a href="./file-summary/summary/index.html#content">summary.nct</a></li>
                 <li><a href="../spec/index.html#content">language specification</a></li>
@@ -149,6 +150,8 @@
 <span class="token-function">nocter</span> run examples/recovery.nct
 </code></pre><p><a href="./mutable-iteration/index.html#content">mutable-iteration.nct</a> updates aggregate elements through <code>&amp;+Vec&lt;T&gt;</code>, then observes the same values through readonly and consuming expansion.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/mutable-iteration.nct
 <span class="token-function">nocter</span> run examples/mutable-iteration.nct
+</code></pre><p><a href="./ordering/index.html#content">ordering.nct</a> defines strict ordering for a project type, uses the same structural requirement from generic code, and compares <code>String</code> plus <code>Vec</code> values through standard source declarations and readonly coercions.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/ordering.nct
+<span class="token-function">nocter</span> run examples/ordering.nct
 </code></pre><h2 id="package-example">Package Example</h2><p><a href="./file-summary/index/index.html#content">file-summary/index.nct</a> reads a UTF-8 path from the first command-line argument and reports the number of newline bytes. Its private <a href="./file-summary/summary/index.html#content">summary.nct</a> helper demonstrates a same-module source import without creating another namespace. The package also demonstrates process arguments, owned paths, whole-stream UTF-8 file input, borrowed byte views, and numeric formatting.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/file-summary
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build

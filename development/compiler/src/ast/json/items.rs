@@ -478,12 +478,14 @@ impl WhereClause {
                         json_span(sources, requirement.span),
                         {
                             let mut children = match &requirement.shape {
-                                crate::ast::OperatorRequirementShape::Equality {
+                                crate::ast::OperatorRequirementShape::Comparison {
+                                    kind,
                                     left,
                                     right,
                                     ..
-                                } => vec![JsonAstNode::new(
-                                    "equality_operator_shape",
+                                } => vec![JsonAstNode::with_value(
+                                    "comparison_operator_shape",
+                                    kind.source_token().to_string(),
                                     json_span(sources, requirement.span),
                                     vec![left.to_json(sources), right.to_json(sources)],
                                 )],
@@ -560,12 +562,12 @@ impl MethodDecl {
     }
 }
 
-impl crate::ast::EqualityOperatorDecl {
+impl crate::ast::ComparisonOperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let callable = self.callable_method();
         JsonAstNode::with_value(
             "operator_decl",
-            "==".to_string(),
+            self.kind.source_token().to_string(),
             json_span(sources, self.span),
             vec![
                 visibility_json(callable.visibility),
@@ -640,7 +642,7 @@ impl crate::ast::ExpansionOperatorDecl {
 impl crate::ast::OperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
-            Self::Equality(operator) => operator.to_json(sources),
+            Self::Comparison(operator) => operator.to_json(sources),
             Self::Index(operator) => operator.to_json(sources),
             Self::Expansion(operator) => operator.to_json(sources),
         }

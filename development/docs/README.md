@@ -26,6 +26,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   ownership, lowering, and editor boundaries
 - [Equality Operators](equality-operators.md): fixed instance-owned equality, structural generic
   requirements, coercion selection, plans, lowering, and editor identity
+- [Strict Ordering Operators](ordering-operators.md): shared fixed-comparison selection, derived
+  token orientation, evaluation order, standard lexical ordering, and editor identity
 - [Index Selection and Lowering](indexing.md): source-defined index declarations, structural
   requirements, coercion selection, immutable typecheck plans, and native evaluation order
 - [Built-in Type Source Surfaces](builtin-type-surfaces.md): installed construction, instance,
@@ -105,6 +107,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Borrow coercion declaration, selection, and lowering | `borrow-coercions.md` |
 | Equality operator declaration, selection, and lowering | `equality-operators.md` |
+| Strict ordering declaration, derivation, and lowering | `ordering-operators.md` |
 | Index declarations, requirements, coercion selection, and lowering | `indexing.md` |
 | Built-in construction, instance, and conformance authority | `builtin-type-surfaces.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |

@@ -147,7 +147,7 @@ pub(in crate::typecheck) fn ordered_comparison_operand_type_mismatch_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0348",
         format!(
-            "operator `{}` compares `{}` with `{}`, but ordered comparison requires matching integer operands",
+            "operator `{}` cannot order `{}` with `{}` because no accessible strict ordering accepts both operands",
             expression.operator.spelling(),
             left.display(),
             right.display()
@@ -157,7 +157,10 @@ pub(in crate::typecheck) fn ordered_comparison_operand_type_mismatch_diagnostic(
         .span_to_json(expression.operator_span)
         .ok()
         .map(Box::new);
-    diagnostic.help = Some("compare integer values with the same type".to_string());
+    diagnostic.help = Some(
+        "use matching integers, declare `operator (&self < other: &Self): bool`, or use one explicit readonly coercion per operand"
+            .to_string(),
+    );
     diagnostic
 }
 

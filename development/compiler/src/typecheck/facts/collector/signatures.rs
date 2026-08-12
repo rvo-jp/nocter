@@ -253,7 +253,7 @@ impl TypecheckFactCollector<'_> {
         }
         for requirement in clause.operator_requirements() {
             match &requirement.shape {
-                crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                crate::ast::OperatorRequirementShape::Comparison { left, right, .. } => {
                     self.collect_type_expr_references(left);
                     self.collect_type_expr_references(right);
                 }

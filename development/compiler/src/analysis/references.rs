@@ -243,6 +243,28 @@ func equal(left: &Text, right: &Text): bool { return left == right }
     }
 
     #[test]
+    fn reference_query_joins_strict_order_declaration_and_derived_uses() {
+        let text = r#"struct Rank { value: i32 }
+instance Rank {
+    operator (&self < other: &Self): bool { return self.value < other.value }
+}
+func ordered(left: &Rank, right: &Rank): bool {
+    return left < right || left > right || left <= right || left >= right
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let offset = text.find("< other").expect("operator declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(
+            span_fragments(text, &spans),
+            vec!["<", "<", ">", "<=", ">="]
+        );
+    }
+
+    #[test]
     fn reference_query_joins_index_declaration_and_operator_uses() {
         let text = r#"struct Buffer { values: [i32; 1] }
 instance Buffer {

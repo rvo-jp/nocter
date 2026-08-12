@@ -381,6 +381,7 @@ fn apply_operator_requirement_completion(
     }
     for (label, detail, insert_text) in [
         ("==", "equality operator requirement", "&T == &T): bool"),
+        ("<", "strict-order operator requirement", "&T < &T): bool"),
         ("[]", "index operator requirement", "&C[K]): &V"),
         ("...", "expansion operator requirement", "...&C): I"),
     ] {
@@ -415,10 +416,14 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
         return;
     };
     let owner = crate::ast::canonical_type_expr(&instance.target_ty);
-    let has_equality = instance
-        .operators
-        .iter()
-        .any(|operator| matches!(operator, crate::ast::OperatorDecl::Equality(_)));
+    let has_equality = instance.operators.iter().any(|operator| {
+        matches!(
+            operator,
+            crate::ast::OperatorDecl::Comparison(operator)
+                if operator.kind == crate::ast::ComparisonOperatorKind::Equality
+        )
+    });
+    let has_ordering = instance.ordering_operators().next().is_some();
     let has_readonly_index = instance.index_operators().any(|operator| {
         operator.callable_method().receiver.mode == MethodReceiverMode::ReadonlyBorrow
     });
@@ -436,6 +441,12 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
             format!("operator (&{owner} == other: &{owner}): bool"),
             "Declares readonly homogeneous equality for this instance. `!=` is derived automatically.",
             "operator (&self == other: &Self): bool {\n    return false\n}",
+        ),
+        (
+            !has_ordering,
+            format!("operator (&{owner} < other: &{owner}): bool"),
+            "Declares readonly homogeneous strict ordering. `>`, `<=`, and `>=` are derived automatically.",
+            "operator (&self < other: &Self): bool {\n    return false\n}",
         ),
         (
             !has_readonly_index,

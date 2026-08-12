@@ -1216,8 +1216,9 @@ func equal(left: &Text, right: &Text): bool {
         assert!(
             identifiers
                 .iter()
-                .all(|token| &text[token.start_byte..token.end_byte]
-                    != crate::ast::EQUALITY_OPERATOR_METHOD_NAME)
+                .all(|token| !crate::ast::is_operator_method_name(
+                    &text[token.start_byte..token.end_byte]
+                ))
         );
     }
 

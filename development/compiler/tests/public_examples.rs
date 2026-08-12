@@ -61,6 +61,15 @@ fn public_mutable_iteration_builds_and_runs() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn public_ordering_builds_and_runs() {
+    assert_single_file_example(
+        "ordering.nct",
+        "strict ordering selected source declarations\n",
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn public_file_summary_builds_and_runs() {
     let directory = "file-summary";
     let executable = "file-summary";

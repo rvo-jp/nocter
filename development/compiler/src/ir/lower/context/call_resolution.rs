@@ -338,7 +338,7 @@ impl<'a> LoweringContext<'a> {
             return Some((target, method.target_name));
         }
         if let Expr::Member(member) = call.callee.as_ref()
-            && let Some(plan) = self.equality_plan(member.member_span)
+            && let Some(plan) = self.comparison_plan(member.member_span)
             && let Some(method) = &plan.method
         {
             let target = self.protocol_method_target(method)?;
@@ -528,7 +528,7 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
-        if self.equality_plan(member.member_span).is_some() {
+        if self.comparison_plan(member.member_span).is_some() {
             return Some(&member.object);
         }
         resolution
@@ -541,7 +541,7 @@ impl<'a> LoweringContext<'a> {
         &self,
         member_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckMethodReceiverKind> {
-        if let Some(plan) = self.equality_plan(member_span)
+        if let Some(plan) = self.comparison_plan(member_span)
             && plan.method.is_some()
         {
             return Some(crate::typecheck::TypecheckMethodReceiverKind::ReadonlyBorrow);
@@ -563,8 +563,16 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return false;
         };
-        self.equality_plan(member.member_span)
+        self.comparison_plan(member.member_span)
             .is_some_and(|plan| plan.right_implicit_readonly_borrow)
+    }
+
+    pub(in crate::ir::lower) fn comparison_call_reverses_operands(&self, call: &CallExpr) -> bool {
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return false;
+        };
+        self.comparison_plan(member.member_span)
+            .is_some_and(|plan| plan.reverse_operands)
     }
 
     pub(in crate::ir::lower) fn coercion_plan(
@@ -633,7 +641,7 @@ impl<'a> LoweringContext<'a> {
         }
         resolution
             .typecheck_facts
-            .equality_plans()
+            .comparison_plans()
             .find_map(|plan| {
                 let plan = plan.with_context_substitutions(&self.generic_substitutions)?;
                 if plan.left_span == expression_span {
@@ -656,14 +664,14 @@ impl<'a> LoweringContext<'a> {
             })
     }
 
-    pub(in crate::ir::lower) fn equality_plan(
+    pub(in crate::ir::lower) fn comparison_plan(
         &self,
         operator_span: ByteSpan,
-    ) -> Option<crate::typecheck::TypecheckEqualityPlan> {
+    ) -> Option<crate::typecheck::TypecheckComparisonPlan> {
         let resolution = self.call_resolution.as_ref()?;
         let plan = resolution
             .typecheck_facts
-            .equality_plan(operator_span)?
+            .comparison_plan(operator_span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         if plan.method.is_some() {
             return Some(plan);
@@ -683,12 +691,12 @@ impl<'a> LoweringContext<'a> {
                 continue;
             };
             if let Some(specialized) =
-                crate::typecheck::specialize_equality_plan(plan.clone(), resolved)
+                crate::typecheck::specialize_comparison_plan(plan.clone(), resolved)
             {
                 return Some(specialized);
             }
         }
-        crate::typecheck::specialize_equality_plan(plan, resolution.resolved)
+        crate::typecheck::specialize_comparison_plan(plan, resolution.resolved)
     }
 
     pub(in crate::ir::lower) fn coercion_call_target(

@@ -74,13 +74,15 @@ An operator requirement encloses the required expression in parentheses and stat
 
 ```nct
 where (&T == &T): bool
+where (&T < &T): bool
 where (&C[K]): &V
 where (&+C[K]): &+V
 ```
 
-The equality form requires two readonly borrows of the same visible generic parameter. A concrete
-type satisfies it through an accessible instance-owned equality declaration or the same one-step
-readonly borrow coercions used by a non-generic equality expression. The index forms describe a
+The equality and strict-order forms require two readonly borrows of the same visible generic
+parameter. A concrete type satisfies either through the matching accessible instance-owned
+comparison declaration or the same one-step readonly borrow coercions used by a non-generic
+comparison expression. Equality and ordering remain independent evidence. The index forms describe a
 readonly or readwrite projection from a borrowed generic container. Their result borrow must have
 the same capability as the container borrow. A concrete container satisfies an index requirement
 through a built-in projection, an accessible instance-owned index declaration, or one accessible

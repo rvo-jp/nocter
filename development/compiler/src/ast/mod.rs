@@ -280,18 +280,28 @@ impl InstanceDecl {
         )
     }
 
-    pub fn equality_operators(&self) -> impl Iterator<Item = &EqualityOperatorDecl> {
+    pub fn comparison_operators(&self) -> impl Iterator<Item = &ComparisonOperatorDecl> {
         self.operators.iter().filter_map(|operator| match operator {
-            OperatorDecl::Equality(operator) => Some(operator),
+            OperatorDecl::Comparison(operator) => Some(operator),
             OperatorDecl::Index(_) => None,
             OperatorDecl::Expansion(_) => None,
         })
     }
 
+    pub fn equality_operators(&self) -> impl Iterator<Item = &ComparisonOperatorDecl> {
+        self.comparison_operators()
+            .filter(|operator| operator.kind == ComparisonOperatorKind::Equality)
+    }
+
+    pub fn ordering_operators(&self) -> impl Iterator<Item = &ComparisonOperatorDecl> {
+        self.comparison_operators()
+            .filter(|operator| operator.kind == ComparisonOperatorKind::StrictOrder)
+    }
+
     pub fn index_operators(&self) -> impl Iterator<Item = &IndexOperatorDecl> {
         self.operators.iter().filter_map(|operator| match operator {
             OperatorDecl::Index(operator) => Some(operator),
-            OperatorDecl::Equality(_) => None,
+            OperatorDecl::Comparison(_) => None,
             OperatorDecl::Expansion(_) => None,
         })
     }
@@ -299,7 +309,7 @@ impl InstanceDecl {
     pub fn expansion_operators(&self) -> impl Iterator<Item = &ExpansionOperatorDecl> {
         self.operators.iter().filter_map(|operator| match operator {
             OperatorDecl::Expansion(operator) => Some(operator),
-            OperatorDecl::Equality(_) | OperatorDecl::Index(_) => None,
+            OperatorDecl::Comparison(_) | OperatorDecl::Index(_) => None,
         })
     }
 }

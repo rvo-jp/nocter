@@ -218,8 +218,12 @@ pub(in crate::ir::lower::expressions) fn lower_bool_normal_call(
 
     validate_bool_normal_call_return_type(&target, &callee_name, context)?;
 
-    let (mut instructions, arguments) =
+    let (mut instructions, mut arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
+
+    if context.comparison_call_reverses_operands(call) {
+        arguments.swap(0, 1);
+    }
 
     instructions.push(Instruction::CallBool {
         destination,

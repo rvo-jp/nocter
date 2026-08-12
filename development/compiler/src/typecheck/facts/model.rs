@@ -6,7 +6,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
-    pub(super) equality_plans: HashMap<ByteSpan, TypecheckEqualityPlan>,
+    pub(super) comparison_plans: HashMap<ByteSpan, TypecheckComparisonPlan>,
     pub(super) index_plans: HashMap<ByteSpan, TypecheckIndexPlan>,
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
@@ -67,12 +67,15 @@ impl TypecheckFacts {
         self.interpolation_plans.get(&expression_span)
     }
 
-    pub(crate) fn equality_plan(&self, operator_span: ByteSpan) -> Option<&TypecheckEqualityPlan> {
-        self.equality_plans.get(&operator_span)
+    pub(crate) fn comparison_plan(
+        &self,
+        operator_span: ByteSpan,
+    ) -> Option<&TypecheckComparisonPlan> {
+        self.comparison_plans.get(&operator_span)
     }
 
-    pub(crate) fn equality_plans(&self) -> impl Iterator<Item = &TypecheckEqualityPlan> {
-        self.equality_plans.values()
+    pub(crate) fn comparison_plans(&self) -> impl Iterator<Item = &TypecheckComparisonPlan> {
+        self.comparison_plans.values()
     }
 
     pub(crate) fn index_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckIndexPlan> {
@@ -394,7 +397,8 @@ pub(crate) struct TypecheckInterpolationPart {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TypecheckEqualityPlan {
+pub(crate) struct TypecheckComparisonPlan {
+    pub(crate) kind: crate::ast::ComparisonOperatorKind,
     pub(crate) operator_span: ByteSpan,
     pub(crate) call_span: ByteSpan,
     pub(crate) left_span: ByteSpan,
@@ -405,6 +409,8 @@ pub(crate) struct TypecheckEqualityPlan {
     pub(crate) right_implicit_readonly_borrow: bool,
     pub(crate) left_conversion: Option<TypecheckConversionPlan>,
     pub(crate) right_conversion: Option<TypecheckConversionPlan>,
+    pub(crate) reverse_operands: bool,
+    pub(crate) invert_result: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -464,12 +470,13 @@ impl TypecheckIndexPlan {
     }
 }
 
-impl TypecheckEqualityPlan {
+impl TypecheckComparisonPlan {
     pub(crate) fn with_context_substitutions(
         &self,
         context_substitutions: &HashMap<String, TypeExpr>,
     ) -> Option<Self> {
         Some(Self {
+            kind: self.kind,
             operator_span: self.operator_span,
             call_span: self.call_span,
             left_span: self.left_span,
@@ -489,6 +496,8 @@ impl TypecheckEqualityPlan {
                 Some(plan) => Some(plan.with_context_substitutions(context_substitutions)?),
                 None => None,
             },
+            reverse_operands: self.reverse_operands,
+            invert_result: self.invert_result,
         })
     }
 }

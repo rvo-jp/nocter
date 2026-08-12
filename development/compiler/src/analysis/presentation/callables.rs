@@ -228,7 +228,12 @@ pub(crate) fn method_or_operator_presentation(
         .first()
         .map(|parameter| parameter.name.as_str())
         .unwrap_or("other");
-    format!("operator (&{owner} == {other}: &{owner}): bool")
+    let token = if method.name == crate::ast::ORDERING_OPERATOR_METHOD_NAME {
+        "<"
+    } else {
+        "=="
+    };
+    format!("operator (&{owner} {token} {other}: &{owner}): bool")
 }
 
 pub(crate) fn method_presentation_with_substitutions(
@@ -345,8 +350,15 @@ fn where_predicate_labels_with(
             ),
             crate::ast::WherePredicate::Operator(requirement) => {
                 let operands = match &requirement.shape {
-                    crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
-                        format!("{} == {}", type_label(left), type_label(right))
+                    crate::ast::OperatorRequirementShape::Comparison {
+                        kind, left, right, ..
+                    } => {
+                        format!(
+                            "{} {} {}",
+                            type_label(left),
+                            kind.source_token(),
+                            type_label(right)
+                        )
                     }
                     crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
                         format!("{}[{}]", type_label(target), type_label(index))

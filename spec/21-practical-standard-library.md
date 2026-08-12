@@ -36,6 +36,10 @@ elements move at most once, and the initialized prefix is updated only after com
 element-wise equality, `contains`, and `position` under `where (&T == &T): bool`; `Vec<T>` reaches the same
 implementation through its readonly slice coercion.
 
+`str` also defines bytewise lexical strict ordering, and `[T]` defines lexicographic ordering under
+`where (&T < &T): bool`. `String` and `Vec<T>` reach those declarations through the same readonly
+coercions; neither nominal container duplicates the algorithms.
+
 The iterator terminal operations `find`, `contains`, `position`, `any`, `all`, `fold`, and `to_vec`
 remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
 dispatch and do not require runtime interface objects. `contains` and `position` consume the

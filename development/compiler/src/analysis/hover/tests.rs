@@ -537,6 +537,34 @@ func equal(left: &Text, right: &Text): bool {
 }
 
 #[test]
+fn strict_order_hover_uses_authored_declaration_for_derived_tokens() {
+    let text = r#"struct Rank { value: i32 }
+
+instance Rank {
+    pub operator (&self < other: &Self): bool {
+        return self.value < other.value
+    }
+}
+
+func ordered(left: &Rank, right: &Rank): bool {
+    return left < right || left > right || left <= right || left >= right
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    for needle in ["< right", "> right", "<= right", ">= right"] {
+        let offset = text.rfind(needle).expect("comparison use");
+        let hover =
+            hover_for_file_analysis(&sources, &analysis, file, offset).expect("strict-order hover");
+        assert_eq!(hover.label, "operator (&Rank < other: &Rank): bool");
+        assert_eq!(
+            &text[hover.span.start..hover.span.end],
+            needle.split_whitespace().next().unwrap()
+        );
+    }
+}
+
+#[test]
 fn index_operator_hover_uses_source_syntax_and_semantic_use_range() {
     let text = r#"struct Buffer { values: [i32; 1] }
 

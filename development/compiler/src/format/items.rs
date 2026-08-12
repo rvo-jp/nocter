@@ -1,12 +1,12 @@
 use super::Formatter;
 use crate::ast::{
-    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry, ConformanceDecl,
-    ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl, DestructDecl, EnumDecl,
-    EnumVariant, EqualityOperatorDecl, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl,
-    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl, PackageFile,
-    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
-    TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
+    AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoerceDecl, CoercionEntry,
+    ComparisonOperatorDecl, ConformanceDecl, ConformanceMember, ConstructDecl, ConstructMember,
+    ConstructMemberDecl, DestructDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
+    GenericParam, GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl,
+    InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl,
+    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
+    StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
 };
 
 impl Formatter {
@@ -450,12 +450,14 @@ impl Formatter {
         }
     }
 
-    fn format_equality_operator_decl(&mut self, item: &EqualityOperatorDecl) {
+    fn format_comparison_operator_decl(&mut self, item: &ComparisonOperatorDecl) {
         let callable = item.callable_method();
         self.format_visibility(callable.visibility);
         self.write("operator (");
         self.format_method_receiver(&callable.receiver);
-        self.write(" == ");
+        self.write(" ");
+        self.write(item.kind.source_token());
+        self.write(" ");
         self.format_parameter(&callable.parameters.parameters[0]);
         self.write("): ");
         self.format_type(&callable.return_type);
@@ -479,7 +481,7 @@ impl Formatter {
 
     fn format_operator_decl(&mut self, item: &OperatorDecl) {
         match item {
-            OperatorDecl::Equality(operator) => self.format_equality_operator_decl(operator),
+            OperatorDecl::Comparison(operator) => self.format_comparison_operator_decl(operator),
             OperatorDecl::Index(operator) => self.format_index_operator_decl(operator),
             OperatorDecl::Expansion(operator) => {
                 let callable = operator.callable_method();
@@ -598,9 +600,16 @@ impl Formatter {
                 crate::ast::WherePredicate::Operator(requirement) => {
                     self.write("(");
                     match &requirement.shape {
-                        crate::ast::OperatorRequirementShape::Equality { left, right, .. } => {
+                        crate::ast::OperatorRequirementShape::Comparison {
+                            kind,
+                            left,
+                            right,
+                            ..
+                        } => {
                             self.format_type(left);
-                            self.write(" == ");
+                            self.write(" ");
+                            self.write(kind.source_token());
+                            self.write(" ");
                             self.format_type(right);
                         }
                         crate::ast::OperatorRequirementShape::Index { target, index, .. } => {

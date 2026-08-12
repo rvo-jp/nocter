@@ -60,7 +60,7 @@ pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
     TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
-    TypecheckConversionKind, TypecheckConversionPlan, TypecheckEqualityPlan, TypecheckFacts,
+    TypecheckComparisonPlan, TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts,
     TypecheckIndexAccess, TypecheckIndexPlan, TypecheckIndexProjection, TypecheckInterpolationPart,
     TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
     TypecheckProtocolMethod, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,

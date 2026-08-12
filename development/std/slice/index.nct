@@ -12,6 +12,10 @@ func values_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
 }
 
+func value_is_less<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+
 instance [T] {
     pub method &self.len(): usize {
         return slice_len_raw(self)
@@ -58,5 +62,19 @@ instance [T] where (&T == &T): bool {
             index = index + 1
         }
         return none
+    }
+}
+
+instance [T] where (&T < &T): bool {
+    /// Orders elements lexicographically without consuming either slice.
+    pub operator (&self < other: &Self): bool {
+        let shared_len: usize = if self.len() < other.len() { self.len() } else { other.len() }
+        var index: usize = 0
+        while index < shared_len {
+            if value_is_less(&self[index], &other[index]) { return true }
+            if value_is_less(&other[index], &self[index]) { return false }
+            index = index + 1
+        }
+        return self.len() < other.len()
     }
 }

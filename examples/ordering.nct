@@ -1,0 +1,48 @@
+use std/io.print
+
+use std/string.String
+
+use std/vec.Vec
+
+struct Rank {
+    value: i32,
+}
+
+instance Rank {
+    operator (&self < other: &Self): bool {
+        return self.value < other.value
+    }
+}
+
+func earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {
+    return left < right
+}
+
+func main(): i32! {
+    let low = Rank { value: 2 }
+    let high = Rank { value: 8 }
+    if !earlier(&low, &high) || high <= low {
+        return 1
+    }
+    let alpha = String "alpha"
+    let beta = String "beta"
+    let alpha_view = &alpha
+    let beta_view = &beta
+    if !(alpha_view < beta_view) {
+        return 2
+    }
+    let alpha_text: &str = "alpha"
+    let beta_text: &str = "beta"
+    if !(alpha_text < beta_text) || !(alpha_text < beta_view) || !(alpha_view < beta_text) {
+        return 2
+    }
+    let first = Vec [1, 2]
+    let second = Vec [1, 3]
+    let first_view = &first
+    let second_view = &second
+    if !(first_view < second_view) {
+        return 3
+    }
+    print("strict ordering selected source declarations\n")?
+    return 0
+}

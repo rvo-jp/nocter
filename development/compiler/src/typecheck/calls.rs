@@ -890,7 +890,8 @@ fn check_generic_interface_bounds(
     if let Some(clause) = &signature.signature.where_clause {
         for requirement in clause.operator_requirements() {
             match &requirement.shape {
-                crate::ast::OperatorRequirementShape::Equality {
+                crate::ast::OperatorRequirementShape::Comparison {
+                    kind,
                     left: left_expr,
                     operator_span,
                     right: right_expr,
@@ -910,18 +911,38 @@ fn check_generic_interface_bounds(
                     if left.is_unknown_or_unresolved() || right.is_unknown_or_unresolved() {
                         continue;
                     }
-                    if !super::operators::types_support_equality(
-                        &left,
-                        &right,
-                        *operator_span,
-                        resolved,
-                        environment,
-                    ) {
+                    let satisfied = match kind {
+                        crate::ast::ComparisonOperatorKind::Equality => {
+                            super::operators::types_support_equality(
+                                &left,
+                                &right,
+                                *operator_span,
+                                resolved,
+                                environment,
+                            )
+                        }
+                        crate::ast::ComparisonOperatorKind::StrictOrder => {
+                            super::operators::types_support_ordering(
+                                &left,
+                                &right,
+                                *operator_span,
+                                resolved,
+                                environment,
+                            )
+                        }
+                    };
+                    if !satisfied {
+                        let noun = if *kind == crate::ast::ComparisonOperatorKind::Equality {
+                            "equality"
+                        } else {
+                            "ordering"
+                        };
                         let mut diagnostic = Diagnostic::error(
                             "E0473",
                             format!(
-                                "equality requirement `{}` == `{}` is not satisfied",
+                                "{noun} requirement `{}` {} `{}` is not satisfied",
                                 left.display(),
+                                kind.source_token(),
                                 right.display()
                             ),
                         );

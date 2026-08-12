@@ -32,6 +32,20 @@ instance str {
         return true
     }
 
+    /// Orders UTF-8 encoding bytes lexicographically without allocation.
+    pub operator (&self < other: &Self): bool {
+        let left = bytes_from_str(self)
+        let right = bytes_from_str(other)
+        let shared_len: usize = if left.len() < right.len() { left.len() } else { right.len() }
+        var index: usize = 0
+        while index < shared_len {
+            if left[index] < right[index] { return true }
+            if right[index] < left[index] { return false }
+            index = index + 1
+        }
+        return left.len() < right.len()
+    }
+
     pub method &self.len(): usize {
         return str_len_raw(self)
     }

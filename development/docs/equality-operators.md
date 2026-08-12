@@ -7,8 +7,9 @@ document records the compiler boundaries for v0.12.0 Phase 1.
 
 ## Authored and Resolved Models
 
-`EqualityOperatorDecl` is an instance member with an ordinary visibility boundary, fixed receiver
-shape, named right binding, `bool` result, and body. `OperatorRequirementPredicate` is a distinct
+`ComparisonOperatorDecl` with the equality kind is an instance member with an ordinary visibility
+boundary, fixed receiver shape, named right binding, `bool` result, and body.
+`OperatorRequirementPredicate` is a distinct
 where-clause node. Neither representation is encoded as an interface, a method spelling visible to
 users, or free-form operator-overload metadata.
 
@@ -26,14 +27,15 @@ parameter is then checked exactly or through one readonly coercion. Owned operan
 implicit readonly borrow adjustment; already borrowed operands retain their capability. More than
 one viable left-coercion target is a focused ambiguity, not a missing-operation error.
 
-One `TypecheckEqualityPlan` records:
+One shared `TypecheckComparisonPlan` records:
 
 - source spans and concrete operand types;
 - selected callable declaration identity and concrete `Self` type;
 - left and right conversion plans;
 - the right implicit-borrow adjustment.
 
-Specialization substitutes unresolved generic operand types and rebuilds this plan once concrete
+The comparison kind keeps equality evidence independent from strict ordering while using the same
+selector and downstream fact shape. Specialization substitutes unresolved generic operand types and rebuilds this plan once concrete
 types are known. Ownership, provenance, buildability, IR, and editor consumers use the recorded
 plan. They must not look up `==`, inspect a standard type name, or select a coercion again.
 

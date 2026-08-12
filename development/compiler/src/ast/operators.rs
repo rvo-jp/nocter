@@ -4,6 +4,7 @@ use super::{MethodDecl, TypeExpr};
 use crate::source::ByteSpan;
 
 pub(crate) const EQUALITY_OPERATOR_METHOD_NAME: &str = "__nocter$operator$equal";
+pub(crate) const ORDERING_OPERATOR_METHOD_NAME: &str = "__nocter$operator$less";
 pub(crate) const READONLY_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index";
 pub(crate) const READWRITE_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index_readwrite";
 pub(crate) const READONLY_EXPANSION_OPERATOR_METHOD_NAME: &str =
@@ -16,6 +17,7 @@ pub(crate) fn is_operator_method_name(name: &str) -> bool {
     matches!(
         name,
         EQUALITY_OPERATOR_METHOD_NAME
+            | ORDERING_OPERATOR_METHOD_NAME
             | READONLY_INDEX_OPERATOR_METHOD_NAME
             | READWRITE_INDEX_OPERATOR_METHOD_NAME
             | READONLY_EXPANSION_OPERATOR_METHOD_NAME
@@ -26,7 +28,7 @@ pub(crate) fn is_operator_method_name(name: &str) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperatorDecl {
-    Equality(EqualityOperatorDecl),
+    Comparison(ComparisonOperatorDecl),
     Index(IndexOperatorDecl),
     Expansion(ExpansionOperatorDecl),
 }
@@ -34,7 +36,7 @@ pub enum OperatorDecl {
 impl OperatorDecl {
     pub fn callable_method(&self) -> &MethodDecl {
         match self {
-            Self::Equality(operator) => operator.callable_method(),
+            Self::Comparison(operator) => operator.callable_method(),
             Self::Index(operator) => operator.callable_method(),
             Self::Expansion(operator) => operator.callable_method(),
         }
@@ -42,7 +44,7 @@ impl OperatorDecl {
 
     pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
         match self {
-            Self::Equality(operator) => operator.callable_method_mut(),
+            Self::Comparison(operator) => operator.callable_method_mut(),
             Self::Index(operator) => operator.callable_method_mut(),
             Self::Expansion(operator) => operator.callable_method_mut(),
         }
@@ -75,19 +77,48 @@ impl ExpansionOperatorDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EqualityOperatorDecl {
+pub struct ComparisonOperatorDecl {
     pub span: ByteSpan,
     pub operator_span: ByteSpan,
+    pub kind: ComparisonOperatorKind,
     callable: MethodDecl,
 }
 
-impl EqualityOperatorDecl {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComparisonOperatorKind {
+    Equality,
+    StrictOrder,
+}
+
+impl ComparisonOperatorKind {
+    pub fn source_token(self) -> &'static str {
+        match self {
+            Self::Equality => "==",
+            Self::StrictOrder => "<",
+        }
+    }
+
+    pub(crate) fn callable_name(self) -> &'static str {
+        match self {
+            Self::Equality => EQUALITY_OPERATOR_METHOD_NAME,
+            Self::StrictOrder => ORDERING_OPERATOR_METHOD_NAME,
+        }
+    }
+}
+
+impl ComparisonOperatorDecl {
     /// Adapts the fixed operator shape to the ordinary static method body pipeline. The synthetic
     /// name is an internal identity and is never presented as source syntax.
-    pub fn new(span: ByteSpan, operator_span: ByteSpan, callable: MethodDecl) -> Self {
+    pub fn new(
+        span: ByteSpan,
+        operator_span: ByteSpan,
+        kind: ComparisonOperatorKind,
+        callable: MethodDecl,
+    ) -> Self {
         Self {
             span,
             operator_span,
+            kind,
             callable,
         }
     }
@@ -148,7 +179,8 @@ pub struct OperatorRequirementPredicate {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperatorRequirementShape {
-    Equality {
+    Comparison {
+        kind: ComparisonOperatorKind,
         operator_span: ByteSpan,
         left: TypeExpr,
         right: TypeExpr,
@@ -168,14 +200,29 @@ pub enum OperatorRequirementShape {
 impl OperatorRequirementPredicate {
     pub fn equality(&self) -> Option<(&TypeExpr, ByteSpan, &TypeExpr)> {
         match &self.shape {
-            OperatorRequirementShape::Equality {
+            OperatorRequirementShape::Comparison {
+                kind: ComparisonOperatorKind::Equality,
                 operator_span,
                 left,
                 right,
             } => Some((left, *operator_span, right)),
-            OperatorRequirementShape::Index { .. } | OperatorRequirementShape::Expansion { .. } => {
-                None
-            }
+            OperatorRequirementShape::Comparison { .. }
+            | OperatorRequirementShape::Index { .. }
+            | OperatorRequirementShape::Expansion { .. } => None,
+        }
+    }
+
+    pub fn strict_order(&self) -> Option<(&TypeExpr, ByteSpan, &TypeExpr)> {
+        match &self.shape {
+            OperatorRequirementShape::Comparison {
+                kind: ComparisonOperatorKind::StrictOrder,
+                operator_span,
+                left,
+                right,
+            } => Some((left, *operator_span, right)),
+            OperatorRequirementShape::Comparison { .. }
+            | OperatorRequirementShape::Index { .. }
+            | OperatorRequirementShape::Expansion { .. } => None,
         }
     }
 }
