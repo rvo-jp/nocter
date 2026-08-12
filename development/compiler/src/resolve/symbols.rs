@@ -294,6 +294,37 @@ impl ResolveOutput {
             })
     }
 
+    pub(crate) fn method_signature(&self, definition: DefId) -> Option<&MethodSignature> {
+        self.method_signature_by_name_span(self.semantic_db.definition_anchor(definition)?)
+    }
+
+    pub(crate) fn field_signature(&self, definition: DefId) -> Option<&StructFieldSignature> {
+        let anchor = self.semantic_db.definition_anchor(definition)?;
+        self.symbols.symbols().find_map(|symbol| {
+            let SymbolKind::Type(type_symbol) = &symbol.kind else {
+                return None;
+            };
+            type_symbol
+                .fields
+                .iter()
+                .find(|field| field.name_span == anchor)
+        })
+    }
+
+    pub(crate) fn enum_variant_owner(&self, definition: DefId) -> Option<&TypeSymbol> {
+        let anchor = self.semantic_db.definition_anchor(definition)?;
+        self.symbols.symbols().find_map(|symbol| {
+            let SymbolKind::Type(type_symbol) = &symbol.kind else {
+                return None;
+            };
+            type_symbol
+                .variants
+                .iter()
+                .any(|variant| variant.name_span == anchor)
+                .then_some(type_symbol)
+        })
+    }
+
     pub(crate) fn builtin_type_surface(
         &self,
         owner: BuiltinTypeOwner,

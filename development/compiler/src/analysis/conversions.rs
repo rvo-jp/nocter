@@ -59,13 +59,14 @@ pub(crate) fn conversion_editor_info_at_offset(
 
 pub(crate) fn conversion_definition_target_at_offset(
     facts: &TypedHir,
+    semantic_db: &crate::semantic::SemanticDb,
     offset: usize,
 ) -> Option<SourceTarget> {
     let plan = conversion_plan_at_offset(facts, offset)?;
     let TypecheckConversionKind::BorrowCoercion(coercion) = &plan.kind else {
         return None;
     };
-    Some(SourceTarget::new(plan.operator_span?, coercion.focus_span))
+    SourceTarget::for_definition(plan.operator_span?, coercion.def_id?, semantic_db)
 }
 
 fn conversion_plan_at_offset(facts: &TypedHir, offset: usize) -> Option<&TypecheckConversionPlan> {

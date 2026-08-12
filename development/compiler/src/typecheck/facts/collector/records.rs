@@ -529,7 +529,12 @@ impl TypedHirBuilder<'_> {
         let fallback_ty =
             type_expr_to_type_with_self_type(&field.ty, self.resolved, environment.self_type());
         let field_ty = concrete_ty.unwrap_or(&fallback_ty);
-        self.facts.field_targets.insert(span, field.name_span);
+        let definition = self
+            .resolved
+            .semantic_db
+            .definition_at(field.name_span)
+            .expect("resolved field must have a semantic definition");
+        self.facts.field_targets.insert(span, definition);
         let mut free_type_parameters = HashSet::new();
         if let Some(ty) =
             type_to_type_expr_allowing_parameters(field_ty, span, &mut free_type_parameters)
@@ -546,9 +551,12 @@ impl TypedHirBuilder<'_> {
         span: ByteSpan,
         variant: &crate::resolve::EnumVariantSignature,
     ) {
-        self.facts
-            .enum_variant_targets
-            .insert(span, variant.name_span);
+        let definition = self
+            .resolved
+            .semantic_db
+            .definition_at(variant.name_span)
+            .expect("resolved variant must have a semantic definition");
+        self.facts.enum_variant_targets.insert(span, definition);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_function_call_reference(
@@ -560,8 +568,13 @@ impl TypedHirBuilder<'_> {
             return;
         };
 
+        let definition = self
+            .resolved
+            .semantic_db
+            .definition_at(declaration_span)
+            .expect("resolved function must have a semantic definition");
         self.facts
             .function_call_targets
-            .insert(name_span, declaration_span);
+            .insert(name_span, definition);
     }
 }

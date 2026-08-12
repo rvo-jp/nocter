@@ -175,8 +175,8 @@ pub(in crate::driver::buildability) fn method_call_argument_parameter_type(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let method_name_span = typed_hir.method_call_target(member.member_span)?;
-    let method = resolved.method_signature_by_name_span(method_name_span)?;
+    let method_definition = typed_hir.method_call_target(member.member_span)?;
+    let method = resolved.method_signature(method_definition)?;
     let parameter = method.signature.parameters.get(index)?;
     let mut ty = parameter.ty.clone();
 

@@ -1,13 +1,11 @@
 //! Structured semantic presentation shared by editor features.
 
-mod anchors;
 mod ast_declarations;
 mod callables;
 mod locals;
 mod symbols;
 mod types;
 
-pub(crate) use anchors::CallableDeclarationIndex;
 pub(crate) use ast_declarations::{
     ast_coercion_presentation, ast_comparison_operator_presentation, ast_drop_presentation,
     ast_enum_presentation, ast_expansion_operator_presentation, ast_function_presentation,

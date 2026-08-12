@@ -318,9 +318,14 @@ impl TypedHirBuilder<'_> {
                 {
                     let owner = selected_method.owner;
                     let resolved_method = selected_method.method;
+                    let method_definition = self
+                        .resolved
+                        .semantic_db
+                        .definition_at(resolved_method.name_span)
+                        .expect("resolved method must have a semantic definition");
                     self.facts
                         .method_call_targets
-                        .insert(method.member_span, resolved_method.name_span);
+                        .insert(method.member_span, method_definition);
                     if let Some(coercion) = selected_method.receiver_coercion {
                         let receiver_type =
                             expression_type(&method.object, self.resolved, environment);
@@ -358,8 +363,8 @@ impl TypedHirBuilder<'_> {
                         || receiver_is_bounded_parameter
                     {
                         self.facts
-                            .generic_method_call_spans
-                            .insert(method.member_span, resolved_method.name_span);
+                            .generic_method_call_targets
+                            .insert(method.member_span, method_definition);
                         if let Some(specialization) = method_call_specialization(
                             expression,
                             method,
@@ -381,9 +386,14 @@ impl TypedHirBuilder<'_> {
                     && let Some((_, resolved_function)) =
                         self.resolved.associated_function_for_call(expression)
                 {
+                    let definition = self
+                        .resolved
+                        .semantic_db
+                        .definition_at(resolved_function.name_span)
+                        .expect("resolved associated function must have a semantic definition");
                     self.facts
                         .associated_function_targets
-                        .insert(method.member_span, resolved_function.name_span);
+                        .insert(method.member_span, definition);
                     self.record_generic_function_call_specialization(
                         expression,
                         resolved_function.name_span,

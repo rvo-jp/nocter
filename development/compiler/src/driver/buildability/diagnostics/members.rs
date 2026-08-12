@@ -44,17 +44,10 @@ pub(in crate::driver::buildability) fn field_type_expr_for_span(
     if let Some(ty) = typed_hir.field_type_expr(field_span) {
         return Some(ty.clone());
     }
-    let target_span = typed_hir.field_target(field_span)?;
-    resolved.symbols.symbols().find_map(|symbol| {
-        let SymbolKind::Type(type_symbol) = &symbol.kind else {
-            return None;
-        };
-        type_symbol
-            .fields
-            .iter()
-            .find(|field| field.name_span == target_span)
-            .map(|field| field.ty.clone())
-    })
+    let target = typed_hir.field_target(field_span)?;
+    resolved
+        .field_signature(target)
+        .map(|field| field.ty.clone())
 }
 
 pub(in crate::driver::buildability) fn member_field_value_type_is_buildable(

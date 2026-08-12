@@ -260,6 +260,10 @@ func main(): i32 { return 0 }
     let target = facts
         .method_call_target(member_span)
         .expect("source method target");
+    let target = resolved
+        .semantic_db
+        .definition_anchor(target)
+        .expect("method target anchor");
     assert_eq!(&text[target.start..target.end], "count");
 }
 
@@ -617,12 +621,22 @@ func main(choice: Choice): i32 {
         text.rfind("hit(_)").expect("expected match hit pattern"),
     ] {
         let span = ByteSpan::new(ast.span.source, start, start + "hit".len());
-        assert_eq!(facts.enum_variant_target(span), Some(hit_declaration));
+        assert_eq!(
+            facts
+                .enum_variant_target(span)
+                .and_then(|target| resolved.semantic_db.definition_anchor(target)),
+            Some(hit_declaration)
+        );
     }
 
     let miss_start = text.rfind("miss(_)").expect("expected match miss pattern");
     let miss_span = ByteSpan::new(ast.span.source, miss_start, miss_start + "miss".len());
-    assert_eq!(facts.enum_variant_target(miss_span), Some(miss_declaration));
+    assert_eq!(
+        facts
+            .enum_variant_target(miss_span)
+            .and_then(|target| resolved.semantic_db.definition_anchor(target)),
+        Some(miss_declaration)
+    );
 
     let discard_start = text.find("_)").expect("expected discard payload");
     let discard_span = ByteSpan::new(ast.span.source, discard_start, discard_start + 1);

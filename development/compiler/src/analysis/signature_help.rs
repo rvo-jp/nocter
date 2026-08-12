@@ -88,6 +88,7 @@ fn signature_info_for_call(
     }
     let call_target = call_target(file, call)?;
     let declaration = callable_declaration(analysis, call_target)?;
+    let declaration_anchor = analysis.semantic_db.definition_anchor(call_target)?;
     let mut substitutions = HashMap::new();
 
     let construction_owner = match &declaration {
@@ -270,7 +271,7 @@ fn signature_info_for_call(
             })
             .collect(),
         active_parameter: active_parameter(call, offset, parameters.len()),
-        documentation: callable_documentation(sources, declaration, call_target),
+        documentation: callable_documentation(sources, declaration, declaration_anchor),
         result_type: return_type,
         is_specialized: !substitutions.is_empty(),
     })
@@ -334,7 +335,7 @@ fn callable_value_signature_info(
     })
 }
 
-fn call_target(file: &FileAnalysis, call: &CallExpr) -> Option<ByteSpan> {
+fn call_target(file: &FileAnalysis, call: &CallExpr) -> Option<crate::semantic::DefId> {
     match call.callee.without_groups() {
         Expr::Identifier(identifier) => file.typed_hir.function_call_target(identifier.span),
         Expr::Member(member) => file
@@ -379,8 +380,9 @@ impl CallableDeclaration<'_> {
 
 fn callable_declaration(
     analysis: &CompileUnitAnalysis,
-    target: ByteSpan,
+    target: crate::semantic::DefId,
 ) -> Option<CallableDeclaration<'_>> {
+    let target = analysis.semantic_db.definition_anchor(target)?;
     let file = analysis.file_by_source(target.source)?;
     file.ast.items.iter().find_map(|item| match item {
         Item::Function(function)

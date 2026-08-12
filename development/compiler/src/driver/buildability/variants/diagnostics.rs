@@ -58,25 +58,11 @@ pub(in crate::driver::buildability) fn unsupported_payload_enum_value_diagnostic
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    let variant_name_span = typed_hir.enum_variant_target(member.member_span)?;
-    let owner = resolved
-        .symbols
-        .symbols()
-        .find_map(|symbol| match &symbol.kind {
-            SymbolKind::Type(type_symbol)
-                if type_symbol.kind == TypeSymbolKind::Enum
-                    && type_symbol
-                        .variants
-                        .iter()
-                        .any(|variant| variant.name_span == variant_name_span) =>
-            {
-                Some(type_symbol)
-            }
-            SymbolKind::Function(_)
-            | SymbolKind::Primitive(_)
-            | SymbolKind::Type(_)
-            | SymbolKind::Imported(_) => None,
-        })?;
+    let variant = typed_hir.enum_variant_target(member.member_span)?;
+    let owner = resolved.enum_variant_owner(variant)?;
+    if owner.kind != TypeSymbolKind::Enum {
+        return None;
+    }
 
     if owner
         .variants

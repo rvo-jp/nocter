@@ -15,9 +15,14 @@ impl TypedHirBuilder<'_> {
             return;
         }
         if report_unspecialized {
+            let definition = self
+                .resolved
+                .semantic_db
+                .definition_at(declaration_span)
+                .expect("resolved generic function must have a semantic definition");
             self.facts
-                .generic_function_call_spans
-                .insert(call.span, declaration_span);
+                .generic_function_call_targets
+                .insert(call.span, definition);
         }
         if let Some(specialization) = function_call_specialization(
             call,

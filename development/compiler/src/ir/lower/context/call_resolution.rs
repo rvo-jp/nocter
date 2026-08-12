@@ -757,7 +757,7 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
-        let method_name_span = resolution
+        let method_definition = resolution
             .typed_hir
             .method_call_target(member.member_span)?;
         if let Some(specialization) = resolution
@@ -793,7 +793,8 @@ impl<'a> LoweringContext<'a> {
         }
         let definition = resolution
             .resolved
-            .canonical_callable_definition(method_name_span)?;
+            .callable_bodies
+            .canonical_definition(method_definition);
         let declaration = resolution
             .resolved
             .semantic_db
@@ -833,12 +834,10 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
-        let method_name_span = resolution
+        let method_definition = resolution
             .typed_hir
             .method_call_target(member.member_span)?;
-        let method = resolution
-            .resolved
-            .method_signature_by_name_span(method_name_span)?;
+        let method = resolution.resolved.method_signature(method_definition)?;
         let mut return_type = method.signature.return_type.clone();
         if let Some(specialization) = resolution
             .typed_hir
@@ -885,12 +884,10 @@ impl<'a> LoweringContext<'a> {
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
-        let method_name_span = resolution
+        let method_definition = resolution
             .typed_hir
             .method_call_target(member.member_span)?;
-        let method = resolution
-            .resolved
-            .method_signature_by_name_span(method_name_span)?;
+        let method = resolution.resolved.method_signature(method_definition)?;
         let parameter = method.signature.parameters.get(index)?;
         let mut ty = parameter.ty.clone();
         if let Some(specialization) = resolution

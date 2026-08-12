@@ -9,6 +9,7 @@ use crate::ast::{
     Stmt,
 };
 use crate::resolve::{ImportedSymbolKind, ResolveOutput, Symbol, SymbolKind};
+use crate::semantic::{DefId, SemanticDb};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,17 @@ impl SourceTarget {
             focus_span,
             declaration_span,
         }
+    }
+
+    pub(crate) fn for_definition(
+        focus_span: ByteSpan,
+        definition: DefId,
+        semantic_db: &SemanticDb,
+    ) -> Option<Self> {
+        Some(Self::new(
+            focus_span,
+            semantic_db.definition_anchor(definition)?,
+        ))
     }
 }
 

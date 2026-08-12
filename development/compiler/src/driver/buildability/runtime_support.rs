@@ -481,14 +481,14 @@ pub(super) fn call_return_type_expr_with_substitutions(
             ));
         }
 
-        if let Some(method_name_span) = typed_hir.method_call_target(member.member_span) {
+        if let Some(method_definition) = typed_hir.method_call_target(member.member_span) {
             if typed_hir
                 .generic_method_call_target(member.member_span)
                 .is_some()
             {
                 return None;
             }
-            let method = resolved.method_signature_by_name_span(method_name_span)?;
+            let method = resolved.method_signature(method_definition)?;
             let mut return_type = method.signature.return_type.clone();
             if let Some(self_ty) = &method.owner_target_ty {
                 let self_substitution = HashMap::from([("Self".to_string(), self_ty.clone())]);
@@ -782,7 +782,7 @@ pub(super) fn call_target_for_call(
     }
 
     if let Expr::Member(member) = call.callee.as_ref() {
-        if let Some(method_name_span) = typed_hir.method_call_target(member.member_span) {
+        if let Some(method_definition) = typed_hir.method_call_target(member.member_span) {
             let (definition, target_name) = if typed_hir
                 .generic_method_call_target(member.member_span)
                 .is_some()
@@ -796,7 +796,9 @@ pub(super) fn call_target_for_call(
                     specialization.target_name,
                 )
             } else {
-                let definition = resolved.canonical_callable_definition(method_name_span)?;
+                let definition = resolved
+                    .callable_bodies
+                    .canonical_definition(method_definition);
                 (definition, names.get(&definition).cloned()?)
             };
             let declaration = resolved.semantic_db.definition_anchor(definition)?;

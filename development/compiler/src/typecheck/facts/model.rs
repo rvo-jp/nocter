@@ -20,18 +20,18 @@ pub(crate) struct TypedHir {
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
     pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
     pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
-    pub(super) field_targets: HashMap<ByteSpan, ByteSpan>,
+    pub(super) field_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) field_readonly: HashMap<ByteSpan, bool>,
-    pub(super) function_call_targets: HashMap<ByteSpan, ByteSpan>,
-    pub(super) associated_function_targets: HashMap<ByteSpan, ByteSpan>,
-    pub(super) enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
-    pub(super) method_call_targets: HashMap<ByteSpan, ByteSpan>,
+    pub(super) function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
+    pub(super) associated_function_targets: HashMap<ByteSpan, crate::semantic::DefId>,
+    pub(super) enum_variant_targets: HashMap<ByteSpan, crate::semantic::DefId>,
+    pub(super) method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) method_call_receiver_kinds: HashMap<ByteSpan, TypecheckMethodReceiverKind>,
-    pub(super) generic_function_call_spans: HashMap<ByteSpan, ByteSpan>,
+    pub(super) generic_function_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
-    pub(super) generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
+    pub(super) generic_method_call_targets: HashMap<ByteSpan, crate::semantic::DefId>,
     pub(super) method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
     pub(super) callable_calls: HashMap<ByteSpan, CallableCallFact>,
     pub(super) drop_type_specializations: Vec<DropTypeSpecialization>,
@@ -65,9 +65,9 @@ impl TypedHir {
             enum_variant_targets: HashMap::new(),
             method_call_targets: HashMap::new(),
             method_call_receiver_kinds: HashMap::new(),
-            generic_function_call_spans: HashMap::new(),
+            generic_function_call_targets: HashMap::new(),
             function_call_specializations: HashMap::new(),
-            generic_method_call_spans: HashMap::new(),
+            generic_method_call_targets: HashMap::new(),
             method_call_specializations: HashMap::new(),
             callable_calls: HashMap::new(),
             drop_type_specializations: Vec::new(),
@@ -268,7 +268,7 @@ impl TypedHir {
         self.field_readonly.get(&span).copied()
     }
 
-    pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+    pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<crate::semantic::DefId> {
         self.field_targets.get(&member_span).copied()
     }
 
@@ -295,11 +295,17 @@ impl TypedHir {
         self.enum_variant_targets.keys().copied()
     }
 
-    pub(crate) fn function_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+    pub(crate) fn function_call_target(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
         self.function_call_targets.get(&member_span).copied()
     }
 
-    pub(crate) fn method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+    pub(crate) fn method_call_target(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
         self.method_call_targets.get(&member_span).copied()
     }
 
@@ -310,8 +316,11 @@ impl TypedHir {
         self.method_call_receiver_kinds.get(&member_span).copied()
     }
 
-    pub(crate) fn generic_function_call_target(&self, call_span: ByteSpan) -> Option<ByteSpan> {
-        self.generic_function_call_spans.get(&call_span).copied()
+    pub(crate) fn generic_function_call_target(
+        &self,
+        call_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
+        self.generic_function_call_targets.get(&call_span).copied()
     }
 
     pub(crate) fn function_call_specialization(
@@ -335,8 +344,11 @@ impl TypedHir {
             .map(|(span, specialization)| (*span, specialization))
     }
 
-    pub(crate) fn generic_method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
-        self.generic_method_call_spans.get(&member_span).copied()
+    pub(crate) fn generic_method_call_target(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
+        self.generic_method_call_targets.get(&member_span).copied()
     }
 
     pub(crate) fn method_call_specialization(
@@ -383,15 +395,24 @@ impl TypedHir {
         self.field_drop_type_specializations.get(&member_span)
     }
 
-    pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+    pub(crate) fn associated_function_target(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
         self.associated_function_targets.get(&member_span).copied()
     }
 
-    pub(crate) fn enum_variant_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+    pub(crate) fn enum_variant_target(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::semantic::DefId> {
         self.enum_variant_targets.get(&member_span).copied()
     }
 
-    pub(crate) fn field_target_at_offset(&self, offset: usize) -> Option<(ByteSpan, ByteSpan)> {
+    pub(crate) fn field_target_at_offset(
+        &self,
+        offset: usize,
+    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
         self.field_targets
             .iter()
             .filter(|(span, _)| span_contains(**span, offset))
@@ -402,7 +423,7 @@ impl TypedHir {
     pub(crate) fn associated_function_target_at_offset(
         &self,
         offset: usize,
-    ) -> Option<(ByteSpan, ByteSpan)> {
+    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
         self.associated_function_targets
             .iter()
             .filter(|(span, _)| span_contains(**span, offset))
@@ -413,7 +434,7 @@ impl TypedHir {
     pub(crate) fn function_call_target_at_offset(
         &self,
         offset: usize,
-    ) -> Option<(ByteSpan, ByteSpan)> {
+    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
         self.function_call_targets
             .iter()
             .filter(|(span, _)| span_contains(**span, offset))
@@ -424,7 +445,7 @@ impl TypedHir {
     pub(crate) fn enum_variant_target_at_offset(
         &self,
         offset: usize,
-    ) -> Option<(ByteSpan, ByteSpan)> {
+    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
         self.enum_variant_targets
             .iter()
             .filter(|(span, _)| span_contains(**span, offset))

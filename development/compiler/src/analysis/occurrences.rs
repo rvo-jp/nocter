@@ -550,14 +550,14 @@ impl OccurrenceBuilder<'_> {
     fn push_reference(
         &mut self,
         span: ByteSpan,
-        target: ByteSpan,
+        target: DefId,
         kind: SemanticOccurrenceKind,
         is_readonly: bool,
         _is_member: bool,
     ) {
         self.push(
             span,
-            self.definition_identity(target),
+            Some(SemanticIdentity::Definition(target)),
             SemanticOccurrenceRole::Reference,
             kind,
             is_readonly,
