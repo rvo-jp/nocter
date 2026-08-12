@@ -2,12 +2,24 @@
 
 ## Current Task
 
-Implement [v0.13.0 Phase 4 source-defined strict ordering](milestones/v0.13.0.md). Generalize the
-fixed comparison foundation so `<` is the sole authored strict-order primitive, derive `>`, `<=`,
-and `>=` from one semantic plan, and add lexical ordering for `str` and slices with `String` and
-`Vec` using existing coercions. Stop at the fully verified Phase 4 boundary. Do not add sorting,
-interface refinement, infer Phase 5 scope, change release identity, package, tag, or publish. The
-published v0.12.0 release remains immutable.
+No implementation phase is active. [v0.13.0 Phase 4](milestones/v0.13.0.md) is complete. Define and
+approve the next phase before implementation. Do not infer Phase 5 scope, change release identity,
+package, tag, or publish. The published v0.12.0 release remains immutable.
+
+## Completed v0.13.0 Phase 4 Checkpoint
+
+- one fixed binary-comparison declaration and immutable plan serve equality and source-defined
+  strict ordering while their generic evidence remains independent
+- `<` is the sole authored strict-order primitive; `>`, `<=`, and `>=` select that declaration with
+  recorded semantic orientation and boolean inversion
+- reversed comparison evaluates source left then source right exactly once before swapping stable
+  ABI arguments, so declaration selection cannot alter language evaluation order
+- `str` and `[T]` own lexical ordering in standard source; `String` and `Vec<T>` reach it only
+  through existing readonly coercions and no compiler-recognized nominal type path
+- diagnostics, formatting, AST JSON, hover, completion, semantic tokens, definition, references,
+  rename, specification, implementation documents, examples, and fixtures agree on one identity
+- all 3,577 tests, `cargo check`, formatting, warnings-denied Clippy, 141-page documentation
+  generation, and diff verification pass
 
 ## Completed v0.13.0 Phase 3 Checkpoint
 
