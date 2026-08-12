@@ -484,13 +484,13 @@ fn enqueue_call_specializations_from_span(
         if !span_contains(span, expression_span) {
             continue;
         }
-        if let Some(plan) = plan.with_context_substitutions(context_substitutions) {
-            if let Some(plan) = crate::typecheck::specialize_coercion_plan_across_resolvers(
+        if let Some(plan) = plan.with_context_substitutions(context_substitutions)
+            && let Some(plan) = crate::typecheck::specialize_coercion_plan_across_resolvers(
                 plan,
                 analysis.files.iter().map(|candidate| &candidate.resolved),
-            ) {
-                queue.push_back(PendingCallSpecialization::Coercion(plan));
-            }
+            )
+        {
+            queue.push_back(PendingCallSpecialization::Coercion(plan));
         }
     }
     for (call_span, fact) in file.typecheck_facts.callable_call_entries() {
