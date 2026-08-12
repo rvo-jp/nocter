@@ -174,10 +174,11 @@ InstanceMember::Coercion(CoercionDecl)
   those registrations once into <code>HashMap&lt;DefId, TrustedDeclarationRole&gt;</code>. Type checking no longer
   uses byte spans as trusted-role identity.</li><li>Protocol-method and ordinary method specialization records carry <code>DefId</code>. Collection,
   interpolation, comparison, expansion, and indexing plans feed one <code>DefId</code>-keyed specialization
-  table shared by buildability and IR indexing.</li><li>Phase 0 remains incomplete. Other callable families, trusted roles, source-backed editor
-  runtime descriptors, source-backed editor identities, remaining monomorphization families, and
-  operator/coercion AST adapters still use span or synthetic-name identity and must migrate before
-  the completion gate.</li><li>The complete repository test suite, formatting, warnings-denied Clippy, documentation
+  table shared by buildability and IR indexing.</li><li>Callable contract/body pairs and their receivers, parameters, and literal captures are keyed by
+  <code>DefId</code>. The index retains source locations only to project existing diagnostics and editor
+  ranges, while all consumers share the same <code>Arc&lt;SemanticDb&gt;</code> owned by the compile unit.</li><li>Phase 0 remains incomplete. Trusted runtime descriptors, function/callable/drop/literal
+  monomorphization, source-backed editor identities, and operator/coercion AST adapters still use
+  span or synthetic-name identity and must migrate before the completion gate.</li><li>The complete repository test suite, formatting, warnings-denied Clippy, documentation
   generation, and diff checks pass at this checkpoint.</li></ul><h2 id="later-phases">Later Phases</h2><ul><li><strong>Phase 1 — Typed Semantic Model:</strong> make checking return partial/error-tolerant typed HIR and
   remove <code>collect_typecheck_facts</code> semantic recomputation.</li><li><strong>Phase 2 — Editor Projection:</strong> build hover, completion, navigation, semantic tokens, and edits
   from one syntax index plus the typed semantic model; remove successful-language AST walkers.</li><li><strong>Phase 3 — Control-Flow MIR:</strong> lower typed HIR into places, operands, rvalues, blocks,

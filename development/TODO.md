@@ -3,13 +3,13 @@
 ## Current Task
 
 v0.14.0 Phase 0 is active. Source-ordered instance members, the compile-unit `DefId` database, and
-the borrow-coercion vertical migration are complete. Trusted roles and the shared protocol-method
-specialization table are also keyed by `DefId`. Continue by moving callable-body pairing, trusted
-runtime descriptors, remaining monomorphization families, and editor declaration identities onto
-the same database, then remove synthetic operator/coercion callables from AST. Remove each old span
-or synthetic-name authority as its replacement lands; do not add table-only ID scaffolding,
-language features, or standard-library APIs. The v0.13.0 tag, archive, release notes, and
-qualification record are immutable.
+the borrow-coercion vertical migration are complete. Trusted roles, callable contract/body pairing,
+and the shared protocol-method specialization table are also keyed by `DefId`. Continue by moving
+trusted runtime descriptors, function/callable/drop/literal monomorphization, and editor declaration
+identities onto the same database, then remove synthetic operator/coercion callables from AST.
+Remove each old span or synthetic-name authority as its replacement lands; do not add table-only ID
+scaffolding, language features, or standard-library APIs. The v0.13.0 tag, archive, release notes,
+and qualification record are immutable.
 
 ## Completed v0.14.0 Phase 0 Identity Checkpoint
 
@@ -27,6 +27,10 @@ qualification record are immutable.
   map; lookup remains stable across a declaration's full and focused spans
 - protocol-method facts and method specializations carry `DefId`, and buildability plus IR consume
   one `DefId`-keyed method-specialization table
+- callable contracts, implementation bodies, receivers, parameters, and literal captures are
+  paired by `DefId`; source spans remain only as diagnostic and presentation locations
+- `CompileUnit`, callable pairing, resolution, trusted facts, and post-opaque elaboration share one
+  `Arc<SemanticDb>` instead of rebuilding independent semantic generations
 - the complete repository test suite, formatting, warnings-denied Clippy, documentation
   generation, and diff checks pass at this checkpoint
 
