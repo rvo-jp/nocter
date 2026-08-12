@@ -4,8 +4,9 @@
 
 v0.14.0 Phase 0 is active. Source-ordered instance members, the compile-unit `DefId` database, and
 the borrow-coercion vertical migration are complete. Trusted roles, callable contract/body pairing,
-and the shared protocol-method specialization table are also keyed by `DefId`. Continue by moving
-trusted runtime descriptors, function/callable/drop/literal monomorphization, and editor declaration
+and the shared protocol-method specialization table are also keyed by `DefId`. Authored executable
+bodies have a separate `BodyId`, and all declaration- and closure-backed monomorphization tables use
+the appropriate ID domain. Continue by moving trusted runtime descriptors and editor declaration
 identities onto the same database, then remove synthetic operator/coercion callables from AST.
 Remove each old span or synthetic-name authority as its replacement lands; do not add table-only ID
 scaffolding, language features, or standard-library APIs. The v0.13.0 tag, archive, release notes,
@@ -31,6 +32,10 @@ and qualification record are immutable.
   paired by `DefId`; source spans remain only as diagnostic and presentation locations
 - `CompileUnit`, callable pairing, resolution, trusted facts, and post-opaque elaboration share one
   `Arc<SemanticDb>` instead of rebuilding independent semantic generations
+- every authored callable block and nested closure has a source-ordered `BodyId` with an explicit
+  owner and parent; closure specialization is keyed by `BodyId`
+- function, method, coercion, destructor, literal, and closure specialization indexes use `DefId`
+  or `BodyId` rather than a declaration or expression span
 - the complete repository test suite, formatting, warnings-denied Clippy, documentation
   generation, and diff checks pass at this checkpoint
 
