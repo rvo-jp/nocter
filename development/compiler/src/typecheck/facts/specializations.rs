@@ -243,6 +243,10 @@ pub(super) fn drop_type_specialization_from_self_ty_inner(
 
     let destructor = symbol.destructor.as_ref()?;
     Some(DropTypeSpecialization {
+        def_id: resolved
+            .semantic_db
+            .definition_at(destructor.name_span)
+            .expect("resolved destructor must have a semantic definition"),
         declaration_span: destructor.name_span,
         target_name: drop_target_name_from_base_and_self_ty(&destructor.target_name, self_ty),
         self_ty: self_ty.clone(),

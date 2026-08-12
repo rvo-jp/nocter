@@ -124,6 +124,36 @@ func main(): i32 {
 }
 
 #[test]
+fn records_generic_destructor_specialization_with_definition_identity() {
+    let (ast, resolved) = parse_and_resolve_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+destruct Box<T>(&+self) {
+    return
+}
+
+func main(): i32 {
+    let box = Box<i32> { value: 1 }
+    return box.value
+}
+"#,
+    );
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let specialization = facts
+        .drop_type_specializations()
+        .next()
+        .expect("generic destructor specialization");
+    assert_eq!(
+        resolved
+            .semantic_db
+            .definition_at(specialization.declaration_span),
+        Some(specialization.def_id)
+    );
+}
+
+#[test]
 fn specializes_structural_index_requirement_to_a_declared_operator() {
     let text = r#"struct Buffer {
     values: [i32; 1]

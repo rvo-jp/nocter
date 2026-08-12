@@ -17,7 +17,7 @@ pub(crate) struct CallSpecializations {
     pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<DefId, Vec<MethodCallSpecialization>>,
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
-    pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
+    pub(crate) drops: HashMap<DefId, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
     pub(crate) method_target_aliases: Vec<MethodTargetAlias>,
 }
@@ -31,6 +31,7 @@ pub(crate) struct MethodTargetAlias {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DropSpecialization {
+    pub(crate) def_id: DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
@@ -42,7 +43,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>> = HashMap::new();
-    let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
+    let mut drops: HashMap<DefId, Vec<DropSpecialization>> = HashMap::new();
     let mut method_target_aliases = Vec::new();
     let mut queue = VecDeque::new();
     let literals = collect_literal_specializations(analysis);
@@ -443,12 +444,10 @@ fn insert_method_specialization(
 }
 
 fn insert_drop_specialization(
-    specializations: &mut HashMap<ByteSpan, Vec<DropSpecialization>>,
+    specializations: &mut HashMap<DefId, Vec<DropSpecialization>>,
     specialization: DropSpecialization,
 ) -> bool {
-    let entries = specializations
-        .entry(specialization.declaration_span)
-        .or_default();
+    let entries = specializations.entry(specialization.def_id).or_default();
     if entries.iter().any(|entry| {
         entry.target_name == specialization.target_name
             && type_expr_semantic_eq(&entry.self_ty, &specialization.self_ty)
@@ -747,6 +746,7 @@ fn drop_specialization_from_typecheck_fact(
     )?;
     let self_ty = substitute_type_expr_parameters(&destruct.target_ty, &substitutions);
     Some(DropSpecialization {
+        def_id: specialization.def_id,
         declaration_span: specialization.declaration_span,
         target_name: drop_target_name(&self_ty),
         self_ty,

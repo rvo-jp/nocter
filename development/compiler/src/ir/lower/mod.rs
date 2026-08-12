@@ -595,9 +595,13 @@ impl<'a> FunctionIndex<'a> {
                                 ),
                             );
                         } else {
+                            let definition = analysis
+                                .semantic_db
+                                .definition_at(destruct.keyword_span)
+                                .expect("lowered destructor must have a semantic definition");
                             for specialization in call_specializations
                                 .drops
-                                .get(&destruct.keyword_span)
+                                .get(&definition)
                                 .into_iter()
                                 .flatten()
                             {

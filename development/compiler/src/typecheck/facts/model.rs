@@ -924,6 +924,7 @@ pub(crate) struct MethodCallSpecialization {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DropTypeSpecialization {
+    pub(crate) def_id: crate::semantic::DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
@@ -942,6 +943,7 @@ impl DropTypeSpecialization {
         }
 
         Some(Self {
+            def_id: self.def_id,
             declaration_span: self.declaration_span,
             target_name: drop_target_name_from_base_and_self_ty(&self.base_target_name, &self_ty),
             self_ty,
