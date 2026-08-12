@@ -514,3 +514,89 @@ func answer(): i32! {
         ],
     );
 }
+
+#[test]
+fn guards_uninitialized_fallible_aggregate_binding_during_catch_cleanup() {
+    let ir = lower_text_with_std_error(
+        r#"struct File {
+    fd: i32
+}
+
+destruct File(&+self) {
+    return
+}
+
+func main(): i32! {
+    let file = File { fd: 1 }
+    let unused: File = make() catch _ {
+        return 0
+    }
+    return 1
+}
+
+func make(): File! {
+    return error.new("app.failed", "failed")
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let Some((
+        call_index,
+        Instruction::CallOutcomeDirectAggregate {
+            failure_mode: OutcomeFailureMode::Handle { instructions },
+            ..
+        },
+    )) = main
+        .instructions
+        .iter()
+        .enumerate()
+        .find(|(_, instruction)| {
+            matches!(instruction, Instruction::CallOutcomeDirectAggregate { .. })
+        })
+    else {
+        panic!("missing fallible aggregate catch call: {main:?}");
+    };
+    let Instruction::SetBool {
+        destination: runtime_live,
+        value: BoolValue::Const(false),
+    } = main.instructions[call_index - 1]
+    else {
+        panic!("missing uninitialized aggregate state: {main:?}");
+    };
+    assert_eq!(
+        main.instructions.get(call_index + 1),
+        Some(&Instruction::SetBool {
+            destination: runtime_live,
+            value: BoolValue::Const(true),
+        })
+    );
+    assert!(instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::If {
+                condition: BoolValue::Location(condition),
+                else_instructions,
+                ..
+            } if *condition == runtime_live && else_instructions.is_empty()
+        )
+    }));
+    assert!(instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::CallVoid { target, arguments }
+                if target == &CallTarget::same_file("File.drop")
+                    && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })]
+        )
+    }));
+    assert_eq!(
+        instructions.last(),
+        Some(&Instruction::ReturnOutcomeSuccess)
+    );
+}

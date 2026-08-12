@@ -375,6 +375,14 @@ pub(in crate::ir::lower) fn record_runtime_aggregate_transitions(
                 source,
                 ..
             } => aggregate_copy_transitions(*destination, *source, context),
+            Instruction::CallAggregate { destination, .. }
+            | Instruction::CallDirectAggregate { destination, .. }
+            | Instruction::CallOutcomeAggregate { destination, .. }
+            | Instruction::CallOutcomeDirectAggregate { destination, .. } => {
+                aggregate_initialization_transition(*destination, context)
+                    .into_iter()
+                    .collect()
+            }
             _ => Vec::new(),
         };
         rewritten.push(instruction);
@@ -410,6 +418,19 @@ fn record_nested_runtime_aggregate_transitions(
         }
         _ => {}
     }
+}
+
+fn aggregate_initialization_transition(
+    destination: AggregateLocation,
+    context: &LoweringContext,
+) -> Option<Instruction> {
+    let AggregateLocation::Slot(slot) = destination else {
+        return None;
+    };
+    Some(Instruction::SetBool {
+        destination: context.aggregate_runtime_live_by_slot(slot)?,
+        value: BoolValue::Const(true),
+    })
 }
 
 fn aggregate_call_argument_slots(instruction: &Instruction) -> HashSet<usize> {

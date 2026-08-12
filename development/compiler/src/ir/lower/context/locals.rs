@@ -777,6 +777,25 @@ impl<'a> LoweringContext<'a> {
         &mut self,
         name: &str,
     ) -> Result<Option<Instruction>, Vec<Diagnostic>> {
+        let initially_live = self.aggregate_local(name).is_some_and(|local| {
+            self.pending_aggregate_drop_by_slot(local.slot_index)
+                .is_some()
+        });
+        self.track_aggregate_runtime_live(name, initially_live)
+    }
+
+    pub(in crate::ir::lower) fn track_uninitialized_aggregate_local(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Instruction>, Vec<Diagnostic>> {
+        self.track_aggregate_runtime_live(name, false)
+    }
+
+    fn track_aggregate_runtime_live(
+        &mut self,
+        name: &str,
+        initially_live: bool,
+    ) -> Result<Option<Instruction>, Vec<Diagnostic>> {
         let Some(local_index) = self.locals.iter().position(|local| {
             local.name == name
                 && matches!(
@@ -790,12 +809,8 @@ impl<'a> LoweringContext<'a> {
         }) else {
             return Ok(None);
         };
-        let (existing, is_live) = match &self.locals[local_index].kind {
-            LocalKind::Aggregate {
-                runtime_live,
-                drop_obligation,
-                ..
-            } => (*runtime_live, drop_obligation.is_active()),
+        let existing = match &self.locals[local_index].kind {
+            LocalKind::Aggregate { runtime_live, .. } => *runtime_live,
             _ => unreachable!("aggregate runtime state selection must remain aggregate"),
         };
         if existing.is_some() {
@@ -808,7 +823,7 @@ impl<'a> LoweringContext<'a> {
         *runtime_live = Some(destination);
         Ok(Some(Instruction::SetBool {
             destination,
-            value: BoolValue::Const(is_live),
+            value: BoolValue::Const(initially_live),
         }))
     }
 

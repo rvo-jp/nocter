@@ -500,10 +500,18 @@ where
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
     let destination = AggregateLocation::Slot(slot_index);
+    // A fallible call does not initialize its destination until either the call succeeds or a
+    // recovering fallback produces the replacement value.  Keep the drop obligation available
+    // to both paths, but guard it with runtime liveness while the failure handler is lowered.
+    let runtime_live_initialization =
+        context.track_uninitialized_aggregate_local(&statement.name)?;
     let failure_mode = failure_mode_for(destination, &success, context)?;
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
+    if let Some(initialization) = runtime_live_initialization {
+        instructions.insert(1, initialization);
+    }
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         &success,
