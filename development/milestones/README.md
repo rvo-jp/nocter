@@ -4,17 +4,20 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
-The active milestone is [v0.13.0](v0.13.0.md). Phases 0 through 4 are complete and no later phase
-is active. Phase 1 replaced
-the obsolete `Error` alias with a source-backed built-in `error` construction surface, added
+The active milestone is [v0.13.0](v0.13.0.md). Phases 0 through 6 are complete; no later phase is
+active. Phase 1 replaced the obsolete `Error` alias with a source-backed built-in `error`
+construction surface, added
 explicit `catch _`, generalized built-in source authority, and established the owning-type and
 iterator core prelude. Phase 2 made reachable `catch` blocks value-producing through the common
 fallback, branch-state, destination, provenance, ownership, cleanup, and editor models. Phase 3
 replaced collection conversion interfaces with source-defined readonly, readwrite, and consuming
 expansion operators, moved collection `for` and sequence spread onto one selector, and completed
-mutable collection iteration. Phase 4 makes strict less-than source-defined and derives the other
+mutable collection iteration. Phase 4 made strict less-than source-defined and derived the other
 ordering comparisons from the same semantic plan, with lexical ordering owned by standard `str`
-and slice source. No later v0.13.0 phase is active.
+and slice source. Phase 5 removed superseded forwarding surfaces and gave each canonical standard
+operation one public declaration identity. Phase 6 moved borrow coercions into `instance`, removed
+the parallel declaration path, and added structural generic coercion evidence through the common
+one-step selector.
 
 The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are complete: closed
 interpolation formatting was replaced with a source-defined `Format` contract, fixed

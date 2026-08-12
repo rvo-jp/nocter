@@ -170,9 +170,9 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-coerce <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
+instance <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the validated UTF-8 path text without transferring ownership.</span>
-    <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>

@@ -12,7 +12,7 @@ compatibility and explicit `as` share conversion selection; only the source of t
 differs.
 
 ```text
-coerce declaration
+instance coercion member
   -> resolver declaration identity and coherent key
   -> typechecked callable summary
   -> contextual or explicit conversion selection
@@ -20,7 +20,9 @@ coerce declaration
   -> ownership, regions, analysis, and IR lowering
 ```
 
-No consumer after typecheck searches declarations or recognizes source and target names.
+No concrete consumer after typecheck searches declarations or recognizes source and target names.
+Generic `where Source as Target` evidence intentionally remains unresolved until substitutions are
+known, then the common selector replaces its requirement authority with one concrete declaration.
 
 Method receiver selection is an additional producer of the same nested coercion plan. It runs only
 after original-receiver method lookup has no candidate, and records the selected target method in

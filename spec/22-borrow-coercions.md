@@ -1,7 +1,8 @@
 # Borrow Coercions
 
 **Availability:** Expected-type and explicit selection were published in v0.8.0. One-step method
-receiver selection is implemented for v0.9.0.
+receiver selection was published in v0.9.0. Instance-owned declarations and structural generic
+requirements are implemented for v0.13.0.
 
 A borrow coercion lets a nominal type expose one of its borrowed views at a concrete expected-type
 boundary. It is a type-owned, statically selected call. It is not type equality, a representation
@@ -9,11 +10,11 @@ cast, or a general conversion graph.
 
 ## Declaration
 
-A `coerce` declaration belongs to the nominal type named after the keyword:
+A coercion is declared as a member of an `instance` block for its nominal source type:
 
 ```nct
-coerce String {
-    pub &self as &str {
+instance String {
+    pub coerce &self as &str {
         return view(self)
     }
 }
@@ -22,7 +23,7 @@ coerce String {
 An entry has this grammar:
 
 ```text
-visibility? receiver `as` target (`from` `self`)? block
+visibility? `coerce` receiver `as` target (`from` `self`)? block
 ```
 
 The following rules apply:
@@ -33,10 +34,9 @@ The following rules apply:
   written, must be exactly `from self`
 - an omitted visibility makes an entry private; `pub(./)`, ancestor scopes, `pub(/)`, and bare
   `pub` expose it through the same boundaries as other declarations
-- the enclosing `coerce` declaration has no visibility modifier
 - only the module that defines a nominal type may declare coercions for that type
 - the source receiver capability and canonical target type identify an entry, so duplicate entries
-  are invalid even when they appear in separate `coerce` blocks
+  are invalid even when they appear in separate `instance` blocks
 
 A readonly receiver cannot produce a readwrite target. A readwrite receiver may produce either a
 readonly or readwrite target, subject to the declared body and provenance contract.
@@ -44,16 +44,40 @@ readonly or readwrite target, subject to the declared body and provenance contra
 Generic source parameters follow the source type's declaration order:
 
 ```nct
-coerce Vec<T> {
-    pub &self as &[T] {
+instance Vec<T> {
+    pub coerce &self as &[T] {
         return view(self)
     }
 
-    pub &+self as &+[T] {
+    pub coerce &+self as &+[T] {
         return view_mut(self)
     }
 }
 ```
+
+The former standalone form `coerce Type { ... }` is invalid. Coercion behavior, methods, and
+operators now share one type-owned `instance` surface.
+
+## Generic Requirements
+
+A generic callable can require the same one-step coercion without naming a nominal interface:
+
+```nct
+func view<T>(value: &T): &str from value where &T as &str {
+    return value
+}
+```
+
+The source is exactly `&T` or `&+T`, where `T` is a visible generic parameter. The target is a
+borrowed type or view and may contain visible generic parameters or associated projections. The
+predicate has no parentheses and no trailing result type because the right side already states the
+result.
+
+Within the generic body, this predicate is static evidence for contextual conversion, explicit
+`as`, receiver-method fallback, comparison, and indexing. At each concrete call, the substituted
+source type must expose one accessible coercion to the exact target. The compiler then specializes
+the generic evidence to that concrete declaration before lowering. A requirement does not create
+a runtime witness, insert a source borrow, permit chaining, or weaken visibility.
 
 ## Contextual Selection
 
@@ -99,8 +123,8 @@ struct Box<T> {
     pub value: T,
 }
 
-coerce Box<T> {
-    pub &self as &T {
+instance Box<T> {
+    pub coerce &self as &T {
         return &self.value
     }
 }
@@ -211,13 +235,13 @@ so it cannot outlive the value borrowed by the caller.
 The current standard library provides these public entries:
 
 ```nct
-coerce String {
-    pub &self as &str { ... }
+instance String {
+    pub coerce &self as &str { ... }
 }
 
-coerce Vec<T> {
-    pub &self as &[T] { ... }
-    pub &+self as &+[T] { ... }
+instance Vec<T> {
+    pub coerce &self as &[T] { ... }
+    pub coerce &+self as &+[T] { ... }
 }
 ```
 

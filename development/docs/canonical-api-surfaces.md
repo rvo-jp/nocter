@@ -14,7 +14,7 @@ operation rather than implementation convenience:
 | create a named type | member of `construct Type` |
 | observe or mutate one receiver | member of `instance Type` |
 | participate in language syntax | `operator` member |
-| expose an implicit borrowed view | `coerce Type` member |
+| expose an implicit borrowed view | `coerce` member of `instance Type` |
 | support generic named dispatch | `interface` member |
 | obtain a global capability or unnamed source | free function |
 

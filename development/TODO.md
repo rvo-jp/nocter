@@ -2,12 +2,23 @@
 
 ## Current Task
 
-[v0.13.0 Phase 6](milestones/v0.13.0.md) is active. Move borrow coercions into `instance` members,
-remove standalone coercion declarations and their synthetic instance adapter, add structural
-`where Source as Target` evidence through the common one-step selector, migrate compiler consumers,
-standard source, fixtures, editor behavior, and documentation, run the complete verification gate,
-record completion, and stop. Do not begin release preparation, package, tag, or publish. The
-published v0.12.0 release remains immutable.
+[v0.13.0 Phase 6](milestones/v0.13.0.md) is complete. No later phase is active. Define the next
+milestone scope before changing language behavior or standard-library APIs. Do not begin release
+preparation, package, tag, or publish without an explicit task. The published v0.12.0 release
+remains immutable.
+
+## Completed v0.13.0 Phase 6 Checkpoint
+
+- borrow coercions are ordinary `instance` members; the standalone declaration and synthetic
+  instance adapter no longer exist
+- dedicated `where Source as Target` evidence is resolved through the same one-step selector used
+  by contextual, explicit, receiver, comparison, and indexing conversion
+- generic evidence specializes to the concrete accessible declaration before analysis and
+  lowering, without runtime witnesses, nominal recognition, or a parallel compatibility path
+- standard source, fixtures, normalized LSP presentation, specification, implementation documents,
+  and the generated website agree on the new syntax and responsibility boundary
+- all 3,584 tests, `cargo check`, formatting, warnings-denied Clippy, 141-page documentation
+  generation, and diff verification pass
 
 ## Completed v0.13.0 Phase 5 Checkpoint
 

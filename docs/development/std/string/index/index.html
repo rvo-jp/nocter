@@ -313,9 +313,9 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-coerce <span class="token-type">String</span> <span class="token-operator">{</span>
+instance <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized UTF-8 prefix without transferring ownership.</span>
-    <span class="token-keyword">pub</span> <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
