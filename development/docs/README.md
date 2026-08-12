@@ -109,6 +109,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Equality operator declaration, selection, and lowering | `equality-operators.md` |
 | Strict ordering declaration, derivation, and lowering | `ordering-operators.md` |
 | Index declarations, requirements, coercion selection, and lowering | `indexing.md` |
+| Canonical standard-library public declaration ownership | `canonical-api-surfaces.md` |
 | Built-in construction, instance, and conformance authority | `builtin-type-surfaces.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |

@@ -2,9 +2,13 @@
 
 ## Current Task
 
-No implementation phase is active. [v0.13.0 Phase 4](milestones/v0.13.0.md) is complete. Define and
-approve the next phase before implementation. Do not infer Phase 5 scope, change release identity,
-package, tag, or publish. The published v0.12.0 release remains immutable.
+[v0.13.0 Phase 5](milestones/v0.13.0.md) is active. Canonicalize the public standard-library
+surface so each semantic operation has one construct, instance, operator, coercion, interface, or
+free-function identity. Remove `Sequence<T>`, route Vec observation and indexing through slices,
+restrict exact forwarding helpers, replace specialized equality assertions, migrate fixtures and
+documentation, run the complete verification gate, record completion, and stop. Do not begin
+ordered algorithms, change release identity, package, tag, or publish. The published v0.12.0
+release remains immutable.
 
 ## Completed v0.13.0 Phase 4 Checkpoint
 
