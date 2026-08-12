@@ -2,13 +2,23 @@
 
 ## Current Task
 
-[v0.13.0 Phase 5](milestones/v0.13.0.md) is active. Canonicalize the public standard-library
-surface so each semantic operation has one construct, instance, operator, coercion, interface, or
-free-function identity. Remove `Sequence<T>`, route Vec observation and indexing through slices,
-restrict exact forwarding helpers, replace specialized equality assertions, migrate fixtures and
-documentation, run the complete verification gate, record completion, and stop. Do not begin
-ordered algorithms, change release identity, package, tag, or publish. The published v0.12.0
-release remains immutable.
+[v0.13.0 Phase 5](milestones/v0.13.0.md) is complete. No implementation phase is active. Stop
+before ordered algorithms, element relocation, sorting, release preparation, packaging, tagging,
+or publication. The next phase requires a separate reviewed plan. The published v0.12.0 release
+remains immutable.
+
+## Completed v0.13.0 Phase 5 Checkpoint
+
+- `[T]` is the canonical owner of contiguous borrowed access and indexing; `Vec<T>` reuses it
+  through coercion, and `Sequence<T>` is removed
+- exact public construct, receiver, I/O, iterator, and nonfallible formatting forwarding surfaces
+  are removed without aliases; distinct failure and ownership contracts remain public
+- `std/testing.assert_eq` uses structural equality, while obsolete imports fail through ordinary
+  resolver and visibility diagnostics
+- standard source, distributed fixtures, LSP presentation, specification, examples, and generated
+  website content agree on canonical declarations
+- all 3,577 tests, `cargo check`, formatting, warnings-denied Clippy, 140-page documentation
+  generation, and diff verification pass
 
 ## Completed v0.13.0 Phase 4 Checkpoint
 
