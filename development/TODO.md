@@ -2,9 +2,12 @@
 
 ## Current Task
 
-v0.13.0 Phase 1 is complete. Stop at this boundary until the next phase has an explicit plan; do
-not infer Phase 2 scope, change release identity, package, tag, or publish. The published v0.12.0
-release remains immutable.
+Implement [v0.13.0 Phase 2 value-producing catch](milestones/v0.13.0.md). A reachable catch block
+result recovers the operand's fallible success value and rejoins the surrounding expression;
+terminal catch blocks remain valid. Reuse common block-result, branch-state, provenance,
+destination, cleanup, and editor services. Stop at the fully verified Phase 2 boundary; do not add
+outcome combinators, infer Phase 3 scope, change release identity, package, tag, or publish. The
+published v0.12.0 release remains immutable.
 
 ## Completed v0.13.0 Phase 1 Checkpoint
 
