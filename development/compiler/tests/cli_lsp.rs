@@ -1717,13 +1717,13 @@ func main(): i32! {
 #[test]
 fn lsp_hover_presents_catch_binding_type() {
     let project = TempProject::new("cli-lsp-catch-binding-hover");
-    let source_text = r#"func attempt(): i32! {
-    return 1
+    let source_text = r#"func attempt(): &str! {
+    return "value"
 }
 
-func main(): i32! {
+func main(): &str {
     let value = attempt() catch problem {
-        return problem
+        problem.message
     }
     return value
 }

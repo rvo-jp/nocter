@@ -2,18 +2,15 @@
 use std/io.print
 
 func main(): i32! {
-    run() catch error {
-        print("failed") catch print_error {
+    let value = answer() catch failure {
+        print(failure.message) catch print_error {
             return 1
         }
-
-        return 1
+        7
     }
-
-    return 0
+    return value
 }
 
-func run(): void! {
-    print("Hello")?
-    return
+func answer(): i32! {
+    return 42
 }

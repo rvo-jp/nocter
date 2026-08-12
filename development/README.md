@@ -66,6 +66,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Composable Iterators and Collection Builders](docs/iterator-composition.md)
 - [Callable Values and Interface Default Methods](docs/callable-default-methods.md)
 - [Nested Outcomes and Executable Process Context](docs/outcomes-process-context.md)
+- [Catch Recovery Lowering](docs/value-producing-catch.md)
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)

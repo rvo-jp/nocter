@@ -42,6 +42,14 @@ nocter check examples/indexing.nct
 nocter run examples/indexing.nct
 ```
 
+[recovery.nct](recovery.nct) turns a fallible result into a local fallback value and continues the
+surrounding function. The caught `error` remains available while the fallback is computed.
+
+```sh
+nocter check examples/recovery.nct
+nocter run examples/recovery.nct
+```
+
 ## Package Example
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line

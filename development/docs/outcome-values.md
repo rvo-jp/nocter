@@ -88,6 +88,10 @@ payload cannot fall back to a call-only lowering path.
 call result is no longer a special case. The consumer reads exactly one semantic layer, transfers
 the selected payload, and leaves inactive storage untouched.
 
+Value-producing catch lowering is owned by
+[Catch Recovery Lowering](value-producing-catch.md). Stored outcomes expose their layer, payload,
+and error offsets to that common consumer; they do not own a separate terminal-only catch path.
+
 Cleanup remains part of the ordinary scope-drop plan. Branch lowering may inspect tags, but it must
 not maintain a parallel ownership system.
 

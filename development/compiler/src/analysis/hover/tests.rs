@@ -1056,13 +1056,13 @@ fn workspace_hover_presents_closure_parameters_and_capture_modes() {
 
 #[test]
 fn workspace_hover_presents_catch_binding_declaration_and_reference() {
-    let text = r#"func attempt(): i32! {
-    return 1
+    let text = r#"func attempt(): &str! {
+    return "value"
 }
 
-func main(): i32! {
+func main(): &str {
     let value = attempt() catch problem {
-        return problem
+        problem.message
     }
     return value
 }

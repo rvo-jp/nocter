@@ -89,7 +89,8 @@ Rules:
 - `expr?` on `T!` extracts `T` on success and propagates the same `error` on failure.
 - `expr catch error { ... }` extracts `T` on success and runs the `catch` block on failure.
 - The `catch` binding name is ordinary. `error` is conventional, but `err` is valid.
-- A `catch` block must not fall through.
+- A reachable `catch` block end must produce `T`; the block may instead leave the current control
+  path with explicit control flow.
 - In a function returning `T!`, `return expr` is a failure return when `expr` has type `error`.
 - `try`, `throw`, `Result<T, E>`, `ok`, and failure patterns are not part of fallible handling.
 

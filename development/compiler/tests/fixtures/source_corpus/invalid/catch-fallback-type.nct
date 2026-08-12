@@ -1,0 +1,10 @@
+// Invalid: a reachable catch fallback must produce the fallible success type.
+func main(): i32 {
+    return answer() catch _ {
+        "not an integer"
+    }
+}
+
+func answer(): i32! {
+    return 42
+}

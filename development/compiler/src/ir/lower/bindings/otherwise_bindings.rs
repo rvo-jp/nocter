@@ -224,6 +224,15 @@ where
 
     let result = lower_result(result, &fallback_context)
         .map_err(|_| unsupported_binding_diagnostic(unsupported_message))?;
+    if matches!(result, LoweredFallbackResult::Continue(_)) {
+        mark_explicit_moves_in_expression(
+            fallback
+                .result
+                .as_deref()
+                .expect("fallback result was checked above"),
+            &mut fallback_context,
+        );
+    }
     match result {
         LoweredFallbackResult::Continue(instructions) => {
             leading_instructions.extend(instructions);

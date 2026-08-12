@@ -1,0 +1,17 @@
+func main(): i32 {
+    let value = load_value() catch failure {
+        fallback_for(failure.message)
+    }
+    if value == 42 {
+        return 0
+    }
+    return 1
+}
+
+func load_value(): i32! {
+    return error.new("example.unavailable", "the primary value is unavailable")
+}
+
+func fallback_for(message: &str): i32 {
+    return 42
+}

@@ -165,6 +165,16 @@ let file = File.open(path) catch failure {
 - Evaluate `expr`.
 - If `expr` succeeds, the whole `catch` expression evaluates to the success value.
 - If `expr` fails, bind the failure value to the catch binding and execute the `catch` block.
+- If the block reaches its end, its result becomes the whole `catch` expression's value.
+
+Local recovery can therefore compute a replacement and continue:
+
+```nct
+let port = configured_port() catch failure {
+    report(failure)
+    8080
+}
+```
 
 Use `_` when the failure payload is intentionally discarded:
 
@@ -184,12 +194,17 @@ Rules:
   provenance origin.
 - Bare `catch { ... }` is invalid; discarding the failure must be explicit.
 - The catch block is evaluated only on failure.
-- The catch block must not fall through.
-- The catch block must leave the current control path with `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
-- The catch block has no trailing expression result.
+- A reachable catch block end must produce a value assignable to the fallible success type `T`.
+- A catch block may instead leave the current control path with `return`, `break`, `continue`, a
+  call returning `never`, or another terminating construct.
+- For `void!`, an empty catch block recovers with `void`.
+- A trailing `T!` is not flattened and a trailing `error` does not implicitly fail again. Use `?`
+  to propagate or an explicit `return error_value` to replace the enclosing failure.
 - `catch` is not exception handling.
 - `catch` does not perform stack unwinding.
-- `catch` runs the same scope-end cleanup that the explicit terminating control flow would run.
+- A recovering catch moves its block result into the surrounding destination, then drops the
+  remaining catch-local values before continuing.
+- A terminating catch runs the same scope-end cleanup that its explicit control flow would run.
 - If a `catch` block terminates by calling a `never` function, cleanup behavior is determined by that `never` function. The compiler does not add implicit unwinding.
 - The `catch` clause belongs to the immediately preceding fallible expression. It is not a general handler after arbitrary expressions.
 
@@ -278,6 +293,8 @@ Rules:
 - Prefer `T?!` in official style.
 - `expr?` on `T?!` unwraps only the fallible layer and produces `T?`.
 - `expr catch error { ... }` on `T?!` handles only failure and leaves the optional success layer.
+- A reachable catch fallback for `T?!` therefore produces `T?`; a `T` result constructs presence,
+  while `none` preserves absence.
 - `otherwise` applied after that `catch` handles only successful absence; it does not enter the
   catch block.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.

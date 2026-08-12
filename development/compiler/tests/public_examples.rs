@@ -46,6 +46,12 @@ fn public_indexing_builds_and_runs() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn public_recovery_builds_and_runs() {
+    assert_single_file_example("recovery.nct", "");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn public_file_summary_builds_and_runs() {
     let directory = "file-summary";
     let executable = "file-summary";

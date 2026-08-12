@@ -45,6 +45,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
   result channels, native ABI, process storage, and ambient/recoverable process APIs
 - [First-Class Outcome Values](outcome-values.md): recursive stored outcome layout, callable
   bridging, active-payload ownership, consumers, and tooling
+- [Catch Recovery Lowering](value-producing-catch.md): value-producing failure handlers,
+  destination joins, cleanup, nested outcomes, and editor facts
 - [Protocol-Driven Collection Iteration](iteration-protocol.md): trusted protocol roles, collection
   conversion, loop ownership, cleanup, and editor boundaries
 - [Composable Iterators and Collection Builders](iterator-composition.md): capability sets,
@@ -91,6 +93,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Public provenance contracts and generic interface-bound dispatch | `provenance-contracts.md` |
 | Nested outcome lowering and executable process context | `outcomes-process-context.md` |
 | First-class stored outcome values | `outcome-values.md` |
+| Value-producing catch analysis and lowering | `value-producing-catch.md` |
 | Protocol-driven collection iteration | `iteration-protocol.md` |
 | Composable iterators and collection builders | `iterator-composition.md` |
 | Callable values, interface default methods, and iterator chains | `callable-default-methods.md` |

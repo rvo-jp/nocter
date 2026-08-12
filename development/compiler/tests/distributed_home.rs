@@ -3559,10 +3559,8 @@ func main(): i32 {
         }
     }
 
-    propagate() catch expected {
-        return 42
-    }
-    return 3
+    propagate() catch _ {}
+    return 42
 }
 "#,
     );

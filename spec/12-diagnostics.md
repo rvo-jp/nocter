@@ -296,7 +296,8 @@ Required diagnostic families:
 - Postfix `?` used on `T!` outside a fallible function.
 - Postfix `?` used on `T?` outside a function whose current return layer can carry `none`.
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
-- `catch` block that can fall through.
+- Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
+  assignable to that success type.
 - Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.

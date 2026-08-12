@@ -1176,6 +1176,87 @@ func fail(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_moves_recovered_aggregate_before_catch_local_cleanup() {
+    let project = TempProject::new("cli-run-value-catch-cleanup-drop");
+    project.write_nocter_home_file(
+        "std/error/index.nct",
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
+
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log/index.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io/index.nct",
+        r#"#target: "arm64-darwin"
+pub(/) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "value_catch_cleanup_drop.nct",
+        r#"use std/log.write
+
+struct File {
+    fd: i32
+}
+
+destruct File(&+self) {
+    if self.fd == 1 {
+        write("outer\n")!
+        return
+    }
+    if self.fd == 2 {
+        write("guard\n")!
+        return
+    }
+    write("recovered\n")!
+    return
+}
+
+func main(): i32 {
+    var outer = File { fd: 1 }
+    let recovered = fail() catch _ {
+        var result = File { fd: 40 }
+        let guard = File { fd: 2 }
+        move result
+    }
+    return recovered.fd + outer.fd + 1
+}
+
+func fail(): File! {
+    return error.new("app.inner", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"guard\nrecovered\nouter\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_binds_fallible_fixed_array_call_result() {
     let project = TempProject::new("cli-run-fallible-fixed-array-call-result");
     let source = project.write_source(

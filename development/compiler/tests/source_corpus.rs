@@ -39,6 +39,10 @@ const VALID_FIXTURES: &[ValidFixture] = &[
 
 const INVALID_FIXTURES: &[InvalidFixture] = &[
     InvalidFixture::new(
+        "development/compiler/tests/fixtures/source_corpus/invalid/catch-fallback-type.nct",
+        "E0337",
+    ),
+    InvalidFixture::new(
         "development/compiler/tests/fixtures/source_corpus/invalid/catch-optional.nct",
         "E0330",
     ),

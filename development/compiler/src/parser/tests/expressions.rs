@@ -377,7 +377,7 @@ fn ast_json_includes_expression_operator_spans() {
         r#"func main(): i32 {
     let value = maybe() otherwise { 0 }
     let handled = answer() catch error {
-        return 1
+        1
     }
     return handled!
 }

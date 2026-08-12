@@ -1127,6 +1127,32 @@ func main(): i32 {
     }
 
     #[test]
+    fn analysis_classifies_value_catch_binding_and_result_reference() {
+        let text = r#"func attempt(): &str! {
+    return "value"
+}
+
+func main(): &str {
+    return attempt() catch failure {
+        failure.message
+    }
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+        let failures = identifiers_for_lexeme(text, &identifiers, "failure");
+
+        assert_eq!(failures.len(), 2, "{failures:#?}");
+        assert!(
+            failures
+                .iter()
+                .all(|identifier| identifier.kind == SemanticTokenKind::Variable)
+        );
+    }
+
+    #[test]
     fn analysis_classifies_intrinsic_generic_requirement_words_as_keywords() {
         let text = r#"func duplicate<T>(value: T): T where copy T {
     return value
