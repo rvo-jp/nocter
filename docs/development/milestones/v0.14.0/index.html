@@ -170,10 +170,15 @@ InstanceMember::Coercion(CoercionDecl)
   carry the declaration's compile-unit <code>DefId</code>.</li><li>Borrow-coercion selection carries <code>DefId</code> through resolved type surfaces, conversion selection,
   type-check facts, generic requirement specialization, call-specialization collection, and IR
   callable indexing. Its former declaration-span and synthetic-target-name identity fields have
-  been removed; backend symbol spelling is generated only at the IR boundary.</li><li>Phase 0 remains incomplete. Other callable families, trusted roles, source-backed editor
-  identities, monomorphization, and operator/coercion AST adapters still use span or synthetic-name
-  identity and must migrate before the completion gate.</li><li>All 3,588 repository tests, formatting, warnings-denied Clippy, documentation generation, and
-  diff checks pass at this checkpoint.</li></ul><h2 id="later-phases">Later Phases</h2><ul><li><strong>Phase 1 — Typed Semantic Model:</strong> make checking return partial/error-tolerant typed HIR and
+  been removed; backend symbol spelling is generated only at the IR boundary.</li><li>Trusted-library validation now produces pre-semantic <code>TrustedDeclarationInputs</code>; analysis binds
+  those registrations once into <code>HashMap&lt;DefId, TrustedDeclarationRole&gt;</code>. Type checking no longer
+  uses byte spans as trusted-role identity.</li><li>Protocol-method and ordinary method specialization records carry <code>DefId</code>. Collection,
+  interpolation, comparison, expansion, and indexing plans feed one <code>DefId</code>-keyed specialization
+  table shared by buildability and IR indexing.</li><li>Phase 0 remains incomplete. Other callable families, trusted roles, source-backed editor
+  runtime descriptors, source-backed editor identities, remaining monomorphization families, and
+  operator/coercion AST adapters still use span or synthetic-name identity and must migrate before
+  the completion gate.</li><li>The complete repository test suite, formatting, warnings-denied Clippy, documentation
+  generation, and diff checks pass at this checkpoint.</li></ul><h2 id="later-phases">Later Phases</h2><ul><li><strong>Phase 1 — Typed Semantic Model:</strong> make checking return partial/error-tolerant typed HIR and
   remove <code>collect_typecheck_facts</code> semantic recomputation.</li><li><strong>Phase 2 — Editor Projection:</strong> build hover, completion, navigation, semantic tokens, and edits
   from one syntax index plus the typed semantic model; remove successful-language AST walkers.</li><li><strong>Phase 3 — Control-Flow MIR:</strong> lower typed HIR into places, operands, rvalues, blocks,
   terminators, loans, and explicit drops independent of source AST shape.</li><li><strong>Phase 4 — Backend Convergence:</strong> lower MIR to machine IR, replace string primitive dispatch
