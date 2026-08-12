@@ -159,7 +159,7 @@ pub(crate) fn hover_for_file_analysis(
 
 fn index_projection_markdown(file: &FileAnalysis, focus: ByteSpan) -> Option<String> {
     let plan = file
-        .typecheck_facts
+        .typed_hir
         .index_plans()
         .find(|plan| plan.object_span == focus)?;
     let source = crate::typecheck::type_expr_presentation_label(&plan.target_ty, &file.resolved);

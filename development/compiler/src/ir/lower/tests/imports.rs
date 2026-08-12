@@ -466,7 +466,7 @@ func main(): i32 {
         index.names(),
         root.ast.span.source,
         &root.resolved,
-        &root.typecheck_facts,
+        &root.typed_hir,
         index.resolved_sources(),
         index.error_payloads(root.ast.span.source),
     )

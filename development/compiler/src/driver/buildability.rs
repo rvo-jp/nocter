@@ -21,9 +21,8 @@ use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
-    FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSliceElementKind,
+    FunctionCallSpecialization, MethodCallSpecialization, TypecheckMethodReceiverKind,
+    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind, TypedHir,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
@@ -457,7 +456,7 @@ impl<'a> CallableIndex<'a> {
                 if !matches!(specialization.callable_ty, TypeExpr::Closure(_)) {
                     continue;
                 }
-                let Some(plan) = file.typecheck_facts.closure_plan(closure_span).cloned() else {
+                let Some(plan) = file.typed_hir.closure_plan(closure_span).cloned() else {
                     continue;
                 };
                 let receiver_mode = specialization.receiver_mode();
@@ -514,7 +513,7 @@ struct IndexedCallable<'a> {
     return_type: Option<TypeExpr>,
     substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     issues: Vec<BuildabilityIssue>,
 }
 
@@ -532,7 +531,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: Some(test.return_type()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues: Vec::new(),
         }
     }
@@ -567,7 +566,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues,
         }
     }
@@ -609,7 +608,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: Some(return_type),
             substitutions,
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues,
         }
     }
@@ -650,7 +649,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: Some(return_type),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues,
         }
     }
@@ -682,7 +681,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: None,
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues,
         }
     }
@@ -707,7 +706,7 @@ impl<'a> IndexedCallable<'a> {
             return_type: Some((*plan.ty.return_type).clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
             issues,
         }
     }

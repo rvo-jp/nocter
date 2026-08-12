@@ -6,11 +6,11 @@ macro_rules! semantic_id {
         pub(crate) struct $name(u32);
 
         impl $name {
-            pub(super) const fn from_index(index: usize) -> Self {
+            pub(crate) const fn from_index(index: usize) -> Self {
                 Self(index as u32)
             }
 
-            pub(super) const fn index(self) -> usize {
+            pub(crate) const fn index(self) -> usize {
                 self.0 as usize
             }
         }
@@ -19,6 +19,8 @@ macro_rules! semantic_id {
 
 semantic_id!(DefId);
 semantic_id!(BodyId);
+semantic_id!(ExprId);
+semantic_id!(TyId);
 
 #[cfg(test)]
 impl DefId {

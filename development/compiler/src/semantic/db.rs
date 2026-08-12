@@ -1,7 +1,7 @@
 //! Compile-unit definition and body identity.
 
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
-use super::{BodyId, DefId};
+use super::{BodyId, DefId, ExprId};
 use crate::ast::{
     AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, GenericParamList,
     ImportItem, InstanceMember, Item, LiteralDecl, OperatorDecl, ParameterList,
@@ -66,12 +66,21 @@ pub(crate) struct BodyDefinition {
     pub(crate) span: ByteSpan,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ExpressionDefinition {
+    pub(crate) id: ExprId,
+    pub(crate) body: BodyId,
+    pub(crate) span: ByteSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SemanticDb {
     definitions: Vec<Definition>,
     definitions_by_location: HashMap<ByteSpan, DefId>,
     bodies: Vec<BodyDefinition>,
     bodies_by_location: HashMap<ByteSpan, BodyId>,
+    expressions: Vec<ExpressionDefinition>,
+    expressions_by_location: HashMap<ByteSpan, ExprId>,
 }
 
 impl SemanticDb {
@@ -111,6 +120,14 @@ impl SemanticDb {
         self.bodies.get(id.index()).map(|body| body.anchor)
     }
 
+    pub(crate) fn expression_at(&self, location: ByteSpan) -> Option<ExprId> {
+        self.expressions_by_location.get(&location).copied()
+    }
+
+    pub(crate) fn expression(&self, id: ExprId) -> Option<&ExpressionDefinition> {
+        self.expressions.get(id.index())
+    }
+
     #[cfg(test)]
     pub(crate) fn definitions(&self) -> &[Definition] {
         &self.definitions
@@ -119,6 +136,11 @@ impl SemanticDb {
     #[cfg(test)]
     pub(crate) fn bodies(&self) -> &[BodyDefinition] {
         &self.bodies
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expressions(&self) -> &[ExpressionDefinition] {
+        &self.expressions
     }
 }
 
@@ -182,6 +204,18 @@ impl SemanticDbBuilder {
         id
     }
 
+    fn define_expression(&mut self, body: BodyId, span: ByteSpan) -> ExprId {
+        if let Some(existing) = self.db.expressions_by_location.get(&span) {
+            return *existing;
+        }
+        let id = ExprId::from_index(self.db.expressions.len());
+        self.db
+            .expressions
+            .push(ExpressionDefinition { id, body, span });
+        self.db.expressions_by_location.insert(span, id);
+        id
+    }
+
     fn collect_file(&mut self, file: &AstFile) {
         for item in &file.items {
             self.collect_item(item);
@@ -217,7 +251,18 @@ impl SemanticDbBuilder {
     fn collect_body(&mut self, owner: DefId, body: &Block) {
         self.collect_body_declarations(owner, body);
         let body_id = self.define_body(BodyKind::Declaration, owner, None, body.span, body.span);
+        self.collect_body_expressions(body_id, body);
         self.collect_closure_bodies(owner, body_id, body);
+    }
+
+    fn collect_body_expressions(&mut self, body_id: BodyId, body: &Block) {
+        let mut expressions = Vec::new();
+        visit_block_expressions_without_nested_closures(body, &mut |expression| {
+            expressions.push(expression.span())
+        });
+        for expression in expressions {
+            self.define_expression(body_id, expression);
+        }
     }
 
     fn collect_closure_bodies(&mut self, owner: DefId, parent: BodyId, body: &Block) {
@@ -235,6 +280,7 @@ impl SemanticDbBuilder {
                 closure.span,
                 closure.body.span,
             );
+            self.collect_body_expressions(body_id, &closure.body);
             self.collect_closure_bodies(owner, body_id, &closure.body);
         }
     }
@@ -656,6 +702,11 @@ func File.open(): Self { return File { fd: 1 } }
         for body in bodies {
             assert_eq!(db.body_at(body.anchor), Some(body.id));
             assert_eq!(db.body_anchor(body.id), Some(body.anchor));
+        }
+        assert!(!db.expressions().is_empty());
+        for expression in db.expressions() {
+            assert_eq!(db.expression_at(expression.span), Some(expression.id));
+            assert!(db.bodies().iter().any(|body| body.id == expression.body));
         }
     }
 }

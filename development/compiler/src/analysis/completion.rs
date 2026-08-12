@@ -20,7 +20,7 @@ use crate::resolve::{
 };
 use crate::source::ByteSpan;
 use crate::source::SourceMap;
-use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use crate::typecheck::TypedHir;
 use crate::typecheck::{
     enum_variant_member_label, field_member_label, interface_method_completion_candidates,
     type_expr_is_aborting_allocator_capability, type_expr_presentation_label,
@@ -89,7 +89,7 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
     if let Some(items) =
-        associated_type_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
+        associated_type_completion_items(&file.ast, &file.resolved, &file.typed_hir, offset)
     {
         return items;
     }
@@ -97,12 +97,12 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         return items;
     }
     if let Some(items) =
-        contextual_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
+        contextual_completion_items(&file.ast, &file.resolved, &file.typed_hir, offset)
     {
         return items;
     }
 
-    let mut items = local_completion_items(&file.ast, &file.typecheck_facts, offset);
+    let mut items = local_completion_items(&file.ast, &file.typed_hir, offset);
     let local_names = items
         .iter()
         .map(|item| item.label.clone())
@@ -262,7 +262,13 @@ pub(crate) fn completion_items_for_text_at_offset(
         parsed.source,
         &parsed.ast,
     );
-    let facts = collect_typecheck_facts(&parsed.ast, &resolved);
+    let facts = super::single_file::typed_hir_for_single_file_ast(
+        "completion.nct",
+        completion_text.as_ref(),
+        parsed.source,
+        &parsed.ast,
+        &resolved,
+    );
 
     if let Some(items) = associated_type_completion_items(&parsed.ast, &resolved, &facts, offset) {
         return Some(items);
@@ -494,7 +500,7 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
 fn associated_type_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     let projection = facts.type_occurrences().find_map(|occurrence| {
@@ -775,7 +781,7 @@ fn completion_items_for_resolved_symbols_excluding(
 
 fn local_completion_items(
     ast: &AstFile,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
     visible_local_bindings_at_offset(ast, offset)
@@ -872,7 +878,7 @@ fn parameter_detail(parameter: &ParameterSignature, resolved: &ResolveOutput) ->
 fn contextual_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     match completion_context_at_offset(ast, offset)? {
@@ -998,7 +1004,7 @@ fn literal_owner<'a>(
 fn region_allocator_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
     local_completion_items(ast, facts, offset)

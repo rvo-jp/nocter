@@ -6,19 +6,15 @@ pub(super) fn fixed_array_literal_argument_has_fixed_array_parameter_type(
     argument: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::ArrayLiteral(_) = unwrap_group_expr(argument) else {
         return false;
     };
-    let Some(ty) = call_argument_parameter_type(
-        call,
-        index,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    ) else {
+    let Some(ty) =
+        call_argument_parameter_type(call, index, resolved, typed_hir, generic_substitutions)
+    else {
         return false;
     };
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
@@ -28,13 +24,13 @@ pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
     field: &StructLiteralField,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::ArrayLiteral(_) = unwrap_group_expr(&field.value) else {
         return false;
     };
-    let Some(ty) = field_type_expr_for_span(field.name_span, resolved, typecheck_facts) else {
+    let Some(ty) = field_type_expr_for_span(field.name_span, resolved, typed_hir) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
@@ -72,14 +68,14 @@ pub(super) fn fixed_array_literal_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
         return false;
     };
     let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -125,14 +121,14 @@ pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
         return false;
     };
     let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -271,7 +267,7 @@ pub(super) fn fixed_array_copy_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::Identifier(identifier) = unwrap_group_expr(&statement.initializer) else {
@@ -281,7 +277,7 @@ pub(super) fn fixed_array_copy_binding_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -293,7 +289,7 @@ pub(super) fn fixed_array_copy_binding_is_buildable(
     let Some(source_ty) = local_identifier_type_expr_with_substitutions(
         identifier,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -318,7 +314,7 @@ pub(super) fn fixed_array_move_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::Unary(unary) = unwrap_group_expr(&statement.initializer) else {
@@ -331,7 +327,7 @@ pub(super) fn fixed_array_move_binding_is_buildable(
         return false;
     };
     let Some(target_ty) =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -340,7 +336,7 @@ pub(super) fn fixed_array_move_binding_is_buildable(
         identifier,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -349,11 +345,11 @@ pub(super) fn fixed_array_call_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(target_ty) =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -366,7 +362,7 @@ pub(super) fn fixed_array_call_binding_is_buildable(
     let Some(source_ty) = fixed_array_binding_call_result_type_expr(
         &statement.initializer,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -394,7 +390,7 @@ pub(super) fn fixed_array_member_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::Member(member) = unwrap_group_expr(&statement.initializer) else {
@@ -404,13 +400,13 @@ pub(super) fn fixed_array_member_binding_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
     };
 
-    let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
+    let Some(source_ty) = field_type_expr_for_member(member, resolved, typed_hir) else {
         return false;
     };
     let source_ty = substitute_type_expr_parameters(&source_ty, generic_substitutions);
@@ -434,7 +430,7 @@ pub(super) fn fixed_array_copy_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -447,7 +443,7 @@ pub(super) fn fixed_array_copy_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -459,7 +455,7 @@ pub(super) fn fixed_array_copy_assignment_is_buildable(
     let Some(source_ty) = local_identifier_type_expr_with_substitutions(
         identifier,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -484,7 +480,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -503,7 +499,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -513,7 +509,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
         identifier,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -523,7 +519,7 @@ fn fixed_array_move_to_target_is_buildable(
     source: &IdentifierExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some((target_element, target_length, target_layout)) =
@@ -543,7 +539,7 @@ fn fixed_array_move_to_target_is_buildable(
     let Some(source_ty) = local_identifier_type_expr_with_substitutions(
         source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -568,7 +564,7 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -578,7 +574,7 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -592,7 +588,7 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
     let Some(source_ty) = fixed_array_call_result_type_expr(
         &statement.value,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -620,7 +616,7 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -633,7 +629,7 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -647,7 +643,7 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
     let Some(source_ty) = fixed_array_binding_call_result_type_expr(
         &statement.value,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -675,7 +671,7 @@ pub(super) fn fixed_array_member_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -688,13 +684,13 @@ pub(super) fn fixed_array_member_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
     };
 
-    let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
+    let Some(source_ty) = field_type_expr_for_member(member, resolved, typed_hir) else {
         return false;
     };
     let source_ty = substitute_type_expr_parameters(&source_ty, generic_substitutions);
@@ -775,7 +771,7 @@ fn fixed_array_abi_matches_supported_element(
 pub(super) fn fixed_array_binding_call_result_type_expr(
     expression: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     match unwrap_group_expr(expression) {
@@ -786,14 +782,14 @@ pub(super) fn fixed_array_binding_call_result_type_expr(
             fixed_array_inner_type_expr_from_optional_call(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         }
         _ => fixed_array_call_result_type_expr(
             expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
     }
@@ -802,14 +798,14 @@ pub(super) fn fixed_array_binding_call_result_type_expr(
 pub(super) fn fixed_array_call_result_type_expr(
     expression: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => call_return_type_expr_with_substitutions(
             call,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Propagate(propagation) => {
@@ -819,7 +815,7 @@ pub(super) fn fixed_array_call_result_type_expr(
             fixed_array_success_type_expr_from_fallible_call(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         }
@@ -830,7 +826,7 @@ pub(super) fn fixed_array_call_result_type_expr(
             fixed_array_success_type_expr_from_fallible_call(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         }
@@ -841,7 +837,7 @@ pub(super) fn fixed_array_call_result_type_expr(
             fixed_array_success_type_expr_from_fallible_call(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         }
@@ -852,15 +848,11 @@ pub(super) fn fixed_array_call_result_type_expr(
 pub(super) fn fixed_array_success_type_expr_from_fallible_call(
     call: &CallExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
@@ -870,15 +862,11 @@ pub(super) fn fixed_array_success_type_expr_from_fallible_call(
 pub(super) fn fixed_array_inner_type_expr_from_optional_call(
     call: &CallExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     let TypeExpr::Optional(optional) = return_type else {
         return None;
     };
@@ -889,7 +877,7 @@ pub(super) fn fixed_array_literal_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator != AssignmentOperator::Assign {
@@ -902,7 +890,7 @@ pub(super) fn fixed_array_literal_assignment_is_buildable(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -915,7 +903,7 @@ pub(super) fn fixed_array_literal_assignment_is_buildable(
                 &element,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ))
 }
@@ -926,14 +914,14 @@ fn fixed_array_literal_recursive_drop_assignment_is_buildable(
     element_abi: &AbiType,
     fallback_resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(target_ty) = fixed_array_assignment_target_type_expr(
         &statement.target,
         fallback_resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -953,7 +941,7 @@ fn fixed_array_literal_assignment_requires_partial_initialization_tracking(
     statement: &AssignmentStmt,
     fallback_resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
@@ -963,7 +951,7 @@ fn fixed_array_literal_assignment_requires_partial_initialization_tracking(
         &statement.target,
         fallback_resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) else {
         return false;
@@ -991,7 +979,7 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if statement.operator != AssignmentOperator::Assign {
@@ -1001,7 +989,7 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         &statement.target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )?;
 
@@ -1009,37 +997,37 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || fixed_array_copy_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || fixed_array_move_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || fixed_array_call_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || fixed_array_otherwise_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || fixed_array_member_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -1049,7 +1037,7 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return Some(unsupported_native_build_diagnostic(
@@ -1080,14 +1068,14 @@ pub(super) fn fixed_array_assignment_target_abi(
     target: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
     let ty = fixed_array_assignment_target_type_expr(
         target,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
@@ -1097,10 +1085,10 @@ pub(super) fn fixed_array_assignment_target_type_expr(
     target: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let ty = assignment_target_type_expr(target, resolved, typecheck_facts, generic_substitutions)?;
+    let ty = assignment_target_type_expr(target, resolved, typed_hir, generic_substitutions)?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
     Some(ty)
 }
@@ -1109,11 +1097,10 @@ pub(super) fn fixed_array_binding_type_abi(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
-    let ty =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)?;
+    let ty = binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
 }
 
@@ -1156,13 +1143,13 @@ pub(super) fn fixed_array_index_compound_assignment_is_buildable(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some((element, layout)) = fixed_array_index_target_abi(
         expression,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
         resolved_sources,
     ) else {
@@ -1175,13 +1162,13 @@ pub(super) fn fixed_array_index_assignment_target_is_buildable(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     let (element, layout) = fixed_array_index_target_abi(
         expression,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
         resolved_sources,
     )?;
@@ -1192,7 +1179,7 @@ pub(super) fn collect_fixed_array_literal_binding_diagnostics(
     statement: &BindingStmt,
     sources: &SourceMap,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
@@ -1205,7 +1192,7 @@ pub(super) fn collect_fixed_array_literal_binding_diagnostics(
         unwrap_group_expr(&statement.initializer),
         sources,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
         root_source,
         names,
@@ -1220,7 +1207,7 @@ pub(super) fn collect_fixed_array_literal_elements_diagnostics(
     expression: &Expr,
     sources: &SourceMap,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
@@ -1234,7 +1221,7 @@ pub(super) fn collect_fixed_array_literal_elements_diagnostics(
             expression,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -1252,7 +1239,7 @@ pub(super) fn collect_fixed_array_literal_elements_diagnostics(
             None,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -1267,14 +1254,14 @@ pub(super) fn collect_fixed_array_literal_elements_diagnostics(
 pub(super) fn fixed_array_index_expression_is_buildable(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<bool> {
     let (element, layout) = fixed_array_index_target_abi(
         expression,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
         resolved_sources,
     )?;
@@ -1284,14 +1271,14 @@ pub(super) fn fixed_array_index_expression_is_buildable(
 pub(super) fn fixed_array_index_target_abi(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<(AbiType, crate::abi::ValueLayout)> {
     let ty = fixed_array_index_target_type_expr(
         &expression.object,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )?;
     let (element, _length, layout) =
@@ -1302,23 +1289,23 @@ pub(super) fn fixed_array_index_target_abi(
 pub(super) fn fixed_array_index_target_type_expr(
     expression: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            typecheck_facts
+            typed_hir
                 .binding_type_expr(symbol.name_span)
                 .cloned()
                 .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
         }
-        Expr::Member(member) => field_type_expr_for_member(member, resolved, typecheck_facts)
+        Expr::Member(member) => field_type_expr_for_member(member, resolved, typed_hir)
             .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions)),
         Expr::Group(group) => fixed_array_index_target_type_expr(
             &group.expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => None,

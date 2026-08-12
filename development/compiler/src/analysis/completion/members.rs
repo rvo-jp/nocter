@@ -3,7 +3,7 @@ use super::*;
 pub(super) fn member_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     owner_name: &str,
     owner_span: ByteSpan,
     offset: usize,

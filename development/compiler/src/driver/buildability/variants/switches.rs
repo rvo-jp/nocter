@@ -4,20 +4,20 @@ pub(in crate::driver::buildability) fn switch_statement_is_buildable(
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     payloadless_switch_statement_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) || tag_only_payload_enum_switch_statement_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -26,7 +26,7 @@ pub(in crate::driver::buildability) fn payloadless_switch_statement_is_buildable
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(first_arm) = statement.arms.first() else {
@@ -35,7 +35,7 @@ pub(in crate::driver::buildability) fn payloadless_switch_statement_is_buildable
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
             .is_some();
@@ -72,20 +72,18 @@ pub(in crate::driver::buildability) fn tag_only_payload_enum_switch_statement_is
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some(ty) = typecheck_facts.expression_type_expr(statement.expression.span()) else {
+    let Some(ty) = typed_hir.expression_type_expr(statement.expression.span()) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
     if !type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources) {
         return false;
     }
-    if !payload_enum_pattern_target_expression_shape_is_buildable(
-        &statement.expression,
-        typecheck_facts,
-    ) {
+    if !payload_enum_pattern_target_expression_shape_is_buildable(&statement.expression, typed_hir)
+    {
         return false;
     }
 
@@ -127,7 +125,7 @@ pub(in crate::driver::buildability) fn tag_only_payload_enum_switch_statement_is
             variant.payload.len(),
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
     })
@@ -137,29 +135,27 @@ pub(in crate::driver::buildability) fn payload_enum_pattern_target_expression_is
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some(ty) = typecheck_facts.expression_type_expr(expression.span()) else {
+    let Some(ty) = typed_hir.expression_type_expr(expression.span()) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
     type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources)
-        && payload_enum_pattern_target_expression_shape_is_buildable(expression, typecheck_facts)
+        && payload_enum_pattern_target_expression_shape_is_buildable(expression, typed_hir)
 }
 
 pub(in crate::driver::buildability) fn payload_enum_pattern_target_expression_shape_is_buildable(
     expression: &Expr,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> bool {
     match expression.payload_enum_pattern_target_shape() {
         Some(PayloadEnumPatternTargetShape::Member) => {
             let Expr::Member(member) = expression.without_groups() else {
                 unreachable!("member pattern target shape must contain a member expression");
             };
-            typecheck_facts
-                .enum_variant_target(member.member_span)
-                .is_some()
+            typed_hir.enum_variant_target(member.member_span).is_some()
         }
         Some(_) => true,
         None => false,
@@ -170,10 +166,10 @@ pub(in crate::driver::buildability) fn switch_target_payloadless_enum_symbol<'a>
     statement: &crate::ast::SwitchStmt,
     resolved: &'a ResolveOutput,
     resolved_sources: &ResolvedSources<'a>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<&'a TypeSymbol> {
-    let ty = typecheck_facts.expression_type_expr(statement.expression.span())?;
+    let ty = typed_hir.expression_type_expr(statement.expression.span())?;
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
     let source_resolver = |source| resolved_sources.get(&source).copied();
     payloadless_enum_symbol_for_type_expr(&ty, resolved, &source_resolver)

@@ -38,7 +38,7 @@ pub(in crate::analysis::hover) fn resolved_local_symbol_hover_contents(
     let file = analysis.file_by_source(symbol.name_span.source)?;
     let label = crate::analysis::presentation::local_presentation(
         symbol,
-        file.typecheck_facts.binding_type_expr(symbol.name_span),
+        file.typed_hir.binding_type_expr(symbol.name_span),
         &file.resolved,
     )
     .render();

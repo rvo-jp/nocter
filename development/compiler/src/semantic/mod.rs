@@ -7,4 +7,4 @@ mod ids;
 
 pub(crate) use callable_kinds::OperatorCallableKind;
 pub(crate) use db::{DefinitionKind, SemanticDb};
-pub(crate) use ids::{BodyId, DefId};
+pub(crate) use ids::{BodyId, DefId, ExprId, TyId};

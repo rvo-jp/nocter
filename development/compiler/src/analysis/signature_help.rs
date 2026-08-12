@@ -83,7 +83,7 @@ fn signature_info_for_call(
     call: &CallExpr,
     offset: usize,
 ) -> Option<SignatureHelpInfo> {
-    if let Some(fact) = file.typecheck_facts.callable_call(call.span) {
+    if let Some(fact) = file.typed_hir.callable_call(call.span) {
         return callable_value_signature_info(file, call, fact, offset);
     }
     let call_target = call_target(file, call)?;
@@ -104,12 +104,12 @@ fn signature_info_for_call(
         _ => None,
     };
 
-    if let Some(specialization) = file.typecheck_facts.function_call_specialization(call.span) {
+    if let Some(specialization) = file.typed_hir.function_call_specialization(call.span) {
         substitutions.extend(specialization.substitutions.clone());
     }
 
     if let Some(member_span) = call_member_span(call)
-        && let Some(specialization) = file.typecheck_facts.method_call_specialization(member_span)
+        && let Some(specialization) = file.typed_hir.method_call_specialization(member_span)
     {
         if let CallableDeclaration::Method { owner, .. } = declaration
             && let Some(owner_substitutions) =
@@ -336,13 +336,13 @@ fn callable_value_signature_info(
 
 fn call_target(file: &FileAnalysis, call: &CallExpr) -> Option<ByteSpan> {
     match call.callee.without_groups() {
-        Expr::Identifier(identifier) => file.typecheck_facts.function_call_target(identifier.span),
+        Expr::Identifier(identifier) => file.typed_hir.function_call_target(identifier.span),
         Expr::Member(member) => file
-            .typecheck_facts
+            .typed_hir
             .function_call_target(member.member_span)
-            .or_else(|| file.typecheck_facts.method_call_target(member.member_span))
+            .or_else(|| file.typed_hir.method_call_target(member.member_span))
             .or_else(|| {
-                file.typecheck_facts
+                file.typed_hir
                     .associated_function_target(member.member_span)
             }),
         _ => None,

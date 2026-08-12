@@ -138,7 +138,7 @@ fn collect_statement(
                 parent,
                 allocator: statement.allocator.span(),
                 allocator_type: file
-                    .typecheck_facts
+                    .typed_hir
                     .binding_type_label(declaration)
                     .map(str::to_string),
             });

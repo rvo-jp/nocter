@@ -3,6 +3,42 @@ use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
 use crate::source::SourceMap;
+use crate::typecheck::PartialSemantic;
+
+#[test]
+fn typed_hir_retains_known_and_error_expressions_in_one_body() {
+    let text = r#"func main(): i32 {
+    let first = 1
+    let second = 1
+    return missing
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let hir = lower_typed_hir(&ast, &resolved);
+    let expression_span = |fragment: &str, from: usize| {
+        let relative = text[from..].find(fragment).expect("expression fragment");
+        let start = from + relative;
+        ByteSpan::new(ast.span.source, start, start + fragment.len())
+    };
+    let first_span = expression_span("1", text.find("first").unwrap());
+    let second_span = expression_span("1", text.find("second").unwrap());
+    let missing_span = expression_span("missing", 0);
+
+    let first = hir.expression(first_span).expect("first expression");
+    let second = hir.expression(second_span).expect("second expression");
+    let missing = hir.expression(missing_span).expect("error expression");
+
+    let (PartialSemantic::Known(first_ty), PartialSemantic::Known(second_ty)) =
+        (first.ty, second.ty)
+    else {
+        panic!("integer expressions must retain known types");
+    };
+    assert_eq!(first_ty, second_ty, "equal semantic types share one TyId");
+    assert_eq!(first.body, second.body);
+    assert_eq!(second.body, missing.body);
+    assert_eq!(missing.ty, PartialSemantic::Error);
+    assert_ne!(first.id, second.id);
+}
 
 #[test]
 fn type_hover_label_shortens_hidden_canonical_names() {
@@ -54,7 +90,7 @@ func main(): i32 {
 }
 "#,
     );
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let receiver_kinds = facts
         .method_call_spans()
         .filter_map(|span| facts.method_call_receiver_kind(span))
@@ -82,7 +118,7 @@ func read(buffer: &Buffer, index: usize): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let start = text.rfind("buffer[index]").expect("index expression");
     let span = ByteSpan::new(ast.span.source, start, start + "buffer[index]".len());
     let plan = facts.index_plan(span).expect("index plan");
@@ -110,7 +146,7 @@ func main(): i32 {
 }
 "#,
     );
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let specialization = facts
         .function_call_specializations()
         .next()
@@ -140,7 +176,7 @@ func main(): i32 {
 }
 "#,
     );
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let specialization = facts
         .drop_type_specializations()
         .next()
@@ -170,7 +206,7 @@ func at<C, V>(container: &C, index: usize): V where copy V, (&C[usize]): &V {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let start = text.rfind("container[index]").expect("index expression");
     let span = ByteSpan::new(ast.span.source, start, start + "container[index]".len());
     let plan = facts.index_plan(span).expect("generic index plan");
@@ -210,7 +246,7 @@ func count(text: &Text): usize { return text.count() }
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let call_start = text.rfind("text.count").expect("method call");
     let receiver_span = ByteSpan::new(ast.span.source, call_start, call_start + "text".len());
     let member_start = call_start + "text.".len();
@@ -254,7 +290,7 @@ func main(): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let function = ast
         .items
         .iter()
@@ -285,7 +321,7 @@ func demo(value: &Box<i32>): void { accept(value) return }
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let argument_start = text.rfind("value)").expect("expected call argument");
     let argument_span = ByteSpan::new(ast.span.source, argument_start, argument_start + 5);
     let plan = facts
@@ -321,7 +357,7 @@ func project(value: &Box<i32>): &i32 from value {
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let plans = facts.coercion_plans().collect::<Vec<_>>();
 
     assert_eq!(plans.len(), 6, "expected one plan per contextual boundary");
@@ -339,7 +375,7 @@ func project(value: &Box<i32>): &i32 from value { return value as &i32 }
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let as_start = text.rfind("as &i32").expect("expected explicit as");
     let expression_start = text.rfind("value as").expect("expected source");
     let expression_span = ByteSpan::new(
@@ -371,7 +407,7 @@ func project(value: &+Cell): &Cell from value {
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let kinds = facts
         .conversion_plans()
         .map(|(_, plan)| &plan.kind)
@@ -404,7 +440,7 @@ func collect(value: &Box<i32>): void {
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let value_start = text.rfind("value]").expect("expected literal element");
     let value_span = ByteSpan::new(ast.span.source, value_start, value_start + "value".len());
     let plan = facts
@@ -434,7 +470,7 @@ func project(choice: Choice, value: &Box<i32>): &i32 from value {
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let plans = facts.coercion_plans().collect::<Vec<_>>();
 
     assert_eq!(
@@ -457,7 +493,7 @@ func project(value: &Box<i32>): View<i32> from value { return View.one(value) }
 func main(): i32 { return 0 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let argument_start = text.rfind("value)").expect("expected payload argument");
     let argument_span = ByteSpan::new(ast.span.source, argument_start, argument_start + 5);
 
@@ -472,7 +508,7 @@ fn records_binding_type_expr_facts_for_generic_parameters() {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let start = text.find("inferred").expect("expected binding name");
     let span = ByteSpan::new(ast.span.source, start, start + "inferred".len());
 
@@ -501,7 +537,7 @@ func inspect(result: Result): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let code_span = identifier_span(&ast, text, "code) { return", "code");
     let detail_span = identifier_span(&ast, text, "detail) { return", "detail");
 
@@ -530,7 +566,7 @@ func main(choice: Choice): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let function = ast
         .items
         .iter()
@@ -572,7 +608,7 @@ func main(choice: Choice): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let hit_declaration = identifier_span(&ast, text, "hit(value", "hit");
     let miss_declaration = identifier_span(&ast, text, "miss(value", "miss");
 
@@ -605,7 +641,7 @@ func main(): i32 {
 }
 "#;
     let (ast, resolved) = parse_and_resolve_text(text);
-    let facts = collect_typecheck_facts(&ast, &resolved);
+    let facts = lower_typed_hir(&ast, &resolved);
     let literal_start = text.find("values: [1, 2]").expect("expected literal field");
     let literal_span = ByteSpan::new(
         ast.span.source,

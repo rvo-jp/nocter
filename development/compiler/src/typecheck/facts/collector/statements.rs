@@ -1,6 +1,6 @@
 use super::*;
 
-impl TypecheckFactCollector<'_> {
+impl TypedHirBuilder<'_> {
     pub(in crate::typecheck::facts::collector) fn collect_statement_facts(
         &mut self,
         statement: &Stmt,

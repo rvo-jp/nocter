@@ -55,19 +55,16 @@ pub(in crate::driver::buildability) fn payload_enum_constructor_call_is_supporte
     call: &CallExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Expr::Member(member) = call.callee.as_ref() else {
         return false;
     };
-    if typecheck_facts
-        .enum_variant_target(member.member_span)
-        .is_none()
-    {
+    if typed_hir.enum_variant_target(member.member_span).is_none() {
         return false;
     }
-    typecheck_facts
+    typed_hir
         .expression_type_expr(call.span)
         .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
         .is_some_and(|ty| {

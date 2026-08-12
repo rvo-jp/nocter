@@ -26,7 +26,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
         callable.return_type.as_ref(),
         sources,
         callable.resolved,
-        callable.typecheck_facts,
+        callable.typed_hir,
         &callable.substitutions,
         root_source,
         names,
@@ -42,7 +42,7 @@ pub(in crate::driver::buildability) fn enqueue_drop_targets_in_callable(
     root_source: SourceId,
     queue: &mut VecDeque<CallTarget>,
 ) {
-    for specialization in callable.typecheck_facts.drop_type_specializations() {
+    for specialization in callable.typed_hir.drop_type_specializations() {
         if !span_contains(callable.span, specialization.self_ty.span()) {
             continue;
         }
@@ -64,7 +64,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_block_diagnostics
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
@@ -77,7 +77,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_block_diagnostics
         &block.statements,
         block.result.as_deref(),
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     );
 
@@ -87,7 +87,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_block_diagnostics
             return_type,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -103,7 +103,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_block_diagnostics
             return_type,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -120,7 +120,7 @@ pub(in crate::driver::buildability) fn collect_block_diagnostics(
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
@@ -133,7 +133,7 @@ pub(in crate::driver::buildability) fn collect_block_diagnostics(
         &block.statements,
         block.result.as_deref(),
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     );
 
@@ -143,7 +143,7 @@ pub(in crate::driver::buildability) fn collect_block_diagnostics(
             return_type,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -158,7 +158,7 @@ pub(in crate::driver::buildability) fn collect_block_diagnostics(
             result,
             sources,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
             root_source,
             names,
@@ -174,14 +174,14 @@ pub(in crate::driver::buildability) fn reachable_block_parts_for_buildability<'a
     statements: &'a [Stmt],
     result: Option<&'a Expr>,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> (&'a [Stmt], Option<&'a Expr>) {
     for (index, statement) in statements.iter().enumerate() {
         if statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ) {
             return (&statements[..=index], None);

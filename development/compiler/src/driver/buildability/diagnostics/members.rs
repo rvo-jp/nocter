@@ -5,17 +5,17 @@ pub(in crate::driver::buildability) fn unsupported_field_member_value_diagnostic
     expression: &MemberExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    if typecheck_facts
+    if typed_hir
         .field_scalar_view_kind(expression.member_span)
         .is_some()
     {
         return None;
     }
 
-    let field_ty = field_type_expr_for_member(expression, resolved, typecheck_facts)?;
+    let field_ty = field_type_expr_for_member(expression, resolved, typed_hir)?;
     let field_ty = substitute_type_expr_parameters(&field_ty, generic_substitutions);
     match member_field_value_type_is_buildable(&field_ty, resolved, resolved_sources)? {
         true => None,
@@ -31,20 +31,20 @@ pub(in crate::driver::buildability) fn unsupported_field_member_value_diagnostic
 pub(in crate::driver::buildability) fn field_type_expr_for_member(
     expression: &MemberExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> Option<TypeExpr> {
-    field_type_expr_for_span(expression.member_span, resolved, typecheck_facts)
+    field_type_expr_for_span(expression.member_span, resolved, typed_hir)
 }
 
 pub(in crate::driver::buildability) fn field_type_expr_for_span(
     field_span: ByteSpan,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> Option<TypeExpr> {
-    if let Some(ty) = typecheck_facts.field_type_expr(field_span) {
+    if let Some(ty) = typed_hir.field_type_expr(field_span) {
         return Some(ty.clone());
     }
-    let target_span = typecheck_facts.field_target(field_span)?;
+    let target_span = typed_hir.field_target(field_span)?;
     resolved.symbols.symbols().find_map(|symbol| {
         let SymbolKind::Type(type_symbol) = &symbol.kind else {
             return None;
@@ -83,7 +83,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
     sources: &SourceMap,
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
     _nocter_home: Option<&Path>,
@@ -91,7 +91,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
     if let Some(is_buildable) = fixed_array_index_expression_is_buildable(
         expression,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
         resolved_sources,
     ) {
@@ -110,7 +110,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
         expression,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )? {
         return None;

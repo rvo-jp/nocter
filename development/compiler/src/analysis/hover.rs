@@ -10,7 +10,7 @@ use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
-    TypecheckFacts, enum_variant_member_label, field_member_label, generic_type_owner_name,
+    TypedHir, enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 use super::*;
 
-impl TypecheckFactCollector<'_> {
+impl TypedHirBuilder<'_> {
     pub(in crate::typecheck::facts::collector) fn record_generic_function_call_specialization(
         &mut self,
         call: &crate::ast::CallExpr,

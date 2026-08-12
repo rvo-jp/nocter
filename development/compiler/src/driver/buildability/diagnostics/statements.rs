@@ -5,14 +5,14 @@ pub(in crate::driver::buildability) fn unsupported_expression_statement_diagnost
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if expression_statement_is_supported(
         expression,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -29,7 +29,7 @@ pub(in crate::driver::buildability) fn unsupported_expression_statement_diagnost
 pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildable(
     value: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
@@ -64,7 +64,7 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
         _ => None,
     };
     if let Some((span, expected_layers, allow_trailing)) = stored
-        && let Some(ty) = typecheck_facts.expression_type_expr(span)
+        && let Some(ty) = typed_hir.expression_type_expr(span)
     {
         let ty = substitute_type_expr_parameters(ty, generic_substitutions);
         let shape = outcome_shape_with_resolver(&ty, resolved, |source| {
@@ -102,12 +102,9 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
         }
         _ => return false,
     };
-    let Some(return_type) = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    ) else {
+    let Some(return_type) =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)
+    else {
         return false;
     };
     let source_resolver = |source| resolved_sources.get(&source).copied();
@@ -117,12 +114,12 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
 pub(in crate::driver::buildability) fn expression_is_never_runtime_shape_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => matches!(
-            call_return_shape(call, resolved, typecheck_facts, generic_substitutions),
+            call_return_shape(call, resolved, typed_hir, generic_substitutions),
             Some(ReturnShape::Never)
         ),
         _ => false,
@@ -143,7 +140,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if statement.operator != AssignmentOperator::Assign {
@@ -156,7 +153,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
         index,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         if is_buildable {
@@ -174,7 +171,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
             &index.object,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Some(true) | None

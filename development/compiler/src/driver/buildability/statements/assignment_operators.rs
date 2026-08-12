@@ -2,10 +2,10 @@ use super::*;
 
 pub(in crate::driver::buildability) fn range_for_binding_type_is_buildable(
     statement: &ForRangeStmt,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> bool {
     matches!(
-        typecheck_facts.binding_scalar_view_kind(statement.name_span),
+        typed_hir.binding_scalar_view_kind(statement.name_span),
         Some(TypecheckScalarViewKind::I32 | TypecheckScalarViewKind::Usize)
     )
 }
@@ -14,7 +14,7 @@ pub(in crate::driver::buildability) fn assignment_operator_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator == AssignmentOperator::Assign {
@@ -26,7 +26,7 @@ pub(in crate::driver::buildability) fn assignment_operator_is_buildable(
                 return false;
             };
             matches!(
-                typecheck_facts.binding_scalar_view_kind(symbol.name_span),
+                typed_hir.binding_scalar_view_kind(symbol.name_span),
                 Some(
                     TypecheckScalarViewKind::I32
                         | TypecheckScalarViewKind::Usize
@@ -35,20 +35,20 @@ pub(in crate::driver::buildability) fn assignment_operator_is_buildable(
             )
         }
         Expr::Member(member) => {
-            aggregate_field_compound_assignment_is_buildable(member.member_span, typecheck_facts)
+            aggregate_field_compound_assignment_is_buildable(member.member_span, typed_hir)
         }
         Expr::Index(index) => {
             fixed_array_index_compound_assignment_is_buildable(
                 index,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) || slice_index_compound_assignment_is_buildable(
                 &index.object,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         }
@@ -60,7 +60,7 @@ pub(in crate::driver::buildability) fn slice_index_compound_assignment_is_builda
     object: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     matches!(
@@ -68,7 +68,7 @@ pub(in crate::driver::buildability) fn slice_index_compound_assignment_is_builda
             object,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions
         ),
         Some(
@@ -82,10 +82,10 @@ pub(in crate::driver::buildability) fn slice_index_compound_assignment_is_builda
 
 pub(in crate::driver::buildability) fn aggregate_field_compound_assignment_is_buildable(
     member_span: ByteSpan,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> bool {
     matches!(
-        typecheck_facts.field_scalar_view_kind(member_span),
+        typed_hir.field_scalar_view_kind(member_span),
         Some(
             TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8

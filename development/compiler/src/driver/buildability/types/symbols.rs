@@ -2,27 +2,23 @@ use super::*;
 
 pub(in crate::driver::buildability) fn binding_type_expr_with_substitutions(
     statement: &BindingStmt,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     statement
         .ty
         .clone()
-        .or_else(|| {
-            typecheck_facts
-                .binding_type_expr(statement.name_span)
-                .cloned()
-        })
+        .or_else(|| typed_hir.binding_type_expr(statement.name_span).cloned())
         .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
 }
 pub(in crate::driver::buildability) fn local_identifier_type_expr_with_substitutions(
     identifier: &IdentifierExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     let symbol = resolved.local_symbol_for_identifier(identifier)?;
-    typecheck_facts
+    typed_hir
         .binding_type_expr(symbol.name_span)
         .cloned()
         .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))

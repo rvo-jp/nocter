@@ -17,13 +17,13 @@ pub(in crate::analysis::hover) fn hover_symbols_for_file_analysis(
     file: &FileAnalysis,
 ) -> Vec<HoverSymbol> {
     let mut symbols = hover_symbols_for_ast(text, &file.ast);
-    apply_typecheck_hover_facts(text, &file.typecheck_facts, &mut symbols);
+    apply_typecheck_hover_facts(text, &file.typed_hir, &mut symbols);
     symbols
 }
 
 pub(in crate::analysis::hover) fn apply_typecheck_hover_facts(
     text: &str,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     symbols: &mut [HoverSymbol],
 ) {
     for symbol in symbols {

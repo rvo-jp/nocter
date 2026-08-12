@@ -28,7 +28,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::TypedHir;
 
 #[cfg(test)]
 pub(super) fn lower_entry_function(
@@ -38,7 +38,7 @@ pub(super) fn lower_entry_function(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -50,7 +50,7 @@ pub(super) fn lower_entry_function(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
     )
@@ -64,7 +64,7 @@ pub(super) fn lower_entry_function_with_target(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -96,7 +96,7 @@ pub(super) fn lower_entry_function_with_target(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
     )
@@ -110,7 +110,7 @@ pub(super) fn lower_test_entry_function(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -126,7 +126,7 @@ pub(super) fn lower_test_entry_function(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
     )
@@ -143,7 +143,7 @@ fn lower_entry_parts(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -162,7 +162,7 @@ fn lower_entry_parts(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
     )?;
@@ -215,7 +215,7 @@ fn lower_entry_body(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -239,7 +239,7 @@ fn lower_entry_body(
             .with_call_resolution(
                 root_source,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 function_names,
                 resolved_sources,
             )

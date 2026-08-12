@@ -6,7 +6,6 @@ use crate::analysis::occurrences::{
     SemanticIdentity, SemanticOccurrenceIndex, SemanticOccurrenceRole,
 };
 use crate::source::ByteSpan;
-use crate::typecheck::collect_typecheck_facts;
 
 pub(crate) fn reference_spans_for_file_analysis(
     analysis: &CompileUnitAnalysis,
@@ -47,7 +46,13 @@ fn reference_spans_for_complete_text(
 ) -> Option<Vec<ByteSpan>> {
     let parsed = parse_single_file_text("references.nct", text)?;
     let resolved = resolve_single_file_ast("references.nct", text, parsed.source, &parsed.ast);
-    let facts = collect_typecheck_facts(&parsed.ast, &resolved);
+    let facts = super::single_file::typed_hir_for_single_file_ast(
+        "references.nct",
+        text,
+        parsed.source,
+        &parsed.ast,
+        &resolved,
+    );
     let occurrences = SemanticOccurrenceIndex::new(&parsed.ast, &resolved, &facts);
     let target = occurrences.at_offset(offset)?.identity?;
     let spans = reference_spans_for_semantic_identity(

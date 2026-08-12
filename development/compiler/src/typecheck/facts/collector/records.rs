@@ -1,6 +1,6 @@
 use super::*;
 
-impl TypecheckFactCollector<'_> {
+impl TypedHirBuilder<'_> {
     pub(in crate::typecheck::facts::collector) fn record_index_plan(
         &mut self,
         expression: &crate::ast::IndexExpr,
@@ -413,12 +413,12 @@ impl TypecheckFactCollector<'_> {
         ty: &Type,
     ) {
         let mut free_type_parameters = HashSet::new();
-        if let Some(ty) =
-            type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters)
-        {
-            self.record_payload_enum_drop_type_specializations(&ty);
-            self.facts.expression_type_exprs.insert(expression_span, ty);
+        let ty =
+            type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters);
+        if let Some(ty) = &ty {
+            self.record_payload_enum_drop_type_specializations(ty);
         }
+        self.facts.record_expression_type(expression_span, ty);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_drop_type_specialization(

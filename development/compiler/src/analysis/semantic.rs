@@ -7,7 +7,6 @@ use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use crate::ast::MethodOwnerDecl;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, TypeSymbol};
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::collect_typecheck_facts;
 use std::collections::HashSet;
 
 pub(crate) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
@@ -74,7 +73,13 @@ pub(crate) fn classified_identifiers_for_single_file_text(
 fn classify_single_file_text(text: &str) -> Option<Vec<ClassifiedIdentifier>> {
     let parsed = parse_single_file_text("semantic.nct", text)?;
     let resolved = resolve_single_file_ast("semantic.nct", text, parsed.source, &parsed.ast);
-    let facts = collect_typecheck_facts(&parsed.ast, &resolved);
+    let facts = super::single_file::typed_hir_for_single_file_ast(
+        "semantic.nct",
+        text,
+        parsed.source,
+        &parsed.ast,
+        &resolved,
+    );
     let occurrences = SemanticOccurrenceIndex::new(&parsed.ast, &resolved, &facts);
 
     Some(classified_identifiers_for_analysis(
@@ -999,7 +1004,7 @@ construct Text {
     }
 
     #[test]
-    fn analysis_classification_uses_typecheck_facts() {
+    fn analysis_classification_uses_typed_hir() {
         let text = "func main(path: &str): i32 {\n    let alpha = 1\n    var beta = 2\n    return alpha + beta\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
@@ -1021,7 +1026,7 @@ construct Text {
     }
 
     #[test]
-    fn analysis_classification_uses_typecheck_facts_for_member_references() {
+    fn analysis_classification_uses_typed_hir_for_member_references() {
         let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nenum Event {\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let file = File.open()\n    let event = Event.count(1)\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");

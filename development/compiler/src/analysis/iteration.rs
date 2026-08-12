@@ -12,7 +12,7 @@ pub(crate) fn iteration_markdown_at_offset(
     offset: usize,
 ) -> Option<String> {
     if let Some(plan) = file
-        .typecheck_facts
+        .typed_hir
         .sequence_spread_plans()
         .map(|(_, plan)| plan)
         .filter(|plan| {
@@ -23,7 +23,7 @@ pub(crate) fn iteration_markdown_at_offset(
         return Some(sequence_spread_markdown(plan, &file.resolved));
     }
     let plan = file
-        .typecheck_facts
+        .typed_hir
         .collection_for_plans()
         .map(|(_, plan)| plan)
         .filter(|plan| {
@@ -55,7 +55,7 @@ pub(crate) fn sequence_spread_operator_hover(
     offset: usize,
 ) -> Option<(ByteSpan, String)> {
     let plan = file
-        .typecheck_facts
+        .typed_hir
         .sequence_spread_plans()
         .map(|(_, plan)| plan)
         .filter_map(|plan| {

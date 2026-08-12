@@ -1,10 +1,10 @@
 use super::*;
 use crate::typecheck::copyability::non_copy_owned_type_kind;
 
-pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -> TypecheckFacts {
-    let mut collector = TypecheckFactCollector {
+pub(in crate::typecheck) fn build_typed_hir(ast: &AstFile, resolved: &ResolveOutput) -> TypedHir {
+    let mut collector = TypedHirBuilder {
         resolved,
-        facts: TypecheckFacts::default(),
+        facts: TypedHir::new(resolved.semantic_db.clone()),
         generic_parameters: Vec::new(),
         associated_types: Vec::new(),
     };
@@ -19,9 +19,9 @@ pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -
     collector.facts
 }
 
-struct TypecheckFactCollector<'a> {
+struct TypedHirBuilder<'a> {
     resolved: &'a ResolveOutput,
-    facts: TypecheckFacts,
+    facts: TypedHir,
     generic_parameters: Vec<(String, ByteSpan)>,
     associated_types: Vec<(String, ByteSpan)>,
 }
@@ -33,7 +33,7 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
-impl TypecheckFactCollector<'_> {
+impl TypedHirBuilder<'_> {
     fn with_generic_scope(&mut self, generics: &GenericParamList, collect: impl FnOnce(&mut Self)) {
         let previous_len = self.generic_parameters.len();
         for parameter in &generics.parameters {

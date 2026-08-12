@@ -54,17 +54,19 @@ mod utility;
 mod tests;
 
 pub(crate) use callables::{CallableCallFact, CallableCallSpecialization};
-pub(crate) use collector::collect_typecheck_facts;
+pub(super) use collector::build_typed_hir;
+#[cfg(test)]
+use collector::build_typed_hir as lower_typed_hir;
 pub(crate) use conversions::typecheck_conversion_plan;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
     MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
     TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
-    TypecheckComparisonPlan, TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts,
+    TypecheckComparisonPlan, TypecheckConversionKind, TypecheckConversionPlan,
     TypecheckIndexAccess, TypecheckIndexPlan, TypecheckIndexProjection, TypecheckInterpolationPart,
     TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
     TypecheckProtocolMethod, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
-    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
+    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, TypedHir,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 

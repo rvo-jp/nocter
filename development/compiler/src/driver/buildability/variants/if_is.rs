@@ -34,7 +34,7 @@ pub(in crate::driver::buildability) fn if_is_statement_is_buildable(
     statement: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     payloadless_if_is_statement_is_buildable(statement, resolved)
@@ -42,7 +42,7 @@ pub(in crate::driver::buildability) fn if_is_statement_is_buildable(
             statement,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
 }
@@ -51,7 +51,7 @@ pub(in crate::driver::buildability) fn tag_only_payload_enum_if_is_statement_is_
     statement: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(symbol) = resolved.type_symbol_by_name(&statement.enum_name) else {
@@ -79,7 +79,7 @@ pub(in crate::driver::buildability) fn tag_only_payload_enum_if_is_statement_is_
         variant.payload.len(),
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return false;
@@ -88,7 +88,7 @@ pub(in crate::driver::buildability) fn tag_only_payload_enum_if_is_statement_is_
         &statement.expression,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -98,7 +98,7 @@ pub(in crate::driver::buildability) fn tag_only_if_is_payload_pattern_statement_
     payload_len: usize,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match (statement.payload.as_ref(), payload_len) {
@@ -107,7 +107,7 @@ pub(in crate::driver::buildability) fn tag_only_if_is_payload_pattern_statement_
             binding,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => false,
@@ -118,14 +118,14 @@ pub(in crate::driver::buildability) fn payload_binding_is_buildable(
     binding: &crate::ast::SwitchPayloadBinding,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some(ty) = typecheck_facts.binding_type_expr(binding.span) else {
+    let Some(ty) = typed_hir.binding_type_expr(binding.span) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    match typecheck_facts.payload_binding_mode(binding.span) {
+    match typed_hir.payload_binding_mode(binding.span) {
         Some(TypecheckPayloadBindingMode::Move) => {
             payload_move_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
         }

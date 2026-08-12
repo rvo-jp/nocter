@@ -13,7 +13,7 @@ impl<'a> LoweringContext<'a> {
         let key = crate::analysis::literal_specializations::literal_specialization_key(
             shape,
             elements,
-            resolution.typecheck_facts,
+            resolution.typed_hir,
             &self.generic_substitutions,
         )?;
         let name = crate::analysis::literal_specializations::literal_target_name(
@@ -57,7 +57,7 @@ impl<'a> LoweringContext<'a> {
         if let Some(signature) = self
             .call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .callable_call(call.span)
         {
             return Some(substitute_type_expr_parameters(
@@ -73,10 +73,7 @@ impl<'a> LoweringContext<'a> {
         let signature = resolution.resolved.call_signature_for_call(call)?;
         let mut return_type = signature.return_type.clone();
         let mut call_substitutions = HashMap::new();
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .function_call_specialization(call.span)
-        {
+        if let Some(specialization) = resolution.typed_hir.function_call_specialization(call.span) {
             let specialization =
                 specialization.with_context_substitutions(&self.generic_substitutions)?;
             call_substitutions = specialization.substitutions.clone();
@@ -116,7 +113,7 @@ impl<'a> LoweringContext<'a> {
         if let Some(signature) = self
             .call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .callable_call(call.span)
         {
             return Some(substitute_type_expr_parameters(
@@ -134,7 +131,7 @@ impl<'a> LoweringContext<'a> {
         let mut ty = parameter.ty.clone();
         let mut call_substitutions = HashMap::new();
         if let Some(specialization) = resolution
-            .typecheck_facts
+            .typed_hir
             .function_call_specialization(call.span)
             .and_then(|specialization| {
                 specialization.with_context_substitutions(&self.generic_substitutions)
@@ -167,7 +164,7 @@ impl<'a> LoweringContext<'a> {
             .resolved
             .local_symbol_for_identifier(identifier)?;
         let ty = resolution
-            .typecheck_facts
+            .typed_hir
             .binding_type_expr(symbol.name_span)?
             .clone();
         Some(substitute_type_expr_parameters(
@@ -178,10 +175,7 @@ impl<'a> LoweringContext<'a> {
 
     pub(in crate::ir::lower) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<TypeExpr> {
         let resolution = self.call_resolution.as_ref()?;
-        let ty = resolution
-            .typecheck_facts
-            .binding_type_expr(name_span)?
-            .clone();
+        let ty = resolution.typed_hir.binding_type_expr(name_span)?.clone();
         Some(substitute_type_expr_parameters(
             &ty,
             &self.generic_substitutions,
@@ -194,7 +188,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<TypecheckPayloadBindingMode> {
         self.call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .payload_binding_mode(name_span)
     }
 
@@ -204,7 +198,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<TypeExpr> {
         let resolution = self.call_resolution.as_ref()?;
         let ty = resolution
-            .typecheck_facts
+            .typed_hir
             .expression_type_expr(expression_span)?
             .clone();
         Some(substitute_type_expr_parameters(
@@ -219,7 +213,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckInterpolationPlan> {
         self.call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .interpolation_plan(expression_span)
             .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
     }
@@ -230,7 +224,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckCollectionForPlan> {
         let resolution = self.call_resolution.as_ref()?;
         let plan = resolution
-            .typecheck_facts
+            .typed_hir
             .collection_for_plan(statement_span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         crate::typecheck::specialize_collection_plan(plan, resolution.resolved)
@@ -242,7 +236,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckSequenceSpreadPlan> {
         let resolution = self.call_resolution.as_ref()?;
         let plan = resolution
-            .typecheck_facts
+            .typed_hir
             .sequence_spread_plan(spread_span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         crate::typecheck::specialize_sequence_spread_plan(plan, resolution.resolved)
@@ -299,7 +293,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<TypeExpr> {
         let resolution = self.call_resolution.as_ref()?;
         let specialization = resolution
-            .typecheck_facts
+            .typed_hir
             .function_call_specialization(call.span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         specialization.substitutions.get(parameter).cloned()
@@ -457,7 +451,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<(CallTarget, String)> {
         let resolution = self.call_resolution.as_ref()?;
         let specialization = resolution
-            .typecheck_facts
+            .typed_hir
             .function_call_specialization(call.span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         let target = call_target_for_source(
@@ -515,7 +509,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<TypecheckScalarViewKind> {
         self.call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .binding_scalar_view_kind(name_span)
     }
 
@@ -524,11 +518,7 @@ impl<'a> LoweringContext<'a> {
         call: &'b CallExpr,
     ) -> Option<&'b Expr> {
         let resolution = self.call_resolution.as_ref()?;
-        if resolution
-            .typecheck_facts
-            .callable_call(call.span)
-            .is_some()
-        {
+        if resolution.typed_hir.callable_call(call.span).is_some() {
             return Some(&call.callee);
         }
         let Expr::Member(member) = call.callee.as_ref() else {
@@ -538,7 +528,7 @@ impl<'a> LoweringContext<'a> {
             return Some(&member.object);
         }
         resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_target(member.member_span)?;
         Some(&member.object)
     }
@@ -554,7 +544,7 @@ impl<'a> LoweringContext<'a> {
         }
         self.call_resolution
             .as_ref()?
-            .typecheck_facts
+            .typed_hir
             .method_call_receiver_kind(member_span)
     }
 
@@ -587,7 +577,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckCoercionPlan> {
         let resolution = self.call_resolution.as_ref()?;
         if let Some(plan) = resolution
-            .typecheck_facts
+            .typed_hir
             .coercion_plan(expression_span)
             .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
         {
@@ -605,7 +595,7 @@ impl<'a> LoweringContext<'a> {
             resolvers.push(resolution.resolved);
             return crate::typecheck::specialize_coercion_plan_across_resolvers(plan, resolvers);
         }
-        resolution.typecheck_facts.index_plans().find_map(|plan| {
+        resolution.typed_hir.index_plans().find_map(|plan| {
             let plan = self.index_plan(plan.expression_span)?;
             if plan.object_span != expression_span {
                 return None;
@@ -625,7 +615,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckIndexPlan> {
         let resolution = self.call_resolution.as_ref()?;
         let plan = resolution
-            .typecheck_facts
+            .typed_hir
             .index_plan(expression_span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         if plan.projection != crate::typecheck::TypecheckIndexProjection::Requirement {
@@ -651,14 +641,14 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckConversionPlan> {
         let resolution = self.call_resolution.as_ref()?;
         if let Some(plan) = resolution
-            .typecheck_facts
+            .typed_hir
             .conversion_plan(expression_span)
             .and_then(|plan| plan.with_context_substitutions(&self.generic_substitutions))
         {
             return Some(plan);
         }
         resolution
-            .typecheck_facts
+            .typed_hir
             .comparison_plans()
             .find_map(|plan| {
                 let plan = plan.with_context_substitutions(&self.generic_substitutions)?;
@@ -671,7 +661,7 @@ impl<'a> LoweringContext<'a> {
                 }
             })
             .or_else(|| {
-                resolution.typecheck_facts.index_plans().find_map(|plan| {
+                resolution.typed_hir.index_plans().find_map(|plan| {
                     let plan = self.index_plan(plan.expression_span)?;
                     if plan.object_span == expression_span {
                         plan.conversion
@@ -688,7 +678,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<crate::typecheck::TypecheckComparisonPlan> {
         let resolution = self.call_resolution.as_ref()?;
         let plan = resolution
-            .typecheck_facts
+            .typed_hir
             .comparison_plan(operator_span)?
             .with_context_substitutions(&self.generic_substitutions)?;
         if plan.method.is_some() {
@@ -744,10 +734,10 @@ impl<'a> LoweringContext<'a> {
             return None;
         };
         let method_name_span = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_target(member.member_span)?;
         if let Some(specialization) = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_specialization(member.member_span)
             .and_then(|specialization| {
                 specialization.with_context_substitutions(&self.generic_substitutions)
@@ -767,7 +757,7 @@ impl<'a> LoweringContext<'a> {
             return Some((target, specialization.target_name.clone()));
         }
         if resolution
-            .typecheck_facts
+            .typed_hir
             .generic_method_call_target(member.member_span)
             .is_some()
         {
@@ -788,7 +778,7 @@ impl<'a> LoweringContext<'a> {
     fn callable_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
         let resolution = self.call_resolution.as_ref()?;
         let specialization = resolution
-            .typecheck_facts
+            .typed_hir
             .callable_call(call.span)?
             .specialization
             .with_context_substitutions(&self.generic_substitutions)?;
@@ -812,14 +802,14 @@ impl<'a> LoweringContext<'a> {
             return None;
         };
         let method_name_span = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_target(member.member_span)?;
         let method = resolution
             .resolved
             .method_signature_by_name_span(method_name_span)?;
         let mut return_type = method.signature.return_type.clone();
         if let Some(specialization) = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_specialization(member.member_span)
             .and_then(|specialization| {
                 specialization.with_context_substitutions(&self.generic_substitutions)
@@ -839,7 +829,7 @@ impl<'a> LoweringContext<'a> {
             ));
         }
         if resolution
-            .typecheck_facts
+            .typed_hir
             .generic_method_call_target(member.member_span)
             .is_some()
         {
@@ -864,7 +854,7 @@ impl<'a> LoweringContext<'a> {
             return None;
         };
         let method_name_span = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_target(member.member_span)?;
         let method = resolution
             .resolved
@@ -872,7 +862,7 @@ impl<'a> LoweringContext<'a> {
         let parameter = method.signature.parameters.get(index)?;
         let mut ty = parameter.ty.clone();
         if let Some(specialization) = resolution
-            .typecheck_facts
+            .typed_hir
             .method_call_specialization(member.member_span)
             .and_then(|specialization| {
                 specialization.with_context_substitutions(&self.generic_substitutions)
@@ -889,7 +879,7 @@ impl<'a> LoweringContext<'a> {
             return Some(substitute_type_expr_parameters(&ty, &substitutions));
         }
         if resolution
-            .typecheck_facts
+            .typed_hir
             .generic_method_call_target(member.member_span)
             .is_some()
         {

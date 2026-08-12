@@ -9,7 +9,6 @@ use crate::resolve::ResolveOutput;
 #[cfg(test)]
 use crate::source::ByteSpan;
 use crate::source::{SourceId, SourceMap};
-use crate::typecheck::collect_typecheck_facts;
 
 #[cfg(test)]
 pub(crate) fn definition_span_for_file_analysis(
@@ -32,7 +31,7 @@ pub(crate) fn definition_target_for_file_analysis(
         .and_then(|target| target.source_target(analysis))
         .or_else(|| {
             crate::analysis::conversions::conversion_definition_target_at_offset(
-                &file.typecheck_facts,
+                &file.typed_hir,
                 offset,
             )
         })
@@ -56,7 +55,13 @@ pub(crate) fn definition_target_for_ast(
     resolved: &ResolveOutput,
     offset: usize,
 ) -> Option<SourceTarget> {
-    let facts = collect_typecheck_facts(ast, resolved);
+    let facts = super::single_file::typed_hir_for_single_file_ast(
+        "definition.nct",
+        text,
+        ast.span.source,
+        ast,
+        resolved,
+    );
     if let Some(target) =
         crate::analysis::conversions::conversion_definition_target_at_offset(&facts, offset)
     {

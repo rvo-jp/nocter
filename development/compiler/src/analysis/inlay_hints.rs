@@ -27,7 +27,7 @@ pub(crate) fn inlay_hints_for_file_analysis(
     };
     let text = source.text();
     let mut hints = file
-        .typecheck_facts
+        .typed_hir
         .binding_type_label_entries()
         .filter(|(span, _)| span.source == file.ast.span.source)
         .filter(|(span, _)| requested.contains(&span.end))

@@ -5,6 +5,10 @@ use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{ResolveOutput, resolve};
 use crate::source::{SourceId, SourceMap};
+use crate::typecheck::{
+    TypecheckCompileUnitContext, TypecheckSource, TypedHir,
+    analyze_module_with_compile_unit_context,
+};
 use std::collections::HashMap;
 
 pub(crate) struct ParsedSingleFile {
@@ -34,6 +38,25 @@ pub(crate) fn resolve_single_file_ast(
     let resolved_source = sources.add_source(display_path, None, text.to_string());
     debug_assert_eq!(resolved_source.raw(), source.raw());
     resolve(&sources, ast)
+}
+
+/// Runs the normal checker boundary for an editor-only single-file fallback.
+///
+/// Recovery callers must not invoke the typed-HIR builder directly: doing so
+/// would turn editor recovery into a second successful-language authority.
+pub(crate) fn typed_hir_for_single_file_ast(
+    display_path: &str,
+    text: &str,
+    source: SourceId,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+) -> TypedHir {
+    let mut sources = SourceMap::new();
+    let checked_source = sources.add_source(display_path, None, text.to_string());
+    debug_assert_eq!(checked_source.raw(), source.raw());
+    let summary_sources = [TypecheckSource::new(ast, resolved)];
+    let context = TypecheckCompileUnitContext::new(&summary_sources);
+    analyze_module_with_compile_unit_context(&sources, ast, resolved, &context).typed_hir
 }
 
 pub(crate) fn analyze_single_file_text(

@@ -117,7 +117,7 @@ fn lower_named_function_with_signatures(
         index.names(),
         root.ast.span.source,
         &root.resolved,
-        &root.typecheck_facts,
+        &root.typed_hir,
         index.resolved_sources(),
         index.error_payloads(root.ast.span.source),
     )

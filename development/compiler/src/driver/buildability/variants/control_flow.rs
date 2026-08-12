@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::driver::buildability) fn if_is_statement_exits_function_for_buildability(
     statement: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(else_block) = &statement.else_block else {
@@ -12,12 +12,12 @@ pub(in crate::driver::buildability) fn if_is_statement_exits_function_for_builda
     block_exits_function_for_buildability(
         &statement.then_block,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) && block_exits_function_for_buildability(
         else_block,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -25,7 +25,7 @@ pub(in crate::driver::buildability) fn if_is_statement_exits_function_for_builda
 pub(in crate::driver::buildability) fn switch_statement_exits_function_for_buildability(
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.wildcard_arm.is_none()
@@ -36,17 +36,12 @@ pub(in crate::driver::buildability) fn switch_statement_exits_function_for_build
     }
 
     statement.arms.iter().all(|arm| {
-        block_exits_function_for_buildability(
-            &arm.body,
-            resolved,
-            typecheck_facts,
-            generic_substitutions,
-        )
+        block_exits_function_for_buildability(&arm.body, resolved, typed_hir, generic_substitutions)
     }) && statement.wildcard_arm.as_ref().is_none_or(|wildcard_arm| {
         block_exits_function_for_buildability(
             &wildcard_arm.body,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
     })

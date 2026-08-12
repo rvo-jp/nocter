@@ -4,7 +4,7 @@ pub(in crate::driver::buildability) fn expression_statement_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
@@ -13,7 +13,7 @@ pub(in crate::driver::buildability) fn expression_statement_is_supported(
                 call,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 Some(
@@ -31,21 +31,21 @@ pub(in crate::driver::buildability) fn expression_statement_is_supported(
             &expression.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Force(expression) => fallible_void_statement_inner_is_supported(
             &expression.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Catch(expression) => fallible_void_statement_inner_is_supported(
             &expression.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::StructLiteral(literal) => aggregate_literal_statement_is_supported(literal, resolved),
@@ -57,7 +57,7 @@ pub(in crate::driver::buildability) fn catch_fallback_runtime_shape_is_buildable
     block: &Block,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     (block.statements.is_empty() && block.result.is_none())
@@ -65,7 +65,7 @@ pub(in crate::driver::buildability) fn catch_fallback_runtime_shape_is_buildable
             block,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
 }
@@ -74,7 +74,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_i
     block: &Block,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if block.result.is_some() {
@@ -83,7 +83,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_i
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         });
@@ -98,7 +98,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_i
             statement,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
     }) && match terminal {
@@ -106,7 +106,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_i
         Stmt::Expression(statement) => expression_is_never_runtime_shape_is_buildable(
             &statement.expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::Import(_)
@@ -132,7 +132,7 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_runtime_shape_
     block: &Block,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if block.result.is_some() {
@@ -141,7 +141,7 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_runtime_shape_
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
         });
@@ -156,7 +156,7 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_runtime_shape_
             statement,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
     }) && match terminal {
@@ -164,7 +164,7 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_runtime_shape_
         Stmt::Expression(statement) => expression_is_never_runtime_shape_is_buildable(
             &statement.expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::Import(_)
@@ -188,7 +188,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_leading_stateme
     statement: &Stmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match statement {
@@ -201,7 +201,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_leading_stateme
             &statement.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::If(_)
@@ -223,14 +223,14 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_leading_statem
     statement: &Stmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -239,7 +239,7 @@ pub(in crate::driver::buildability) fn fallible_void_statement_inner_is_supporte
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
@@ -248,7 +248,7 @@ pub(in crate::driver::buildability) fn fallible_void_statement_inner_is_supporte
                 call,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 Some(ReturnShape::FallibleDiscardable) | None => true,

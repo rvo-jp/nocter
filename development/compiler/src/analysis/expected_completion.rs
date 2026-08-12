@@ -15,7 +15,7 @@ pub(super) fn compatible_local_spans_at_offset(
     offset: usize,
 ) -> HashSet<ByteSpan> {
     let spread_expected = file
-        .typecheck_facts
+        .typed_hir
         .sequence_spread_plans()
         .map(|(_, plan)| plan)
         .filter(|plan| plan.spread_span.start <= offset && offset <= plan.spread_span.end)
@@ -35,7 +35,7 @@ pub(super) fn compatible_local_spans_at_offset(
     visible_local_bindings_at_offset(&file.ast, offset)
         .into_iter()
         .filter_map(|binding| {
-            let actual = file.typecheck_facts.binding_type_expr(binding.name_span)?;
+            let actual = file.typed_hir.binding_type_expr(binding.name_span)?;
             (type_expr_is_assignable(&expected, actual, &file.resolved)
                 || completion_type_key(&expected) == completion_type_key(actual))
             .then_some(binding.name_span)

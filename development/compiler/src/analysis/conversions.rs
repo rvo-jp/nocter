@@ -3,7 +3,7 @@
 use super::FileAnalysis;
 use crate::analysis::editor_targets::SourceTarget;
 use crate::source::ByteSpan;
-use crate::typecheck::{TypecheckConversionKind, TypecheckConversionPlan, TypecheckFacts};
+use crate::typecheck::{TypecheckConversionKind, TypecheckConversionPlan, TypedHir};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ConversionEditorInfo {
@@ -16,7 +16,7 @@ pub(crate) fn conversion_editor_info_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<ConversionEditorInfo> {
-    let plan = conversion_plan_at_offset(&file.typecheck_facts, offset)?;
+    let plan = conversion_plan_at_offset(&file.typed_hir, offset)?;
     let source = crate::typecheck::type_expr_presentation_label(&plan.source_ty, &file.resolved);
     let target = crate::typecheck::type_expr_presentation_label(&plan.target_ty, &file.resolved);
     let focus_span = plan.operator_span?;
@@ -58,7 +58,7 @@ pub(crate) fn conversion_editor_info_at_offset(
 }
 
 pub(crate) fn conversion_definition_target_at_offset(
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     offset: usize,
 ) -> Option<SourceTarget> {
     let plan = conversion_plan_at_offset(facts, offset)?;
@@ -68,10 +68,7 @@ pub(crate) fn conversion_definition_target_at_offset(
     Some(SourceTarget::new(plan.operator_span?, coercion.focus_span))
 }
 
-fn conversion_plan_at_offset(
-    facts: &TypecheckFacts,
-    offset: usize,
-) -> Option<&TypecheckConversionPlan> {
+fn conversion_plan_at_offset(facts: &TypedHir, offset: usize) -> Option<&TypecheckConversionPlan> {
     facts
         .conversion_plans()
         .filter_map(|(_, plan)| plan.operator_span.map(|span| (span, plan)))

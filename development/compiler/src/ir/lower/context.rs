@@ -16,7 +16,7 @@ use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{
-    TypecheckFacts, TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
+    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind, TypedHir,
 };
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -329,7 +329,7 @@ fn std_os_imported_primitive_name(name: &str) -> bool {
 struct CallResolution<'a> {
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
 }
 

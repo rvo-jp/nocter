@@ -49,24 +49,24 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let literals = collect_literal_specializations(analysis);
 
     for file in &analysis.files {
-        for specialization in file.typecheck_facts.function_call_specializations() {
+        for specialization in file.typed_hir.function_call_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
             {
                 queue.push_back(PendingCallSpecialization::Function(specialization));
             }
         }
-        for specialization in file.typecheck_facts.method_call_specializations() {
+        for specialization in file.typed_hir.method_call_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
             {
                 queue.push_back(PendingCallSpecialization::Method(specialization));
             }
         }
-        for (_, plan) in file.typecheck_facts.coercion_plans() {
+        for (_, plan) in file.typed_hir.coercion_plans() {
             if let Some(plan) = plan.with_context_substitutions(&HashMap::new()) {
                 queue.push_back(PendingCallSpecialization::Coercion(plan));
             }
         }
-        for (_, plan) in file.typecheck_facts.interpolation_plans() {
+        for (_, plan) in file.typed_hir.interpolation_plans() {
             for part in &plan.parts {
                 let Some(specialization) =
                     protocol_method_call_specialization(analysis, &part.formatter)
@@ -80,7 +80,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 }
             }
         }
-        for (_, fact) in file.typecheck_facts.callable_call_entries() {
+        for (_, fact) in file.typed_hir.callable_call_entries() {
             if let Some(specialization) = fact
                 .specialization
                 .with_context_substitutions(&HashMap::new())
@@ -88,7 +88,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Callable(specialization));
             }
         }
-        for (_, plan) in file.typecheck_facts.collection_for_plans() {
+        for (_, plan) in file.typed_hir.collection_for_plans() {
             let Some(plan) = plan
                 .with_context_substitutions(&HashMap::new())
                 .and_then(|plan| {
@@ -109,7 +109,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 }
             }
         }
-        for (_, plan) in file.typecheck_facts.sequence_spread_plans() {
+        for (_, plan) in file.typed_hir.sequence_spread_plans() {
             let Some(plan) = plan
                 .with_context_substitutions(&HashMap::new())
                 .and_then(|plan| {
@@ -130,7 +130,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 }
             }
         }
-        for specialization in file.typecheck_facts.drop_type_specializations() {
+        for specialization in file.typed_hir.drop_type_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
                 && let Some(specialization) =
                     drop_specialization_from_typecheck_fact(analysis, specialization)
@@ -138,7 +138,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Drop(specialization));
             }
         }
-        for (_, ty) in file.typecheck_facts.binding_type_expr_entries() {
+        for (_, ty) in file.typed_hir.binding_type_expr_entries() {
             enqueue_drop_dependencies_for_type(analysis, file, ty, &mut queue);
         }
     }
@@ -472,14 +472,14 @@ fn enqueue_call_specializations_from_span(
     context_substitutions: &HashMap<String, TypeExpr>,
     queue: &mut VecDeque<PendingCallSpecialization>,
 ) {
-    for (binding_span, ty) in file.typecheck_facts.binding_type_expr_entries() {
+    for (binding_span, ty) in file.typed_hir.binding_type_expr_entries() {
         if !span_contains(span, binding_span) {
             continue;
         }
         let ty = substitute_type_expr_parameters(ty, context_substitutions);
         enqueue_drop_dependencies_for_type(analysis, file, &ty, queue);
     }
-    for (call_span, specialization) in file.typecheck_facts.function_call_specialization_entries() {
+    for (call_span, specialization) in file.typed_hir.function_call_specialization_entries() {
         if !span_contains(span, call_span) {
             continue;
         }
@@ -489,7 +489,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Function(specialization));
         }
     }
-    for (call_span, specialization) in file.typecheck_facts.method_call_specialization_entries() {
+    for (call_span, specialization) in file.typed_hir.method_call_specialization_entries() {
         if !span_contains(span, call_span) {
             continue;
         }
@@ -499,7 +499,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Method(specialization));
         }
     }
-    for (expression_span, plan) in file.typecheck_facts.coercion_plans() {
+    for (expression_span, plan) in file.typed_hir.coercion_plans() {
         if !span_contains(span, expression_span) {
             continue;
         }
@@ -512,7 +512,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Coercion(plan));
         }
     }
-    for (call_span, fact) in file.typecheck_facts.callable_call_entries() {
+    for (call_span, fact) in file.typed_hir.callable_call_entries() {
         if !span_contains(span, call_span) {
             continue;
         }
@@ -523,7 +523,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Callable(specialization));
         }
     }
-    for specialization in file.typecheck_facts.drop_type_specializations() {
+    for specialization in file.typed_hir.drop_type_specializations() {
         if !span_contains(span, specialization.self_ty.span()) {
             continue;
         }
@@ -535,7 +535,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
-    for plan in file.typecheck_facts.index_plans() {
+    for plan in file.typed_hir.index_plans() {
         if !span_contains(span, plan.expression_span) {
             continue;
         }
@@ -558,7 +558,7 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Method(specialization));
         }
     }
-    for (expression_span, plan) in file.typecheck_facts.interpolation_plans() {
+    for (expression_span, plan) in file.typed_hir.interpolation_plans() {
         if !span_contains(span, expression_span) {
             continue;
         }
@@ -575,7 +575,7 @@ fn enqueue_call_specializations_from_span(
             }
         }
     }
-    for (statement_span, plan) in file.typecheck_facts.collection_for_plans() {
+    for (statement_span, plan) in file.typed_hir.collection_for_plans() {
         if !span_contains(span, *statement_span) {
             continue;
         }
@@ -596,7 +596,7 @@ fn enqueue_call_specializations_from_span(
             }
         }
     }
-    for (spread_span, plan) in file.typecheck_facts.sequence_spread_plans() {
+    for (spread_span, plan) in file.typed_hir.sequence_spread_plans() {
         if !span_contains(span, *spread_span) {
             continue;
         }

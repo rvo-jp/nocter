@@ -5,14 +5,14 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if fixed_array_literal_binding_is_buildable(
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -22,7 +22,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -32,7 +32,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -42,7 +42,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -52,7 +52,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -62,7 +62,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     );
     if fixed_array_binding_type.is_some() {
@@ -70,7 +70,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
             statement,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ) {
             return Some(unsupported_native_build_diagnostic(
@@ -100,14 +100,14 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         statement,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
     }
 
     if let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
     {
         let source_resolver = |source| resolved_sources.get(&source).copied();
         if type_expr_is_top_level_optional_with_resolver(&ty, resolved, &source_resolver)
@@ -134,7 +134,7 @@ pub(in crate::driver::buildability) fn local_binding_type_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if let Some(ty) = &statement.ty {
@@ -143,14 +143,14 @@ pub(in crate::driver::buildability) fn local_binding_type_is_buildable(
             || local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources);
     }
 
-    if typecheck_facts
+    if typed_hir
         .binding_scalar_view_kind(statement.name_span)
         .is_some()
     {
         return true;
     }
 
-    typecheck_facts
+    typed_hir
         .binding_type_expr(statement.name_span)
         .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
         .is_none_or(|ty| {
@@ -187,10 +187,10 @@ pub(in crate::driver::buildability) fn aggregate_assignment_target_type_expr(
     target: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let ty = assignment_target_type_expr(target, resolved, typecheck_facts, generic_substitutions)?;
+    let ty = assignment_target_type_expr(target, resolved, typed_hir, generic_substitutions)?;
     let source_resolver = |source| resolved_sources.get(&source).copied();
     type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
         .then_some(ty)

@@ -87,7 +87,7 @@ use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{TypecheckFacts, TypecheckPayloadBindingMode, TypecheckSliceElementKind};
+use crate::typecheck::{TypecheckPayloadBindingMode, TypecheckSliceElementKind, TypedHir};
 use std::collections::HashMap;
 
 use super::outcome_propagation::propagating_outcome_mode;

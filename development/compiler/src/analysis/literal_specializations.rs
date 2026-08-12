@@ -100,7 +100,7 @@ pub(crate) fn literal_target_name(
 pub(crate) fn literal_specialization_key(
     shape: LiteralShape,
     elements: &[Expr],
-    facts: &crate::typecheck::TypecheckFacts,
+    facts: &crate::typecheck::TypedHir,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<String> {
     if shape == LiteralShape::String {
@@ -148,7 +148,7 @@ fn specialization_for_expression(
     let resolution = file.resolved.literal_resolution(span)?;
     let declaration = declarations.get(&resolution.literal_declaration_span)?;
     let result_type = substitute_type_expr_parameters(
-        file.typecheck_facts.expression_type_expr(span)?,
+        file.typed_hir.expression_type_expr(span)?,
         context_substitutions,
     );
     let generic_parameters = literal_generic_parameters(declaration);
@@ -184,7 +184,7 @@ fn specialization_for_expression(
             for element in &literal.elements {
                 if let Some(spread) = crate::typecheck::sequence_spread(element) {
                     let plan = file
-                        .typecheck_facts
+                        .typed_hir
                         .sequence_spread_plan(spread.span)?
                         .with_context_substitutions(&substitutions)?;
                     let iterator_parameter_index = argument_types.len();
@@ -209,7 +209,7 @@ fn specialization_for_expression(
                 literal_specialization_key(
                     shape,
                     &literal.elements,
-                    &file.typecheck_facts,
+                    &file.typed_hir,
                     &substitutions,
                 )?
             );

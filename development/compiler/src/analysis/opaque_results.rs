@@ -2,13 +2,13 @@ use crate::ast::{AstFile, Block, Expr, Item, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
-use crate::typecheck::{TypecheckFacts, normalize_associated_type_expr};
+use crate::typecheck::{TypedHir, normalize_associated_type_expr};
 
 pub(super) fn elaborate_file(
     sources: &SourceMap,
     ast: &mut AstFile,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
 ) -> (Vec<Diagnostic>, bool) {
     let mut diagnostics = Vec::new();
     let mut changed = false;
@@ -89,7 +89,7 @@ fn elaborate_callable(
     return_type: &mut TypeExpr,
     body: Option<&Block>,
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
+    facts: &TypedHir,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let declared = return_type.clone();

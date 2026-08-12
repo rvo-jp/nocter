@@ -1,6 +1,6 @@
 use super::*;
 
-impl TypecheckFactCollector<'_> {
+impl TypedHirBuilder<'_> {
     pub(in crate::typecheck::facts::collector) fn collect_item_body_facts(&mut self, item: &Item) {
         let generics = match item {
             Item::Function(item) => Some(&item.generics),

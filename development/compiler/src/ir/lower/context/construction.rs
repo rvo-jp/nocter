@@ -129,14 +129,14 @@ impl<'a> LoweringContext<'a> {
         mut self,
         root_source: SourceId,
         resolved: &'a ResolveOutput,
-        typecheck_facts: &'a TypecheckFacts,
+        typed_hir: &'a TypedHir,
         function_names: FunctionNames,
         resolved_sources: ResolvedSources<'a>,
     ) -> Self {
         self.call_resolution = Some(CallResolution {
             root_source,
             resolved,
-            typecheck_facts,
+            typed_hir,
             resolved_sources,
         });
         self.function_names = function_names;

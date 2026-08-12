@@ -367,7 +367,7 @@ func main(): i32 {
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_and_documentation() {
+fn workspace_hover_uses_typed_hir_and_documentation() {
     let text = "func main(): i32 {\n    /// Exit code.\n    var code = 0\n    return code\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -402,7 +402,7 @@ func lookup(): i32?! {
 }
 
 #[test]
-fn workspace_hover_uses_normalized_typecheck_facts_for_function_reference() {
+fn workspace_hover_uses_normalized_typed_hir_for_function_reference() {
     let text = "type Exit = i32\n\nfunc answer(value: Exit): Exit {\n    return value\n}\n\nfunc main(): i32 {\n    return answer(1)\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -415,7 +415,7 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_function_reference() {
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_namespace_imported_function_member_call() {
+fn workspace_hover_uses_typed_hir_for_namespace_imported_function_member_call() {
     let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
     let module_text = "/// Computes an answer.\npub func answer(): i32 {\n    return 7\n}\n";
     let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
@@ -478,7 +478,7 @@ func inspect(storage: Storage): Values {
 }
 
 #[test]
-fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
+fn workspace_hover_uses_normalized_typed_hir_for_method_call() {
     let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\ninstance File {\n    /// Reads a count.\n    method &self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -626,7 +626,7 @@ instance Source {
 }
 
 #[test]
-fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call() {
+fn workspace_hover_uses_normalized_typed_hir_for_associated_function_call() {
     let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -640,7 +640,7 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call(
 }
 
 #[test]
-fn workspace_hover_uses_normalized_typecheck_facts_for_struct_field() {
+fn workspace_hover_uses_normalized_typed_hir_for_struct_field() {
     let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -653,7 +653,7 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_struct_field() {
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_struct_field_reference() {
+fn workspace_hover_uses_typed_hir_for_struct_field_reference() {
     let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -666,7 +666,7 @@ fn workspace_hover_uses_typecheck_facts_for_struct_field_reference() {
 }
 
 #[test]
-fn workspace_hover_uses_normalized_typecheck_facts_for_enum_variant() {
+fn workspace_hover_uses_normalized_typed_hir_for_enum_variant() {
     let text = "type Count = i32\n\nenum Event {\n    count(value: Count)\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -720,7 +720,7 @@ enum Option<T> {
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_enum_variant_reference() {
+fn workspace_hover_uses_typed_hir_for_enum_variant_reference() {
     let text = "type Count = i32\n\nenum Event {\n    ready\n    count(value: Count)\n}\n\nfunc main(): i32 {\n    let event = Event.count(1)\n    return 0\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -733,7 +733,7 @@ fn workspace_hover_uses_typecheck_facts_for_enum_variant_reference() {
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_enum_pattern_variant_reference() {
+fn workspace_hover_uses_typed_hir_for_enum_pattern_variant_reference() {
     let text = r#"enum Choice {
 /// Selected hit.
 hit(value: i32)
@@ -764,7 +764,7 @@ return code
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_payloadless_enum_variant_reference() {
+fn workspace_hover_uses_typed_hir_for_payloadless_enum_variant_reference() {
     let text = "enum Event {\n    /// Ready to run.\n    ready\n}\n\nfunc main(): i32 {\n    let event = Event.ready\n    return 0\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
@@ -778,7 +778,7 @@ fn workspace_hover_uses_typecheck_facts_for_payloadless_enum_variant_reference()
 }
 
 #[test]
-fn workspace_hover_uses_typecheck_facts_for_type_reference() {
+fn workspace_hover_uses_typed_hir_for_type_reference() {
     let text = "/// Request header.\nstruct Header {\n    code: i32\n}\n\nfunc inspect(value: Header): i32 {\n    return value.code\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");

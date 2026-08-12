@@ -1,10 +1,13 @@
 use super::*;
+use crate::semantic::{ExprId, SemanticDb};
+use crate::typecheck::{PartialSemantic, TypedExpression};
+use std::sync::Arc;
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct TypecheckFacts {
+#[derive(Debug, Clone)]
+pub(crate) struct TypedHir {
+    expressions: crate::typecheck::typed_hir::TypedExpressionArena,
     pub(super) binding_type_labels: HashMap<ByteSpan, String>,
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
-    pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) comparison_plans: HashMap<ByteSpan, TypecheckComparisonPlan>,
     pub(super) index_plans: HashMap<ByteSpan, TypecheckIndexPlan>,
@@ -35,7 +38,60 @@ pub(crate) struct TypecheckFacts {
     pub(super) field_drop_type_specializations: HashMap<ByteSpan, DropTypeSpecialization>,
 }
 
-impl TypecheckFacts {
+impl TypedHir {
+    pub(super) fn new(semantic_db: Arc<SemanticDb>) -> Self {
+        Self {
+            expressions: crate::typecheck::typed_hir::TypedExpressionArena::new(semantic_db),
+            binding_type_labels: HashMap::new(),
+            binding_type_exprs: HashMap::new(),
+            interpolation_plans: HashMap::new(),
+            comparison_plans: HashMap::new(),
+            index_plans: HashMap::new(),
+            collection_for_plans: HashMap::new(),
+            sequence_spread_plans: HashMap::new(),
+            closure_plans: HashMap::new(),
+            conversion_plans: HashMap::new(),
+            binding_scalar_view_kinds: HashMap::new(),
+            binding_readonly: HashMap::new(),
+            payload_binding_modes: HashMap::new(),
+            type_occurrences: Vec::new(),
+            generic_parameter_declarations: Vec::new(),
+            field_targets: HashMap::new(),
+            field_type_exprs: HashMap::new(),
+            field_scalar_view_kinds: HashMap::new(),
+            field_readonly: HashMap::new(),
+            function_call_targets: HashMap::new(),
+            associated_function_targets: HashMap::new(),
+            enum_variant_targets: HashMap::new(),
+            method_call_targets: HashMap::new(),
+            method_call_receiver_kinds: HashMap::new(),
+            generic_function_call_spans: HashMap::new(),
+            function_call_specializations: HashMap::new(),
+            generic_method_call_spans: HashMap::new(),
+            method_call_specializations: HashMap::new(),
+            callable_calls: HashMap::new(),
+            drop_type_specializations: Vec::new(),
+            field_drop_type_specializations: HashMap::new(),
+        }
+    }
+
+    pub(super) fn record_expression_type(
+        &mut self,
+        expression_span: ByteSpan,
+        ty: Option<TypeExpr>,
+    ) {
+        self.expressions.record_type(expression_span, ty);
+    }
+
+    pub(crate) fn expression(&self, expression_span: ByteSpan) -> Option<&TypedExpression> {
+        let expression = self.expressions.expression_id_at(expression_span)?;
+        self.expression_by_id(expression)
+    }
+
+    pub(crate) fn expression_by_id(&self, expression: ExprId) -> Option<&TypedExpression> {
+        self.expressions.expression(expression)
+    }
+
     pub(crate) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
         self.binding_type_labels.get(&name_span).map(String::as_str)
     }
@@ -57,7 +113,11 @@ impl TypecheckFacts {
     }
 
     pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
-        self.expression_type_exprs.get(&expression_span)
+        let expression = self.expression(expression_span)?;
+        let PartialSemantic::Known(ty) = expression.ty else {
+            return None;
+        };
+        self.expressions.type_expr(ty)
     }
 
     pub(crate) fn interpolation_plan(

@@ -59,9 +59,9 @@ use crate::semantics::TrustedDeclarationInputs;
 use crate::source::SourceMap;
 use crate::source_scopes::SourceScopeMap;
 use crate::typecheck::{
-    TypecheckCompileUnitContext, TypecheckFacts, TypecheckSource,
-    check_module_with_compile_unit_context, check_with_compile_unit_context,
-    collect_typecheck_facts,
+    TypecheckCompileUnitContext, TypecheckSource, TypedHir,
+    analyze_module_with_compile_unit_context, analyze_with_compile_unit_context,
+    lower_partial_typed_hir_for_opaque,
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -194,7 +194,7 @@ impl CompileUnitAnalysis {
 pub(crate) struct FileAnalysis {
     pub(crate) ast: AstFile,
     pub(crate) resolved: ResolveOutput,
-    pub(crate) typecheck_facts: TypecheckFacts,
+    pub(crate) typed_hir: TypedHir,
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) callable_declarations: presentation::CallableDeclarationIndex,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -266,7 +266,7 @@ fn analyze_compile_unit_with_root_policy(
             let mut diagnostics = Vec::new();
             let mut changed_files = Vec::with_capacity(analyzed_files.len());
             for (file, resolved) in analyzed_files.iter_mut().zip(initial_resolved_files.iter()) {
-                let facts = collect_typecheck_facts(file, resolved);
+                let facts = lower_partial_typed_hir_for_opaque(file, resolved);
                 let (file_diagnostics, file_changed) =
                     opaque_results::elaborate_file(sources, file, resolved, &facts);
                 diagnostics.extend(file_diagnostics);
@@ -348,30 +348,26 @@ fn analyze_compile_unit_with_root_policy(
                         })
                         .cloned(),
                 );
-                if is_root && root_policy == RootPolicy::ExecutableEntry {
-                    diagnostics.extend(check_with_compile_unit_context(
-                        sources,
-                        file,
-                        resolved,
-                        &typecheck_context,
-                    ));
+                let checked = if is_root && root_policy == RootPolicy::ExecutableEntry {
+                    analyze_with_compile_unit_context(sources, file, resolved, &typecheck_context)
                 } else {
-                    diagnostics.extend(check_module_with_compile_unit_context(
+                    analyze_module_with_compile_unit_context(
                         sources,
                         file,
                         resolved,
                         &typecheck_context,
-                    ));
-                }
-                let typecheck_facts = collect_typecheck_facts(file, resolved);
+                    )
+                };
+                diagnostics.extend(checked.diagnostics);
+                let typed_hir = checked.typed_hir;
                 let occurrences =
-                    occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
+                    occurrences::SemanticOccurrenceIndex::new(file, resolved, &typed_hir);
                 let callable_declarations = presentation::CallableDeclarationIndex::new(file);
 
                 FileAnalysis {
                     ast: file.clone(),
                     resolved: resolved.clone(),
-                    typecheck_facts,
+                    typed_hir,
                     occurrences,
                     callable_declarations,
                     diagnostics,
@@ -435,7 +431,27 @@ fn compare_diagnostic_primary_spans(left: &Diagnostic, right: &Diagnostic) -> Or
 
 #[cfg(test)]
 mod tests {
-    use super::test_support::analyze_namespace_import_text;
+    use super::test_support::{analyze_namespace_import_text, analyze_text};
+    use crate::source::ByteSpan;
+    use crate::typecheck::PartialSemantic;
+
+    #[test]
+    fn analysis_retains_partial_typed_hir_when_checking_reports_an_error() {
+        let text = "func main(): i32 { return missing }\n";
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root analysis");
+        let start = text.find("missing").unwrap();
+        let span = ByteSpan::new(file.ast.span.source, start, start + "missing".len());
+
+        assert!(!file.diagnostics.is_empty());
+        assert_eq!(
+            file.typed_hir
+                .expression(span)
+                .expect("typed expression")
+                .ty,
+            PartialSemantic::Error
+        );
+    }
 
     #[test]
     fn return_checks_use_imported_fallible_summary_for_propagation() {

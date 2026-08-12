@@ -26,7 +26,7 @@ pub(in crate::driver::buildability) fn unsupported_borrow_call_argument_diagnost
     call: &CallExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     let source_resolver = |source| resolved_sources.get(&source).copied();
@@ -39,7 +39,7 @@ pub(in crate::driver::buildability) fn unsupported_borrow_call_argument_diagnost
                 call,
                 index,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )?;
             if !type_expr_resolves_to_borrow_with_resolver(
@@ -56,7 +56,7 @@ pub(in crate::driver::buildability) fn unsupported_borrow_call_argument_diagnost
                             &borrow.expression,
                             resolved,
                             resolved_sources,
-                            typecheck_facts,
+                            typed_hir,
                             generic_substitutions,
                         ) =>
                 {
@@ -79,21 +79,21 @@ pub(in crate::driver::buildability) fn unsupported_method_borrow_receiver_diagno
     call: &CallExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
     };
-    typecheck_facts.method_call_target(member.member_span)?;
-    if !method_call_receiver_is_readwrite_borrow(member.member_span, typecheck_facts) {
+    typed_hir.method_call_target(member.member_span)?;
+    if !method_call_receiver_is_readwrite_borrow(member.member_span, typed_hir) {
         return None;
     }
     if readwrite_borrow_argument_source_is_buildable(
         &member.object,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) {
         return None;
@@ -110,15 +110,14 @@ pub(in crate::driver::buildability) fn unsupported_method_borrow_receiver_diagno
 pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_method_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
     };
-    typecheck_facts.generic_method_call_target(member.member_span)?;
-    if concrete_method_call_specialization(member, typecheck_facts, generic_substitutions).is_some()
-    {
+    typed_hir.generic_method_call_target(member.member_span)?;
+    if concrete_method_call_specialization(member, typed_hir, generic_substitutions).is_some() {
         return None;
     }
 
@@ -132,10 +131,10 @@ pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_method_
 
 pub(in crate::driver::buildability) fn concrete_method_call_specialization(
     member: &crate::ast::MemberExpr,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<MethodCallSpecialization> {
-    typecheck_facts
+    typed_hir
         .method_call_specialization(member.member_span)?
         .with_context_substitutions(generic_substitutions)
 }
@@ -143,12 +142,11 @@ pub(in crate::driver::buildability) fn concrete_method_call_specialization(
 pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_function_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    typecheck_facts.generic_function_call_target(call.span)?;
-    if concrete_function_call_specialization(call, typecheck_facts, generic_substitutions).is_some()
-    {
+    typed_hir.generic_function_call_target(call.span)?;
+    if concrete_function_call_specialization(call, typed_hir, generic_substitutions).is_some() {
         return None;
     }
 
@@ -162,10 +160,10 @@ pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_functio
 
 pub(in crate::driver::buildability) fn concrete_function_call_specialization(
     call: &CallExpr,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<FunctionCallSpecialization> {
-    typecheck_facts
+    typed_hir
         .function_call_specialization(call.span)?
         .with_context_substitutions(generic_substitutions)
 }

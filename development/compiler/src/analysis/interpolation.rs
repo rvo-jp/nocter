@@ -25,7 +25,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
         if !span_contains(interpolated.span, offset) {
             return;
         }
-        let Some(plan) = file.typecheck_facts.interpolation_plan(interpolated.span) else {
+        let Some(plan) = file.typed_hir.interpolation_plan(interpolated.span) else {
             return;
         };
         let mut focus = interpolated.span;

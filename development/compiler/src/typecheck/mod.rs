@@ -37,6 +37,7 @@ mod numeric;
 mod opaque_results;
 mod operations;
 mod operators;
+mod output;
 mod ownership;
 mod places;
 mod protocol_methods;
@@ -49,6 +50,7 @@ mod strings;
 mod structs;
 mod test_declarations;
 mod type_expr;
+mod typed_hir;
 mod variants;
 mod visibility;
 
@@ -70,17 +72,18 @@ pub(crate) use compile_unit_context::TypecheckCompileUnitContext;
 
 pub(crate) use coercions::specialize_coercion_plan_across_resolvers;
 pub(crate) use expansion::{specialize_collection_plan, specialize_sequence_spread_plan};
+use facts::build_typed_hir;
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
     TypecheckClosurePlan, TypecheckCoercionPlan, TypecheckCollectionForPlan,
     TypecheckCollectionForSourceMode, TypecheckComparisonPlan, TypecheckConversionKind,
-    TypecheckConversionPlan, TypecheckFacts, TypecheckIndexAccess, TypecheckIndexPlan,
-    TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
-    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
-    TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
-    type_expr_presentation_label, type_symbol_presentation_label,
+    TypecheckConversionPlan, TypecheckIndexAccess, TypecheckIndexPlan, TypecheckIndexProjection,
+    TypecheckInterpolationPart, TypecheckInterpolationPlan, TypecheckMethodReceiverKind,
+    TypecheckPayloadBindingMode, TypecheckProtocolMethod, TypecheckScalarViewKind,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, TypedHir,
+    drop_type_specialization_from_self_ty, type_expr_presentation_label,
+    type_symbol_presentation_label,
 };
 pub(crate) use indexing::specialize_index_plan_across_resolvers;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
@@ -92,6 +95,8 @@ pub(crate) use member_presentation::{
 pub(crate) use operators::{
     comparison_semantics, specialize_comparison_plan, synthetic_comparison_runtime_call,
 };
+pub(crate) use output::TypecheckOutput;
+pub(crate) use typed_hir::{PartialSemantic, TypedExpression};
 
 pub(crate) fn type_expr_is_assignable(
     expected: &crate::ast::TypeExpr,
@@ -113,6 +118,18 @@ pub(crate) fn normalize_associated_type_expr(
     let result =
         facts::type_to_type_expr_allowing_parameters(&normalized, ty.span(), &mut parameters)?;
     (!matches!(result, crate::ast::TypeExpr::Projection(_))).then_some(result)
+}
+
+/// Produces provisional typed semantics for opaque-result elaboration.
+///
+/// Opaque signatures mutate the authored AST before final resolution, so this
+/// is the one pre-check consumer that cannot receive `TypecheckOutput`. The
+/// final checker always replaces this provisional result.
+pub(crate) fn lower_partial_typed_hir_for_opaque(
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+) -> TypedHir {
+    build_typed_hir(ast, resolved)
 }
 
 pub(crate) fn extend_associated_type_substitutions_with_resolver<'a, F>(
@@ -223,14 +240,22 @@ pub(crate) fn check_with_compile_unit_context(
     resolved: &ResolveOutput,
     context: &TypecheckCompileUnitContext,
 ) -> Vec<Diagnostic> {
+    analyze_with_compile_unit_context(sources, ast, resolved, context).diagnostics
+}
+
+pub(crate) fn analyze_with_compile_unit_context(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    context: &TypecheckCompileUnitContext,
+) -> TypecheckOutput {
     let mut diagnostics = Vec::new();
 
     check_default_entry_function(sources, ast, resolved, &mut diagnostics);
-    diagnostics.extend(check_module_with_compile_unit_context(
-        sources, ast, resolved, context,
-    ));
+    let module = analyze_module_with_compile_unit_context(sources, ast, resolved, context);
+    diagnostics.extend(module.diagnostics);
 
-    diagnostics
+    TypecheckOutput::new(diagnostics, module.typed_hir)
 }
 
 pub fn check_module(
@@ -258,6 +283,18 @@ pub(crate) fn check_module_with_compile_unit_context(
     resolved: &ResolveOutput,
     context: &TypecheckCompileUnitContext,
 ) -> Vec<Diagnostic> {
+    analyze_module_with_compile_unit_context(sources, ast, resolved, context).diagnostics
+}
+
+pub(crate) fn analyze_module_with_compile_unit_context(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    context: &TypecheckCompileUnitContext,
+) -> TypecheckOutput {
+    // Build the partial semantic product even when validation reports errors.
+    // All downstream consumers receive this exact instance from the checker.
+    let typed_hir = build_typed_hir(ast, resolved);
     let mut diagnostics = Vec::new();
 
     test_declarations::check_test_declarations(sources, ast, &mut diagnostics);
@@ -293,7 +330,7 @@ pub(crate) fn check_module_with_compile_unit_context(
         &mut diagnostics,
     );
 
-    diagnostics
+    TypecheckOutput::new(diagnostics, typed_hir)
 }
 
 #[cfg(test)]

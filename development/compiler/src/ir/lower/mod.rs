@@ -48,7 +48,7 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::test_entry::TestDeclarationId;
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::TypedHir;
 use context::{
     ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures, ResolvedSources,
 };
@@ -173,7 +173,7 @@ fn lower_process_entry(
             function_names.clone(),
             root.ast.span.source,
             &root.resolved,
-            &root.typecheck_facts,
+            &root.typed_hir,
             resolved_sources.clone(),
             error_payloads.clone(),
         )
@@ -188,7 +188,7 @@ fn lower_process_entry(
                 function_names.clone(),
                 entry_file.ast.span.source,
                 &entry_file.resolved,
-                &entry_file.typecheck_facts,
+                &entry_file.typed_hir,
                 resolved_sources.clone(),
                 error_payloads.clone(),
             )
@@ -308,7 +308,7 @@ struct FunctionIndex<'a> {
 struct IndexedCallable<'a> {
     declaration: IndexedDeclaration<'a>,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
 }
 
 enum IndexedDeclaration<'a> {
@@ -771,7 +771,7 @@ impl<'a> FunctionIndex<'a> {
                 if !matches!(specialization.callable_ty, TypeExpr::Closure(_)) {
                     continue;
                 }
-                let Some(plan) = file.typecheck_facts.closure_plan(closure_span).cloned() else {
+                let Some(plan) = file.typed_hir.closure_plan(closure_span).cloned() else {
                     continue;
                 };
                 let receiver_mode = specialization.receiver_mode();
@@ -901,7 +901,7 @@ impl<'a> IndexedCallable<'a> {
                 name: declaration.name.clone(),
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -919,7 +919,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -938,7 +938,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -958,7 +958,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -979,7 +979,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -998,7 +998,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -1013,7 +1013,7 @@ impl<'a> IndexedCallable<'a> {
                 specialization,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -1032,7 +1032,7 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
-            typecheck_facts: &file.typecheck_facts,
+            typed_hir: &file.typed_hir,
         }
     }
 
@@ -1141,7 +1141,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
-                self.typecheck_facts,
+                self.typed_hir,
                 resolved_sources,
                 error_payloads,
             ),
@@ -1161,7 +1161,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
-                self.typecheck_facts,
+                self.typed_hir,
                 resolved_sources,
                 error_payloads,
             ),
@@ -1182,7 +1182,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
-                self.typecheck_facts,
+                self.typed_hir,
                 resolved_sources,
                 error_payloads,
             ),
@@ -1198,7 +1198,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
-                self.typecheck_facts,
+                self.typed_hir,
                 resolved_sources,
                 error_payloads,
             ),
@@ -1218,7 +1218,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
-                self.typecheck_facts,
+                self.typed_hir,
                 resolved_sources,
                 error_payloads,
             ),

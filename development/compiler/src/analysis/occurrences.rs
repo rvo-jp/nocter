@@ -9,7 +9,7 @@ use crate::ast::{AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, 
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
 use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::TypedHir;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SemanticIdentity {
@@ -70,7 +70,7 @@ pub(crate) struct SemanticOccurrenceIndex {
 }
 
 impl SemanticOccurrenceIndex {
-    pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput, facts: &TypecheckFacts) -> Self {
+    pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput, facts: &TypedHir) -> Self {
         let mut builder = OccurrenceBuilder {
             ast,
             source: ast.span.source,
@@ -104,7 +104,7 @@ struct OccurrenceBuilder<'a> {
     ast: &'a AstFile,
     source: SourceId,
     resolved: &'a ResolveOutput,
-    facts: &'a TypecheckFacts,
+    facts: &'a TypedHir,
     occurrences: Vec<SemanticOccurrence>,
 }
 
@@ -598,7 +598,7 @@ impl OccurrenceBuilder<'_> {
     }
 }
 
-fn local_is_readonly(symbol: &LocalSymbol, span: ByteSpan, facts: &TypecheckFacts) -> bool {
+fn local_is_readonly(symbol: &LocalSymbol, span: ByteSpan, facts: &TypedHir) -> bool {
     match symbol.kind {
         LocalSymbolKind::Parameter
         | LocalSymbolKind::Binding(BindingKind::Let)

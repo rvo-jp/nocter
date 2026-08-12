@@ -9,7 +9,7 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -59,7 +59,7 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     .with_call_resolution(
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         function_names,
         resolved_sources,
     )
@@ -179,7 +179,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -262,7 +262,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     .with_call_resolution(
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         function_names,
         resolved_sources,
     )
@@ -301,7 +301,7 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -345,7 +345,7 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
     .with_call_resolution(
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         function_names,
         resolved_sources,
     )
@@ -381,7 +381,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -396,7 +396,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
         |_| Ok(Vec::new()),
@@ -415,7 +415,7 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
     prologue: impl FnOnce(&mut LoweringContext<'a>) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
@@ -491,7 +491,7 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
     .with_call_resolution(
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         function_names,
         resolved_sources,
     )

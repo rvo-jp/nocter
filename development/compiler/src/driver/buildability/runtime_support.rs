@@ -4,18 +4,18 @@ pub(super) fn slice_index_assignment_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Slice(element) => {
                     if typecheck_slice_element_kind_is_buildable(element) {
                         return Some(true);
                     }
-                    let ty = typecheck_facts.binding_type_expr(symbol.name_span)?;
+                    let ty = typed_hir.binding_type_expr(symbol.name_span)?;
                     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
                     slice_index_target_type_expr_is_buildable_for_sources(
                         &ty,
@@ -34,7 +34,7 @@ pub(super) fn slice_index_assignment_target_is_buildable(
             let return_type = call_return_type_expr_with_substitutions(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )?;
             slice_index_target_type_expr_is_buildable_for_sources(
@@ -43,12 +43,12 @@ pub(super) fn slice_index_assignment_target_is_buildable(
                 resolved_sources,
             )
         }
-        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+        Expr::Member(member) => match typed_hir.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Slice(element) => {
                 if typecheck_slice_element_kind_is_buildable(element) {
                     return Some(true);
                 }
-                let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
+                let ty = field_type_expr_for_member(member, resolved, typed_hir)?;
                 let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
                 slice_index_target_type_expr_is_buildable_for_sources(
                     &ty,
@@ -66,28 +66,28 @@ pub(super) fn slice_index_assignment_target_is_buildable(
             &propagation.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Force(force) => slice_index_assignment_fallible_target_is_buildable(
             &force.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Catch(catch) => slice_index_assignment_fallible_target_is_buildable(
             &catch.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Group(group) => slice_index_assignment_target_is_buildable(
             &group.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => None,
@@ -98,18 +98,14 @@ pub(super) fn slice_index_assignment_fallible_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     let Expr::Call(call) = unwrap_group_expr(expression) else {
         return None;
     };
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
@@ -134,15 +130,11 @@ pub(super) enum ReturnShape {
 pub(super) fn call_return_shape(
     call: &CallExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<ReturnShape> {
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     Some(return_shape_from_type_expr(&return_type, resolved))
 }
 
@@ -150,15 +142,11 @@ pub(super) fn call_return_shape_for_sources(
     call: &CallExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<ReturnShape> {
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     Some(return_shape_from_type_expr_for_sources(
         &return_type,
         resolved,
@@ -279,14 +267,14 @@ pub(super) fn slice_index_expression_is_buildable(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     slice_index_target_is_buildable(
         &expression.object,
         resolved,
         resolved_sources,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -295,20 +283,20 @@ pub(super) fn slice_index_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     match unwrap_group_expr(expression) {
         Expr::StringLiteral(_) => Some(true),
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Str => Some(true),
                 TypecheckScalarViewKind::Slice(element) => {
                     if typecheck_slice_element_kind_is_buildable(element) {
                         return Some(true);
                     }
-                    let ty = typecheck_facts.binding_type_expr(symbol.name_span)?;
+                    let ty = typed_hir.binding_type_expr(symbol.name_span)?;
                     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
                     slice_index_target_type_expr_is_buildable_for_sources(
                         &ty,
@@ -326,7 +314,7 @@ pub(super) fn slice_index_target_is_buildable(
             let return_type = call_return_type_expr_with_substitutions(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )?;
             slice_index_target_type_expr_is_buildable_for_sources(
@@ -335,13 +323,13 @@ pub(super) fn slice_index_target_is_buildable(
                 resolved_sources,
             )
         }
-        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+        Expr::Member(member) => match typed_hir.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Str => Some(true),
             TypecheckScalarViewKind::Slice(element) => {
                 if typecheck_slice_element_kind_is_buildable(element) {
                     return Some(true);
                 }
-                let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
+                let ty = field_type_expr_for_member(member, resolved, typed_hir)?;
                 let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
                 slice_index_target_type_expr_is_buildable_for_sources(
                     &ty,
@@ -358,7 +346,7 @@ pub(super) fn slice_index_target_is_buildable(
             &group.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => None,
@@ -369,11 +357,11 @@ pub(super) fn slice_index_assignment_element_kind(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypecheckSliceElementKind> {
     let source_resolver = |source| resolved_sources.get(&source).copied();
-    if let Some(ty) = typecheck_facts.expression_type_expr(expression.span()) {
+    if let Some(ty) = typed_hir.expression_type_expr(expression.span()) {
         let ty = substitute_type_expr_parameters(ty, generic_substitutions);
         if let Some(kind) =
             slice_index_target_type_expr_element_kind_with_resolver(&ty, resolved, &source_resolver)
@@ -384,7 +372,7 @@ pub(super) fn slice_index_assignment_element_kind(
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Slice(element) => Some(element),
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8
@@ -397,7 +385,7 @@ pub(super) fn slice_index_assignment_element_kind(
             let return_type = call_return_type_expr_with_substitutions(
                 call,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )?;
             slice_index_target_type_expr_element_kind_with_resolver(
@@ -406,7 +394,7 @@ pub(super) fn slice_index_assignment_element_kind(
                 &source_resolver,
             )
         }
-        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+        Expr::Member(member) => match typed_hir.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Slice(element) => Some(element),
             TypecheckScalarViewKind::I32
             | TypecheckScalarViewKind::U8
@@ -418,28 +406,28 @@ pub(super) fn slice_index_assignment_element_kind(
             &propagation.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Force(force) => slice_index_assignment_fallible_element_kind(
             &force.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Catch(catch) => slice_index_assignment_fallible_element_kind(
             &catch.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Group(group) => slice_index_assignment_element_kind(
             &group.expression,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => None,
@@ -450,18 +438,14 @@ pub(super) fn slice_index_assignment_fallible_element_kind(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypecheckSliceElementKind> {
     let Expr::Call(call) = unwrap_group_expr(expression) else {
         return None;
     };
-    let return_type = call_return_type_expr_with_substitutions(
-        call,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
+    let return_type =
+        call_return_type_expr_with_substitutions(call, resolved, typed_hir, generic_substitutions)?;
     let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
@@ -476,12 +460,12 @@ pub(super) fn slice_index_assignment_fallible_element_kind(
 pub(super) fn call_return_type_expr_with_substitutions(
     call: &CallExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
     if let Expr::Member(member) = call.callee.as_ref() {
         if let Some(specialization) =
-            concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
+            concrete_method_call_specialization(member, typed_hir, generic_substitutions)
         {
             let signature =
                 resolved.method_signature_by_name_span(specialization.declaration_span)?;
@@ -497,8 +481,8 @@ pub(super) fn call_return_type_expr_with_substitutions(
             ));
         }
 
-        if let Some(method_name_span) = typecheck_facts.method_call_target(member.member_span) {
-            if typecheck_facts
+        if let Some(method_name_span) = typed_hir.method_call_target(member.member_span) {
+            if typed_hir
                 .generic_method_call_target(member.member_span)
                 .is_some()
             {
@@ -521,7 +505,7 @@ pub(super) fn call_return_type_expr_with_substitutions(
     let mut return_type = signature.return_type.clone();
 
     if let Some(specialization) =
-        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)
+        concrete_function_call_specialization(call, typed_hir, generic_substitutions)
     {
         return_type = substitute_type_expr_parameters(&return_type, &specialization.substitutions);
     }
@@ -734,10 +718,10 @@ pub(super) fn source_is_std_module(
 
 pub(super) fn method_call_receiver_is_readwrite_borrow(
     member_span: ByteSpan,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
 ) -> bool {
     matches!(
-        typecheck_facts.method_call_receiver_kind(member_span),
+        typed_hir.method_call_receiver_kind(member_span),
         Some(TypecheckMethodReceiverKind::ReadwriteBorrow)
     )
 }
@@ -746,7 +730,7 @@ pub(super) fn readwrite_borrow_argument_source_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
@@ -756,7 +740,7 @@ pub(super) fn readwrite_borrow_argument_source_is_buildable(
             &index.object,
             resolved,
             resolved_sources,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
         .is_some_and(typecheck_slice_element_kind_is_buildable),
@@ -775,13 +759,13 @@ pub(super) fn aggregate_member_root_is_identifier(expression: &Expr) -> bool {
 pub(super) fn call_target_for_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
 ) -> Option<CallTarget> {
     if let Some(specialization) =
-        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)
+        concrete_function_call_specialization(call, typed_hir, generic_substitutions)
     {
         return Some(call_target_for_source(
             specialization.declaration_span.source,
@@ -791,12 +775,12 @@ pub(super) fn call_target_for_call(
     }
 
     if let Expr::Member(member) = call.callee.as_ref() {
-        if let Some(method_name_span) = typecheck_facts.method_call_target(member.member_span) {
-            let target_name = if typecheck_facts
+        if let Some(method_name_span) = typed_hir.method_call_target(member.member_span) {
+            let target_name = if typed_hir
                 .generic_method_call_target(member.member_span)
                 .is_some()
             {
-                concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)?
+                concrete_method_call_specialization(member, typed_hir, generic_substitutions)?
                     .target_name
             } else {
                 names.get(&method_name_span).cloned()?

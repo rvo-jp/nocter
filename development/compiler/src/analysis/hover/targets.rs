@@ -56,7 +56,7 @@ pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
                 crate::analysis::presentation::type_owner_presentation_label(owner, &file.resolved);
             if let Some(field) = owner.fields.iter().find(|field| field.name_span == target) {
                 let ty = file
-                    .typecheck_facts
+                    .typed_hir
                     .field_type_expr(occurrence.focus_span)
                     .unwrap_or(&field.ty);
                 return Some(HoverInfo {
@@ -178,7 +178,7 @@ pub(in crate::analysis::hover) fn local_occurrence_hover_for_file_analysis(
         .find(|symbol| symbol.name_span == target)?;
     let label = crate::analysis::presentation::local_presentation(
         symbol,
-        target_file.typecheck_facts.binding_type_expr(target),
+        target_file.typed_hir.binding_type_expr(target),
         &target_file.resolved,
     )
     .render();
@@ -426,7 +426,7 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         .map_or(semantic_definition.span, |_| semantic_definition.anchor);
     if semantic_definition.kind == crate::semantic::DefinitionKind::GenericParameter {
         let span = declaration_span;
-        let parameter = file.typecheck_facts.generic_parameter(span)?;
+        let parameter = file.typed_hir.generic_parameter(span)?;
         return Some(HoverInfo {
             span: occurrence.focus_span,
             label: crate::analysis::presentation::generic_parameter_presentation(

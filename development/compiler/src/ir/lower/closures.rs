@@ -16,7 +16,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::{SourceId, SourceMap};
-use crate::typecheck::{TypecheckClosurePlan, TypecheckFacts};
+use crate::typecheck::{TypecheckClosurePlan, TypedHir};
 use std::collections::HashMap;
 
 pub(super) fn lower_closure_to_slot(
@@ -148,7 +148,7 @@ pub(super) fn lower_closure_function<'a>(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a TypecheckFacts,
+    typed_hir: &'a TypedHir,
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -164,7 +164,7 @@ pub(super) fn lower_closure_function<'a>(
         function_names,
         root_source,
         resolved,
-        typecheck_facts,
+        typed_hir,
         resolved_sources,
         error_payloads,
         |context| closure_capture_prologue(expression, plan, context),

@@ -5,7 +5,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
@@ -21,7 +21,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.allocator,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -35,7 +35,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -52,7 +52,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -69,7 +69,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
@@ -78,21 +78,18 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             );
             let binding_is_scalar_or_view = binding_initializer_may_use_value_control_expression(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             );
-            let binding_type_expr = binding_type_expr_with_substitutions(
-                statement,
-                typecheck_facts,
-                generic_substitutions,
-            );
+            let binding_type_expr =
+                binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions);
             let binding_fixed_array_type = binding_type_expr.as_ref().and_then(|ty| {
                 fixed_array_type_abi_for_sources(ty, resolved, resolved_sources).map(|_| ty)
             });
@@ -104,7 +101,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -124,7 +121,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     statement,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -139,7 +136,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -153,7 +150,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     &statement.initializer,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -167,7 +164,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
         Stmt::Assignment(statement) => {
             enqueue_member_replacement_drop_target(
                 statement,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 queue,
@@ -176,7 +173,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 diagnostics.push(unsupported_native_build_diagnostic(
@@ -191,7 +188,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
@@ -201,14 +198,14 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
             }
             let target_expression = match unwrap_group_expr(&statement.target) {
                 Expr::Member(member)
-                    if field_type_expr_for_member(member, resolved, typecheck_facts)
+                    if field_type_expr_for_member(member, resolved, typed_hir)
                         .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
                         .is_some_and(|ty| {
                             type_expr_has_native_integer_abi_for_sources(
@@ -227,7 +224,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 target_expression,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -240,14 +237,14 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             );
             let assignment_fixed_array_type = fixed_array_assignment_target_type_expr(
                 &statement.target,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             );
             let assignment_targets_fixed_array = assignment_fixed_array_type.is_some();
@@ -255,7 +252,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.target,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             )
             .or(assignment_fixed_array_type);
@@ -263,7 +260,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             );
             if let Expr::Otherwise(otherwise) = unwrap_group_expr(&statement.value)
@@ -276,7 +273,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -291,7 +288,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -308,7 +305,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     unwrap_group_expr(&statement.value),
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -322,7 +319,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     &statement.value,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -338,7 +335,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.condition,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -352,7 +349,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -367,7 +364,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -383,14 +380,14 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 let diagnostic = unsupported_if_is_payload_binding_span(
                     statement,
                     resolved,
                     resolved_sources,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
@@ -408,7 +405,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -422,7 +419,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -437,7 +434,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -453,14 +450,14 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 let diagnostic = unsupported_switch_payload_binding_span(
                     statement,
                     resolved,
                     resolved_sources,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
@@ -478,7 +475,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -493,7 +490,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -509,7 +506,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                     return_type,
                     sources,
                     resolved,
-                    typecheck_facts,
+                    typed_hir,
                     generic_substitutions,
                     root_source,
                     names,
@@ -521,7 +518,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             }
         }
         Stmt::ForRange(statement) => {
-            if !range_for_binding_type_is_buildable(statement, typecheck_facts) {
+            if !range_for_binding_type_is_buildable(statement, typed_hir) {
                 diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.range_span,
@@ -533,7 +530,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.start,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -546,7 +543,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.end,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -560,7 +557,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -575,7 +572,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.source,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -589,7 +586,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -605,7 +602,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -620,7 +617,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.condition,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -634,7 +631,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -650,7 +647,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 return_type,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,
@@ -666,7 +663,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.expression,
                 resolved,
                 resolved_sources,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
@@ -675,7 +672,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
-                typecheck_facts,
+                typed_hir,
                 generic_substitutions,
                 root_source,
                 names,

@@ -4,7 +4,7 @@ pub(in crate::driver::buildability) fn statement_sequence_or_result_exits_functi
     statements: &[Stmt],
     result: Option<&Expr>,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     for statement in statements {
@@ -14,7 +14,7 @@ pub(in crate::driver::buildability) fn statement_sequence_or_result_exits_functi
         if statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ) {
             return true;
@@ -24,7 +24,7 @@ pub(in crate::driver::buildability) fn statement_sequence_or_result_exits_functi
         expression_exits_function_for_buildability(
             expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         )
     })
@@ -33,7 +33,7 @@ pub(in crate::driver::buildability) fn statement_sequence_or_result_exits_functi
 pub(in crate::driver::buildability) fn statement_exits_function_for_buildability(
     statement: &Stmt,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match statement {
@@ -42,25 +42,25 @@ pub(in crate::driver::buildability) fn statement_exits_function_for_buildability
         Stmt::Expression(statement) => expression_exits_function_for_buildability(
             &statement.expression,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::If(statement) => if_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::IfIs(statement) => if_is_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Stmt::Switch(statement) => switch_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => false,
@@ -70,7 +70,7 @@ pub(in crate::driver::buildability) fn statement_exits_function_for_buildability
 pub(in crate::driver::buildability) fn if_statement_exits_function_for_buildability(
     statement: &crate::ast::IfStmt,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(else_block) = &statement.else_block else {
@@ -79,12 +79,12 @@ pub(in crate::driver::buildability) fn if_statement_exits_function_for_buildabil
     block_exits_function_for_buildability(
         &statement.then_block,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     ) && block_exits_function_for_buildability(
         else_block,
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -92,14 +92,14 @@ pub(in crate::driver::buildability) fn if_statement_exits_function_for_buildabil
 pub(in crate::driver::buildability) fn block_exits_function_for_buildability(
     block: &Block,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     statement_sequence_or_result_exits_function_for_buildability(
         &block.statements,
         block.result.as_deref(),
         resolved,
-        typecheck_facts,
+        typed_hir,
         generic_substitutions,
     )
 }
@@ -107,30 +107,30 @@ pub(in crate::driver::buildability) fn block_exits_function_for_buildability(
 pub(in crate::driver::buildability) fn expression_exits_function_for_buildability(
     expression: &Expr,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => matches!(
-            call_return_shape(call, resolved, typecheck_facts, generic_substitutions),
+            call_return_shape(call, resolved, typed_hir, generic_substitutions),
             Some(ReturnShape::Never)
         ),
         Expr::If(statement) => if_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::IfIs(statement) => if_is_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         Expr::Match(statement) => switch_statement_exits_function_for_buildability(
             statement,
             resolved,
-            typecheck_facts,
+            typed_hir,
             generic_substitutions,
         ),
         _ => false,
