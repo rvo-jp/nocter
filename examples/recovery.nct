@@ -1,7 +1,5 @@
 func main(): i32 {
-    let value = load_value() catch failure {
-        fallback_for(failure.message)
-    }
+    let value = load_value() catch failure { fallback_for(failure.message) }
     if value == 42 {
         return 0
     }
