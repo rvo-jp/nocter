@@ -2,9 +2,12 @@
 
 ## Current Task
 
-No implementation phase is active. [v0.13.0 Phase 3](milestones/v0.13.0.md) is complete. Define and
-approve the next phase before implementation. Do not infer Phase 4 scope, change release identity,
-package, tag, or publish. The published v0.12.0 release remains immutable.
+Implement [v0.13.0 Phase 4 source-defined strict ordering](milestones/v0.13.0.md). Generalize the
+fixed comparison foundation so `<` is the sole authored strict-order primitive, derive `>`, `<=`,
+and `>=` from one semantic plan, and add lexical ordering for `str` and slices with `String` and
+`Vec` using existing coercions. Stop at the fully verified Phase 4 boundary. Do not add sorting,
+interface refinement, infer Phase 5 scope, change release identity, package, tag, or publish. The
+published v0.12.0 release remains immutable.
 
 ## Completed v0.13.0 Phase 3 Checkpoint
 
