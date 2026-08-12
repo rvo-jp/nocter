@@ -19,7 +19,7 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
             .as_ref()
             .and_then(|body| module_path_in_block_at_offset(body, offset)),
         Item::Test(test) => module_path_in_block_at_offset(&test.body, offset),
-        Item::Instance(instance) => instance.callable_methods().find_map(|method| {
+        Item::Instance(instance) => instance.callables().find_map(|method| {
             method
                 .body
                 .as_ref()

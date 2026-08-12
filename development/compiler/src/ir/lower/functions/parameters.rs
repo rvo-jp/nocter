@@ -19,7 +19,7 @@ pub(super) fn function_parameters(
 }
 
 pub(in crate::ir::lower) fn method_parameters(
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> Vec<Parameter> {

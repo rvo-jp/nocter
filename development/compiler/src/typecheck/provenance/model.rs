@@ -1,18 +1,28 @@
+use crate::semantic::DefId;
 use crate::source::ByteSpan;
 use crate::typecheck::model::Type;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(in crate::typecheck) struct CallableId(ByteSpan);
+pub(in crate::typecheck) struct CallableId(DefId);
 
 impl CallableId {
-    pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
-        Self(span)
+    pub(in crate::typecheck) const fn defined_by(definition: DefId) -> Self {
+        Self(definition)
     }
 
-    pub(in crate::typecheck) const fn declaration_span(self) -> ByteSpan {
+    pub(in crate::typecheck) const fn definition(self) -> DefId {
         self.0
+    }
+
+    pub(in crate::typecheck) fn for_declaration(
+        resolved: &crate::resolve::ResolveOutput,
+        location: ByteSpan,
+    ) -> Option<Self> {
+        resolved
+            .canonical_callable_definition(location)
+            .map(Self::defined_by)
     }
 }
 
@@ -711,7 +721,7 @@ mod tests {
 
     #[test]
     fn callable_summary_keeps_result_and_effect_as_separate_facts() {
-        let callable = CallableId::declared_at(span(4));
+        let callable = CallableId::defined_by(DefId::for_test(4));
         let mut summaries = CallableProvenanceSummaries::default();
         summaries.insert_result(callable, ValueProvenance::static_storage());
 

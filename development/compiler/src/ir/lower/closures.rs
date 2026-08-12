@@ -247,28 +247,30 @@ fn closure_method(
         })
         .collect();
     MethodDecl {
-        span: expression.span,
-        visibility: Visibility::Private,
-        keyword_span: expression.parameters_span,
-        receiver: MethodReceiver {
-            span: expression.parameters_span,
-            name: "self".to_string(),
-            name_span: expression.parameters_span,
-            mode: receiver_mode,
-        },
         name: name.to_string(),
         name_span: expression.parameters_span,
-        generics: GenericParamList {
-            span: None,
-            parameters: Vec::new(),
+        callable: crate::ast::CallableDecl {
+            span: expression.span,
+            visibility: Visibility::Private,
+            keyword_span: expression.parameters_span,
+            receiver: MethodReceiver {
+                span: expression.parameters_span,
+                name: "self".to_string(),
+                name_span: expression.parameters_span,
+                mode: receiver_mode,
+            },
+            generics: GenericParamList {
+                span: None,
+                parameters: Vec::new(),
+            },
+            parameters: ParameterList {
+                span: expression.parameters_span,
+                parameters,
+            },
+            return_type: (*plan.ty.return_type).clone(),
+            result_provenance: None,
+            requirements: None,
+            body: Some(expression.body.clone()),
         },
-        parameters: ParameterList {
-            span: expression.parameters_span,
-            parameters,
-        },
-        return_type: (*plan.ty.return_type).clone(),
-        result_provenance: None,
-        requirements: None,
-        body: Some(expression.body.clone()),
     }
 }

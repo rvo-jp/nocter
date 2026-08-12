@@ -49,7 +49,7 @@ impl Formatter {
     }
 
     fn format_coercion_entry(&mut self, entry: &CoercionEntry) {
-        let callable = entry.callable_method();
+        let callable = entry.callable();
         self.format_visibility(callable.visibility);
         self.write("coerce ");
         self.format_method_receiver(&callable.receiver);
@@ -424,7 +424,7 @@ impl Formatter {
     }
 
     fn format_comparison_operator_decl(&mut self, item: &ComparisonOperatorDecl) {
-        let callable = item.callable_method();
+        let callable = item.callable();
         self.format_visibility(callable.visibility);
         self.write("operator (");
         self.format_method_receiver(&callable.receiver);
@@ -439,7 +439,7 @@ impl Formatter {
     }
 
     fn format_index_operator_decl(&mut self, item: &IndexOperatorDecl) {
-        let callable = item.callable_method();
+        let callable = item.callable();
         self.format_visibility(callable.visibility);
         self.write("operator (");
         self.format_method_receiver(&callable.receiver);
@@ -457,7 +457,7 @@ impl Formatter {
             OperatorDecl::Comparison(operator) => self.format_comparison_operator_decl(operator),
             OperatorDecl::Index(operator) => self.format_index_operator_decl(operator),
             OperatorDecl::Expansion(operator) => {
-                let callable = operator.callable_method();
+                let callable = operator.callable();
                 self.format_visibility(callable.visibility);
                 self.write("operator (...");
                 self.format_method_receiver(&callable.receiver);

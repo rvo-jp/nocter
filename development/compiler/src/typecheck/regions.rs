@@ -37,7 +37,7 @@ pub(super) fn check_region_statements(
             }
             Item::Test(test) => check_block(sources, &test.body, None, &mut tree, diagnostics),
             Item::Instance(instance) => {
-                for method in instance.callable_methods() {
+                for method in instance.callables() {
                     if let Some(body) = &method.body {
                         check_block(sources, body, None, &mut tree, diagnostics);
                     }

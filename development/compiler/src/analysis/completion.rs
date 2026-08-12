@@ -406,7 +406,7 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
         (instance.target_ty.span().end < offset
             && offset < instance.span.end
             && instance
-                .callable_methods()
+                .callables()
                 .all(|method| !(method.span.start <= offset && offset <= method.span.end)))
         .then_some(instance)
     }) else {
@@ -421,16 +421,16 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
         )
     });
     let has_ordering = instance.ordering_operators().next().is_some();
-    let has_readonly_index = instance.index_operators().any(|operator| {
-        operator.callable_method().receiver.mode == MethodReceiverMode::ReadonlyBorrow
-    });
-    let has_readwrite_index = instance.index_operators().any(|operator| {
-        operator.callable_method().receiver.mode == MethodReceiverMode::ReadwriteBorrow
-    });
+    let has_readonly_index = instance
+        .index_operators()
+        .any(|operator| operator.callable().receiver.mode == MethodReceiverMode::ReadonlyBorrow);
+    let has_readwrite_index = instance
+        .index_operators()
+        .any(|operator| operator.callable().receiver.mode == MethodReceiverMode::ReadwriteBorrow);
     let has_expansion = |mode| {
         instance
             .expansion_operators()
-            .any(|operator| operator.callable_method().receiver.mode == mode)
+            .any(|operator| operator.callable().receiver.mode == mode)
     };
     let candidates = [
         (

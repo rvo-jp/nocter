@@ -1,7 +1,7 @@
 use super::{InputId, StorageOrigin, ValueProvenance};
 use crate::ast::{
-    LiteralCapture, LiteralDecl, MethodDecl, Parameter, ResultProvenanceClause,
-    ResultProvenanceOriginKind, TypeExpr,
+    LiteralCapture, LiteralDecl, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind,
+    TypeExpr,
 };
 use crate::resolve::ResolveOutput;
 use crate::typecheck::model::Type;
@@ -93,7 +93,7 @@ struct ProvenanceInput<'a> {
 
 pub(in crate::typecheck) fn result_provenance_contract<'a>(
     clause: &'a ResultProvenanceClause,
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     resolved: &ResolveOutput,
 ) -> Result<ValueProvenance, Vec<(&'a crate::ast::ResultProvenanceOrigin, ContractOriginError)>> {

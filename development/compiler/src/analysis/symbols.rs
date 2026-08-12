@@ -126,7 +126,7 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 .named_methods()
                 .map(method_document_symbol)
                 .chain(instance.coercions().map(|entry| {
-                    let callable = entry.callable_method();
+                    let callable = entry.callable();
                     document_symbol(
                         format!(
                             "coerce {}self as {}",

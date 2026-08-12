@@ -43,6 +43,7 @@ pub(crate) use visit::{
 };
 
 use crate::source::ByteSpan;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
@@ -292,28 +293,19 @@ impl InstanceDecl {
         })
     }
 
-    /// Returns named methods and operators that participate in ordinary member lookup.
-    pub fn behavior_methods(&self) -> impl Iterator<Item = &MethodDecl> {
-        self.members.iter().filter_map(|member| match member {
-            InstanceMember::Method(method) => Some(method),
-            InstanceMember::Operator(operator) => Some(operator.callable_method()),
-            InstanceMember::Coercion(_) => None,
-        })
-    }
-
-    pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
+    pub fn callables(&self) -> impl Iterator<Item = &CallableDecl> {
         self.members.iter().map(|member| match member {
-            InstanceMember::Method(method) => method,
-            InstanceMember::Operator(operator) => operator.callable_method(),
-            InstanceMember::Coercion(coercion) => coercion.callable_method(),
+            InstanceMember::Method(method) => &method.callable,
+            InstanceMember::Operator(operator) => operator.callable(),
+            InstanceMember::Coercion(coercion) => coercion.callable(),
         })
     }
 
-    pub fn callable_methods_mut(&mut self) -> impl Iterator<Item = &mut MethodDecl> {
+    pub fn callables_mut(&mut self) -> impl Iterator<Item = &mut CallableDecl> {
         self.members.iter_mut().map(|member| match member {
-            InstanceMember::Method(method) => method,
-            InstanceMember::Operator(operator) => operator.callable_method_mut(),
-            InstanceMember::Coercion(coercion) => coercion.callable_method_mut(),
+            InstanceMember::Method(method) => &mut method.callable,
+            InstanceMember::Operator(operator) => operator.callable_mut(),
+            InstanceMember::Coercion(coercion) => coercion.callable_mut(),
         })
     }
 
@@ -373,6 +365,7 @@ pub trait MethodOwnerDecl {
     fn target_ty(&self) -> &TypeExpr;
     fn requirements(&self) -> Option<&WhereClause>;
     fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_>;
+    fn callables(&self) -> Box<dyn Iterator<Item = &CallableDecl> + '_>;
 }
 
 impl MethodOwnerDecl for InstanceDecl {
@@ -393,7 +386,11 @@ impl MethodOwnerDecl for InstanceDecl {
     }
 
     fn methods(&self) -> Box<dyn Iterator<Item = &MethodDecl> + '_> {
-        Box::new(self.callable_methods())
+        Box::new(self.named_methods())
+    }
+
+    fn callables(&self) -> Box<dyn Iterator<Item = &CallableDecl> + '_> {
+        Box::new(self.callables())
     }
 }
 
@@ -420,6 +417,13 @@ impl MethodOwnerDecl for ConformanceDecl {
             ConformanceMember::Method(method) => Some(method),
         }))
     }
+
+    fn callables(&self) -> Box<dyn Iterator<Item = &CallableDecl> + '_> {
+        Box::new(self.members.iter().filter_map(|member| match member {
+            ConformanceMember::AssociatedType(_) => None,
+            ConformanceMember::Method(method) => Some(&method.callable),
+        }))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -441,19 +445,38 @@ pub struct DestructDecl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MethodDecl {
+pub struct CallableDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
     pub keyword_span: ByteSpan,
     pub receiver: MethodReceiver,
-    pub name: String,
-    pub name_span: ByteSpan,
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
     pub requirements: Option<WhereClause>,
     pub body: Option<Block>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodDecl {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub callable: CallableDecl,
+}
+
+impl Deref for MethodDecl {
+    type Target = CallableDecl;
+
+    fn deref(&self) -> &Self::Target {
+        &self.callable
+    }
+}
+
+impl DerefMut for MethodDecl {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.callable
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

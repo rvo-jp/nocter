@@ -60,7 +60,7 @@ fn instantiate_iteration_method_result(
     borrow_provenance: &ProvenanceEnvironment,
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
-    let summary = summaries.result(CallableId::declared_at(declaration))?;
+    let summary = summaries.result(CallableId::for_declaration(resolved, declaration)?)?;
     let method = resolved.method_signature_by_name_span(declaration)?;
     let receiver_input = InputId::declared_at(method.receiver.name_span);
     instantiate_provenance_summary(summary, &mut |origin| match origin {

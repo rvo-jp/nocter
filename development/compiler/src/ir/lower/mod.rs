@@ -36,8 +36,9 @@ use crate::analysis::{
     literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DestructDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape, MethodDecl,
-    Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr, substitute_type_expr_parameters,
+    CallableDecl, DestructDecl, FunctionDecl, GenericType, Item, LiteralDecl, LiteralShape,
+    MethodDecl, Parameter, Stmt, TypeExpr, TypeReference, canonical_type_expr,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -53,7 +54,6 @@ use context::{
 };
 use imported_calls::{imported_call_diagnostics, imported_call_diagnostics_for_block};
 use reachability::reachable_call_targets;
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use types::{
     parameter_type_from_type_expr_with_resolver, return_type_from_type_expr_with_resolver,
@@ -324,7 +324,8 @@ enum IndexedDeclaration<'a> {
         name: String,
     },
     Method {
-        declaration: Cow<'a, MethodDecl>,
+        declaration: &'a CallableDecl,
+        anchor: ByteSpan,
         self_ty: TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         name: String,
@@ -406,17 +407,31 @@ impl<'a> FunctionIndex<'a> {
                         else {
                             continue;
                         };
-                        for method in instance.behavior_methods() {
+                        let callables = instance
+                            .named_methods()
+                            .map(|method| {
+                                (&method.callable, method.name_span, method.name.as_str())
+                            })
+                            .chain(instance.operators().map(|operator| {
+                                (
+                                    operator.callable(),
+                                    operator.anchor_span(),
+                                    crate::semantic::OperatorCallableKind::from_declaration(
+                                        operator,
+                                    )
+                                    .lookup_name(),
+                                )
+                            }));
+                        for (method, anchor, method_name) in callables {
                             if method.body.is_some() && owner.generics().parameters.is_empty() {
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
+                                let declaration =
+                                    analysis.callable_bodies.canonical_identity(anchor);
+                                let declaration_source = if declaration == anchor {
                                     file.ast.span.source
                                 } else {
                                     declaration.source
                                 };
-                                let name = method_target_name(type_name, &method.name);
+                                let name = method_target_name(type_name, method_name);
                                 let target = call_target_for_source(
                                     declaration_source,
                                     root_source,
@@ -424,8 +439,9 @@ impl<'a> FunctionIndex<'a> {
                                 );
                                 definitions.insert(
                                     target,
-                                    IndexedCallable::new_method(
+                                    IndexedCallable::new_instance_callable(
                                         method,
+                                        anchor,
                                         owner.target_ty().clone(),
                                         HashMap::new(),
                                         name,
@@ -433,10 +449,9 @@ impl<'a> FunctionIndex<'a> {
                                     ),
                                 );
                             } else if method.body.is_some() {
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
+                                let declaration =
+                                    analysis.callable_bodies.canonical_identity(anchor);
+                                let declaration_source = if declaration == anchor {
                                     file.ast.span.source
                                 } else {
                                     declaration.source
@@ -458,8 +473,9 @@ impl<'a> FunctionIndex<'a> {
                                     );
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_method(
+                                        IndexedCallable::new_instance_callable(
                                             method,
+                                            anchor,
                                             substitute_type_expr_parameters(
                                                 owner.target_ty(),
                                                 &specialization.substitutions,
@@ -473,7 +489,7 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                         for entry in instance.coercions() {
-                            let callable = entry.callable_method();
+                            let callable = entry.callable();
                             if callable.body.is_none() {
                                 continue;
                             }
@@ -935,7 +951,29 @@ impl<'a> IndexedCallable<'a> {
     ) -> Self {
         Self {
             declaration: IndexedDeclaration::Method {
-                declaration: Cow::Borrowed(declaration),
+                declaration: &declaration.callable,
+                anchor: declaration.name_span,
+                self_ty,
+                substitutions,
+                name,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
+    fn new_instance_callable(
+        declaration: &'a CallableDecl,
+        anchor: ByteSpan,
+        self_ty: TypeExpr,
+        substitutions: HashMap<String, TypeExpr>,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Method {
+                declaration,
+                anchor,
                 self_ty,
                 substitutions,
                 name,
@@ -953,7 +991,8 @@ impl<'a> IndexedCallable<'a> {
     ) -> Self {
         Self {
             declaration: IndexedDeclaration::Method {
-                declaration: Cow::Borrowed(declaration.callable_method()),
+                declaration: declaration.callable(),
+                anchor: declaration.as_span,
                 self_ty: plan.self_ty.clone(),
                 substitutions: plan.substitutions.clone(),
                 name,
@@ -1131,6 +1170,7 @@ impl<'a> IndexedCallable<'a> {
                 self_ty,
                 substitutions,
                 name,
+                ..
             } => functions::lower_method_function(
                 declaration,
                 self_ty,
@@ -1395,10 +1435,11 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Drop { .. } => None,
             IndexedDeclaration::Method {
                 declaration,
+                anchor,
                 substitutions,
                 name,
                 ..
-            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
+            } if substitutions.is_empty() => Some((*anchor, name.clone())),
             IndexedDeclaration::Method { .. } => None,
             IndexedDeclaration::Literal { .. } => None,
             IndexedDeclaration::Closure { .. } => None,
@@ -1496,7 +1537,7 @@ fn literal_parameters(
 }
 
 fn method_parameters(
-    method: &MethodDecl,
+    method: &CallableDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
 ) -> Vec<Parameter> {

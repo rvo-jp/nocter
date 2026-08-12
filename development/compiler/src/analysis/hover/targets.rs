@@ -208,13 +208,23 @@ pub(in crate::analysis::hover) fn callable_symbol_occurrence_hover_for_file_anal
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Function {
         return None;
     }
-    let target = definition_anchor(analysis, occurrence.identity)?;
+    let crate::analysis::occurrences::SemanticIdentity::Definition(definition) =
+        occurrence.identity?
+    else {
+        return None;
+    };
+    if analysis.semantic_db.definition(definition)?.kind
+        == crate::semantic::DefinitionKind::AssociatedFunction
+    {
+        return None;
+    }
+    let target = analysis.semantic_db.definition_anchor(definition)?;
     let target_file = analysis.file_by_source(target.source)?;
     let symbol = target_file
         .resolved
         .symbols
         .symbols()
-        .find(|symbol| symbol.declaration_span == target)?;
+        .find(|symbol| symbol.def_id == definition)?;
     let (kind, signature) = match &symbol.kind {
         SymbolKind::Function(signature) => ("func", signature),
         SymbolKind::Primitive(signature) => ("primitive", signature),
@@ -514,11 +524,15 @@ fn definition_anchor(
         return None;
     };
     let definition = analysis.semantic_db.definition(definition)?;
-    Some(
-        definition
-            .owner
-            .map_or(definition.span, |_| definition.anchor),
-    )
+    Some(match definition.kind {
+        crate::semantic::DefinitionKind::Function if definition.owner.is_none() => definition.span,
+        crate::semantic::DefinitionKind::Primitive
+        | crate::semantic::DefinitionKind::TypeAlias
+        | crate::semantic::DefinitionKind::Struct
+        | crate::semantic::DefinitionKind::Enum
+        | crate::semantic::DefinitionKind::Interface => definition.span,
+        _ => definition.anchor,
+    })
 }
 
 fn associated_type_for_declaration_span(

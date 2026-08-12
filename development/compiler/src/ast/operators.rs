@@ -1,30 +1,7 @@
 //! Source-owned operator declarations.
 
-use super::{MethodDecl, TypeExpr};
+use super::{CallableDecl, TypeExpr};
 use crate::source::ByteSpan;
-
-pub(crate) const EQUALITY_OPERATOR_METHOD_NAME: &str = "__nocter$operator$equal";
-pub(crate) const ORDERING_OPERATOR_METHOD_NAME: &str = "__nocter$operator$less";
-pub(crate) const READONLY_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index";
-pub(crate) const READWRITE_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index_readwrite";
-pub(crate) const READONLY_EXPANSION_OPERATOR_METHOD_NAME: &str =
-    "__nocter$operator$expand_readonly";
-pub(crate) const READWRITE_EXPANSION_OPERATOR_METHOD_NAME: &str =
-    "__nocter$operator$expand_readwrite";
-pub(crate) const OWNED_EXPANSION_OPERATOR_METHOD_NAME: &str = "__nocter$operator$expand_owned";
-
-pub(crate) fn is_operator_method_name(name: &str) -> bool {
-    matches!(
-        name,
-        EQUALITY_OPERATOR_METHOD_NAME
-            | ORDERING_OPERATOR_METHOD_NAME
-            | READONLY_INDEX_OPERATOR_METHOD_NAME
-            | READWRITE_INDEX_OPERATOR_METHOD_NAME
-            | READONLY_EXPANSION_OPERATOR_METHOD_NAME
-            | READWRITE_EXPANSION_OPERATOR_METHOD_NAME
-            | OWNED_EXPANSION_OPERATOR_METHOD_NAME
-    )
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperatorDecl {
@@ -34,19 +11,27 @@ pub enum OperatorDecl {
 }
 
 impl OperatorDecl {
-    pub fn callable_method(&self) -> &MethodDecl {
+    pub fn callable(&self) -> &CallableDecl {
         match self {
-            Self::Comparison(operator) => operator.callable_method(),
-            Self::Index(operator) => operator.callable_method(),
-            Self::Expansion(operator) => operator.callable_method(),
+            Self::Comparison(operator) => operator.callable(),
+            Self::Index(operator) => operator.callable(),
+            Self::Expansion(operator) => operator.callable(),
         }
     }
 
-    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+    pub fn callable_mut(&mut self) -> &mut CallableDecl {
         match self {
-            Self::Comparison(operator) => operator.callable_method_mut(),
-            Self::Index(operator) => operator.callable_method_mut(),
-            Self::Expansion(operator) => operator.callable_method_mut(),
+            Self::Comparison(operator) => operator.callable_mut(),
+            Self::Index(operator) => operator.callable_mut(),
+            Self::Expansion(operator) => operator.callable_mut(),
+        }
+    }
+
+    pub fn anchor_span(&self) -> ByteSpan {
+        match self {
+            Self::Comparison(operator) => operator.operator_span,
+            Self::Index(operator) => operator.open_bracket_span,
+            Self::Expansion(operator) => operator.operator_span,
         }
     }
 }
@@ -55,11 +40,11 @@ impl OperatorDecl {
 pub struct ExpansionOperatorDecl {
     pub span: ByteSpan,
     pub operator_span: ByteSpan,
-    callable: MethodDecl,
+    callable: CallableDecl,
 }
 
 impl ExpansionOperatorDecl {
-    pub fn new(span: ByteSpan, operator_span: ByteSpan, callable: MethodDecl) -> Self {
+    pub fn new(span: ByteSpan, operator_span: ByteSpan, callable: CallableDecl) -> Self {
         Self {
             span,
             operator_span,
@@ -67,11 +52,11 @@ impl ExpansionOperatorDecl {
         }
     }
 
-    pub fn callable_method(&self) -> &MethodDecl {
+    pub fn callable(&self) -> &CallableDecl {
         &self.callable
     }
 
-    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+    pub fn callable_mut(&mut self) -> &mut CallableDecl {
         &mut self.callable
     }
 }
@@ -81,7 +66,7 @@ pub struct ComparisonOperatorDecl {
     pub span: ByteSpan,
     pub operator_span: ByteSpan,
     pub kind: ComparisonOperatorKind,
-    callable: MethodDecl,
+    callable: CallableDecl,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,13 +82,6 @@ impl ComparisonOperatorKind {
             Self::StrictOrder => "<",
         }
     }
-
-    pub(crate) fn callable_name(self) -> &'static str {
-        match self {
-            Self::Equality => EQUALITY_OPERATOR_METHOD_NAME,
-            Self::StrictOrder => ORDERING_OPERATOR_METHOD_NAME,
-        }
-    }
 }
 
 impl ComparisonOperatorDecl {
@@ -113,7 +91,7 @@ impl ComparisonOperatorDecl {
         span: ByteSpan,
         operator_span: ByteSpan,
         kind: ComparisonOperatorKind,
-        callable: MethodDecl,
+        callable: CallableDecl,
     ) -> Self {
         Self {
             span,
@@ -123,11 +101,11 @@ impl ComparisonOperatorDecl {
         }
     }
 
-    pub fn callable_method(&self) -> &MethodDecl {
+    pub fn callable(&self) -> &CallableDecl {
         &self.callable
     }
 
-    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+    pub fn callable_mut(&mut self) -> &mut CallableDecl {
         &mut self.callable
     }
 }
@@ -138,7 +116,7 @@ pub struct IndexOperatorDecl {
     pub operator_span: ByteSpan,
     pub open_bracket_span: ByteSpan,
     pub close_bracket_span: ByteSpan,
-    callable: MethodDecl,
+    callable: CallableDecl,
 }
 
 impl IndexOperatorDecl {
@@ -147,7 +125,7 @@ impl IndexOperatorDecl {
         operator_span: ByteSpan,
         open_bracket_span: ByteSpan,
         close_bracket_span: ByteSpan,
-        callable: MethodDecl,
+        callable: CallableDecl,
     ) -> Self {
         Self {
             span,
@@ -158,11 +136,11 @@ impl IndexOperatorDecl {
         }
     }
 
-    pub fn callable_method(&self) -> &MethodDecl {
+    pub fn callable(&self) -> &CallableDecl {
         &self.callable
     }
 
-    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+    pub fn callable_mut(&mut self) -> &mut CallableDecl {
         &mut self.callable
     }
 }

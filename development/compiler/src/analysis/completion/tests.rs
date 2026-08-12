@@ -1576,9 +1576,7 @@ func read(value: &Text): i32 { return value. }
     let offset = text.rfind("value. ").unwrap() + "value.".len();
     let items = completion_items_for_text_at_offset(text, offset).expect("member completion");
     assert!(items.iter().any(|item| item.label == "value_copy"));
-    assert!(
-        !items
-            .iter()
-            .any(|item| item.label == crate::ast::EQUALITY_OPERATOR_METHOD_NAME)
-    );
+    assert!(!items.iter().any(|item| {
+        item.label == crate::semantic::OperatorCallableKind::Equality.lookup_name()
+    }));
 }

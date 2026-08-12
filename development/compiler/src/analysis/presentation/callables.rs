@@ -188,15 +188,15 @@ pub(crate) fn method_or_operator_presentation(
     method: &MethodSignature,
     resolved: &ResolveOutput,
 ) -> String {
-    if !crate::ast::is_operator_method_name(&method.name) {
+    let Some(kind) = crate::semantic::OperatorCallableKind::from_lookup_name(&method.name) else {
         return method_presentation(owner, method, resolved).render();
-    }
+    };
     let owner = super::type_owner_presentation_label(owner, resolved);
     if matches!(
-        method.name.as_str(),
-        crate::ast::READONLY_EXPANSION_OPERATOR_METHOD_NAME
-            | crate::ast::READWRITE_EXPANSION_OPERATOR_METHOD_NAME
-            | crate::ast::OWNED_EXPANSION_OPERATOR_METHOD_NAME
+        kind,
+        crate::semantic::OperatorCallableKind::ReadonlyExpansion
+            | crate::semantic::OperatorCallableKind::ReadwriteExpansion
+            | crate::semantic::OperatorCallableKind::OwnedExpansion
     ) {
         let result = type_expr_presentation_label(&method.signature.return_type, resolved);
         return format!(
@@ -205,9 +205,9 @@ pub(crate) fn method_or_operator_presentation(
         );
     }
     if matches!(
-        method.name.as_str(),
-        crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
-            | crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+        kind,
+        crate::semantic::OperatorCallableKind::ReadonlyIndex
+            | crate::semantic::OperatorCallableKind::ReadwriteIndex
     ) {
         let parameter = method.signature.parameters.first();
         let name = parameter
@@ -228,7 +228,7 @@ pub(crate) fn method_or_operator_presentation(
         .first()
         .map(|parameter| parameter.name.as_str())
         .unwrap_or("other");
-    let token = if method.name == crate::ast::ORDERING_OPERATOR_METHOD_NAME {
+    let token = if kind == crate::semantic::OperatorCallableKind::StrictOrder {
         "<"
     } else {
         "=="

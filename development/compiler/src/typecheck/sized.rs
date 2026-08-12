@@ -7,7 +7,7 @@ use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
 use crate::ast::{
     AstFile, ConformanceDecl, ConformanceMember, FunctionDecl, InstanceDecl, InterfaceDecl, Item,
-    MethodDecl, Parameter, PrimitiveDecl,
+    Parameter, PrimitiveDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -225,12 +225,11 @@ fn check_instance(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let self_type = method_owner_self_type(instance, resolved);
-    for method in instance.callable_methods() {
-        let prefix = format!("method `{}`", method.name);
+    for method in instance.callables() {
         check_method_with_prefix(
             sources,
             method,
-            &prefix,
+            "instance callable",
             resolved,
             Some(&self_type),
             diagnostics,
@@ -269,7 +268,7 @@ fn check_conformance(
 
 fn check_method_with_prefix(
     sources: &SourceMap,
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     prefix: &str,
     resolved: &ResolveOutput,
     self_type: Option<&Type>,

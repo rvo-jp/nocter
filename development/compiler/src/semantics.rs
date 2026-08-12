@@ -304,7 +304,11 @@ impl TrustedDeclarationFacts {
 
     pub(crate) fn role(&self, declaration: ByteSpan) -> Option<TrustedDeclarationRole> {
         let def_id = self.semantic_db.definition_at(declaration)?;
-        self.roles.get(&def_id).copied()
+        self.role_definition(def_id)
+    }
+
+    pub(crate) fn role_definition(&self, definition: DefId) -> Option<TrustedDeclarationRole> {
+        self.roles.get(&definition).copied()
     }
 
     #[cfg(test)]

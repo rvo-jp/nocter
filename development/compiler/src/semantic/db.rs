@@ -4,7 +4,7 @@ use super::body_declarations::{BodyDeclaration, visit_body_declarations};
 use super::{BodyId, DefId};
 use crate::ast::{
     AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, GenericParamList,
-    ImportItem, InstanceMember, Item, LiteralDecl, MethodDecl, OperatorDecl, ParameterList,
+    ImportItem, InstanceMember, Item, LiteralDecl, OperatorDecl, ParameterList,
     visit_block_expressions_without_nested_closures,
 };
 use crate::source::ByteSpan;
@@ -14,6 +14,7 @@ use std::collections::HashMap;
 pub(crate) enum DefinitionKind {
     Import,
     Function,
+    AssociatedFunction,
     GenericParameter,
     Parameter,
     Receiver,
@@ -248,11 +249,16 @@ impl SemanticDbBuilder {
             }
             Item::Function(function) => {
                 let id = self.define(
-                    DefinitionKind::Function,
+                    if function.owner.is_some() {
+                        DefinitionKind::AssociatedFunction
+                    } else {
+                        DefinitionKind::Function
+                    },
                     None,
-                    function.name_span,
+                    function.member_name_span,
                     function.span,
                 );
+                self.define_location(id, function.name_span);
                 self.define_location(id, function.member_name_span);
                 self.collect_generics(id, &function.generics);
                 self.collect_parameters(id, &function.parameters);
@@ -443,20 +449,21 @@ impl SemanticDbBuilder {
 
     fn collect_instance_member(&mut self, owner: DefId, member: &InstanceMember) {
         let (kind, anchor, callable) = match member {
-            InstanceMember::Method(method) => (DefinitionKind::Method, method.name_span, method),
+            InstanceMember::Method(method) => {
+                (DefinitionKind::Method, method.name_span, &method.callable)
+            }
             InstanceMember::Operator(operator) => {
                 let kind = match operator {
                     OperatorDecl::Comparison(_) => DefinitionKind::ComparisonOperator,
                     OperatorDecl::Index(_) => DefinitionKind::IndexOperator,
                     OperatorDecl::Expansion(_) => DefinitionKind::ExpansionOperator,
                 };
-                let callable = operator.callable_method();
-                (kind, callable.name_span, callable)
+                (kind, operator.anchor_span(), operator.callable())
             }
             InstanceMember::Coercion(coercion) => (
                 DefinitionKind::Coercion,
                 coercion.as_span,
-                coercion.callable_method(),
+                coercion.callable(),
             ),
         };
         let id = self.define(kind, Some(owner), anchor, callable.span);
@@ -466,7 +473,7 @@ impl SemanticDbBuilder {
         }
     }
 
-    fn collect_method_inputs(&mut self, owner: DefId, method: &MethodDecl) {
+    fn collect_method_inputs(&mut self, owner: DefId, method: &crate::ast::CallableDecl) {
         self.collect_generics(owner, &method.generics);
         self.define(
             DefinitionKind::Receiver,
@@ -618,7 +625,10 @@ func File.open(): Self { return File { fd: 1 } }
             db.definition_at(function.member_name_span),
             Some(definition)
         );
-        assert_eq!(db.definition_anchor(definition), Some(function.name_span));
+        assert_eq!(
+            db.definition_anchor(definition),
+            Some(function.member_name_span)
+        );
     }
 
     #[test]

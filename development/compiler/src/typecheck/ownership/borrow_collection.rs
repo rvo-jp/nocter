@@ -576,7 +576,10 @@ pub(super) fn returned_borrow_sources(
     let Some(declaration) = signature.declaration_span else {
         return Vec::new();
     };
-    let Some(result) = summaries.result(CallableId::declared_at(declaration)) else {
+    let Some(callable) = CallableId::for_declaration(resolved, declaration) else {
+        return Vec::new();
+    };
+    let Some(result) = summaries.result(callable) else {
         return Vec::new();
     };
 

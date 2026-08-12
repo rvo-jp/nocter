@@ -25,11 +25,14 @@ pub(super) fn elaborate_file(
                 );
             }
             Item::Instance(instance) => {
-                for method in instance.callable_methods_mut() {
+                for method in instance.callables_mut() {
+                    let crate::ast::CallableDecl {
+                        return_type, body, ..
+                    } = method;
                     changed |= elaborate_callable(
                         sources,
-                        &mut method.return_type,
-                        method.body.as_ref(),
+                        return_type,
+                        body.as_ref(),
                         resolved,
                         facts,
                         &mut diagnostics,
@@ -38,10 +41,13 @@ pub(super) fn elaborate_file(
             }
             Item::Interface(interface) => {
                 for method in &mut interface.methods {
+                    let crate::ast::CallableDecl {
+                        return_type, body, ..
+                    } = &mut method.callable;
                     changed |= elaborate_callable(
                         sources,
-                        &mut method.return_type,
-                        method.body.as_ref(),
+                        return_type,
+                        body.as_ref(),
                         resolved,
                         facts,
                         &mut diagnostics,

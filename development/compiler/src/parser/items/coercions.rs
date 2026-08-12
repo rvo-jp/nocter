@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{CoercionEntry, MethodDecl, MethodReceiverMode, ParameterList};
+use crate::ast::{CallableDecl, CoercionEntry, MethodReceiverMode, ParameterList};
 use crate::lexer::Keyword;
 
 impl Parser<'_> {
@@ -25,13 +25,11 @@ impl Parser<'_> {
             |body| body.span.end,
         );
         let span = self.span(keyword.span.start, end);
-        let callable = MethodDecl {
+        let callable = CallableDecl {
             span,
             visibility,
             keyword_span: keyword.span,
             receiver,
-            name: format!("__nocter$coerce${}", as_token.span.start),
-            name_span: as_token.span,
             generics: crate::ast::GenericParamList::empty(),
             parameters: ParameterList {
                 span: as_token.span,

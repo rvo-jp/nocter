@@ -102,12 +102,12 @@ impl Resolver<'_> {
     }
 
     fn resolve_instance_bodies(&mut self, instance: &InstanceDecl) {
-        for method in instance.callable_methods() {
+        for method in instance.callables() {
             self.resolve_method(method);
         }
     }
 
-    fn resolve_method(&mut self, method: &crate::ast::MethodDecl) {
+    fn resolve_method(&mut self, method: &crate::ast::CallableDecl) {
         let mut scope = Scope::new();
         if method.body.is_some() {
             self.define_local_name(

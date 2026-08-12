@@ -514,7 +514,8 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     }
     if signature.signature.result_provenance.is_some()
         && let Some(declaration_span) = signature.declaration_span
-        && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
+        && let Some(callable) = CallableId::for_declaration(resolved, declaration_span)
+        && let Some(summary) = summaries.result(callable)
     {
         return borrow_return_provenance_for_call_summary(
             summary,
@@ -527,7 +528,8 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         );
     }
     if let Some(declaration_span) = signature.declaration_span
-        && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
+        && let Some(callable) = CallableId::for_declaration(resolved, declaration_span)
+        && let Some(summary) = summaries.result(callable)
     {
         return borrow_return_provenance_for_call_summary(
             summary,

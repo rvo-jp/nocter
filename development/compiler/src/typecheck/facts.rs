@@ -30,8 +30,8 @@ use super::variants::{
 use crate::ast::{
     ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, ConformanceDecl,
     ConformanceMember, Expr, FallibleType, GenericParamList, GenericType, IfIsStmt, InstanceDecl,
-    InterpolatedStringPart, Item, MemberExpr, MethodDecl, MethodOwnerDecl, MethodReceiverMode,
-    OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr, StructLiteralField, SwitchArm,
+    InterpolatedStringPart, Item, MemberExpr, MethodOwnerDecl, MethodReceiverMode, OptionalType,
+    Parameter, PointerType, Stmt, StructLiteralExpr, StructLiteralField, SwitchArm,
     SwitchPayloadBinding, TypeExpr, TypeReference, ViewType, substitute_type_expr_parameters,
 };
 use crate::integer::IntegerType;

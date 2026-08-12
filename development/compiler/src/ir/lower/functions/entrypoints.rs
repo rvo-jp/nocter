@@ -371,7 +371,7 @@ pub(in crate::ir::lower) fn lower_drop_function<'a>(
 }
 
 pub(in crate::ir::lower) fn lower_method_function<'a>(
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
@@ -405,7 +405,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
     name: String,

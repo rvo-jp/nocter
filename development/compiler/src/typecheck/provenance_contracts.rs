@@ -16,8 +16,8 @@ use super::provenance::{
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
 use crate::ast::{
-    AstFile, ConformanceMember, Item, MethodDecl, MethodOwnerDecl, Parameter,
-    ResultProvenanceClause, TypeExpr, Visibility,
+    AstFile, ConformanceMember, Item, MethodOwnerDecl, Parameter, ResultProvenanceClause, TypeExpr,
+    Visibility,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -128,7 +128,7 @@ pub(super) fn check_result_provenance_contracts(
             Item::Instance(instance) => check_method_contracts(
                 sources,
                 instance,
-                instance.callable_methods(),
+                instance.callables(),
                 false,
                 resolved,
                 summaries,
@@ -142,7 +142,7 @@ pub(super) fn check_result_provenance_contracts(
                     .iter()
                     .filter_map(|member| match member {
                         ConformanceMember::AssociatedType(_) => None,
-                        ConformanceMember::Method(method) => Some(method),
+                        ConformanceMember::Method(method) => Some(&method.callable),
                     }),
                 true,
                 resolved,
@@ -227,7 +227,7 @@ pub(super) fn check_result_provenance_contracts(
 fn check_method_contracts<'a>(
     sources: &SourceMap,
     owner: &(impl MethodOwnerDecl + ?Sized),
-    methods: impl Iterator<Item = &'a MethodDecl>,
+    methods: impl Iterator<Item = &'a crate::ast::CallableDecl>,
     externally_callable: bool,
     resolved: &ResolveOutput,
     summaries: &CallableProvenanceSummaries,
@@ -251,7 +251,7 @@ fn check_method_contracts<'a>(
         check_body_result_contract(
             sources,
             BodyResultContract {
-                declaration_span: method.name_span,
+                declaration_span: method.keyword_span,
                 body,
                 clause: method.result_provenance.as_ref(),
                 method: Some(method),
@@ -272,7 +272,7 @@ struct BodyResultContract<'a> {
     declaration_span: crate::source::ByteSpan,
     body: &'a crate::ast::Block,
     clause: Option<&'a ResultProvenanceClause>,
-    method: Option<&'a MethodDecl>,
+    method: Option<&'a crate::ast::CallableDecl>,
     contract_inputs: ResultProvenanceInputs<'a>,
     parameters: &'a [Parameter],
     return_type: &'a TypeExpr,
@@ -322,7 +322,7 @@ fn check_body_result_contract(
 fn check_clause(
     sources: &SourceMap,
     clause: Option<&ResultProvenanceClause>,
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     return_type: &TypeExpr,
     environment: Option<&TypeEnvironment>,
@@ -354,7 +354,7 @@ fn check_body_contract(
     declaration_span: crate::source::ByteSpan,
     body: &crate::ast::Block,
     clause: &ResultProvenanceClause,
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     parameters: &[Parameter],
     return_type: &TypeExpr,
@@ -391,7 +391,7 @@ fn check_public_body_without_contract(
     sources: &SourceMap,
     declaration_span: crate::source::ByteSpan,
     body: &crate::ast::Block,
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     parameters: &[Parameter],
     return_type: &TypeExpr,
@@ -440,7 +440,7 @@ fn check_public_body_without_contract(
 fn check_bodyless_elision(
     sources: &SourceMap,
     return_span: crate::source::ByteSpan,
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     return_type: &TypeExpr,
     environment: Option<&TypeEnvironment>,

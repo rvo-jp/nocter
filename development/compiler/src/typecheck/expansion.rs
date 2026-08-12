@@ -15,9 +15,13 @@ pub(super) enum ExpansionMode {
 impl ExpansionMode {
     fn method_name(self) -> &'static str {
         match self {
-            Self::Readonly => crate::ast::READONLY_EXPANSION_OPERATOR_METHOD_NAME,
-            Self::Readwrite => crate::ast::READWRITE_EXPANSION_OPERATOR_METHOD_NAME,
-            Self::Owned => crate::ast::OWNED_EXPANSION_OPERATOR_METHOD_NAME,
+            Self::Readonly => {
+                crate::semantic::OperatorCallableKind::ReadonlyExpansion.lookup_name()
+            }
+            Self::Readwrite => {
+                crate::semantic::OperatorCallableKind::ReadwriteExpansion.lookup_name()
+            }
+            Self::Owned => crate::semantic::OperatorCallableKind::OwnedExpansion.lookup_name(),
         }
     }
 

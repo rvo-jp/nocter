@@ -34,18 +34,20 @@ impl Parser<'_> {
             |body| body.span.end,
         );
         Ok(MethodDecl {
-            span: self.span(start.span.start, end),
-            visibility,
-            keyword_span: start.span,
-            receiver,
             name: name.value,
             name_span: name.span,
-            generics,
-            parameters,
-            return_type,
-            result_provenance,
-            requirements,
-            body,
+            callable: crate::ast::CallableDecl {
+                span: self.span(start.span.start, end),
+                visibility,
+                keyword_span: start.span,
+                receiver,
+                generics,
+                parameters,
+                return_type,
+                result_provenance,
+                requirements,
+                body,
+            },
         })
     }
 

@@ -170,7 +170,7 @@ fn check_literal_ownership(
 fn check_method_ownership(
     sources: &SourceMap,
     owner: &(impl MethodOwnerDecl + ?Sized),
-    method: &crate::ast::MethodDecl,
+    method: &crate::ast::CallableDecl,
     resolved: &ResolveOutput,
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
@@ -203,7 +203,7 @@ fn check_instance_member_ownership(
     summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in instance.callable_methods() {
+    for method in instance.callables() {
         check_method_ownership(sources, instance, method, resolved, summaries, diagnostics)
     }
 }

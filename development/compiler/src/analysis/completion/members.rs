@@ -35,7 +35,9 @@ pub(super) fn member_completion_items(
             .methods
             .iter()
             .filter(|method| {
-                method.is_accessible && !crate::ast::is_operator_method_name(&method.name)
+                method.is_accessible
+                    && crate::semantic::OperatorCallableKind::from_lookup_name(&method.name)
+                        .is_none()
             })
             .map(|method| method.name.clone())
             .collect::<HashSet<_>>();
@@ -123,7 +125,7 @@ fn value_member_completion_items(
     let mut methods_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
     for method in owner.symbol.methods.iter().filter(|method| {
         method.is_accessible
-            && !crate::ast::is_operator_method_name(&method.name)
+            && crate::semantic::OperatorCallableKind::from_lookup_name(&method.name).is_none()
             && method_receiver_is_available(method, can_readwrite, can_move)
     }) {
         methods_by_name

@@ -65,7 +65,7 @@ fn collect_trusted_allocation_mutation(
         fallback_to_current,
     }) = resolved
         .trusted_declarations
-        .role(callable.declaration_span())
+        .role_definition(callable.definition())
     else {
         return false;
     };
@@ -156,7 +156,10 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
     let Some(declaration) = signature.declaration_span else {
         return;
     };
-    let Some(summary) = summaries.get(CallableId::declared_at(declaration)) else {
+    let Some(callable) = CallableId::for_declaration(resolved, declaration) else {
+        return;
+    };
+    let Some(summary) = summaries.get(callable) else {
         return;
     };
 

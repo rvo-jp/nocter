@@ -1954,15 +1954,12 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
         panic!("expected instance");
     };
     let operator = instance.operators().next().expect("operator");
-    assert_eq!(operator.callable_method().visibility, Visibility::Public);
+    assert_eq!(operator.callable().visibility, Visibility::Public);
     assert_eq!(
-        operator.callable_method().receiver.mode,
+        operator.callable().receiver.mode,
         MethodReceiverMode::ReadonlyBorrow
     );
-    assert_eq!(
-        operator.callable_method().parameters.parameters[0].name,
-        "other"
-    );
+    assert_eq!(operator.callable().parameters.parameters[0].name, "other");
 
     let Item::Function(function) = &ast.items[2] else {
         panic!("expected function");
@@ -2068,18 +2065,18 @@ instance Buffer<T> {
     let operators = instance.index_operators().collect::<Vec<_>>();
     assert_eq!(operators.len(), 2);
     assert_eq!(
-        operators[0].callable_method().receiver.mode,
+        operators[0].callable().receiver.mode,
         MethodReceiverMode::ReadonlyBorrow
     );
     assert_eq!(
-        operators[1].callable_method().receiver.mode,
+        operators[1].callable().receiver.mode,
         MethodReceiverMode::ReadwriteBorrow
     );
     assert_eq!(
-        operators[0].callable_method().parameters.parameters[0].name,
+        operators[0].callable().parameters.parameters[0].name,
         "index"
     );
-    assert!(operators[0].callable_method().result_provenance.is_some());
+    assert!(operators[0].callable().result_provenance.is_some());
     let json = ast.to_json(&sources);
     assert_eq!(
         find_json_node(&json, "operator_decl").and_then(|node| node.value.as_deref()),
@@ -2113,15 +2110,15 @@ func traverse<C, I>(source: &C): void where (...&C): I {
     let operators = instance.expansion_operators().collect::<Vec<_>>();
     assert_eq!(operators.len(), 3);
     assert_eq!(
-        operators[0].callable_method().receiver.mode,
+        operators[0].callable().receiver.mode,
         MethodReceiverMode::ReadonlyBorrow
     );
     assert_eq!(
-        operators[1].callable_method().receiver.mode,
+        operators[1].callable().receiver.mode,
         MethodReceiverMode::ReadwriteBorrow
     );
     assert_eq!(
-        operators[2].callable_method().receiver.mode,
+        operators[2].callable().receiver.mode,
         MethodReceiverMode::Owned
     );
 

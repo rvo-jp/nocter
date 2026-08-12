@@ -73,7 +73,9 @@ pub(crate) fn synthetic_comparison_call(expression: &BinaryExpr) -> CallExpr {
         callee: Box::new(Expr::Member(MemberExpr {
             span: expression.operator_span,
             object: Box::new(left.clone()),
-            member: semantics.kind.callable_name().to_string(),
+            member: crate::semantic::OperatorCallableKind::for_comparison(semantics.kind)
+                .lookup_name()
+                .to_string(),
             member_span: expression.operator_span,
         })),
         arguments_span: right.span(),
@@ -90,7 +92,9 @@ pub(crate) fn synthetic_comparison_runtime_call(expression: &BinaryExpr) -> Call
         callee: Box::new(Expr::Member(MemberExpr {
             span: expression.operator_span,
             object: expression.left.clone(),
-            member: semantics.kind.callable_name().to_string(),
+            member: crate::semantic::OperatorCallableKind::for_comparison(semantics.kind)
+                .lookup_name()
+                .to_string(),
             member_span: expression.operator_span,
         })),
         arguments_span: expression.right.span(),
@@ -481,7 +485,7 @@ pub(super) fn check_operator_declarations(
         _ => None,
     }) {
         for operator in instance.comparison_operators() {
-            let callable = operator.callable_method();
+            let callable = operator.callable();
             let description = match operator.kind {
                 ComparisonOperatorKind::Equality => "equality",
                 ComparisonOperatorKind::StrictOrder => "ordering",
@@ -524,7 +528,7 @@ pub(super) fn check_operator_declarations(
             }
         }
         for operator in instance.index_operators() {
-            let callable = operator.callable_method();
+            let callable = operator.callable();
             if !matches!(
                 callable.receiver.mode,
                 MethodReceiverMode::ReadonlyBorrow | MethodReceiverMode::ReadwriteBorrow
@@ -557,7 +561,7 @@ pub(super) fn check_operator_declarations(
             }
         }
         for operator in instance.expansion_operators() {
-            let callable = operator.callable_method();
+            let callable = operator.callable();
             let environment =
                 super::environments::environment_for_method(callable, resolved, instance);
             if !callable.parameters.parameters.is_empty() {

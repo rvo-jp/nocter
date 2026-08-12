@@ -136,7 +136,7 @@ fn literal_target_name(target: &TypeExpr) -> Option<&str> {
 }
 
 pub(super) fn environment_for_method(
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     resolved: &ResolveOutput,
     owner: &(impl MethodOwnerDecl + ?Sized),
 ) -> TypeEnvironment {

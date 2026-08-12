@@ -9,7 +9,6 @@ use super::{
     InputId, StorageOrigin, ValueProvenance, type_may_carry_result_provenance,
     type_may_retain_fresh_result_storage,
 };
-use crate::ast::MethodDecl;
 use crate::resolve::{ParameterSignature, ResolveOutput};
 use crate::typecheck::allocation::allocator_capability_kind;
 use crate::typecheck::model::Type;
@@ -103,7 +102,7 @@ fn abstract_value_summary(
 }
 
 pub(in crate::typecheck) fn elided_declaration_result_contract(
-    method: Option<&MethodDecl>,
+    method: Option<&crate::ast::CallableDecl>,
     inputs: ResultProvenanceInputs<'_>,
     return_type: &Type,
     resolved: &ResolveOutput,

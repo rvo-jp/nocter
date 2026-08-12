@@ -181,7 +181,7 @@ impl Item {
                     InstanceMember::Method(method) => method.to_json(sources),
                     InstanceMember::Operator(operator) => operator.to_json(sources),
                     InstanceMember::Coercion(entry) => {
-                        let callable = entry.callable_method();
+                        let callable = entry.callable();
                         let mut entry_children = vec![
                             visibility_json(callable.visibility),
                             callable.receiver.to_json(sources),
@@ -563,7 +563,7 @@ impl MethodDecl {
 
 impl crate::ast::ComparisonOperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        let callable = self.callable_method();
+        let callable = self.callable();
         JsonAstNode::with_value(
             "operator_decl",
             self.kind.source_token().to_string(),
@@ -585,7 +585,7 @@ impl crate::ast::ComparisonOperatorDecl {
 
 impl crate::ast::IndexOperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        let callable = self.callable_method();
+        let callable = self.callable();
         let mut children = vec![
             visibility_json(callable.visibility),
             callable.receiver.to_json(sources),
@@ -613,7 +613,7 @@ impl crate::ast::IndexOperatorDecl {
 
 impl crate::ast::ExpansionOperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
-        let callable = self.callable_method();
+        let callable = self.callable();
         let mut children = vec![
             visibility_json(callable.visibility),
             callable.receiver.to_json(sources),

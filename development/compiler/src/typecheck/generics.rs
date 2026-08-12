@@ -13,7 +13,7 @@ use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{
     AstFile, Block, ConformanceMember, Expr, GenericParam, GenericParamList,
-    InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, TypeExpr, WhereClause,
+    InterpolatedStringPart, Item, Parameter, Stmt, TypeExpr, WhereClause,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -228,7 +228,7 @@ fn check_instance_types(
     );
     check_type_expr(sources, &instance.target_ty, resolved, &scope, diagnostics);
     let member_scope = scope.clone().with_self_type();
-    for method in instance.callable_methods() {
+    for method in instance.callables() {
         let method_scope = member_scope
             .clone()
             .with_generics(&method.generics)
@@ -935,7 +935,7 @@ impl<'a> GenericScope<'a> {
 
 fn check_method_signature(
     sources: &SourceMap,
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     resolved: &ResolveOutput,
     scope: &GenericScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,

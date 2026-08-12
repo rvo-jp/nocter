@@ -3,7 +3,8 @@ use super::*;
 fn check_method_return_type(
     sources: &SourceMap,
     owner: &(impl MethodOwnerDecl + ?Sized),
-    method: &crate::ast::MethodDecl,
+    method: &crate::ast::CallableDecl,
+    member_name: &str,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     summaries: &CallableProvenanceSummaries,
@@ -12,7 +13,7 @@ fn check_method_return_type(
     let mut environment = environment_for_method(method, resolved, owner);
     let mut borrow_provenance = ProvenanceEnvironment::default();
     let context = ReturnContext::new(
-        CallableKind::Method(method_owner_member_name(owner, &method.name)),
+        CallableKind::Method(method_owner_member_name(owner, member_name)),
         type_expr_to_type_in_environment(&method.return_type, resolved, &environment),
         method.return_type.span(),
     );
@@ -36,8 +37,21 @@ pub(in crate::typecheck::returns) fn check_instance_member_return_types(
     diagnostics: &mut Vec<Diagnostic>,
     summaries: &CallableProvenanceSummaries,
 ) {
-    for method in instance.callable_methods() {
-        check_method_return_type(sources, instance, method, resolved, diagnostics, summaries);
+    for member in &instance.members {
+        let (method, member_name) = match member {
+            crate::ast::InstanceMember::Method(method) => (&method.callable, method.name.as_str()),
+            crate::ast::InstanceMember::Operator(operator) => (operator.callable(), "operator"),
+            crate::ast::InstanceMember::Coercion(coercion) => (coercion.callable(), "coercion"),
+        };
+        check_method_return_type(
+            sources,
+            instance,
+            method,
+            member_name,
+            resolved,
+            diagnostics,
+            summaries,
+        );
     }
 }
 
@@ -83,6 +97,7 @@ pub(in crate::typecheck::returns) fn check_conformance_member_return_types(
                 sources,
                 conformance,
                 method,
+                &method.name,
                 resolved,
                 diagnostics,
                 summaries,

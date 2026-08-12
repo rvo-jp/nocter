@@ -269,8 +269,10 @@ fn direct_projection(ty: &Type) -> Option<(Type, IndexProjection, bool)> {
 
 pub(crate) fn synthetic_index_call(expression: &IndexExpr, access: IndexAccess) -> CallExpr {
     let method_name = match access {
-        IndexAccess::Readonly => crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME,
-        IndexAccess::Readwrite => crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME,
+        IndexAccess::Readonly => crate::semantic::OperatorCallableKind::ReadonlyIndex.lookup_name(),
+        IndexAccess::Readwrite => {
+            crate::semantic::OperatorCallableKind::ReadwriteIndex.lookup_name()
+        }
     };
     CallExpr {
         span: expression.span,

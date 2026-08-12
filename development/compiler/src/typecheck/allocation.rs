@@ -61,7 +61,7 @@ pub(super) fn infer_callable_allocation_effects(
                     Item::Function(function) => usize::from(function.body.is_some()),
                     Item::Test(_) => 1,
                     Item::Instance(instance) => instance
-                        .callable_methods()
+                        .callables()
                         .filter(|method| method.body.is_some())
                         .count(),
                     Item::Conformance(conformance) => conformance
@@ -100,9 +100,7 @@ pub(super) fn infer_callable_allocation_effects(
                         } else {
                             function.name_span
                         };
-                        let callable = CallableId::declared_at(
-                            source.resolved.canonical_callable_identity(identity),
-                        );
+                        let callable = required_callable_id(source.resolved, identity);
                         if !summaries.needs_current_allocation_context(callable)
                             && block_needs_current_allocation_context(
                                 body,
@@ -116,7 +114,7 @@ pub(super) fn infer_callable_allocation_effects(
                         }
                     }
                     Item::Test(test) => {
-                        let callable = CallableId::declared_at(test.name_span);
+                        let callable = required_callable_id(source.resolved, test.name_span);
                         if !summaries.needs_current_allocation_context(callable)
                             && block_needs_current_allocation_context(
                                 &test.body,
@@ -130,15 +128,11 @@ pub(super) fn infer_callable_allocation_effects(
                         }
                     }
                     Item::Instance(instance) => {
-                        for method in instance.callable_methods() {
+                        for method in instance.callables() {
                             let Some(body) = &method.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(
-                                source
-                                    .resolved
-                                    .canonical_callable_identity(method.name_span),
-                            );
+                            let callable = required_callable_id(source.resolved, method.span);
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -158,11 +152,7 @@ pub(super) fn infer_callable_allocation_effects(
                                 continue;
                             };
                             let Some(body) = &method.body else { continue };
-                            let callable = CallableId::declared_at(
-                                source
-                                    .resolved
-                                    .canonical_callable_identity(method.name_span),
-                            );
+                            let callable = required_callable_id(source.resolved, method.name_span);
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -185,7 +175,7 @@ pub(super) fn infer_callable_allocation_effects(
                             let Some(body) = &method.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(method.name_span);
+                            let callable = required_callable_id(source.resolved, method.name_span);
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -208,11 +198,8 @@ pub(super) fn infer_callable_allocation_effects(
                             let Some(body) = &function.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(
-                                source
-                                    .resolved
-                                    .canonical_callable_identity(function.member_name_span),
-                            );
+                            let callable =
+                                required_callable_id(source.resolved, function.member_name_span);
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -229,9 +216,7 @@ pub(super) fn infer_callable_allocation_effects(
                             let Some(body) = &literal.body else {
                                 continue;
                             };
-                            let callable = CallableId::declared_at(
-                                source.resolved.canonical_callable_identity(literal.span),
-                            );
+                            let callable = required_callable_id(source.resolved, literal.span);
                             if !summaries.needs_current_allocation_context(callable)
                                 && block_needs_current_allocation_context(
                                     body,
@@ -422,9 +407,9 @@ fn statement_needs_current_allocation_context(
                     .iter()
                     .chain(std::iter::once(&resolution.step))
                     .any(|method| {
-                        summaries.needs_current_allocation_context(CallableId::declared_at(
-                            method.declaration,
-                        ))
+                        callable_id(resolved, method.declaration).is_some_and(|callable| {
+                            summaries.needs_current_allocation_context(callable)
+                        })
                     })
             });
             let item_type = resolution.map_or(Type::Unknown, |resolution| resolution.item_type);
@@ -539,8 +524,9 @@ fn expression_needs_current_allocation_context(
             let call_needs = resolved_call_signature(resolved, call, environment)
                 .and_then(|signature| signature.declaration_span)
                 .is_some_and(|declaration| {
-                    summaries.needs_current_allocation_context(CallableId::declared_at(declaration))
-                        || trusted_call_needs_current_context(resolved, declaration)
+                    callable_id(resolved, declaration).is_some_and(|callable| {
+                        summaries.needs_current_allocation_context(callable)
+                    }) || trusted_call_needs_current_context(resolved, declaration)
                 });
             call_needs
                 || expression_needs_current_allocation_context(
@@ -727,9 +713,9 @@ fn expression_needs_current_allocation_context(
                         .iter()
                         .chain([&resolution.exact_size, &resolution.iteration.step])
                         .any(|method| {
-                            summaries.needs_current_allocation_context(CallableId::declared_at(
-                                method.declaration,
-                            ))
+                            callable_id(resolved, method.declaration).is_some_and(|callable| {
+                                summaries.needs_current_allocation_context(callable)
+                            })
                         })
                 });
             expression_needs_current_allocation_context(
@@ -795,6 +781,15 @@ fn trusted_call_needs_current_context(
     }
 }
 
+fn callable_id(resolved: &ResolveOutput, location: crate::source::ByteSpan) -> Option<CallableId> {
+    CallableId::for_declaration(resolved, location)
+}
+
+fn required_callable_id(resolved: &ResolveOutput, location: crate::source::ByteSpan) -> CallableId {
+    callable_id(resolved, location)
+        .unwrap_or_else(|| panic!("callable at {location:?} has no semantic definition"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -843,10 +838,10 @@ func main(): i32 {
                     )
                 }
                 Item::Function(function) if function.name == "direct" => {
-                    direct = Some(CallableId::declared_at(function.name_span));
+                    direct = callable_id(&resolved, function.name_span);
                 }
                 Item::Function(function) if function.name == "indirect" => {
-                    indirect = Some(CallableId::declared_at(function.name_span));
+                    indirect = callable_id(&resolved, function.name_span);
                 }
                 _ => {}
             }

@@ -90,7 +90,7 @@ func read(buffer: &Buffer, index: usize): i32 {
     let method = plan.method.as_ref().expect("declared index method");
     assert_eq!(
         method.method_name,
-        crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
+        crate::semantic::OperatorCallableKind::ReadonlyIndex.lookup_name()
     );
     assert_eq!(
         resolved.semantic_db.definition_at(method.declaration_span),

@@ -96,7 +96,7 @@ impl TypecheckFactCollector<'_> {
                 self.collect_generic_param_type_references(&instance.generics);
                 self.collect_type_expr_references(&instance.target_ty);
                 self.collect_where_clause_type_references(instance.requirements.as_ref());
-                for method in instance.callable_methods() {
+                for method in instance.callables() {
                     self.with_generic_scope(&method.generics, |collector| {
                         collector.collect_method_signature_type_references(method)
                     });
@@ -182,7 +182,7 @@ impl TypecheckFactCollector<'_> {
 
     pub(in crate::typecheck::facts::collector) fn collect_method_signature_type_references(
         &mut self,
-        method: &MethodDecl,
+        method: &crate::ast::CallableDecl,
     ) {
         self.collect_generic_param_type_references(&method.generics);
         self.collect_where_clause_type_references(method.requirements.as_ref());

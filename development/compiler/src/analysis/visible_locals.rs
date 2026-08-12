@@ -1,6 +1,6 @@
 //! Lexically visible local declarations at an editor cursor.
 
-use crate::ast::{AstFile, Block, ConformanceMember, Expr, Item, MethodDecl, Stmt};
+use crate::ast::{AstFile, Block, ConformanceMember, Expr, Item, Stmt};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,7 +39,7 @@ pub(super) fn visible_local_bindings_at_offset(
                 return locals;
             }
             Item::Instance(instance) => {
-                for method in instance.callable_methods() {
+                for method in instance.callables() {
                     if collect_method(method, offset, &mut locals) {
                         return locals;
                     }
@@ -71,7 +71,7 @@ pub(super) fn visible_local_bindings_at_offset(
 }
 
 fn collect_method(
-    method: &MethodDecl,
+    method: &crate::ast::CallableDecl,
     offset: usize,
     locals: &mut Vec<VisibleLocalBinding>,
 ) -> bool {

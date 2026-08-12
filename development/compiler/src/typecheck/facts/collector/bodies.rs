@@ -144,7 +144,7 @@ impl TypecheckFactCollector<'_> {
     fn collect_method_body_facts(
         &mut self,
         owner: &(impl MethodOwnerDecl + ?Sized),
-        method: &MethodDecl,
+        method: &crate::ast::CallableDecl,
     ) {
         let Some(body) = &method.body else { return };
         self.with_generic_scope(&method.generics, |collector| {
@@ -166,7 +166,7 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         instance: &InstanceDecl,
     ) {
-        for method in instance.callable_methods() {
+        for method in instance.callables() {
             self.collect_method_body_facts(instance, method);
         }
     }

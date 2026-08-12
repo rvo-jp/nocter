@@ -164,7 +164,7 @@ fn check_method_owner(
     allow_result: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in owner.methods() {
+    for method in owner.callables() {
         reject_opaque_types(
             sources,
             method

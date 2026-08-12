@@ -332,9 +332,11 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<(CallTarget, String)> {
         if let Expr::Member(member) = call.callee.as_ref()
             && matches!(
-                member.member.as_str(),
-                crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
-                    | crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+                crate::semantic::OperatorCallableKind::from_lookup_name(&member.member),
+                Some(
+                    crate::semantic::OperatorCallableKind::ReadonlyIndex
+                        | crate::semantic::OperatorCallableKind::ReadwriteIndex
+                )
             )
             && let Some(method) = self.index_plan(call.span)?.method
         {

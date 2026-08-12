@@ -225,7 +225,7 @@ fn builtin_instance_shape(
             }
         }
     }
-    if instance.callable_methods().any(|method| {
+    if instance.callables().any(|method| {
         method.body.is_none()
             || method.visibility != Visibility::Public
             || method.receiver.mode == MethodReceiverMode::Owned

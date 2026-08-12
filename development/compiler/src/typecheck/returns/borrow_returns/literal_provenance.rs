@@ -18,7 +18,10 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
 ) -> Option<ValueProvenance> {
     let resolution = resolved.literal_resolution(span)?;
     let signature = resolved.literal_signature(resolution)?;
-    let summary = summaries.result(CallableId::declared_at(resolution.literal_declaration_span))?;
+    let summary = summaries.result(CallableId::for_declaration(
+        resolved,
+        resolution.literal_declaration_span,
+    )?)?;
     let sequence_input = sequence_elements.map(|elements| {
         sequence_pack_provenance(
             elements,

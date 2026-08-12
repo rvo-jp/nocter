@@ -527,7 +527,7 @@ fn public_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
             }
             Item::Instance(instance) => spans.extend(
                 instance
-                    .callable_methods()
+                    .callables()
                     .filter(|method| is_public(method.visibility))
                     .map(|method| method.span),
             ),
@@ -636,7 +636,7 @@ fn declaration_visibilities(ast: &AstFile) -> Vec<(Visibility, ByteSpan)> {
             }
             Item::Instance(instance) => declarations.extend(
                 instance
-                    .callable_methods()
+                    .callables()
                     .map(|method| (method.visibility, method.span)),
             ),
             Item::Conformance(conformance) => declarations.extend(

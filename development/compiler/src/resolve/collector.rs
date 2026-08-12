@@ -172,8 +172,18 @@ impl Resolver<'_> {
                             "instance block",
                             &instance.generics,
                         ));
-                    for method in instance.callable_methods() {
-                        let subject = format!("method `{}`", method.name);
+                    for member in &instance.members {
+                        let (subject, method) = match member {
+                            crate::ast::InstanceMember::Method(method) => {
+                                (format!("method `{}`", method.name), &method.callable)
+                            }
+                            crate::ast::InstanceMember::Operator(operator) => {
+                                ("operator declaration".to_string(), operator.callable())
+                            }
+                            crate::ast::InstanceMember::Coercion(coercion) => {
+                                ("coercion declaration".to_string(), coercion.callable())
+                            }
+                        };
                         self.output
                             .diagnostics
                             .extend(method_generic_parameter_name_diagnostics(

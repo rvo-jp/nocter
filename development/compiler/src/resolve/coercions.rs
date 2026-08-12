@@ -159,7 +159,7 @@ fn validate_source(
 }
 
 fn validate_entry(entry: &CoercionEntry) -> Result<(), (String, ByteSpan)> {
-    let callable = entry.callable_method();
+    let callable = entry.callable();
     if !is_borrowed_target(entry.target()) {
         return Err((
             "coercion target must be a borrowed type or view".to_string(),
@@ -207,7 +207,7 @@ fn nominal_name(target: &TypeExpr) -> Option<&str> {
 }
 
 fn coercion_signature(entry: &CoercionEntry, semantic_db: &SemanticDb) -> CoercionSignature {
-    let callable = entry.callable_method();
+    let callable = entry.callable();
     CoercionSignature {
         def_id: semantic_db
             .definition_at(entry.as_span)

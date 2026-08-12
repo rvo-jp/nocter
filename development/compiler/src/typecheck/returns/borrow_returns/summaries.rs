@@ -34,32 +34,28 @@ fn body_backed_summary_floor(
         for item in &source.ast.items {
             match item {
                 Item::Function(function) => summaries.insert_result(
-                    CallableId::declared_at(function_summary_key(function, source.resolved)),
+                    function_summary_id(function, source.resolved),
                     ValueProvenance::Independent,
                 ),
                 Item::Interface(interface) => {
                     for method in &interface.methods {
                         if method.body.is_some() {
                             summaries.insert_result(
-                                CallableId::declared_at(
-                                    source
-                                        .resolved
-                                        .canonical_callable_identity(method.name_span),
-                                ),
+                                callable_id(source.resolved, method.name_span),
                                 ValueProvenance::Independent,
                             );
                         }
                     }
                 }
                 Item::Instance(_) | Item::Conformance(_) => {
-                    for method in item.method_owner().expect("matched method owner").methods() {
+                    for method in item
+                        .method_owner()
+                        .expect("matched method owner")
+                        .callables()
+                    {
                         if method.body.is_some() {
                             summaries.insert_result(
-                                CallableId::declared_at(
-                                    source
-                                        .resolved
-                                        .canonical_callable_identity(method.name_span),
-                                ),
+                                callable_id(source.resolved, method.span),
                                 ValueProvenance::Independent,
                             );
                         }
@@ -68,10 +64,7 @@ fn body_backed_summary_floor(
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         summaries.insert_result(
-                            CallableId::declared_at(function_summary_key(
-                                function,
-                                source.resolved,
-                            )),
+                            function_summary_id(function, source.resolved),
                             ValueProvenance::Independent,
                         );
                     }
@@ -80,9 +73,7 @@ fn body_backed_summary_floor(
                             continue;
                         }
                         summaries.insert_result(
-                            CallableId::declared_at(
-                                source.resolved.canonical_callable_identity(literal.span),
-                            ),
+                            callable_id(source.resolved, literal.span),
                             ValueProvenance::Independent,
                         );
                     }
@@ -132,7 +123,7 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
         Item::Instance(_) | Item::Conformance(_) => item
             .method_owner()
             .expect("matched method owner")
-            .methods()
+            .callables()
             .filter(|method| method.body.is_some())
             .count(),
         _ => 0,
@@ -174,8 +165,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         )
                         .ok()
                     });
-                    let callable =
-                        CallableId::declared_at(function_summary_key(function, source.resolved));
+                    let callable = function_summary_id(function, source.resolved);
                     insert_body_result_summary(
                         &mut summaries,
                         callable,
@@ -236,7 +226,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                     let Some(provenance) = provenance else {
                         continue;
                     };
-                    let callable = CallableId::declared_at(primitive.name_span);
+                    let callable = callable_id(source.resolved, primitive.name_span);
                     summaries.insert_result(callable, provenance);
                 }
                 Item::Interface(interface) => {
@@ -297,11 +287,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         let Some(provenance) = provenance else {
                             continue;
                         };
-                        let callable = CallableId::declared_at(
-                            source
-                                .resolved
-                                .canonical_callable_identity(method.name_span),
-                        );
+                        let callable = callable_id(source.resolved, method.name_span);
                         insert_body_result_summary(
                             &mut summaries,
                             callable,
@@ -356,10 +342,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             )
                             .ok()
                         });
-                        let callable = CallableId::declared_at(function_summary_key(
-                            function,
-                            source.resolved,
-                        ));
+                        let callable = function_summary_id(function, source.resolved);
                         insert_body_result_summary(
                             &mut summaries,
                             callable,
@@ -415,9 +398,7 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             &return_type,
                             source.resolved,
                         );
-                        let callable = CallableId::declared_at(
-                            source.resolved.canonical_callable_identity(literal.span),
-                        );
+                        let callable = callable_id(source.resolved, literal.span);
                         insert_body_result_summary(
                             &mut summaries,
                             callable,
@@ -454,7 +435,7 @@ fn collect_method_provenance_summaries(
     previous: &CallableProvenanceSummaries,
     summaries: &mut CallableProvenanceSummaries,
 ) {
-    for method in owner.methods() {
+    for method in owner.callables() {
         let Some(body) = &method.body else {
             continue;
         };
@@ -478,8 +459,7 @@ fn collect_method_provenance_summaries(
             )
             .ok()
         });
-        let callable =
-            CallableId::declared_at(resolved.canonical_callable_identity(method.name_span));
+        let callable = callable_id(resolved, method.span);
         insert_body_result_summary(
             summaries,
             callable,
@@ -620,6 +600,18 @@ pub(in crate::typecheck) fn function_summary_key(
         function.name_span
     };
     resolved.canonical_callable_identity(span)
+}
+
+fn function_summary_id(
+    function: &crate::ast::FunctionDecl,
+    resolved: &ResolveOutput,
+) -> CallableId {
+    callable_id(resolved, function_summary_key(function, resolved))
+}
+
+fn callable_id(resolved: &ResolveOutput, location: ByteSpan) -> CallableId {
+    CallableId::for_declaration(resolved, location)
+        .unwrap_or_else(|| panic!("callable at {location:?} has no semantic definition"))
 }
 
 pub(in crate::typecheck) fn borrow_return_provenance_for_callable_body(

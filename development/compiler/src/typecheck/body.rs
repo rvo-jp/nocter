@@ -157,7 +157,7 @@ fn check_instance_member_expressions(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in instance.callable_methods() {
+    for method in instance.callables() {
         let Some(body) = &method.body else {
             continue;
         };

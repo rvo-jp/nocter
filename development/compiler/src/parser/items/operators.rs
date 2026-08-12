@@ -37,25 +37,14 @@ impl Parser<'_> {
         let result_provenance = self.parse_result_provenance_clause()?;
         let body = self.parse_block()?;
         let span = self.span(start.span.start, body.span.end);
-        let name = match receiver.mode {
-            MethodReceiverMode::ReadonlyBorrow => {
-                crate::ast::READONLY_EXPANSION_OPERATOR_METHOD_NAME
-            }
-            MethodReceiverMode::ReadwriteBorrow => {
-                crate::ast::READWRITE_EXPANSION_OPERATOR_METHOD_NAME
-            }
-            MethodReceiverMode::Owned => crate::ast::OWNED_EXPANSION_OPERATOR_METHOD_NAME,
-        };
         Ok(OperatorDecl::Expansion(ExpansionOperatorDecl::new(
             span,
             operator_span,
-            MethodDecl {
+            crate::ast::CallableDecl {
                 span,
                 visibility,
                 keyword_span: start.span,
                 receiver,
-                name: name.to_string(),
-                name_span: operator_span,
                 generics: crate::ast::GenericParamList::empty(),
                 parameters: ParameterList {
                     span: operator_span,
@@ -111,13 +100,11 @@ impl Parser<'_> {
             span,
             operator.span,
             kind,
-            MethodDecl {
+            crate::ast::CallableDecl {
                 span,
                 visibility,
                 keyword_span: start.span,
                 receiver,
-                name: kind.callable_name().to_string(),
-                name_span: operator.span,
                 generics: crate::ast::GenericParamList::empty(),
                 parameters: ParameterList {
                     span: other.span,
@@ -154,9 +141,8 @@ impl Parser<'_> {
         let result_provenance = self.parse_result_provenance_clause()?;
         let body = self.parse_block()?;
         let span = self.span(start.span.start, body.span.end);
-        let name = match receiver.mode {
-            MethodReceiverMode::ReadonlyBorrow => crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME,
-            MethodReceiverMode::ReadwriteBorrow => crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME,
+        match receiver.mode {
+            MethodReceiverMode::ReadonlyBorrow | MethodReceiverMode::ReadwriteBorrow => {}
             MethodReceiverMode::Owned => {
                 self.error_at(receiver.span, "index receiver must be `&self` or `&+self`");
                 return Err(());
@@ -167,13 +153,11 @@ impl Parser<'_> {
             start.span,
             open_bracket.span,
             close_bracket.span,
-            MethodDecl {
+            crate::ast::CallableDecl {
                 span,
                 visibility,
                 keyword_span: start.span,
                 receiver,
-                name: name.to_string(),
-                name_span: open_bracket.span,
                 generics: crate::ast::GenericParamList::empty(),
                 parameters: ParameterList {
                     span: parameter.span,

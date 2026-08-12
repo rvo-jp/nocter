@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use super::conformance::interface_conformance;
 use super::diagnostics::{
     duplicate_destruct_declaration_diagnostic, duplicate_inherent_member_name_diagnostic,
+    duplicate_inherent_operator_diagnostic,
 };
 
 pub(super) fn attach_behavior_declarations_to_symbol(
@@ -103,14 +104,26 @@ pub(super) fn associated_function_signature(
 pub(super) fn instance_method_signatures(
     instance: &InstanceDecl,
 ) -> impl Iterator<Item = MethodSignature> + '_ {
-    instance.behavior_methods().map(|method| {
-        method_signature_for_owner(
-            method,
-            &instance.target_ty,
-            &instance.generics,
-            instance.requirements.as_ref(),
-        )
-    })
+    instance
+        .named_methods()
+        .map(|method| {
+            method_signature_for_owner(
+                method,
+                &instance.target_ty,
+                &instance.generics,
+                instance.requirements.as_ref(),
+            )
+        })
+        .chain(instance.operators().map(|operator| {
+            callable_signature_for_owner(
+                crate::semantic::OperatorCallableKind::from_declaration(operator).lookup_name(),
+                operator.anchor_span(),
+                operator.callable(),
+                &instance.target_ty,
+                &instance.generics,
+                instance.requirements.as_ref(),
+            )
+        }))
 }
 
 pub(super) fn conformance_method_signatures(
@@ -159,7 +172,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     }
     let mut current_methods = HashMap::<&str, ByteSpan>::new();
 
-    for method in instance.behavior_methods() {
+    for method in instance.named_methods() {
         let (name, span) = (method.name.as_str(), method.name_span);
         let first = fixed_names
             .get(name)
@@ -200,6 +213,29 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
             ));
         } else {
             current_methods.insert(name, span);
+        }
+    }
+
+    let mut current_operators = HashMap::new();
+    for operator in instance.operators() {
+        let kind = crate::semantic::OperatorCallableKind::from_declaration(operator);
+        let span = operator.anchor_span();
+        if let Some(first) = current_operators.insert(kind, span) {
+            diagnostics.push(duplicate_inherent_operator_diagnostic(
+                sources,
+                target_name,
+                match kind {
+                    crate::semantic::OperatorCallableKind::Equality => "==",
+                    crate::semantic::OperatorCallableKind::StrictOrder => "<",
+                    crate::semantic::OperatorCallableKind::ReadonlyIndex
+                    | crate::semantic::OperatorCallableKind::ReadwriteIndex => "index",
+                    crate::semantic::OperatorCallableKind::ReadonlyExpansion
+                    | crate::semantic::OperatorCallableKind::ReadwriteExpansion
+                    | crate::semantic::OperatorCallableKind::OwnedExpansion => "expansion",
+                },
+                first,
+                span,
+            ));
         }
     }
 
@@ -476,8 +512,28 @@ fn method_signature_for_owner(
     generics: &GenericParamList,
     owner_requirements: Option<&crate::ast::WhereClause>,
 ) -> MethodSignature {
-    method_signature_inner(
-        method,
+    callable_signature_for_owner(
+        &method.name,
+        method.name_span,
+        &method.callable,
+        target_ty,
+        generics,
+        owner_requirements,
+    )
+}
+
+fn callable_signature_for_owner(
+    name: &str,
+    name_span: ByteSpan,
+    callable: &crate::ast::CallableDecl,
+    target_ty: &TypeExpr,
+    generics: &GenericParamList,
+    owner_requirements: Option<&crate::ast::WhereClause>,
+) -> MethodSignature {
+    callable_signature_inner(
+        name,
+        name_span,
+        callable,
         Some(target_ty.clone()),
         generics,
         owner_requirements,
@@ -490,11 +546,29 @@ fn method_signature_inner(
     generics: &GenericParamList,
     owner_requirements: Option<&crate::ast::WhereClause>,
 ) -> MethodSignature {
+    callable_signature_inner(
+        &method.name,
+        method.name_span,
+        &method.callable,
+        owner_target_ty,
+        generics,
+        owner_requirements,
+    )
+}
+
+fn callable_signature_inner(
+    name: &str,
+    name_span: ByteSpan,
+    method: &crate::ast::CallableDecl,
+    owner_target_ty: Option<TypeExpr>,
+    generics: &GenericParamList,
+    owner_requirements: Option<&crate::ast::WhereClause>,
+) -> MethodSignature {
     let has_default_body = method.body.is_some() && owner_target_ty.is_none();
     let requirements = merged_where_clause(owner_requirements, method.requirements.as_ref());
     MethodSignature {
-        name: method.name.clone(),
-        name_span: method.name_span,
+        name: name.to_string(),
+        name_span,
         visibility: method.visibility,
         is_accessible: true,
         owner_target_ty,

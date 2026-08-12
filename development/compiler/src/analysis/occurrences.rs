@@ -5,9 +5,7 @@
 //! classification cannot develop independent target-selection rules.
 
 use super::CompileUnitAnalysis;
-use crate::ast::{
-    AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, MethodOwnerDecl, TypeExpr,
-};
+use crate::ast::{AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, TypeExpr};
 use crate::resolve::{LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind};
 use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId};
@@ -151,9 +149,25 @@ impl OccurrenceBuilder<'_> {
                     );
                 }
                 Item::Instance(instance) => {
-                    for method in instance.methods() {
-                        let Some(implementation) =
-                            self.resolved.semantic_db.definition_at(method.name_span)
+                    for member in &instance.members {
+                        let (focus, kind, role) = match member {
+                            crate::ast::InstanceMember::Method(method) => (
+                                method.name_span,
+                                SemanticOccurrenceKind::Method,
+                                SemanticOccurrenceRole::Reference,
+                            ),
+                            crate::ast::InstanceMember::Operator(operator) => (
+                                operator.anchor_span(),
+                                SemanticOccurrenceKind::Method,
+                                SemanticOccurrenceRole::Declaration,
+                            ),
+                            crate::ast::InstanceMember::Coercion(coercion) => (
+                                coercion.as_span,
+                                SemanticOccurrenceKind::Method,
+                                SemanticOccurrenceRole::Declaration,
+                            ),
+                        };
+                        let Some(implementation) = self.resolved.semantic_db.definition_at(focus)
                         else {
                             continue;
                         };
@@ -163,14 +177,10 @@ impl OccurrenceBuilder<'_> {
                             continue;
                         };
                         self.push(
-                            method.name_span,
+                            focus,
                             Some(SemanticIdentity::Definition(contract)),
-                            if crate::ast::is_operator_method_name(&method.name) {
-                                SemanticOccurrenceRole::Declaration
-                            } else {
-                                SemanticOccurrenceRole::Reference
-                            },
-                            SemanticOccurrenceKind::Method,
+                            role,
+                            kind,
                             false,
                             None,
                             2,

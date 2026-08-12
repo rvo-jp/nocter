@@ -112,7 +112,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     ),
                     symbols,
                 );
-                let callable = operator.callable_method();
+                let callable = operator.callable();
                 let receiver = callable.receiver.implicit_parameter();
                 collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
                 collect_parameter_hover_symbols(&callable.parameters.parameters, symbols);
@@ -131,7 +131,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     ),
                     symbols,
                 );
-                let callable = operator.callable_method();
+                let callable = operator.callable();
                 let receiver = callable.receiver.implicit_parameter();
                 collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
                 collect_parameter_hover_symbols(&callable.parameters.parameters, symbols);
@@ -150,7 +150,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     ),
                     symbols,
                 );
-                let callable = operator.callable_method();
+                let callable = operator.callable();
                 let receiver = callable.receiver.implicit_parameter();
                 collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
                 if let Some(body) = &callable.body {
@@ -165,7 +165,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     crate::analysis::presentation::ast_coercion_presentation(entry),
                     symbols,
                 );
-                let callable = entry.callable_method();
+                let callable = entry.callable();
                 let receiver = callable.receiver.implicit_parameter();
                 collect_parameter_hover_symbols(std::slice::from_ref(&receiver), symbols);
                 if let Some(body) = &callable.body {

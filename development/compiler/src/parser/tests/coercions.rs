@@ -24,8 +24,8 @@ fn parses_borrow_coercion_entries_and_json() {
     assert!(matches!(instance.target_ty, TypeExpr::Generic(_)));
     let coercions = instance.coercions().collect::<Vec<_>>();
     assert_eq!(coercions.len(), 2);
-    let first = coercions[0].callable_method();
-    let second = coercions[1].callable_method();
+    let first = coercions[0].callable();
+    let second = coercions[1].callable();
     assert_eq!(first.visibility, Visibility::Public);
     assert_eq!(first.receiver.mode, MethodReceiverMode::ReadonlyBorrow);
     assert_eq!(second.visibility, Visibility::Private);
@@ -86,7 +86,7 @@ fn rejects_standalone_declarations_and_accepts_package_entry_visibility() {
             .coercions()
             .next()
             .expect("coercion")
-            .callable_method()
+            .callable()
             .visibility,
         Visibility::Package
     );
@@ -121,7 +121,7 @@ fn parses_bodyless_public_coercion_contract() {
             .coercions()
             .next()
             .expect("coercion")
-            .callable_method()
+            .callable()
             .body
             .is_none()
     );

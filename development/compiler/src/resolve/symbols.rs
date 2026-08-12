@@ -53,6 +53,15 @@ impl ResolveOutput {
         self.callable_bodies.canonical_identity(span)
     }
 
+    pub(crate) fn canonical_callable_definition(&self, span: ByteSpan) -> Option<DefId> {
+        let definition = self.semantic_db.definition_at(span)?;
+        Some(
+            self.callable_bodies
+                .declaration_id(definition)
+                .unwrap_or(definition),
+        )
+    }
+
     pub(crate) fn canonical_callable_input_identity(&self, span: ByteSpan) -> ByteSpan {
         self.callable_bodies.canonical_input_identity(span)
     }

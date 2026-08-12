@@ -57,7 +57,7 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
         }
         Item::Instance(instance) => {
             push_target(text, instance.span, targets);
-            for method in instance.callable_methods() {
+            for method in instance.callables() {
                 push_target(text, method.span, targets);
                 if let Some(body) = &method.body {
                     collect_block_targets(text, body, targets);

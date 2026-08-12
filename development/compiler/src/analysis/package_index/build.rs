@@ -243,7 +243,9 @@ impl<'a> PackageSemanticIndexBuilder<'a> {
                 let definition = semantic_db.definition(id)?;
                 let kind = if definition.kind == DefinitionKind::GenericParameter {
                     StableIdentityKind::GenericParameter
-                } else if definition.owner.is_some() {
+                } else if definition.owner.is_some()
+                    || definition.kind == DefinitionKind::AssociatedFunction
+                {
                     StableIdentityKind::Member
                 } else {
                     StableIdentityKind::Declaration

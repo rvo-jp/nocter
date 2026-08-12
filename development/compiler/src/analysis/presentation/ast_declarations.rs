@@ -96,7 +96,7 @@ pub(crate) fn ast_comparison_operator_presentation(
     operator: &ComparisonOperatorDecl,
 ) -> String {
     let owner = crate::ast::canonical_type_expr(owner);
-    let callable = operator.callable_method();
+    let callable = operator.callable();
     let other = &callable.parameters.parameters[0].name;
     format!(
         "operator (&{owner} {} {other}: &{owner}): bool",
@@ -109,7 +109,7 @@ pub(crate) fn ast_index_operator_presentation(
     operator: &IndexOperatorDecl,
 ) -> String {
     let owner = crate::ast::canonical_type_expr(owner);
-    let callable = operator.callable_method();
+    let callable = operator.callable();
     let parameter = &callable.parameters.parameters[0];
     let provenance = super::result_origin_labels(callable.result_provenance.as_ref());
     let provenance = if provenance.is_empty() {
@@ -131,7 +131,7 @@ pub(crate) fn ast_expansion_operator_presentation(
     operator: &ExpansionOperatorDecl,
 ) -> String {
     let owner = crate::ast::canonical_type_expr(owner);
-    let callable = operator.callable_method();
+    let callable = operator.callable();
     let provenance = super::result_origin_labels(callable.result_provenance.as_ref());
     let provenance = if provenance.is_empty() {
         String::new()
@@ -146,7 +146,7 @@ pub(crate) fn ast_expansion_operator_presentation(
 }
 
 pub(crate) fn ast_coercion_presentation(entry: &CoercionEntry) -> String {
-    let callable = entry.callable_method();
+    let callable = entry.callable();
     let visibility = if callable.visibility.is_private() {
         String::new()
     } else {

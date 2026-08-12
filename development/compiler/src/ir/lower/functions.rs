@@ -71,9 +71,9 @@ use crate::analysis::literal_specializations::{
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DestructDecl, DropStmt, Expr,
     FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralDecl, LiteralExpr, LiteralShape,
-    MemberExpr, MethodDecl, Parameter, PayloadEnumPatternTargetShape, ReturnStmt, Stmt,
-    StructLiteralExpr, SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference,
-    UnaryOperator, substitute_type_expr_parameters,
+    MemberExpr, Parameter, PayloadEnumPatternTargetShape, ReturnStmt, Stmt, StructLiteralExpr,
+    SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

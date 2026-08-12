@@ -324,7 +324,7 @@ impl SemanticIdentifierCollector<'_> {
         let spans = self.ast.items.iter().flat_map(|item| match item {
             crate::ast::Item::Instance(instance) => instance
                 .operators()
-                .map(|operator| operator.callable_method().keyword_span)
+                .map(|operator| operator.callable().keyword_span)
                 .chain(instance.coercions().map(|entry| entry.keyword_span))
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
@@ -1204,13 +1204,12 @@ func equal(left: &Text, right: &Text): bool {
             assert_eq!(token.kind, SemanticTokenKind::Parameter);
             assert_ne!(token.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
         }
-        assert!(
-            identifiers
-                .iter()
-                .all(|token| !crate::ast::is_operator_method_name(
-                    &text[token.start_byte..token.end_byte]
-                ))
-        );
+        assert!(identifiers.iter().all(|token| {
+            crate::semantic::OperatorCallableKind::from_lookup_name(
+                &text[token.start_byte..token.end_byte],
+            )
+            .is_none()
+        }));
     }
 
     #[test]
@@ -1250,8 +1249,7 @@ func read(buffer: &Buffer, index: usize): i32 {
         }
         assert!(identifiers.iter().all(|token| {
             let lexeme = &text[token.start_byte..token.end_byte];
-            lexeme != crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
-                && lexeme != crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
+            crate::semantic::OperatorCallableKind::from_lookup_name(lexeme).is_none()
         }));
     }
 

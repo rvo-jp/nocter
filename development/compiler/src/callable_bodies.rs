@@ -208,7 +208,7 @@ impl CallableBodyIndex {
                         !self.is_implementation(method.name_span)
                     }
                     crate::ast::InstanceMember::Operator(operator) => {
-                        !self.is_implementation(operator.callable_method().name_span)
+                        !self.is_implementation(operator.anchor_span())
                     }
                     crate::ast::InstanceMember::Coercion(entry) => {
                         !self.is_implementation(entry.as_span)
@@ -251,6 +251,11 @@ enum CallableKey {
         owner: String,
         name: String,
     },
+    Operator {
+        owner: String,
+        shape: OperatorShape,
+        receiver: &'static str,
+    },
     Literal {
         owner: String,
         shape: LiteralShape,
@@ -270,6 +275,9 @@ impl CallableKey {
                 |owner| format!("associated function `{owner}.{name}`"),
             ),
             Self::Method { owner, name } => format!("method `{owner}.{name}`"),
+            Self::Operator { owner, shape, .. } => {
+                format!("{} operator for `{owner}`", shape.label())
+            }
             Self::Literal { owner, shape } => format!(
                 "{} literal for `{owner}`",
                 match shape {
@@ -280,6 +288,25 @@ impl CallableKey {
             Self::Coercion { owner, target, .. } => {
                 format!("coercion from `{owner}` to `{target}`")
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum OperatorShape {
+    Equality,
+    StrictOrder,
+    Index,
+    Expansion,
+}
+
+impl OperatorShape {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Equality => "equality",
+            Self::StrictOrder => "ordering",
+            Self::Index => "index",
+            Self::Expansion => "expansion",
         }
     }
 }
@@ -422,12 +449,25 @@ fn collect_inherent_methods(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in instance.behavior_methods() {
+    for method in instance.named_methods() {
         classify(
             sources,
             record_for_method(module, instance, method),
             method.visibility,
             method.body.is_some(),
+            is_root,
+            contracts,
+            implementations,
+            diagnostics,
+        );
+    }
+    for operator in instance.operators() {
+        let callable = operator.callable();
+        classify(
+            sources,
+            record_for_operator(module, instance, operator),
+            callable.visibility,
+            callable.body.is_some(),
             is_root,
             contracts,
             implementations,
@@ -490,7 +530,7 @@ fn collect_coercions(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for entry in instance.coercions() {
-        let callable = entry.callable_method();
+        let callable = entry.callable();
         classify(
             sources,
             CallableRecord {
@@ -573,6 +613,49 @@ fn record_for_method(
         inputs: std::iter::once(method.receiver.name_span)
             .chain(
                 method
+                    .parameters
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name_span),
+            )
+            .collect(),
+    }
+}
+
+fn record_for_operator(
+    module: SourceId,
+    owner_decl: &InstanceDecl,
+    operator: &crate::ast::OperatorDecl,
+) -> CallableRecord {
+    let callable = operator.callable();
+    let shape = match operator {
+        crate::ast::OperatorDecl::Comparison(operator) => match operator.kind {
+            crate::ast::ComparisonOperatorKind::Equality => OperatorShape::Equality,
+            crate::ast::ComparisonOperatorKind::StrictOrder => OperatorShape::StrictOrder,
+        },
+        crate::ast::OperatorDecl::Index(_) => OperatorShape::Index,
+        crate::ast::OperatorDecl::Expansion(_) => OperatorShape::Expansion,
+    };
+    CallableRecord {
+        module,
+        identity: operator.anchor_span(),
+        declaration_span: callable.span,
+        key: CallableKey::Operator {
+            owner: canonical_type_expr(&owner_decl.target_ty),
+            shape,
+            receiver: callable.receiver.mode.label(),
+        },
+        signature: CallableSignature {
+            owner_generics: generic_signature(&owner_decl.generics),
+            generics: generic_signature(&callable.generics),
+            receiver: Some(callable.receiver.mode.label()),
+            parameters: parameter_signature(&callable.parameters),
+            return_type: canonical_type_expr(&callable.return_type),
+            provenance: provenance_signature(callable.result_provenance.as_ref()),
+        },
+        inputs: std::iter::once(callable.receiver.name_span)
+            .chain(
+                callable
                     .parameters
                     .parameters
                     .iter()
