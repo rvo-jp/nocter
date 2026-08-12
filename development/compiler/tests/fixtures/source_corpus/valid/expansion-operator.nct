@@ -1,17 +1,21 @@
-use std/iter.Iterator
+struct Cursor {
+    marker: usize,
+}
 
-use std/vec.Vec
+struct Source {
+    marker: usize,
+}
 
-func count<C, I>(source: &C): usize where (...&C): I, I: Iterator {
-    var total: usize = 0
-    for item in &source {
-        total = total + 1
+instance Source {
+    operator (...&self): Cursor {
+        return Cursor { marker: self.marker }
     }
-    return total
+}
+
+func accepts_expansion<C, I>(source: &C): void where (...&C): I {
+    return
 }
 
 func main(): i32 {
-    let values = Vec [1, 2, 3]
-    let total = count(&values)
     return 0
 }
