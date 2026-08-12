@@ -4,7 +4,7 @@ use super::DefId;
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
 use crate::ast::{
     AstFile, Block, ConformanceMember, ConstructMemberDecl, FromImportItem, ImportItem,
-    InstanceMember, Item, OperatorDecl,
+    InstanceMember, Item, LiteralDecl, MethodDecl, OperatorDecl, ParameterList,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -13,6 +13,9 @@ use std::collections::HashMap;
 pub(crate) enum DefinitionKind {
     Import,
     Function,
+    Parameter,
+    Receiver,
+    LiteralCapture,
     Test,
     Primitive,
     TypeAlias,
@@ -167,6 +170,7 @@ impl SemanticDbBuilder {
                     function.span,
                 );
                 self.define_location(id, function.member_name_span);
+                self.collect_parameters(id, &function.parameters);
                 if let Some(body) = &function.body {
                     self.collect_body_declarations(id, body);
                 }
@@ -176,12 +180,13 @@ impl SemanticDbBuilder {
                 self.collect_body_declarations(id, &test.body);
             }
             Item::Primitive(primitive) => {
-                self.define(
+                let id = self.define(
                     DefinitionKind::Primitive,
                     None,
                     primitive.name_span,
                     primitive.span,
                 );
+                self.collect_parameters(id, &primitive.parameters);
             }
             Item::TypeAlias(alias) => {
                 self.define(DefinitionKind::TypeAlias, None, alias.name_span, alias.span);
@@ -235,6 +240,7 @@ impl SemanticDbBuilder {
                         method.name_span,
                         method.span,
                     );
+                    self.collect_method_inputs(id, method);
                     if let Some(body) = &method.body {
                         self.collect_body_declarations(id, body);
                     }
@@ -275,6 +281,7 @@ impl SemanticDbBuilder {
                                 method.name_span,
                                 method.span,
                             );
+                            self.collect_method_inputs(id, method);
                             if let Some(body) = &method.body {
                                 self.collect_body_declarations(id, body);
                             }
@@ -288,6 +295,12 @@ impl SemanticDbBuilder {
                     None,
                     destruct.keyword_span,
                     destruct.span,
+                );
+                self.define(
+                    DefinitionKind::Parameter,
+                    Some(id),
+                    destruct.binding.name_span,
+                    destruct.binding.span,
                 );
                 self.collect_body_declarations(id, &destruct.body);
             }
@@ -309,6 +322,7 @@ impl SemanticDbBuilder {
                             );
                             self.define_location(id, function.span);
                             self.define_location(id, function.member_name_span);
+                            self.collect_parameters(id, &function.parameters);
                             if let Some(body) = &function.body {
                                 self.collect_body_declarations(id, body);
                             }
@@ -321,6 +335,7 @@ impl SemanticDbBuilder {
                                 member.span,
                             );
                             self.define_location(id, literal.span);
+                            self.collect_literal_inputs(id, literal);
                             if let Some(body) = &literal.body {
                                 self.collect_body_declarations(id, body);
                             }
@@ -350,8 +365,42 @@ impl SemanticDbBuilder {
             ),
         };
         let id = self.define(kind, Some(owner), anchor, callable.span);
+        self.collect_method_inputs(id, callable);
         if let Some(body) = &callable.body {
             self.collect_body_declarations(id, body);
+        }
+    }
+
+    fn collect_method_inputs(&mut self, owner: DefId, method: &MethodDecl) {
+        self.define(
+            DefinitionKind::Receiver,
+            Some(owner),
+            method.receiver.name_span,
+            method.receiver.span,
+        );
+        self.collect_parameters(owner, &method.parameters);
+    }
+
+    fn collect_literal_inputs(&mut self, owner: DefId, literal: &LiteralDecl) {
+        self.collect_parameters(owner, &literal.parameters);
+        if let Some(capture) = &literal.capture {
+            self.define(
+                DefinitionKind::LiteralCapture,
+                Some(owner),
+                capture.name_span,
+                capture.span,
+            );
+        }
+    }
+
+    fn collect_parameters(&mut self, owner: DefId, parameters: &ParameterList) {
+        for parameter in &parameters.parameters {
+            self.define(
+                DefinitionKind::Parameter,
+                Some(owner),
+                parameter.name_span,
+                parameter.span,
+            );
         }
     }
 }
@@ -386,17 +435,25 @@ instance Text {
         );
         let db = SemanticDb::from_files(std::slice::from_ref(&file));
         let definitions = db.definitions();
-        assert_eq!(definitions.len(), 6);
+        assert_eq!(definitions.len(), 10);
         assert_eq!(definitions[0].kind, DefinitionKind::Struct);
         assert_eq!(definitions[1].kind, DefinitionKind::StructField);
         assert_eq!(definitions[2].kind, DefinitionKind::Instance);
         assert_eq!(definitions[3].kind, DefinitionKind::Method);
-        assert_eq!(definitions[4].kind, DefinitionKind::Coercion);
-        assert_eq!(definitions[5].kind, DefinitionKind::ComparisonOperator);
+        assert_eq!(definitions[4].kind, DefinitionKind::Receiver);
+        assert_eq!(definitions[5].kind, DefinitionKind::Coercion);
+        assert_eq!(definitions[6].kind, DefinitionKind::Receiver);
+        assert_eq!(definitions[7].kind, DefinitionKind::ComparisonOperator);
+        assert_eq!(definitions[8].kind, DefinitionKind::Receiver);
+        assert_eq!(definitions[9].kind, DefinitionKind::Parameter);
         assert_eq!(definitions[3].owner, Some(definitions[2].id));
-        assert_eq!(definitions[4].owner, Some(definitions[2].id));
+        assert_eq!(definitions[4].owner, Some(definitions[3].id));
         assert_eq!(definitions[5].owner, Some(definitions[2].id));
-        assert_eq!(definitions[5].id.raw(), 5);
+        assert_eq!(definitions[6].owner, Some(definitions[5].id));
+        assert_eq!(definitions[7].owner, Some(definitions[2].id));
+        assert_eq!(definitions[8].owner, Some(definitions[7].id));
+        assert_eq!(definitions[9].owner, Some(definitions[7].id));
+        assert_eq!(definitions[9].id.raw(), 9);
     }
 
     #[test]
@@ -424,13 +481,15 @@ instance Text {
         );
         let db = SemanticDb::from_files(std::slice::from_ref(&file));
         let definitions = db.definitions();
-        assert_eq!(definitions.len(), 2);
+        assert_eq!(definitions.len(), 3);
         assert_eq!(definitions[0].kind, DefinitionKind::Function);
-        assert_eq!(definitions[1].kind, DefinitionKind::Import);
+        assert_eq!(definitions[1].kind, DefinitionKind::Parameter);
         assert_eq!(definitions[1].owner, Some(definitions[0].id));
+        assert_eq!(definitions[2].kind, DefinitionKind::Import);
+        assert_eq!(definitions[2].owner, Some(definitions[0].id));
         assert_eq!(
-            db.definition_at(definitions[1].anchor),
-            Some(definitions[1].id)
+            db.definition_at(definitions[2].anchor),
+            Some(definitions[2].id)
         );
     }
 

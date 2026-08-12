@@ -20,7 +20,7 @@ pub(crate) struct CallableBodyIndex {
     implementation_to_declaration: HashMap<DefId, DefId>,
     identity_locations: HashMap<DefId, ByteSpan>,
     declaration_locations: HashMap<DefId, ByteSpan>,
-    implementation_input_to_declaration: HashMap<ByteSpan, ByteSpan>,
+    implementation_input_to_declaration: HashMap<DefId, DefId>,
 }
 
 impl CallableBodyIndex {
@@ -87,9 +87,11 @@ impl CallableBodyIndex {
                     for (declaration, implementation) in
                         contract.inputs.iter().zip(&implementation.inputs)
                     {
+                        let declaration = index.input_definition_id(*declaration);
+                        let implementation = index.input_definition_id(*implementation);
                         index
                             .implementation_input_to_declaration
-                            .insert(*implementation, *declaration);
+                            .insert(implementation, declaration);
                     }
                 }
                 [implementation] => diagnostics.push(signature_mismatch_diagnostic(
@@ -131,9 +133,12 @@ impl CallableBodyIndex {
 
     /// Returns the public contract identity for a receiver, parameter, or literal capture.
     pub(crate) fn canonical_input_identity(&self, span: ByteSpan) -> ByteSpan {
+        let Some(definition) = self.semantic_db.definition_at(span) else {
+            return span;
+        };
         self.implementation_input_to_declaration
-            .get(&span)
-            .copied()
+            .get(&definition)
+            .and_then(|declaration| self.semantic_db.definition_anchor(*declaration))
             .unwrap_or(span)
     }
 
@@ -153,6 +158,12 @@ impl CallableBodyIndex {
                     callable.declaration_span
                 )
             })
+    }
+
+    fn input_definition_id(&self, location: ByteSpan) -> DefId {
+        self.semantic_db
+            .definition_at(location)
+            .unwrap_or_else(|| panic!("semantic database omitted callable input at {:?}", location))
     }
 
     fn identity_location(&self, definition: DefId) -> Option<ByteSpan> {
@@ -781,6 +792,14 @@ mod tests {
         assert_eq!(
             index.canonical_input_identity(body_input),
             declaration_input
+        );
+        let declaration_input_id = index.semantic_db.definition_at(declaration_input).unwrap();
+        let body_input_id = index.semantic_db.definition_at(body_input).unwrap();
+        assert_eq!(
+            index
+                .implementation_input_to_declaration
+                .get(&body_input_id),
+            Some(&declaration_input_id)
         );
     }
 }
