@@ -2,9 +2,12 @@
 
 ## Current Task
 
-No implementation phase is active. v0.13.0 Phases 0 through 2 are complete. Await explicit
-direction before defining Phase 3, preparing a release, packaging, tagging, or publishing. The
-published v0.12.0 release remains immutable.
+Implement [v0.13.0 Phase 3 expansion operators and mutable iteration](milestones/v0.13.0.md).
+Replace collection conversion interfaces with source-owned readonly, readwrite, and consuming
+`...` operators; make collection `for` and sequence spread consume one semantic plan; and complete
+safe `for item in &+source` borrowing. Stop at the fully verified Phase 3 boundary. Do not add
+source-defined ordering, mutable sequence spread, sorting, infer Phase 4 scope, change release
+identity, package, tag, or publish. The published v0.12.0 release remains immutable.
 
 ## Completed v0.13.0 Phase 2 Checkpoint
 
