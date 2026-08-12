@@ -709,9 +709,13 @@ impl<'a> FunctionIndex<'a> {
                             }
                             let declaration =
                                 analysis.callable_bodies.canonical_identity(literal.span);
+                            let definition = analysis
+                                .semantic_db
+                                .definition_at(declaration)
+                                .expect("lowered literal must have a semantic definition");
                             for specialization in call_specializations
                                 .literals
-                                .get(&declaration)
+                                .get(&definition)
                                 .into_iter()
                                 .flatten()
                             {

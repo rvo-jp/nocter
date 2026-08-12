@@ -18,7 +18,7 @@ pub(crate) struct CallSpecializations {
     pub(crate) methods: HashMap<DefId, Vec<MethodCallSpecialization>>,
     pub(crate) coercions: HashMap<DefId, Vec<TypecheckCoercionPlan>>,
     pub(crate) drops: HashMap<DefId, Vec<DropSpecialization>>,
-    pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
+    pub(crate) literals: HashMap<DefId, Vec<LiteralSpecialization>>,
     pub(crate) method_target_aliases: Vec<MethodTargetAlias>,
 }
 

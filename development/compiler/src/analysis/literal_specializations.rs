@@ -5,11 +5,13 @@ use crate::ast::{
     Expr, Item, LiteralDecl, LiteralShape, TypeExpr, canonical_type_expr,
     substitute_type_expr_parameters, visit_file_expressions,
 };
+use crate::semantic::DefId;
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LiteralSpecialization {
+    pub(crate) def_id: DefId,
     pub(crate) declaration_span: ByteSpan,
     pub(crate) expression_span: ByteSpan,
     pub(crate) target_name: String,
@@ -34,9 +36,9 @@ pub(crate) enum LiteralPackSegmentSpecialization {
 
 pub(crate) fn collect_literal_specializations(
     analysis: &CompileUnitAnalysis,
-) -> HashMap<ByteSpan, Vec<LiteralSpecialization>> {
+) -> HashMap<DefId, Vec<LiteralSpecialization>> {
     let declarations = literal_declarations(analysis);
-    let mut by_declaration = HashMap::<ByteSpan, Vec<LiteralSpecialization>>::new();
+    let mut by_declaration = HashMap::<DefId, Vec<LiteralSpecialization>>::new();
 
     for file in &analysis.files {
         visit_file_expressions(&file.ast, &mut |expression| {
@@ -49,9 +51,7 @@ pub(crate) fn collect_literal_specializations(
             ) else {
                 return;
             };
-            let entries = by_declaration
-                .entry(specialization.declaration_span)
-                .or_default();
+            let entries = by_declaration.entry(specialization.def_id).or_default();
             if !entries.iter().any(|entry| {
                 entry.target_name == specialization.target_name
                     && entry.argument_types == specialization.argument_types
@@ -226,6 +226,11 @@ fn specialization_for_expression(
         }
     };
     Some(LiteralSpecialization {
+        def_id: file
+            .resolved
+            .semantic_db
+            .definition_at(declaration.span)
+            .expect("resolved literal must have a semantic definition"),
         declaration_span: declaration.span,
         expression_span: span,
         target_name: literal_target_name(&result_type, shape, &specialization_key),
@@ -412,5 +417,43 @@ fn type_contains_parameter(ty: &TypeExpr, parameters: &HashSet<String>) -> bool 
             type_contains_parameter(&fallible.success, parameters)
                 || type_contains_parameter(&fallible.error, parameters)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::test_support::analyze_text;
+
+    #[test]
+    fn keys_literal_specializations_by_definition_identity() {
+        let (_sources, analysis) = analyze_text(
+            r#"struct Bucket<T> { length: usize }
+
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
+}
+
+func main(): i32 {
+    let values = Bucket [1, 2]
+    return values.length
+}
+"#,
+        );
+        let specializations = collect_literal_specializations(&analysis);
+        let (definition, entries) = specializations
+            .iter()
+            .next()
+            .expect("literal specialization");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(*definition, entries[0].def_id);
+        assert_eq!(
+            analysis
+                .semantic_db
+                .definition_at(entries[0].declaration_span),
+            Some(*definition)
+        );
     }
 }
