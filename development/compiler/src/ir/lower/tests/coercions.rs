@@ -301,7 +301,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_vec_indexing_through_source_defined_operators() {
+fn lowers_vec_indexing_through_slice_coercions() {
     let ir = lower_text_with_development_home(
         r#"use std/vec.Vec
 func main(): i32 {
@@ -316,21 +316,21 @@ func main(): i32 {
         .iter()
         .find(|function| function.target == CallTarget::same_file("main"))
         .expect("expected main");
-    let operator_calls = main
+    let coercion_calls = main
         .instructions
         .iter()
         .filter(|instruction| {
-            let Instruction::CallBorrow { target, .. } = instruction else {
+            let Instruction::CallSlice { target, .. } = instruction else {
                 return false;
             };
             match target {
                 CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => {
-                    name.contains("__nocter$operator$index")
+                    name.contains("__nocter$coerce$")
                 }
             }
         })
         .count();
-    assert_eq!(operator_calls, 4, "{main:#?}");
+    assert_eq!(coercion_calls, 4, "{main:#?}");
     assert!(
         main.instructions
             .iter()

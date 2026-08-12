@@ -28,6 +28,27 @@ instance [T] {
     pub method &self.ptr(): *T {
         return from_addr(slice_ptr_addr_raw(self))
     }
+
+    /// Returns a readonly element borrow, or `none` when `index` is out of bounds.
+    pub method &self.get(index: usize): &T? {
+        if index >= self.len() {
+            return none
+        }
+        return &self[index]
+    }
+
+    /// Returns a readwrite element borrow, or `none` when `index` is out of bounds.
+    pub method &+self.get_mut(index: usize): &+T? {
+        if index >= self.len() {
+            return none
+        }
+        return &+self[index]
+    }
+
+    /// Returns the first element borrow, or `none` when the slice is empty.
+    pub method &self.first(): &T? {
+        return self.get(0)?
+    }
 }
 
 instance [T] where (&T == &T): bool {
