@@ -2,12 +2,25 @@
 
 ## Current Task
 
-Implement [v0.13.0 Phase 2 value-producing catch](milestones/v0.13.0.md). A reachable catch block
-result recovers the operand's fallible success value and rejoins the surrounding expression;
-terminal catch blocks remain valid. Reuse common block-result, branch-state, provenance,
-destination, cleanup, and editor services. Stop at the fully verified Phase 2 boundary; do not add
-outcome combinators, infer Phase 3 scope, change release identity, package, tag, or publish. The
+No implementation phase is active. v0.13.0 Phases 0 through 2 are complete. Await explicit
+direction before defining Phase 3, preparing a release, packaging, tagging, or publishing. The
 published v0.12.0 release remains immutable.
+
+## Completed v0.13.0 Phase 2 Checkpoint
+
+- reachable `catch` blocks produce the operand success type and rejoin the surrounding expression;
+  terminal handlers and empty `void` recovery remain valid
+- one fallback-result abstraction serves `otherwise` and `catch` across scalar, borrow, view,
+  aggregate, field, argument, assignment, return, stored-outcome, and composed-outcome destinations
+- branch joins preserve return, provenance, borrow, initialization, ownership, and allocation
+  facts for named and discarded error bindings
+- runtime aggregate liveness prevents cleanup of uninitialized failed-call destinations and marks
+  explicitly moved recovered values dead before cleanup
+- diagnostics, formatting, AST JSON, hover, semantic tokens, definition, references, rename,
+  completion, fixtures, examples, specification, and implementation documents agree on the same
+  value-producing semantics
+- all 3,555 tests, formatting, warnings-denied Clippy, documentation generation, and diff checks
+  pass
 
 ## Completed v0.13.0 Phase 1 Checkpoint
 
