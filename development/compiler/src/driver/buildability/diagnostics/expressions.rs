@@ -258,6 +258,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Catch(expression) => {
+            if !catch_fallback_runtime_shape_is_buildable(
+                &expression.catch_block,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                diagnostics.push(unsupported_native_build_diagnostic(
+                    sources,
+                    expression.catch_block.span,
+                    "`catch` blocks outside supported runtime control flow",
+                    "use a supported value result, direct control-flow exit, or effect-only/never expression until broader fallback control-flow lowering is promoted",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,

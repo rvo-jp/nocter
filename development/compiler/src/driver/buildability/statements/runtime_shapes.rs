@@ -53,6 +53,23 @@ pub(in crate::driver::buildability) fn expression_statement_is_supported(
     }
 }
 
+pub(in crate::driver::buildability) fn catch_fallback_runtime_shape_is_buildable(
+    block: &Block,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    (block.statements.is_empty() && block.result.is_none())
+        || otherwise_binding_fallback_runtime_shape_is_buildable(
+            block,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
+}
+
 pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_is_buildable(
     block: &Block,
     resolved: &ResolveOutput,
