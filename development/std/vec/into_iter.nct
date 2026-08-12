@@ -45,13 +45,6 @@ func next<T>(iterator: &+VecIntoIter<T>): T? {
     return take_value_at_ptr(iterator.ptr, index * element_size)
 }
 
-instance VecIntoIter<T> {
-    /// Returns the number of owned elements not yet yielded.
-    method &self.remaining(): usize {
-        return remaining(self)
-    }
-}
-
 destruct VecIntoIter<T>(&+self) {
     let element_size: usize = pointee_size(self.ptr)
     while self.end_index > self.next_index {

@@ -130,16 +130,20 @@ fn distributed_compiler_runs_package_tests_without_environment_configuration() {
     project.write_source("index.nct", "");
     project.write_source(
         "unit/index.nct",
-        r#"use std/testing.{assert, assert_eq_i32, assert_eq_str}
+        r#"use std/testing.{assert, assert_eq}
 
 test assertions_pass {
     assert(true)?
-    assert_eq_i32(2 + 2, 4)?
-    assert_eq_str("nocter", "nocter")?
+    let actual: i32 = 2 + 2
+    let expected: i32 = 4
+    assert_eq(&actual, &expected)?
+    assert_eq("nocter", "nocter")?
 }
 
 test assertion_fails {
-    assert_eq_i32(1, 2)?
+    let actual: i32 = 1
+    let expected: i32 = 2
+    assert_eq(&actual, &expected)?
 }
 "#,
     );
@@ -196,9 +200,9 @@ test assertion_fails {
     assert_eq!(report["runs"][0]["test"], "assertion_fails");
     assert_eq!(report["runs"][0]["outcome"], "failed");
     assert!(
-        report["runs"][0]["stderr"].as_str().is_some_and(
-            |stderr| stderr.contains("std.testing.not_equal: i32 values are not equal")
-        ),
+        report["runs"][0]["stderr"]
+            .as_str()
+            .is_some_and(|stderr| stderr.contains("std.testing.not_equal: values are not equal")),
         "{report:#}"
     );
 }
@@ -404,13 +408,11 @@ fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
         "std_smoke.nct",
-        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_u8, append_usize}
-use std/fmt.{try_append_bool, try_append_i32, try_append_str, try_append_string, try_append_u8, try_append_usize}
-use std/io.{File, open, print, read, stderr, stdout, write, write_text}
-use std/mem.{Allocator, Layout, RawBuffer, TryAllocator, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
+        r#"use std/fmt.{Format, try_append_bool, try_append_i32, try_append_str, try_append_string, try_append_u8, try_append_usize}
+use std/io.{File, Reader, Writer, print, stderr, stdout}
+use std/mem.{Allocator, Layout, RawBuffer, TryAllocator, alloc_layout, invalid_argument, out_of_memory, page_allocator}
 use std/process.{abort, args, cwd, env, exit, try_cwd}
 use std/ptr.{addr, from_ref, from_ref_mut}
-use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, push_str, reserve, with_capacity}
 use std/vec.Vec
 
 func main(): i32 {
@@ -418,19 +420,19 @@ func main(): i32 {
 }
 
 func raw_buffer_view(buffer: &RawBuffer): &[u8] {
-    return raw_bytes(buffer)
+    return buffer.bytes()
 }
 
 func raw_buffer_view_mut(buffer: &+RawBuffer): &+[u8] {
-    return raw_bytes_mut(buffer)
+    return buffer.bytes_mut()
 }
 
 func raw_buffer_prefix(buffer: &RawBuffer, prefix_len: usize): &[u8]! {
-    return raw_prefix(buffer, prefix_len)?
+    return buffer.prefix(prefix_len)?
 }
 
 func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
-    return raw_prefix_mut(buffer, prefix_len)?
+    return buffer.prefix_mut(prefix_len)?
 }
 
 func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer from allocator {
@@ -443,18 +445,15 @@ func allocator_free(allocator: &+Allocator, buffer: RawBuffer): void {
 }
 
 func allocator_layout(): Layout! {
-    let value = layout(4, 4)?
-    if value.size() != layout_size(&value) {
-        return invalid_argument()
-    }
-    if value.align() != layout_align(&value) {
+    let value = Layout.new(4, 4)?
+    if value.size() != 4 || value.align() != 4 {
         return invalid_argument()
     }
     return value
 }
 
 func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void {
-    grow(allocator, buffer, 8)
+    allocator.grow(buffer, 8)
     allocator.grow(buffer, 16)
     return
 }
@@ -475,7 +474,7 @@ func string_len(text: &String): usize {
 }
 
 func string_capacity(text: &String): usize {
-    return capacity(text)
+    return text.capacity()
 }
 
 func string_is_empty(text: &String): bool {
@@ -483,30 +482,30 @@ func string_is_empty(text: &String): bool {
 }
 
 func string_reserve(text: &+String, additional: usize): void {
-    reserve(text, additional)
+    text.reserve(additional)
     return
 }
 
 func string_clear(text: &+String): void {
-    clear(text)
+    text.clear()
     return
 }
 
 func file_read(file: &+File, buffer: &+[u8]): usize! {
-    return read(file, buffer)?
+    return file.read(buffer)?
 }
 
 func file_open(path: &str): File! {
-    return open(path)?
+    return File.open(path)?
 }
 
 func file_write(file: &+File, buffer: &[u8]): void! {
-    write(file, buffer)?
+    file.write(buffer)?
     return
 }
 
 func file_write_text(file: &+File, text: &str): void! {
-    write_text(file, text)?
+    file.write_text(text)?
     return
 }
 
@@ -675,10 +674,10 @@ fn distributed_std_vec_contract_shape_passes_check() {
     let project = TempProject::new("distributed-home-vec-contract-shape");
     let source = project.write_source(
         "vec_contract_shape.nct",
-        r#"use std/vec.{Vec, capacity, clear, from_slice, pop, push, reserve}
+        r#"use std/vec.Vec
 
 func inspect(values: &Vec<usize>): usize {
-    return values.len() + capacity(values) + (values as &[usize]).len()
+    return values.len() + values.capacity() + (values as &[usize]).len()
 }
 
 func empty_check(values: &Vec<usize>): bool {
@@ -686,20 +685,20 @@ func empty_check(values: &Vec<usize>): bool {
 }
 
 func mutate(values: &+Vec<usize>, value: usize): usize! {
-    reserve(values, 0)
-    push(values, value)
-    clear(values)
+    values.reserve(0)
+    values.push(value)
+    values.clear()
     return (values as &+[usize]).len()
 }
 
 func pop_shapes(values: &+Vec<usize>): usize? {
-    let free_value = pop(values) otherwise { return none }
+    let free_value = values.pop() otherwise { return none }
     values.push(free_value)
     return values.pop() otherwise { return none }
 }
 
 func method_shape(values: &[usize]): usize! {
-    var owned = from_slice(values)
+    var owned = Vec.from_slice(values)
     owned.reserve(0)
     owned.push(1)
     owned.clear()
@@ -805,11 +804,11 @@ fn distributed_std_vec_with_capacity_zero_runs() {
     let source = project.write_source(
         "vec_with_capacity_zero.nct",
         r#"use std/mem.page_allocator
-use std/vec.{Vec, with_capacity}
+use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
-    let values: Vec<u8> = with_capacity(0)
+    let values: Vec<u8> = Vec.with_capacity(0)
     if values.is_empty() {
         return 42
     }
@@ -835,7 +834,7 @@ fn distributed_std_vec_empty_shape_runs() {
     let project = TempProject::new("distributed-home-vec-empty-shape-run");
     let source = project.write_source(
         "vec_empty_shape.nct",
-        r#"use std/vec.{Vec, empty}
+        r#"use std/vec.Vec
 
 func main(): i32 {
     let first: Vec<u8> = Vec.empty()
@@ -852,7 +851,7 @@ func main(): i32 {
         return 4
     }
 
-    var second: Vec<u8> = empty()
+    var second: Vec<u8> = Vec.empty()
     if (&+second as &+[u8]).len() != 0 {
         return 5
     }
@@ -1206,11 +1205,11 @@ fn distributed_std_vec_nonzero_capacity_runs() {
     let source = project.write_source(
         "vec_nonzero_capacity.nct",
         r#"use std/mem.page_allocator
-use std/vec.{Vec, with_capacity}
+use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
-    let values: Vec<u8> = with_capacity(1)
+    let values: Vec<u8> = Vec.with_capacity(1)
     if values.len() != 0 {
         return 1
     }
@@ -1237,7 +1236,7 @@ func main(): i32! {
         return 7
     }
 
-    let flags: Vec<bool> = with_capacity(4)
+    let flags: Vec<bool> = Vec.with_capacity(4)
     if flags.len() != 0 {
         return 8
     }
@@ -1269,7 +1268,7 @@ fn distributed_std_vec_reserve_empty_runs() {
     let project = TempProject::new("distributed-home-vec-reserve-empty-run");
     let source = project.write_source(
         "vec_reserve_empty.nct",
-        r#"use std/vec.{Vec, reserve}
+        r#"use std/vec.Vec
 
 func main(): i32! {
     var values: Vec<u8> = Vec.empty()
@@ -1286,13 +1285,13 @@ func main(): i32! {
     if (&values as &[u8]).len() != 0 {
         return 4
     }
-    reserve(&+values, 1)
+    values.reserve(1)
     if values.capacity() != 3 {
         return 5
     }
 
     var words: Vec<usize> = Vec.empty()
-    reserve(&+words, 2)
+    words.reserve(2)
     if words.len() != 0 {
         return 6
     }
@@ -1301,7 +1300,7 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    reserve(&+numbers, 4)
+    numbers.reserve(4)
     if numbers.len() != 0 {
         return 8
     }
@@ -1399,9 +1398,9 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     var values: Vec<String> = Vec.empty()
-    let first = String.from_str("first")
+    let first = String.copy("first")
     values.push(move first)
-    let second = String.from_str(" second")
+    let second = String.copy(" second")
     values.push(move second)
     values.clear()
     if values.len() != 0 {
@@ -1437,7 +1436,7 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     var inner: Vec<String> = Vec.with_capacity(1)
-    let text = String.from_str("nested")
+    let text = String.copy("nested")
     inner.push(move text)
 
     var outer: Vec<Vec<String>> = Vec.with_capacity(1)
@@ -1484,7 +1483,7 @@ func recover(outer: &+Vec<Vec<String>>): i32! {
 func main(): i32! {
     var allocator = page_allocator()
     var inner: Vec<String> = Vec.with_capacity(1)
-    let text = String.from_str("preserved")
+    let text = String.copy("preserved")
     inner.push(move text)
 
     var outer: Vec<Vec<String>> = Vec.with_capacity(1)
@@ -1515,23 +1514,23 @@ func main(): i32! {
 fn distributed_std_vec_file_clear_closes_each_handle_once() {
     let project = TempProject::new("distributed-home-vec-file-clear-run");
     let data = project.write_source("data.txt", "payload");
-    let program = r#"use std/io.{File, open}
-use std/mem.{alloc, page_allocator}
+    let program = r#"use std/io.{File, Reader}
+use std/mem.page_allocator
 use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
     var files: Vec<File> = Vec.empty()
-    let first = open("__DATA_PATH__")?
+    let first = File.open("__DATA_PATH__")?
     files.push(move first)
     files.clear()
     if files.len() != 0 {
         return 1
     }
 
-    var replacement = open("__DATA_PATH__")?
+    var replacement = File.open("__DATA_PATH__")?
     drop files
-    var buffer = alloc(&+allocator, 1, 1)
+    var buffer = allocator.alloc(1, 1)
     let count: usize = replacement.read(buffer.bytes_mut())?
     if count != 1 {
         return 2
@@ -1603,7 +1602,7 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     var values: Vec<String> = Vec.with_capacity(1)
-    let text = String.from_str("popped")
+    let text = String.copy("popped")
     values.push(move text)
     let popped = values.pop() otherwise { return 2 }
     drop values
@@ -2101,7 +2100,7 @@ fn distributed_std_representations_are_not_public_api() {
         "private_representations.nct",
         r#"use std/io.File
 use std/internal/os.OSErrorKind
-use std/mem.{alloc, page_allocator, RawBuffer}
+use std/mem.{page_allocator, RawBuffer}
 use std/ptr.from_ref
 use std/vec.Vec
 
@@ -2129,7 +2128,7 @@ func invalid_raw_buffer_literal(): i32 {
 
 func invalid_raw_buffer_field(): i32! {
     var allocator = page_allocator()
-    let buffer = alloc(&+allocator, 1, 1)
+    let buffer = allocator.alloc(1, 1)
     let length = buffer.len
     return 0
 }
@@ -2222,7 +2221,7 @@ fn distributed_std_vec_builds_copy_aggregate_free_push() {
     let project = TempProject::new("distributed-home-vec-aggregate-free-push-boundary");
     let source = project.write_source(
         "index.nct",
-        r#"use std/vec.{Vec, push}
+        r#"use std/vec.Vec
 
 copy struct Pair {
     pub value: i32
@@ -2230,7 +2229,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    push(&+values, Pair { value: 1 })
+    values.push(Pair { value: 1 })
     return 0
 }
 "#,
@@ -2884,10 +2883,8 @@ fn distributed_std_string_empty_passes_check() {
     let project = TempProject::new("distributed-home-string-empty");
     let source = project.write_source(
         "string_empty.nct",
-        r#"use std/string.empty
-
-func main(): i32 {
-    let text = empty()
+        r#"func main(): i32 {
+    let text = String.empty()
     let slice: &str = &text
     return 0
 }
@@ -2941,6 +2938,51 @@ func main(): i32 { return 0 }
 }
 
 #[test]
+fn distributed_obsolete_forwarding_surfaces_are_not_public_api() {
+    let project = TempProject::new("distributed-home-obsolete-forwarding-private");
+    let source = project.write_source(
+        "obsolete_forwarding_private.nct",
+        r#"use std/vec.empty as vec_empty
+use std/string.from_str
+use std/iter.map
+use std/mem.layout
+use std/path.view as path_view
+use std/testing.assert_eq_i32
+use std/io.open
+use std/fmt.append_i32
+
+func main(): i32 { return 0 }
+"#,
+    );
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    for obsolete in [
+        "empty",
+        "from_str",
+        "map",
+        "layout",
+        "view",
+        "assert_eq_i32",
+        "open",
+        "append_i32",
+    ] {
+        assert!(
+            stderr.contains(obsolete),
+            "expected obsolete surface `{obsolete}` to be rejected, got:\n{stderr}"
+        );
+    }
+
+    let sequence_source = project.write_source(
+        "obsolete_sequence_private.nct",
+        "use std/sequence.Sequence\nfunc main(): i32 { return 0 }\n",
+    );
+    let sequence_output = nocter_check(&project, &sequence_source);
+    assert_eq!(sequence_output.status.code(), Some(1));
+    assert!(text(&sequence_output.stderr).contains("std/sequence"));
+}
+
+#[test]
 fn distributed_std_string_method_api_passes_check() {
     let project = TempProject::new("distributed-home-string-method-api");
     let source = project.write_source(
@@ -2963,7 +3005,7 @@ func main(): i32! {
         return 3
     }
     text.push_str(empty_view)
-    let copy = String.from_str((&text as &str))
+    let copy = String.copy((&text as &str))
     if copy.len() != 4 {
         return 4
     }
@@ -2989,13 +3031,13 @@ fn distributed_io_file_methods_pass_check() {
     let project = TempProject::new("distributed-home-io-file-methods");
     let source = project.write_source(
         "io_file_methods.nct",
-        r#"use std/io.{File, open, stdout}
+        r#"use std/io.{File, Reader, Writer, stdout}
 
 func main(): i32! {
     let input = File.open("input.txt") catch failure {
         return 0
     }
-    let opened = open("input.txt") catch failure {
+    let opened = File.open("input.txt") catch failure {
         return 0
     }
     var out = stdout()
@@ -3084,17 +3126,17 @@ fn distributed_io_file_read_raw_buffer_runs() {
     let source = project.write_source(
         "file_read_raw_buffer.nct",
         r#"use std/io.{File, stdout}
-use std/mem.{RawBuffer, alloc, free, page_allocator}
+use std/mem.{RawBuffer, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, 4, 1)
+    var buffer = allocator.alloc(4, 1)
     var input = File.open("input.txt")?
     let count: usize = input.read(buffer.bytes_mut())?
     var out = stdout()
     let bytes: &[u8] = buffer.prefix(count)?
     out.write(bytes)?
-    free(&+allocator, move buffer)
+    allocator.free(move buffer)
     return 0
 }
 "#,
@@ -3172,7 +3214,7 @@ fn distributed_std_allocator_layout_zero_and_grow_run() {
     let project = TempProject::new("distributed-home-allocator-layout-grow-run");
     let source = project.write_source(
         "allocator_layout_grow.nct",
-        r#"use std/mem.{Layout, alloc_layout, free, page_allocator}
+        r#"use std/mem.{Layout, alloc_layout, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -3200,7 +3242,7 @@ func main(): i32! {
     if empty.bytes()[1] != 22 {
         return 6
     }
-    free(&+allocator, move empty)
+    allocator.free(move empty)
     return 42
 }
 "#,
@@ -3225,11 +3267,11 @@ fn distributed_std_allocator_rejects_non_power_of_two_alignment() {
     let project = TempProject::new("distributed-home-allocator-invalid-alignment-run");
     let source = project.write_source(
         "allocator_invalid_alignment.nct",
-        r#"use std/mem.{page_try_allocator, try_alloc}
+        r#"use std/mem.page_try_allocator
 
 func main(): void! {
     var allocator = page_try_allocator()
-    let buffer = try_alloc(&+allocator, 1, 3)?
+    let buffer = allocator.try_alloc(1, 3)?
 }
 "#,
     );
@@ -3250,7 +3292,7 @@ fn distributed_std_allocator_failed_grow_preserves_the_old_buffer() {
     let project = TempProject::new("distributed-home-allocator-failed-grow-run");
     let source = project.write_source(
         "allocator_failed_grow.nct",
-        r#"use std/mem.{RawBuffer, TryAllocator, page_try_allocator, try_alloc}
+        r#"use std/mem.{RawBuffer, TryAllocator, page_try_allocator}
 
 func grow_huge(allocator: &+TryAllocator, buffer: &+RawBuffer): usize! {
     allocator.try_grow(buffer, 18446744073709551615)?
@@ -3269,7 +3311,7 @@ func preserved(buffer: &RawBuffer): i32 {
 
 func main(): i32! {
     var allocator = page_try_allocator()
-    var buffer = try_alloc(&+allocator, 1, 1)?
+    var buffer = allocator.try_alloc(1, 1)?
     buffer.bytes_mut()[0] = 42
     let size = grow_huge(&+allocator, &+buffer) catch failure {
         return preserved(&buffer)
@@ -3298,11 +3340,11 @@ fn distributed_std_allocator_reports_out_of_memory() {
     let project = TempProject::new("distributed-home-allocator-out-of-memory-run");
     let source = project.write_source(
         "allocator_out_of_memory.nct",
-        r#"use std/mem.{page_try_allocator, try_alloc}
+        r#"use std/mem.page_try_allocator
 
 func main(): void! {
     var allocator = page_try_allocator()
-    let buffer = try_alloc(&+allocator, 18446744073709551615, 1)?
+    let buffer = allocator.try_alloc(18446744073709551615, 1)?
 }
 "#,
     );
@@ -3351,7 +3393,7 @@ func main(): i32 {
         var values: Vec<u8> = Vec.with_capacity(2)
         values.push(20)
         values.push(22)
-        let text = String.from_str("temporary")
+        let text = String.copy("temporary")
         if (&values as &[u8])[0] != 20 {
             return 1
         }
@@ -3363,7 +3405,7 @@ func main(): i32 {
         }
     }
 
-    let root = String.from_str("restored")
+    let root = String.copy("restored")
     if root.len() != 8 {
         return 4
     }
@@ -3396,7 +3438,7 @@ fn distributed_std_region_cleans_up_early_and_loop_exits() {
 func leave_early(): i32 {
     var arena = page_allocator()
     region temporary using arena {
-        let text = String.from_str("return")
+        let text = String.copy("return")
         return 7
     }
 }
@@ -3411,7 +3453,7 @@ func main(): i32 {
     loop {
         iteration += 1
         region pass using arena {
-            let text = String.from_str("loop")
+            let text = String.copy("loop")
             if iteration == 1 {
                 continue
             }
@@ -3422,7 +3464,7 @@ func main(): i32 {
         return 2
     }
 
-    let root = String.from_str("alive")
+    let root = String.copy("alive")
     if root.len() != 5 {
         return 3
     }
@@ -3453,7 +3495,7 @@ fn distributed_std_region_release_unmaps_owned_storage() {
     fs::create_dir_all(home.join("std/region_probe")).unwrap();
     fs::write(
         home.join("std/region_probe/index.nct"),
-        r#"use std/mem.{RawBuffer, alloc, current_allocator}
+        r#"use std/mem.{RawBuffer, current_allocator}
 use std/internal/os.syscall3
 use std/ptr.addr
 
@@ -3463,7 +3505,7 @@ pub func buffer_address(buffer: &RawBuffer): usize {
 
 pub func allocate_current(size: usize, align: usize): RawBuffer {
     var allocator = current_allocator()
-    return alloc(&+allocator, size, align)
+    return allocator.alloc(size, align)
 }
 
 pub func is_mapped(address: usize): bool {
@@ -3532,7 +3574,7 @@ func fail(): void! {
 func propagate(): void! {
     var arena = page_allocator()
     region temporary using arena {
-        let text = String.from_str("propagate")
+        let text = String.copy("propagate")
         fail()?
     }
     return
@@ -3541,9 +3583,9 @@ func propagate(): void! {
 func main(): i32 {
     var arena = page_allocator()
     region outer using arena {
-        let outer_text = String.from_str("outer")
+        let outer_text = String.copy("outer")
         region inner using outer {
-            let inner_text = String.from_str("inner")
+            let inner_text = String.copy("inner")
             if inner_text.len() != 5 {
                 return 1
             }
@@ -3587,21 +3629,21 @@ struct Holder {
 func leak_struct(): Holder {
     var arena = page_allocator()
     region temporary using arena {
-        return Holder { text: String.from_str("struct") }
+        return Holder { text: String.copy("struct") }
     }
 }
 
 func leak_optional(): String? {
     var arena = page_allocator()
     region temporary using arena {
-        return String.from_str("optional")
+        return String.copy("optional")
     }
 }
 
 func leak_error_view(): i32! {
     var arena = page_allocator()
     region temporary using arena {
-        let text = String.from_str("error")
+        let text = String.copy("error")
         return error.new("app.region", (&text as &str))
     }
 }
@@ -3655,7 +3697,7 @@ fn distributed_std_accepts_allocating_closure_without_result_variance() {
         r#"use ./callbacks.invoke
 
 func main(): i32 {
-    let callback = () { String.from_str("allocated") }
+    let callback = () { String.copy("allocated") }
     let text = invoke(callback)
     return 0
 }
@@ -3674,18 +3716,18 @@ fn distributed_io_top_level_read_write_runs() {
     fs::write(project.root().join("input.txt"), b"IO").unwrap();
     let source = project.write_source(
         "io_top_level_read_write.nct",
-        r#"use std/io.{open, stdout, read, write}
-use std/mem.{alloc, free, page_allocator}
+        r#"use std/io.{File, Reader, Writer, stdout}
+use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, 4, 1)
-    var input = open("input.txt")?
-    let count: usize = read(&+input, buffer.bytes_mut())?
+    var buffer = allocator.alloc(4, 1)
+    var input = File.open("input.txt")?
+    let count: usize = input.read(buffer.bytes_mut())?
     var out = stdout()
     let bytes: &[u8] = buffer.prefix(count)?
-    write(&+out, bytes)?
-    free(&+allocator, move buffer)
+    out.write(bytes)?
+    allocator.free(move buffer)
     return 0
 }
 "#,
@@ -3711,7 +3753,6 @@ fn distributed_io_file_write_string_bytes_runs() {
     let source = project.write_source(
         "file_write_string_bytes.nct",
         r#"use std/io.stdout
-use std/string.bytes
 
 func write_bytes(data: &[u8]): void! {
     var out = stdout()
@@ -3720,7 +3761,7 @@ func write_bytes(data: &[u8]): void! {
 }
 
 func main(): i32! {
-    write_bytes(bytes("Hello bytes"))?
+    write_bytes("Hello bytes".bytes())?
     return 0
 }
 "#,
@@ -4197,16 +4238,14 @@ fn distributed_std_explicit_string_construction_runs() {
     let project = TempProject::new("distributed-home-explicit-string-run");
     let source = project.write_source(
         "explicit_string_run.nct",
-        r#"use std/fmt.append_str
-use std/io.print
+        r#"use std/io.print
 use std/mem.page_allocator
-use std/string.with_capacity
 
 func make(): String {
     var allocator = page_allocator()
-    var out = with_capacity(8)
-    append_str(&+out, "hello")
-    append_str(&+out, " runtime")
+    var out = String.with_capacity(8)
+    out.push_str("hello")
+    out.push_str(" runtime")
     return move out
 }
 
@@ -4269,53 +4308,16 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_string_from_str_view_runs() {
-    let project = TempProject::new("distributed-home-string-from-str-view-run");
-    let source = project.write_source(
-        "string_from_str_view.nct",
-        r#"use std/io.print
-use std/mem.page_allocator
-use std/string.from_str
-
-func main(): i32! {
-    var allocator = page_allocator()
-    let text = from_str("Hello String")
-    print((&text) as &str)?
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_run(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert_eq!(output.stdout, b"Hello String");
-    assert!(
-        output.stderr.is_empty(),
-        "expected empty stderr, got:\n{}",
-        text(&output.stderr)
-    );
-}
-
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[test]
 fn distributed_std_string_bytes_file_write_runs() {
     let project = TempProject::new("distributed-home-string-bytes-file-write-run");
     let source = project.write_source(
         "string_bytes_file_write.nct",
         r#"use std/io.stdout
 use std/mem.page_allocator
-use std/string.from_str
 
 func main(): i32! {
     var allocator = page_allocator()
-    let text = from_str("Owned bytes")
+    let text = String.copy("Owned bytes")
     var out = stdout()
     out.write(text.bytes())?
     return 0
@@ -4342,17 +4344,16 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_string_from_str_forward_return_runs() {
-    let project = TempProject::new("distributed-home-string-from-str-forward-return-run");
+fn distributed_std_string_copy_forward_return_runs() {
+    let project = TempProject::new("distributed-home-string-copy-forward-return-run");
     let source = project.write_source(
         "string_from_str_forward_return.nct",
         r#"use std/io.print
 use std/mem.page_allocator
-use std/string.from_str
 
 func make(): String! {
     var allocator = page_allocator()
-    return from_str("Forwarded String")
+    return String.copy("Forwarded String")
 }
 
 func main(): i32! {
@@ -4428,7 +4429,7 @@ func main(): i32! {
     var allocator = page_allocator()
     var text = String.with_capacity(32)
     text.push_str("Hello")
-    let suffix = String.from_str(" Associated")
+    let suffix = String.copy(" Associated")
     text.push_str((&suffix as &str))
     print((&text as &str))?
     return 0
@@ -4476,8 +4477,8 @@ func view_view(left: &str, right: &str): bool {
 }
 
 func main(): i32! {
-    let left = String.from_str("Nocter")
-    let right = String.from_str("Nocter")
+    let left = String.copy("Nocter")
+    let right = String.copy("Nocter")
     if !owned_owned(&left, &right) { return 1 }
     if !owned_view(&left, "Nocter") { return 2 }
     if !view_owned("Nocter", &right) { return 3 }
@@ -4507,36 +4508,35 @@ fn distributed_std_string_push_str_runs() {
         "string_push_str.nct",
         r#"use std/io.print
 use std/mem.page_allocator
-use std/string.{capacity, clear, push_str, reserve, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(5)
+    var text = String.with_capacity(5)
     if !text.is_empty() {
         return 1
     }
-    reserve(&+text, 5)
-    if capacity(&text) != 5 {
+    text.reserve(5)
+    if text.capacity() != 5 {
         return 2
     }
-    push_str(&+text, "Hello")
+    text.push_str("Hello")
     if text.len() != 5 {
         return 3
     }
-    reserve(&+text, 7)
-    push_str(&+text, " String")
+    text.reserve(7)
+    text.push_str(" String")
     if text.len() != 12 {
         return 4
     }
-    if capacity(&text) != 12 {
+    if text.capacity() != 12 {
         return 5
     }
     print((&text) as &str)?
-    clear(&+text)
+    text.clear()
     if !text.is_empty() {
         return 6
     }
-    if capacity(&text) != 12 {
+    if text.capacity() != 12 {
         return 7
     }
     return 0
@@ -4589,7 +4589,7 @@ func preserved(text: &String): i32 {
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = String.from_str("keep")
+    var text = String.copy("keep")
     grow_huge(&+text) catch failure {
         return preserved(&text)
     }
@@ -4618,11 +4618,10 @@ fn distributed_std_string_empty_push_str_runs() {
     let source = project.write_source(
         "string_empty_push_str.nct",
         r#"use std/io.print
-use std/string.{empty, push_str}
 
 func main(): i32! {
-    var text = empty()
-    push_str(&+text, "Grow")
+    var text = String.empty()
+    text.push_str("Grow")
     print((&text) as &str)?
     return 0
 }
@@ -4652,16 +4651,14 @@ fn distributed_std_fmt_append_str_runs() {
     let project = TempProject::new("distributed-home-fmt-append-str-run");
     let source = project.write_source(
         "fmt_append_str.nct",
-        r#"use std/fmt.append_str
-use std/io.print
+        r#"use std/io.print
 use std/mem.page_allocator
-use std/string.with_capacity
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(16)
-    append_str(&+text, "Hello")
-    append_str(&+text, " Format")
+    var text = String.with_capacity(16)
+    text.push_str("Hello")
+    text.push_str(" Format")
     print((&text) as &str)?
     return 0
 }
@@ -4691,19 +4688,18 @@ fn distributed_std_fmt_append_bool_and_string_runs() {
     let project = TempProject::new("distributed-home-fmt-append-bool-string-run");
     let source = project.write_source(
         "fmt_append_bool_string.nct",
-        r#"use std/fmt.{append_bool, append_str, append_string}
+        r#"use std/fmt.Format
 use std/io.print
 use std/mem.page_allocator
-use std/string.{from_str, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(32)
-    append_bool(&+text, true)
-    append_str(&+text, " ")
-    append_bool(&+text, false)
-    let suffix = from_str(" done")
-    append_string(&+text, &suffix)
+    var text = String.with_capacity(32)
+    true.format_into(&+text)
+    text.push_str(" ")
+    false.format_into(&+text)
+    let suffix = String.copy(" done")
+    suffix.format_into(&+text)
     print((&text) as &str)?
     return 0
 }
@@ -4733,26 +4729,25 @@ fn distributed_std_fmt_append_i32_runs() {
     let project = TempProject::new("distributed-home-fmt-append-i32-run");
     let source = project.write_source(
         "fmt_append_i32.nct",
-        r#"use std/fmt.{append_i32, append_i64, append_str}
+        r#"use std/fmt.Format
 use std/io.print
 use std/mem.page_allocator
-use std/string.with_capacity
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(4)
-    append_i64(&+text, 0)
+    var text = String.with_capacity(4)
+    (0 as i64).format_into(&+text)
     if (&text as &str) != "0" {
         return 2
     }
-    append_str(&+text, " ")
-    append_i32(&+text, 0)
-    append_str(&+text, " ")
-    append_i32(&+text, 42)
-    append_str(&+text, " ")
-    append_i32(&+text, -17)
-    append_str(&+text, " ")
-    append_i32(&+text, -2147483648)
+    text.push_str(" ")
+    (0 as i32).format_into(&+text)
+    text.push_str(" ")
+    (42 as i32).format_into(&+text)
+    text.push_str(" ")
+    (-17 as i32).format_into(&+text)
+    text.push_str(" ")
+    (-2147483648 as i32).format_into(&+text)
     print((&text) as &str)?
     return 0
 }
@@ -4782,15 +4777,14 @@ fn distributed_std_fmt_append_u8_runs() {
     let project = TempProject::new("distributed-home-fmt-append-u8-run");
     let source = project.write_source(
         "fmt_append_u8.nct",
-        r#"use std/fmt.{append_str, append_u8}
+        r#"use std/fmt.Format
 use std/io.print
-use std/string.with_capacity
 
 func main(): i32! {
-    var text = with_capacity(4)
-    append_u8(&+text, 0)
-    append_str(&+text, " ")
-    append_u8(&+text, 255)
+    var text = String.with_capacity(4)
+    (0 as u8).format_into(&+text)
+    text.push_str(" ")
+    (255 as u8).format_into(&+text)
     print((&text) as &str)?
     return 0
 }
@@ -4816,19 +4810,21 @@ fn distributed_std_fmt_append_usize_runs() {
     let project = TempProject::new("distributed-home-fmt-append-usize-run");
     let source = project.write_source(
         "fmt_append_usize.nct",
-        r#"use std/fmt.{append_str, append_usize}
+        r#"use std/fmt.Format
 use std/io.print
 use std/mem.page_allocator
-use std/string.with_capacity
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(8)
-    append_usize(&+text, 0)
-    append_str(&+text, " ")
-    append_usize(&+text, 42)
-    append_str(&+text, " ")
-    append_usize(&+text, 18446744073709551615)
+    var text = String.with_capacity(8)
+    let zero: usize = 0
+    zero.format_into(&+text)
+    text.push_str(" ")
+    let answer: usize = 42
+    answer.format_into(&+text)
+    text.push_str(" ")
+    let maximum: usize = 18446744073709551615
+    maximum.format_into(&+text)
     print((&text) as &str)?
     return 0
 }
@@ -4858,12 +4854,12 @@ fn distributed_std_file_write_text_runs() {
     let project = TempProject::new("distributed-home-file-write-text-run");
     let source = project.write_source(
         "file_write_text.nct",
-        r#"use std/io.{stdout, write_text}
+        r#"use std/io.{Writer, stdout}
 
 func main(): i32! {
     var out = stdout()
     out.write_text("Hello")?
-    write_text(&+out, " from File")?
+    out.write_text(" from File")?
     return 0
 }
 "#,
@@ -4892,12 +4888,12 @@ fn distributed_std_file_write_text_stderr_runs() {
     let project = TempProject::new("distributed-home-file-write-text-stderr-run");
     let source = project.write_source(
         "file_write_text_stderr.nct",
-        r#"use std/io.{stderr, write_text}
+        r#"use std/io.{Writer, stderr}
 
 func main(): i32! {
     var err = stderr()
     err.write_text("Hello")?
-    write_text(&+err, " stderr")?
+    err.write_text(" stderr")?
     return 0
 }
 "#,

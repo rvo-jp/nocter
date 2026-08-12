@@ -1,4 +1,4 @@
-use std/fmt.{Format, append_i32, append_str}
+use std/fmt.Format
 
 use std/io.print
 
@@ -9,11 +9,11 @@ struct Point {
 
 conform Format for Point {
     method &self.format_into(output: &+String): void {
-        append_str(output, "(")
-        append_i32(output, self.x)
-        append_str(output, ", ")
-        append_i32(output, self.y)
-        append_str(output, ")")
+        output.push_str("(")
+        self.x.format_into(output)
+        output.push_str(", ")
+        self.y.format_into(output)
+        output.push_str(")")
         return
     }
 }

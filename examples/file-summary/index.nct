@@ -1,4 +1,4 @@
-use std/io.{open_path, print}
+use std/io.{File, Reader, print}
 
 use std/num.usize_to_string
 
@@ -14,7 +14,7 @@ func main(): i32! {
         return 2
     }
     let path = Utf8Path.new(requested)?
-    var file = open_path(&path)?
+    var file = File.open(&path)?
     let text = file.read_to_string()?
     let lines = count_lines(&text)
     let result = usize_to_string(lines)

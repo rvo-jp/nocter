@@ -16,20 +16,19 @@ construct Utf8Path {
     }
 }
 
-pub func from_str(value: &str): Utf8Path! {
-    return Utf8Path.new(value)?
+coerce Utf8Path {
+    /// Exposes the validated UTF-8 path text without transferring ownership.
+    pub &self as &str {
+        return &self.text as &str
+    }
 }
 
-pub func view(path: &Utf8Path): &str {
-    return &path.text as &str
-}
-
-pub func is_absolute(path: &Utf8Path): bool {
+func is_absolute(path: &Utf8Path): bool {
     let value: &str = &path.text as &str
     return value.len() != 0 && bytes(value)[0] == 47
 }
 
-pub func join(path: &Utf8Path, child: &str): Utf8Path! {
+func join(path: &Utf8Path, child: &str): Utf8Path! {
     validate(child)?
     if child.len() != 0 && bytes(child)[0] == 47 {
         return Utf8Path.new(child)?
@@ -57,7 +56,6 @@ pub func invalid_path(): error {
 }
 
 instance Utf8Path {
-    pub method &self.view(): &str { return view(self) }
     pub method &self.is_absolute(): bool { return is_absolute(self) }
     pub method &self.join(child: &str): Utf8Path! { return join(self, child)? }
 }

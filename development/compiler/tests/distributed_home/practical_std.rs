@@ -5,17 +5,17 @@ fn distributed_std_text_and_collection_surface_passes_check() {
     let project = TempProject::new("distributed-home-practical-std-check");
     let source = project.write_source(
         "practical_std_shape.nct",
-        r#"use std/string.{contains, ends_with, find, is_valid_utf8, split, starts_with}
-use std/vec.{Vec, retain}
+        r#"use std/string.is_valid_utf8
+use std/vec.Vec
 
 func main(): i32 {
     let bytes: Vec<u8> = Vec [104, 105]
     let valid: bool = is_valid_utf8((&bytes as &[u8]))
-    let position: usize = find("hello", "ell") otherwise { return 1 }
-    let found: bool = contains("hello", "ell") && starts_with("hello", "he") && ends_with("hello", "lo")
-    var parts: Vec<String> = split("a::b", "::") catch failure { return 2 }
+    let position: usize = "hello".find("ell") otherwise { return 1 }
+    let found: bool = "hello".contains("ell") && "hello".starts_with("he") && "hello".ends_with("lo")
+    var parts: Vec<String> = "a::b".split("::") catch failure { return 2 }
     var values = Vec [1, 2, 3]
-    retain(&+values, (value) { value != 2 })
+    values.retain((value) { value != 2 })
     values.retain((value) { value == 1 })
     return 0
 }
@@ -30,12 +30,11 @@ fn distributed_std_path_io_numeric_and_process_surface_passes_check() {
     let project = TempProject::new("distributed-home-practical-services-check");
     let source = project.write_source(
         "practical_services_shape.nct",
-        r#"use std/io.{File, Reader, Writer, open_path}
+        r#"use std/io.{File, Reader, Writer}
 use std/io/buffer.{BufReader, BufWriter}
 use std/num.{i32_to_string, parse_i32, parse_u8, parse_usize, usize_to_string}
 use std/path.Utf8Path
 use std/process.{arg, arg_count, environment, environment_count}
-use std/string.bytes
 use std/vec.Vec
 
 func main(): i32 {
@@ -354,7 +353,7 @@ fn distributed_std_text_and_collection_operations_run() {
     let project = TempProject::new("distributed-home-practical-std-run");
     let source = project.write_source(
         "practical_std_run.nct",
-r#"use std/string.{bytes, find, is_valid_utf8, split}
+r#"use std/string.is_valid_utf8
 use std/vec.Vec
 
 func rejects_invalid_utf8(candidate: &[u8]): bool {
@@ -365,18 +364,18 @@ func rejects_invalid_utf8(candidate: &[u8]): bool {
 }
 
 func rejects_empty_separator(): bool {
-    let accepted: Vec<String> = split("abc", "") catch failure {
+    let accepted: Vec<String> = "abc".split("") catch failure {
         return true
     }
     return false
 }
 
 func main(): i32 {
-    if bytes("hello").len() != 5 || bytes("e").len() != 1 { return 19 }
-    let left: u8 = bytes("hello")[1]
-    let right: u8 = bytes("e")[0]
+    if "hello".bytes().len() != 5 || "e".bytes().len() != 1 { return 19 }
+    let left: u8 = "hello".bytes()[1]
+    let right: u8 = "e".bytes()[0]
     if left != right { return 18 }
-    let position: usize = find("hello", "e") otherwise { return 20 }
+    let position: usize = "hello".find("e") otherwise { return 20 }
     if position != 1 { return 21 }
     if !String "hello".contains("ell") { return 2 }
     if !String "hello".starts_with("he") || !String "hello".ends_with("lo") { return 3 }
@@ -387,7 +386,7 @@ func main(): i32 {
     let decoded = String.from_utf8((&encoded as &[u8])) catch failure { return 5 }
     if (&decoded as &str) != "hé" { return 6 }
 
-    var parts = split("a::b::", "::") catch failure { return 7 }
+    var parts = "a::b::".split("::") catch failure { return 7 }
     if parts.len() != 3 { return 8 }
     let final_part = parts.pop() otherwise { return 9 }
     let middle_part = parts.pop() otherwise { return 10 }
@@ -419,36 +418,35 @@ fn distributed_std_filesystem_cli_foundation_runs() {
     let project = TempProject::new("distributed-home-filesystem-cli-run");
     let fixture = project.write_source("input.txt", "alpha\nbeta\n");
     let output_path = project.root().join("output.txt");
-    let source_text = r#"use std/io.{append_path, create_path, open_path, stdout}
+    let source_text = r#"use std/io.{File, Reader, Writer, stdout}
 use std/io/buffer.{BufReader, BufWriter}
 use std/num.{parse_i32, usize_to_string}
 use std/path.Utf8Path
 use std/process.{arg, arg_count}
-use std/string.bytes
 use std/vec.Vec
 
 func main(): i32 {
     let path = Utf8Path.new("__PATH__") catch failure { return 1 }
     if !path.is_absolute() { return 2 }
-    let file = open_path(&path) catch failure { return 3 }
+    let file = File.open(&path) catch failure { return 3 }
     var reader = BufReader.with_capacity(move file, 3)
     var buffer: Vec<u8> = Vec [0, 0, 0, 0, 0, 0]
     let received: usize = reader.read((&+buffer as &+[u8])) catch failure { return 4 }
     if received != 6 || (&buffer as &[u8])[0] != 97 || (&buffer as &[u8])[5] != 10 { return 5 }
 
     let created_path = Utf8Path.new("__OUTPUT__") catch failure { return 14 }
-    let created_file = create_path(&created_path) catch failure { return 15 }
+    let created_file = File.create(&created_path) catch failure { return 15 }
     var file_writer = BufWriter.with_capacity(move created_file, 2)
-    file_writer.write(bytes("written")) catch failure { return 16 }
+    file_writer.write("written".bytes()) catch failure { return 16 }
     file_writer.close() catch failure { return 17 }
-    let reopened = open_path(&created_path) catch failure { return 18 }
+    let reopened = File.open(&created_path) catch failure { return 18 }
     var verifier = BufReader.with_capacity(move reopened, 2)
     var verification: Vec<u8> = Vec [0, 0, 0, 0, 0, 0, 0]
     let verified: usize = verifier.read((&+verification as &+[u8])) catch failure { return 19 }
     if verified != 7 || (&verification as &[u8])[0] != 119 || (&verification as &[u8])[6] != 110 { return 20 }
-    let appended_file = append_path(&created_path) catch failure { return 21 }
+    let appended_file = File.append(&created_path) catch failure { return 21 }
     var appender = BufWriter.with_capacity(move appended_file, 1)
-    appender.write(bytes("!")) catch failure { return 22 }
+    appender.write("!".bytes()) catch failure { return 22 }
     appender.close() catch failure { return 23 }
 
     let number: i32 = parse_i32("-2147483648") otherwise { return 6 }
@@ -458,7 +456,7 @@ func main(): i32 {
     if executable.len() == 0 { return 11 }
 
     var writer = BufWriter.with_capacity(stdout(), 2)
-    writer.write(bytes("ok")) catch failure { return 12 }
+    writer.write("ok".bytes()) catch failure { return 12 }
     writer.flush() catch failure { return 13 }
     return 42
 }

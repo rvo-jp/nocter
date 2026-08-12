@@ -18,7 +18,7 @@ pub func try_append_str(out: &+String, value: &str): void! {
     return
 }
 
-pub func append_str(out: &+String, value: &str): void {
+pub(/) func append_str(out: &+String, value: &str): void {
     try_append_str(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -30,7 +30,7 @@ pub func try_append_string(out: &+String, value: &String): void! {
     return
 }
 
-pub func append_string(out: &+String, value: &String): void {
+pub(/) func append_string(out: &+String, value: &String): void {
     try_append_string(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -42,7 +42,7 @@ pub func try_append_i32(out: &+String, value: i32): void! {
     return
 }
 
-pub func append_i32(out: &+String, value: i32): void {
+pub(/) func append_i32(out: &+String, value: i32): void {
     try_append_i32(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -54,7 +54,7 @@ pub func try_append_i8(out: &+String, value: i8): void! {
     return
 }
 
-pub func append_i8(out: &+String, value: i8): void {
+pub(/) func append_i8(out: &+String, value: i8): void {
     try_append_i8(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -66,7 +66,7 @@ pub func try_append_i16(out: &+String, value: i16): void! {
     return
 }
 
-pub func append_i16(out: &+String, value: i16): void {
+pub(/) func append_i16(out: &+String, value: i16): void {
     try_append_i16(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -87,7 +87,7 @@ pub func try_append_i64(out: &+String, value: i64): void! {
     return
 }
 
-pub func append_i64(out: &+String, value: i64): void {
+pub(/) func append_i64(out: &+String, value: i64): void {
     try_append_i64(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -99,7 +99,7 @@ pub func try_append_isize(out: &+String, value: isize): void! {
     return
 }
 
-pub func append_isize(out: &+String, value: isize): void {
+pub(/) func append_isize(out: &+String, value: isize): void {
     try_append_isize(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -111,7 +111,7 @@ pub func try_append_u8(out: &+String, value: u8): void! {
     return
 }
 
-pub func append_u8(out: &+String, value: u8): void {
+pub(/) func append_u8(out: &+String, value: u8): void {
     try_append_u8(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -123,7 +123,7 @@ pub func try_append_u16(out: &+String, value: u16): void! {
     return
 }
 
-pub func append_u16(out: &+String, value: u16): void {
+pub(/) func append_u16(out: &+String, value: u16): void {
     try_append_u16(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -135,7 +135,7 @@ pub func try_append_u32(out: &+String, value: u32): void! {
     return
 }
 
-pub func append_u32(out: &+String, value: u32): void {
+pub(/) func append_u32(out: &+String, value: u32): void {
     try_append_u32(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -147,7 +147,7 @@ pub func try_append_u64(out: &+String, value: u64): void! {
     return
 }
 
-pub func append_u64(out: &+String, value: u64): void {
+pub(/) func append_u64(out: &+String, value: u64): void {
     try_append_u64(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -159,7 +159,7 @@ pub func try_append_usize(out: &+String, value: usize): void! {
     return
 }
 
-pub func append_usize(out: &+String, value: usize): void {
+pub(/) func append_usize(out: &+String, value: usize): void {
     try_append_usize(out, value) catch allocation_error {
         return allocation_abort_raw()
     }
@@ -175,7 +175,7 @@ pub func try_append_bool(out: &+String, value: bool): void! {
     return
 }
 
-pub func append_bool(out: &+String, value: bool): void {
+pub(/) func append_bool(out: &+String, value: bool): void {
     try_append_bool(out, value) catch allocation_error {
         return allocation_abort_raw()
     }

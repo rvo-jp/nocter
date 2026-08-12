@@ -35,15 +35,6 @@ pub(/) func vec_into_iter_from_raw_parts<T>(
     item_count: usize,
 ): VecIntoIter<T>
 
-pub func remaining<T>(iterator: &VecIntoIter<T>): usize
-
-pub func next<T>(iterator: &+VecIntoIter<T>): T?
-
-instance VecIntoIter<T> {
-    /// Returns the number of owned elements not yet yielded.
-    pub method &self.remaining(): usize
-}
-
 /// An owning, growable sequence with an initialized prefix of elements.
 pub struct Vec<T> {
     ptr: *T
@@ -184,45 +175,9 @@ coerce Vec<T> {
     }
 }
 
-pub func empty<T>(): Vec<T> {
-    return Vec.empty()
-}
-
-pub func with_capacity<T>(requested_capacity: usize): Vec<T> {
-    return Vec.with_capacity(requested_capacity)
-}
-
-pub func try_with_capacity<T>(
-    allocator: &+TryAllocator,
-    requested_capacity: usize,
-): Vec<T>! {
-    return Vec.try_with_capacity(allocator, requested_capacity)?
-}
-
-pub func from_slice<T>(values: &[T]): Vec<T> where copy T {
-    return Vec.from_slice(values)
-}
-
-pub func try_from_slice<T>(
-    allocator: &+TryAllocator,
-    values: &[T],
-): Vec<T>! from allocator | values where copy T {
-    return Vec.try_from_slice(allocator, values)?
-}
-
-func len<T>(values: &Vec<T>): usize {
-    let values_len: usize = values.len
-    return values_len
-}
-
-pub func capacity<T>(values: &Vec<T>): usize {
+func capacity<T>(values: &Vec<T>): usize {
     let values_capacity: usize = values.capacity
     return values_capacity
-}
-
-func is_empty<T>(values: &Vec<T>): bool {
-    let values_len: usize = values.len
-    return values_len == 0
 }
 
 func view<T>(values: &Vec<T>): &[T] {
@@ -233,11 +188,7 @@ func view_mut<T>(values: &+Vec<T>): &+[T] {
     return slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
-func iter<T>(values: &Vec<T>): ViewIter<T> {
-    return ViewIter.from_view(view(values))
-}
-
-pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
+func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
     var source = move values
     let pointer: *T = source.ptr
     let source_len: usize = source.len
@@ -246,7 +197,7 @@ pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
     return vec_into_iter_from_raw_parts(pointer, &+source.storage, source_len)
 }
 
-pub func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
+func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if additional == 0 {
         return
     }
@@ -283,14 +234,14 @@ pub func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     return
 }
 
-pub func reserve<T>(values: &+Vec<T>, additional: usize): void {
+func reserve<T>(values: &+Vec<T>, additional: usize): void {
     try_reserve(values, additional) catch allocation_error {
         return allocation_abort_raw()
     }
     return
 }
 
-pub func clear<T>(values: &+Vec<T>): void {
+func clear<T>(values: &+Vec<T>): void {
     let element_size: usize = pointee_size(values.ptr)
     while values.len != 0 {
         let next_len: usize = values.len - 1
@@ -300,40 +251,14 @@ pub func clear<T>(values: &+Vec<T>): void {
     return
 }
 
-pub func truncate<T>(values: &+Vec<T>, requested_len: usize): void {
+func truncate<T>(values: &+Vec<T>, requested_len: usize): void {
     while values.len > requested_len {
         let removed: T = pop(values) otherwise { return }
     }
     return
 }
 
-/// Removes elements rejected by `predicate` while preserving relative order.
-/// Each removed value is dropped exactly once and retained values are moved at
-/// most once into the compacted initialized prefix.
-pub func retain<T, F>(values: &+Vec<T>, predicate: F): void where F: &+func(&T): bool {
-    var predicate_fn = move predicate
-    let element_size: usize = pointee_size(values.ptr)
-    let original_len: usize = values.len
-    var read_index: usize = 0
-    var write_index: usize = 0
-    while read_index < original_len {
-        let current: &T = &slice_from_raw_parts_value(values.ptr, original_len)[read_index]
-        if predicate_fn(current) {
-            if write_index != read_index {
-                let retained: T = take_value_at_ptr(values.ptr, read_index * element_size)
-                store_value_to_ptr(values.ptr, write_index * element_size, move retained)
-            }
-            write_index = write_index + 1
-        } else {
-            drop_value_at_ptr(values.ptr, read_index * element_size)
-        }
-        read_index = read_index + 1
-    }
-    values.len = write_index
-    return
-}
-
-pub func pop<T>(values: &+Vec<T>): T? {
+func pop<T>(values: &+Vec<T>): T? {
     if values.len == 0 {
         return none
     }
@@ -343,7 +268,7 @@ pub func pop<T>(values: &+Vec<T>): T? {
     return take_value_at_ptr(values.ptr, next_len * element_size)
 }
 
-pub func try_push<T>(values: &+Vec<T>, value: T): void! {
+func try_push<T>(values: &+Vec<T>, value: T): void! {
     let old_len: usize = values.len
     try_reserve(values, 1)?
     let element_size: usize = pointee_size(values.ptr)
@@ -353,14 +278,14 @@ pub func try_push<T>(values: &+Vec<T>, value: T): void! {
     return
 }
 
-pub func push<T>(values: &+Vec<T>, value: T): void {
+func push<T>(values: &+Vec<T>, value: T): void {
     try_push(values, move value) catch allocation_error {
         return allocation_abort_raw()
     }
     return
 }
 
-pub func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
+func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
     let old_len: usize = values.len
     if index > old_len {
         return index_out_of_bounds()
@@ -382,14 +307,14 @@ pub func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
     return
 }
 
-pub func insert<T>(values: &+Vec<T>, index: usize, value: T): void {
+func insert<T>(values: &+Vec<T>, index: usize, value: T): void {
     try_insert(values, index, move value) catch insert_error {
         return allocation_abort_raw()
     }
     return
 }
 
-pub func remove<T>(values: &+Vec<T>, index: usize): T? {
+func remove<T>(values: &+Vec<T>, index: usize): T? {
     let old_len: usize = values.len
     if index >= old_len {
         return none

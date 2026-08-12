@@ -5,16 +5,16 @@ fn distributed_std_vec_access_and_mutation_surface_passes_check() {
     let project = TempProject::new("distributed-home-vec-access-check");
     let source = project.write_source(
         "vec_access_shape.nct",
-        r#"use std/vec.{Vec, insert, remove, try_insert}
+        r#"use std/vec.Vec
 
 func mutate(values: &+Vec<i32>): void! {
     let direct_read: i32 = values[0]
     values[0] = direct_read
     let read: &i32 = values.get(0) otherwise { return }
     let write: &+i32 = values.get_mut(0) otherwise { return }
-    try_insert(values, 0, 1)?
-    insert(values, 1, 2)
-    let removed: i32 = remove(values, 0) otherwise { return }
+    values.try_insert(0, 1)?
+    values.insert(1, 2)
+    let removed: i32 = values.remove(0) otherwise { return }
     return
 }
 
@@ -38,8 +38,8 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_vec_indexes_through_declared_operators() {
-    let project = TempProject::new("distributed-home-vec-direct-index-run");
+fn distributed_std_vec_indexes_through_slice_coercions() {
+    let project = TempProject::new("distributed-home-vec-coerced-index-run");
     let source = project.write_source(
         "vec_direct_index.nct",
         r#"use std/vec.Vec

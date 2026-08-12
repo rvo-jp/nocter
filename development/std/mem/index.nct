@@ -5,9 +5,10 @@
 //! page_allocator. Region-specific behavior is tracked through allocator
 //! provenance from the `region ... using ...` language construct.
 //!
-//! The public functions below are ordinary standard-library APIs. Allocation is
-//! not part of the compiler primitive set; target-gated std internals
-//! provide the OS boundary behind this common API.
+//! Public allocation behavior belongs to allocator and buffer instance methods
+//! plus global allocator sources. Allocation is not part of the compiler
+//! primitive set; target-gated std internals provide the OS boundary behind
+//! this common API.
 
 use std/internal/os.{syscall2, syscall6}
 use std/ptr.addr
@@ -82,15 +83,11 @@ construct Layout {
     }
 }
 
-pub func layout(size: usize, align: usize): Layout! {
-    return Layout.new(size, align)?
-}
-
-pub func layout_size(value: &Layout): usize {
+func layout_size(value: &Layout): usize {
     return value.size
 }
 
-pub func layout_align(value: &Layout): usize {
+func layout_align(value: &Layout): usize {
     return value.align
 }
 
@@ -140,7 +137,7 @@ pub(/) func region_alloc_pages(
     return payload_start + padding
 }
 
-pub func try_alloc(
+pub(/) func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
     align: usize,
@@ -180,7 +177,7 @@ pub func try_alloc_layout(
     }
 }
 
-pub func alloc(
+pub(/) func alloc(
     allocator: &+Allocator,
     size: usize,
     align: usize,
@@ -201,19 +198,19 @@ pub func alloc_layout(
     }
 }
 
-pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
+pub(/) func free(allocator: &+Allocator, buffer: RawBuffer): void {
     // Consuming `buffer` transfers its one deallocation obligation into this
     // call. RawBuffer.drop performs the provenance-aware release on return.
     return
 }
 
-pub func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void {
+pub(/) func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void {
     // `RawBuffer.drop` owns the backend-aware release. The capability argument
     // documents and validates the caller's selected recoverable backend.
     return
 }
 
-pub func try_grow(
+pub(/) func try_grow(
     allocator: &+TryAllocator,
     buffer: &+RawBuffer,
     new_size: usize,
@@ -270,7 +267,7 @@ pub(/) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
     return
 }
 
-pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void {
+pub(/) func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     try_grow(&+fallible, buffer, new_size) catch allocation_error {
         return allocation_abort_raw()
@@ -285,22 +282,22 @@ pub(/) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
     return
 }
 
-pub func bytes(buffer: &RawBuffer): &[u8] {
+func bytes(buffer: &RawBuffer): &[u8] {
     return slice_from_raw_parts(buffer.ptr, buffer.len)
 }
 
-pub func bytes_mut(buffer: &+RawBuffer): &+[u8] {
+pub(/) func bytes_mut(buffer: &+RawBuffer): &+[u8] {
     return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
-pub func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
+func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
     return slice_from_raw_parts(buffer.ptr, len)
 }
 
-pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
+func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }

@@ -21,6 +21,11 @@ operation rather than implementation convenience:
 A body helper may remain a module-private `func`. A helper used across the implicit standard
 package may use `pub(/)`. Neither form is a second user API.
 
+The rule also applies across service modules. File construction belongs to `construct File`, and
+byte I/O belongs to `Reader` or `Writer`; top-level forwarding functions are implementation
+helpers. In formatting, nonfallible scalar rendering belongs to `Format.format_into`, while
+`try_append_*` remains public because recoverable allocation is a different failure contract.
+
 ## Semantic Equivalence Test
 
 Two declarations are removable duplicates only when all of these properties match:

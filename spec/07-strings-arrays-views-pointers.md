@@ -315,8 +315,7 @@ Collection operations are ordinary standard-library methods.
 Representative collection operations:
 
 - `[T].len(): usize`, `[T].is_empty(): bool`, and `[T].ptr(): *T`
-- `Sequence<T>.get(index: usize): &T?`, implemented by `Vec<T>`
-- `Vec<T>.get_mut(index: usize): &+T?`
+- `[T].get(index: usize): &T?`, `[T].get_mut(index: usize): &+T?`, and `[T].first(): &T?`
 - `&Vec<T> as &[T]` for readonly contiguous storage
 - `&+Vec<T> as &+[T]` for readwrite contiguous storage
 - readonly, readwrite, and owned iteration through expansion operators and `Iterator.next()`
@@ -483,20 +482,17 @@ invariants.
 
 ### Borrowed String Ranges and Iteration
 
-`std/string` exposes allocation-free borrowed text operations:
+The built-in `str` instance exposes allocation-free borrowed text operations:
 
 ```nct
-pub func is_char_boundary(text: &str, index: usize): bool
-pub func get_range(text: &str, start: usize, end: usize): &str?
-pub func strip_prefix(text: &str, prefix: &str): &str? from text
-pub func strip_suffix(text: &str, suffix: &str): &str? from text
-
-pub func split_views(
-    text: &str,
-    separator: &str,
-): SplitIter! from text | separator
-
-pub func lines(text: &str): LinesIter
+instance str {
+    pub method &self.is_char_boundary(index: usize): bool
+    pub method &self.get_range(start: usize, end: usize): &str?
+    pub method &self.strip_prefix(prefix: &str): &str? from self
+    pub method &self.strip_suffix(suffix: &str): &str? from self
+    pub method &self.split_views(separator: &str): SplitIter! from self | separator
+    pub method &self.lines(): some Iterator<Item = &str>
+}
 ```
 
 Range indices are UTF-8 byte offsets. `get_range` returns `none` when `start > end`, an endpoint is
@@ -533,8 +529,9 @@ method receiver preparation. See
 Borrowed observation has one public surface. `String` reaches text observation, search,
 projection, and iteration through its readonly coercion to `str`; `Vec<T>` reaches slice
 observation through its readonly or readwrite coercion to `[T]`. The raw `view`, `view_mut`,
-owning-type `len`, `is_empty`, `iter`, and element-projection helpers in the implementation modules
-are private. Callers use methods such as `text.len()` and `values.get(index)`, expected-type
+owning-type `len`, `is_empty`, and element-projection helpers in the implementation modules are
+private. Explicit `iter`, `iter_mut`, and `into_iter` methods remain because expansion syntax is not
+a general expression. Callers use methods such as `text.len()` and `values.get(index)`, expected-type
 coercion, or an explicit expression such as `(&text) as &str`. The standard library does not keep
 public forwarding functions for these borrowed operations.
 

@@ -5,23 +5,21 @@ fn distributed_std_iterator_adapter_surface_passes_check() {
     let project = TempProject::new("distributed-home-iterator-adapters-check");
     let source = project.write_source(
         "iterator_adapters_shape.nct",
-        r#"use std/iter.{ChainIter, chain}
-use std/iter.{EnumerateIter, Indexed, enumerate}
-use std/iter.{count, last}
-use std/iter.{SkipIter, TakeIter, skip, take}
+        r#"use std/iter.{ChainIter, EnumerateIter, Indexed}
+use std/iter.{SkipIter, TakeIter}
 use std/iter.{EmptyIter, OnceIter, empty, once}
 use std/vec.Vec
 
 func main(): i32 {
     var empty_values: EmptyIter<i32> = empty()
     var one_value: OnceIter<i32> = once(1)
-    let chained: ChainIter<EmptyIter<i32>, OnceIter<i32>> = chain(move empty_values, move one_value)
-    let limited: TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>> = take(move chained, 1)
-    let skipped: SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>> = skip(move limited, 0)
-    let indexed: EnumerateIter<SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>>> = enumerate(move skipped)
+    let chained: ChainIter<EmptyIter<i32>, OnceIter<i32>> = (move empty_values).chain(move one_value)
+    let limited: TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>> = (move chained).take(1)
+    let skipped: SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>> = (move limited).skip(0)
+    let indexed: EnumerateIter<SkipIter<TakeIter<ChainIter<EmptyIter<i32>, OnceIter<i32>>>>> = (move skipped).enumerate()
     let values: Vec<Indexed<i32>> = Vec.from_exact_iter(move indexed)
-    let item_count: usize = count(once(1))
-    let final_item: i32 = last(once(2)) otherwise { return 1 }
+    let item_count: usize = once(1).count()
+    let final_item: i32 = once(2).last() otherwise { return 1 }
     if values.len() == 1 && item_count == 1 && final_item == 2 {
         return 0
     }
@@ -39,11 +37,7 @@ fn distributed_std_iterator_adapters_and_vec_builders_run() {
     let project = TempProject::new("distributed-home-iterator-adapters-run");
     let source = project.write_source(
         "iterator_adapters_run.nct",
-        r#"use std/iter.chain
-use std/iter.enumerate
-use std/iter.{count, last}
-use std/iter.{skip, take}
-use std/iter.once
+        r#"use std/iter.once
 use std/iter.{ExactSizeIterator, Iterator}
 use std/mem.page_allocator
 use std/vec.Vec
@@ -93,7 +87,7 @@ conform ExactSizeIterator for ReportedIter {
 }
 
 func main(): i32 {
-    var prefix = take(chain(once(3), once(4)), 2)
+    var prefix = once(3).chain(once(4)).take(2)
     if prefix.remaining_len() != 2 {
         return 1
     }
@@ -106,21 +100,21 @@ func main(): i32 {
         return 5
     }
 
-    var suffix = skip(chain(once(5), once(6)), 1)
+    var suffix = once(5).chain(once(6)).skip(1)
     if suffix.remaining_len() != 1 {
         return 6
     }
     let suffix_item: i32 = suffix.next() otherwise { return 7 }
 
-    var indexed = enumerate(chain(once(7), once(8)))
+    var indexed = once(7).chain(once(8)).enumerate()
     let indexed_first = indexed.next() otherwise { return 8 }
     let indexed_second = indexed.next() otherwise { return 9 }
 
-    let counted: usize = count(chain(once(9), once(10)))
-    let final_item: i32 = last(chain(once(11), once(12))) otherwise { return 10 }
+    let counted: usize = once(9).chain(once(10)).count()
+    let final_item: i32 = once(11).chain(once(12)).last() otherwise { return 10 }
 
     let grown: Vec<i32> = Vec.from_iter(PlainIter { next_value: 13, end: 15 })
-    let reserved: Vec<i32> = Vec.from_exact_iter(take(chain(once(15), once(16)), 2))
+    let reserved: Vec<i32> = Vec.from_exact_iter(once(15).chain(once(16)).take(2))
     let underreported: Vec<i32> = Vec.from_exact_iter(ReportedIter {
         next_value: 17,
         end: 19,

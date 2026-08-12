@@ -182,6 +182,27 @@ instance <span class="token-operator">[</span><span class="token-type">T</span><
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-function">slice_ptr_addr_raw</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Returns a readonly element borrow, or `none` when `index` is out of bounds.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> none
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Returns a readwrite element borrow, or `none` when `index` is out of bounds.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">get_mut</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> none
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-comment">/// Returns the first element borrow, or `none` when the slice is empty.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">first</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 instance <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>

@@ -397,10 +397,10 @@ fn distributed_std_copy_spread_keeps_its_readonly_loan_until_literal_call() {
     let project = TempProject::new("distributed-home-sequence-spread-borrow-check");
     let source = project.write_source(
         "sequence_spread_borrow.nct",
-        r#"use std/vec.{Vec, clear}
+        r#"use std/vec.Vec
 
 func mutate(values: &+Vec<i32>): i32 {
-    clear(values)
+    values.clear()
     return 9
 }
 
@@ -427,7 +427,7 @@ fn distributed_std_sequence_spread_runs_without_materialization() {
     let project = TempProject::new("distributed-home-sequence-spread-run");
     let source = project.write_source(
         "sequence_spread_run.nct",
-        r#"use std/vec.{Vec, into_iter}
+        r#"use std/vec.Vec
 
 func main(): i32 {
     let source = Vec [1, 2, 3]
@@ -454,7 +454,7 @@ func main(): i32 {
     }
 
     let direct_source = Vec [String "direct"]
-    let direct_iterator = into_iter(move direct_source)
+    let direct_iterator = (move direct_source).into_iter()
     let direct = Vec [...move direct_iterator]
     if direct.len() != 1 {
         return 5

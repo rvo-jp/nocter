@@ -5,7 +5,6 @@
 
 use ./core
 use ./mutable
-use ./ops
 use ./sources
 use std/vec.Vec
 
@@ -240,29 +239,6 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 
-/// Constructs a lazy mapping adapter without allocating.
-pub func map<U, I, F>(
-    source: I,
-    transform: F,
-): MapIter<U, I, F> from source | transform where I: Iterator, F: &+func(I.Item): U
-
-/// Constructs a lazy filtering adapter without allocating.
-pub func filter<I, F>(
-    source: I,
-    predicate: F,
-): FilterIter<I, F> from source | predicate where I: Iterator, F: &+func(&I.Item): bool
-
-pub func take<I>(source: I, limit: usize): TakeIter<I> where I: Iterator
-
-pub func skip<I>(source: I, amount: usize): SkipIter<I> where I: Iterator
-
-pub func chain<L, R>(
-    left: L,
-    right: R,
-): ChainIter<L, R> from left | right where L: Iterator, R: Iterator, R.Item = L.Item
-
-pub func enumerate<I>(source: I): EnumerateIter<I> where I: Iterator
-
 /// An iterator that never yields an item.
 pub struct EmptyIter<T> {
     exhausted: bool
@@ -276,9 +252,6 @@ pub struct OnceIter<T> {
 
 pub func empty<T>(): EmptyIter<T>
 pub func once<T>(item: T): OnceIter<T>
-pub func count<I>(source: I): usize where I: Iterator
-
-pub func last<I>(source: I): I.Item? from source where I: Iterator
 
 
 /// A forward cursor over readonly borrows into contiguous storage.
@@ -310,29 +283,8 @@ construct ViewIter<T> {
     }
 }
 
-pub func from_view<T>(view: &[T]): ViewIter<T> {
-    return ViewIter.from_view(view)
-}
-
-pub func remaining<T>(iterator: &ViewIter<T>): usize {
+func remaining<T>(iterator: &ViewIter<T>): usize {
     return iterator.view.len() - iterator.next_index
-}
-
-pub func next<T>(iterator: &+ViewIter<T>): &T? {
-    if iterator.next_index >= iterator.view.len() {
-        return none
-    }
-    let index: usize = iterator.next_index
-    iterator.next_index = index + 1
-    return &iterator.view[index]
-}
-
-instance ViewIter<T> {
-    /// Returns the number of elements not yet yielded.
-    pub method &self.remaining(): usize {
-        return remaining(self)
-    }
-
 }
 
 conform ExactSizeIterator for ViewIter<T> {

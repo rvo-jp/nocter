@@ -244,7 +244,7 @@ fn distributed_std_interpolation_dispatches_to_a_user_format_conformance() {
     let project = TempProject::new("distributed-home-user-format-runtime");
     let source = project.write_source(
         "user_format_runtime.nct",
-        r#"use std/fmt.{Format, append_i32, append_str}
+        r#"use std/fmt.Format
 use std/io.print
 
 struct Point {
@@ -254,11 +254,11 @@ struct Point {
 
 conform Format for Point {
     method &self.format_into(output: &+String): void {
-        append_str(output, "(")
-        append_i32(output, self.x)
-        append_str(output, ", ")
-        append_i32(output, self.y)
-        append_str(output, ")")
+        output.push_str("(")
+        self.x.format_into(output)
+        output.push_str(", ")
+        self.y.format_into(output)
+        output.push_str(")")
         return
     }
 }
@@ -297,7 +297,7 @@ fn distributed_std_interpolation_discovers_an_imported_type_conformance() {
     let project = TempProject::new("distributed-home-imported-format-runtime");
     project.write_source(
         "point/index.nct",
-        r#"use std/fmt.{Format, append_i32, append_str}
+        r#"use std/fmt.Format
 
 pub struct Point {
     x: i32
@@ -312,11 +312,11 @@ construct Point {
 
 conform Format for Point {
     method &self.format_into(output: &+String): void {
-        append_str(output, "Point(")
-        append_i32(output, self.x)
-        append_str(output, ", ")
-        append_i32(output, self.y)
-        append_str(output, ")")
+        output.push_str("Point(")
+        self.x.format_into(output)
+        output.push_str(", ")
+        self.y.format_into(output)
+        output.push_str(")")
         return
     }
 }
@@ -354,7 +354,7 @@ fn distributed_std_interpolation_drops_a_move_only_temporary_after_formatting_on
     let project = TempProject::new("distributed-home-temporary-format-drop-runtime");
     let source = project.write_source(
         "index.nct",
-        r#"use std/fmt.{Format, append_str}
+        r#"use std/fmt.Format
 use std/io.print
 
 struct Token {
@@ -368,7 +368,7 @@ destruct Token(&+self) {
 
 conform Format for Token {
     method &self.format_into(output: &+String): void {
-        append_str(output, self.label)
+        output.push_str(self.label)
         return
     }
 }

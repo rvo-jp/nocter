@@ -25,7 +25,7 @@ construct BufReader {
     }
 }
 
-pub func read(reader: &+BufReader, destination: &+[u8]): usize! {
+func read(reader: &+BufReader, destination: &+[u8]): usize! {
     var written: usize = 0
     while written < destination.len() {
         if reader.next == reader.buffer.len() {
@@ -72,7 +72,7 @@ construct BufWriter {
     }
 }
 
-pub func write(writer: &+BufWriter, bytes: &[u8]): void! {
+func write(writer: &+BufWriter, bytes: &[u8]): void! {
     var offset: usize = 0
     while offset < bytes.len() {
         if writer.buffer.len() == writer.limit { flush(writer)? }
@@ -82,7 +82,7 @@ pub func write(writer: &+BufWriter, bytes: &[u8]): void! {
     return
 }
 
-pub func flush(writer: &+BufWriter): void! {
+func flush(writer: &+BufWriter): void! {
     if writer.buffer.len() == 0 { return }
     file_write(&+writer.destination, &writer.buffer as &[u8])?
     writer.buffer.clear()
@@ -90,7 +90,7 @@ pub func flush(writer: &+BufWriter): void! {
     return
 }
 
-pub func close(writer: &+BufWriter): void! {
+func close(writer: &+BufWriter): void! {
     flush(writer)?
     writer.destination.close()
     return

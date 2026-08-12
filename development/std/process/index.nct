@@ -207,7 +207,7 @@ pub func try_cwd(allocator: &+TryAllocator): String! {
         return error
     }
     let view = str_from_raw_parts(buffer.ptr, len)
-    let value = String.try_from_str(allocator, view) catch error {
+    let value = String.try_copy(allocator, view) catch error {
         try_free(allocator, move buffer)
         close_fd_word(fd)
         return error

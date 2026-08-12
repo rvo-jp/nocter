@@ -8,7 +8,6 @@ use ./core
 use std/mem.alloc_pages
 use std/mem.free_pages
 use std/internal/os.{OSError, OSErrorKind}
-use std/path.Utf8Path
 use std/ptr.copy_str_to_ptr
 use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
@@ -204,20 +203,6 @@ pub func stderr(): File {
     return File { fd: stderr_fd(), close_on_drop: false }
 }
 
-pub func open(path: &str): File! {
-    return File.open(path)?
-}
-
-pub func create(path: &str): File! { return File.create(path)? }
-
-pub func append(path: &str): File! { return File.append(path)? }
-
-pub func open_path(path: &Utf8Path): File! { return File.open(path.view())? }
-
-pub func create_path(path: &Utf8Path): File! { return File.create(path.view())? }
-
-pub func append_path(path: &Utf8Path): File! { return File.append(path.view())? }
-
 construct File {
     pub default func open(path: &str): Self! {
         let fd = open_read_fd(path)?
@@ -235,21 +220,21 @@ construct File {
     }
 }
 
-pub func read(file: &+File, buffer: &+[u8]): usize! {
+pub(/) func read(file: &+File, buffer: &+[u8]): usize! {
     return read_fd(file.fd, buffer)?
 }
 
-pub func write(file: &+File, bytes: &[u8]): void! {
+pub(/) func write(file: &+File, bytes: &[u8]): void! {
     write_fd(file.fd, bytes)?
     return
 }
 
-pub func write_text(file: &+File, text: &str): void! {
+func write_text(file: &+File, text: &str): void! {
     write_text_fd(file.fd, text)?
     return
 }
 
-pub func close(file: &+File): void {
+func close(file: &+File): void {
     if file.close_on_drop {
         close_fd(file.fd)
         file.close_on_drop = false

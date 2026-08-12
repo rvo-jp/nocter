@@ -18,7 +18,7 @@ defined by the responsibility-specific chapters indexed by
 | generic initialized-prefix storage | `std/vec` |
 | built-in slice methods and representation queries | `std/slice` |
 | iterator public contracts | `std/iter/index.nct` |
-| iterator adapters and terminal operations | `std/iter/core.nct`, `ops.nct`, and `sources.nct` |
+| iterator adapters and source constructors | `std/iter/core.nct` and `sources.nct` |
 | portable byte-stream contracts and derived operations | `std/io/index.nct` and `core.nct` |
 | OS-independent file ownership | `std/io` |
 | buffered byte state | child module `std/io/buffer` |
@@ -56,8 +56,9 @@ operations before publication; buffer machinery does not acquire text semantics.
 
 Owned containers expose construction, mutation, capacity management, and ownership transfer.
 Borrowed observation belongs to the built-in `str` and `[T]` surfaces. Private `String` and
-`Vec<T>` raw-view helpers bridge initialized representation into coercion, index-operator, and
-interface implementations; they are not public forwarding APIs.
+`Vec<T>` raw-view helpers bridge initialized representation into coercion and expansion
+implementations; they are not public forwarding APIs. Optional access and indexing belong to the
+slice surface, and `Vec<T>` does not redeclare them.
 
 The built-in `str` and `[T]` instance surfaces own equality and strict lexical ordering in ordinary
 source. `String` and `Vec<T>` obtain both capabilities only through their readonly coercions. The
@@ -65,9 +66,10 @@ compiler and standard nominal containers do not maintain parallel comparison tab
 
 ## Borrowed Text Views
 
-`std/string/index.nct` owns the public contracts for UTF-8 ranges, `SplitIter`, and `LinesIter`.
-`views.nct` supplies their validation and state-machine bodies without defining another module or
-public surface. Shared byte search lives in `search.nct`; owned and borrowed algorithms do not carry
+`std/str/index.nct` owns the public contracts for UTF-8 ranges and borrowed iteration.
+`std/string/index.nct` owns the concrete `SplitIter` and `LinesIter` state; `views.nct` supplies
+their validation and state-machine bodies without defining another module or public forwarding
+surface. Shared byte search lives in `search.nct`; owned and borrowed algorithms do not carry
 divergent copies of the same loop.
 
 Ordinary source validates every public range before calling
@@ -129,8 +131,11 @@ close performs fallible flush before closing. Drop does not attempt an unreporta
 releases owned state according to ordinary destruction rules.
 
 Reader and writer dispatch uses resolved interface identities and static specialization. The
-standard library does not retain duplicate inherent forwarding methods, and the compiler contains
-no I/O type-name table.
+standard library does not retain duplicate inherent or free-function forwarding surfaces, and the
+compiler contains no I/O type-name table. File creation belongs to `construct File`; `Utf8Path`
+reaches those constructors through its readonly `str` coercion. Concrete read, write, flush, and
+close bodies remain private or package-visible helpers behind `Reader`, `Writer`, and instance
+members.
 
 Whole-stream reads reuse one initialized scratch buffer. Each successful count is validated against
 that buffer before its prefix is copied into owned result storage. Byte collection finishes only on
@@ -139,11 +144,10 @@ EOF, I/O failure, protocol violation, allocation, and text validation as separat
 
 ## Iterator Architecture
 
-Protocol declarations and public adapter contracts live in `std/iter/index.nct`. Stateful adapter
-bodies live in `core.nct`, zero- and one-element sources live in `sources.nct`, and terminal
-operations live in `ops.nct`. These are implementation sources of one module, not importable child
-modules. This keeps the complete public surface in the module root without mixing implementation
-state machines into it.
+Protocol declarations, public adapter types, and terminal default methods live in
+`std/iter/index.nct`. Stateful adapter bodies live in `core.nct`, while zero- and one-element
+sources live in `sources.nct`. These are implementation sources of one module, not importable child
+modules. Free forwarding functions do not duplicate the default method surface.
 
 Adapters own their sources and callbacks as ordinary values. They allocate nothing unless a public
 collection operation explicitly builds an owned collection. Early exit drops the current yielded

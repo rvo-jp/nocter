@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-11">
+    <meta property="article:modified_time" content="2026-08-12">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/fmt/index.nct - Nocter">
@@ -172,7 +172,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_str</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_str</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_str</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -184,7 +184,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_string</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_string</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_string</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -196,7 +196,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_i32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_i32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_i32</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -208,7 +208,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_i8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_i8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_i8</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -220,7 +220,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_i16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_i16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_i16</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -241,7 +241,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_i64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_i64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_i64</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -253,7 +253,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_isize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">isize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_isize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">isize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_isize</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -265,7 +265,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_u8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_u8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_u8</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -277,7 +277,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_u16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_u16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_u16</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -289,7 +289,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_u32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_u32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_u32</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -301,7 +301,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_u64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_u64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_u64</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -313,7 +313,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_usize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_usize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_usize</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -329,7 +329,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">append_bool</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">append_bool</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
     <span class="token-function">try_append_bool</span><span class="token-operator">(</span>out<span class="token-operator">,</span> value<span class="token-operator">)</span> catch allocation_error <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">allocation_abort_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>

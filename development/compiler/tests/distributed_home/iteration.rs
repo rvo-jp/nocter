@@ -93,7 +93,8 @@ fn distributed_std_collection_for_consumes_owned_sources_and_direct_iterators() 
     let project = TempProject::new("distributed-home-collection-for-consumes-sources");
     let source = project.write_source(
         "collection_for_consumes_sources.nct",
-        r#"use std/vec.Vec
+        r#"use std/iter.ExactSizeIterator
+use std/vec.Vec
 
 func owned(): void {
     let values = Vec [1, 2, 3]
@@ -110,7 +111,7 @@ func direct(): void {
     for item in iterator {
         let copy = item
     }
-    let after = iterator.remaining()
+    let after = iterator.remaining_len()
     return
 }
 
@@ -259,21 +260,21 @@ fn distributed_std_readonly_iterator_surface_passes_check() {
     let project = TempProject::new("distributed-home-readonly-iterator-check");
     let source = project.write_source(
         "readonly_iterator_shape.nct",
-        r#"use std/iter.{ViewIter, from_view, next, remaining}
+        r#"use std/iter.{ExactSizeIterator, ViewIter}
 use std/vec.Vec
 
 func view_shape(values: &[i32]): usize {
     var first: ViewIter<i32> = ViewIter.from_view(values)
     let item: &i32 = first.next() otherwise { return 0 }
-    var second = from_view(values)
-    let other: &i32 = next(&+second) otherwise { return 0 }
-    return remaining(&first) + remaining(&second)
+    var second = ViewIter.from_view(values)
+    let other: &i32 = second.next() otherwise { return 0 }
+    return first.remaining_len() + second.remaining_len()
 }
 
 func collection_shape(values: &Vec<i32>, text: &String): usize {
     let value_iterator: ViewIter<i32> = values.iter()
     let byte_iterator: ViewIter<u8> = text.bytes_iter()
-    return value_iterator.remaining() + byte_iterator.remaining()
+    return value_iterator.remaining_len() + byte_iterator.remaining_len()
 }
 
 func main(): i32 {
@@ -291,13 +292,14 @@ fn distributed_std_iterator_keeps_the_source_borrow_active_until_last_use() {
     let project = TempProject::new("distributed-home-readonly-iterator-borrow");
     let source = project.write_source(
         "readonly_iterator_borrow.nct",
-        r#"use std/vec.Vec
+        r#"use std/iter.ExactSizeIterator
+use std/vec.Vec
 
 func main(): i32 {
     var values: Vec<i32> = Vec [1, 2, 3]
     var iterator = values.iter()
     values.push(4)
-    let left = iterator.remaining()
+    let left = iterator.remaining_len()
     return 0
 }
 "#,
@@ -357,15 +359,15 @@ fn distributed_std_owned_iterator_surface_passes_check() {
     let project = TempProject::new("distributed-home-owned-iterator-check");
     let source = project.write_source(
         "owned_iterator_shape.nct",
-        r#"use std/vec.{Vec, into_iter}
-use std/vec.{VecIntoIter, next, remaining}
+        r#"use std/iter.ExactSizeIterator
+use std/vec.{Vec, VecIntoIter}
 
 func consume(values: Vec<i32>): usize {
-    var first: VecIntoIter<i32> = into_iter(move values)
-    let item: i32 = next(&+first) otherwise { return 0 }
+    var first: VecIntoIter<i32> = (move values).into_iter()
+    let item: i32 = first.next() otherwise { return 0 }
     var second = Vec [1, 2, 3].into_iter()
     let other: i32 = second.next() otherwise { return 0 }
-    return remaining(&first) + second.remaining()
+    return first.remaining_len() + second.remaining_len()
 }
 
 func main(): i32 {
@@ -382,7 +384,8 @@ fn distributed_std_owned_iterator_consumes_the_source_vec() {
     let project = TempProject::new("distributed-home-owned-iterator-consumes-source");
     let source = project.write_source(
         "owned_iterator_consumes_source.nct",
-        r#"use std/vec.Vec
+        r#"use std/iter.ExactSizeIterator
+use std/vec.Vec
 
 func main(): i32 {
     let values = Vec [1, 2, 3]
@@ -414,7 +417,8 @@ fn distributed_std_owned_vec_iteration_runs_in_source_order() {
     let project = TempProject::new("distributed-home-owned-iterator-run");
     let source = project.write_source(
         "owned_iterator_run.nct",
-        r#"use std/vec.Vec
+        r#"use std/iter.ExactSizeIterator
+use std/vec.Vec
 
 func main(): i32 {
     let values = Vec [4, 11, 27]
@@ -424,7 +428,7 @@ func main(): i32 {
         let item = iterator.next() otherwise { break }
         total = total + item
     }
-    if iterator.remaining() != 0 {
+    if iterator.remaining_len() != 0 {
         return 1
     }
     return total
@@ -496,7 +500,8 @@ fn distributed_std_readonly_vec_and_string_iteration_runs() {
     let project = TempProject::new("distributed-home-readonly-iterator-run");
     let source = project.write_source(
         "readonly_iterator_run.nct",
-        r#"use std/ptr.{addr, from_ref}
+        r#"use std/iter.ExactSizeIterator
+use std/ptr.{addr, from_ref}
 use std/vec.Vec
 
 copy struct Value {
@@ -519,7 +524,7 @@ func main(): i32! {
         let item = iterator.next() otherwise { break }
         total = total + read(item)
     }
-    if iterator.remaining() != 0 {
+    if iterator.remaining_len() != 0 {
         return 1
     }
 
@@ -574,7 +579,8 @@ fn distributed_std_vec_i32_iteration_preserves_storage_and_source_order() {
     .unwrap();
     let source = project.write_source(
         "readonly_i32_iterator_run.nct",
-        r#"use std/ptr.{addr, from_ref}
+        r#"use std/iter.ExactSizeIterator
+use std/ptr.{addr, from_ref}
 use std/vec.{Vec, storage_address}
 
 func main(): i32 {
@@ -596,7 +602,7 @@ func main(): i32 {
         }
         index = index + 1
     }
-    if index != 3 || iterator.remaining() != 0 {
+    if index != 3 || iterator.remaining_len() != 0 {
         return 3
     }
     if storage_address(&values) != before {

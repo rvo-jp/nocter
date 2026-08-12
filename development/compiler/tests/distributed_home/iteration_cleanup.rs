@@ -225,8 +225,7 @@ fn distributed_std_chain_break_drops_current_then_unconsumed_suffix_once() {
     let source = project.write_source(
         "chain_break_cleanup_run.nct",
         &token_program(
-            r#"    let source = chain(
-        once(Token { label: "A" }),
+            r#"    let source = once(Token { label: "A" }).chain(
         once(Token { label: "B" }),
     )
     for token in source {
@@ -247,10 +246,9 @@ fn distributed_std_last_drops_discarded_items_and_returns_final_owner_once() {
     let source = project.write_source(
         "last_cleanup_run.nct",
         &token_program(
-            r#"    let final = last(chain(
-        once(Token { label: "A" }),
+            r#"    let final = once(Token { label: "A" }).chain(
         once(Token { label: "B" }),
-    )) otherwise { return 1 }
+    ).last() otherwise { return 1 }
     drop final
     return 42"#,
         ),
@@ -266,8 +264,7 @@ fn distributed_std_vec_builder_drops_transferred_items_in_vector_order() {
     let source = project.write_source(
         "vec_builder_cleanup_run.nct",
         &token_program(
-            r#"    let values: Vec<Token> = Vec.from_iter(chain(
-        once(Token { label: "A" }),
+            r#"    let values: Vec<Token> = Vec.from_iter(once(Token { label: "A" }).chain(
         once(Token { label: "B" }),
     ))
     return 42"#,
@@ -328,8 +325,6 @@ func main(): i32 {
 fn token_program(main_body: &str) -> String {
     format!(
         r#"use std/io.print
-use std/iter.chain
-use std/iter.last
 use std/iter.once
 use std/vec.Vec
 

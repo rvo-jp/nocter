@@ -61,8 +61,9 @@ trusted take operation used by `Vec.pop()`.
 
 ## Access and Mutation
 
-`Vec.get(index)` and `Vec.get_mut(index)` return optional borrows and retain the vector storage
-origin. They do not copy generic elements.
+`[T].get(index)` and `[T].get_mut(index)` return optional borrows. `Vec<T>` reaches both through its
+readonly and readwrite slice coercions, retaining the vector storage origin without copying generic
+elements. Trapping `values[index]` uses the same slice coercions and remains a distinct contract.
 
 `try_insert` completes all fallible capacity work before shifting elements. After capacity succeeds,
 the shift contains no fallible call or early control edge. It maintains one transient hole, moves

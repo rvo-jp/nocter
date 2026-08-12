@@ -6,7 +6,8 @@ descriptor are compiler-owned primitives.
 
 ## Text and Collections
 
-`std/string` provides UTF-8 validation and byte-oriented search:
+`std/string` provides owned UTF-8 storage and validation; the source-owned `str` instance presents
+byte-oriented search and borrowed projection:
 
 - `find` and `find_from` return byte offsets;
 - `contains`, `starts_with`, and `ends_with` do not allocate;
@@ -23,9 +24,9 @@ through a compiler-validated typed projection; raw-pointer reconstruction is not
 Returning owned `split` components keeps their lifetime independent of the input.
 
 Text and collection observation are type-owned. `str` declares text methods and `[T]` declares
-slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. `Vec<T>` owns
-readonly and readwrite index declarations whose bodies project through its initialized slice.
-Their internal raw-view helpers are not importable APIs. Explicit view construction uses `as`, for
+slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. Slice indexing
+is therefore the sole implementation used by direct `Vec<T>` indexing. Internal raw-view helpers
+are not importable APIs. Explicit view construction uses `as`, for
 example `(&text) as &str` and `(&values) as &[T]`.
 
 `Vec<T>.retain` preserves relative order. Rejected elements are dropped exactly once, retained
@@ -57,10 +58,11 @@ pub interface Format {
 ```
 
 The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
-project type may conform and implement its representation with the public `append_*` functions.
-The `try_append_*` variants expose recoverable allocation to explicit builders; `format_into` and
-interpolation use the ordinary aborting allocation policy. Formatting dispatch is static and does
-not require a runtime interface object.
+project type may conform and build its representation with canonical members: `output.push_str`
+for text and `value.format_into(output)` for nested formatted values. The `try_append_*` free
+functions remain distinct because they expose recoverable allocation to explicit builders;
+`format_into` and interpolation use the ordinary aborting allocation policy. Formatting dispatch
+is static and does not require a runtime interface object.
 
 ## Paths and Files
 
@@ -69,9 +71,10 @@ may support filename bytes that are not UTF-8, and this type does not claim to r
 `join` replaces the base when its child is absolute and otherwise inserts one path separator. It
 does not perform filesystem normalization or canonicalization.
 
-`std/io.File` can open an existing file for reading, create or truncate a file for writing, and
-open a file for append. The `open_path`, `create_path`, and `append_path` functions accept
-`Utf8Path`. File handles close once when explicitly closed or dropped.
+`std/io.File.open`, `File.create`, and `File.append` respectively open an existing file for
+reading, create or truncate a file for writing, and open a file for append. `Utf8Path` coerces to
+`&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
+handles close once when explicitly closed or dropped.
 
 `Reader` and `Writer` define the shared byte-I/O contracts. `Reader.read` initializes no more than
 the supplied buffer length and returns zero at end of stream. The `read_to_end` default method

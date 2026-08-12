@@ -14,14 +14,16 @@ This chapter specifies native source-test declarations, visibility, execution, a
 ## Declarations
 
 ```nct
-use std/testing.{assert, assert_eq_usize}
+use std/testing.{assert, assert_eq}
 use std/vec.Vec
 
 test vec_pushes_in_order {
     var values = Vec []
     values.push(1)
     assert(values[0] == 1)?
-    assert_eq_usize(values.len(), 1)?
+    let actual: usize = values.len()
+    let expected: usize = 1
+    assert_eq(&actual, &expected)?
 }
 ```
 
@@ -77,13 +79,12 @@ target-wide parse, resolution, or type error is reported with a null case identi
 
 ```nct
 pub func assert(condition: bool): void!
-pub func assert_eq_bool(actual: bool, expected: bool): void!
-pub func assert_eq_i32(actual: i32, expected: i32): void!
-pub func assert_eq_usize(actual: usize, expected: usize): void!
-pub func assert_eq_u8(actual: u8, expected: u8): void!
-pub func assert_eq_str(actual: &str, expected: &str): void!
+pub func assert_eq<T>(actual: &T, expected: &T): void!
+where (&T == &T): bool
 ```
 
 Failures use `std.testing.assertion_failed` or `std.testing.not_equal`. Messages are static error
 payload data and do not allocate, so reporting an assertion failure cannot itself become an
-allocation failure. Assertions use normal `error` propagation and are not compiler intrinsics.
+allocation failure. `assert_eq` borrows both values and uses the same structural equality selector
+as an ordinary `actual == expected` expression; it does not introduce an equality interface.
+Assertions use normal `error` propagation and are not compiler intrinsics.

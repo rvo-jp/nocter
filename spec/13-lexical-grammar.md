@@ -85,7 +85,7 @@ Rules:
 - The parser recognizes `from` contextually after a callable return type. This does not reserve
   `from` as a general identifier.
 - `alloc` is not a reserved keyword. It is an ordinary identifier, including the standard
-  `std/mem.alloc` function. Obsolete result-modifier forms such as `alloc func` receive a focused
+  `Allocator.alloc` method. Obsolete result-modifier forms such as `alloc func` receive a focused
   parser diagnostic and do not produce a compatibility AST.
 - `trait` is not a reserved keyword. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.
