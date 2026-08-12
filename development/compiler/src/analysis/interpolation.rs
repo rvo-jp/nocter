@@ -47,7 +47,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
             accepted = Some(&planned.accepted_type);
             break;
         }
-        let Some(result_name) = resolved_type_label(analysis, file, plan.string_type_declaration)
+        let Some(result_name) = resolved_type_label(analysis, file, plan.string_type_definition)
         else {
             return;
         };
@@ -58,7 +58,7 @@ pub(crate) fn interpolation_editor_info_at_offset(
                 crate::typecheck::type_expr_presentation_label(input, &file.resolved)
             ));
             let Some(contract) =
-                resolved_type_label(analysis, file, plan.format_interface_declaration)
+                resolved_type_label(analysis, file, plan.format_interface_definition)
             else {
                 return;
             };
@@ -79,8 +79,9 @@ pub(crate) fn interpolation_editor_info_at_offset(
 fn resolved_type_label(
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
-    declaration: ByteSpan,
+    definition: crate::semantic::DefId,
 ) -> Option<String> {
+    let declaration = analysis.semantic_db.definition_anchor(definition)?;
     type_label_in_file(file, declaration).or_else(|| {
         let declaration_module = file.resolved.module_source(declaration.source);
         analysis

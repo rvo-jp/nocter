@@ -382,9 +382,9 @@ pub(crate) struct TypecheckClosurePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TypecheckInterpolationPlan {
-    pub(crate) string_type_declaration: ByteSpan,
+    pub(crate) string_type_definition: crate::semantic::DefId,
     pub(crate) constructor: crate::semantics::RuntimeCallable,
-    pub(crate) format_interface_declaration: ByteSpan,
+    pub(crate) format_interface_definition: crate::semantic::DefId,
     pub(crate) parts: Vec<TypecheckInterpolationPart>,
 }
 
@@ -508,9 +508,9 @@ impl TypecheckInterpolationPlan {
         context_substitutions: &HashMap<String, TypeExpr>,
     ) -> Option<Self> {
         Some(Self {
-            string_type_declaration: self.string_type_declaration,
+            string_type_definition: self.string_type_definition,
             constructor: self.constructor.clone(),
-            format_interface_declaration: self.format_interface_declaration,
+            format_interface_definition: self.format_interface_definition,
             parts: self
                 .parts
                 .iter()

@@ -87,11 +87,11 @@ fn runtime_string_symbol(resolved: &ResolveOutput) -> Option<&crate::resolve::Ty
     let declaration = resolved
         .trusted_declarations
         .interpolation_runtime()?
-        .string_type_declaration;
+        .string_type_definition;
     resolved.symbols.symbols().find_map(|symbol| {
         let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
             return None;
         };
-        (symbol.declaration_span == declaration).then_some(type_symbol)
+        (symbol.def_id == declaration).then_some(type_symbol)
     })
 }

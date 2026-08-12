@@ -158,9 +158,9 @@ impl TypecheckFactCollector<'_> {
         self.facts.interpolation_plans.insert(
             expression.span,
             TypecheckInterpolationPlan {
-                string_type_declaration: runtime.string_type_declaration,
+                string_type_definition: runtime.string_type_definition,
                 constructor: runtime.constructor.clone(),
-                format_interface_declaration: runtime.format_interface_declaration,
+                format_interface_definition: runtime.format_interface_definition,
                 parts,
             },
         );

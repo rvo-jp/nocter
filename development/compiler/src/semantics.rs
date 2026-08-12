@@ -50,15 +50,15 @@ pub(crate) enum TrustedDeclarationRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeCallable {
+pub(crate) struct RuntimeCallableInput {
     pub(crate) declaration: ByteSpan,
     pub(crate) target_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct InterpolationRuntime {
+pub(crate) struct InterpolationRuntimeInput {
     pub(crate) string_type_declaration: ByteSpan,
-    pub(crate) constructor: RuntimeCallable,
+    pub(crate) constructor: RuntimeCallableInput,
     pub(crate) format_interface_declaration: ByteSpan,
     pub(crate) format_interface_canonical_name: String,
     pub(crate) format_method_declaration: ByteSpan,
@@ -67,17 +67,17 @@ pub(crate) struct InterpolationRuntime {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IterationProtocol {
-    pub(crate) interface_declaration: ByteSpan,
+    pub(crate) interface_definition: DefId,
     /// Qualified identity derived from the validated declaration's owning module.
     pub(crate) interface_canonical_name: String,
-    pub(crate) method_declaration: ByteSpan,
+    pub(crate) method_definition: DefId,
     pub(crate) method_name: String,
     pub(crate) associated_type: Option<IterationAssociatedType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IterationAssociatedType {
-    pub(crate) declaration: ByteSpan,
+    pub(crate) definition: DefId,
     pub(crate) name: String,
 }
 
@@ -87,10 +87,47 @@ pub(crate) struct IterationRuntime {
     pub(crate) exact_size: IterationProtocol,
 }
 
-impl InterpolationRuntime {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationProtocolInput {
+    pub(crate) interface_declaration: ByteSpan,
+    pub(crate) interface_canonical_name: String,
+    pub(crate) method_declaration: ByteSpan,
+    pub(crate) method_name: String,
+    pub(crate) associated_type: Option<IterationAssociatedTypeInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationAssociatedTypeInput {
+    pub(crate) declaration: ByteSpan,
+    pub(crate) name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationRuntimeInput {
+    pub(crate) iterator: IterationProtocolInput,
+    pub(crate) exact_size: IterationProtocolInput,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RuntimeCallable {
+    pub(crate) definition: DefId,
+    pub(crate) target_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InterpolationRuntime {
+    pub(crate) string_type_definition: DefId,
+    pub(crate) constructor: RuntimeCallable,
+    pub(crate) format_interface_definition: DefId,
+    pub(crate) format_interface_canonical_name: String,
+    pub(crate) format_method_definition: DefId,
+    pub(crate) format_method_name: String,
+}
+
+impl InterpolationRuntimeInput {
     pub(crate) fn new(
         string_type_declaration: ByteSpan,
-        constructor: RuntimeCallable,
+        constructor: RuntimeCallableInput,
         format_interface_declaration: ByteSpan,
         format_interface_canonical_name: String,
         format_method_declaration: ByteSpan,
@@ -105,13 +142,81 @@ impl InterpolationRuntime {
             format_method_name,
         }
     }
+
+    fn bind(&self, semantic_db: &SemanticDb) -> InterpolationRuntime {
+        InterpolationRuntime {
+            string_type_definition: required_definition(
+                semantic_db,
+                self.string_type_declaration,
+                "trusted String type",
+            ),
+            constructor: RuntimeCallable {
+                definition: required_definition(
+                    semantic_db,
+                    self.constructor.declaration,
+                    "trusted interpolation constructor",
+                ),
+                target_name: self.constructor.target_name.clone(),
+            },
+            format_interface_definition: required_definition(
+                semantic_db,
+                self.format_interface_declaration,
+                "trusted Format interface",
+            ),
+            format_interface_canonical_name: self.format_interface_canonical_name.clone(),
+            format_method_definition: required_definition(
+                semantic_db,
+                self.format_method_declaration,
+                "trusted formatting method",
+            ),
+            format_method_name: self.format_method_name.clone(),
+        }
+    }
+}
+
+impl IterationRuntimeInput {
+    fn bind(&self, semantic_db: &SemanticDb) -> IterationRuntime {
+        IterationRuntime {
+            iterator: self.iterator.bind(semantic_db),
+            exact_size: self.exact_size.bind(semantic_db),
+        }
+    }
+}
+
+impl IterationProtocolInput {
+    fn bind(&self, semantic_db: &SemanticDb) -> IterationProtocol {
+        IterationProtocol {
+            interface_definition: required_definition(
+                semantic_db,
+                self.interface_declaration,
+                "trusted iteration interface",
+            ),
+            interface_canonical_name: self.interface_canonical_name.clone(),
+            method_definition: required_definition(
+                semantic_db,
+                self.method_declaration,
+                "trusted iteration method",
+            ),
+            method_name: self.method_name.clone(),
+            associated_type: self.associated_type.as_ref().map(|associated| {
+                IterationAssociatedType {
+                    definition: required_definition(
+                        semantic_db,
+                        associated.declaration,
+                        "trusted iteration associated type",
+                    ),
+                    name: associated.name.clone(),
+                }
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct TrustedDeclarationInputs {
     roles: HashMap<ByteSpan, TrustedDeclarationRole>,
-    interpolation_runtime: Option<InterpolationRuntime>,
-    iteration_runtime: Option<IterationRuntime>,
+    interpolation_runtime: Option<InterpolationRuntimeInput>,
+    iteration_runtime: Option<IterationRuntimeInput>,
 }
 
 impl TrustedDeclarationInputs {
@@ -145,19 +250,27 @@ impl TrustedDeclarationInputs {
                 (def_id, *role)
             })
             .collect();
+        let interpolation_runtime = self
+            .interpolation_runtime
+            .as_ref()
+            .map(|runtime| runtime.bind(&semantic_db));
+        let iteration_runtime = self
+            .iteration_runtime
+            .as_ref()
+            .map(|runtime| runtime.bind(&semantic_db));
         TrustedDeclarationFacts {
             semantic_db,
             roles,
-            interpolation_runtime: self.interpolation_runtime.clone(),
-            iteration_runtime: self.iteration_runtime.clone(),
+            interpolation_runtime,
+            iteration_runtime,
         }
     }
 
-    pub(crate) fn set_interpolation_runtime(&mut self, runtime: InterpolationRuntime) {
+    pub(crate) fn set_interpolation_runtime(&mut self, runtime: InterpolationRuntimeInput) {
         self.interpolation_runtime = Some(runtime);
     }
 
-    pub(crate) fn set_iteration_runtime(&mut self, runtime: IterationRuntime) {
+    pub(crate) fn set_iteration_runtime(&mut self, runtime: IterationRuntimeInput) {
         self.iteration_runtime = Some(runtime);
     }
 }
@@ -195,8 +308,8 @@ impl TrustedDeclarationFacts {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_interpolation_runtime(&mut self, runtime: InterpolationRuntime) {
-        self.interpolation_runtime = Some(runtime);
+    pub(crate) fn set_interpolation_runtime(&mut self, runtime: InterpolationRuntimeInput) {
+        self.interpolation_runtime = Some(runtime.bind(&self.semantic_db));
     }
 
     pub(crate) fn interpolation_runtime(&self) -> Option<&InterpolationRuntime> {
@@ -206,6 +319,12 @@ impl TrustedDeclarationFacts {
     pub(crate) fn iteration_runtime(&self) -> Option<&IterationRuntime> {
         self.iteration_runtime.as_ref()
     }
+}
+
+fn required_definition(semantic_db: &SemanticDb, span: ByteSpan, role: &str) -> DefId {
+    semantic_db
+        .definition_at(span)
+        .unwrap_or_else(|| panic!("{role} at {span:?} has no semantic definition"))
 }
 
 #[cfg(test)]

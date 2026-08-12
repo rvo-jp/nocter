@@ -1,6 +1,6 @@
 use crate::ast::Item;
 use crate::resolve::ResolveOutput;
-use crate::semantics::{InterpolationRuntime, RuntimeCallable};
+use crate::semantics::{InterpolationRuntimeInput, RuntimeCallableInput};
 
 pub(super) fn append_test_format_contract(text: &str) -> String {
     format!(
@@ -51,9 +51,9 @@ pub(super) fn attach_test_format_runtime(ast: &crate::ast::AstFile, resolved: &m
         .expect("expected test Format interface");
     resolved
         .trusted_declarations
-        .set_interpolation_runtime(InterpolationRuntime::new(
+        .set_interpolation_runtime(InterpolationRuntimeInput::new(
             string_span,
-            RuntimeCallable {
+            RuntimeCallableInput {
                 declaration: string_span,
                 target_name: "test".to_string(),
             },

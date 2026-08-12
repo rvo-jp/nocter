@@ -281,8 +281,12 @@ impl<'a> LoweringContext<'a> {
         callable: &crate::semantics::RuntimeCallable,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
+        let declaration = resolution
+            .resolved
+            .semantic_db
+            .definition_anchor(callable.definition)?;
         Some(call_target_for_source(
-            callable.declaration.source,
+            declaration.source,
             resolution.root_source,
             callable.target_name.clone(),
         ))

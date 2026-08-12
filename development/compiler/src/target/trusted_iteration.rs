@@ -4,7 +4,8 @@ use crate::ast::{
     AstFile, InterfaceDecl, Item, MethodReceiverMode, ResultProvenanceOriginKind, Visibility,
 };
 use crate::semantics::{
-    IterationAssociatedType, IterationProtocol, IterationRuntime, TrustedDeclarationInputs,
+    IterationAssociatedTypeInput, IterationProtocolInput, IterationRuntimeInput,
+    TrustedDeclarationInputs,
 };
 use std::collections::HashMap;
 
@@ -18,9 +19,9 @@ pub(crate) fn attach_iteration_runtime(
     facts.set_iteration_runtime(runtime);
 }
 
-fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRuntime> {
+fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRuntimeInput> {
     let module = modules.get("std/iter")?;
-    Some(IterationRuntime {
+    Some(IterationRuntimeInput {
         iterator: find_interface(
             module,
             "std/iter",
@@ -61,7 +62,7 @@ fn find_interface(
     receiver_mode: MethodReceiverMode,
     return_type: &str,
     result_contract: IterationResultContract,
-) -> Option<IterationProtocol> {
+) -> Option<IterationProtocolInput> {
     let declaration = module.items.iter().find_map(|item| match item {
         Item::Interface(declaration) if declaration.name == name => Some(declaration),
         _ => None,
@@ -79,7 +80,7 @@ fn find_interface(
         return_type,
         result_contract,
     )
-    .then(|| IterationProtocol {
+    .then(|| IterationProtocolInput {
         interface_declaration: declaration.name_span,
         interface_canonical_name: format!("{module_name}.{name}"),
         method_declaration: method.name_span,
@@ -90,7 +91,7 @@ fn find_interface(
                 .iter()
                 .find(|actual| actual.name == expected.name)
                 .expect("validated associated type");
-            IterationAssociatedType {
+            IterationAssociatedTypeInput {
                 declaration: actual.name_span,
                 name: actual.name.clone(),
             }

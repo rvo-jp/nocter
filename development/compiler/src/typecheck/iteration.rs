@@ -307,10 +307,13 @@ fn protocol_associated_type(
     resolved: &ResolveOutput,
 ) -> Option<Type> {
     let associated = protocol.associated_type.as_ref()?;
+    let declaration = resolved
+        .semantic_db
+        .definition_anchor(associated.definition)?;
     Some(super::associated_types::normalize_projection_for_interface(
         actual.clone(),
         &protocol.interface_canonical_name,
-        associated.declaration,
+        declaration,
         &associated.name,
         resolved,
     ))

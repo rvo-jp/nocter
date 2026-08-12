@@ -4,7 +4,7 @@ use crate::ast::{
     AstFile, FunctionDecl, InterfaceDecl, Item, MethodDecl, MethodReceiverMode, StructDecl,
     Visibility, canonical_type_expr,
 };
-use crate::semantics::{InterpolationRuntime, RuntimeCallable, TrustedDeclarationInputs};
+use crate::semantics::{InterpolationRuntimeInput, RuntimeCallableInput, TrustedDeclarationInputs};
 use std::collections::HashMap;
 
 pub(crate) fn attach_interpolation_runtime(
@@ -17,7 +17,7 @@ pub(crate) fn attach_interpolation_runtime(
     facts.set_interpolation_runtime(runtime);
 }
 
-fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<InterpolationRuntime> {
+fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<InterpolationRuntimeInput> {
     let string_module = modules.get("std/string")?;
     let fmt_module = modules.get("std/fmt")?;
     let string = string_module.items.iter().find_map(|item| match item {
@@ -37,7 +37,7 @@ fn interpolation_runtime(modules: &HashMap<String, &AstFile>) -> Option<Interpol
         .iter()
         .find(|method| format_method_shape_matches(method))?;
 
-    Some(InterpolationRuntime::new(
+    Some(InterpolationRuntimeInput::new(
         string.span,
         runtime_callable(constructor),
         format_interface.span,
@@ -135,8 +135,8 @@ fn function_return_type_matches(
     actual == return_type || actual == "Self" && owner == Some(return_type)
 }
 
-fn runtime_callable(function: &FunctionDecl) -> RuntimeCallable {
-    RuntimeCallable {
+fn runtime_callable(function: &FunctionDecl) -> RuntimeCallableInput {
+    RuntimeCallableInput {
         declaration: function.name_span,
         target_name: function.name.clone(),
     }

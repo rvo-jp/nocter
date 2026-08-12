@@ -38,8 +38,12 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
         | Expr::NoneLiteral(_) => {}
         Expr::InterpolatedString(expression) => {
             if let Some(plan) = typecheck_facts.interpolation_plan(expression.span) {
+                let constructor = resolved
+                    .semantic_db
+                    .definition_anchor(plan.constructor.definition)
+                    .expect("trusted interpolation constructor must have a source location");
                 queue.push_back(call_target_for_source(
-                    plan.constructor.declaration.source,
+                    constructor.source,
                     root_source,
                     plan.constructor.target_name.clone(),
                 ));
