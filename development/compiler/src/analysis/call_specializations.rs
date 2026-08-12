@@ -245,10 +245,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_coercion_specialization(&mut coercions, plan.clone()) {
                     continue;
                 }
+                let declaration_span = analysis
+                    .semantic_db
+                    .definition_span(plan.def_id.expect("specialized coercion identity"))
+                    .expect("specialized coercion definition");
                 let body_span = analysis
                     .callable_bodies
-                    .implementation(plan.declaration_span)
-                    .unwrap_or(plan.declaration_span);
+                    .implementation(declaration_span)
+                    .unwrap_or(declaration_span);
                 let Some(file) = analysis.file_by_source(body_span.source) else {
                     continue;
                 };

@@ -378,6 +378,12 @@ conform Value for Box<T> {
             "{:?}",
             analysis.diagnostics()
         );
+        assert!(
+            analysis.files.iter().all(|file| std::sync::Arc::ptr_eq(
+                &analysis.semantic_db,
+                &file.resolved.semantic_db
+            ))
+        );
         let function = analysis
             .root_file()
             .unwrap()

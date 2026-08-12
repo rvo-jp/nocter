@@ -24,11 +24,27 @@ pub(crate) struct ResolveCompileUnitContext {
 
 impl ResolveCompileUnitContext {
     pub(crate) fn new(files: &[AstFile], import_sources: &ImportSourceMap) -> Self {
+        Self::with_semantic_db(
+            files,
+            import_sources,
+            Arc::new(SemanticDb::from_files(files)),
+        )
+    }
+
+    pub(crate) fn with_semantic_db(
+        files: &[AstFile],
+        import_sources: &ImportSourceMap,
+        semantic_db: Arc<SemanticDb>,
+    ) -> Self {
         Self {
-            semantic_db: Arc::new(SemanticDb::from_files(files)),
+            semantic_db,
             source_modules: SourceModuleMap::new(files, import_sources),
             merged_modules: MergedModules::new(files, import_sources),
             imported_type_names: RefCell::new(HashMap::new()),
         }
+    }
+
+    pub(crate) fn semantic_db(&self) -> Arc<SemanticDb> {
+        self.semantic_db.clone()
     }
 }

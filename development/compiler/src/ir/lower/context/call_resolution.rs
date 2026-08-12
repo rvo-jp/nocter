@@ -716,13 +716,18 @@ impl<'a> LoweringContext<'a> {
         plan: &crate::typecheck::TypecheckCoercionPlan,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
+        let declaration_source = resolution
+            .resolved
+            .semantic_db
+            .definition_span(plan.def_id?)?
+            .source;
         Some(
             self.function_names
                 .unique_target_for_name(&plan.target_name)
                 .cloned()
                 .unwrap_or_else(|| {
                     call_target_for_source(
-                        plan.declaration_span.source,
+                        declaration_source,
                         resolution.root_source,
                         plan.target_name.clone(),
                     )

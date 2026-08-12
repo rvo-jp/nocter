@@ -9,6 +9,10 @@ macro_rules! semantic_id {
             pub(super) const fn from_index(index: usize) -> Self {
                 Self(index as u32)
             }
+
+            pub(super) const fn index(self) -> usize {
+                self.0 as usize
+            }
         }
     };
 }

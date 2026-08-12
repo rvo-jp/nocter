@@ -54,6 +54,7 @@ use crate::ast::AstFile;
 use crate::callable_bodies::CallableBodyIndex;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput};
+use crate::semantic::SemanticDb;
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::source_scopes::SourceScopeMap;
@@ -64,6 +65,7 @@ use crate::typecheck::{
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub(crate) struct CompileUnit {
@@ -118,6 +120,7 @@ impl CompileUnit {
 
 #[derive(Debug, Clone)]
 pub(crate) struct CompileUnitAnalysis {
+    pub(crate) semantic_db: Arc<SemanticDb>,
     pub(crate) files: Vec<FileAnalysis>,
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
@@ -252,9 +255,10 @@ fn analyze_compile_unit_with_root_policy(
     let resolved_files = if !opaque_affected_sources.is_empty() {
         let elaborated_resolution_context =
             crate::timing::measure("analysis.index_opaque_modules", || {
-                crate::resolve::ResolveCompileUnitContext::new(
+                crate::resolve::ResolveCompileUnitContext::with_semantic_db(
                     &analyzed_files,
                     &unit.import_sources,
+                    initial_resolution_context.semantic_db(),
                 )
             });
         crate::timing::measure("analysis.resolve_opaque_dependents", || {
@@ -346,6 +350,7 @@ fn analyze_compile_unit_with_root_policy(
     });
 
     CompileUnitAnalysis {
+        semantic_db: initial_resolution_context.semantic_db(),
         files,
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),

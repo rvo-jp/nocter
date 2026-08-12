@@ -63,6 +63,12 @@ impl SemanticDb {
         self.definitions_by_location.get(&location).copied()
     }
 
+    pub(crate) fn definition_span(&self, id: DefId) -> Option<ByteSpan> {
+        self.definitions
+            .get(id.index())
+            .map(|definition| definition.span)
+    }
+
     #[cfg(test)]
     pub(crate) fn definitions(&self) -> &[Definition] {
         &self.definitions

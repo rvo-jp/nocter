@@ -740,7 +740,6 @@ pub(crate) enum TypecheckMethodReceiverKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TypecheckCoercionPlan {
     pub(crate) def_id: Option<crate::semantic::DefId>,
-    pub(crate) declaration_span: ByteSpan,
     pub(crate) focus_span: ByteSpan,
     pub(crate) receiver_mode: crate::ast::MethodReceiverMode,
     pub(crate) source_is_readwrite: bool,
@@ -824,7 +823,6 @@ impl TypecheckCoercionPlan {
         }
         Some(Self {
             def_id: self.def_id,
-            declaration_span: self.declaration_span,
             focus_span: self.focus_span,
             receiver_mode: self.receiver_mode,
             source_is_readwrite: self.source_is_readwrite,
