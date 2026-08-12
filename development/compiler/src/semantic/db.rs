@@ -69,6 +69,12 @@ impl SemanticDb {
             .map(|definition| definition.span)
     }
 
+    pub(crate) fn definition_anchor(&self, id: DefId) -> Option<ByteSpan> {
+        self.definitions
+            .get(id.index())
+            .map(|definition| definition.anchor)
+    }
+
     #[cfg(test)]
     pub(crate) fn definitions(&self) -> &[Definition] {
         &self.definitions
@@ -104,6 +110,13 @@ impl SemanticDbBuilder {
         self.db.definitions_by_location.insert(anchor, id);
         self.db.definitions_by_location.entry(span).or_insert(id);
         id
+    }
+
+    fn define_location(&mut self, id: DefId, location: ByteSpan) {
+        self.db
+            .definitions_by_location
+            .entry(location)
+            .or_insert(id);
     }
 
     fn collect_file(&mut self, file: &AstFile) {
@@ -153,6 +166,7 @@ impl SemanticDbBuilder {
                     function.name_span,
                     function.span,
                 );
+                self.define_location(id, function.member_name_span);
                 if let Some(body) = &function.body {
                     self.collect_body_declarations(id, body);
                 }
@@ -293,6 +307,8 @@ impl SemanticDbBuilder {
                                 function.name_span,
                                 member.span,
                             );
+                            self.define_location(id, function.span);
+                            self.define_location(id, function.member_name_span);
                             if let Some(body) = &function.body {
                                 self.collect_body_declarations(id, body);
                             }
@@ -304,6 +320,7 @@ impl SemanticDbBuilder {
                                 literal.shape_span,
                                 member.span,
                             );
+                            self.define_location(id, literal.span);
                             if let Some(body) = &literal.body {
                                 self.collect_body_declarations(id, body);
                             }
@@ -415,5 +432,26 @@ instance Text {
             db.definition_at(definitions[1].anchor),
             Some(definitions[1].id)
         );
+    }
+
+    #[test]
+    fn associated_function_locations_share_one_definition() {
+        let file = parse_file(
+            r#"struct File { fd: i32 }
+func File.open(): Self { return File { fd: 1 } }
+"#,
+        );
+        let function = match &file.items[1] {
+            Item::Function(function) => function,
+            _ => panic!("expected associated function"),
+        };
+        let db = SemanticDb::from_files(std::slice::from_ref(&file));
+        let definition = db.definition_at(function.span).unwrap();
+        assert_eq!(db.definition_at(function.name_span), Some(definition));
+        assert_eq!(
+            db.definition_at(function.member_name_span),
+            Some(definition)
+        );
+        assert_eq!(db.definition_anchor(definition), Some(function.name_span));
     }
 }

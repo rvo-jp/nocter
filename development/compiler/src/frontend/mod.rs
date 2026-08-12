@@ -15,12 +15,14 @@ use crate::analysis::CompileUnit;
 use crate::ast::{AstFile, ConformanceMember, Item, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportKind, ImportSource, ImportSourceMap, PreludeSourceMap};
+use crate::semantic::SemanticDb;
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
 use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use builtin_surfaces::{
     enqueue_builtin_surface_sources, validate_builtin_conformance_authority,
@@ -307,8 +309,14 @@ pub(crate) fn load_compile_unit_with_trace(
         };
     }
 
+    let semantic_db = Arc::new(SemanticDb::from_files(&files));
     let (callable_bodies, callable_body_diagnostics) =
-        crate::callable_bodies::CallableBodyIndex::build(sources, &files, &import_sources);
+        crate::callable_bodies::CallableBodyIndex::build(
+            sources,
+            &files,
+            &import_sources,
+            semantic_db.clone(),
+        );
     if !callable_body_diagnostics.is_empty() {
         let (loaded_sources, dependency_paths) = dependencies.into_parts();
         return CompileUnitLoad {
@@ -371,12 +379,13 @@ pub(crate) fn load_compile_unit_with_trace(
     );
     let (loaded_sources, dependency_paths) = dependencies.into_parts();
     CompileUnitLoad {
-        result: Ok(CompileUnit::new(
+        result: Ok(CompileUnit::new_with_semantic_db(
             root_ast,
             files,
             import_sources,
             prelude_sources,
             nocter_home,
+            semantic_db,
         )
         .with_callable_bodies(callable_bodies)
         .with_source_scopes(source_scopes)

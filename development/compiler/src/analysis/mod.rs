@@ -71,6 +71,7 @@ use std::sync::Arc;
 pub(crate) struct CompileUnit {
     root_ast: AstFile,
     files: Vec<AstFile>,
+    semantic_db: Arc<SemanticDb>,
     import_sources: ImportSourceMap,
     prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
@@ -87,9 +88,29 @@ impl CompileUnit {
         prelude_sources: PreludeSourceMap,
         nocter_home: Option<PathBuf>,
     ) -> Self {
+        let semantic_db = Arc::new(SemanticDb::from_files(&files));
+        Self::new_with_semantic_db(
+            root_ast,
+            files,
+            import_sources,
+            prelude_sources,
+            nocter_home,
+            semantic_db,
+        )
+    }
+
+    pub(crate) fn new_with_semantic_db(
+        root_ast: AstFile,
+        files: Vec<AstFile>,
+        import_sources: ImportSourceMap,
+        prelude_sources: PreludeSourceMap,
+        nocter_home: Option<PathBuf>,
+        semantic_db: Arc<SemanticDb>,
+    ) -> Self {
         Self {
             root_ast,
             files,
+            semantic_db,
             import_sources,
             prelude_sources,
             nocter_home,
@@ -108,6 +129,10 @@ impl CompileUnit {
     }
 
     pub(crate) fn with_callable_bodies(mut self, callable_bodies: CallableBodyIndex) -> Self {
+        assert!(
+            Arc::ptr_eq(&self.semantic_db, &callable_bodies.semantic_db()),
+            "compile unit and callable-body index must share one semantic database"
+        );
         self.callable_bodies = callable_bodies;
         self
     }
@@ -204,7 +229,11 @@ fn analyze_compile_unit_with_root_policy(
     let root_source = unit.root_ast.span.source;
     let mut analyzed_files = unit.files.clone();
     let initial_resolution_context = crate::timing::measure("analysis.index_modules", || {
-        crate::resolve::ResolveCompileUnitContext::new(&analyzed_files, &unit.import_sources)
+        crate::resolve::ResolveCompileUnitContext::with_semantic_db(
+            &analyzed_files,
+            &unit.import_sources,
+            unit.semantic_db.clone(),
+        )
     });
     let trusted_declarations = unit
         .trusted_declarations

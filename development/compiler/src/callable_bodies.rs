@@ -7,14 +7,19 @@ use crate::ast::{
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::ImportSourceMap;
+use crate::semantic::{DefId, SemanticDb};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::source_modules::SourceModuleMap;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct CallableBodyIndex {
-    declaration_to_implementation: HashMap<ByteSpan, ByteSpan>,
-    implementation_to_declaration: HashMap<ByteSpan, ByteSpan>,
+    semantic_db: Arc<SemanticDb>,
+    declaration_to_implementation: HashMap<DefId, DefId>,
+    implementation_to_declaration: HashMap<DefId, DefId>,
+    identity_locations: HashMap<DefId, ByteSpan>,
+    declaration_locations: HashMap<DefId, ByteSpan>,
     implementation_input_to_declaration: HashMap<ByteSpan, ByteSpan>,
 }
 
@@ -23,6 +28,7 @@ impl CallableBodyIndex {
         sources: &SourceMap,
         files: &[AstFile],
         import_sources: &ImportSourceMap,
+        semantic_db: Arc<SemanticDb>,
     ) -> (Self, Vec<Diagnostic>) {
         let modules = SourceModuleMap::new(files, import_sources);
         let mut contracts = Vec::new();
@@ -42,7 +48,10 @@ impl CallableBodyIndex {
 
         contracts.sort_by_key(|callable| span_order(callable.identity));
         implementations.sort_by_key(|callable| span_order(callable.identity));
-        let mut index = Self::default();
+        let mut index = Self {
+            semantic_db,
+            ..Self::default()
+        };
         for contract in contracts {
             let candidates = implementations
                 .iter()
@@ -55,18 +64,26 @@ impl CallableBodyIndex {
             match candidates.as_slice() {
                 [] => diagnostics.push(missing_body_diagnostic(sources, &contract)),
                 [implementation] if implementation.signature == contract.signature => {
+                    let contract_id = index.definition_id(&contract);
+                    let implementation_id = index.definition_id(implementation);
                     index
                         .declaration_to_implementation
-                        .insert(contract.identity, implementation.identity);
+                        .insert(contract_id, implementation_id);
                     index
                         .implementation_to_declaration
-                        .insert(implementation.identity, contract.identity);
+                        .insert(implementation_id, contract_id);
                     index
-                        .declaration_to_implementation
-                        .insert(contract.declaration_span, implementation.identity);
+                        .identity_locations
+                        .insert(contract_id, contract.identity);
                     index
-                        .implementation_to_declaration
-                        .insert(implementation.declaration_span, contract.declaration_span);
+                        .identity_locations
+                        .insert(implementation_id, implementation.identity);
+                    index
+                        .declaration_locations
+                        .insert(contract_id, contract.declaration_span);
+                    index
+                        .declaration_locations
+                        .insert(implementation_id, implementation.declaration_span);
                     for (declaration, implementation) in
                         contract.inputs.iter().zip(&implementation.inputs)
                     {
@@ -88,15 +105,24 @@ impl CallableBodyIndex {
     }
 
     pub(crate) fn implementation(&self, declaration: ByteSpan) -> Option<ByteSpan> {
+        let declaration = self.semantic_db.definition_at(declaration)?;
         self.declaration_to_implementation
             .get(&declaration)
-            .copied()
+            .and_then(|implementation| self.identity_location(*implementation))
+    }
+
+    pub(crate) fn semantic_db(&self) -> Arc<SemanticDb> {
+        self.semantic_db.clone()
     }
 
     pub(crate) fn declaration(&self, implementation: ByteSpan) -> Option<ByteSpan> {
-        self.implementation_to_declaration
-            .get(&implementation)
-            .copied()
+        let implementation_id = self.semantic_db.definition_at(implementation)?;
+        let declaration_id = *self.implementation_to_declaration.get(&implementation_id)?;
+        if self.declaration_locations.get(&implementation_id) == Some(&implementation) {
+            self.declaration_locations.get(&declaration_id).copied()
+        } else {
+            self.identity_location(declaration_id)
+        }
     }
 
     pub(crate) fn canonical_identity(&self, span: ByteSpan) -> ByteSpan {
@@ -112,7 +138,28 @@ impl CallableBodyIndex {
     }
 
     pub(crate) fn is_implementation(&self, span: ByteSpan) -> bool {
-        self.implementation_to_declaration.contains_key(&span)
+        self.semantic_db
+            .definition_at(span)
+            .is_some_and(|definition| self.implementation_to_declaration.contains_key(&definition))
+    }
+
+    fn definition_id(&self, callable: &CallableRecord) -> DefId {
+        self.semantic_db
+            .definition_at(callable.identity)
+            .or_else(|| self.semantic_db.definition_at(callable.declaration_span))
+            .unwrap_or_else(|| {
+                panic!(
+                    "semantic database omitted callable at {:?}",
+                    callable.declaration_span
+                )
+            })
+    }
+
+    fn identity_location(&self, definition: DefId) -> Option<ByteSpan> {
+        self.identity_locations
+            .get(&definition)
+            .copied()
+            .or_else(|| self.semantic_db.definition_anchor(definition))
     }
 
     /// Removes paired private implementation declarations from a module's symbol surface while
@@ -688,7 +735,9 @@ mod tests {
             },
         )]);
         let files = vec![root_ast, implementation_ast];
-        let (index, diagnostics) = CallableBodyIndex::build(&sources, &files, &imports);
+        let semantic_db = Arc::new(SemanticDb::from_files(&files));
+        let (index, diagnostics) =
+            CallableBodyIndex::build(&sources, &files, &imports, semantic_db);
         assert!(diagnostics.is_empty());
         let declaration = match &files[0].items[0] {
             Item::Function(function) => function.name_span,
@@ -700,6 +749,27 @@ mod tests {
         };
         assert_eq!(index.implementation(declaration), Some(body));
         assert_eq!(index.declaration(body), Some(declaration));
+        let declaration_span = match &files[0].items[0] {
+            Item::Function(function) => function.span,
+            _ => panic!("expected function"),
+        };
+        let body_span = match &files[1].items[0] {
+            Item::Function(function) => function.span,
+            _ => panic!("expected function"),
+        };
+        assert_eq!(index.implementation(declaration_span), Some(body));
+        assert_eq!(index.declaration(body_span), Some(declaration_span));
+        assert_eq!(index.canonical_identity(body_span), declaration_span);
+        let declaration_id = index.semantic_db.definition_at(declaration).unwrap();
+        let implementation_id = index.semantic_db.definition_at(body).unwrap();
+        assert_eq!(
+            index.declaration_to_implementation.get(&declaration_id),
+            Some(&implementation_id)
+        );
+        assert_eq!(
+            index.implementation_to_declaration.get(&implementation_id),
+            Some(&declaration_id)
+        );
         let declaration_input = match &files[0].items[0] {
             Item::Function(function) => function.parameters.parameters[0].name_span,
             _ => panic!("expected function"),
