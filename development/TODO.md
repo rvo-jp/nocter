@@ -2,10 +2,10 @@
 
 ## Current Task
 
-[v0.13.0 Phase 6](milestones/v0.13.0.md) is complete. No later phase is active. Define the next
-milestone scope before changing language behavior or standard-library APIs. Do not begin release
-preparation, package, tag, or publish without an explicit task. The published v0.12.0 release
-remains immutable.
+v0.13.0 stabilization and release qualification are active. Freeze the completed Phase 0 through
+Phase 6 language, correct only release-blocking defects, qualify one immutable archive, and publish
+that exact candidate. The published v0.12.0 release remains immutable. New language behavior and
+the v0.14.0 semantic-architecture migration begin only after v0.13.0 publication is complete.
 
 ## Completed v0.13.0 Phase 6 Checkpoint
 

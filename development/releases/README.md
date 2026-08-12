@@ -5,6 +5,7 @@ published releases. These records own qualification commands, implementation gat
 identity, and frozen engineering non-goals. They do not define public language behavior; versioned
 source semantics remain in repository tags and the current public contract remains in `spec/`.
 
+- [v0.13.0](v0.13.0.md) — local candidate qualification pending
 - [v0.12.0](v0.12.0.md) — published and audited
 - [v0.11.0](v0.11.0.md) — published and audited
 - [v0.10.0](v0.10.0.md) — published and audited
