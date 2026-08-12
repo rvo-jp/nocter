@@ -3,10 +3,10 @@ use crate::ast::{
     AssociatedTypeBinding, AssociatedTypeDecl, AstFile, CoercionEntry, ComparisonOperatorDecl,
     ConformanceDecl, ConformanceMember, ConstructDecl, ConstructMember, ConstructMemberDecl,
     DestructDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InterfaceDecl,
-    Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl, PackageFile,
-    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
-    TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
+    GenericParamList, ImportItem, ImportedName, IndexOperatorDecl, InstanceDecl, InstanceMember,
+    InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, OperatorDecl,
+    PackageFile, Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl,
+    StructField, TestDecl, TypeAliasDecl, TypeExpr, Visibility, WhereClause,
 };
 
 impl Formatter {
@@ -327,7 +327,7 @@ impl Formatter {
         self.format_where_clause(item.requirements.as_ref());
         self.write(" ");
 
-        if item.methods.is_empty() && item.operators.is_empty() && item.coercions.is_empty() {
+        if item.members.is_empty() {
             self.write("{}");
             return;
         }
@@ -336,30 +336,16 @@ impl Formatter {
         self.newline();
         self.indented(|formatter| {
             let mut wrote_member = false;
-            for method in &item.methods {
+            for member in &item.members {
                 if wrote_member {
                     formatter.newline();
                 }
                 formatter.write_indent();
-                formatter.format_method_decl(method);
-                formatter.newline();
-                wrote_member = true;
-            }
-            for operator in &item.operators {
-                if wrote_member {
-                    formatter.newline();
+                match member {
+                    InstanceMember::Method(method) => formatter.format_method_decl(method),
+                    InstanceMember::Operator(operator) => formatter.format_operator_decl(operator),
+                    InstanceMember::Coercion(coercion) => formatter.format_coercion_entry(coercion),
                 }
-                formatter.write_indent();
-                formatter.format_operator_decl(operator);
-                formatter.newline();
-                wrote_member = true;
-            }
-            for coercion in &item.coercions {
-                if wrote_member {
-                    formatter.newline();
-                }
-                formatter.write_indent();
-                formatter.format_coercion_entry(coercion);
                 formatter.newline();
                 wrote_member = true;
             }

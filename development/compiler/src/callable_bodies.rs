@@ -134,15 +134,17 @@ impl CallableBodyIndex {
             Item::Function(function) if self.is_implementation(function_identity(function)) => None,
             Item::Instance(instance) => {
                 let mut filtered = instance.clone();
-                filtered
-                    .methods
-                    .retain(|method| !self.is_implementation(method.name_span));
-                filtered.operators.retain(|operator| {
-                    !self.is_implementation(operator.callable_method().name_span)
+                filtered.members.retain(|member| match member {
+                    crate::ast::InstanceMember::Method(method) => {
+                        !self.is_implementation(method.name_span)
+                    }
+                    crate::ast::InstanceMember::Operator(operator) => {
+                        !self.is_implementation(operator.callable_method().name_span)
+                    }
+                    crate::ast::InstanceMember::Coercion(entry) => {
+                        !self.is_implementation(entry.as_span)
+                    }
                 });
-                filtered
-                    .coercions
-                    .retain(|entry| !self.is_implementation(entry.as_span));
                 Some(Item::Instance(filtered))
             }
             Item::Conformance(conformance) => {
@@ -351,12 +353,7 @@ fn collect_inherent_methods(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in instance.methods.iter().chain(
-        instance
-            .operators
-            .iter()
-            .map(crate::ast::OperatorDecl::callable_method),
-    ) {
+    for method in instance.behavior_methods() {
         classify(
             sources,
             record_for_method(module, instance, method),
@@ -423,7 +420,7 @@ fn collect_coercions(
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for entry in &instance.coercions {
+    for entry in instance.coercions() {
         let callable = entry.callable_method();
         classify(
             sources,

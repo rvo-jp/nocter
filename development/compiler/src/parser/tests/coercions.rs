@@ -22,9 +22,10 @@ fn parses_borrow_coercion_entries_and_json() {
         panic!("expected instance declaration");
     };
     assert!(matches!(instance.target_ty, TypeExpr::Generic(_)));
-    assert_eq!(instance.coercions.len(), 2);
-    let first = instance.coercions[0].callable_method();
-    let second = instance.coercions[1].callable_method();
+    let coercions = instance.coercions().collect::<Vec<_>>();
+    assert_eq!(coercions.len(), 2);
+    let first = coercions[0].callable_method();
+    let second = coercions[1].callable_method();
     assert_eq!(first.visibility, Visibility::Public);
     assert_eq!(first.receiver.mode, MethodReceiverMode::ReadonlyBorrow);
     assert_eq!(second.visibility, Visibility::Private);
@@ -81,7 +82,12 @@ fn rejects_standalone_declarations_and_accepts_package_entry_visibility() {
         panic!("expected instance declaration");
     };
     assert_eq!(
-        instance.coercions[0].callable_method().visibility,
+        instance
+            .coercions()
+            .next()
+            .expect("coercion")
+            .callable_method()
+            .visibility,
         Visibility::Package
     );
 }
@@ -110,7 +116,15 @@ fn parses_bodyless_public_coercion_contract() {
     let Item::Instance(instance) = &ast.items[0] else {
         panic!("expected instance declaration");
     };
-    assert!(instance.coercions[0].callable_method().body.is_none());
+    assert!(
+        instance
+            .coercions()
+            .next()
+            .expect("coercion")
+            .callable_method()
+            .body
+            .is_none()
+    );
 }
 
 #[test]

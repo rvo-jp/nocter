@@ -633,7 +633,7 @@ func main(): i32 {
         &instance.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    let method = &instance.methods[0];
+    let method = instance.named_methods().next().expect("method");
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert_eq!(method.receiver.name, "self");
@@ -811,7 +811,7 @@ instance Factory {
     let Item::Instance(instance) = &ast.items[1] else {
         panic!("expected instance");
     };
-    let method = &instance.methods[0];
+    let method = instance.named_methods().next().expect("method");
     assert_eq!(method.generics.parameters.len(), 1);
     assert_eq!(method.generics.parameters[0].name, "T");
     assert_eq!(
@@ -1953,7 +1953,7 @@ func equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     let Item::Instance(instance) = &ast.items[1] else {
         panic!("expected instance");
     };
-    let operator = &instance.operators[0];
+    let operator = instance.operators().next().expect("operator");
     assert_eq!(operator.callable_method().visibility, Visibility::Public);
     assert_eq!(
         operator.callable_method().receiver.mode,
@@ -2010,7 +2010,9 @@ func less<T>(left: &T, right: &T): bool where (&T < &T): bool {
     let Item::Instance(instance) = &ast.items[1] else {
         panic!("expected instance");
     };
-    let crate::ast::OperatorDecl::Comparison(operator) = &instance.operators[0] else {
+    let crate::ast::OperatorDecl::Comparison(operator) =
+        instance.operators().next().expect("operator")
+    else {
         panic!("expected comparison operator");
     };
     assert_eq!(

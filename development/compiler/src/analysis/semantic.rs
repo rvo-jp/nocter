@@ -323,10 +323,9 @@ impl SemanticIdentifierCollector<'_> {
     fn collect_operator_keywords(&mut self) {
         let spans = self.ast.items.iter().flat_map(|item| match item {
             crate::ast::Item::Instance(instance) => instance
-                .operators
-                .iter()
+                .operators()
                 .map(|operator| operator.callable_method().keyword_span)
-                .chain(instance.coercions.iter().map(|entry| entry.keyword_span))
+                .chain(instance.coercions().map(|entry| entry.keyword_span))
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         });

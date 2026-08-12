@@ -98,7 +98,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
         Item::Enum(enum_) => collect_enum_hover_symbols(text, enum_, symbols),
         Item::Interface(interface) => collect_interface_hover_symbols(text, interface, symbols),
         Item::Instance(instance) => {
-            for method in &instance.methods {
+            for method in instance.named_methods() {
                 collect_method_hover_symbols(text, method, symbols);
             }
             for operator in instance.comparison_operators() {
@@ -157,7 +157,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     collect_block_hover_symbols(text, body, symbols);
                 }
             }
-            for entry in &instance.coercions {
+            for entry in instance.coercions() {
                 push_hover_symbol(
                     text,
                     entry.as_span,

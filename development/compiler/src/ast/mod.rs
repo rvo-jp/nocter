@@ -260,41 +260,65 @@ pub struct InstanceDecl {
     pub generics: GenericParamList,
     pub target_ty: TypeExpr,
     pub requirements: Option<WhereClause>,
-    pub methods: Vec<MethodDecl>,
-    pub operators: Vec<OperatorDecl>,
-    pub coercions: Vec<CoercionEntry>,
+    pub members: Vec<InstanceMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstanceMember {
+    Method(MethodDecl),
+    Operator(OperatorDecl),
+    Coercion(CoercionEntry),
 }
 
 impl InstanceDecl {
+    pub fn named_methods(&self) -> impl Iterator<Item = &MethodDecl> {
+        self.members.iter().filter_map(|member| match member {
+            InstanceMember::Method(method) => Some(method),
+            InstanceMember::Operator(_) | InstanceMember::Coercion(_) => None,
+        })
+    }
+
+    pub fn operators(&self) -> impl Iterator<Item = &OperatorDecl> {
+        self.members.iter().filter_map(|member| match member {
+            InstanceMember::Operator(operator) => Some(operator),
+            InstanceMember::Method(_) | InstanceMember::Coercion(_) => None,
+        })
+    }
+
+    pub fn coercions(&self) -> impl Iterator<Item = &CoercionEntry> {
+        self.members.iter().filter_map(|member| match member {
+            InstanceMember::Coercion(coercion) => Some(coercion),
+            InstanceMember::Method(_) | InstanceMember::Operator(_) => None,
+        })
+    }
+
     /// Returns named methods and operators that participate in ordinary member lookup.
     pub fn behavior_methods(&self) -> impl Iterator<Item = &MethodDecl> {
-        self.methods
-            .iter()
-            .chain(self.operators.iter().map(OperatorDecl::callable_method))
+        self.members.iter().filter_map(|member| match member {
+            InstanceMember::Method(method) => Some(method),
+            InstanceMember::Operator(operator) => Some(operator.callable_method()),
+            InstanceMember::Coercion(_) => None,
+        })
     }
 
     pub fn callable_methods(&self) -> impl Iterator<Item = &MethodDecl> {
-        self.behavior_methods()
-            .chain(self.coercions.iter().map(CoercionEntry::callable_method))
+        self.members.iter().map(|member| match member {
+            InstanceMember::Method(method) => method,
+            InstanceMember::Operator(operator) => operator.callable_method(),
+            InstanceMember::Coercion(coercion) => coercion.callable_method(),
+        })
     }
 
     pub fn callable_methods_mut(&mut self) -> impl Iterator<Item = &mut MethodDecl> {
-        self.methods
-            .iter_mut()
-            .chain(
-                self.operators
-                    .iter_mut()
-                    .map(OperatorDecl::callable_method_mut),
-            )
-            .chain(
-                self.coercions
-                    .iter_mut()
-                    .map(CoercionEntry::callable_method_mut),
-            )
+        self.members.iter_mut().map(|member| match member {
+            InstanceMember::Method(method) => method,
+            InstanceMember::Operator(operator) => operator.callable_method_mut(),
+            InstanceMember::Coercion(coercion) => coercion.callable_method_mut(),
+        })
     }
 
     pub fn comparison_operators(&self) -> impl Iterator<Item = &ComparisonOperatorDecl> {
-        self.operators.iter().filter_map(|operator| match operator {
+        self.operators().filter_map(|operator| match operator {
             OperatorDecl::Comparison(operator) => Some(operator),
             OperatorDecl::Index(_) => None,
             OperatorDecl::Expansion(_) => None,
@@ -312,7 +336,7 @@ impl InstanceDecl {
     }
 
     pub fn index_operators(&self) -> impl Iterator<Item = &IndexOperatorDecl> {
-        self.operators.iter().filter_map(|operator| match operator {
+        self.operators().filter_map(|operator| match operator {
             OperatorDecl::Index(operator) => Some(operator),
             OperatorDecl::Comparison(_) => None,
             OperatorDecl::Expansion(_) => None,
@@ -320,7 +344,7 @@ impl InstanceDecl {
     }
 
     pub fn expansion_operators(&self) -> impl Iterator<Item = &ExpansionOperatorDecl> {
-        self.operators.iter().filter_map(|operator| match operator {
+        self.operators().filter_map(|operator| match operator {
             OperatorDecl::Expansion(operator) => Some(operator),
             OperatorDecl::Comparison(_) | OperatorDecl::Index(_) => None,
         })

@@ -467,7 +467,7 @@ impl<'a> FunctionIndex<'a> {
                                 }
                             }
                         }
-                        for entry in &instance.coercions {
+                        for entry in instance.coercions() {
                             let callable = entry.callable_method();
                             if callable.body.is_none() {
                                 continue;

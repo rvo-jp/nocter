@@ -143,6 +143,32 @@ coerce &+self as &+[T] from self{return self.view_mut()}}
 }
 
 #[test]
+fn preserves_authored_instance_member_order() {
+    assert_formats_stably(
+        r#"instance Text{method &self.before():void{return}pub coerce &self as &str{return self.view()}pub operator(&self==other:&Self):bool{return true}method &self.after():void{return}}
+"#,
+        r#"instance Text {
+    method &self.before(): void {
+        return
+    }
+
+    pub coerce &self as &str {
+        return self.view()
+    }
+
+    pub operator (&self == other: &Self): bool {
+        return true
+    }
+
+    method &self.after(): void {
+        return
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn formats_native_test_declarations_stably() {
     assert_formats_stably(
         "test   pushes{let value:i32=1 return}\n",

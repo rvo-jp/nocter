@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::InstanceMember;
 
 impl Parser<'_> {
     pub(super) fn parse_instance_decl(&mut self) -> ParseResult<Item> {
@@ -9,9 +10,7 @@ impl Parser<'_> {
         let mut requirements = self.parse_where_clause()?;
         self.classify_declaration_pattern_refinements(&mut requirements, &generics);
         let open = self.expect_punctuation("{", "`{`")?;
-        let mut methods = Vec::new();
-        let mut operators = Vec::new();
-        let mut coercions = Vec::new();
+        let mut members = Vec::new();
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -27,11 +26,17 @@ impl Parser<'_> {
                 );
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {
-                methods.push(self.parse_method_decl(visibility, true)?);
+                members.push(InstanceMember::Method(
+                    self.parse_method_decl(visibility, true)?,
+                ));
             } else if self.at_keyword(Keyword::Operator) {
-                operators.push(self.parse_operator_decl(visibility)?);
+                members.push(InstanceMember::Operator(
+                    self.parse_operator_decl(visibility)?,
+                ));
             } else if self.at_keyword(Keyword::Coerce) {
-                coercions.push(self.parse_coercion_entry(visibility)?);
+                members.push(InstanceMember::Coercion(
+                    self.parse_coercion_entry(visibility)?,
+                ));
             } else if self.at_identifier_text("drop") {
                 self.error_current(
                     "drop members were removed; write `destruct Type(&+self) { ... }` at top level",
@@ -50,9 +55,7 @@ impl Parser<'_> {
             generics,
             target_ty,
             requirements,
-            methods,
-            operators,
-            coercions,
+            members,
         }))
     }
 }

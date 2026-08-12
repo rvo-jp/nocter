@@ -13,7 +13,7 @@ impl Resolver<'_> {
             let crate::ast::Item::Instance(instance) = item else {
                 continue;
             };
-            if instance.coercions.is_empty() {
+            if instance.coercions().next().is_none() {
                 continue;
             }
             self.collect_coercion_surface(ast, instance);
@@ -56,7 +56,7 @@ impl Resolver<'_> {
         }
 
         let mut accepted = Vec::new();
-        for entry in &instance.coercions {
+        for entry in instance.coercions() {
             match validate_entry(entry) {
                 Ok(()) => accepted.push(coercion_signature(entry)),
                 Err((message, span)) => self.push_coercion_error(message, span, None),
@@ -264,7 +264,7 @@ pub(super) fn attach_coercions_to_symbol(
         if nominal_name(&instance.target_ty) != Some(expected_source_name) {
             continue;
         }
-        for entry in &instance.coercions {
+        for entry in instance.coercions() {
             if validate_entry(entry).is_ok() {
                 symbol.coercions.push(coercion_signature(entry));
             }

@@ -123,10 +123,9 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
         )),
         Item::Instance(instance) => {
             let children = instance
-                .methods
-                .iter()
+                .named_methods()
                 .map(method_document_symbol)
-                .chain(instance.coercions.iter().map(|entry| {
+                .chain(instance.coercions().map(|entry| {
                     let callable = entry.callable_method();
                     document_symbol(
                         format!(

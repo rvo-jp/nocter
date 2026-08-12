@@ -413,7 +413,7 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
         return;
     };
     let owner = crate::ast::canonical_type_expr(&instance.target_ty);
-    let has_equality = instance.operators.iter().any(|operator| {
+    let has_equality = instance.operators().any(|operator| {
         matches!(
             operator,
             crate::ast::OperatorDecl::Comparison(operator)

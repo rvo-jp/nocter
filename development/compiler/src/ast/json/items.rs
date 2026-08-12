@@ -177,34 +177,32 @@ impl Item {
                 if let Some(clause) = &item.requirements {
                     children.push(clause.to_json(sources));
                 }
-                children.extend(item.methods.iter().map(|method| method.to_json(sources)));
-                children.extend(
-                    item.operators
-                        .iter()
-                        .map(|operator| operator.to_json(sources)),
-                );
-                children.extend(item.coercions.iter().map(|entry| {
-                    let callable = entry.callable_method();
-                    let mut entry_children = vec![
-                        visibility_json(callable.visibility),
-                        callable.receiver.to_json(sources),
+                children.extend(item.members.iter().map(|member| match member {
+                    InstanceMember::Method(method) => method.to_json(sources),
+                    InstanceMember::Operator(operator) => operator.to_json(sources),
+                    InstanceMember::Coercion(entry) => {
+                        let callable = entry.callable_method();
+                        let mut entry_children = vec![
+                            visibility_json(callable.visibility),
+                            callable.receiver.to_json(sources),
+                            JsonAstNode::new(
+                                "coerce_target_type",
+                                json_span(sources, entry.target().span()),
+                                vec![entry.target().to_json(sources)],
+                            ),
+                        ];
+                        if let Some(provenance) = &callable.result_provenance {
+                            entry_children.push(provenance.to_json(sources));
+                        }
+                        if let Some(body) = &callable.body {
+                            entry_children.push(body.to_json(sources));
+                        }
                         JsonAstNode::new(
-                            "coerce_target_type",
-                            json_span(sources, entry.target().span()),
-                            vec![entry.target().to_json(sources)],
-                        ),
-                    ];
-                    if let Some(provenance) = &callable.result_provenance {
-                        entry_children.push(provenance.to_json(sources));
+                            "coercion_entry",
+                            json_span(sources, entry.span),
+                            entry_children,
+                        )
                     }
-                    if let Some(body) = &callable.body {
-                        entry_children.push(body.to_json(sources));
-                    }
-                    JsonAstNode::new(
-                        "coercion_entry",
-                        json_span(sources, entry.span),
-                        entry_children,
-                    )
                 }));
                 JsonAstNode::new("instance_decl", json_span(sources, item.span), children)
             }
