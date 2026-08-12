@@ -2033,6 +2033,66 @@ instance Buffer<T> {
 }
 
 #[test]
+fn parses_expansion_operators_and_generic_requirements() {
+    let (sources, output) = parse_text_with_sources(
+        r#"struct Source<T> {}
+struct Iter<T> { marker: usize }
+
+instance Source<T> {
+    pub operator (...&self): Iter<&T> { return Iter { marker: 0 } }
+    pub operator (...&+self): Iter<&+T> { return Iter { marker: 0 } }
+    pub operator (...self): Iter<T> { return Iter { marker: 0 } }
+}
+
+func traverse<C, I>(source: &C): void where (...&C): I {
+    return
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Instance(instance) = &ast.items[2] else {
+        panic!("expected instance");
+    };
+    let operators = instance.expansion_operators().collect::<Vec<_>>();
+    assert_eq!(operators.len(), 3);
+    assert_eq!(
+        operators[0].callable_method().receiver.mode,
+        MethodReceiverMode::ReadonlyBorrow
+    );
+    assert_eq!(
+        operators[1].callable_method().receiver.mode,
+        MethodReceiverMode::ReadwriteBorrow
+    );
+    assert_eq!(
+        operators[2].callable_method().receiver.mode,
+        MethodReceiverMode::Owned
+    );
+
+    let Item::Function(function) = &ast.items[3] else {
+        panic!("expected function");
+    };
+    let requirement = &function.requirements.as_ref().unwrap().predicates[0];
+    assert!(matches!(
+        requirement,
+        WherePredicate::Operator(requirement)
+            if matches!(
+                &requirement.shape,
+                crate::ast::OperatorRequirementShape::Expansion {
+                    operator_span,
+                    source: TypeExpr::Borrow(_),
+                } if operator_span.len() == 3
+            )
+    ));
+    let json = ast.to_json(&sources);
+    assert_eq!(
+        find_json_node(&json, "operator_decl").and_then(|node| node.value.as_deref()),
+        Some("...")
+    );
+    assert!(find_json_node(&json, "operator_requirement").is_some());
+}
+
+#[test]
 fn rejects_removed_unparenthesized_equality_requirement() {
     let output = parse_text(
         "func equal<T>(left: &T, right: &T): bool where &T == &T { return left == right }",

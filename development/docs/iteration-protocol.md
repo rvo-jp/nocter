@@ -1,115 +1,129 @@
-# Protocol-Driven Collection Iteration
+# Expansion and Iteration Architecture
 
-This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming
-collection iteration. Public control-flow semantics belong to the specification. The completed
-gate belongs to the [v0.3.0 Release Record](../releases/v0.3.0.md).
-
-Phase 7 completed on 2026-08-03. The compiler, standard library, native backend, and
-LSP implement the boundaries and acceptance observations recorded below.
+This document owns the compiler architecture for source-defined expansion, collection `for`, and
+typed-sequence spread. Public semantics belong to the
+[Expansion Operators specification](../../spec/23-expansion-operators.md).
 
 ## Boundary
 
-Phase 2 supplied concrete readonly and consuming iterator values. Phase 4 supplied explicit generic
-interface conformance and static bound dispatch. Phase 6 made optional step results ordinary stored
-values. Phase 7 composes those foundations without introducing method-name lowering.
+Expansion and iteration are separate operations:
 
-The adopted forms are:
+1. a readonly, readwrite, or owned expansion operator converts a collection into an iterator;
+2. the trusted `Iterator` interface advances that iterator;
+3. typed-sequence spread additionally requires the trusted `ExactSizeIterator` interface.
 
-```nct
-for item in &values { ... }
-for item in move values { ... }
-for item in iterator { ... }
-```
+A source value that already conforms to `Iterator` uses the direct plan and performs no expansion.
+The compiler never treats `iter`, `iter_mut`, `into_iter`, a collection type name, or a standard
+module path as semantic evidence.
 
-The first form borrows a collection, the second transfers it, and the third accepts only a value
-that already satisfies the iterator role. `for item in values` does not guess whether a collection
-should be borrowed or moved.
+## Source-Owned Expansion
 
-## Trusted Protocol Roles
+Parser and AST represent equality, index, and expansion as source-owned `OperatorDecl` variants.
+Expansion has three stable internal callable identities, one for each receiver capability. Those
+identities connect operator bodies to the ordinary method resolution, specialization, provenance,
+ownership, and lowering pipelines. They are never presentation strings.
 
-The trusted Nocter home supplies ordinary interfaces for iterator step, readonly
-conversion, owned conversion, and exact remaining length. Frontend validation checks each complete
-interface shape and records the interface, required method, and associated-type declaration
-identities in `TrustedDeclarationFacts`.
+The common expansion selector receives:
 
-Later phases consume a role enum and declaration spans. They do not search source names or module
-paths. A missing or malformed trusted bundle produces a source-backed availability diagnostic
-before lowering. Explicit user conformance remains the only way a nominal type participates.
+- the concrete or generic source type;
+- readonly, readwrite, or owned capability;
+- the lexical `TypeEnvironment`, including `where (...source): result` evidence;
+- resolver declarations and the source span.
 
-`Iterator.Item` carries the yielded type. `Iterable.Iter` and `IntoIterator.Iter` carry conversion
-results and promise `Iterator`; the two conversion declarations intentionally remain distinct even
-though both are named `Iter`. Protocol resolution passes their declaration identities to the shared
-projection normalizer, so a nominal type conforming to both interfaces is not resolved by name.
-A conversion is usable only when its selected iterator type has the trusted iterator-role
-conformance.
+It returns the exact iterator type and either a concrete operator declaration or lexical generic
+evidence. Concrete call specialization reruns selection after generic substitutions, so a generic
+plan never relies on an operator body having been specialized by an unrelated call. Generic call
+inference also uses expansion requirements to infer result binders that do not occur in ordinary
+parameters.
 
-Phase 8 validates `ExactSizeIterator` beside `Iterator` for sequence spread. Its readonly
-`remaining_len(): usize` method is an ordinary statically specialized call. The compiler records
-the method identity in the same iteration runtime plan; it does not recognize the spelling or a
-standard-library nominal type.
+## Trusted Roles
 
-## Semantic Plan
+`TrustedDeclarationFacts` validates only behavioral contracts used after expansion:
 
-Typecheck records one immutable plan per collection-for statement:
+- `Iterator`, its `Item` associated type, and `next` method;
+- `ExactSizeIterator` and its remaining-count method.
 
-- source mode: direct iterator, readonly conversion, or owned conversion
-- source and iterator concrete types
-- conversion interface, conformance, method declaration, and concrete call target when applicable
-- iterator interface, conformance, step declaration, and concrete call target
-- iterator and yielded item types normalized from the trusted associated declarations
-- binding and source spans used by editor queries
-- whether source evaluation transfers ownership
+There is no trusted collection-conversion interface. `Iterable` and `IntoIterator` are not aliases,
+fallbacks, or compatibility roles. Malformed or unavailable trusted iterator contracts produce a
+source-backed availability diagnostic before lowering.
 
-Resolver and typecheck produce the plan. Ownership, regions, buildability, IR, analysis, and LSP
-consume it without repeating protocol lookup. The selected declaration identities connect implicit
-conversion and step calls to the ordinary result-provenance and allocation-effect summaries; those
-summaries are not duplicated inside the plan.
+## Immutable Plans
 
-Collection loops use conversion and step fields from this plan. Sequence spread additionally uses
-its exact-count target and an explicit copy, readonly-reference, or move projection. Hidden literal
-entry calls every count target once, checks and caches the total pack length, then reuses the same
-optional-step lowering as collection loops to stream items.
+Typecheck records one immutable collection plan containing:
 
-## Ownership and Cleanup
+- source mode: direct, readonly expansion, readwrite expansion, or owned expansion;
+- source, iterator, and yielded item types;
+- the selected expansion method when concrete;
+- the selected iterator step declaration;
+- binding and source spans.
 
-The source expression evaluates once into a compiler-owned iterator local. Each step consumes one
-optional layer. Success initializes the loop binding; absence exits without touching item storage.
+A sequence-spread plan adds copy, readonly-reference, or move projection, the exact-count method,
+and pack item type. Ownership, provenance, analysis, buildability, specialization, IR, and native
+lowering consume these facts instead of repeating lookup.
 
-An owned item has a per-iteration obligation. Normal body completion and `continue` drop it unless
-the body moved it. `break`, `return`, propagation, and other exiting edges clean the item before the
-iterator. Iterator drop then destroys only its still-initialized state. Readonly item provenance
-retains the original collection loan through its last use.
+Lexical generic evidence may leave the expansion method empty during generic body checking. After
+context substitutions, both call-specialization collection and IR lowering use the same concrete
+specialization helper to fill it. An absent method then means only direct iteration, never an
+implicit name-based conversion.
 
-The loop does not maintain a parallel ownership state in IR. Hidden locals use the same move,
-drop-kind, partial-initialization, scope-mark, and region cleanup machinery as source bindings.
+## Mutable Iteration
 
-## Compiler Ownership
+Readwrite expansion owns the exclusive source loan for the iterator lifetime. `MutableViewIter<T>`
+stores `&+[T]`, advances a monotonically increasing index, and yields `&+T?`. The loop binding is a
+first-class aggregate borrow when `T` is aggregate; it is not copied into a synthetic aggregate
+slot.
+
+IR models aggregate fields through `AggregateLocation::Borrow`. Address calculation, field loads
+and stores, aggregate copy, call result locations, syscall results, validation, and parameter spill
+discovery all consume that location kind. This keeps borrowed aggregate mutation on the common
+aggregate path instead of adding a mutable-iteration backend exception.
+
+An existing `&+T` value is a writable source for `&+` reborrowing. Expression typing flattens that
+reborrow to `&+T`, rather than constructing `&+&+T`; readonly reborrowing similarly reduces
+capability. Collection iteration therefore works across a function parameter such as
+`values: &+Vec<T>` as well as a local `var` binding.
+
+Each item loan ends before the next step. `continue`, `break`, `return`, propagation, normal body
+completion, and iterator cleanup use the ordinary ownership, liveness, region, and drop machinery.
+There is no iterator-specific runtime token or parallel ownership state.
+
+## Sequence Spread
+
+Bare and explicit readonly spread use readonly expansion. Consuming spread uses owned expansion or
+a direct owning iterator. Each selected iterator must satisfy `ExactSizeIterator`; the total pack
+length is checked and cached before the literal body executes.
+
+Readwrite spread is rejected before planning. A literal pack can retain all elements at once, so it
+would require a pairwise-disjoint provenance proof that mutable collection iteration does not need.
+
+## Editor Presentation
+
+AST-backed declarations, resolved method presentation, and implicit iteration hover all render the
+authored operator form. Type labels go through the shared presentation service so workspace hover
+uses imported or short names rather than canonical module paths. Completion offers the three
+missing receiver forms independently. Operator declaration tokens use the exact `...` span and
+private callable names remain filtered from members, hover, semantic tokens, and navigation.
+
+## Responsibility Map
 
 | Responsibility | Owner |
 |---|---|
-| trusted interface-shape validation and role identities | `target/trusted_iteration` and `semantics` |
-| collection-for AST and recovery | `parser/collection_for` and `analysis/collection_for_recovery` |
-| conformance resolution and semantic plan | `typecheck/iteration` and typecheck facts |
-| source loan, item move, and loop state | `typecheck/ownership` consuming the plan |
-| provenance and region constraints | existing provenance/region analyses consuming the plan |
-| iterator, step, branch, and cleanup lowering | `ir/lower/collection_for` |
-| standard interfaces and concrete conformances | `std/iter` and `std/vec`, with focused implementation sources |
-| hover, completion, and semantic presentation | `analysis/iteration`; protocol conversion in `driver/lsp` |
-
-New responsibilities use focused modules. Existing exhaustive AST visitors gain collection-for
-edges but do not acquire protocol lookup.
+| operator AST, JSON, and callable identity | `ast/operators` and `ast/json/items` |
+| declaration and requirement grammar | `parser/items/operators` and `parser/generic_requirements` |
+| canonical formatting | `format/items` |
+| selection and concrete specialization | `typecheck/expansion` |
+| loop and spread protocol planning | `typecheck/iteration` and typecheck facts |
+| source loans, item moves, and cleanup | `typecheck/ownership` and provenance/region analyses |
+| iterator construction and stepping | `ir/lower/collection_for` and `ir/lower/literal_packs` |
+| borrowed aggregate storage | `ir/model`, lowering locals, and backend aggregate-value modules |
+| trusted step and exact-count validation | `target/trusted_iteration` and `semantics` |
+| standard implementations | `std/iter`, `std/vec`, and collection-owned instances |
+| hover, completion, tokens, and declarations | `analysis/iteration`, `analysis/presentation`, and editor indexes |
 
 ## Verification
 
-Tests observe item order, source moves and loans, active item drop, remaining suffix drop, storage
-release, nested cleanup, region escape, generic specialization, diagnostics, incomplete editor
-input, and packaged execution. Instruction snapshots alone do not satisfy the runtime gate.
-
-The completed Phase 7 gate covers empty, readonly, consuming, direct, nested, user-conformance,
-`continue`, `break`, `return`, and propagation paths. LSP protocol tests cover all three source
-modes, exact element completion, semantic-token range remapping, parser diagnostics, and implicit
-allocation-effect presentation.
-
-Phase 8 tests add exact-size role validation, unknown-size rejection, repeated and direct-iterator
-spread, cached pack length, copy constraints, readonly provenance, owned suffix cleanup, implicit
-effect presentation, and incomplete spread recovery against the packaged standard library.
+The gate covers readonly, readwrite, owned, and direct iteration; generic requirement inference and
+specialization; nested and empty loops; source loan conflicts; aggregate element mutation; cleanup
+on every exit; copy, borrow, move, and direct-iterator spread; unknown-size and mutable-spread
+rejection; formatter and JSON stability; exact editor ranges and normalized labels; distributed
+Nocter-home execution; and all public examples.

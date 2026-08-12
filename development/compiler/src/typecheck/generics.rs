@@ -549,6 +549,17 @@ fn check_where_clause(
                                 if scope.parameters.contains_key(reference.name.as_str()))
                 )
             }
+            crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                check_type_expr(sources, source, resolved, scope, diagnostics);
+                let source_parameter = match source {
+                    TypeExpr::Borrow(borrow) => borrow.inner.as_ref(),
+                    source => source,
+                };
+                matches!(source_parameter, TypeExpr::Reference(reference)
+                    if scope.parameters.contains_key(reference.name.as_str()))
+                    && matches!(&requirement.result, TypeExpr::Reference(reference)
+                        if scope.parameters.contains_key(reference.name.as_str()))
+            }
         };
         check_type_expr(sources, &requirement.result, resolved, scope, diagnostics);
         if !valid {
@@ -560,6 +571,9 @@ fn check_where_clause(
                     }
                     crate::ast::OperatorRequirementShape::Index { .. } => {
                         "index requirement must borrow a generic target and return a borrow with the same capability, such as `(&C[K]): &V`"
+                    }
+                    crate::ast::OperatorRequirementShape::Expansion { .. } => {
+                        "expansion requirement must have the form `(...&C): I`, `(...&+C): I`, or `(...C): I` for generic parameters"
                     }
                 },
             );
@@ -578,6 +592,11 @@ fn check_where_clause(
                 "{}[{}]:{}",
                 crate::ast::canonical_type_expr(target),
                 crate::ast::canonical_type_expr(index),
+                crate::ast::canonical_type_expr(&requirement.result),
+            ),
+            crate::ast::OperatorRequirementShape::Expansion { source, .. } => format!(
+                "...{}:{}",
+                crate::ast::canonical_type_expr(source),
                 crate::ast::canonical_type_expr(&requirement.result),
             ),
         };

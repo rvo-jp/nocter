@@ -284,6 +284,7 @@ impl InstanceDecl {
         self.operators.iter().filter_map(|operator| match operator {
             OperatorDecl::Equality(operator) => Some(operator),
             OperatorDecl::Index(_) => None,
+            OperatorDecl::Expansion(_) => None,
         })
     }
 
@@ -291,6 +292,14 @@ impl InstanceDecl {
         self.operators.iter().filter_map(|operator| match operator {
             OperatorDecl::Index(operator) => Some(operator),
             OperatorDecl::Equality(_) => None,
+            OperatorDecl::Expansion(_) => None,
+        })
+    }
+
+    pub fn expansion_operators(&self) -> impl Iterator<Item = &ExpansionOperatorDecl> {
+        self.operators.iter().filter_map(|operator| match operator {
+            OperatorDecl::Expansion(operator) => Some(operator),
+            OperatorDecl::Equality(_) | OperatorDecl::Index(_) => None,
         })
     }
 }

@@ -20,6 +20,7 @@ mod destructors;
 mod diagnostics;
 mod entry;
 mod environments;
+mod expansion;
 mod expressions;
 mod facts;
 mod fallible;
@@ -67,6 +68,7 @@ use sized::*;
 
 pub(crate) use compile_unit_context::TypecheckCompileUnitContext;
 
+pub(crate) use expansion::{specialize_collection_plan, specialize_sequence_spread_plan};
 pub(crate) use facts::{
     CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
     FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,

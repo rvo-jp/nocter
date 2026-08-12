@@ -431,6 +431,7 @@ pub(super) struct TypeEnvironment {
     type_equalities: Vec<(Type, Type)>,
     equality_requirements: Vec<(Type, Type, crate::source::ByteSpan)>,
     index_requirements: Vec<IndexRequirement>,
+    expansion_requirements: Vec<ExpansionRequirement>,
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +440,13 @@ pub(super) struct IndexRequirement {
     pub(super) index: Type,
     pub(super) element: Type,
     pub(super) is_readwrite: bool,
+    pub(super) span: crate::source::ByteSpan,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ExpansionRequirement {
+    pub(super) source: Type,
+    pub(super) result: Type,
     pub(super) span: crate::source::ByteSpan,
 }
 
@@ -453,6 +461,7 @@ impl TypeEnvironment {
             type_equalities: Vec::new(),
             equality_requirements: Vec::new(),
             index_requirements: Vec::new(),
+            expansion_requirements: Vec::new(),
         }
     }
 
@@ -469,6 +478,7 @@ impl TypeEnvironment {
             type_equalities: self.type_equalities.clone(),
             equality_requirements: self.equality_requirements.clone(),
             index_requirements: self.index_requirements.clone(),
+            expansion_requirements: self.expansion_requirements.clone(),
         }
     }
 
@@ -613,6 +623,20 @@ impl TypeEnvironment {
                         span: requirement.span,
                     });
                 }
+                crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                    let source =
+                        super::type_expr::type_expr_to_type_in_environment(source, resolved, self);
+                    let result = super::type_expr::type_expr_to_type_in_environment(
+                        &requirement.result,
+                        resolved,
+                        self,
+                    );
+                    self.expansion_requirements.push(ExpansionRequirement {
+                        source,
+                        result,
+                        span: requirement.span,
+                    });
+                }
             }
         }
     }
@@ -666,6 +690,12 @@ impl TypeEnvironment {
                 && self.types_equal(target, &requirement.target)
                 && self.types_equal(index, &requirement.index)
         })
+    }
+
+    pub(super) fn expansion_requirement(&self, source: &Type) -> Option<&ExpansionRequirement> {
+        self.expansion_requirements
+            .iter()
+            .find(|requirement| self.types_equal(source, &requirement.source))
     }
 
     pub(super) fn generic_parameter_substitutions(&self) -> HashMap<String, Type> {

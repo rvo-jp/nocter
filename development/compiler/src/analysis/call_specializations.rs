@@ -87,6 +87,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             }
         }
         for (_, plan) in file.typecheck_facts.collection_for_plans() {
+            let Some(plan) = plan
+                .with_context_substitutions(&HashMap::new())
+                .and_then(|plan| {
+                    crate::typecheck::specialize_collection_plan(plan, &file.resolved)
+                })
+            else {
+                continue;
+            };
             for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
                 let Some(specialization) = protocol_method_call_specialization(analysis, method)
                 else {
@@ -100,6 +108,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             }
         }
         for (_, plan) in file.typecheck_facts.sequence_spread_plans() {
+            let Some(plan) = plan
+                .with_context_substitutions(&HashMap::new())
+                .and_then(|plan| {
+                    crate::typecheck::specialize_sequence_spread_plan(plan, &file.resolved)
+                })
+            else {
+                continue;
+            };
             for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
                 let Some(specialization) = protocol_method_call_specialization(analysis, method)
                 else {
@@ -539,6 +555,12 @@ fn enqueue_call_specializations_from_span(
         if !span_contains(span, *statement_span) {
             continue;
         }
+        let Some(plan) = plan
+            .with_context_substitutions(context_substitutions)
+            .and_then(|plan| crate::typecheck::specialize_collection_plan(plan, &file.resolved))
+        else {
+            continue;
+        };
         for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
             let Some(specialization) = protocol_method_call_specialization(analysis, method) else {
                 continue;
@@ -554,6 +576,14 @@ fn enqueue_call_specializations_from_span(
         if !span_contains(span, *spread_span) {
             continue;
         }
+        let Some(plan) = plan
+            .with_context_substitutions(context_substitutions)
+            .and_then(|plan| {
+                crate::typecheck::specialize_sequence_spread_plan(plan, &file.resolved)
+            })
+        else {
+            continue;
+        };
         for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
             let Some(specialization) = protocol_method_call_specialization(analysis, method) else {
                 continue;

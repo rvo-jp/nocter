@@ -111,10 +111,12 @@ let joined = Vec [
 A bare spread never guesses that a move-only source should be consumed. Ownership transfer requires
 `...move`.
 
-Each spread source resolves through the ordinary iteration protocols and must provide an exact
-remaining count. Unknown-size iterators are rejected because `items.len()` is fixed before the body
-starts. The exact-size contract grants no unchecked memory access; the body still consumes ordinary
-`next()` results.
+Each spread source resolves through the same readonly or owned expansion operator used by
+collection iteration and must provide an exact remaining count. Unknown-size iterators are rejected
+because `items.len()` is fixed before the body starts. The exact-size contract grants no unchecked
+memory access; the body still consumes ordinary `next()` results. `...&+source` is rejected because
+the pack could retain multiple mutable element loans. See
+[Expansion Operators](23-expansion-operators.md).
 
 ## Evaluation Order
 

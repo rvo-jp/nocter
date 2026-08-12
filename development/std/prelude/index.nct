@@ -8,4 +8,4 @@ use std/fmt
 
 pub use std/string.String
 pub use std/vec.Vec
-pub use std/iter.{Iterable, IntoIterator, Iterator}
+pub use std/iter.Iterator

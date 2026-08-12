@@ -319,7 +319,7 @@ Representative collection operations:
 - `Vec<T>.get_mut(index: usize): &+T?`
 - `&Vec<T> as &[T]` for readonly contiguous storage
 - `&+Vec<T> as &+[T]` for readwrite contiguous storage
-- readonly borrow iteration through ordinary `iter()` and `next()` methods
+- readonly, readwrite, and owned iteration through expansion operators and `Iterator.next()`
 
 The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and
 `&+[T]`. The active Nocter home exclusively owns `instance` declarations for built-in `[T]`.
@@ -328,7 +328,7 @@ surface; the compiler does not infer their public behavior from member spelling.
 
 ### Iteration
 
-Readonly and owned iteration use ordinary standard-library types and interfaces:
+Readonly, readwrite, and owned iteration use ordinary standard-library iterator types:
 
 ```nct
 pub struct ViewIter<T> {
@@ -341,8 +341,10 @@ instance ViewIter<T> {
 ```
 
 `ViewIter.from_view(values)` returns an iterator over readonly borrows into the viewed storage.
-`Vec<T>.iter()` is supplied by its explicit `Iterable` conformance. `String.bytes_iter()` reaches
-the source-declared `str.bytes_iter()` method through receiver coercion. `ViewIter<T>.next()`
+`Vec<T>` declares readonly, readwrite, and owned expansion operators. Named methods such as
+`Vec<T>.iter()` remain available for direct iterator construction but are not compiler selection
+hooks. `String.bytes_iter()` reaches the source-declared `str.bytes_iter()` method through receiver
+coercion. `ViewIter<T>.next()`
 advances the iterator and returns an optional readonly borrow. The result type is written as `&T?`
 to mean "optional borrow"; it is not a borrow of an optional value.
 
@@ -359,7 +361,7 @@ Rules:
 - `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
 - The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- Mutable element iteration over `&+[T]` is not supported.
+- `MutableViewIter<T>` retains an exclusive mutable view and yields one `&+T` at a time.
 - `VecIntoIter<T>` owns a consumed `Vec<T>` and returns `T?` in source order.
 - Dropping `VecIntoIter<T>` drops unconsumed elements in reverse order and releases its storage once.
 - `Vec<T>.insert` and `remove` preserve dense source order for move-only values. Their implementation
@@ -367,9 +369,8 @@ Rules:
   cross that state.
 - `Vec<T>.try_insert` performs bounds validation and capacity growth before shifting. Failed growth
   leaves pointer, length, capacity, content, and storage origin unchanged.
-- Collection `for` loops dispatch through the iteration interfaces described in
-  [Callable Values and Interface Default Methods](18-callables-default-methods.md); iterator and method names are not
-  compiler-recognized substitutes for those contracts.
+- Collection `for` loops dispatch through [Expansion Operators](23-expansion-operators.md) and the
+  `Iterator` interface; iterator and method names are not compiler-recognized substitutes.
 
 ## Strings
 

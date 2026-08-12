@@ -1263,6 +1263,37 @@ func read(buffer: &Buffer, index: usize): i32 {
         }));
     }
 
+    #[test]
+    fn analysis_classifies_expansion_contract_tokens_without_internal_names() {
+        let text = r#"struct Source { marker: usize }
+struct Cursor { marker: usize }
+instance Source {
+    operator (...&self): Cursor { return Cursor { marker: self.marker } }
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+        let source = sources.get(file.ast.span.source).expect("source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let ellipsis = identifier_starting_at(
+            &identifiers,
+            text.find("...&self").expect("expansion declaration"),
+        )
+        .expect("expansion semantic token");
+        assert_eq!(ellipsis.kind, SemanticTokenKind::Method);
+        assert_ne!(ellipsis.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+        assert_eq!(
+            identifiers_for_lexeme(text, &identifiers, "operator")[0].kind,
+            SemanticTokenKind::Keyword
+        );
+        assert!(
+            identifiers
+                .iter()
+                .all(|token| { !text[token.start_byte..token.end_byte].starts_with("__nocter$") })
+        );
+    }
+
     fn identifiers_for_lexeme<'a>(
         text: &str,
         identifiers: &'a [ClassifiedIdentifier],

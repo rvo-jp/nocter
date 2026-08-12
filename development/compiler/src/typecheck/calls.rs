@@ -555,9 +555,71 @@ pub(super) fn infer_generic_substitutions(
             &mut substitutions,
         );
     }
+    infer_substitutions_from_expansion_requirements(
+        signature,
+        resolved,
+        environment,
+        &parameters,
+        &mut substitutions,
+    );
     infer_substitutions_from_interface_bounds(signature, resolved, &parameters, &mut substitutions);
     infer_substitutions_from_type_equalities(signature, resolved, &parameters, &mut substitutions);
     substitutions
+}
+
+fn infer_substitutions_from_expansion_requirements(
+    signature: &CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    parameters: &HashSet<&str>,
+    substitutions: &mut HashMap<String, Type>,
+) {
+    let Some(clause) = signature.signature.where_clause.as_ref() else {
+        return;
+    };
+    for requirement in clause.operator_requirements() {
+        let crate::ast::OperatorRequirementShape::Expansion { source, .. } = &requirement.shape
+        else {
+            continue;
+        };
+        let source = type_expr_to_type_with_substitutions(
+            source,
+            resolved,
+            signature.self_type.as_ref(),
+            substitutions,
+        );
+        let (target, mode) = match source {
+            Type::Borrow {
+                is_readwrite: false,
+                inner,
+            } => (*inner, super::expansion::ExpansionMode::Readonly),
+            Type::Borrow {
+                is_readwrite: true,
+                inner,
+            } => (*inner, super::expansion::ExpansionMode::Readwrite),
+            target => (target, super::expansion::ExpansionMode::Owned),
+        };
+        if target.is_unknown_or_unresolved() {
+            continue;
+        }
+        let Some(selected) = super::expansion::select_expansion(
+            &target,
+            mode,
+            requirement.span,
+            resolved,
+            environment,
+        ) else {
+            continue;
+        };
+        infer_type_expr_substitutions(
+            &requirement.result,
+            &selected.iterator_type,
+            resolved,
+            signature.self_type.as_ref(),
+            parameters,
+            substitutions,
+        );
+    }
 }
 
 fn infer_substitutions_from_type_equalities(
@@ -941,6 +1003,69 @@ fn check_generic_interface_bounds(
                         if let Ok(span) = sources.span_to_json(requirement.span) {
                             diagnostic.notes.push(DiagnosticNote {
                                 message: "required by this generic index contract".to_string(),
+                                span: Some(span),
+                            });
+                        }
+                        diagnostics.push(diagnostic);
+                    }
+                }
+                crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                    let source = type_expr_to_type_with_substitutions(
+                        source,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let result = type_expr_to_type_with_substitutions(
+                        &requirement.result,
+                        resolved,
+                        specialized_self_type.as_ref(),
+                        substitutions,
+                    );
+                    let (target, mode) = match source {
+                        Type::Borrow {
+                            is_readwrite: false,
+                            inner,
+                        } => (*inner, super::expansion::ExpansionMode::Readonly),
+                        Type::Borrow {
+                            is_readwrite: true,
+                            inner,
+                        } => (*inner, super::expansion::ExpansionMode::Readwrite),
+                        target => (target, super::expansion::ExpansionMode::Owned),
+                    };
+                    if target.is_unknown_or_unresolved() || result.is_unknown_or_unresolved() {
+                        continue;
+                    }
+                    if !super::expansion::types_support_expansion(
+                        &target,
+                        mode,
+                        &result,
+                        call.span,
+                        resolved,
+                        environment,
+                    ) {
+                        let source_label = match mode {
+                            super::expansion::ExpansionMode::Readonly => {
+                                format!("&{}", target.display())
+                            }
+                            super::expansion::ExpansionMode::Readwrite => {
+                                format!("&+{}", target.display())
+                            }
+                            super::expansion::ExpansionMode::Owned => target.display(),
+                        };
+                        let mut diagnostic = Diagnostic::error(
+                            "E0476",
+                            format!(
+                                "expansion requirement `(...{}): {}` is not satisfied",
+                                source_label,
+                                result.display()
+                            ),
+                        );
+                        diagnostic.primary_span =
+                            sources.span_to_json(call.span).ok().map(Box::new);
+                        if let Ok(span) = sources.span_to_json(requirement.span) {
+                            diagnostic.notes.push(DiagnosticNote {
+                                message: "required by this generic expansion contract".to_string(),
                                 span: Some(span),
                             });
                         }

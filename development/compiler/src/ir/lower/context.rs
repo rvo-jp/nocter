@@ -57,6 +57,7 @@ pub(super) struct LoweringContext<'a> {
         Vec<super::allocation_contexts::AllocationContextRestore>,
     borrow_parameters: Vec<BorrowParameter>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
+    aggregate_local_borrow_fields: HashMap<String, Vec<AggregateField>>,
     error_payloads: ErrorPayloads,
     next_aggregate_slot_index: Rc<Cell<usize>>,
 }
@@ -91,6 +92,7 @@ impl<'a> Clone for LoweringContext<'a> {
             allocation_context_restores: self.allocation_context_restores.clone(),
             borrow_parameters: self.borrow_parameters.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
+            aggregate_local_borrow_fields: self.aggregate_local_borrow_fields.clone(),
             error_payloads: self.error_payloads.clone(),
             next_aggregate_slot_index: self.next_aggregate_slot_index.clone(),
         }

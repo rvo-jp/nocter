@@ -228,22 +228,24 @@ impl<'a> LoweringContext<'a> {
         &self,
         statement_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckCollectionForPlan> {
-        self.call_resolution
-            .as_ref()?
+        let resolution = self.call_resolution.as_ref()?;
+        let plan = resolution
             .typecheck_facts
             .collection_for_plan(statement_span)?
-            .with_context_substitutions(&self.generic_substitutions)
+            .with_context_substitutions(&self.generic_substitutions)?;
+        crate::typecheck::specialize_collection_plan(plan, resolution.resolved)
     }
 
     pub(in crate::ir::lower) fn sequence_spread_plan(
         &self,
         spread_span: ByteSpan,
     ) -> Option<crate::typecheck::TypecheckSequenceSpreadPlan> {
-        self.call_resolution
-            .as_ref()?
+        let resolution = self.call_resolution.as_ref()?;
+        let plan = resolution
             .typecheck_facts
             .sequence_spread_plan(spread_span)?
-            .with_context_substitutions(&self.generic_substitutions)
+            .with_context_substitutions(&self.generic_substitutions)?;
+        crate::typecheck::specialize_sequence_spread_plan(plan, resolution.resolved)
     }
 
     pub(in crate::ir::lower) fn protocol_method_target(

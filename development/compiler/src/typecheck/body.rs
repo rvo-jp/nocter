@@ -34,7 +34,7 @@ use super::operations::{
     check_type_conversion_expression, check_unary_expression, compound_assignment_operands_match,
     is_expression_assignable,
 };
-use super::places::expression_is_writable_place;
+use super::places::{expression_is_writable_place, expression_supports_readwrite_access};
 use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
 use super::variants::{
@@ -779,7 +779,11 @@ fn check_expression_tree(
                 loop_depth,
             );
             if expression.is_readwrite
-                && !expression_is_writable_place(&expression.expression, resolved, environment)
+                && !expression_supports_readwrite_access(
+                    &expression.expression,
+                    resolved,
+                    environment,
+                )
             {
                 diagnostics.push(readwrite_borrow_requires_writable_place_diagnostic(
                     sources, expression,

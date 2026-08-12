@@ -378,6 +378,14 @@ fn qualify_where_clause(
                             imported_type_names,
                         );
                     }
+                    crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                        qualify_type_expr(
+                            source,
+                            import_path,
+                            local_type_names,
+                            imported_type_names,
+                        );
+                    }
                 }
                 qualify_type_expr(
                     &mut requirement.result,

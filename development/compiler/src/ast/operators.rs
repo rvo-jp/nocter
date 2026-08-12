@@ -6,6 +6,11 @@ use crate::source::ByteSpan;
 pub(crate) const EQUALITY_OPERATOR_METHOD_NAME: &str = "__nocter$operator$equal";
 pub(crate) const READONLY_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index";
 pub(crate) const READWRITE_INDEX_OPERATOR_METHOD_NAME: &str = "__nocter$operator$index_readwrite";
+pub(crate) const READONLY_EXPANSION_OPERATOR_METHOD_NAME: &str =
+    "__nocter$operator$expand_readonly";
+pub(crate) const READWRITE_EXPANSION_OPERATOR_METHOD_NAME: &str =
+    "__nocter$operator$expand_readwrite";
+pub(crate) const OWNED_EXPANSION_OPERATOR_METHOD_NAME: &str = "__nocter$operator$expand_owned";
 
 pub(crate) fn is_operator_method_name(name: &str) -> bool {
     matches!(
@@ -13,6 +18,9 @@ pub(crate) fn is_operator_method_name(name: &str) -> bool {
         EQUALITY_OPERATOR_METHOD_NAME
             | READONLY_INDEX_OPERATOR_METHOD_NAME
             | READWRITE_INDEX_OPERATOR_METHOD_NAME
+            | READONLY_EXPANSION_OPERATOR_METHOD_NAME
+            | READWRITE_EXPANSION_OPERATOR_METHOD_NAME
+            | OWNED_EXPANSION_OPERATOR_METHOD_NAME
     )
 }
 
@@ -20,6 +28,7 @@ pub(crate) fn is_operator_method_name(name: &str) -> bool {
 pub enum OperatorDecl {
     Equality(EqualityOperatorDecl),
     Index(IndexOperatorDecl),
+    Expansion(ExpansionOperatorDecl),
 }
 
 impl OperatorDecl {
@@ -27,6 +36,7 @@ impl OperatorDecl {
         match self {
             Self::Equality(operator) => operator.callable_method(),
             Self::Index(operator) => operator.callable_method(),
+            Self::Expansion(operator) => operator.callable_method(),
         }
     }
 
@@ -34,7 +44,33 @@ impl OperatorDecl {
         match self {
             Self::Equality(operator) => operator.callable_method_mut(),
             Self::Index(operator) => operator.callable_method_mut(),
+            Self::Expansion(operator) => operator.callable_method_mut(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpansionOperatorDecl {
+    pub span: ByteSpan,
+    pub operator_span: ByteSpan,
+    callable: MethodDecl,
+}
+
+impl ExpansionOperatorDecl {
+    pub fn new(span: ByteSpan, operator_span: ByteSpan, callable: MethodDecl) -> Self {
+        Self {
+            span,
+            operator_span,
+            callable,
+        }
+    }
+
+    pub fn callable_method(&self) -> &MethodDecl {
+        &self.callable
+    }
+
+    pub fn callable_method_mut(&mut self) -> &mut MethodDecl {
+        &mut self.callable
     }
 }
 
@@ -123,6 +159,10 @@ pub enum OperatorRequirementShape {
         target: TypeExpr,
         index: TypeExpr,
     },
+    Expansion {
+        operator_span: ByteSpan,
+        source: TypeExpr,
+    },
 }
 
 impl OperatorRequirementPredicate {
@@ -133,7 +173,9 @@ impl OperatorRequirementPredicate {
                 left,
                 right,
             } => Some((left, *operator_span, right)),
-            OperatorRequirementShape::Index { .. } => None,
+            OperatorRequirementShape::Index { .. } | OperatorRequirementShape::Expansion { .. } => {
+                None
+            }
         }
     }
 }

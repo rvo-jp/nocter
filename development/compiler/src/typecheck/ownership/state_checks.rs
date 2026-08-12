@@ -388,8 +388,11 @@ pub(super) fn check_statement_ownership(
             let source_loan = resolution
                 .as_ref()
                 .filter(|plan| {
-                    plan.source_mode
-                        == super::super::iteration::CollectionIterationSourceMode::ReadonlyConversion
+                    matches!(
+                        plan.source_mode,
+                        super::super::iteration::CollectionIterationSourceMode::ReadonlyConversion
+                            | super::super::iteration::CollectionIterationSourceMode::ReadwriteConversion
+                    )
                 })
                 .and_then(|_| direct_borrow_source(&statement.source))
                 .map(|source| ActiveBorrow {

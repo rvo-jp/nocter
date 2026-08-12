@@ -516,6 +516,7 @@ fn aggregate_borrow_source_at_offset(
         }
         (AggregateLocation::Return, _)
         | (AggregateLocation::DirectReturn, _)
-        | (AggregateLocation::DirectParameter { .. }, _) => None,
+        | (AggregateLocation::DirectParameter { .. }, _)
+        | (AggregateLocation::Borrow(_), _) => None,
     }
 }

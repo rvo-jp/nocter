@@ -187,6 +187,74 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_mutable_collection_iteration_passes_check() {
+    let project = TempProject::new("distributed-home-mutable-collection-for-check");
+    let source = project.write_source(
+        "mutable_collection_for.nct",
+        r#"use std/vec.Vec
+
+struct Counter { value: i32 }
+
+func update(values: &+Vec<Counter>): void {
+    for counter in &+values {
+        counter.value = counter.value + 1
+    }
+    return
+}
+
+func main(): i32 {
+    var values = Vec [Counter { value: 1 }]
+    update(&+values)
+    return values[0].value
+}
+"#,
+    );
+
+    assert_success(&nocter_check(&project, &source));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_mutable_collection_and_generic_expansion_run() {
+    let project = TempProject::new("distributed-home-mutable-generic-expansion-run");
+    let source = project.write_source(
+        "mutable_generic_expansion.nct",
+        r#"use std/iter.Iterator
+use std/vec.Vec
+
+struct Counter { value: i32 }
+
+func count<C, I>(source: C): i32 where (...&C): I, I: Iterator {
+    var total: i32 = 0
+    for item in &source {
+        total = total + 1
+    }
+    return total
+}
+
+func main(): i32 {
+    var counters = Vec [Counter { value: 1 }, Counter { value: 2 }, Counter { value: 3 }]
+    for counter in &+counters {
+        counter.value = counter.value + 10
+    }
+    return count(Vec [10, 20, 12]) + 39
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
 fn distributed_std_readonly_iterator_surface_passes_check() {
     let project = TempProject::new("distributed-home-readonly-iterator-check");
     let source = project.write_source(
@@ -688,6 +756,11 @@ func run(values: Vec<i32>): void {
         assert!(markdown.contains("ViewIter<i32>"), "{markdown}");
         assert!(markdown.contains("item:** `&i32`"), "{markdown}");
         assert!(
+            markdown.contains("operator (...&Vec<i32>): ViewIter<i32>"),
+            "{markdown}"
+        );
+        assert!(!markdown.contains("__nocter$"), "{markdown}");
+        assert!(
             markdown.contains("statically selected conformance"),
             "{markdown}"
         );
@@ -700,6 +773,10 @@ func run(values: Vec<i32>): void {
         owned_hover.contains("owned source transfer"),
         "{owned_hover}"
     );
+    assert!(
+        owned_hover.contains("operator (...Vec<i32>): VecIntoIter<i32>"),
+        "{owned_hover}"
+    );
     let direct_hover = iteration_response_with_id(&frames, 7)["result"]["contents"]["value"]
         .as_str()
         .expect("expected direct iteration hover");
@@ -707,10 +784,7 @@ func run(values: Vec<i32>): void {
         direct_hover.contains("direct iterator transfer"),
         "{direct_hover}"
     );
-    assert!(
-        direct_hover.contains("Conversion target:** none"),
-        "{direct_hover}"
-    );
+    assert!(direct_hover.contains("Expansion:** none"), "{direct_hover}");
 
     let body_completion = iteration_response_with_id(&frames, 8)["result"]["items"]
         .as_array()
@@ -796,7 +870,7 @@ fn semantic_data_contains(
 #[test]
 fn distributed_lsp_keeps_implicit_iteration_effects_out_of_source_contracts() {
     let project = TempProject::new("distributed-home-collection-for-allocation-lsp");
-    let source_text = r#"use std/iter.{IntoIterator, Iterator}
+    let source_text = r#"use std/iter.Iterator
 use std/vec.Vec
 
 struct AllocatingCollection {
@@ -808,10 +882,8 @@ struct AllocatingIter {
     end: i32
 }
 
-conform IntoIterator for AllocatingCollection {
-    type Iter = AllocatingIter
-
-    method self.into_iter(): AllocatingIter {
+instance AllocatingCollection {
+    operator (...self): AllocatingIter {
         let scratch = Vec [0]
         drop scratch
         return AllocatingIter { next_value: 0, end: self.end }
@@ -892,7 +964,7 @@ fn distributed_std_collection_for_handles_empty_nested_and_user_iterators() {
     let project = TempProject::new("distributed-home-collection-for-composition-run");
     let source = project.write_source(
         "collection_for_composition_run.nct",
-        r#"use std/iter.{IntoIterator, Iterator}
+        r#"use std/iter.Iterator
 use std/vec.Vec
 
 struct Counter {
@@ -904,10 +976,8 @@ struct CounterIter {
     end: i32
 }
 
-conform IntoIterator for Counter {
-    type Iter = CounterIter
-
-    method self.into_iter(): CounterIter {
+instance Counter {
+    operator (...self): CounterIter {
         return CounterIter { next_value: 0, end: self.end }
     }
 }

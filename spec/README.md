@@ -39,6 +39,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Native Testing](20-native-testing.md)
 - [Practical Standard Library](21-practical-standard-library.md)
 - [Borrow Coercions](22-borrow-coercions.md)
+- [Expansion Operators](23-expansion-operators.md)
 
 ## Supporting Material
 

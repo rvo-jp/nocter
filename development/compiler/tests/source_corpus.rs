@@ -15,6 +15,9 @@ const VALID_FIXTURES: &[ValidFixture] = &[
     ),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/hello.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/doc-comments.nct"),
+    ValidFixture::new(
+        "development/compiler/tests/fixtures/source_corpus/valid/expansion-operator.nct",
+    ),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/fallible-catch.nct"),
     ValidFixture::new("development/compiler/tests/fixtures/source_corpus/valid/fallible-force.nct"),
     ValidFixture::new(

@@ -345,14 +345,17 @@ for item in &values {
 for item in move values {
     consume(move item)
 }
+
+for item in &+values {
+    update(item)
+}
 ```
 
-- `&expression` selects the trusted readonly conversion protocol. The source remains owned by its
-  existing place, and the produced iterator retains the source provenance.
-- `move expression` selects the trusted consuming conversion protocol and transfers the source into
-  the produced iterator.
+- `&expression` selects the source type's readonly expansion operator.
+- `&+expression` selects its readwrite expansion operator and holds an exclusive source loan.
+- `move expression` selects its owned expansion operator and transfers the source.
 - A bare expression is accepted only when its type already implements the trusted iterator
-  protocol. A collection value without `&` or `move` is rejected rather than guessed.
+  contract. A collection value without `&`, `&+`, or `move` is rejected rather than guessed.
 - The source expression is evaluated once. Its iterator is owned by the loop and advanced through
   a validated declaration identity, not a method-name search.
 - Each successful step initializes one immutable loop binding. Absence ends the loop without
@@ -361,17 +364,18 @@ for item in move values {
   and normal completion drop live element state and then the iterator exactly once.
 - A readonly yielded borrow retains its source loan through the borrow's last use. A consuming
   yielded value owns exactly one transferred drop obligation.
+- A readwrite yielded borrow holds one exclusive element loan. It must end before the iterator is
+  advanced again.
 
 Deferred:
 
-- mutable element iteration over `&+[T]`
 - implicit choice between readonly and consuming iteration for a bare collection value
 - reverse iteration and custom step syntax
 - asynchronous iteration and iterator adapters that require closures
 
 The compiler must not lower collection iteration into calls selected by the spellings `iter`,
-`into_iter`, or `next`. Trusted standard-library interface declarations are validated once and then
-used by declaration identity.
+`into_iter`, or `next`. Expansion operators and the trusted `Iterator` declaration are selected by
+declaration identity. See [Expansion Operators](23-expansion-operators.md).
 
 Use range `for` with indexing:
 

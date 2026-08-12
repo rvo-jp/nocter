@@ -133,6 +133,7 @@ impl EntryEmitter {
             AggregateLocation::DirectParameter { start_index } => {
                 Ok(AggregateCopySource::DirectParameter { start_index })
             }
+            AggregateLocation::Borrow(location) => Ok(AggregateCopySource::Borrow(location)),
             AggregateLocation::Return | AggregateLocation::DirectReturn => Err(
                 aggregate_copy_diagnostic("aggregate copy cannot read from return locations"),
             ),
@@ -166,6 +167,10 @@ impl EntryEmitter {
                     offset,
                     chunk_bytes,
                 )?;
+            }
+            AggregateCopySource::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X17)?;
+                self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X17, offset, chunk_bytes)?;
             }
         }
         Ok(())
@@ -205,6 +210,10 @@ impl EntryEmitter {
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.emit_aggregate_copy_scratch_to_memory_chunk(base, offset, chunk_bytes)
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X8, offset, chunk_bytes)
             }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_copy_diagnostic(
                 "aggregate copy cannot target direct parameter locations",

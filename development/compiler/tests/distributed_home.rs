@@ -527,7 +527,7 @@ func process_args_shape(): Vec<&str>! {
 }
 
 #[test]
-fn distributed_std_prelude_exports_core_owning_types_and_iterator_contracts() {
+fn distributed_std_prelude_exports_core_owning_types_and_iterator_contract() {
     let project = TempProject::new("distributed-home-prelude-core");
     let source = project.write_source(
         "prelude_core.nct",
@@ -540,14 +540,6 @@ func values(): Vec<i32> {
 }
 
 func accepts_iterator<I>(value: I): i32 where I: Iterator {
-    return 0
-}
-
-func accepts_iterable<I>(value: &I): i32 where I: Iterable {
-    return 0
-}
-
-func accepts_into_iterator<I>(value: I): i32 where I: IntoIterator {
     return 0
 }
 

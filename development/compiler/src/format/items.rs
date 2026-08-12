@@ -481,6 +481,17 @@ impl Formatter {
         match item {
             OperatorDecl::Equality(operator) => self.format_equality_operator_decl(operator),
             OperatorDecl::Index(operator) => self.format_index_operator_decl(operator),
+            OperatorDecl::Expansion(operator) => {
+                let callable = operator.callable_method();
+                self.format_visibility(callable.visibility);
+                self.write("operator (...");
+                self.format_method_receiver(&callable.receiver);
+                self.write("): ");
+                self.format_type(&callable.return_type);
+                self.format_result_provenance(callable.result_provenance.as_ref());
+                self.write(" ");
+                self.format_block(callable.body.as_ref().expect("operator body"));
+            }
         }
     }
 
@@ -597,6 +608,10 @@ impl Formatter {
                             self.write("[");
                             self.format_type(index);
                             self.write("]");
+                        }
+                        crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                            self.write("...");
+                            self.format_type(source);
                         }
                     }
                     self.write("): ");

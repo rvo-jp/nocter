@@ -48,38 +48,6 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             "usize",
             IterationResultContract::independent(),
         )?,
-        readonly_conversion: find_interface(
-            module,
-            "std/iter",
-            "Iterable",
-            &[],
-            Some(AssociatedTypeShape {
-                name: "Iter",
-                bounds: &["Iterator"],
-            }),
-            "iter",
-            MethodReceiverMode::ReadonlyBorrow,
-            "Self.Iter",
-            IterationResultContract {
-                from_receiver: true,
-            },
-        )?,
-        owned_conversion: find_interface(
-            module,
-            "std/iter",
-            "IntoIterator",
-            &[],
-            Some(AssociatedTypeShape {
-                name: "Iter",
-                bounds: &["Iterator"],
-            }),
-            "into_iter",
-            MethodReceiverMode::Owned,
-            "Self.Iter",
-            IterationResultContract {
-                from_receiver: true,
-            },
-        )?,
     })
 }
 
@@ -235,14 +203,6 @@ mod tests {
 pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
-pub interface Iterable {
-    pub type Iter: Iterator
-    pub method &self.iter(): Self.Iter
-}
-pub interface IntoIterator {
-    pub type Iter: Iterator
-    pub method self.into_iter(): Self.Iter
-}
 "#,
         );
         let modules = HashMap::from([("std/iter".to_string(), &iter)]);
@@ -250,10 +210,6 @@ pub interface IntoIterator {
         let runtime = iteration_runtime(&modules).expect("expected runtime");
 
         assert_eq!(runtime.iterator.method_declaration.source, iter.span.source);
-        assert_eq!(
-            runtime.readonly_conversion.interface_declaration.source,
-            iter.span.source
-        );
         assert_eq!(runtime.exact_size.method_name, "remaining_len");
     }
 

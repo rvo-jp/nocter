@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-08">
+    <meta property="article:modified_time" content="2026-08-12">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Control Flow - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Control Flow - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/03-control-flow/","mainEntityOfPage":"https://nocter.dev/spec/03-control-flow/","dateModified":"2026-08-08","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"03 Control Flow","item":"https://nocter.dev/spec/03-control-flow/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Control Flow - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/03-control-flow/","mainEntityOfPage":"https://nocter.dev/spec/03-control-flow/","dateModified":"2026-08-12","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"03 Control Flow","item":"https://nocter.dev/spec/03-control-flow/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -144,6 +144,7 @@
                 <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
                 <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../releases/index.html#content">release index</a></li>
@@ -258,14 +259,17 @@ while i <span class="token-operator">&lt;</span> bytes<span class="token-operato
 <span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
     <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
 <span class="token-operator">}</span>
-</code></pre><ul><li><code>&amp;expression</code> selects the trusted readonly conversion protocol. The source remains owned by its
-  existing place, and the produced iterator retains the source provenance.</li><li><code>move expression</code> selects the trusted consuming conversion protocol and transfers the source into
-  the produced iterator.</li><li>A bare expression is accepted only when its type already implements the trusted iterator
-  protocol. A collection value without <code>&amp;</code> or <code>move</code> is rejected rather than guessed.</li><li>The source expression is evaluated once. Its iterator is owned by the loop and advanced through
+
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-operator">&amp;+</span>values <span class="token-operator">{</span>
+    <span class="token-function">update</span><span class="token-operator">(</span>item<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre><ul><li><code>&amp;expression</code> selects the source type's readonly expansion operator.</li><li><code>&amp;+expression</code> selects its readwrite expansion operator and holds an exclusive source loan.</li><li><code>move expression</code> selects its owned expansion operator and transfers the source.</li><li>A bare expression is accepted only when its type already implements the trusted iterator
+  contract. A collection value without <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> is rejected rather than guessed.</li><li>The source expression is evaluated once. Its iterator is owned by the loop and advanced through
   a validated declaration identity, not a method-name search.</li><li>Each successful step initializes one immutable loop binding. Absence ends the loop without
   initializing or dropping an element.</li><li><code>continue</code> drops an unconsumed current element before advancing. <code>break</code>, <code>return</code>, propagation,
   and normal completion drop live element state and then the iterator exactly once.</li><li>A readonly yielded borrow retains its source loan through the borrow's last use. A consuming
-  yielded value owns exactly one transferred drop obligation.</li></ul><p>Deferred:</p><ul><li>mutable element iteration over <code>&amp;+[T]</code></li><li>implicit choice between readonly and consuming iteration for a bare collection value</li><li>reverse iteration and custom step syntax</li><li>asynchronous iteration and iterator adapters that require closures</li></ul><p>The compiler must not lower collection iteration into calls selected by the spellings <code>iter</code>, <code>into_iter</code>, or <code>next</code>. Trusted standard-library interface declarations are validated once and then used by declaration identity.</p><p>Use range <code>for</code> with indexing:</p><pre><code class="language-nct"><span class="token-keyword">for</span> i <span class="token-keyword">in</span> <span class="token-number">0</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">&lt;</span>bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+  yielded value owns exactly one transferred drop obligation.</li><li>A readwrite yielded borrow holds one exclusive element loan. It must end before the iterator is
+  advanced again.</li></ul><p>Deferred:</p><ul><li>implicit choice between readonly and consuming iteration for a bare collection value</li><li>reverse iteration and custom step syntax</li><li>asynchronous iteration and iterator adapters that require closures</li></ul><p>The compiler must not lower collection iteration into calls selected by the spellings <code>iter</code>, <code>into_iter</code>, or <code>next</code>. Expansion operators and the trusted <code>Iterator</code> declaration are selected by declaration identity. See <a href="../23-expansion-operators/index.html#content">Expansion Operators</a>.</p><p>Use range <code>for</code> with indexing:</p><pre><code class="language-nct"><span class="token-keyword">for</span> i <span class="token-keyword">in</span> <span class="token-number">0</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">&lt;</span>bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> byte <span class="token-operator">=</span> bytes<span class="token-operator">[</span>i<span class="token-operator">]</span>
     <span class="token-function">consume</span><span class="token-operator">(</span>byte<span class="token-operator">)</span>
 <span class="token-operator">}</span>

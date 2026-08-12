@@ -1,0 +1,17 @@
+use std/iter.Iterator
+
+use std/vec.Vec
+
+func count<C, I>(source: &C): usize where (...&C): I, I: Iterator {
+    var total: usize = 0
+    for item in &source {
+        total = total + 1
+    }
+    return total
+}
+
+func main(): i32 {
+    let values = Vec [1, 2, 3]
+    let total = count(&values)
+    return 0
+}

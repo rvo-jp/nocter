@@ -674,7 +674,8 @@ fn lower_borrow_source_from_aggregate_member_expression(
         }
         AggregateLocation::Return
         | AggregateLocation::DirectReturn
-        | AggregateLocation::DirectParameter { .. } => Err(unsupported_borrow_argument_diagnostic(
+        | AggregateLocation::DirectParameter { .. }
+        | AggregateLocation::Borrow(_) => Err(unsupported_borrow_argument_diagnostic(
             callee_name,
             parameter_type,
         )),

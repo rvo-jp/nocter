@@ -30,6 +30,11 @@ impl EntryEmitter {
                 emit_integer_store_to_base(&mut self.encoder, byte_count, base, offset);
                 Ok(())
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                emit_integer_store_to_base(&mut self.encoder, byte_count, XReg::X8, offset);
+                Ok(())
+            }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate parameter stores are not supported",
             )),
@@ -61,6 +66,10 @@ impl EntryEmitter {
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 emit_integer_load_from_base(&mut self.encoder, byte_count, base, offset);
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                emit_integer_load_from_base(&mut self.encoder, byte_count, XReg::X8, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 if byte_count == AGGREGATE_USIZE_STORE_BYTES {
@@ -185,6 +194,11 @@ impl EntryEmitter {
                 self.encoder.emit_str_x_imm(XReg::X16, base, offset);
                 Ok(())
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
+                Ok(())
+            }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate parameter stores are not supported",
             )),
@@ -223,6 +237,11 @@ impl EntryEmitter {
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_str_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
@@ -265,6 +284,11 @@ impl EntryEmitter {
                 self.encoder.emit_str_w_imm(WReg::W16, base, offset);
                 Ok(())
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate parameter stores are not supported",
             )),
@@ -303,6 +327,11 @@ impl EntryEmitter {
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_strh_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_strh_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
@@ -465,6 +494,11 @@ impl EntryEmitter {
                 self.encoder.emit_strb_w_imm(WReg::W16, base, offset);
                 Ok(())
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_strb_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate parameter stores are not supported",
             )),
@@ -506,6 +540,11 @@ impl EntryEmitter {
                 self.encoder
                     .emit_ldr_x_imm(destination_register, base, offset);
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder
+                    .emit_ldr_x_imm(destination_register, XReg::X8, offset);
+            }
             AggregateLocation::DirectParameter { start_index } => {
                 let word_index =
                     direct_aggregate_parameter_word_index(start_index, offset, "usize field")?;
@@ -544,6 +583,11 @@ impl EntryEmitter {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder
                     .emit_ldr_w_imm(destination_register, base, offset);
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder
+                    .emit_ldr_w_imm(destination_register, XReg::X8, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
@@ -592,6 +636,11 @@ impl EntryEmitter {
                 self.encoder
                     .emit_ldrb_w_imm(destination_register, base, offset);
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder
+                    .emit_ldrb_w_imm(destination_register, XReg::X8, offset);
+            }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
                     start_index,
@@ -638,6 +687,11 @@ impl EntryEmitter {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder
                     .emit_ldrb_w_imm(destination_register, base, offset);
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder
+                    .emit_ldrb_w_imm(destination_register, XReg::X8, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
@@ -811,6 +865,14 @@ impl EntryEmitter {
             }
             AggregateLocation::Parameter(index) => {
                 self.emit_parameter_word_to_x(index, destination)?;
+                if base_offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(destination, destination, base_offset);
+                }
+                None
+            }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), destination)?;
                 if base_offset != 0 {
                     self.encoder
                         .emit_add_x_imm(destination, destination, base_offset);

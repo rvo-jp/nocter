@@ -40,6 +40,9 @@ impl EntryEmitter {
             AggregateLocation::Slot(slot_index) => {
                 self.emit_aggregate_slot_address_to_x(slot_index, XReg::X8, frame)
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)
+            }
         }
     }
 

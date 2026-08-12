@@ -218,7 +218,7 @@ The standard prelude exports:
 ```nct
 pub use std/string.String
 pub use std/vec.Vec
-pub use std/iter.{Iterable, IntoIterator, Iterator}
+pub use std/iter.Iterator
 ```
 
 Built-in forms such as `str`, `[T]`, and primitive numeric types are language types, not prelude

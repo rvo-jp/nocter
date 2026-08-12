@@ -15,6 +15,7 @@ use crate::source::{ByteSpan, SourceMap};
 pub(super) enum CollectionIterationSourceMode {
     Direct,
     ReadonlyConversion,
+    ReadwriteConversion,
     OwnedConversion,
 }
 
@@ -63,14 +64,14 @@ pub(super) fn resolve_sequence_spread(
         .ok_or(CollectionIterationError::RuntimeUnavailable)?;
     let (mode, iteration) = match spread.operand.without_groups() {
         Expr::Borrow(borrow) if borrow.is_readwrite => {
-            return Err(CollectionIterationError::MutableIterationDeferred);
+            return Err(CollectionIterationError::MutableSequenceSpreadUnsupported);
         }
         Expr::Borrow(borrow) => (
             SequenceSpreadMode::Readonly,
-            resolve_converted_iteration(
+            resolve_expanded_iteration(
                 CollectionIterationSourceMode::ReadonlyConversion,
                 &borrow.expression,
-                &runtime.readonly_conversion,
+                super::expansion::ExpansionMode::Readonly,
                 runtime,
                 resolved,
                 environment,
@@ -89,10 +90,10 @@ pub(super) fn resolve_sequence_spread(
                     environment,
                 )?
             } else {
-                resolve_converted_iteration(
+                resolve_expanded_iteration(
                     CollectionIterationSourceMode::OwnedConversion,
                     &unary.operand,
-                    &runtime.owned_conversion,
+                    super::expansion::ExpansionMode::Owned,
                     runtime,
                     resolved,
                     environment,
@@ -102,10 +103,10 @@ pub(super) fn resolve_sequence_spread(
         }
         expression => (
             SequenceSpreadMode::Copy,
-            resolve_converted_iteration(
+            resolve_expanded_iteration(
                 CollectionIterationSourceMode::ReadonlyConversion,
                 expression,
-                &runtime.readonly_conversion,
+                super::expansion::ExpansionMode::Readonly,
                 runtime,
                 resolved,
                 environment,
@@ -167,13 +168,18 @@ pub(super) fn resolve_collection_iteration(
         .ok_or(CollectionIterationError::RuntimeUnavailable)?;
 
     match statement.source.without_groups() {
-        Expr::Borrow(borrow) if borrow.is_readwrite => {
-            Err(CollectionIterationError::MutableIterationDeferred)
-        }
-        Expr::Borrow(borrow) => resolve_converted_iteration(
+        Expr::Borrow(borrow) if borrow.is_readwrite => resolve_expanded_iteration(
+            CollectionIterationSourceMode::ReadwriteConversion,
+            &borrow.expression,
+            super::expansion::ExpansionMode::Readwrite,
+            runtime,
+            resolved,
+            environment,
+        ),
+        Expr::Borrow(borrow) => resolve_expanded_iteration(
             CollectionIterationSourceMode::ReadonlyConversion,
             &borrow.expression,
-            &runtime.readonly_conversion,
+            super::expansion::ExpansionMode::Readonly,
             runtime,
             resolved,
             environment,
@@ -191,10 +197,10 @@ pub(super) fn resolve_collection_iteration(
                     environment,
                 )
             } else {
-                resolve_converted_iteration(
+                resolve_expanded_iteration(
                     CollectionIterationSourceMode::OwnedConversion,
                     &unary.operand,
-                    &runtime.owned_conversion,
+                    super::expansion::ExpansionMode::Owned,
                     runtime,
                     resolved,
                     environment,
@@ -219,23 +225,33 @@ pub(super) fn resolve_collection_iteration(
     }
 }
 
-fn resolve_converted_iteration(
+fn resolve_expanded_iteration(
     source_mode: CollectionIterationSourceMode,
     expression: &Expr,
-    conversion_protocol: &IterationProtocol,
+    expansion_mode: super::expansion::ExpansionMode,
     runtime: &IterationRuntime,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Result<CollectionIterationResolution, CollectionIterationError> {
-    let source_type = expression_type(expression, resolved, environment);
+    let source_type = expansion_target_type(
+        expression_type(expression, resolved, environment),
+        expansion_mode,
+    );
     if source_type.is_unknown_or_unresolved() {
         return Err(CollectionIterationError::UnresolvedSource);
     }
-    let _conversion_interface =
-        conformed_protocol_type(&source_type, conversion_protocol, resolved, environment)
-            .ok_or_else(|| CollectionIterationError::MissingConversion(source_type.clone()))?;
-    let iterator_type = protocol_associated_type(&source_type, conversion_protocol, resolved)
-        .ok_or(CollectionIterationError::MalformedConformance)?;
+    let expansion = super::expansion::select_expansion(
+        &source_type,
+        expansion_mode,
+        expression.span(),
+        resolved,
+        environment,
+    )
+    .ok_or_else(|| CollectionIterationError::MissingExpansion {
+        source: source_type.clone(),
+        mode: expansion_mode,
+    })?;
+    let iterator_type = expansion.iterator_type;
     let _iterator_interface =
         conformed_protocol_type(&iterator_type, &runtime.iterator, resolved, environment)
             .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
@@ -247,14 +263,23 @@ fn resolve_converted_iteration(
         source_type: source_type.clone(),
         iterator_type: iterator_type.clone(),
         item_type,
-        conversion: Some(resolve_concrete_method(
-            &source_type,
-            conversion_protocol,
-            resolved,
-            environment,
-        )?),
+        conversion: expansion.method,
         step: resolve_concrete_method(&iterator_type, &runtime.iterator, resolved, environment)?,
     })
+}
+
+fn expansion_target_type(source: Type, mode: super::expansion::ExpansionMode) -> Type {
+    match (mode, source) {
+        (super::expansion::ExpansionMode::Readonly, Type::Borrow { inner, .. })
+        | (
+            super::expansion::ExpansionMode::Readwrite,
+            Type::Borrow {
+                is_readwrite: true,
+                inner,
+            },
+        ) => *inner,
+        (_, source) => source,
+    }
 }
 
 fn resolve_direct_iteration(
@@ -291,7 +316,7 @@ fn protocol_associated_type(
     ))
 }
 
-fn conformed_protocol_type(
+pub(super) fn conformed_protocol_type(
     actual: &Type,
     protocol: &IterationProtocol,
     resolved: &ResolveOutput,
@@ -357,10 +382,13 @@ fn iteration_method(receiver_type: &Type, method: &MethodSignature) -> Iteration
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CollectionIterationError {
     RuntimeUnavailable,
-    MutableIterationDeferred,
+    MutableSequenceSpreadUnsupported,
     UnresolvedSource,
     AmbiguousCollection(Type),
-    MissingConversion(Type),
+    MissingExpansion {
+        source: Type,
+        mode: super::expansion::ExpansionMode,
+    },
     MissingIterator(Type),
     MissingExactSize(Type),
     CopyRequiresReadonlyItem(Type),
@@ -395,9 +423,9 @@ fn iteration_diagnostic(
             "collection iteration protocols are unavailable in the active Nocter home".to_string(),
             "use a complete Nocter home containing the validated iteration interfaces".to_string(),
         ),
-        CollectionIterationError::MutableIterationDeferred => (
-            "mutable collection iteration is not part of v0.3.0 Phase 7".to_string(),
-            "use `&collection` for readonly iteration or `move collection` for consuming iteration"
+        CollectionIterationError::MutableSequenceSpreadUnsupported => (
+            "mutable sequence spread is not supported".to_string(),
+            "use mutable expansion in `for item in &+collection`, not in a literal pack"
                 .to_string(),
         ),
         CollectionIterationError::UnresolvedSource => (
@@ -412,19 +440,23 @@ fn iteration_diagnostic(
             "write `&collection` for readonly iteration or `move collection` for consuming iteration"
                 .to_string(),
         ),
-        CollectionIterationError::MissingConversion(actual) => (
-            format!(
-                "type `{}` does not conform to the selected collection iteration protocol",
-                actual.display()
-            ),
-            "add the matching explicit standard iteration interface conformance".to_string(),
-        ),
+        CollectionIterationError::MissingExpansion { source, mode } => {
+            let capability = match mode {
+                super::expansion::ExpansionMode::Readonly => "readonly `...&self`",
+                super::expansion::ExpansionMode::Readwrite => "readwrite `...&+self`",
+                super::expansion::ExpansionMode::Owned => "consuming `...self`",
+            };
+            (
+                format!("type `{}` has no accessible {capability} expansion operator", source.display()),
+                "declare the matching expansion operator in the source type's `instance`".to_string(),
+            )
+        }
         CollectionIterationError::MissingIterator(actual) => (
             format!(
-                "collection conversion produces `{}`, which does not conform to the iterator protocol",
+                "collection expansion produces `{}`, which does not conform to the iterator protocol",
                 actual.display()
             ),
-            "make the concrete conversion result explicitly conform to the trusted iterator interface"
+            "make the concrete expansion result explicitly conform to the trusted iterator interface"
                 .to_string(),
         ),
         CollectionIterationError::MissingExactSize(actual) => (

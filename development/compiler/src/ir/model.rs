@@ -782,8 +782,12 @@ pub(crate) enum AggregateLocation {
     Return,
     DirectReturn,
     Parameter(usize),
-    DirectParameter { start_index: usize },
+    DirectParameter {
+        start_index: usize,
+    },
     Slot(usize),
+    /// Aggregate storage reached through a runtime borrow pointer.
+    Borrow(UsizeLocation),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

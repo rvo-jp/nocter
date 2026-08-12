@@ -180,7 +180,7 @@ impl TypecheckFactCollector<'_> {
                         ),
                     ) {
                         let method = selected.as_ref().and_then(|selected| {
-                            crate::typecheck::operators::equality_method_fact(
+                            crate::typecheck::operators::operator_method_fact(
                                 selected,
                                 expression.operator_span,
                             )
@@ -830,6 +830,9 @@ fn sequence_spread_fact(
             }
             crate::typecheck::iteration::CollectionIterationSourceMode::ReadonlyConversion => {
                 TypecheckCollectionForSourceMode::ReadonlyConversion
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::ReadwriteConversion => {
+                TypecheckCollectionForSourceMode::ReadwriteConversion
             }
             crate::typecheck::iteration::CollectionIterationSourceMode::OwnedConversion => {
                 TypecheckCollectionForSourceMode::OwnedConversion

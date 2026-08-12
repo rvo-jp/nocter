@@ -311,6 +311,9 @@ pub(super) fn collection_for_fact(
             crate::typecheck::iteration::CollectionIterationSourceMode::ReadonlyConversion => {
                 TypecheckCollectionForSourceMode::ReadonlyConversion
             }
+            crate::typecheck::iteration::CollectionIterationSourceMode::ReadwriteConversion => {
+                TypecheckCollectionForSourceMode::ReadwriteConversion
+            }
             crate::typecheck::iteration::CollectionIterationSourceMode::OwnedConversion => {
                 TypecheckCollectionForSourceMode::OwnedConversion
             }

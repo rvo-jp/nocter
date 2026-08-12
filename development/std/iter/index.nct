@@ -4,6 +4,7 @@
 //! view's storage origin. Iterator names are ordinary standard-library APIs.
 
 use ./core
+use ./mutable
 use ./ops
 use ./sources
 use std/vec.Vec
@@ -239,20 +240,6 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 
-/// Creates a readonly iterator whose yielded values retain the collection origin.
-pub interface Iterable {
-    pub type Iter: Iterator
-
-    pub method &self.iter(): Self.Iter
-}
-
-/// Transfers a collection into an owning iterator.
-pub interface IntoIterator {
-    pub type Iter: Iterator
-
-    pub method self.into_iter(): Self.Iter
-}
-
 /// Constructs a lazy mapping adapter without allocating.
 pub func map<U, I, F>(
     source: I,
@@ -298,6 +285,19 @@ pub func last<I>(source: I): I.Item? from source where I: Iterator
 pub struct ViewIter<T> {
     view: &[T]
     next_index: usize
+}
+
+/// A forward cursor over readwrite borrows into contiguous storage.
+pub struct MutableViewIter<T> {
+    view: &+[T]
+    next_index: usize
+}
+
+construct MutableViewIter<T> {
+    /// Creates an allocation-free mutable iterator over `view`.
+    pub default func from_view(view: &+[T]): Self {
+        return mutable_from_view(view)
+    }
 }
 
 construct ViewIter<T> {

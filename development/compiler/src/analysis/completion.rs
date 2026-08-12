@@ -382,6 +382,7 @@ fn apply_operator_requirement_completion(
     for (label, detail, insert_text) in [
         ("==", "equality operator requirement", "&T == &T): bool"),
         ("[]", "index operator requirement", "&C[K]): &V"),
+        ("...", "expansion operator requirement", "...&C): I"),
     ] {
         if items.iter().any(|item| item.label == label) {
             continue;
@@ -424,6 +425,11 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
     let has_readwrite_index = instance.index_operators().any(|operator| {
         operator.callable_method().receiver.mode == MethodReceiverMode::ReadwriteBorrow
     });
+    let has_expansion = |mode| {
+        instance
+            .expansion_operators()
+            .any(|operator| operator.callable_method().receiver.mode == mode)
+    };
     let candidates = [
         (
             !has_equality,
@@ -442,6 +448,24 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
             format!("operator (&+{owner}[index: usize]): &+Element"),
             "Declares readwrite indexing for this instance.",
             "operator (&+self[index: usize]): &+Element {\n    return &+self.values[index]\n}",
+        ),
+        (
+            !has_expansion(MethodReceiverMode::ReadonlyBorrow),
+            format!("operator (...&{owner}): Iterator"),
+            "Declares readonly expansion for iteration and sequence spread.",
+            "operator (...&self): Iterator {\n    return self.iter()\n}",
+        ),
+        (
+            !has_expansion(MethodReceiverMode::ReadwriteBorrow),
+            format!("operator (...&+{owner}): Iterator"),
+            "Declares readwrite expansion for mutable iteration.",
+            "operator (...&+self): Iterator {\n    return self.iter_mut()\n}",
+        ),
+        (
+            !has_expansion(MethodReceiverMode::Owned),
+            format!("operator (...{owner}): Iterator"),
+            "Declares owned expansion for consuming iteration and sequence spread.",
+            "operator (...self): Iterator {\n    return self.into_iter()\n}",
         ),
     ];
     for (_, detail, documentation, insert_text) in

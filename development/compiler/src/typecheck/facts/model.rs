@@ -527,6 +527,7 @@ impl TypecheckInterpolationPlan {
 pub(crate) enum TypecheckCollectionForSourceMode {
     Direct,
     ReadonlyConversion,
+    ReadwriteConversion,
     OwnedConversion,
 }
 

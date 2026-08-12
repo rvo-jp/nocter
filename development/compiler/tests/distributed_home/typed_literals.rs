@@ -59,6 +59,29 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_sequence_spread_rejects_mutable_expansion() {
+    let project = TempProject::new("distributed-home-sequence-spread-mutable-rejection");
+    let source = project.write_source(
+        "sequence_spread_mutable_rejection.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var source = Vec [1, 2, 3]
+    let invalid = Vec [...&+source]
+    return invalid.len()
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0524]"), "{stderr}");
+    assert!(stderr.contains("mutable sequence spread"), "{stderr}");
+    assert!(stderr.contains("for item in &+collection"), "{stderr}");
+}
+
+#[test]
 fn distributed_std_copy_spread_rejects_move_only_elements() {
     let project = TempProject::new("distributed-home-sequence-spread-copy-rejection");
     let source = project.write_source(
@@ -277,7 +300,7 @@ func run(values: Vec<i32>): void {
 #[test]
 fn distributed_lsp_keeps_implicit_sequence_spread_effects_out_of_source_contracts() {
     let project = TempProject::new("distributed-home-sequence-spread-allocation-lsp");
-    let source_text = r#"use std/iter.{ExactSizeIterator, IntoIterator, Iterator}
+    let source_text = r#"use std/iter.{ExactSizeIterator, Iterator}
 use std/vec.Vec
 
 struct AllocatingCollection { end: usize }
@@ -287,10 +310,8 @@ struct AllocatingIter {
     end: usize
 }
 
-conform IntoIterator for AllocatingCollection {
-    type Iter = AllocatingIter
-
-    method self.into_iter(): AllocatingIter {
+instance AllocatingCollection {
+    operator (...self): AllocatingIter {
         let scratch = Vec [0]
         drop scratch
         return AllocatingIter { next_value: 0, end: self.end }

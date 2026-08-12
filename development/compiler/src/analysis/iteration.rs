@@ -1,7 +1,6 @@
 //! Editor presentation for typechecked collection-iteration plans.
 
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::canonical_type_expr;
 use crate::resolve::LocalSymbolKind;
 use crate::source::ByteSpan;
 use crate::typecheck::{TypecheckCollectionForPlan, TypecheckCollectionForSourceMode};
@@ -21,7 +20,7 @@ pub(crate) fn iteration_markdown_at_offset(
         })
         .min_by_key(|plan| (plan.spread_span.len(), plan.spread_span.start))
     {
-        return Some(sequence_spread_markdown(plan));
+        return Some(sequence_spread_markdown(plan, &file.resolved));
     }
     let plan = file
         .typecheck_facts
@@ -47,7 +46,7 @@ pub(crate) fn iteration_markdown_at_offset(
         return None;
     }
 
-    Some(iteration_markdown(plan))
+    Some(iteration_markdown(plan, &file.resolved))
 }
 
 pub(crate) fn sequence_spread_operator_hover(
@@ -65,10 +64,13 @@ pub(crate) fn sequence_spread_operator_hover(
                 .then_some((operator_span, plan))
         })
         .min_by_key(|(_, plan)| (plan.spread_span.len(), plan.spread_span.start))?;
-    Some((plan.0, sequence_spread_markdown(plan.1)))
+    Some((plan.0, sequence_spread_markdown(plan.1, &file.resolved)))
 }
 
-fn sequence_spread_markdown(plan: &TypecheckSequenceSpreadPlan) -> String {
+fn sequence_spread_markdown(
+    plan: &TypecheckSequenceSpreadPlan,
+    resolved: &crate::resolve::ResolveOutput,
+) -> String {
     let mode = match plan.mode {
         TypecheckSequenceSpreadMode::Copy => "copy from readonly iteration",
         TypecheckSequenceSpreadMode::Readonly => "readonly reference spread",
@@ -76,22 +78,23 @@ fn sequence_spread_markdown(plan: &TypecheckSequenceSpreadPlan) -> String {
     };
     let mut lines = vec![
         format!("**Sequence spread:** {mode}."),
-        format!("**Source:** `{}`.", canonical_type_expr(&plan.source_type)),
+        format!(
+            "**Source:** `{}`.",
+            crate::typecheck::type_expr_presentation_label(&plan.source_type, resolved)
+        ),
         format!(
             "**Iterator:** `{}`; **iterator item:** `{}`; **pack item:** `{}`.",
-            canonical_type_expr(&plan.iterator_type),
-            canonical_type_expr(&plan.iterator_item_type),
-            canonical_type_expr(&plan.pack_item_type),
+            crate::typecheck::type_expr_presentation_label(&plan.iterator_type, resolved),
+            crate::typecheck::type_expr_presentation_label(&plan.iterator_item_type, resolved),
+            crate::typecheck::type_expr_presentation_label(&plan.pack_item_type, resolved),
         ),
     ];
-    if let Some(conversion) = &plan.conversion {
-        lines.push(format!(
-            "**Conversion target:** `{}` (statically selected conformance).",
-            conversion.target_name
-        ));
-    } else {
-        lines.push("**Conversion target:** none; the source already is an iterator.".to_string());
-    }
+    lines.push(expansion_contract_markdown(
+        plan.source_mode,
+        &plan.source_type,
+        &plan.iterator_type,
+        resolved,
+    ));
     lines.push(format!(
         "**Exact-count target:** `{}`; **step target:** `{}`.",
         plan.exact_size.target_name, plan.step.target_name
@@ -99,35 +102,59 @@ fn sequence_spread_markdown(plan: &TypecheckSequenceSpreadPlan) -> String {
     lines.join("\n\n")
 }
 
-fn iteration_markdown(plan: &TypecheckCollectionForPlan) -> String {
+fn iteration_markdown(
+    plan: &TypecheckCollectionForPlan,
+    resolved: &crate::resolve::ResolveOutput,
+) -> String {
     let mode = match plan.source_mode {
         TypecheckCollectionForSourceMode::Direct => "direct iterator transfer",
         TypecheckCollectionForSourceMode::ReadonlyConversion => "readonly source borrow",
+        TypecheckCollectionForSourceMode::ReadwriteConversion => "readwrite source borrow",
         TypecheckCollectionForSourceMode::OwnedConversion => "owned source transfer",
     };
     let mut lines = vec![
         format!("**Iteration source:** {mode}."),
         format!(
             "**Iterator:** `{}`; **item:** `{}`.",
-            canonical_type_expr(&plan.iterator_type),
-            canonical_type_expr(&plan.item_type)
+            crate::typecheck::type_expr_presentation_label(&plan.iterator_type, resolved),
+            crate::typecheck::type_expr_presentation_label(&plan.item_type, resolved)
         ),
     ];
 
-    if let Some(conversion) = &plan.conversion {
-        lines.push(format!(
-            "**Conversion target:** `{}` (statically selected conformance).",
-            conversion.target_name
-        ));
-    } else {
-        lines.push("**Conversion target:** none; the source already is an iterator.".to_string());
-    }
+    lines.push(expansion_contract_markdown(
+        plan.source_mode,
+        &plan.source_type,
+        &plan.iterator_type,
+        resolved,
+    ));
     lines.push(format!(
         "**Step target:** `{}` (statically selected conformance).",
         plan.step.target_name
     ));
 
     lines.join("\n\n")
+}
+
+fn expansion_contract_markdown(
+    mode: TypecheckCollectionForSourceMode,
+    source: &crate::ast::TypeExpr,
+    iterator: &crate::ast::TypeExpr,
+    resolved: &crate::resolve::ResolveOutput,
+) -> String {
+    if mode == TypecheckCollectionForSourceMode::Direct {
+        return "**Expansion:** none; the source already is an iterator.".to_string();
+    }
+    let prefix = match mode {
+        TypecheckCollectionForSourceMode::Direct => unreachable!(),
+        TypecheckCollectionForSourceMode::ReadonlyConversion => "&",
+        TypecheckCollectionForSourceMode::ReadwriteConversion => "&+",
+        TypecheckCollectionForSourceMode::OwnedConversion => "",
+    };
+    format!(
+        "**Expansion:** `operator (...{prefix}{}): {}`.",
+        crate::typecheck::type_expr_presentation_label(source, resolved),
+        crate::typecheck::type_expr_presentation_label(iterator, resolved),
+    )
 }
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {

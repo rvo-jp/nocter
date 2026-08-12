@@ -194,6 +194,18 @@ pub(crate) fn method_or_operator_presentation(
     let owner = super::type_owner_presentation_label(owner, resolved);
     if matches!(
         method.name.as_str(),
+        crate::ast::READONLY_EXPANSION_OPERATOR_METHOD_NAME
+            | crate::ast::READWRITE_EXPANSION_OPERATOR_METHOD_NAME
+            | crate::ast::OWNED_EXPANSION_OPERATOR_METHOD_NAME
+    ) {
+        let result = type_expr_presentation_label(&method.signature.return_type, resolved);
+        return format!(
+            "operator (...{}{owner}): {result}",
+            method.receiver.mode.source_prefix(),
+        );
+    }
+    if matches!(
+        method.name.as_str(),
         crate::ast::READONLY_INDEX_OPERATOR_METHOD_NAME
             | crate::ast::READWRITE_INDEX_OPERATOR_METHOD_NAME
     ) {
@@ -338,6 +350,9 @@ fn where_predicate_labels_with(
                     }
                     crate::ast::OperatorRequirementShape::Index { target, index, .. } => {
                         format!("{}[{}]", type_label(target), type_label(index))
+                    }
+                    crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                        format!("...{}", type_label(source))
                     }
                 };
                 format!("({operands}): {}", type_label(&requirement.result))

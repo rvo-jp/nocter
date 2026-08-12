@@ -7,7 +7,7 @@
 //! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
 //! that prefix, while clear and drop destroy its elements in reverse order.
 
-use std/iter.{ExactSizeIterator, Iterable, IntoIterator, Iterator, ViewIter}
+use std/iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.addr
@@ -436,6 +436,36 @@ pub func index_out_of_bounds(): error {
 }
 
 instance Vec<T> {
+    /// Creates an allocation-free iterator over readonly element borrows.
+    pub operator (...&self): ViewIter<T> {
+        return ViewIter.from_view(view(self))
+    }
+
+    /// Creates an allocation-free iterator over readwrite element borrows.
+    pub operator (...&+self): MutableViewIter<T> {
+        return MutableViewIter.from_view(view_mut(self))
+    }
+
+    /// Transfers the allocation and every element into an owning iterator.
+    pub operator (...self): VecIntoIter<T> {
+        return into_iter(move self)
+    }
+
+    /// Returns the readonly iterator explicitly for method-chain construction.
+    pub method &self.iter(): ViewIter<T> {
+        return ViewIter.from_view(view(self))
+    }
+
+    /// Returns the readwrite iterator explicitly for mutation algorithms.
+    pub method &+self.iter_mut(): MutableViewIter<T> {
+        return MutableViewIter.from_view(view_mut(self))
+    }
+
+    /// Returns the owning iterator explicitly for method-chain construction.
+    pub method self.into_iter(): VecIntoIter<T> {
+        return into_iter(move self)
+    }
+
     /// Returns the element at `index`, trapping when the index is out of bounds.
     pub operator (&self[index: usize]): &T {
         return &view(self)[index]
@@ -555,22 +585,5 @@ conform Sequence<T> for Vec<T> {
             return none
         }
         return &view(self)[index]
-    }
-}
-
-conform Iterable for Vec<T> {
-    type Iter = ViewIter<T>
-
-    /// Returns an allocation-free iterator over readonly element borrows.
-    method &self.iter(): ViewIter<T> {
-        return iter(self)
-    }
-}
-
-conform IntoIterator for Vec<T> {
-    type Iter = VecIntoIter<T>
-    /// Transfers the allocation and every element into an owning iterator.
-    method self.into_iter(): VecIntoIter<T> {
-        return into_iter(move self)
     }
 }

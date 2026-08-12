@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-11">
+    <meta property="article:modified_time" content="2026-08-12">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Modules and Use Declarations - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Modules and Use Declarations - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/01-modules-use/","mainEntityOfPage":"https://nocter.dev/spec/01-modules-use/","dateModified":"2026-08-11","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"01 Modules Use","item":"https://nocter.dev/spec/01-modules-use/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Modules and Use Declarations - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/01-modules-use/","mainEntityOfPage":"https://nocter.dev/spec/01-modules-use/","dateModified":"2026-08-12","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"01 Modules Use","item":"https://nocter.dev/spec/01-modules-use/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -144,6 +144,7 @@
                 <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
                 <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
                 <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../releases/index.html#content">release index</a></li>
@@ -220,7 +221,7 @@ instance <span class="token-type">Value</span> <span class="token-operator">{</s
   name takes precedence</li><li>parameters, local bindings, and block imports likewise take precedence over a prelude name</li><li>two authored names in the same scope remain an ordinary collision; fallback priority applies
   only to synthetic prelude exports</li><li>project-wide prelude configuration is not supported</li></ul><p>The standard prelude exports:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Iterable</span><span class="token-operator">,</span> <span class="token-type">IntoIterator</span><span class="token-operator">,</span> <span class="token-type">Iterator</span><span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">Iterator</span>
 </code></pre><p>Built-in forms such as <code>str</code>, <code>[T]</code>, and primitive numeric types are language types, not prelude exports. <code>Format</code>, <code>Sequence</code>, <code>ExactSizeIterator</code>, file APIs, allocation APIs, process APIs, and I/O functions require explicit imports from their domain modules.</p><h2 id="package-layout">Package Layout</h2><p>A package root is a directory that directly contains <code>nocter.nct</code>. There is no source-root concept.</p><pre><code class="language-text">project/
     nocter.nct
     index.nct

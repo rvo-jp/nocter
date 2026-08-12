@@ -28,8 +28,20 @@ impl Parser<'_> {
                     name_span: name.span,
                 }));
             } else if let Some(open_paren) = self.match_punctuation("(") {
+                let expansion = self.at_ellipsis().then(|| {
+                    let span = self.ellipsis_span();
+                    self.bump();
+                    self.bump();
+                    self.bump();
+                    span
+                });
                 let left = self.parse_type()?;
-                let shape = if let Some(equals) = self.match_punctuation("==") {
+                let shape = if let Some(operator_span) = expansion {
+                    OperatorRequirementShape::Expansion {
+                        operator_span,
+                        source: left,
+                    }
+                } else if let Some(equals) = self.match_punctuation("==") {
                     let right = self.parse_type()?;
                     OperatorRequirementShape::Equality {
                         operator_span: equals.span,
@@ -50,7 +62,7 @@ impl Parser<'_> {
                     }
                 } else {
                     self.error_current(
-                        "expected `==` or `[` in parenthesized operator requirement",
+                        "expected `...`, `==`, or `[` in parenthesized operator requirement",
                     );
                     return Err(());
                 };

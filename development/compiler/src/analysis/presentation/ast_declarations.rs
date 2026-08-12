@@ -2,9 +2,9 @@
 
 use super::{CallablePresentation, LiteralPresentation};
 use crate::ast::{
-    CoercionEntry, DestructDecl, EnumDecl, EqualityOperatorDecl, FunctionDecl, GenericParam,
-    IndexOperatorDecl, InterfaceDecl, LiteralDecl, LiteralShape, MethodDecl, Parameter,
-    PrimitiveDecl, StructDecl, TypeAliasDecl,
+    CoercionEntry, DestructDecl, EnumDecl, EqualityOperatorDecl, ExpansionOperatorDecl,
+    FunctionDecl, GenericParam, IndexOperatorDecl, InterfaceDecl, LiteralDecl, LiteralShape,
+    MethodDecl, Parameter, PrimitiveDecl, StructDecl, TypeAliasDecl,
 };
 
 pub(crate) fn ast_type_alias_presentation(alias: &TypeAliasDecl) -> String {
@@ -119,6 +119,25 @@ pub(crate) fn ast_index_operator_presentation(
         callable.receiver.mode.source_prefix(),
         parameter.name,
         crate::ast::canonical_type_expr(&parameter.ty),
+        crate::ast::canonical_type_expr(&callable.return_type),
+    )
+}
+
+pub(crate) fn ast_expansion_operator_presentation(
+    owner: &crate::ast::TypeExpr,
+    operator: &ExpansionOperatorDecl,
+) -> String {
+    let owner = crate::ast::canonical_type_expr(owner);
+    let callable = operator.callable_method();
+    let provenance = super::result_origin_labels(callable.result_provenance.as_ref());
+    let provenance = if provenance.is_empty() {
+        String::new()
+    } else {
+        format!(" from {}", provenance.join(" | "))
+    };
+    format!(
+        "operator (...{}{owner}): {}{provenance}",
+        callable.receiver.mode.source_prefix(),
         crate::ast::canonical_type_expr(&callable.return_type),
     )
 }

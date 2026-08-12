@@ -19,6 +19,7 @@ enum AggregateCopySource {
     Parameter(XReg),
     StackParameterPointer { parameter_index: usize },
     DirectParameter { start_index: usize },
+    Borrow(UsizeLocation),
 }
 
 #[derive(Clone, Copy)]
@@ -279,7 +280,9 @@ fn validate_aggregate_copy_destination_range(
             }
             Ok(())
         }
-        AggregateLocation::Return | AggregateLocation::Parameter(_) => Ok(()),
+        AggregateLocation::Return
+        | AggregateLocation::Parameter(_)
+        | AggregateLocation::Borrow(_) => Ok(()),
         AggregateLocation::DirectParameter { .. } => Err(aggregate_copy_diagnostic(
             "aggregate copy cannot target direct parameter locations",
         )),
@@ -301,7 +304,8 @@ fn validate_aggregate_copy_source_range(
         ),
         AggregateCopySource::Parameter(_)
         | AggregateCopySource::StackParameterPointer { .. }
-        | AggregateCopySource::DirectParameter { .. } => Ok(()),
+        | AggregateCopySource::DirectParameter { .. }
+        | AggregateCopySource::Borrow(_) => Ok(()),
     }
 }
 

@@ -285,6 +285,16 @@ fn borrow_expression_type(
         return Type::Unknown;
     }
 
+    if let Type::Borrow { is_readwrite, .. } = &inner
+        && (!expression.is_readwrite || *is_readwrite)
+        && let Type::Borrow { inner, .. } = inner
+    {
+        return Type::Borrow {
+            is_readwrite: expression.is_readwrite,
+            inner,
+        };
+    }
+
     Type::Borrow {
         is_readwrite: expression.is_readwrite,
         inner: Box::new(inner),

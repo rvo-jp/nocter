@@ -34,6 +34,7 @@ impl<'a> LoweringContext<'a> {
             allocation_context_restores: Vec::new(),
             borrow_parameters: Vec::new(),
             aggregate_borrows: Vec::new(),
+            aggregate_local_borrow_fields: HashMap::new(),
             error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(0)),
         }
@@ -118,6 +119,7 @@ impl<'a> LoweringContext<'a> {
             allocation_context_restores: Vec::new(),
             borrow_parameters: parameters.borrow_parameters,
             aggregate_borrows: parameters.aggregate_borrows,
+            aggregate_local_borrow_fields: HashMap::new(),
             error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(next_aggregate_slot_index)),
         }

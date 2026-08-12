@@ -50,6 +50,14 @@ nocter check examples/recovery.nct
 nocter run examples/recovery.nct
 ```
 
+[mutable-iteration.nct](mutable-iteration.nct) updates aggregate elements through `&+Vec<T>`, then
+observes the same values through readonly and consuming expansion.
+
+```sh
+nocter check examples/mutable-iteration.nct
+nocter run examples/mutable-iteration.nct
+```
+
 ## Package Example
 
 [file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line

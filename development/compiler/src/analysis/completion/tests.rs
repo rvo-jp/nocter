@@ -93,6 +93,7 @@ fn completion_recovers_operator_requirement_and_offers_fixed_shapes() {
     assert!(items.iter().any(|item| item.label == "C"));
     assert!(items.iter().any(|item| item.label == "=="));
     assert!(items.iter().any(|item| item.label == "[]"));
+    assert!(items.iter().any(|item| item.label == "..."));
 }
 
 #[test]
@@ -1504,7 +1505,7 @@ instance Text {
         .filter(|item| item.label == "operator")
         .collect::<Vec<_>>();
 
-    assert_eq!(operators.len(), 3);
+    assert_eq!(operators.len(), 6);
     assert!(
         operators
             .iter()
@@ -1521,6 +1522,18 @@ instance Text {
     assert!(operators.iter().any(|item| {
         item.detail.as_deref() == Some("operator (&+Text[index: usize]): &+Element")
     }));
+    for detail in [
+        "operator (...&Text): Iterator",
+        "operator (...&+Text): Iterator",
+        "operator (...Text): Iterator",
+    ] {
+        assert!(
+            operators
+                .iter()
+                .any(|item| item.detail.as_deref() == Some(detail)),
+            "missing {detail}"
+        );
+    }
 
     let existing = r#"struct Text { value: i32 }
 instance Text {
@@ -1535,12 +1548,7 @@ instance Text {
         .iter()
         .filter(|item| item.label == "operator")
         .collect::<Vec<_>>();
-    assert_eq!(remaining.len(), 2);
-    assert!(remaining.iter().all(|item| {
-        item.detail
-            .as_deref()
-            .is_some_and(|detail| detail.contains("[index: usize]"))
-    }));
+    assert_eq!(remaining.len(), 5);
 
     let outside = completion_items_for_text_at_offset(text, 0).expect("top-level completion");
     assert!(!outside.iter().any(|item| item.label == "operator"));

@@ -567,6 +567,24 @@ func read(buffer: &Buffer, index: usize): i32 {
 }
 
 #[test]
+fn expansion_operator_hover_uses_source_syntax_and_ellipsis_range() {
+    let text = r#"struct Source {}
+struct Cursor { marker: usize }
+
+instance Source {
+    pub operator (...&self): Cursor { return Cursor { marker: 0 } }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.find("...&self").expect("expansion declaration");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expansion operator hover");
+    assert_eq!(hover.label, "operator (...&Source): Cursor");
+    assert_eq!(&text[hover.span.start..hover.span.end], "...");
+}
+
+#[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call() {
     let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
     let (sources, analysis) = analyze_text(text);

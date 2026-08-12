@@ -1,0 +1,28 @@
+//! Allocation-free mutable iteration over contiguous views.
+
+func mutable_from_view<T>(view: &+[T]): MutableViewIter<T> {
+    return MutableViewIter<T> {
+        view: view,
+        next_index: 0,
+    }
+}
+
+conform ExactSizeIterator for MutableViewIter<T> {
+    method &self.remaining_len(): usize {
+        return self.view.len() - self.next_index
+    }
+}
+
+conform Iterator for MutableViewIter<T> {
+    type Item = &+T
+
+    /// Advances and returns an exclusive element borrow, or `none` at exhaustion.
+    method &+self.next(): &+T? {
+        if self.next_index >= self.view.len() {
+            return none
+        }
+        let index: usize = self.next_index
+        self.next_index = index + 1
+        return &+self.view[index]
+    }
+}

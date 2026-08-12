@@ -220,6 +220,11 @@ pub(super) fn record_aggregate_location_parameter_spill_request(
         AggregateLocation::Return
         | AggregateLocation::DirectReturn
         | AggregateLocation::Slot(_) => {}
+        AggregateLocation::Borrow(location) => {
+            if let UsizeLocation::Parameter(index) = location {
+                requests.insert(index);
+            }
+        }
     }
 }
 

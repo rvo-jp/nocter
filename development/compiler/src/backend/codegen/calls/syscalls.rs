@@ -128,6 +128,13 @@ impl EntryEmitter {
                     "syscall result cannot be stored into parameter locations",
                 )])
             }
+            AggregateLocation::Borrow(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), XReg::X8)?;
+                self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, 0);
+                self.encoder
+                    .emit_str_w_imm(WReg::W17, XReg::X8, ABI_WORD_SIZE as u32);
+                Ok(())
+            }
         }
     }
 }

@@ -227,7 +227,7 @@ pub(super) fn equality_ambiguity_diagnostic(
     diagnostic
 }
 
-pub(super) fn equality_method_fact(
+pub(super) fn operator_method_fact(
     selected: &super::calls::ResolvedMethodCall<'_>,
     span: ByteSpan,
 ) -> Option<super::facts::TypecheckProtocolMethod> {
@@ -276,7 +276,7 @@ pub(crate) fn specialize_equality_plan(
         right: Box::new(identifier("__nocter_operator_right", plan.right_span)),
     };
     let selected = resolved_equality_method(&expression, resolved, &environment)?;
-    plan.method = equality_method_fact(&selected, plan.operator_span);
+    plan.method = operator_method_fact(&selected, plan.operator_span);
     if let Some(coercion) = selected.receiver_coercion.clone() {
         let selected = super::conversions::selected_receiver_coercion(&left_type, coercion);
         plan.left_conversion =
@@ -383,6 +383,40 @@ pub(super) fn check_operator_declarations(
                         "readonly index operator return type must be `&T`"
                     },
                 ));
+            }
+        }
+        for operator in instance.expansion_operators() {
+            let callable = operator.callable_method();
+            let environment =
+                super::environments::environment_for_method(callable, resolved, instance);
+            if !callable.parameters.parameters.is_empty() {
+                diagnostics.push(operator_shape_diagnostic(
+                    sources,
+                    callable.parameters.span,
+                    "expansion operator does not accept ordinary parameters",
+                ));
+            }
+            if let Some(runtime) = resolved.trusted_declarations.iteration_runtime() {
+                let result = super::type_expr::type_expr_to_type_in_environment(
+                    &callable.return_type,
+                    resolved,
+                    &environment,
+                );
+                if !result.is_unknown_or_unresolved()
+                    && super::iteration::conformed_protocol_type(
+                        &result,
+                        &runtime.iterator,
+                        resolved,
+                        &environment,
+                    )
+                    .is_none()
+                {
+                    diagnostics.push(operator_shape_diagnostic(
+                        sources,
+                        callable.return_type.span(),
+                        "expansion operator return type must conform to `Iterator`",
+                    ));
+                }
             }
         }
     }

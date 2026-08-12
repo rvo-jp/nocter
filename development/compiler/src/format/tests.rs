@@ -116,6 +116,14 @@ fn formats_index_operator_declarations_stably() {
 }
 
 #[test]
+fn formats_expansion_operator_declarations_and_requirements_stably() {
+    assert_formats_stably(
+        "instance Source<T>{pub operator(...&self):Iter<&T>{return Iter{marker:0}}pub operator(...&+self):Iter<&+T>{return Iter{marker:0}}pub operator(...self):Iter<T>{return Iter{marker:0}}}\nfunc traverse<C,I>(source:&C):void where(...&C):I{return}\n",
+        "instance Source<T> {\n    pub operator (...&self): Iter<&T> {\n        return Iter { marker: 0 }\n    }\n\n    pub operator (...&+self): Iter<&+T> {\n        return Iter { marker: 0 }\n    }\n\n    pub operator (...self): Iter<T> {\n        return Iter { marker: 0 }\n    }\n}\n\nfunc traverse<C, I>(source: &C): void where (...&C): I {\n    return\n}\n",
+    );
+}
+
+#[test]
 fn formats_borrow_coercions_stably() {
     assert_formats_stably(
         r#"coerce Vec<T>{pub &self as &[T] from self{return self.view()}

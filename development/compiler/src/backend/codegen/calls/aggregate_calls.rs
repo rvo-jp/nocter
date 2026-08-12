@@ -149,12 +149,12 @@ impl EntryEmitter {
                 "E9005",
                 "direct aggregate call cannot target indirect return storage",
             )]),
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
-                Err(vec![Diagnostic::error(
-                    "E9005",
-                    "direct aggregate call cannot target parameter storage",
-                )])
-            }
+            AggregateLocation::Parameter(_)
+            | AggregateLocation::DirectParameter { .. }
+            | AggregateLocation::Borrow(_) => Err(vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate call cannot target parameter storage",
+            )]),
         }
     }
 
@@ -205,12 +205,12 @@ impl EntryEmitter {
                 "E9005",
                 "fallible direct aggregate call cannot target indirect return storage",
             )]),
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
-                Err(vec![Diagnostic::error(
-                    "E9005",
-                    "fallible direct aggregate call cannot target parameter storage",
-                )])
-            }
+            AggregateLocation::Parameter(_)
+            | AggregateLocation::DirectParameter { .. }
+            | AggregateLocation::Borrow(_) => Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible direct aggregate call cannot target parameter storage",
+            )]),
         }
     }
 

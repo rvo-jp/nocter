@@ -105,6 +105,7 @@ pub(super) fn lower_tracked_spread_argument_source(
             )?);
         }
         crate::typecheck::TypecheckCollectionForSourceMode::ReadonlyConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::ReadwriteConversion
         | crate::typecheck::TypecheckCollectionForSourceMode::OwnedConversion => {
             let conversion = plan
                 .conversion

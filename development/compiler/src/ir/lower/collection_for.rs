@@ -381,16 +381,17 @@ fn materialize_iterator(
             }
         }
         TypecheckCollectionForSourceMode::ReadonlyConversion
+        | TypecheckCollectionForSourceMode::ReadwriteConversion
         | TypecheckCollectionForSourceMode::OwnedConversion => {
             let conversion = plan
                 .conversion
                 .as_ref()
-                .ok_or_else(|| iteration_diagnostic("the collection conversion plan is missing"))?;
+                .ok_or_else(|| iteration_diagnostic("the collection expansion plan is missing"))?;
             let target = context.protocol_method_target(conversion).ok_or_else(|| {
-                iteration_diagnostic("the collection conversion target is unavailable")
+                iteration_diagnostic("the collection expansion target is unavailable")
             })?;
             let return_type = context.call_return_type(&target).cloned().ok_or_else(|| {
-                iteration_diagnostic("the collection conversion ABI is unavailable")
+                iteration_diagnostic("the collection expansion ABI is unavailable")
             })?;
             let call = synthetic_call(
                 statement.span,
@@ -550,7 +551,30 @@ fn define_item_binding(
             inner,
         } => {
             let location = context.next_usize_local_location()?;
-            context.define_borrow_local(name, *is_readwrite, inner.as_ref().clone());
+            let fields = match inner.as_ref() {
+                Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
+                    let (root_source, resolved) = context
+                        .resolved_calls()
+                        .ok_or_else(|| iteration_diagnostic("resolution facts are unavailable"))?;
+                    let TypeExpr::Borrow(borrow) = item_ty else {
+                        return Err(iteration_diagnostic("borrow item type fact is malformed"));
+                    };
+                    aggregate_fields_from_type_expr_with_resolver(
+                        &borrow.inner,
+                        root_source,
+                        resolved,
+                        |source| context.resolved_source(source),
+                    )
+                    .unwrap_or_default()
+                }
+                _ => Vec::new(),
+            };
+            context.define_aggregate_borrow_local(
+                name,
+                *is_readwrite,
+                inner.as_ref().clone(),
+                fields,
+            );
             Some(ComposedOutcomeDestination::Borrow(location))
         }
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => {

@@ -84,6 +84,18 @@ impl<'a> LoweringContext<'a> {
         );
     }
 
+    pub(in crate::ir::lower) fn define_aggregate_borrow_local(
+        &mut self,
+        name: String,
+        is_readwrite: bool,
+        inner: Type,
+        fields: Vec<AggregateField>,
+    ) {
+        self.aggregate_local_borrow_fields
+            .insert(name.clone(), fields);
+        self.define_borrow_local(name, is_readwrite, inner);
+    }
+
     pub(in crate::ir::lower) fn reserve_drop_state_usize_local(
         &mut self,
     ) -> Result<UsizeLocation, Vec<Diagnostic>> {
@@ -874,6 +886,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<AggregateFieldAccess> {
         self.aggregate_local_field(aggregate_name, field_name)
             .or_else(|| self.aggregate_borrow_field(aggregate_name, field_name))
+            .or_else(|| self.aggregate_local_borrow_field(aggregate_name, field_name))
     }
 
     pub(in crate::ir::lower) fn define_closure_capture_field(
@@ -929,6 +942,26 @@ impl<'a> LoweringContext<'a> {
                 offset: field.offset,
                 kind: field.kind.clone(),
                 is_readwrite: borrow.is_readwrite,
+                is_copy: field.is_copy,
+                drop_kind: field.drop_kind.clone(),
+            })
+    }
+
+    fn aggregate_local_borrow_field(
+        &self,
+        aggregate_name: &str,
+        field_name: &str,
+    ) -> Option<AggregateFieldAccess> {
+        let (location, is_readwrite, _) = self.borrow_local(aggregate_name)?;
+        self.aggregate_local_borrow_fields
+            .get(aggregate_name)?
+            .iter()
+            .find(|field| field.name == field_name)
+            .map(|field| AggregateFieldAccess {
+                source: AggregateLocation::Borrow(location),
+                offset: field.offset,
+                kind: field.kind.clone(),
+                is_readwrite,
                 is_copy: field.is_copy,
                 drop_kind: field.drop_kind.clone(),
             })

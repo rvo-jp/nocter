@@ -261,6 +261,9 @@ impl TypecheckFactCollector<'_> {
                     self.collect_type_expr_references(target);
                     self.collect_type_expr_references(index);
                 }
+                crate::ast::OperatorRequirementShape::Expansion { source, .. } => {
+                    self.collect_type_expr_references(source);
+                }
             }
             self.collect_type_expr_references(&requirement.result);
         }

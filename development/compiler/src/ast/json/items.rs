@@ -496,6 +496,13 @@ impl WhereClause {
                                     json_span(sources, requirement.span),
                                     vec![target.to_json(sources), index.to_json(sources)],
                                 )],
+                                crate::ast::OperatorRequirementShape::Expansion {
+                                    source, ..
+                                } => vec![JsonAstNode::new(
+                                    "expansion_operator_shape",
+                                    json_span(sources, requirement.span),
+                                    vec![source.to_json(sources)],
+                                )],
                             };
                             children.push(requirement.result.to_json(sources));
                             children
@@ -603,11 +610,39 @@ impl crate::ast::IndexOperatorDecl {
     }
 }
 
+impl crate::ast::ExpansionOperatorDecl {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        let callable = self.callable_method();
+        let mut children = vec![
+            visibility_json(callable.visibility),
+            callable.receiver.to_json(sources),
+            callable.return_type.to_json(sources),
+        ];
+        if let Some(provenance) = &callable.result_provenance {
+            children.push(provenance.to_json(sources));
+        }
+        children.push(
+            callable
+                .body
+                .as_ref()
+                .expect("operator body")
+                .to_json(sources),
+        );
+        JsonAstNode::with_value(
+            "operator_decl",
+            "...".to_string(),
+            json_span(sources, self.span),
+            children,
+        )
+    }
+}
+
 impl crate::ast::OperatorDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
             Self::Equality(operator) => operator.to_json(sources),
             Self::Index(operator) => operator.to_json(sources),
+            Self::Expansion(operator) => operator.to_json(sources),
         }
     }
 }

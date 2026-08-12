@@ -83,8 +83,6 @@ pub(crate) struct IterationAssociatedType {
 pub(crate) struct IterationRuntime {
     pub(crate) iterator: IterationProtocol,
     pub(crate) exact_size: IterationProtocol,
-    pub(crate) readonly_conversion: IterationProtocol,
-    pub(crate) owned_conversion: IterationProtocol,
 }
 
 impl InterpolationRuntime {
