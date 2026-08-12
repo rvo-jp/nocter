@@ -1,7 +1,6 @@
 //! Editor presentation and navigation for persisted conversion plans.
 
 use super::FileAnalysis;
-use crate::analysis::editor_targets::SourceTarget;
 use crate::source::ByteSpan;
 use crate::typecheck::{TypecheckConversionKind, TypecheckConversionPlan, TypedHir};
 
@@ -55,18 +54,6 @@ pub(crate) fn conversion_editor_info_at_offset(
         label: format!("{source} as {target}"),
         documentation: format!("**Conversion:** {kind}.\n\n{detail}"),
     })
-}
-
-pub(crate) fn conversion_definition_target_at_offset(
-    facts: &TypedHir,
-    semantic_db: &crate::semantic::SemanticDb,
-    offset: usize,
-) -> Option<SourceTarget> {
-    let plan = conversion_plan_at_offset(facts, offset)?;
-    let TypecheckConversionKind::BorrowCoercion(coercion) = &plan.kind else {
-        return None;
-    };
-    SourceTarget::for_definition(plan.operator_span?, coercion.def_id?, semantic_db)
 }
 
 fn conversion_plan_at_offset(facts: &TypedHir, offset: usize) -> Option<&TypecheckConversionPlan> {

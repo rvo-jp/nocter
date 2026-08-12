@@ -3,7 +3,6 @@
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::analysis::editor_targets::SourceTarget;
-use crate::analysis::hover::definition_target_for_ast as hover_definition_target_for_ast;
 use crate::ast::AstFile;
 use crate::resolve::ResolveOutput;
 #[cfg(test)]
@@ -32,7 +31,7 @@ pub(crate) fn definition_target_for_file_analysis(
         .or_else(|| {
             file.occurrences
                 .at_offset(offset)
-                .and_then(|occurrence| occurrence.source_target(analysis))
+                .and_then(|occurrence| occurrence.source_target(&file.resolved))
         })
 }
 
@@ -49,30 +48,9 @@ pub(crate) fn definition_target_for_ast(
         ast,
         resolved,
     );
-    if let Some(target) = crate::analysis::conversions::conversion_definition_target_at_offset(
-        &facts,
-        &resolved.semantic_db,
-        offset,
-    ) {
-        return Some(target);
-    }
-    if let Some((origin, target)) = facts.field_target_at_offset(offset) {
-        return SourceTarget::for_definition(origin, target, &resolved.semantic_db);
-    }
-
-    if let Some((origin, target)) = facts.function_call_target_at_offset(offset) {
-        return SourceTarget::for_definition(origin, target, &resolved.semantic_db);
-    }
-
-    if let Some((origin, target)) = facts.associated_function_target_at_offset(offset) {
-        return SourceTarget::for_definition(origin, target, &resolved.semantic_db);
-    }
-
-    if let Some((origin, target)) = facts.enum_variant_target_at_offset(offset) {
-        return SourceTarget::for_definition(origin, target, &resolved.semantic_db);
-    }
-
-    hover_definition_target_for_ast(text, ast, resolved, offset)
+    super::occurrences::SemanticOccurrenceIndex::new(ast, resolved, &facts)
+        .at_offset(offset)
+        .and_then(|occurrence| occurrence.source_target(resolved))
 }
 
 pub(crate) fn definition_target_for_text(text: &str, offset: usize) -> Option<SourceTarget> {

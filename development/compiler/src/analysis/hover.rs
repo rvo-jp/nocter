@@ -33,15 +33,6 @@ enum ResolvedReference {
     Local(LocalSymbol),
 }
 
-impl ResolvedReference {
-    fn declaration_span(&self) -> ByteSpan {
-        match self {
-            ResolvedReference::TopLevel(symbol) => symbol.declaration_span,
-            ResolvedReference::Local(symbol) => symbol.name_span,
-        }
-    }
-}
-
 mod contents;
 mod entry;
 mod module_paths;
@@ -49,7 +40,7 @@ mod symbols;
 mod targets;
 
 pub(in crate::analysis::hover) use contents::*;
-pub(crate) use entry::{definition_target_for_ast, hover_for_file_analysis, hover_for_text};
+pub(crate) use entry::{hover_for_file_analysis, hover_for_text};
 pub(in crate::analysis::hover) use module_paths::*;
 pub(in crate::analysis::hover) use symbols::*;
 pub(crate) use targets::*;

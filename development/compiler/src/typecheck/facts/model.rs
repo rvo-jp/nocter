@@ -408,50 +408,6 @@ impl TypedHir {
     ) -> Option<crate::semantic::DefId> {
         self.enum_variant_targets.get(&member_span).copied()
     }
-
-    pub(crate) fn field_target_at_offset(
-        &self,
-        offset: usize,
-    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
-        self.field_targets
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, target)| (*span, *target))
-    }
-
-    pub(crate) fn associated_function_target_at_offset(
-        &self,
-        offset: usize,
-    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
-        self.associated_function_targets
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, target)| (*span, *target))
-    }
-
-    pub(crate) fn function_call_target_at_offset(
-        &self,
-        offset: usize,
-    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
-        self.function_call_targets
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, target)| (*span, *target))
-    }
-
-    pub(crate) fn enum_variant_target_at_offset(
-        &self,
-        offset: usize,
-    ) -> Option<(ByteSpan, crate::semantic::DefId)> {
-        self.enum_variant_targets
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, target)| (*span, *target))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

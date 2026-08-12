@@ -68,11 +68,12 @@ pub(crate) fn literal_definition_target_at_offset(
     let site = literal_site_at_offset(file, offset, LiteralCursorRegion::Hover)?;
     let specialization =
         literal_specialization_for_expression_span(analysis, file, site.expression_span)?;
-    crate::analysis::editor_targets::SourceTarget::for_definition(
+    Some(crate::analysis::editor_targets::SourceTarget::new(
         literal_focus_span(site, offset),
-        specialization.def_id,
-        &analysis.semantic_db,
-    )
+        analysis
+            .semantic_db
+            .definition_anchor(specialization.def_id)?,
+    ))
 }
 
 #[derive(Debug, Clone, Copy)]

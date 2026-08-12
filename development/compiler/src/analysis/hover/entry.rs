@@ -186,22 +186,3 @@ pub(crate) fn hover_for_text(text: &str, offset: usize) -> Option<HoverInfo> {
     let file = analysis.root_file()?;
     hover_for_file_analysis(&sources, &analysis, file, offset)
 }
-
-pub(crate) fn definition_target_for_ast(
-    text: &str,
-    ast: &AstFile,
-    resolved: &ResolveOutput,
-    offset: usize,
-) -> Option<crate::analysis::editor_targets::SourceTarget> {
-    let symbols = hover_symbols_for_ast(text, ast);
-    if let Some(symbol) = symbols
-        .iter()
-        .find(|symbol| span_contains(symbol.target.focus_span, offset))
-    {
-        return Some(symbol.target);
-    }
-
-    resolved_reference_at_offset(resolved, offset).map(|(origin, reference)| {
-        crate::analysis::editor_targets::SourceTarget::new(origin, reference.declaration_span())
-    })
-}

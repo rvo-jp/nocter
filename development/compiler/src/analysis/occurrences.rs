@@ -4,7 +4,6 @@
 //! joins them by source range so hover, navigation, references, and semantic
 //! classification cannot develop independent target-selection rules.
 
-use super::CompileUnitAnalysis;
 use crate::ast::{
     AstFile, BindingKind, ClosureCaptureMode, ConstructMemberDecl, Item, TypeExpr,
     visit_file_expressions,
@@ -52,19 +51,13 @@ pub(crate) struct SemanticOccurrence {
 impl SemanticOccurrence {
     pub(crate) fn source_target(
         &self,
-        analysis: &CompileUnitAnalysis,
+        resolved: &ResolveOutput,
     ) -> Option<super::editor_targets::SourceTarget> {
         let target = match self.identity? {
             SemanticIdentity::Definition(definition) => {
-                analysis.semantic_db.definition_anchor(definition)?
+                resolved.semantic_db.definition_anchor(definition)?
             }
-            SemanticIdentity::Local(symbol) => {
-                analysis
-                    .file_by_source(self.focus_span.source)?
-                    .resolved
-                    .local_symbol(symbol)?
-                    .name_span
-            }
+            SemanticIdentity::Local(symbol) => resolved.local_symbol(symbol)?.name_span,
         };
         Some(super::editor_targets::SourceTarget::new(
             self.focus_span,
