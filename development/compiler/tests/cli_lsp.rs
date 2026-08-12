@@ -2309,10 +2309,13 @@ func widen(): i64 { return 1 as i64 }
     let uri = file_uri(&source);
     let coercion_operator = source_text.rfind("as &str").unwrap();
     let numeric_operator = source_text.rfind("as i64").unwrap();
+    let declaration_operator = source_text.find("as &str").unwrap();
     let (coercion_line, coercion_character) =
         lsp_position_for_ascii_byte_offset(source_text, coercion_operator);
     let (numeric_line, numeric_character) =
         lsp_position_for_ascii_byte_offset(source_text, numeric_operator);
+    let (declaration_line, declaration_character) =
+        lsp_position_for_ascii_byte_offset(source_text, declaration_operator);
 
     let output = nocter_lsp(
         &project,
@@ -2373,9 +2376,18 @@ func widen(): i64 { return 1 as i64 }
     let definition = &response_with_id(&messages, 3)["result"][0];
     assert_eq!(definition["targetUri"], uri);
     assert_eq!(definition["originSelectionRange"], hover["range"]);
-    assert_eq!(definition["targetSelectionRange"]["start"]["line"], 2);
-    assert_eq!(definition["targetSelectionRange"]["start"]["character"], 14);
-    assert_eq!(definition["targetSelectionRange"]["end"]["character"], 16);
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["line"],
+        declaration_line
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        declaration_character
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["end"]["character"],
+        declaration_character + 2
+    );
 
     let numeric_hover = &response_with_id(&messages, 4)["result"];
     assert_eq!(numeric_hover["range"]["start"]["line"], numeric_line);
@@ -2411,6 +2423,9 @@ instance Text { pub coerce &self as &str from self { return self.value } }
     let model_uri = file_uri(&model.canonicalize().unwrap());
     let operator = app_text.rfind("as &str").unwrap();
     let (line, character) = lsp_position_for_ascii_byte_offset(app_text, operator);
+    let declaration_operator = model_text.find("as &str").unwrap();
+    let (declaration_line, declaration_character) =
+        lsp_position_for_ascii_byte_offset(model_text, declaration_operator);
 
     let output = nocter_lsp(
         &project,
@@ -2441,9 +2456,18 @@ instance Text { pub coerce &self as &str from self { return self.value } }
     );
     let definition = &response_with_id(&messages, 3)["result"][0];
     assert_eq!(definition["targetUri"], model_uri);
-    assert_eq!(definition["targetSelectionRange"]["start"]["line"], 1);
-    assert_eq!(definition["targetSelectionRange"]["start"]["character"], 24);
-    assert_eq!(definition["targetSelectionRange"]["end"]["character"], 26);
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["line"],
+        declaration_line
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        declaration_character
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["end"]["character"],
+        declaration_character + 2
+    );
 }
 
 #[test]
@@ -2506,7 +2530,7 @@ func project(value: &Text): &str from value { return value as &str }
     let private_app = private_project.write_source("index.nct", private_app_text);
     private_project.write_source(
         "model/index.nct",
-        "pub struct Text { value: &str }\ncoerce Text { coerce &self as &str from self { return self.value } }\n",
+        "pub struct Text { value: &str }\ninstance Text { coerce &self as &str from self { return self.value } }\n",
     );
     let private_uri = file_uri(&private_app);
     let private_operator = private_app_text.rfind("as &str").unwrap();
