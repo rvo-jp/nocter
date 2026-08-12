@@ -34,7 +34,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
     let capture_input = signature
         .capture
         .as_ref()
-        .map(|capture| InputId::declared_at(capture.name_span));
+        .map(|capture| InputId::resolved_at(resolved, capture.name_span));
 
     instantiate_provenance_summary(summary, &mut |origin| match origin {
         StorageOrigin::Static => Some(ValueProvenance::static_storage()),
@@ -51,10 +51,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_typed_literal(
         },
         StorageOrigin::Input(source)
             if has_static_string_parameter
-                && signature
-                    .parameters
-                    .iter()
-                    .any(|parameter| InputId::declared_at(parameter.name_span) == *source) =>
+                && signature.parameters.iter().any(|parameter| {
+                    InputId::resolved_at(resolved, parameter.name_span) == *source
+                }) =>
         {
             Some(ValueProvenance::static_storage())
         }

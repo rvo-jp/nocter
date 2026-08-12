@@ -250,14 +250,15 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_coercion_specialization(&mut coercions, plan.clone()) {
                     continue;
                 }
-                let declaration_span = analysis
-                    .semantic_db
-                    .definition_span(plan.def_id.expect("specialized coercion identity"))
-                    .expect("specialized coercion definition");
-                let body_span = analysis
+                let declaration = plan.def_id.expect("specialized coercion identity");
+                let body = analysis
                     .callable_bodies
-                    .implementation(declaration_span)
-                    .unwrap_or(declaration_span);
+                    .implementation_id(declaration)
+                    .unwrap_or(declaration);
+                let body_span = analysis
+                    .semantic_db
+                    .definition_span(body)
+                    .expect("specialized coercion body definition");
                 let Some(file) = analysis.file_by_source(body_span.source) else {
                     continue;
                 };
@@ -688,10 +689,13 @@ fn function_body_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
 ) -> Option<(&FileAnalysis, &FunctionDecl)> {
-    let body_span = analysis
+    let authored = analysis.semantic_db.definition_at(declaration_span)?;
+    let declaration = analysis.callable_bodies.canonical_definition(authored);
+    let body = analysis
         .callable_bodies
-        .implementation(declaration_span)
-        .unwrap_or(declaration_span);
+        .implementation_id(declaration)
+        .unwrap_or(declaration);
+    let body_span = analysis.semantic_db.definition_anchor(body)?;
     function_declaration_for_span(analysis, body_span)
 }
 
@@ -718,10 +722,13 @@ fn method_body_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
 ) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, &MethodDecl)> {
-    let body_span = analysis
+    let authored = analysis.semantic_db.definition_at(declaration_span)?;
+    let declaration = analysis.callable_bodies.canonical_definition(authored);
+    let body = analysis
         .callable_bodies
-        .implementation(declaration_span)
-        .unwrap_or(declaration_span);
+        .implementation_id(declaration)
+        .unwrap_or(declaration);
+    let body_span = analysis.semantic_db.definition_anchor(body)?;
     method_declaration_for_span(analysis, body_span)
 }
 

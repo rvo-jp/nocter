@@ -482,6 +482,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
                 crate::typecheck::provenance::result_provenance_contract_for_signature(
                     clause,
                     &signature.signature.parameters,
+                    resolved,
                 )
             });
         let elided_contract = explicit_contract
@@ -667,7 +668,7 @@ fn trusted_call_result_provenance(
                     .get(index)
                     .and_then(|parameter| {
                         allocation_source_provenance_for_call_input(
-                            InputId::declared_at(parameter.name_span),
+                            InputId::resolved_at(resolved, parameter.name_span),
                             call,
                             signature,
                             resolved,
@@ -683,7 +684,7 @@ fn trusted_call_result_provenance(
         crate::semantics::TrustedDeclarationRole::OwnedValueTransfer { source } => {
             let parameter = signature.signature.parameters.get(source)?;
             borrow_return_provenance_for_call_input(
-                InputId::declared_at(parameter.name_span),
+                InputId::resolved_at(resolved, parameter.name_span),
                 call,
                 signature,
                 resolved,
@@ -691,12 +692,12 @@ fn trusted_call_result_provenance(
                 borrow_provenance,
                 summaries,
             )?
-            .without_input_container_scopes()
+            .without_input_container_scopes(resolved)
         }
         crate::semantics::TrustedDeclarationRole::BorrowedProjection { source } => {
             let parameter = signature.signature.parameters.get(source)?;
             borrow_return_provenance_for_call_input(
-                InputId::declared_at(parameter.name_span),
+                InputId::resolved_at(resolved, parameter.name_span),
                 call,
                 signature,
                 resolved,
@@ -743,7 +744,7 @@ pub(in crate::typecheck::returns) fn allocation_source_provenance_for_call_input
         .signature
         .parameters
         .iter()
-        .position(|parameter| InputId::declared_at(parameter.name_span) == source)?;
+        .position(|parameter| InputId::resolved_at(resolved, parameter.name_span) == source)?;
     let argument = call.arguments.get(index)?;
     let argument = match unwrap_group(argument) {
         Expr::Borrow(borrow) => &borrow.expression,
@@ -802,7 +803,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
 ) -> Option<ValueProvenance> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
-        && InputId::declared_at(method.receiver.name_span) == source
+        && InputId::resolved_at(resolved, method.receiver.name_span) == source
         && let Some(member) = method_member_for_call(call)
     {
         let return_type = call_return_type(call, signature, resolved, environment);
@@ -825,7 +826,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
     }
 
     for (index, parameter) in signature.signature.parameters.iter().enumerate() {
-        if InputId::declared_at(parameter.name_span) == source {
+        if InputId::resolved_at(resolved, parameter.name_span) == source {
             return call.arguments.get(index).and_then(|argument| {
                 if type_expr_contains_borrow_like(
                     &parameter.ty,

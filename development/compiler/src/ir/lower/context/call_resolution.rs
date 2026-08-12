@@ -454,8 +454,12 @@ impl<'a> LoweringContext<'a> {
             .typed_hir
             .function_call_specialization(call.span)?
             .with_context_substitutions(&self.generic_substitutions)?;
+        let declaration = resolution
+            .resolved
+            .semantic_db
+            .definition_anchor(specialization.def_id)?;
         let target = call_target_for_source(
-            specialization.declaration_span.source,
+            declaration.source,
             resolution.root_source,
             specialization.target_name.clone(),
         );

@@ -57,13 +57,9 @@ fn canonicalize_storage_origin_input(
     resolved: &ResolveOutput,
 ) -> StorageOrigin {
     match origin {
-        StorageOrigin::Input(input) => StorageOrigin::Input(InputId::declared_at(
-            resolved.canonical_callable_input_identity(input.declaration_span()),
-        )),
+        StorageOrigin::Input(input) => StorageOrigin::Input(input.canonicalized(resolved)),
         StorageOrigin::InputWithCurrentFallback(input) => {
-            StorageOrigin::InputWithCurrentFallback(InputId::declared_at(
-                resolved.canonical_callable_input_identity(input.declaration_span()),
-            ))
+            StorageOrigin::InputWithCurrentFallback(input.canonicalized(resolved))
         }
         StorageOrigin::Allocated(origin) => StorageOrigin::Allocated(Box::new(
             canonicalize_storage_origin_input(*origin, resolved),

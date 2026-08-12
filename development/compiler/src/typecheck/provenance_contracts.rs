@@ -48,8 +48,8 @@ pub(super) fn check_result_provenance_contracts(
                     check_body_result_contract(
                         sources,
                         BodyResultContract {
-                            declaration_span: super::returns::function_summary_key(
-                                function, resolved,
+                            declaration_span: super::returns::function_declaration_location(
+                                function,
                             ),
                             body,
                             clause: function.result_provenance.as_ref(),
@@ -166,8 +166,8 @@ pub(super) fn check_result_provenance_contracts(
                         check_body_result_contract(
                             sources,
                             BodyResultContract {
-                                declaration_span: super::returns::function_summary_key(
-                                    function, resolved,
+                                declaration_span: super::returns::function_declaration_location(
+                                    function,
                                 ),
                                 body,
                                 clause: function.result_provenance.as_ref(),
@@ -479,7 +479,7 @@ fn trusted_result_provenance(
         }
         crate::semantics::AllocationSource::Input(index) => {
             let parameter = parameters.get(index)?;
-            ValueProvenance::input(InputId::declared_at(parameter.name_span))
+            ValueProvenance::input(InputId::resolved_at(resolved, parameter.name_span))
         }
     }
     .allocated();

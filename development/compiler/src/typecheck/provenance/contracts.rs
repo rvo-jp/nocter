@@ -115,7 +115,7 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
                     continue;
                 }
                 Some(method) => {
-                    StorageOrigin::Input(InputId::declared_at(method.receiver.name_span))
+                    StorageOrigin::Input(InputId::resolved_at(resolved, method.receiver.name_span))
                 }
             },
             ResultProvenanceOriginKind::Parameter(name) => {
@@ -130,7 +130,7 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
                     ));
                     continue;
                 }
-                StorageOrigin::Input(InputId::declared_at(input.name_span))
+                StorageOrigin::Input(InputId::resolved_at(resolved, input.name_span))
             }
             ResultProvenanceOriginKind::Static => StorageOrigin::Static,
         };
@@ -147,6 +147,7 @@ pub(in crate::typecheck) fn result_provenance_contract<'a>(
 pub(in crate::typecheck) fn result_provenance_contract_for_signature(
     clause: &ResultProvenanceClause,
     parameters: &[crate::resolve::ParameterSignature],
+    resolved: &ResolveOutput,
 ) -> Option<ValueProvenance> {
     let mut origins = Vec::new();
     for origin in &clause.origins {
@@ -155,7 +156,7 @@ pub(in crate::typecheck) fn result_provenance_contract_for_signature(
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.name == *name)?;
-                StorageOrigin::Input(InputId::declared_at(parameter.name_span))
+                StorageOrigin::Input(InputId::resolved_at(resolved, parameter.name_span))
             }
             ResultProvenanceOriginKind::Static => StorageOrigin::Static,
             ResultProvenanceOriginKind::Receiver => return None,

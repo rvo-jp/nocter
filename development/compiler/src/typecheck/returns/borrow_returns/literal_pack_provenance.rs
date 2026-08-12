@@ -23,7 +23,7 @@ pub(in crate::typecheck::returns) fn define_literal_pack_item_provenance(
         .filter(|symbol| symbol.kind == LocalSymbolKind::LiteralCapture);
     let contains_storage = type_may_carry_result_provenance(&item_type, resolved);
     let provenance = if contains_storage {
-        pack.map(|symbol| ValueProvenance::input(InputId::declared_at(symbol.name_span)))
+        pack.map(|symbol| ValueProvenance::input(InputId::resolved_at(resolved, symbol.name_span)))
     } else {
         None
     };

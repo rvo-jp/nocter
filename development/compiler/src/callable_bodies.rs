@@ -18,8 +18,6 @@ pub(crate) struct CallableBodyIndex {
     semantic_db: Arc<SemanticDb>,
     declaration_to_implementation: HashMap<DefId, DefId>,
     implementation_to_declaration: HashMap<DefId, DefId>,
-    identity_locations: HashMap<DefId, ByteSpan>,
-    declaration_locations: HashMap<DefId, ByteSpan>,
     implementation_input_to_declaration: HashMap<DefId, DefId>,
 }
 
@@ -72,18 +70,6 @@ impl CallableBodyIndex {
                     index
                         .implementation_to_declaration
                         .insert(implementation_id, contract_id);
-                    index
-                        .identity_locations
-                        .insert(contract_id, contract.identity);
-                    index
-                        .identity_locations
-                        .insert(implementation_id, implementation.identity);
-                    index
-                        .declaration_locations
-                        .insert(contract_id, contract.declaration_span);
-                    index
-                        .declaration_locations
-                        .insert(implementation_id, implementation.declaration_span);
                     for (declaration, implementation) in
                         contract.inputs.iter().zip(&implementation.inputs)
                     {
@@ -112,45 +98,25 @@ impl CallableBodyIndex {
             .copied()
     }
 
-    pub(crate) fn implementation(&self, declaration: ByteSpan) -> Option<ByteSpan> {
-        let declaration = self.semantic_db.definition_at(declaration)?;
-        self.implementation_id(declaration)
-            .and_then(|implementation| self.identity_location(implementation))
-    }
-
     pub(crate) fn declaration_id(&self, implementation: DefId) -> Option<DefId> {
         self.implementation_to_declaration
             .get(&implementation)
             .copied()
     }
 
-    pub(crate) fn semantic_db(&self) -> Arc<SemanticDb> {
-        self.semantic_db.clone()
+    pub(crate) fn canonical_definition(&self, definition: DefId) -> DefId {
+        self.declaration_id(definition).unwrap_or(definition)
     }
 
-    pub(crate) fn declaration(&self, implementation: ByteSpan) -> Option<ByteSpan> {
-        let implementation_id = self.semantic_db.definition_at(implementation)?;
-        let declaration_id = self.declaration_id(implementation_id)?;
-        if self.declaration_locations.get(&implementation_id) == Some(&implementation) {
-            self.declaration_locations.get(&declaration_id).copied()
-        } else {
-            self.identity_location(declaration_id)
-        }
-    }
-
-    pub(crate) fn canonical_identity(&self, span: ByteSpan) -> ByteSpan {
-        self.declaration(span).unwrap_or(span)
-    }
-
-    /// Returns the public contract identity for a receiver, parameter, or literal capture.
-    pub(crate) fn canonical_input_identity(&self, span: ByteSpan) -> ByteSpan {
-        let Some(definition) = self.semantic_db.definition_at(span) else {
-            return span;
-        };
+    pub(crate) fn canonical_input_definition(&self, definition: DefId) -> DefId {
         self.implementation_input_to_declaration
             .get(&definition)
-            .and_then(|declaration| self.semantic_db.definition_anchor(*declaration))
-            .unwrap_or(span)
+            .copied()
+            .unwrap_or(definition)
+    }
+
+    pub(crate) fn semantic_db(&self) -> Arc<SemanticDb> {
+        self.semantic_db.clone()
     }
 
     pub(crate) fn is_implementation(&self, span: ByteSpan) -> bool {
@@ -175,13 +141,6 @@ impl CallableBodyIndex {
         self.semantic_db
             .definition_at(location)
             .unwrap_or_else(|| panic!("semantic database omitted callable input at {:?}", location))
-    }
-
-    fn identity_location(&self, definition: DefId) -> Option<ByteSpan> {
-        self.identity_locations
-            .get(&definition)
-            .copied()
-            .or_else(|| self.semantic_db.definition_anchor(definition))
     }
 
     /// Removes paired private implementation declarations from a module's symbol surface while
@@ -852,21 +811,20 @@ mod tests {
             Item::Function(function) => function.name_span,
             _ => panic!("expected function"),
         };
-        assert_eq!(index.implementation(declaration), Some(body));
-        assert_eq!(index.declaration(body), Some(declaration));
-        let declaration_span = match &files[0].items[0] {
-            Item::Function(function) => function.span,
-            _ => panic!("expected function"),
-        };
-        let body_span = match &files[1].items[0] {
-            Item::Function(function) => function.span,
-            _ => panic!("expected function"),
-        };
-        assert_eq!(index.implementation(declaration_span), Some(body));
-        assert_eq!(index.declaration(body_span), Some(declaration_span));
-        assert_eq!(index.canonical_identity(body_span), declaration_span);
         let declaration_id = index.semantic_db.definition_at(declaration).unwrap();
         let implementation_id = index.semantic_db.definition_at(body).unwrap();
+        assert_eq!(
+            index.implementation_id(declaration_id),
+            Some(implementation_id)
+        );
+        assert_eq!(
+            index.declaration_id(implementation_id),
+            Some(declaration_id)
+        );
+        assert_eq!(
+            index.canonical_definition(implementation_id),
+            declaration_id
+        );
         assert_eq!(
             index.declaration_to_implementation.get(&declaration_id),
             Some(&implementation_id)
@@ -883,12 +841,12 @@ mod tests {
             Item::Function(function) => function.parameters.parameters[0].name_span,
             _ => panic!("expected function"),
         };
-        assert_eq!(
-            index.canonical_input_identity(body_input),
-            declaration_input
-        );
         let declaration_input_id = index.semantic_db.definition_at(declaration_input).unwrap();
         let body_input_id = index.semantic_db.definition_at(body_input).unwrap();
+        assert_eq!(
+            index.canonical_input_definition(body_input_id),
+            declaration_input_id
+        );
         assert_eq!(
             index
                 .implementation_input_to_declaration

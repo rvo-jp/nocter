@@ -126,7 +126,10 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                         .cloned()
                         .unwrap_or_else(|| {
                             if matches!(symbol.kind, LocalSymbolKind::Parameter) {
-                                ValueProvenance::input(InputId::declared_at(symbol.name_span))
+                                ValueProvenance::input(InputId::resolved_at(
+                                    resolved,
+                                    symbol.name_span,
+                                ))
                             } else {
                                 ValueProvenance::Independent
                             }

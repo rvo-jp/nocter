@@ -19,6 +19,7 @@ use crate::ir::CallTarget;
 use crate::literals::decode_integer_literal_value;
 use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
+use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
     FunctionCallSpecialization, MethodCallSpecialization, TypecheckMethodReceiverKind,
@@ -156,7 +157,7 @@ impl<'a> CallableIndex<'a> {
                         } else {
                             function.name_span
                         };
-                        let declaration = analysis.callable_bodies.canonical_identity(identity);
+                        let (_, declaration) = canonical_callable_definition(analysis, identity);
                         let target = call_target_for_source(
                             declaration.source,
                             root_source,
@@ -174,13 +175,8 @@ impl<'a> CallableIndex<'a> {
                         );
                     }
                     Item::Function(function) if function.body.is_some() => {
-                        let member_identity = analysis
-                            .callable_bodies
-                            .canonical_identity(function.member_name_span);
-                        let definition = analysis
-                            .semantic_db
-                            .definition_at(member_identity)
-                            .expect("indexed function must have a semantic definition");
+                        let (definition, member_identity) =
+                            canonical_callable_definition(analysis, function.member_name_span);
                         for specialization in call_specializations
                             .functions
                             .get(&definition)
@@ -216,14 +212,9 @@ impl<'a> CallableIndex<'a> {
                                 let Some(body) = method.body.as_ref() else {
                                     continue;
                                 };
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
+                                let (_, declaration) =
+                                    canonical_callable_definition(analysis, method.name_span);
+                                let declaration_source = declaration.source;
                                 let name = method_target_name(type_name, &method.name);
                                 let target = call_target_for_source(
                                     declaration_source,
@@ -246,18 +237,9 @@ impl<'a> CallableIndex<'a> {
                                 let Some(body) = method.body.as_ref() else {
                                     continue;
                                 };
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
-                                let def_id = analysis
-                                    .semantic_db
-                                    .definition_at(declaration)
-                                    .expect("buildable method must have a semantic definition");
+                                let (def_id, declaration) =
+                                    canonical_callable_definition(analysis, method.name_span);
+                                let declaration_source = declaration.source;
                                 for specialization in call_specializations
                                     .methods
                                     .get(&def_id)
@@ -377,9 +359,8 @@ impl<'a> CallableIndex<'a> {
                             if function.body.is_none() {
                                 continue;
                             }
-                            let declaration = analysis
-                                .callable_bodies
-                                .canonical_identity(function.member_name_span);
+                            let (definition, declaration) =
+                                canonical_callable_definition(analysis, function.member_name_span);
                             if function.generics.parameters.is_empty() {
                                 let target = call_target_for_source(
                                     declaration.source,
@@ -401,10 +382,6 @@ impl<'a> CallableIndex<'a> {
                                 );
                                 continue;
                             }
-                            let definition = analysis
-                                .semantic_db
-                                .definition_at(declaration)
-                                .expect("indexed constructor must have a semantic definition");
                             for specialization in call_specializations
                                 .functions
                                 .get(&definition)
@@ -710,6 +687,22 @@ impl<'a> IndexedCallable<'a> {
             issues,
         }
     }
+}
+
+fn canonical_callable_definition(
+    analysis: &CompileUnitAnalysis,
+    location: ByteSpan,
+) -> (DefId, ByteSpan) {
+    let authored = analysis
+        .semantic_db
+        .definition_at(location)
+        .expect("buildable callable must have a semantic definition");
+    let definition = analysis.callable_bodies.canonical_definition(authored);
+    let anchor = analysis
+        .semantic_db
+        .definition_anchor(definition)
+        .expect("buildable callable definition must have a source anchor");
+    (definition, anchor)
 }
 
 mod closures;

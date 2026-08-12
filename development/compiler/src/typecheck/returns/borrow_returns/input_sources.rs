@@ -93,7 +93,8 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
     }
 
     if matches!(local_symbol.kind, LocalSymbolKind::Parameter) {
-        return Some(ValueProvenance::input(InputId::declared_at(
+        return Some(ValueProvenance::input(InputId::resolved_at(
+            resolved,
             local_symbol.name_span,
         )));
     }

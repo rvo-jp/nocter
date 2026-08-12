@@ -46,6 +46,7 @@ use crate::ir::Type;
 use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
+use crate::semantic::DefId;
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::test_entry::TestDeclarationId;
 use crate::typecheck::TypedHir;
@@ -218,9 +219,10 @@ fn source_backed_entry_definition<'a>(
     analysis: &'a CompileUnitAnalysis,
     contract: &FunctionDecl,
 ) -> Option<(&'a FileAnalysis, &'a FunctionDecl)> {
-    let implementation = analysis
-        .callable_bodies
-        .implementation(contract.name_span)?;
+    let authored = analysis.semantic_db.definition_at(contract.name_span)?;
+    let declaration = analysis.callable_bodies.canonical_definition(authored);
+    let implementation = analysis.callable_bodies.implementation_id(declaration)?;
+    let implementation = analysis.semantic_db.definition_anchor(implementation)?;
     let file = analysis.file_by_source(implementation.source)?;
     let function = file.ast.items.iter().find_map(|item| match item {
         Item::Function(function) if function.name_span == implementation => Some(function),
@@ -362,22 +364,18 @@ impl<'a> FunctionIndex<'a> {
                         } else {
                             function.name_span
                         };
-                        let declaration = analysis.callable_bodies.canonical_identity(identity);
+                        let (_, declaration_source) =
+                            canonical_callable_definition(analysis, identity);
                         let target = call_target_for_source(
-                            declaration.source,
+                            declaration_source,
                             root_source,
                             function.name.clone(),
                         );
                         definitions.insert(target, IndexedCallable::new_function(function, file));
                     }
                     Item::Function(function) if function.body.is_some() => {
-                        let member_identity = analysis
-                            .callable_bodies
-                            .canonical_identity(function.member_name_span);
-                        let definition = analysis
-                            .semantic_db
-                            .definition_at(member_identity)
-                            .expect("lowered function must have a semantic definition");
+                        let (definition, declaration_source) =
+                            canonical_callable_definition(analysis, function.member_name_span);
                         for specialization in call_specializations
                             .functions
                             .get(&definition)
@@ -385,7 +383,7 @@ impl<'a> FunctionIndex<'a> {
                             .flatten()
                         {
                             let target = call_target_for_source(
-                                member_identity.source,
+                                declaration_source,
                                 root_source,
                                 specialization.target_name.clone(),
                             );
@@ -424,13 +422,8 @@ impl<'a> FunctionIndex<'a> {
                             }));
                         for (method, anchor, method_name) in callables {
                             if method.body.is_some() && owner.generics().parameters.is_empty() {
-                                let declaration =
-                                    analysis.callable_bodies.canonical_identity(anchor);
-                                let declaration_source = if declaration == anchor {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
+                                let (_, declaration_source) =
+                                    canonical_callable_definition(analysis, anchor);
                                 let name = method_target_name(type_name, method_name);
                                 let target = call_target_for_source(
                                     declaration_source,
@@ -449,17 +442,8 @@ impl<'a> FunctionIndex<'a> {
                                     ),
                                 );
                             } else if method.body.is_some() {
-                                let declaration =
-                                    analysis.callable_bodies.canonical_identity(anchor);
-                                let declaration_source = if declaration == anchor {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
-                                let def_id = analysis
-                                    .semantic_db
-                                    .definition_at(declaration)
-                                    .expect("indexed method must have a semantic definition");
+                                let (def_id, declaration_source) =
+                                    canonical_callable_definition(analysis, anchor);
                                 for specialization in call_specializations
                                     .methods
                                     .get(&def_id)
@@ -493,13 +477,8 @@ impl<'a> FunctionIndex<'a> {
                             if callable.body.is_none() {
                                 continue;
                             }
-                            let declaration =
-                                analysis.callable_bodies.canonical_identity(entry.span);
-                            let def_id = file
-                                .resolved
-                                .semantic_db
-                                .definition_at(entry.as_span)
-                                .expect("lowered coercion must have a semantic definition");
+                            let (def_id, declaration_source) =
+                                canonical_callable_definition(analysis, entry.as_span);
                             for plan in call_specializations
                                 .coercions
                                 .get(&def_id)
@@ -508,7 +487,7 @@ impl<'a> FunctionIndex<'a> {
                             {
                                 let target_name = coercion_symbols::coercion_symbol_name(plan);
                                 let target = call_target_for_source(
-                                    declaration.source,
+                                    declaration_source,
                                     root_source,
                                     target_name.clone(),
                                 );
@@ -527,14 +506,8 @@ impl<'a> FunctionIndex<'a> {
                         };
                         for method in owner.methods() {
                             if method.body.is_some() && owner.generics().parameters.is_empty() {
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
+                                let (_, declaration_source) =
+                                    canonical_callable_definition(analysis, method.name_span);
                                 let name = method_target_name(type_name, &method.name);
                                 let target = call_target_for_source(
                                     declaration_source,
@@ -552,18 +525,8 @@ impl<'a> FunctionIndex<'a> {
                                     ),
                                 );
                             } else if method.body.is_some() {
-                                let declaration = analysis
-                                    .callable_bodies
-                                    .canonical_identity(method.name_span);
-                                let declaration_source = if declaration == method.name_span {
-                                    file.ast.span.source
-                                } else {
-                                    declaration.source
-                                };
-                                let def_id = analysis
-                                    .semantic_db
-                                    .definition_at(declaration)
-                                    .expect("indexed method must have a semantic definition");
+                                let (def_id, declaration_source) =
+                                    canonical_callable_definition(analysis, method.name_span);
                                 for specialization in call_specializations
                                     .methods
                                     .get(&def_id)
@@ -680,12 +643,11 @@ impl<'a> FunctionIndex<'a> {
                             if function.body.is_none() {
                                 continue;
                             }
-                            let declaration = analysis
-                                .callable_bodies
-                                .canonical_identity(function.member_name_span);
+                            let (definition, declaration_source) =
+                                canonical_callable_definition(analysis, function.member_name_span);
                             if function.generics.parameters.is_empty() {
                                 let target = call_target_for_source(
-                                    declaration.source,
+                                    declaration_source,
                                     root_source,
                                     function.name.clone(),
                                 );
@@ -693,10 +655,6 @@ impl<'a> FunctionIndex<'a> {
                                     .insert(target, IndexedCallable::new_function(function, file));
                                 continue;
                             }
-                            let definition = analysis
-                                .semantic_db
-                                .definition_at(declaration)
-                                .expect("lowered constructor must have a semantic definition");
                             for specialization in call_specializations
                                 .functions
                                 .get(&definition)
@@ -704,7 +662,7 @@ impl<'a> FunctionIndex<'a> {
                                 .flatten()
                             {
                                 let target = call_target_for_source(
-                                    declaration.source,
+                                    declaration_source,
                                     root_source,
                                     specialization.target_name.clone(),
                                 );
@@ -723,12 +681,8 @@ impl<'a> FunctionIndex<'a> {
                             if literal.body.is_none() {
                                 continue;
                             }
-                            let declaration =
-                                analysis.callable_bodies.canonical_identity(literal.span);
-                            let definition = analysis
-                                .semantic_db
-                                .definition_at(declaration)
-                                .expect("lowered literal must have a semantic definition");
+                            let (definition, declaration_source) =
+                                canonical_callable_definition(analysis, literal.span);
                             for specialization in call_specializations
                                 .literals
                                 .get(&definition)
@@ -736,7 +690,7 @@ impl<'a> FunctionIndex<'a> {
                                 .flatten()
                             {
                                 let target = call_target_for_source(
-                                    declaration.source,
+                                    declaration_source,
                                     root_source,
                                     specialization.target_name.clone(),
                                 );
@@ -1651,6 +1605,23 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
     } else {
         CallTarget::imported(source, name)
     }
+}
+
+fn canonical_callable_definition(
+    analysis: &CompileUnitAnalysis,
+    location: ByteSpan,
+) -> (DefId, SourceId) {
+    let authored = analysis
+        .semantic_db
+        .definition_at(location)
+        .expect("lowered callable must have a semantic definition");
+    let definition = analysis.callable_bodies.canonical_definition(authored);
+    let source = analysis
+        .semantic_db
+        .definition_anchor(definition)
+        .expect("lowered callable definition must have a source anchor")
+        .source;
+    (definition, source)
 }
 
 fn call_target_name(target: &CallTarget) -> &str {

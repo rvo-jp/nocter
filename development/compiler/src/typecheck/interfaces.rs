@@ -408,7 +408,7 @@ fn elided_provenance_slots(
     shape: &MethodShape,
     resolved: &ResolveOutput,
 ) -> Vec<ProvenanceSlot> {
-    let receiver = super::provenance::InputId::declared_at(method.receiver.name_span);
+    let receiver = super::provenance::InputId::resolved_at(resolved, method.receiver.name_span);
     let inputs = std::iter::once(("self".to_string(), receiver, shape.receiver.clone())).chain(
         method
             .signature
@@ -418,7 +418,7 @@ fn elided_provenance_slots(
             .map(|(parameter, ty)| {
                 (
                     parameter.name.clone(),
-                    super::provenance::InputId::declared_at(parameter.name_span),
+                    super::provenance::InputId::resolved_at(resolved, parameter.name_span),
                     ty.clone(),
                 )
             }),
@@ -437,7 +437,7 @@ fn elided_provenance_slots(
         .parameters
         .iter()
         .position(|parameter| {
-            super::provenance::InputId::declared_at(parameter.name_span) == unique
+            super::provenance::InputId::resolved_at(resolved, parameter.name_span) == unique
         })
         .map(ProvenanceSlot::Parameter)
         .into_iter()

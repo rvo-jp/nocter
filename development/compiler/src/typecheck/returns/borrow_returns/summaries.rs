@@ -590,23 +590,21 @@ fn has_exact_external_origin(provenance: &ValueProvenance) -> bool {
     }
 }
 
-pub(in crate::typecheck) fn function_summary_key(
+pub(in crate::typecheck) fn function_declaration_location(
     function: &crate::ast::FunctionDecl,
-    resolved: &ResolveOutput,
 ) -> ByteSpan {
-    let span = if function.owner.is_some() {
+    if function.owner.is_some() {
         function.member_name_span
     } else {
         function.name_span
-    };
-    resolved.canonical_callable_identity(span)
+    }
 }
 
 fn function_summary_id(
     function: &crate::ast::FunctionDecl,
     resolved: &ResolveOutput,
 ) -> CallableId {
-    callable_id(resolved, function_summary_key(function, resolved))
+    callable_id(resolved, function_declaration_location(function))
 }
 
 fn callable_id(resolved: &ResolveOutput, location: ByteSpan) -> CallableId {

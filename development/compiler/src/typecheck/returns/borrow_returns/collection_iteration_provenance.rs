@@ -62,7 +62,7 @@ fn instantiate_iteration_method_result(
 ) -> Option<ValueProvenance> {
     let summary = summaries.result(CallableId::for_declaration(resolved, declaration)?)?;
     let method = resolved.method_signature_by_name_span(declaration)?;
-    let receiver_input = InputId::declared_at(method.receiver.name_span);
+    let receiver_input = InputId::resolved_at(resolved, method.receiver.name_span);
     instantiate_provenance_summary(summary, &mut |origin| match origin {
         StorageOrigin::Static => Some(ValueProvenance::static_storage()),
         StorageOrigin::CurrentAllocationContext => {

@@ -7,11 +7,14 @@ impl ValueProvenance {
     /// Removes only lexical scopes that describe the container variables also
     /// represented by an input origin. Origins carried by the transferred
     /// element itself remain intact and are substituted at the caller.
-    pub(in crate::typecheck) fn without_input_container_scopes(self) -> Self {
+    pub(in crate::typecheck) fn without_input_container_scopes(
+        self,
+        resolved: &crate::resolve::ResolveOutput,
+    ) -> Self {
         let input_bindings = self
             .input_origins()
             .into_iter()
-            .map(|input| input.declaration_span())
+            .filter_map(|input| input.source_span(resolved))
             .collect::<HashSet<_>>();
         remove_container_scopes(self, &input_bindings)
     }

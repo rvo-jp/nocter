@@ -118,7 +118,7 @@ pub(in crate::typecheck) fn elided_declaration_result_contract(
         );
         candidates.push((
             "self".to_string(),
-            InputId::declared_at(method.receiver.name_span),
+            InputId::resolved_at(resolved, method.receiver.name_span),
             receiver_type,
         ));
     }
@@ -131,7 +131,7 @@ pub(in crate::typecheck) fn elided_declaration_result_contract(
         );
         candidates.push((
             input.label.to_string(),
-            InputId::declared_at(input.name_span),
+            InputId::resolved_at(resolved, input.name_span),
             input_type,
         ));
     }
@@ -147,7 +147,7 @@ pub(in crate::typecheck) fn elided_signature_result_contract(
         parameters.iter().map(|parameter| {
             (
                 parameter.name.clone(),
-                InputId::declared_at(parameter.name_span),
+                InputId::resolved_at(resolved, parameter.name_span),
                 crate::typecheck::type_expr::type_expr_to_type_with_substitutions(
                     &parameter.ty,
                     resolved,

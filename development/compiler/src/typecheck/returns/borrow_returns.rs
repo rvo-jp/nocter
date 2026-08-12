@@ -22,7 +22,8 @@ pub(super) use literal_provenance::*;
 pub(super) use mutation_effects::*;
 pub(super) use propagation_collection::*;
 pub(in crate::typecheck) use summaries::{
-    borrow_return_provenance_for_callable_body, callable_provenance_summaries, function_summary_key,
+    borrow_return_provenance_for_callable_body, callable_provenance_summaries,
+    function_declaration_location,
 };
 pub(super) use summary_instantiation::*;
 pub(in crate::typecheck) use type_predicates::returned_type_contains_readwrite_borrow;

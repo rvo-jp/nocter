@@ -27,15 +27,45 @@ impl CallableId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(in crate::typecheck) struct InputId(ByteSpan);
+pub(in crate::typecheck) enum InputId {
+    Definition(DefId),
+    Recovery(ByteSpan),
+}
 
 impl InputId {
+    #[cfg(test)]
     pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
-        Self(span)
+        Self::Recovery(span)
     }
 
-    pub(in crate::typecheck) const fn declaration_span(self) -> ByteSpan {
-        self.0
+    pub(in crate::typecheck) fn resolved_at(
+        resolved: &crate::resolve::ResolveOutput,
+        span: ByteSpan,
+    ) -> Self {
+        resolved
+            .canonical_callable_input_definition(span)
+            .map(Self::Definition)
+            .unwrap_or(Self::Recovery(span))
+    }
+
+    pub(in crate::typecheck) fn canonicalized(
+        self,
+        resolved: &crate::resolve::ResolveOutput,
+    ) -> Self {
+        match self {
+            Self::Definition(_) => self,
+            Self::Recovery(span) => Self::resolved_at(resolved, span),
+        }
+    }
+
+    pub(in crate::typecheck) fn source_span(
+        self,
+        resolved: &crate::resolve::ResolveOutput,
+    ) -> Option<ByteSpan> {
+        match self {
+            Self::Definition(definition) => resolved.semantic_db.definition_anchor(definition),
+            Self::Recovery(span) => Some(span),
+        }
     }
 }
 
@@ -60,9 +90,17 @@ impl PartialOrd for InputId {
 
 impl Ord for InputId {
     fn cmp(&self, other: &Self) -> Ordering {
-        let left = self.0;
-        let right = other.0;
-        (left.source.raw(), left.start, left.end).cmp(&(right.source.raw(), right.start, right.end))
+        match (self, other) {
+            (Self::Definition(left), Self::Definition(right)) => left.cmp(right),
+            (Self::Definition(_), Self::Recovery(_)) => Ordering::Less,
+            (Self::Recovery(_), Self::Definition(_)) => Ordering::Greater,
+            (Self::Recovery(left), Self::Recovery(right)) => (
+                left.source.raw(),
+                left.start,
+                left.end,
+            )
+                .cmp(&(right.source.raw(), right.start, right.end)),
+        }
     }
 }
 

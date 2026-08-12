@@ -631,7 +631,7 @@ fn call_input_expression<'a>(
 ) -> Option<CallInput<'a>> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
-        && InputId::declared_at(method.receiver.name_span) == input
+        && InputId::resolved_at(resolved, method.receiver.name_span) == input
     {
         return method_member_for_call(call).map(|member| CallInput {
             expression: member.object.as_ref(),
@@ -643,7 +643,7 @@ fn call_input_expression<'a>(
         .signature
         .parameters
         .iter()
-        .position(|parameter| InputId::declared_at(parameter.name_span) == input)
+        .position(|parameter| InputId::resolved_at(resolved, parameter.name_span) == input)
         .and_then(|index| {
             call.arguments.get(index).map(|expression| CallInput {
                 expression,

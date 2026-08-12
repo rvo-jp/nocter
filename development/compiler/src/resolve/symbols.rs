@@ -49,21 +49,14 @@ pub struct ResolveOutput {
 }
 
 impl ResolveOutput {
-    pub(crate) fn canonical_callable_identity(&self, span: ByteSpan) -> ByteSpan {
-        self.callable_bodies.canonical_identity(span)
-    }
-
     pub(crate) fn canonical_callable_definition(&self, span: ByteSpan) -> Option<DefId> {
         let definition = self.semantic_db.definition_at(span)?;
-        Some(
-            self.callable_bodies
-                .declaration_id(definition)
-                .unwrap_or(definition),
-        )
+        Some(self.callable_bodies.canonical_definition(definition))
     }
 
-    pub(crate) fn canonical_callable_input_identity(&self, span: ByteSpan) -> ByteSpan {
-        self.callable_bodies.canonical_input_identity(span)
+    pub(crate) fn canonical_callable_input_definition(&self, span: ByteSpan) -> Option<DefId> {
+        let definition = self.semantic_db.definition_at(span)?;
+        Some(self.callable_bodies.canonical_input_definition(definition))
     }
 
     pub(crate) fn sources_share_module(&self, left: SourceId, right: SourceId) -> bool {

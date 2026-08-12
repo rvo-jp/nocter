@@ -80,8 +80,7 @@ fn collect_trusted_allocation_mutation(
             let Some(source) = parameters.get(index) else {
                 return true;
             };
-            let source =
-                InputId::declared_at(resolved.canonical_callable_input_identity(source.name_span));
+            let source = InputId::resolved_at(resolved, source.name_span);
             if fallback_to_current {
                 ValueProvenance::input_with_current_fallback(source)
             } else {
@@ -91,7 +90,7 @@ fn collect_trusted_allocation_mutation(
     };
     summaries.insert_input_mutation(
         callable,
-        InputId::declared_at(resolved.canonical_callable_input_identity(target.name_span)),
+        InputId::resolved_at(resolved, target.name_span),
         source.allocated(),
     );
     true
@@ -111,7 +110,7 @@ fn retain_input_mutation(
     if retained.contains_result_allocation() {
         summaries.insert_input_mutation(
             callable,
-            InputId::declared_at(resolved.canonical_callable_input_identity(input_span)),
+            InputId::resolved_at(resolved, input_span),
             canonicalize_provenance_summary_inputs(retained, resolved),
         );
     }
@@ -190,7 +189,7 @@ pub(in crate::typecheck::returns) fn apply_retained_call_mutations(
             .cloned()
             .unwrap_or_else(|| {
                 if matches!(symbol.kind, LocalSymbolKind::Parameter) {
-                    ValueProvenance::input(InputId::declared_at(symbol.name_span))
+                    ValueProvenance::input(InputId::resolved_at(resolved, symbol.name_span))
                 } else {
                     ValueProvenance::Independent
                 }
@@ -264,7 +263,7 @@ fn call_input_expression<'a>(
 ) -> Option<&'a Expr> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
-        && InputId::declared_at(method.receiver.name_span) == source
+        && InputId::resolved_at(resolved, method.receiver.name_span) == source
     {
         return method_member_for_call(call).map(|member| member.object.as_ref());
     }
@@ -272,6 +271,6 @@ fn call_input_expression<'a>(
         .signature
         .parameters
         .iter()
-        .position(|parameter| InputId::declared_at(parameter.name_span) == source)
+        .position(|parameter| InputId::resolved_at(resolved, parameter.name_span) == source)
         .and_then(|index| call.arguments.get(index))
 }
