@@ -10,6 +10,8 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 
 ## Documents
 
+- [Semantic Identity and Typed Model](semantic-model.md): compile-unit ID domains, semantic
+  database ownership, authored syntax boundary, typed results, and migration enforcement
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries
 - [Immutable LSP Snapshots](lsp-snapshots.md): editor generations, package contexts, source
@@ -90,6 +92,7 @@ in `development/releases/`. Short-lived handoff state lives only in `development
 | Package/compiler responsibility boundary | `packages.md` |
 | Package-wide editor state and invalidation | `lsp-snapshots.md` |
 | Compiler responsibility boundaries | `architecture.md` |
+| Semantic identities, database ownership, and typed model | `semantic-model.md` |
 | Region, provenance, and allocation-context implementation design | `region-provenance.md` |
 | Typed literal and ephemeral element-pack implementation design | `typed-literals.md` |
 | Explicit readonly/owned iteration and collection access design | `iteration.md` |

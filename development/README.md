@@ -56,6 +56,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Packages, Dependencies, and Locks](docs/packages.md)
 - [Immutable LSP Snapshots](docs/lsp-snapshots.md)
 - [Compiler Architecture](docs/architecture.md)
+- [Semantic Identity and Typed Model](docs/semantic-model.md)
 - [Region, Provenance, and Allocation Context](docs/region-provenance.md)
 - [Typed Literal Core](docs/typed-literals.md)
 - [Borrow Coercion Compiler Boundary](docs/borrow-coercions.md)

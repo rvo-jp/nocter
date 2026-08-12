@@ -2,10 +2,10 @@
 
 ## Current Task
 
-v0.13.0 is published and independently audited. No release repair or later milestone phase is
-active. Define and review v0.14.0 Phase 0 before changing compiler architecture, language behavior,
-or standard-library APIs. The v0.13.0 tag, archive, release notes, and qualification record are
-immutable.
+v0.14.0 Phase 0 is active. Replace parallel instance member vectors with one source-ordered member
+model, then introduce compile-unit semantic IDs and migrate one callable path end to end without
+retaining span or synthetic-name identity. Do not add language features or standard-library APIs.
+The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
 ## Completed v0.13.0 Stabilization Checkpoint
 

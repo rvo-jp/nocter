@@ -11,10 +11,10 @@ editor-presentation boundaries.
 .nct source
   -> SourceMap
   -> lexer / parser
-  -> module loading / resolution
-  -> type checking / ownership facts
-  -> buildability preflight
-  -> IR lowering
+  -> semantic definition index / resolution
+  -> typed HIR / ownership and provenance
+  -> control-flow MIR
+  -> machine IR lowering
   -> ABI classification
   -> ARM64 code generation
   -> Mach-O image
@@ -31,6 +31,7 @@ external runtime library. The released and active-development native target is `
 | `lexer` | tokens and lexical diagnostics |
 | `parser` | AST construction, syntax recovery, removed-syntax diagnostics |
 | `ast` | syntax data, AST JSON, documentation extraction |
+| `semantic` | typed compile-unit identities, definition/body/type records, source locations |
 | `frontend` | compile-unit loading, prelude, frontend orchestration |
 | `resolve` | imports, visibility, scopes, symbols, declaration identity |
 | `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, execution allocation requirements, drop semantics |
@@ -42,6 +43,10 @@ external runtime library. The released and active-development native target is `
 | `target` | machine encoding and target-specific output details |
 | `diagnostics` | structured diagnostics and text/JSON rendering |
 | `driver` | CLI, pipeline, and LSP protocol orchestration |
+
+The pipeline above is the v0.14.0 target architecture. During migration, the current span-keyed
+typecheck facts, buildability preflight, and AST-driven IR lowering remain only until their named
+replacement phase completes. See [Semantic Identity and Typed Model](semantic-model.md).
 
 Later phases consume facts from earlier phases; they do not reimplement earlier decisions. When a
 new responsibility does not fit an existing area, introduce a focused module and narrow API before

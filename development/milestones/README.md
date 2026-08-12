@@ -4,6 +4,10 @@ This directory owns active and historical milestone scope, acceptance criteria, 
 state. Public language behavior belongs in `spec/`; compiler architecture belongs in
 `development/docs/`.
 
+The active milestone is [v0.14.0](v0.14.0.md). Phase 0 establishes typed compile-unit semantic
+identity and an honest source declaration model before typed HIR, editor projection, MIR, and
+backend convergence. It does not add public language features.
+
 The latest completed milestone is [v0.13.0](v0.13.0.md). Phases 0 through 6 are complete, and the
 exact release is published and independently audited. Phase 1 replaced the obsolete
 `Error` alias with a source-backed built-in `error`
@@ -19,7 +23,7 @@ and slice source. Phase 5 removed superseded forwarding surfaces and gave each c
 operation one public declaration identity. Phase 6 moved borrow coercions into `instance`, removed
 the parallel declaration path, and added structural generic coercion evidence through the common
 one-step selector. The qualification evidence is preserved in
-[the v0.13.0 release record](../releases/v0.13.0.md). No v0.14.0 phase is active yet.
+[the v0.13.0 release record](../releases/v0.13.0.md).
 
 The latest completed milestone is [v0.12.0](v0.12.0.md). Phases 0 through 3 are complete: closed
 interpolation formatting was replaced with a source-defined `Format` contract, fixed
