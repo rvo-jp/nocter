@@ -50,11 +50,6 @@ pub(crate) fn typecheck_conversion_plan(
                 focus_span: coercion.focus_span,
                 receiver_mode: coercion.receiver_mode,
                 source_is_readwrite: coercion.source_is_readwrite,
-                target_name: format!(
-                    "{}.__nocter$coerce${}",
-                    canonical_type_expr(&self_ty),
-                    coercion.focus_span.start
-                ),
                 self_ty,
                 target_ty: target_ty.clone(),
                 substitutions,

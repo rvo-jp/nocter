@@ -89,6 +89,7 @@ fn lower_coercion_receiver(
     let Some(target) = context.coercion_call_target(&plan) else {
         return Some(Err(unavailable_call_target_diagnostic()));
     };
+    let target_name = super::super::coercion_symbols::coercion_symbol_name(&plan);
     let source_expression = match unwrap_group(expression) {
         Expr::TypeConversion(conversion) => unwrap_group(&conversion.expression),
         expression => expression,
@@ -103,7 +104,7 @@ fn lower_coercion_receiver(
             &inner,
             receiver_is_readwrite,
             &receiver_type,
-            &plan.target_name,
+            &target_name,
             context,
             temporaries,
         )

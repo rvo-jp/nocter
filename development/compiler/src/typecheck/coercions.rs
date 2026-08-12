@@ -307,11 +307,6 @@ pub(crate) fn specialize_coercion_plan(
     plan.def_id = selected.def_id;
     plan.focus_span = selected.focus_span;
     plan.receiver_mode = selected.receiver_mode;
-    plan.target_name = format!(
-        "{}.__nocter$coerce${}",
-        crate::ast::canonical_type_expr(&plan.self_ty),
-        selected.focus_span.start
-    );
     plan.substitutions = selected
         .substitutions
         .into_iter()

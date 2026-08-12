@@ -3,6 +3,7 @@ mod allocation_contexts;
 mod bindings;
 mod closures;
 mod collection_for;
+mod coercion_symbols;
 mod context;
 mod control_flow;
 mod entry;
@@ -485,14 +486,15 @@ impl<'a> FunctionIndex<'a> {
                                 .into_iter()
                                 .flatten()
                             {
+                                let target_name = coercion_symbols::coercion_symbol_name(plan);
                                 let target = call_target_for_source(
                                     declaration.source,
                                     root_source,
-                                    plan.target_name.clone(),
+                                    target_name.clone(),
                                 );
                                 definitions.insert(
                                     target,
-                                    IndexedCallable::new_coercion(entry, plan, file),
+                                    IndexedCallable::new_coercion(entry, plan, target_name, file),
                                 );
                             }
                         }
@@ -917,6 +919,7 @@ impl<'a> IndexedCallable<'a> {
     fn new_coercion(
         declaration: &'a crate::ast::CoercionEntry,
         plan: &crate::typecheck::TypecheckCoercionPlan,
+        name: String,
         file: &'a FileAnalysis,
     ) -> Self {
         Self {
@@ -924,7 +927,7 @@ impl<'a> IndexedCallable<'a> {
                 declaration: Cow::Borrowed(declaration.callable_method()),
                 self_ty: plan.self_ty.clone(),
                 substitutions: plan.substitutions.clone(),
-                name: plan.target_name.clone(),
+                name,
             },
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,

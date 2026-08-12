@@ -716,6 +716,7 @@ impl<'a> LoweringContext<'a> {
         plan: &crate::typecheck::TypecheckCoercionPlan,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
+        let target_name = super::super::coercion_symbols::coercion_symbol_name(plan);
         let declaration_source = resolution
             .resolved
             .semantic_db
@@ -723,14 +724,10 @@ impl<'a> LoweringContext<'a> {
             .source;
         Some(
             self.function_names
-                .unique_target_for_name(&plan.target_name)
+                .unique_target_for_name(&target_name)
                 .cloned()
                 .unwrap_or_else(|| {
-                    call_target_for_source(
-                        declaration_source,
-                        resolution.root_source,
-                        plan.target_name.clone(),
-                    )
+                    call_target_for_source(declaration_source, resolution.root_source, target_name)
                 }),
         )
     }

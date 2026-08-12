@@ -379,10 +379,10 @@ fn insert_coercion_specialization(
         return false;
     };
     let entries = specializations.entry(def_id).or_default();
-    if entries
-        .iter()
-        .any(|entry| entry.target_name == plan.target_name)
-    {
+    if entries.iter().any(|entry| {
+        type_expr_semantic_eq(&entry.self_ty, &plan.self_ty)
+            && substitutions_semantic_eq(&entry.substitutions, &plan.substitutions)
+    }) {
         return false;
     }
     entries.push(plan);

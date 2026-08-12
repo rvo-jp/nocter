@@ -743,7 +743,6 @@ pub(crate) struct TypecheckCoercionPlan {
     pub(crate) focus_span: ByteSpan,
     pub(crate) receiver_mode: crate::ast::MethodReceiverMode,
     pub(crate) source_is_readwrite: bool,
-    pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
     pub(crate) target_ty: TypeExpr,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
@@ -826,11 +825,6 @@ impl TypecheckCoercionPlan {
             focus_span: self.focus_span,
             receiver_mode: self.receiver_mode,
             source_is_readwrite: self.source_is_readwrite,
-            target_name: format!(
-                "{}.__nocter$coerce${}",
-                canonical_type_expr(&self_ty),
-                self.focus_span.start
-            ),
             self_ty,
             target_ty,
             substitutions,

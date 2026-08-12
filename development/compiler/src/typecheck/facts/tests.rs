@@ -242,7 +242,6 @@ func main(): i32 { return 0 }
         resolved.semantic_db.definition_at(plan.focus_span),
         "the persisted conversion must retain the selected coercion identity"
     );
-    assert!(plan.target_name.starts_with("Box<i32>.__nocter$coerce$"));
 }
 
 #[test]
