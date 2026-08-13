@@ -264,9 +264,11 @@ impl TypedHirBuilder<'_> {
         let is_mutable = binding_kind_is_mutable(statement.kind);
         self.record_binding(statement.name_span, &binding_type, is_mutable);
         if let Some(ty) = &statement.ty {
-            self.facts
-                .binding_type_exprs
-                .insert(statement.name_span, ty.clone());
+            let symbol = self
+                .resolved
+                .local_symbol_id_at_name_span(statement.name_span)
+                .expect("resolver omitted local declaration");
+            self.facts.binding_type_exprs.insert(symbol, ty.clone());
         }
         environment.define_binding(statement.name.clone(), binding_type, is_mutable);
     }

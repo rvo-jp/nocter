@@ -28,6 +28,7 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
 
 pub(crate) fn collect_region_facts(
     ast: &crate::ast::AstFile,
+    resolved: &crate::resolve::ResolveOutput,
     typed_hir: &TypedHir,
 ) -> Vec<RegionAnalysisFact> {
     let mut facts = Vec::new();
@@ -35,43 +36,45 @@ pub(crate) fn collect_region_facts(
         match item {
             Item::Function(function) => {
                 if let Some(body) = &function.body {
-                    collect_block(typed_hir, body, None, &mut facts);
+                    collect_block(resolved, typed_hir, body, None, &mut facts);
                 }
             }
-            Item::Test(test) => collect_block(typed_hir, &test.body, None, &mut facts),
+            Item::Test(test) => collect_block(resolved, typed_hir, &test.body, None, &mut facts),
             Item::Instance(instance) => {
                 for method in instance.callables() {
                     if let Some(body) = &method.body {
-                        collect_block(typed_hir, body, None, &mut facts);
+                        collect_block(resolved, typed_hir, body, None, &mut facts);
                     }
                 }
             }
-            Item::Destruct(destruct) => collect_block(typed_hir, &destruct.body, None, &mut facts),
+            Item::Destruct(destruct) => {
+                collect_block(resolved, typed_hir, &destruct.body, None, &mut facts)
+            }
             Item::Conformance(conformance) => {
                 for member in &conformance.members {
                     if let crate::ast::ConformanceMember::Method(method) = member
                         && let Some(body) = &method.body
                     {
-                        collect_block(typed_hir, body, None, &mut facts);
+                        collect_block(resolved, typed_hir, body, None, &mut facts);
                     }
                 }
             }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     if let Some(body) = &method.body {
-                        collect_block(typed_hir, body, None, &mut facts);
+                        collect_block(resolved, typed_hir, body, None, &mut facts);
                     }
                 }
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     if let Some(body) = &function.body {
-                        collect_block(typed_hir, body, None, &mut facts);
+                        collect_block(resolved, typed_hir, body, None, &mut facts);
                     }
                 }
                 for (_, literal) in construct.literals() {
                     if let Some(body) = &literal.body {
-                        collect_block(typed_hir, body, None, &mut facts);
+                        collect_block(resolved, typed_hir, body, None, &mut facts);
                     }
                 }
             }
@@ -116,20 +119,22 @@ pub(crate) fn region_markdown(
 }
 
 fn collect_block(
+    resolved: &crate::resolve::ResolveOutput,
     typed_hir: &TypedHir,
     block: &Block,
     parent: Option<ByteSpan>,
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     for statement in &block.statements {
-        collect_statement(typed_hir, statement, parent, facts);
+        collect_statement(resolved, typed_hir, statement, parent, facts);
     }
     if let Some(result) = &block.result {
-        collect_expression(typed_hir, result, parent, facts);
+        collect_expression(resolved, typed_hir, result, parent, facts);
     }
 }
 
 fn collect_statement(
+    resolved: &crate::resolve::ResolveOutput,
     typed_hir: &TypedHir,
     statement: &Stmt,
     parent: Option<ByteSpan>,
@@ -137,73 +142,80 @@ fn collect_statement(
 ) {
     match statement {
         Stmt::Region(statement) => {
-            collect_expression(typed_hir, &statement.allocator, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.allocator, parent, facts);
             let declaration = statement.name_span;
+            let symbol = resolved
+                .local_symbol_id_at_name_span(declaration)
+                .expect("resolver omitted region declaration");
             facts.push(RegionAnalysisFact {
                 declaration,
                 name: statement.name.clone(),
                 parent,
                 allocator: statement.allocator.span(),
-                allocator_type: typed_hir
-                    .binding_type_label(declaration)
-                    .map(str::to_string),
+                allocator_type: typed_hir.binding_type_label(symbol).map(str::to_string),
             });
-            collect_block(typed_hir, &statement.body, Some(declaration), facts);
+            collect_block(
+                resolved,
+                typed_hir,
+                &statement.body,
+                Some(declaration),
+                facts,
+            );
         }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
-                collect_expression(typed_hir, expression, parent, facts);
+                collect_expression(resolved, typed_hir, expression, parent, facts);
             }
         }
         Stmt::Binding(statement) => {
-            collect_expression(typed_hir, &statement.initializer, parent, facts)
+            collect_expression(resolved, typed_hir, &statement.initializer, parent, facts)
         }
         Stmt::Assignment(statement) => {
-            collect_expression(typed_hir, &statement.target, parent, facts);
-            collect_expression(typed_hir, &statement.value, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.target, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.value, parent, facts);
         }
         Stmt::If(statement) => {
-            collect_expression(typed_hir, &statement.condition, parent, facts);
-            collect_block(typed_hir, &statement.then_block, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.condition, parent, facts);
+            collect_block(resolved, typed_hir, &statement.then_block, parent, facts);
             if let Some(block) = &statement.else_block {
-                collect_block(typed_hir, block, parent, facts);
+                collect_block(resolved, typed_hir, block, parent, facts);
             }
         }
         Stmt::IfIs(statement) => {
-            collect_expression(typed_hir, &statement.expression, parent, facts);
-            collect_block(typed_hir, &statement.then_block, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.expression, parent, facts);
+            collect_block(resolved, typed_hir, &statement.then_block, parent, facts);
             if let Some(block) = &statement.else_block {
-                collect_block(typed_hir, block, parent, facts);
+                collect_block(resolved, typed_hir, block, parent, facts);
             }
         }
         Stmt::Switch(statement) => {
-            collect_expression(typed_hir, &statement.expression, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.expression, parent, facts);
             for arm in &statement.arms {
-                collect_block(typed_hir, &arm.body, parent, facts);
+                collect_block(resolved, typed_hir, &arm.body, parent, facts);
             }
             if let Some(arm) = &statement.wildcard_arm {
-                collect_block(typed_hir, &arm.body, parent, facts);
+                collect_block(resolved, typed_hir, &arm.body, parent, facts);
             }
         }
         Stmt::ForRange(statement) => {
-            collect_expression(typed_hir, &statement.start, parent, facts);
-            collect_expression(typed_hir, &statement.end, parent, facts);
-            collect_block(typed_hir, &statement.body, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.start, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.end, parent, facts);
+            collect_block(resolved, typed_hir, &statement.body, parent, facts);
         }
         Stmt::CollectionFor(statement) => {
-            collect_expression(typed_hir, &statement.source, parent, facts);
-            collect_block(typed_hir, &statement.body, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.source, parent, facts);
+            collect_block(resolved, typed_hir, &statement.body, parent, facts);
         }
         Stmt::LiteralPackFor(statement) => {
-            collect_block(typed_hir, &statement.body, parent, facts);
+            collect_block(resolved, typed_hir, &statement.body, parent, facts);
         }
         Stmt::While(statement) => {
-            collect_expression(typed_hir, &statement.condition, parent, facts);
-            collect_block(typed_hir, &statement.body, parent, facts);
+            collect_expression(resolved, typed_hir, &statement.condition, parent, facts);
+            collect_block(resolved, typed_hir, &statement.body, parent, facts);
         }
-        Stmt::Loop(statement) => collect_block(typed_hir, &statement.body, parent, facts),
+        Stmt::Loop(statement) => collect_block(resolved, typed_hir, &statement.body, parent, facts),
         Stmt::Expression(statement) => {
-            collect_expression(typed_hir, &statement.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &statement.expression, parent, facts)
         }
         Stmt::Import(_)
         | Stmt::FromImport(_)
@@ -214,108 +226,111 @@ fn collect_statement(
 }
 
 fn collect_expression(
+    resolved: &crate::resolve::ResolveOutput,
     typed_hir: &TypedHir,
     expression: &Expr,
     parent: Option<ByteSpan>,
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     match expression {
-        Expr::Closure(expression) => collect_block(typed_hir, &expression.body, parent, facts),
+        Expr::Closure(expression) => {
+            collect_block(resolved, typed_hir, &expression.body, parent, facts)
+        }
         Expr::Catch(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts);
-            collect_block(typed_hir, &expression.catch_block, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts);
+            collect_block(resolved, typed_hir, &expression.catch_block, parent, facts);
         }
         Expr::Otherwise(expression) => {
-            collect_expression(typed_hir, &expression.value, parent, facts);
-            collect_block(typed_hir, &expression.fallback, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.value, parent, facts);
+            collect_block(resolved, typed_hir, &expression.fallback, parent, facts);
         }
         Expr::If(expression) => {
-            collect_expression(typed_hir, &expression.condition, parent, facts);
-            collect_block(typed_hir, &expression.then_block, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.condition, parent, facts);
+            collect_block(resolved, typed_hir, &expression.then_block, parent, facts);
             if let Some(block) = &expression.else_block {
-                collect_block(typed_hir, block, parent, facts);
+                collect_block(resolved, typed_hir, block, parent, facts);
             }
         }
         Expr::IfIs(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts);
-            collect_block(typed_hir, &expression.then_block, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts);
+            collect_block(resolved, typed_hir, &expression.then_block, parent, facts);
             if let Some(block) = &expression.else_block {
-                collect_block(typed_hir, block, parent, facts);
+                collect_block(resolved, typed_hir, block, parent, facts);
             }
         }
         Expr::Match(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts);
             for arm in &expression.arms {
-                collect_block(typed_hir, &arm.body, parent, facts);
+                collect_block(resolved, typed_hir, &arm.body, parent, facts);
             }
             if let Some(arm) = &expression.wildcard_arm {
-                collect_block(typed_hir, &arm.body, parent, facts);
+                collect_block(resolved, typed_hir, &arm.body, parent, facts);
             }
         }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 if let InterpolatedStringPart::Expression(part) = part {
-                    collect_expression(typed_hir, &part.expression, parent, facts);
+                    collect_expression(resolved, typed_hir, &part.expression, parent, facts);
                 }
             }
         }
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
-                collect_expression(typed_hir, element, parent, facts);
+                collect_expression(resolved, typed_hir, element, parent, facts);
             }
         }
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
-                collect_expression(typed_hir, element, parent, facts);
+                collect_expression(resolved, typed_hir, element, parent, facts);
             }
             if let Some(using) = &expression.using {
-                collect_expression(typed_hir, &using.allocator, parent, facts);
+                collect_expression(resolved, typed_hir, &using.allocator, parent, facts);
             }
         }
         Expr::TypedStringLiteral(expression) => {
             if let Some(using) = &expression.using {
-                collect_expression(typed_hir, &using.allocator, parent, facts);
+                collect_expression(resolved, typed_hir, &using.allocator, parent, facts);
             }
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                collect_expression(typed_hir, &field.value, parent, facts);
+                collect_expression(resolved, typed_hir, &field.value, parent, facts);
             }
         }
         Expr::Propagate(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts)
         }
         Expr::Force(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts)
         }
         Expr::Borrow(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts)
         }
         Expr::Unary(expression) => {
-            collect_expression(typed_hir, &expression.operand, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.operand, parent, facts)
         }
         Expr::Binary(expression) => {
-            collect_expression(typed_hir, &expression.left, parent, facts);
-            collect_expression(typed_hir, &expression.right, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.left, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.right, parent, facts);
         }
         Expr::TypeConversion(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts)
         }
         Expr::Call(expression) => {
-            collect_expression(typed_hir, &expression.callee, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.callee, parent, facts);
             for argument in &expression.arguments {
-                collect_expression(typed_hir, argument, parent, facts);
+                collect_expression(resolved, typed_hir, argument, parent, facts);
             }
         }
         Expr::Member(expression) => {
-            collect_expression(typed_hir, &expression.object, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.object, parent, facts)
         }
         Expr::Index(expression) => {
-            collect_expression(typed_hir, &expression.object, parent, facts);
-            collect_expression(typed_hir, &expression.index, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.object, parent, facts);
+            collect_expression(resolved, typed_hir, &expression.index, parent, facts);
         }
         Expr::Group(expression) => {
-            collect_expression(typed_hir, &expression.expression, parent, facts)
+            collect_expression(resolved, typed_hir, &expression.expression, parent, facts)
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

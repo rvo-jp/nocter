@@ -2,10 +2,14 @@ use super::*;
 
 pub(in crate::driver::buildability) fn range_for_binding_type_is_buildable(
     statement: &ForRangeStmt,
+    resolved: &ResolveOutput,
     typed_hir: &TypedHir,
 ) -> bool {
+    let Some(symbol) = resolved.local_symbol_id_at_name_span(statement.name_span) else {
+        return false;
+    };
     matches!(
-        typed_hir.binding_scalar_view_kind(statement.name_span),
+        typed_hir.binding_scalar_view_kind(symbol),
         Some(TypecheckScalarViewKind::I32 | TypecheckScalarViewKind::Usize)
     )
 }
@@ -26,7 +30,7 @@ pub(in crate::driver::buildability) fn assignment_operator_is_buildable(
                 return false;
             };
             matches!(
-                typed_hir.binding_scalar_view_kind(symbol.name_span),
+                typed_hir.binding_scalar_view_kind(symbol.id),
                 Some(
                     TypecheckScalarViewKind::I32
                         | TypecheckScalarViewKind::Usize

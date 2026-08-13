@@ -73,8 +73,7 @@ pub(crate) struct SemanticOccurrenceIndex {
 
 impl SemanticOccurrenceIndex {
     pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput, facts: &TypedHir) -> Self {
-        let lexical_scopes =
-            super::lexical_scopes::LexicalScopeIndex::new(ast, &resolved.semantic_db);
+        let lexical_scopes = super::lexical_scopes::LexicalScopeIndex::new(ast, resolved);
         Self::new_with_lexical_scopes(ast, resolved, facts, &lexical_scopes)
     }
 
@@ -475,7 +474,7 @@ impl OccurrenceBuilder<'_> {
             Some(SemanticIdentity::Local(symbol.id)),
             role,
             kind,
-            local_is_readonly(symbol, span, self.facts),
+            local_is_readonly(symbol, self.facts),
             None,
             priority,
         );
@@ -712,7 +711,7 @@ impl OccurrenceBuilder<'_> {
     }
 }
 
-fn local_is_readonly(symbol: &LocalSymbol, span: ByteSpan, facts: &TypedHir) -> bool {
+fn local_is_readonly(symbol: &LocalSymbol, facts: &TypedHir) -> bool {
     match symbol.kind {
         LocalSymbolKind::Parameter
         | LocalSymbolKind::Binding(BindingKind::Let)
@@ -726,7 +725,7 @@ fn local_is_readonly(symbol: &LocalSymbol, span: ByteSpan, facts: &TypedHir) -> 
         | LocalSymbolKind::CatchError
         | LocalSymbolKind::ForRange
         | LocalSymbolKind::CollectionFor
-        | LocalSymbolKind::LiteralPackFor => facts.binding_is_readonly(span) == Some(true),
+        | LocalSymbolKind::LiteralPackFor => facts.binding_is_readonly(symbol.id) == Some(true),
     }
 }
 

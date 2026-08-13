@@ -233,7 +233,7 @@ pub(in crate::analysis::hover) fn local_occurrence_hover_for_file_analysis(
     let target = symbol.name_span;
     let label = crate::analysis::presentation::local_presentation(
         symbol,
-        target_file.typed_hir.binding_type_expr(target),
+        target_file.typed_hir.binding_type_expr(symbol.id),
         &target_file.resolved,
     )
     .render();

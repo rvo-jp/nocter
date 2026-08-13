@@ -375,8 +375,7 @@ fn analyze_compile_unit_with_root_policy(
                 };
                 diagnostics.extend(checked.diagnostics);
                 let typed_hir = checked.typed_hir;
-                let lexical_scopes =
-                    lexical_scopes::LexicalScopeIndex::new(file, &resolved.semantic_db);
+                let lexical_scopes = lexical_scopes::LexicalScopeIndex::new(file, resolved);
                 let occurrences = occurrences::SemanticOccurrenceIndex::new_with_lexical_scopes(
                     file,
                     resolved,
@@ -396,7 +395,7 @@ fn analyze_compile_unit_with_root_policy(
                     &occurrences,
                     &syntax,
                 );
-                let regions = regions::collect_region_facts(file, &typed_hir);
+                let regions = regions::collect_region_facts(file, resolved, &typed_hir);
                 FileAnalysis {
                     ast: file.clone(),
                     resolved: resolved.clone(),

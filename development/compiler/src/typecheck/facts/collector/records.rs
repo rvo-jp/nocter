@@ -355,7 +355,8 @@ impl TypedHirBuilder<'_> {
         } else {
             TypecheckPayloadBindingMode::Copy
         };
-        self.facts.payload_binding_modes.insert(payload.span, mode);
+        let symbol = self.local_symbol(payload.span);
+        self.facts.payload_binding_modes.insert(symbol, mode);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_environment_binding(
@@ -377,9 +378,10 @@ impl TypedHirBuilder<'_> {
         environment: &TypeEnvironment,
     ) {
         if environment.get(name).is_some() {
+            let symbol = self.local_symbol(name_span);
             self.facts
                 .binding_readonly
-                .insert(name_span, !environment.is_mutable_binding(name));
+                .insert(symbol, !environment.is_mutable_binding(name));
         }
     }
 
@@ -390,7 +392,8 @@ impl TypedHirBuilder<'_> {
         is_mutable: bool,
     ) {
         self.record_binding_type(name_span, ty);
-        self.facts.binding_readonly.insert(name_span, !is_mutable);
+        let symbol = self.local_symbol(name_span);
+        self.facts.binding_readonly.insert(symbol, !is_mutable);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_binding_type(
@@ -398,22 +401,29 @@ impl TypedHirBuilder<'_> {
         name_span: ByteSpan,
         ty: &Type,
     ) {
+        let symbol = self.local_symbol(name_span);
         if !ty.is_unknown_or_unresolved() {
             self.facts
                 .binding_type_labels
-                .insert(name_span, type_hover_label(ty, self.resolved));
+                .insert(symbol, type_hover_label(ty, self.resolved));
         }
         let mut free_type_parameters = HashSet::new();
         if let Some(ty) =
             type_to_type_expr_allowing_parameters(ty, name_span, &mut free_type_parameters)
         {
             self.record_payload_enum_drop_type_specializations(&ty);
-            self.facts.binding_type_exprs.insert(name_span, ty);
+            self.facts.binding_type_exprs.insert(symbol, ty);
         }
         if let Some(kind) = scalar_view_kind(ty) {
-            self.facts.binding_scalar_view_kinds.insert(name_span, kind);
+            self.facts.binding_scalar_view_kinds.insert(symbol, kind);
         }
         self.record_drop_type_specialization(name_span, ty);
+    }
+
+    fn local_symbol(&self, occurrence_span: ByteSpan) -> LocalSymbolId {
+        self.resolved
+            .local_symbol_id_at_span(occurrence_span)
+            .expect("resolver omitted local binding identity")
     }
 
     pub(in crate::typecheck::facts::collector) fn record_expression_type(

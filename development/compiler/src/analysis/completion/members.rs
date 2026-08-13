@@ -19,7 +19,10 @@ pub(super) fn member_completion_items(
     };
     let can_readwrite = owner_type_is_readwrite(owner_ty)
         || (!matches!(owner_ty, TypeExpr::Borrow(_))
-            && !facts.binding_is_readonly(owner_span).unwrap_or(true));
+            && !resolved
+                .local_symbol_reference_at_offset(owner_span.start)
+                .and_then(|(_, symbol)| facts.binding_is_readonly(symbol.id))
+                .unwrap_or(true));
     let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
     if let Some(owner) = value_member_owner(resolved, owner_ty) {
         let mut items = value_member_completion_items(

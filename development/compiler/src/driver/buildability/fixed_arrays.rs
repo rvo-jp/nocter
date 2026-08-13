@@ -75,7 +75,7 @@ pub(super) fn fixed_array_literal_binding_is_buildable(
         return false;
     };
     let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, resolved, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -128,7 +128,7 @@ pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(
         return false;
     };
     let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, resolved, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -327,7 +327,7 @@ pub(super) fn fixed_array_move_binding_is_buildable(
         return false;
     };
     let Some(target_ty) =
-        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, resolved, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -349,7 +349,7 @@ pub(super) fn fixed_array_call_binding_is_buildable(
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(target_ty) =
-        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, resolved, typed_hir, generic_substitutions)
     else {
         return false;
     };
@@ -1100,7 +1100,12 @@ pub(super) fn fixed_array_binding_type_abi(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
-    let ty = binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)?;
+    let ty = binding_type_expr_with_substitutions(
+        statement,
+        resolved,
+        typed_hir,
+        generic_substitutions,
+    )?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
 }
 
@@ -1296,7 +1301,7 @@ pub(super) fn fixed_array_index_target_type_expr(
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
             typed_hir
-                .binding_type_expr(symbol.name_span)
+                .binding_type_expr(symbol.id)
                 .cloned()
                 .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
         }

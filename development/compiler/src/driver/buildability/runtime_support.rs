@@ -10,12 +10,12 @@ pub(super) fn slice_index_assignment_target_is_buildable(
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.id)? {
                 TypecheckScalarViewKind::Slice(element) => {
                     if typecheck_slice_element_kind_is_buildable(element) {
                         return Some(true);
                     }
-                    let ty = typed_hir.binding_type_expr(symbol.name_span)?;
+                    let ty = typed_hir.binding_type_expr(symbol.id)?;
                     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
                     slice_index_target_type_expr_is_buildable_for_sources(
                         &ty,
@@ -290,13 +290,13 @@ pub(super) fn slice_index_target_is_buildable(
         Expr::StringLiteral(_) => Some(true),
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.id)? {
                 TypecheckScalarViewKind::Str => Some(true),
                 TypecheckScalarViewKind::Slice(element) => {
                     if typecheck_slice_element_kind_is_buildable(element) {
                         return Some(true);
                     }
-                    let ty = typed_hir.binding_type_expr(symbol.name_span)?;
+                    let ty = typed_hir.binding_type_expr(symbol.id)?;
                     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
                     slice_index_target_type_expr_is_buildable_for_sources(
                         &ty,
@@ -372,7 +372,7 @@ pub(super) fn slice_index_assignment_element_kind(
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
-            match typed_hir.binding_scalar_view_kind(symbol.name_span)? {
+            match typed_hir.binding_scalar_view_kind(symbol.id)? {
                 TypecheckScalarViewKind::Slice(element) => Some(element),
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8

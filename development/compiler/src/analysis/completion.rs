@@ -282,7 +282,7 @@ pub(crate) fn completion_items_for_text_at_offset(
         return Some(items);
     }
 
-    let mut items = local_completion_items(&parsed.ast, &facts, offset);
+    let mut items = local_completion_items(&parsed.ast, &resolved, &facts, offset);
     let local_names = items
         .iter()
         .map(|item| item.label.clone())
@@ -886,6 +886,7 @@ fn completion_items_for_resolved_symbols_excluding(
 
 fn local_completion_items(
     ast: &AstFile,
+    resolved: &ResolveOutput,
     facts: &TypedHir,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
@@ -894,6 +895,9 @@ fn local_completion_items(
         .map(|binding| {
             completion_item_for_local(
                 super::lexical_scopes::VisibleLocalBinding {
+                    symbol: resolved
+                        .local_symbol_id_at_name_span(binding.name_span)
+                        .expect("resolver omitted recovery local declaration"),
                     name: binding.name,
                     name_span: binding.name_span,
                     kind: binding.kind,
@@ -918,7 +922,7 @@ fn completion_item_for_local(
 ) -> CompletionItemInfo {
     let name = binding.name;
     let detail = facts
-        .binding_type_label(binding.name_span)
+        .binding_type_label(binding.symbol)
         .map(|ty| format!("{} {name}: {ty}", binding.kind))
         .unwrap_or_else(|| format!("{} {name}", binding.kind));
     CompletionItemInfo {
@@ -1170,11 +1174,12 @@ fn region_allocator_completion_items(
     facts: &TypedHir,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    local_completion_items(ast, facts, offset)
+    local_completion_items(ast, resolved, facts, offset)
         .into_iter()
         .filter(|item| {
             item.declaration_span
-                .and_then(|span| facts.binding_type_expr(span))
+                .and_then(|span| resolved.local_symbol_id_at_name_span(span))
+                .and_then(|symbol| facts.binding_type_expr(symbol))
                 .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, resolved))
         })
         .collect()
@@ -1188,7 +1193,8 @@ fn region_allocator_completion_items_for_file(
         .into_iter()
         .filter(|item| {
             item.declaration_span
-                .and_then(|span| file.typed_hir.binding_type_expr(span))
+                .and_then(|span| file.resolved.local_symbol_id_at_name_span(span))
+                .and_then(|symbol| file.typed_hir.binding_type_expr(symbol))
                 .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, &file.resolved))
         })
         .collect()

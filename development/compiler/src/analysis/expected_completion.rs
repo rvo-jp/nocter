@@ -35,7 +35,7 @@ pub(super) fn compatible_local_spans_at_offset(
         .visible_locals(&file.resolved.semantic_db, file.ast.span.source, offset)
         .into_iter()
         .filter_map(|binding| {
-            let actual = file.typed_hir.binding_type_expr(binding.name_span)?;
+            let actual = file.typed_hir.binding_type_expr(binding.symbol)?;
             (type_expr_is_assignable(&expected, actual, &file.resolved)
                 || completion_type_key(&expected) == completion_type_key(actual))
             .then_some(binding.name_span)

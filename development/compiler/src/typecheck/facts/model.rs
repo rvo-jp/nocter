@@ -6,8 +6,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub(crate) struct TypedHir {
     expressions: crate::typecheck::typed_hir::TypedExpressionArena,
-    pub(super) binding_type_labels: HashMap<ByteSpan, String>,
-    pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
+    pub(super) binding_type_labels: HashMap<LocalSymbolId, String>,
+    pub(super) binding_type_exprs: HashMap<LocalSymbolId, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) comparison_plans: HashMap<ByteSpan, TypecheckComparisonPlan>,
     pub(super) index_plans: HashMap<ByteSpan, TypecheckIndexPlan>,
@@ -15,9 +15,9 @@ pub(crate) struct TypedHir {
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
     pub(super) conversion_plans: HashMap<ByteSpan, TypecheckConversionPlan>,
-    pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
-    pub(super) binding_readonly: HashMap<ByteSpan, bool>,
-    pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
+    pub(super) binding_scalar_view_kinds: HashMap<LocalSymbolId, TypecheckScalarViewKind>,
+    pub(super) binding_readonly: HashMap<LocalSymbolId, bool>,
+    pub(super) payload_binding_modes: HashMap<LocalSymbolId, TypecheckPayloadBindingMode>,
     pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
     pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
     pub(super) field_targets: HashMap<ByteSpan, crate::semantic::DefId>,
@@ -92,24 +92,28 @@ impl TypedHir {
         self.expressions.expression(expression)
     }
 
-    pub(crate) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
-        self.binding_type_labels.get(&name_span).map(String::as_str)
+    pub(crate) fn binding_type_label(&self, symbol: LocalSymbolId) -> Option<&str> {
+        self.binding_type_labels.get(&symbol).map(String::as_str)
     }
 
-    pub(crate) fn binding_type_label_entries(&self) -> impl Iterator<Item = (ByteSpan, &str)> + '_ {
+    pub(crate) fn binding_type_label_entries(
+        &self,
+    ) -> impl Iterator<Item = (LocalSymbolId, &str)> + '_ {
         self.binding_type_labels
             .iter()
-            .map(|(span, label)| (*span, label.as_str()))
+            .map(|(symbol, label)| (*symbol, label.as_str()))
     }
 
-    pub(crate) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<&TypeExpr> {
-        self.binding_type_exprs.get(&name_span)
+    pub(crate) fn binding_type_expr(&self, symbol: LocalSymbolId) -> Option<&TypeExpr> {
+        self.binding_type_exprs.get(&symbol)
     }
 
     pub(crate) fn binding_type_expr_entries(
         &self,
-    ) -> impl Iterator<Item = (ByteSpan, &TypeExpr)> + '_ {
-        self.binding_type_exprs.iter().map(|(span, ty)| (*span, ty))
+    ) -> impl Iterator<Item = (LocalSymbolId, &TypeExpr)> + '_ {
+        self.binding_type_exprs
+            .iter()
+            .map(|(symbol, ty)| (*symbol, ty))
     }
 
     pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
@@ -224,20 +228,20 @@ impl TypedHir {
 
     pub(crate) fn binding_scalar_view_kind(
         &self,
-        name_span: ByteSpan,
+        symbol: LocalSymbolId,
     ) -> Option<TypecheckScalarViewKind> {
-        self.binding_scalar_view_kinds.get(&name_span).copied()
+        self.binding_scalar_view_kinds.get(&symbol).copied()
     }
 
-    pub(crate) fn binding_is_readonly(&self, name_span: ByteSpan) -> Option<bool> {
-        self.binding_readonly.get(&name_span).copied()
+    pub(crate) fn binding_is_readonly(&self, symbol: LocalSymbolId) -> Option<bool> {
+        self.binding_readonly.get(&symbol).copied()
     }
 
     pub(crate) fn payload_binding_mode(
         &self,
-        name_span: ByteSpan,
+        symbol: LocalSymbolId,
     ) -> Option<TypecheckPayloadBindingMode> {
-        self.payload_binding_modes.get(&name_span).copied()
+        self.payload_binding_modes.get(&symbol).copied()
     }
 
     pub(crate) fn type_occurrences(&self) -> impl Iterator<Item = &TypeOccurrenceFact> + '_ {

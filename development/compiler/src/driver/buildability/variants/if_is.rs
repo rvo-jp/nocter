@@ -121,11 +121,14 @@ pub(in crate::driver::buildability) fn payload_binding_is_buildable(
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some(ty) = typed_hir.binding_type_expr(binding.span) else {
+    let Some(symbol) = resolved.local_symbol_id_at_name_span(binding.span) else {
+        return false;
+    };
+    let Some(ty) = typed_hir.binding_type_expr(symbol) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    match typed_hir.payload_binding_mode(binding.span) {
+    match typed_hir.payload_binding_mode(symbol) {
         Some(TypecheckPayloadBindingMode::Move) => {
             payload_move_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
         }

@@ -163,10 +163,7 @@ impl<'a> LoweringContext<'a> {
         let symbol = resolution
             .resolved
             .local_symbol_for_identifier(identifier)?;
-        let ty = resolution
-            .typed_hir
-            .binding_type_expr(symbol.name_span)?
-            .clone();
+        let ty = resolution.typed_hir.binding_type_expr(symbol.id)?.clone();
         Some(substitute_type_expr_parameters(
             &ty,
             &self.generic_substitutions,
@@ -175,7 +172,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(in crate::ir::lower) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<TypeExpr> {
         let resolution = self.call_resolution.as_ref()?;
-        let ty = resolution.typed_hir.binding_type_expr(name_span)?.clone();
+        let symbol = resolution
+            .resolved
+            .local_symbol_id_at_name_span(name_span)?;
+        let ty = resolution.typed_hir.binding_type_expr(symbol)?.clone();
         Some(substitute_type_expr_parameters(
             &ty,
             &self.generic_substitutions,
@@ -186,10 +186,11 @@ impl<'a> LoweringContext<'a> {
         &self,
         name_span: ByteSpan,
     ) -> Option<TypecheckPayloadBindingMode> {
-        self.call_resolution
-            .as_ref()?
-            .typed_hir
-            .payload_binding_mode(name_span)
+        let resolution = self.call_resolution.as_ref()?;
+        let symbol = resolution
+            .resolved
+            .local_symbol_id_at_name_span(name_span)?;
+        resolution.typed_hir.payload_binding_mode(symbol)
     }
 
     pub(in crate::ir::lower) fn expression_type_expr(
@@ -531,10 +532,11 @@ impl<'a> LoweringContext<'a> {
         &self,
         name_span: ByteSpan,
     ) -> Option<TypecheckScalarViewKind> {
-        self.call_resolution
-            .as_ref()?
-            .typed_hir
-            .binding_scalar_view_kind(name_span)
+        let resolution = self.call_resolution.as_ref()?;
+        let symbol = resolution
+            .resolved
+            .local_symbol_id_at_name_span(name_span)?;
+        resolution.typed_hir.binding_scalar_view_kind(symbol)
     }
 
     pub(in crate::ir::lower) fn method_call_receiver<'b>(

@@ -7,10 +7,12 @@ pub(in crate::driver::buildability) fn binding_initializer_may_use_value_control
     typed_hir: &TypedHir,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let ty = statement
-        .ty
-        .clone()
-        .or_else(|| typed_hir.binding_type_expr(statement.name_span).cloned());
+    let ty = statement.ty.clone().or_else(|| {
+        resolved
+            .local_symbol_id_at_name_span(statement.name_span)
+            .and_then(|symbol| typed_hir.binding_type_expr(symbol))
+            .cloned()
+    });
     let Some(ty) = ty else {
         return false;
     };
@@ -31,7 +33,7 @@ pub(in crate::driver::buildability) fn assignment_value_may_use_value_control_ex
                 return false;
             };
             typed_hir
-                .binding_type_expr(symbol.name_span)
+                .binding_type_expr(symbol.id)
                 .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
                 .is_some_and(|ty| {
                     type_expr_is_buildable_scalar_or_view_for_sources(

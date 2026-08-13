@@ -310,8 +310,22 @@ func main(): i32 {
         panic!("expected first binding");
     };
 
-    assert_eq!(facts.binding_type_label(bytes.name_span), Some("Iter<u8>"));
-    assert_eq!(facts.binding_type_label(first.name_span), Some("&u8"));
+    assert_eq!(
+        facts.binding_type_label(
+            resolved
+                .local_symbol_id_at_name_span(bytes.name_span)
+                .unwrap()
+        ),
+        Some("Iter<u8>")
+    );
+    assert_eq!(
+        facts.binding_type_label(
+            resolved
+                .local_symbol_id_at_name_span(first.name_span)
+                .unwrap()
+        ),
+        Some("&u8")
+    );
 }
 
 #[test]
@@ -516,7 +530,8 @@ fn records_binding_type_expr_facts_for_generic_parameters() {
     let start = text.find("inferred").expect("expected binding name");
     let span = ByteSpan::new(ast.span.source, start, start + "inferred".len());
 
-    let Some(TypeExpr::Reference(reference)) = facts.binding_type_expr(span) else {
+    let symbol = resolved.local_symbol_id_at_name_span(span).unwrap();
+    let Some(TypeExpr::Reference(reference)) = facts.binding_type_expr(symbol) else {
         panic!("expected inferred binding type expr for generic parameter");
     };
     assert_eq!(reference.name, "T");
@@ -546,11 +561,11 @@ func inspect(result: Result): i32 {
     let detail_span = identifier_span(&ast, text, "detail) { return", "detail");
 
     assert_eq!(
-        facts.payload_binding_mode(code_span),
+        facts.payload_binding_mode(resolved.local_symbol_id_at_name_span(code_span).unwrap()),
         Some(TypecheckPayloadBindingMode::Copy)
     );
     assert_eq!(
-        facts.payload_binding_mode(detail_span),
+        facts.payload_binding_mode(resolved.local_symbol_id_at_name_span(detail_span).unwrap()),
         Some(TypecheckPayloadBindingMode::Move)
     );
 }

@@ -1,12 +1,14 @@
 //! Analysis-time index of lexical local and block-import visibility.
 
 use crate::ast::{AstFile, Block, ConformanceMember, Expr, InterpolatedStringPart, Item, Stmt};
+use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::semantic::{BodyId, SemanticDb};
 use crate::source::ByteSpan;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct VisibleLocalBinding {
+    pub(super) symbol: LocalSymbolId,
     pub(super) name: String,
     pub(super) name_span: ByteSpan,
     pub(super) kind: &'static str,
@@ -34,9 +36,9 @@ pub(crate) struct LexicalScopeIndex {
 }
 
 impl LexicalScopeIndex {
-    pub(crate) fn new(ast: &AstFile, semantic_db: &SemanticDb) -> Self {
+    pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput) -> Self {
         let mut builder = Builder {
-            semantic_db,
+            resolved,
             index: Self::default(),
         };
         builder.collect_file(ast);
@@ -87,7 +89,7 @@ impl LexicalScopeIndex {
 }
 
 struct Builder<'a> {
-    semantic_db: &'a SemanticDb,
+    resolved: &'a ResolveOutput,
     index: LexicalScopeIndex,
 }
 
@@ -473,7 +475,8 @@ impl Builder<'_> {
     }
 
     fn body_id(&self, location: ByteSpan) -> BodyId {
-        self.semantic_db
+        self.resolved
+            .semantic_db
             .body_at(location)
             .unwrap_or_else(|| panic!("semantic database omitted lexical body at {location:?}"))
     }
@@ -514,6 +517,10 @@ impl Builder<'_> {
             visible,
             start_is_exclusive,
             binding: VisibleLocalBinding {
+                symbol: self
+                    .resolved
+                    .local_symbol_id_at_name_span(name_span)
+                    .expect("resolver omitted lexical local declaration"),
                 name: name.to_string(),
                 name_span,
                 kind,

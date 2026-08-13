@@ -36,7 +36,8 @@ use crate::ast::{
 };
 use crate::integer::IntegerType;
 use crate::resolve::{
-    FunctionSignature, MethodSignature, ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind,
+    FunctionSignature, LocalSymbolId, MethodSignature, ResolveOutput, SymbolKind, TypeSymbol,
+    TypeSymbolKind,
 };
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};

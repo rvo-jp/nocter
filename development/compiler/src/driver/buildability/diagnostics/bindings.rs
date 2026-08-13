@@ -107,7 +107,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
     }
 
     if let Some(ty) =
-        binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions)
+        binding_type_expr_with_substitutions(statement, resolved, typed_hir, generic_substitutions)
     {
         let source_resolver = |source| resolved_sources.get(&source).copied();
         if type_expr_is_top_level_optional_with_resolver(&ty, resolved, &source_resolver)
@@ -143,15 +143,15 @@ pub(in crate::driver::buildability) fn local_binding_type_is_buildable(
             || local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources);
     }
 
-    if typed_hir
-        .binding_scalar_view_kind(statement.name_span)
-        .is_some()
-    {
+    let symbol = resolved
+        .local_symbol_id_at_name_span(statement.name_span)
+        .expect("resolver omitted local binding");
+    if typed_hir.binding_scalar_view_kind(symbol).is_some() {
         return true;
     }
 
     typed_hir
-        .binding_type_expr(statement.name_span)
+        .binding_type_expr(symbol)
         .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
         .is_none_or(|ty| {
             type_expr_contains_unresolved_type_parameter(&ty, resolved, resolved_sources)

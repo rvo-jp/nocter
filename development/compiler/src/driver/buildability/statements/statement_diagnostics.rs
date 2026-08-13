@@ -88,8 +88,12 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typed_hir,
                 generic_substitutions,
             );
-            let binding_type_expr =
-                binding_type_expr_with_substitutions(statement, typed_hir, generic_substitutions);
+            let binding_type_expr = binding_type_expr_with_substitutions(
+                statement,
+                resolved,
+                typed_hir,
+                generic_substitutions,
+            );
             let binding_fixed_array_type = binding_type_expr.as_ref().and_then(|ty| {
                 fixed_array_type_abi_for_sources(ty, resolved, resolved_sources).map(|_| ty)
             });
@@ -518,7 +522,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             }
         }
         Stmt::ForRange(statement) => {
-            if !range_for_binding_type_is_buildable(statement, typed_hir) {
+            if !range_for_binding_type_is_buildable(statement, resolved, typed_hir) {
                 diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.range_span,

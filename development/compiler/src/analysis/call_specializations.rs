@@ -471,7 +471,14 @@ fn enqueue_call_specializations_from_span(
     context_substitutions: &HashMap<String, TypeExpr>,
     queue: &mut VecDeque<PendingCallSpecialization>,
 ) {
-    for (binding_span, ty) in file.typed_hir.binding_type_expr_entries() {
+    for (binding, ty) in file.typed_hir.binding_type_expr_entries() {
+        let Some(binding_span) = file
+            .resolved
+            .local_symbol(binding)
+            .map(|symbol| symbol.name_span)
+        else {
+            continue;
+        };
         if !span_contains(span, binding_span) {
             continue;
         }

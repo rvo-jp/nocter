@@ -29,6 +29,11 @@ pub(crate) fn inlay_hints_for_file_analysis(
     let mut hints = file
         .typed_hir
         .binding_type_label_entries()
+        .filter_map(|(symbol, label)| {
+            file.resolved
+                .local_symbol(symbol)
+                .map(|symbol| (symbol.name_span, label))
+        })
         .filter(|(span, _)| span.source == file.ast.span.source)
         .filter(|(span, _)| requested.contains(&span.end))
         .filter(|(span, _)| !has_explicit_type_annotation(text, *span))

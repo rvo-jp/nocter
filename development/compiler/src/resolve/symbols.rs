@@ -40,6 +40,7 @@ pub struct ResolveOutput {
     pub(super) call_targets: HashMap<ByteSpan, SymbolId>,
     pub(super) typed_literal_targets: HashMap<ByteSpan, LiteralResolution>,
     pub(super) local_symbols: Vec<LocalSymbol>,
+    pub(super) local_symbols_by_name_span: HashMap<ByteSpan, LocalSymbolId>,
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
     pub(super) builtin_type_identifier_targets: HashMap<ByteSpan, BuiltinTypeOwner>,
     pub(super) builtin_type_surfaces: HashMap<BuiltinTypeOwner, BuiltinTypeSurface>,
@@ -149,6 +150,18 @@ impl ResolveOutput {
 
     pub fn local_symbol(&self, id: LocalSymbolId) -> Option<&LocalSymbol> {
         self.local_symbols.get(id.raw() as usize)
+    }
+
+    pub(crate) fn local_symbol_id_at_name_span(
+        &self,
+        name_span: ByteSpan,
+    ) -> Option<LocalSymbolId> {
+        self.local_symbols_by_name_span.get(&name_span).copied()
+    }
+
+    pub(crate) fn local_symbol_id_at_span(&self, span: ByteSpan) -> Option<LocalSymbolId> {
+        self.local_symbol_id_at_name_span(span)
+            .or_else(|| self.local_identifier_targets.get(&span).copied())
     }
 
     pub fn local_symbols(&self) -> impl Iterator<Item = &LocalSymbol> {
@@ -439,6 +452,7 @@ impl ResolveOutput {
             call_targets: HashMap::new(),
             typed_literal_targets: HashMap::new(),
             local_symbols: Vec::new(),
+            local_symbols_by_name_span: HashMap::new(),
             local_identifier_targets: HashMap::new(),
             builtin_type_identifier_targets: HashMap::new(),
             builtin_type_surfaces: HashMap::new(),
@@ -479,6 +493,8 @@ impl ResolveOutput {
             name_span,
             kind,
         });
+        let previous = self.local_symbols_by_name_span.insert(name_span, id);
+        debug_assert!(previous.is_none(), "duplicate local declaration span");
         id
     }
 }
