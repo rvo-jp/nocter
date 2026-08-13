@@ -27,6 +27,7 @@ Different domains are not interchangeable.
 | `DefId` | declaration kind, owner, visibility, source anchor | source slicing or display text |
 | `BodyId` | owning `DefId`, source body, parameters, root expression/block | callable naming |
 | `ExprId` | owning body and typed expression node | cross-generation edit identity |
+| `OpaqueTypeId` | one authored anonymous `some Interface` result | named-declaration lookup |
 | `TyId` | interned normalized semantic type | source spelling |
 
 `RequirementId`, `IntrinsicId`, and `MonoItemId` are planned domains. They are not introduced as
@@ -54,6 +55,25 @@ TypedHir
   types:             TyId -> normalized TypeExpr
   compatibility facts keyed by source location (Phase 2/3 removal boundary)
 ```
+
+## Editor Projection
+
+Editor services consume two retained projections built during compile-unit analysis:
+
+- `SemanticOccurrenceIndex` maps source occurrences to `DefId` or `LocalSymbolId`, their role, and
+  contextual checked type.
+- `EditorSyntaxIndex` retains syntax-only cursor sites such as calls, literals, interpolation,
+  module paths, import selectors, documentation attachment, and callable source snapshots.
+
+Resolver surfaces have a separate `DefId`-keyed declaration index. A field, variant, method,
+literal, or coercion is selected by ID first; its owner and source presentation are returned from
+that index. Editor code does not scan every type and compare member spans. Call-specialization
+closure is a lazy compile-unit fact shared by buildability and lowering rather than recomputed by
+each consumer.
+
+Phase 2 is not complete while successful-source completion still walks AST scopes at request time.
+Those contexts move into a dedicated completion syntax/scope index before control-flow MIR work
+begins.
 
 The database is passed as one immutable semantic context after construction. Phase-specific mutable
 builders may allocate records, but completed passes do not receive writable access to earlier

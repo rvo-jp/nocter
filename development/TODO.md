@@ -2,12 +2,14 @@
 
 ## Current Task
 
-v0.14.0 Phase 0 and Phase 1 are complete. Phase 2 is next: migrate hover, completion, navigation,
-semantic tokens, signature help, and edit planning from compatibility span tables onto the shared
-syntax index plus checker-owned partial typed HIR. Do not start MIR, language features, or
-standard-library APIs during Phase 2. Remove each successful-language AST walker and its old fact
-authority as the corresponding editor query moves; recovery may degrade only when no semantic
-identity exists. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
+v0.14.0 Phase 0 and Phase 1 are complete. Phase 2 is in progress. Navigation, hover, signature
+help, semantic tokens, literal/interpolation/region queries, resolver member projection, and
+compile-unit specialization now use retained semantic or syntax indexes. The next boundary is a
+dedicated completion syntax/scope index: migrate member gaps, enum patterns, struct fields, result
+provenance clauses, `where` predicates, instance operator slots, visible locals, and scoped imports,
+then delete their successful-source AST walkers. Incomplete-source recovery remains explicitly
+separate. Do not start MIR, language features, or standard-library APIs before the Phase 2 matrix
+passes. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
 ## Completed v0.14.0 Phase 1 Typed HIR Checkpoint
 
