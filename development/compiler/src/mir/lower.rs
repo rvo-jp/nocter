@@ -14,13 +14,13 @@ use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
 mod body_builder;
+mod context;
 mod coverage;
 mod expressions;
 mod projections;
 mod statements;
-use body_builder::ControlFlowBuilder;
+use context::LoweringContext;
 use coverage::*;
-use expressions::{lower_call, lower_conditional_to_place, lower_expression_to_place};
 use statements::StatementLowerer;
 
 #[derive(Debug, Clone, Copy)]
@@ -124,7 +124,6 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             .ok_or(BuildError::MissingSourceBody)?;
         let return_local = LocalId::from_index(0);
         let root_scope = ScopeId::from_index(0);
-        let mut scopes = vec![Scope::root(block.span)];
         let mut locals = vec![Local::scalar(
             return_ty,
             return_scalar,
@@ -172,89 +171,71 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             );
             locals_by_symbol.insert(symbol, local);
         }
-        let mut projections = Vec::new();
-        let mut control_flow = ControlFlowBuilder::new(root_scope);
-        let mut loop_regions = Vec::new();
-        StatementLowerer::new(
+        let mut context = LoweringContext::new(
             semantic,
-            &mut locals,
-            &mut locals_by_symbol,
-            &mut projections,
-            &mut control_flow,
-            &mut loop_regions,
-            &mut scopes,
-        )
-        .lower(&source_statements, root_scope)?;
+            locals,
+            locals_by_symbol,
+            root_scope,
+            Scope::root(block.span),
+        );
+        StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
-            lower_conditional_to_place(
+            expressions::lower_conditional_to_place(
+                &mut context,
                 return_local,
                 if_,
                 return_ty,
                 return_scalar,
-                semantic,
-                &locals_by_symbol,
-                &mut locals,
-                &mut projections,
-                &mut control_flow,
-                &mut scopes,
                 root_scope,
             )?;
-            control_flow.terminate(Terminator::Return)?;
+            context.control_flow.terminate(Terminator::Return)?;
         } else if let Some(Expr::Call(call)) = tail.expression() {
             let source = inputs
                 .typed_hir
                 .expression(call.span)
                 .ok_or(BuildError::MissingTypedExpression)?
                 .id;
-            let (callee, arguments, returns_never) = lower_call(
-                call,
-                semantic,
-                &locals_by_symbol,
-                &mut locals,
-                &mut projections,
-                &mut control_flow,
-                &mut scopes,
-                root_scope,
-            )?;
+            let (callee, arguments, returns_never) = context.lower_call(call, root_scope)?;
             if returns_never {
-                control_flow.emit_never_call(source, callee, arguments)?;
+                context
+                    .control_flow
+                    .emit_never_call(source, callee, arguments)?;
             } else {
-                control_flow.emit_returning_call(source, callee, arguments, return_local)?;
-                control_flow.terminate(Terminator::Return)?;
+                context.control_flow.emit_returning_call(
+                    source,
+                    callee,
+                    arguments,
+                    return_local,
+                )?;
+                context.control_flow.terminate(Terminator::Return)?;
             }
         } else {
             let expression = tail
                 .expression()
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            lower_expression_to_place(
+            context.lower_expression_to_place(
                 return_local,
                 expression,
                 return_ty,
                 return_scalar,
-                semantic,
-                &locals_by_symbol,
-                &mut locals,
-                &mut projections,
-                &mut control_flow,
-                &mut scopes,
                 root_scope,
             )?;
-            control_flow.terminate(Terminator::Return)?;
+            context.control_flow.terminate(Terminator::Return)?;
         }
-        let blocks = control_flow.finish()?;
+        let parts = context.finish()?;
         let body = Body {
             source_body,
             source_span: block.span,
             return_local,
             return_mode,
             root_scope,
-            scopes,
-            locals,
+            scopes: parts.scopes,
+            locals: parts.locals,
             entry: BasicBlockId::from_index(0),
-            blocks,
-            loop_regions,
+            blocks: parts.blocks,
+            loop_regions: parts.loop_regions,
             loans: Vec::new(),
-            projections,
+            projections: parts.projections,
         };
         super::finalize(body).map_err(BuildError::InvalidMir)
     })())

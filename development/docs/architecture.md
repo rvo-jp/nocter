@@ -172,6 +172,9 @@ buildability is MIR validation rather than a parallel AST model.
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.
 - MIR builders produce a construction-only body and pass it through one `finalize` boundary.
+  A single `LoweringContext` owns all mutable construction state; nested statement, expression,
+  conditional, and outcome builders cannot substitute independent local, projection, scope, or CFG
+  collections.
   Finalization validates definite initialization, materializes cleanup edges, and validates the
   completed representation before it can enter the compile-unit cache.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.

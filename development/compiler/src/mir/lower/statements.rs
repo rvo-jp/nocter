@@ -1,19 +1,17 @@
 //! Scalar statement and natural-loop CFG construction.
 
-use super::body_builder::ControlFlowBuilder;
+use super::BuildError;
+use super::context::LoweringContext;
 use super::coverage::{
     ScalarStatement, binding_scalar_type, known_expression_type, scalar_linear_block_statements,
     scalar_loop_block_statements,
 };
-use super::expressions::{lower_expression_to_place, lower_operand, mir_assignment_operator};
-use super::{BuildError, SemanticInputs};
+use super::expressions::mir_assignment_operator;
 use crate::ast::Expr;
 use crate::mir::{
     BinaryOperator, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand, Origin, Place,
-    Rvalue, ScalarType, Scope, ScopeId, Statement, Terminator,
+    Rvalue, ScalarType, ScopeId, Statement, Terminator,
 };
-use crate::resolve::LocalSymbolId;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
 struct LoopTargets {
@@ -21,35 +19,13 @@ struct LoopTargets {
     continue_target: crate::mir::BasicBlockId,
 }
 
-pub(super) struct StatementLowerer<'a> {
-    semantic: SemanticInputs<'a>,
-    locals: &'a mut Vec<crate::mir::Local>,
-    locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
-    projections: &'a mut Vec<crate::mir::ProjectionPath>,
-    control_flow: &'a mut ControlFlowBuilder,
-    loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
-    scopes: &'a mut Vec<Scope>,
+pub(super) struct StatementLowerer<'context, 'semantic> {
+    context: &'context mut LoweringContext<'semantic>,
 }
 
-impl<'a> StatementLowerer<'a> {
-    pub(super) fn new(
-        semantic: SemanticInputs<'a>,
-        locals: &'a mut Vec<crate::mir::Local>,
-        locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
-        projections: &'a mut Vec<crate::mir::ProjectionPath>,
-        control_flow: &'a mut ControlFlowBuilder,
-        loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
-        scopes: &'a mut Vec<Scope>,
-    ) -> Self {
-        Self {
-            semantic,
-            locals,
-            locals_by_symbol,
-            projections,
-            control_flow,
-            loop_regions,
-            scopes,
-        }
+impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
+    pub(super) fn new(context: &'context mut LoweringContext<'semantic>) -> Self {
+        Self { context }
     }
 
     pub(super) fn lower(
@@ -73,27 +49,29 @@ impl<'a> StatementLowerer<'a> {
             let exits_block = match *statement {
                 ScalarStatement::Binding(binding) => {
                     let symbol = self
+                        .context
                         .semantic
                         .resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
                     let ty = self
+                        .context
                         .semantic
                         .typed_hir
                         .binding_type_expr(symbol)
-                        .and_then(|ty| self.semantic.typed_hir.type_id(ty))
+                        .and_then(|ty| self.context.semantic.typed_hir.type_id(ty))
                         .ok_or(BuildError::MissingTypedExpression)?;
-                    let scalar = binding_scalar_type(symbol, self.semantic.typed_hir)
+                    let scalar = binding_scalar_type(symbol, self.context.semantic.typed_hir)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    let local = LocalId::from_index(self.locals.len());
-                    self.locals.push(crate::mir::locals::Local::scalar(
+                    let local = LocalId::from_index(self.context.locals.len());
+                    self.context.locals.push(crate::mir::locals::Local::scalar(
                         ty,
                         scalar,
                         LocalStorage::Local,
                         LocalOrigin::Binding(symbol),
                         scope,
                     ));
-                    self.locals_by_symbol.insert(symbol, local);
+                    self.context.locals_by_symbol.insert(symbol, local);
                     self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
                     false
                 }
@@ -102,16 +80,18 @@ impl<'a> StatementLowerer<'a> {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     };
                     let symbol = self
+                        .context
                         .semantic
                         .resolved
                         .local_symbol_for_identifier(identifier)
                         .map(|symbol| symbol.id)
                         .ok_or(BuildError::MissingLocalSymbol)?;
                     let local = *self
+                        .context
                         .locals_by_symbol
                         .get(&symbol)
                         .ok_or(BuildError::MissingLocalSymbol)?;
-                    let declaration = &self.locals[local.index()];
+                    let declaration = &self.context.locals[local.index()];
                     let ty = declaration.ty;
                     let scalar = declaration
                         .scalar_type()
@@ -121,28 +101,21 @@ impl<'a> StatementLowerer<'a> {
                     } else {
                         let operator = mir_assignment_operator(assignment.operator)
                             .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                        let right = lower_operand(
-                            &assignment.value,
-                            ty,
-                            scalar,
-                            self.semantic,
-                            self.locals_by_symbol,
-                            self.locals,
-                            self.projections,
-                            self.control_flow,
-                            self.scopes,
-                            scope,
-                        )?;
-                        self.control_flow.push_statement(Statement::Assign {
-                            destination: Place::local(local),
-                            value: Rvalue::Binary {
-                                operator,
-                                left: Operand::Copy(Place::local(local)),
-                                right,
-                                ty,
-                            },
-                            origin: Origin::Desugared(assignment.operator_span),
-                        })?;
+                        let right =
+                            self.context
+                                .lower_operand(&assignment.value, ty, scalar, scope)?;
+                        self.context
+                            .control_flow
+                            .push_statement(Statement::Assign {
+                                destination: Place::local(local),
+                                value: Rvalue::Binary {
+                                    operator,
+                                    left: Operand::Copy(Place::local(local)),
+                                    right,
+                                    ty,
+                                },
+                                origin: Origin::Desugared(assignment.operator_span),
+                            })?;
                     }
                     false
                 }
@@ -161,14 +134,14 @@ impl<'a> StatementLowerer<'a> {
                 }
                 ScalarStatement::Break => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    self.control_flow.terminate(Terminator::Goto {
+                    self.context.control_flow.terminate(Terminator::Goto {
                         target: targets.break_target,
                     })?;
                     true
                 }
                 ScalarStatement::Continue => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    self.control_flow.terminate(Terminator::Goto {
+                    self.context.control_flow.terminate(Terminator::Goto {
                         target: targets.continue_target,
                     })?;
                     true
@@ -189,19 +162,8 @@ impl<'a> StatementLowerer<'a> {
         scalar: ScalarType,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        lower_expression_to_place(
-            destination,
-            expression,
-            ty,
-            scalar,
-            self.semantic,
-            self.locals_by_symbol,
-            self.locals,
-            self.projections,
-            self.control_flow,
-            self.scopes,
-            scope,
-        )
+        self.context
+            .lower_expression_to_place(destination, expression, ty, scalar, scope)
     }
 
     fn lower_while(
@@ -209,36 +171,31 @@ impl<'a> StatementLowerer<'a> {
         statement: &crate::ast::WhileStmt,
         parent_scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let body_scope = self.child_scope(parent_scope, statement.body.span);
-        let condition_target = self.control_flow.reserve_block(parent_scope);
-        let body_target = self.control_flow.reserve_block(body_scope);
-        let exit_target = self.control_flow.reserve_block(parent_scope);
-        self.control_flow.terminate(Terminator::Goto {
+        let body_scope = self.context.child_scope(parent_scope, statement.body.span);
+        let condition_target = self.context.control_flow.reserve_block(parent_scope);
+        let body_target = self.context.control_flow.reserve_block(body_scope);
+        let exit_target = self.context.control_flow.reserve_block(parent_scope);
+        self.context.control_flow.terminate(Terminator::Goto {
             target: condition_target,
         })?;
 
-        self.control_flow.select_block(condition_target)?;
-        let condition_ty = known_expression_type(&statement.condition, self.semantic.typed_hir)
-            .ok_or(BuildError::MissingTypedExpression)?;
-        let condition = lower_operand(
+        self.context.control_flow.select_block(condition_target)?;
+        let condition_ty =
+            known_expression_type(&statement.condition, self.context.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+        let condition = self.context.lower_operand(
             &statement.condition,
             condition_ty,
             ScalarType::Bool,
-            self.semantic,
-            self.locals_by_symbol,
-            self.locals,
-            self.projections,
-            self.control_flow,
-            self.scopes,
             parent_scope,
         )?;
-        let condition_block = self.control_flow.current_block()?;
-        self.control_flow.terminate(Terminator::Switch {
+        let condition_block = self.context.control_flow.current_block()?;
+        self.context.control_flow.terminate(Terminator::Switch {
             condition,
             then_target: body_target,
             else_target: exit_target,
         })?;
-        self.loop_regions.push(crate::mir::LoopRegion {
+        self.context.loop_regions.push(crate::mir::LoopRegion {
             header: condition_target,
             condition: condition_block,
             body: body_target,
@@ -246,12 +203,12 @@ impl<'a> StatementLowerer<'a> {
             exit: exit_target,
         });
 
-        self.control_flow.select_block(body_target)?;
+        self.context.control_flow.select_block(body_target)?;
         let body_statements = scalar_loop_block_statements(
             &statement.body,
-            self.semantic.resolved,
-            self.semantic.resolved_sources,
-            self.semantic.typed_hir,
+            self.context.semantic.resolved,
+            self.context.semantic.resolved_sources,
+            self.context.semantic.typed_hir,
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
@@ -263,11 +220,11 @@ impl<'a> StatementLowerer<'a> {
             body_scope,
         )?;
         if !exits_body {
-            self.control_flow.terminate(Terminator::Goto {
+            self.context.control_flow.terminate(Terminator::Goto {
                 target: condition_target,
             })?;
         }
-        self.control_flow.select_block(exit_target)
+        self.context.control_flow.select_block(exit_target)
     }
 
     fn lower_if(
@@ -276,61 +233,58 @@ impl<'a> StatementLowerer<'a> {
         loop_targets: Option<LoopTargets>,
         parent_scope: ScopeId,
     ) -> Result<bool, BuildError> {
-        let condition_ty = known_expression_type(&statement.condition, self.semantic.typed_hir)
-            .ok_or(BuildError::MissingTypedExpression)?;
-        let condition = lower_operand(
+        let condition_ty =
+            known_expression_type(&statement.condition, self.context.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+        let condition = self.context.lower_operand(
             &statement.condition,
             condition_ty,
             ScalarType::Bool,
-            self.semantic,
-            self.locals_by_symbol,
-            self.locals,
-            self.projections,
-            self.control_flow,
-            self.scopes,
             parent_scope,
         )?;
-        let then_scope = self.child_scope(parent_scope, statement.then_block.span);
+        let then_scope = self
+            .context
+            .child_scope(parent_scope, statement.then_block.span);
         let else_span = statement
             .else_block
             .as_ref()
             .map_or(statement.span, |block| block.span);
-        let else_scope = self.child_scope(parent_scope, else_span);
-        let then_target = self.control_flow.reserve_block(then_scope);
-        let else_target = self.control_flow.reserve_block(else_scope);
-        let join_target = self.control_flow.reserve_block(parent_scope);
-        self.control_flow.terminate(Terminator::Switch {
+        let else_scope = self.context.child_scope(parent_scope, else_span);
+        let then_target = self.context.control_flow.reserve_block(then_scope);
+        let else_target = self.context.control_flow.reserve_block(else_scope);
+        let join_target = self.context.control_flow.reserve_block(parent_scope);
+        self.context.control_flow.terminate(Terminator::Switch {
             condition,
             then_target,
             else_target,
         })?;
 
-        self.control_flow.select_block(then_target)?;
+        self.context.control_flow.select_block(then_target)?;
         let then_statements = scalar_linear_block_statements(
             &statement.then_block,
-            self.semantic.resolved,
-            self.semantic.resolved_sources,
-            self.semantic.typed_hir,
+            self.context.semantic.resolved,
+            self.context.semantic.resolved_sources,
+            self.context.semantic.typed_hir,
             loop_targets.is_some(),
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let then_exits = self.lower_in_context(&then_statements, loop_targets, then_scope)?;
         if !then_exits {
-            self.control_flow.terminate(Terminator::Goto {
+            self.context.control_flow.terminate(Terminator::Goto {
                 target: join_target,
             })?;
         }
 
-        self.control_flow.select_block(else_target)?;
+        self.context.control_flow.select_block(else_target)?;
         let else_statements = statement
             .else_block
             .as_ref()
             .map(|block| {
                 scalar_linear_block_statements(
                     block,
-                    self.semantic.resolved,
-                    self.semantic.resolved_sources,
-                    self.semantic.typed_hir,
+                    self.context.semantic.resolved,
+                    self.context.semantic.resolved_sources,
+                    self.context.semantic.typed_hir,
                     loop_targets.is_some(),
                 )
                 .ok_or(BuildError::UnsupportedClaimedExpression)
@@ -339,7 +293,7 @@ impl<'a> StatementLowerer<'a> {
             .unwrap_or_default();
         let else_exits = self.lower_in_context(&else_statements, loop_targets, else_scope)?;
         if !else_exits {
-            self.control_flow.terminate(Terminator::Goto {
+            self.context.control_flow.terminate(Terminator::Goto {
                 target: join_target,
             })?;
         }
@@ -347,7 +301,7 @@ impl<'a> StatementLowerer<'a> {
         if then_exits && else_exits {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        self.control_flow.select_block(join_target)?;
+        self.context.control_flow.select_block(join_target)?;
         Ok(false)
     }
 
@@ -356,38 +310,41 @@ impl<'a> StatementLowerer<'a> {
         statement: &crate::ast::ForRangeStmt,
         parent_scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let loop_scope = self.child_scope(parent_scope, statement.span);
-        let body_scope = self.child_scope(loop_scope, statement.body.span);
-        let preheader = self.control_flow.reserve_block(loop_scope);
-        self.control_flow
+        let loop_scope = self.context.child_scope(parent_scope, statement.span);
+        let body_scope = self.context.child_scope(loop_scope, statement.body.span);
+        let preheader = self.context.control_flow.reserve_block(loop_scope);
+        self.context
+            .control_flow
             .terminate(Terminator::Goto { target: preheader })?;
-        self.control_flow.select_block(preheader)?;
+        self.context.control_flow.select_block(preheader)?;
         let symbol = self
+            .context
             .semantic
             .resolved
             .local_symbol_id_at_name_span(statement.name_span)
             .ok_or(BuildError::MissingLocalSymbol)?;
         let ty = self
+            .context
             .semantic
             .typed_hir
             .binding_type_expr(symbol)
-            .and_then(|ty| self.semantic.typed_hir.type_id(ty))
+            .and_then(|ty| self.context.semantic.typed_hir.type_id(ty))
             .ok_or(BuildError::MissingTypedExpression)?;
-        let scalar = binding_scalar_type(symbol, self.semantic.typed_hir)
+        let scalar = binding_scalar_type(symbol, self.context.semantic.typed_hir)
             .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        let value = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::locals::Local::scalar(
+        let value = LocalId::from_index(self.context.locals.len());
+        self.context.locals.push(crate::mir::locals::Local::scalar(
             ty,
             scalar,
             LocalStorage::Local,
             LocalOrigin::Binding(symbol),
             loop_scope,
         ));
-        self.locals_by_symbol.insert(symbol, value);
+        self.context.locals_by_symbol.insert(symbol, value);
         self.lower_value(value, &statement.start, ty, scalar, loop_scope)?;
 
-        let end = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::locals::Local::scalar(
+        let end = LocalId::from_index(self.context.locals.len());
+        self.context.locals.push(crate::mir::locals::Local::scalar(
             ty,
             scalar,
             LocalStorage::Local,
@@ -397,6 +354,7 @@ impl<'a> StatementLowerer<'a> {
         self.lower_value(end, &statement.end, ty, scalar, loop_scope)?;
 
         let bool_ty = self
+            .context
             .semantic
             .typed_hir
             .type_id(&crate::ast::TypeExpr::Reference(
@@ -406,8 +364,8 @@ impl<'a> StatementLowerer<'a> {
                 },
             ))
             .ok_or(BuildError::MissingTypedExpression)?;
-        let condition_local = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::locals::Local::scalar(
+        let condition_local = LocalId::from_index(self.context.locals.len());
+        self.context.locals.push(crate::mir::locals::Local::scalar(
             bool_ty,
             ScalarType::Bool,
             LocalStorage::Local,
@@ -415,31 +373,34 @@ impl<'a> StatementLowerer<'a> {
             loop_scope,
         ));
 
-        let header = self.control_flow.reserve_block(loop_scope);
-        let body = self.control_flow.reserve_block(body_scope);
-        let increment = self.control_flow.reserve_block(loop_scope);
-        let exit = self.control_flow.reserve_block(parent_scope);
-        self.control_flow
+        let header = self.context.control_flow.reserve_block(loop_scope);
+        let body = self.context.control_flow.reserve_block(body_scope);
+        let increment = self.context.control_flow.reserve_block(loop_scope);
+        let exit = self.context.control_flow.reserve_block(parent_scope);
+        self.context
+            .control_flow
             .terminate(Terminator::Goto { target: header })?;
-        self.control_flow.select_block(header)?;
-        self.control_flow.push_statement(Statement::Assign {
-            destination: Place::local(condition_local),
-            value: Rvalue::Compare {
-                operator: ComparisonOperator::Less,
-                left: Operand::Copy(Place::local(value)),
-                right: Operand::Copy(Place::local(end)),
-                operand_ty: ty,
-                operand_scalar: scalar,
-                result_ty: bool_ty,
-            },
-            origin: Origin::Desugared(statement.range_span),
-        })?;
-        self.control_flow.terminate(Terminator::Switch {
+        self.context.control_flow.select_block(header)?;
+        self.context
+            .control_flow
+            .push_statement(Statement::Assign {
+                destination: Place::local(condition_local),
+                value: Rvalue::Compare {
+                    operator: ComparisonOperator::Less,
+                    left: Operand::Copy(Place::local(value)),
+                    right: Operand::Copy(Place::local(end)),
+                    operand_ty: ty,
+                    operand_scalar: scalar,
+                    result_ty: bool_ty,
+                },
+                origin: Origin::Desugared(statement.range_span),
+            })?;
+        self.context.control_flow.terminate(Terminator::Switch {
             condition: Operand::Copy(Place::local(condition_local)),
             then_target: body,
             else_target: exit,
         })?;
-        self.loop_regions.push(crate::mir::LoopRegion {
+        self.context.loop_regions.push(crate::mir::LoopRegion {
             header,
             condition: header,
             body,
@@ -447,12 +408,12 @@ impl<'a> StatementLowerer<'a> {
             exit,
         });
 
-        self.control_flow.select_block(body)?;
+        self.context.control_flow.select_block(body)?;
         let body_statements = scalar_loop_block_statements(
             &statement.body,
-            self.semantic.resolved,
-            self.semantic.resolved_sources,
-            self.semantic.typed_hir,
+            self.context.semantic.resolved,
+            self.context.semantic.resolved_sources,
+            self.context.semantic.typed_hir,
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
@@ -464,28 +425,32 @@ impl<'a> StatementLowerer<'a> {
             body_scope,
         )?;
         if !exits_body {
-            self.control_flow
+            self.context
+                .control_flow
                 .terminate(Terminator::Goto { target: increment })?;
         }
 
-        self.control_flow.select_block(increment)?;
-        self.control_flow.push_statement(Statement::Assign {
-            destination: Place::local(value),
-            value: Rvalue::Binary {
-                operator: BinaryOperator::Add,
-                left: Operand::Copy(Place::local(value)),
-                right: Operand::Constant(crate::mir::model::Constant {
+        self.context.control_flow.select_block(increment)?;
+        self.context
+            .control_flow
+            .push_statement(Statement::Assign {
+                destination: Place::local(value),
+                value: Rvalue::Binary {
+                    operator: BinaryOperator::Add,
+                    left: Operand::Copy(Place::local(value)),
+                    right: Operand::Constant(crate::mir::model::Constant {
+                        ty,
+                        scalar,
+                        value: 1,
+                    }),
                     ty,
-                    scalar,
-                    value: 1,
-                }),
-                ty,
-            },
-            origin: Origin::Desugared(statement.range_span),
-        })?;
-        self.control_flow
+                },
+                origin: Origin::Desugared(statement.range_span),
+            })?;
+        self.context
+            .control_flow
             .terminate(Terminator::Goto { target: header })?;
-        self.control_flow.select_block(exit)
+        self.context.control_flow.select_block(exit)
     }
 
     fn lower_loop(
@@ -493,9 +458,10 @@ impl<'a> StatementLowerer<'a> {
         statement: &crate::ast::LoopStmt,
         parent_scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let loop_scope = self.child_scope(parent_scope, statement.span);
-        let body_scope = self.child_scope(loop_scope, statement.body.span);
+        let loop_scope = self.context.child_scope(parent_scope, statement.span);
+        let body_scope = self.context.child_scope(loop_scope, statement.body.span);
         let bool_ty = self
+            .context
             .semantic
             .typed_hir
             .type_id(&crate::ast::TypeExpr::Reference(
@@ -505,13 +471,14 @@ impl<'a> StatementLowerer<'a> {
                 },
             ))
             .ok_or(BuildError::MissingTypedExpression)?;
-        let header = self.control_flow.reserve_block(loop_scope);
-        let body = self.control_flow.reserve_block(body_scope);
-        let exit = self.control_flow.reserve_block(parent_scope);
-        self.control_flow
+        let header = self.context.control_flow.reserve_block(loop_scope);
+        let body = self.context.control_flow.reserve_block(body_scope);
+        let exit = self.context.control_flow.reserve_block(parent_scope);
+        self.context
+            .control_flow
             .terminate(Terminator::Goto { target: header })?;
-        self.control_flow.select_block(header)?;
-        self.control_flow.terminate(Terminator::Switch {
+        self.context.control_flow.select_block(header)?;
+        self.context.control_flow.terminate(Terminator::Switch {
             condition: Operand::Constant(crate::mir::model::Constant {
                 ty: bool_ty,
                 scalar: ScalarType::Bool,
@@ -520,19 +487,19 @@ impl<'a> StatementLowerer<'a> {
             then_target: body,
             else_target: exit,
         })?;
-        self.loop_regions.push(crate::mir::LoopRegion {
+        self.context.loop_regions.push(crate::mir::LoopRegion {
             header,
             condition: header,
             body,
             continue_target: header,
             exit,
         });
-        self.control_flow.select_block(body)?;
+        self.context.control_flow.select_block(body)?;
         let body_statements = scalar_loop_block_statements(
             &statement.body,
-            self.semantic.resolved,
-            self.semantic.resolved_sources,
-            self.semantic.typed_hir,
+            self.context.semantic.resolved,
+            self.context.semantic.resolved_sources,
+            self.context.semantic.typed_hir,
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
@@ -544,15 +511,10 @@ impl<'a> StatementLowerer<'a> {
             body_scope,
         )?;
         if !exits_body {
-            self.control_flow
+            self.context
+                .control_flow
                 .terminate(Terminator::Goto { target: header })?;
         }
-        self.control_flow.select_block(exit)
-    }
-
-    fn child_scope(&mut self, parent: ScopeId, span: crate::source::ByteSpan) -> ScopeId {
-        let scope = ScopeId::from_index(self.scopes.len());
-        self.scopes.push(Scope::child(parent, span));
-        scope
+        self.context.control_flow.select_block(exit)
     }
 }
