@@ -6,7 +6,8 @@ use crate::ir::{
     BoolLocation, BoolValue, I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
-    BinaryOperator, Body, LocalId, LocalSource, Operand, Place, Rvalue, Statement, Terminator,
+    BinaryOperator, Body, LocalId, LocalSource, Operand, Place, Rvalue, ScalarType, Statement,
+    Terminator,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
@@ -21,18 +22,22 @@ pub(super) fn try_lower_scalar_body(
     typed_hir: &TypedHir,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    if !matches!(return_type, Type::I32 | Type::Usize | Type::Bool) {
-        return None;
-    }
+    let return_scalar = match return_type {
+        Type::I32 => ScalarType::I32,
+        Type::Usize => ScalarType::Usize,
+        Type::Bool => ScalarType::Bool,
+        _ => return None,
+    };
     let mir_body = crate::mir::try_build_scalar_body(
         body,
         parameters,
+        return_scalar,
         &resolved.semantic_db,
         resolved,
         typed_hir,
     )?;
     Some(match mir_body {
-        Ok(mir_body) => lower_scalar_body(&mir_body, return_type)
+        Ok(mir_body) => lower_scalar_body(&mir_body)
             .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
         Err(error) => Err(attach_primary_span(
             vec![Diagnostic::error(
@@ -45,7 +50,7 @@ pub(super) fn try_lower_scalar_body(
     })
 }
 
-fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+fn lower_scalar_body(body: &Body) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
     let mut instructions = Vec::new();
     let mut current = body.entry;
@@ -60,8 +65,8 @@ fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>
             let Statement::Assign {
                 destination, value, ..
             } = statement;
-            match return_type {
-                Type::I32 => {
+            match body.locals[destination.local.index()].scalar {
+                ScalarType::I32 => {
                     let destination = i32_location(destination, body)?;
                     match value {
                         Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
@@ -81,7 +86,7 @@ fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>
                         )),
                     }
                 }
-                Type::Usize => {
+                ScalarType::Usize => {
                     let destination = usize_location(destination, body)?;
                     match value {
                         Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
@@ -101,7 +106,7 @@ fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>
                         )),
                     }
                 }
-                Type::Bool => {
+                ScalarType::Bool => {
                     let destination = bool_location(destination, body)?;
                     match value {
                         Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
@@ -114,11 +119,6 @@ fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>
                             ));
                         }
                     }
-                }
-                _ => {
-                    return Err(invalid_mir_diagnostics(
-                        "scalar literal route received a non-scalar return type",
-                    ));
                 }
             }
         }

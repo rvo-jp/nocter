@@ -2,7 +2,7 @@
 //! failures, not alternate source-language diagnostics.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, Operand, Statement, Terminator};
+use super::model::{Body, Operand, ScalarType, Statement, Terminator};
 use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +30,12 @@ pub(crate) enum ValidationError {
         statement: usize,
         expected: TyId,
         actual: TyId,
+    },
+    OperandScalarMismatch {
+        block: BasicBlockId,
+        statement: usize,
+        expected: ScalarType,
+        actual: ScalarType,
     },
     MissingTarget {
         block: BasicBlockId,
@@ -83,6 +89,26 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     Some(*ty)
                 }
             };
+            let operands = match value {
+                super::model::Rvalue::Use(operand) => [Some(operand), None],
+                super::model::Rvalue::Binary { left, right, .. } => [Some(left), Some(right)],
+            };
+            for operand in operands.into_iter().flatten() {
+                let Operand::Copy(place) = operand else {
+                    continue;
+                };
+                let Some(source_local) = body.locals.get(place.local.index()) else {
+                    continue;
+                };
+                if source_local.scalar != destination_local.scalar {
+                    errors.push(ValidationError::OperandScalarMismatch {
+                        block: block_id,
+                        statement: statement_index,
+                        expected: destination_local.scalar,
+                        actual: source_local.scalar,
+                    });
+                }
+            }
             if value_ty.is_some_and(|value_ty| destination_local.ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {
                     block: block_id,
@@ -153,6 +179,7 @@ mod tests {
             return_local: LocalId::from_index(0),
             locals: vec![Local {
                 ty,
+                scalar: crate::mir::model::ScalarType::I32,
                 source: LocalSource::Return,
             }],
             entry: BasicBlockId::from_index(0),

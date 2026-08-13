@@ -150,6 +150,42 @@ func main(): i32 {
 }
 
 #[test]
+fn keeps_each_mir_local_scalar_representation_independent_of_the_result() {
+    let ir = lower_text(
+        r#"func helper(condition: bool, value: i32): i32 {
+    let observed = condition
+    return value + 2
+}
+
+func main(): i32 {
+    return helper(true, 40)
+}
+"#,
+    );
+    let helper = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "helper")
+        .unwrap();
+
+    assert_eq!(
+        helper.instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Location(BoolLocation::Parameter(0)),
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: I32Value::Location(I32Location::Parameter(1)),
+                right: I32Value::Const(2),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit

@@ -8,6 +8,6 @@ mod validate;
 pub(crate) use ids::LocalId;
 pub(crate) use lower::try_build_scalar_body;
 pub(crate) use model::{
-    BinaryOperator, Body, LocalSource, Operand, Place, Rvalue, Statement, Terminator,
+    BinaryOperator, Body, LocalSource, Operand, Place, Rvalue, ScalarType, Statement, Terminator,
 };
 pub(crate) use validate::validate;

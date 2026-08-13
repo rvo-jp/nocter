@@ -4,7 +4,7 @@
 use super::ids::{BasicBlockId, LocalId};
 use super::model::{
     BasicBlock, BinaryOperator, Body, Constant, Local, LocalSource, Operand, Place, Rvalue,
-    Statement, Terminator,
+    ScalarType, Statement, Terminator,
 };
 use super::validate;
 use super::validate::ValidationError;
@@ -12,7 +12,7 @@ use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, P
 use crate::literals::decode_integer_literal_value;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::semantic::SemanticDb;
-use crate::typecheck::{PartialSemantic, TypedHir};
+use crate::typecheck::{PartialSemantic, TypecheckScalarViewKind, TypedHir};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +29,7 @@ pub(crate) enum BuildError {
 pub(crate) fn try_build_scalar_body(
     block: &Block,
     parameters: &[Parameter],
+    return_scalar: ScalarType,
     semantic_db: &SemanticDb,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
@@ -43,13 +44,6 @@ pub(crate) fn try_build_scalar_body(
     }
 
     let return_ty = known_expression_type(expression, typed_hir)?;
-    if source_statements
-        .iter()
-        .any(|statement| known_expression_type(statement.value(), typed_hir) != Some(return_ty))
-    {
-        return None;
-    }
-
     Some((|| {
         let source_body = semantic_db
             .body_at(block.span)
@@ -57,6 +51,7 @@ pub(crate) fn try_build_scalar_body(
         let return_local = LocalId::from_index(0);
         let mut locals = vec![Local {
             ty: return_ty,
+            scalar: return_scalar,
             source: LocalSource::Return,
         }];
         let mut locals_by_symbol = HashMap::new();
@@ -64,15 +59,15 @@ pub(crate) fn try_build_scalar_body(
             let ty = typed_hir
                 .type_id(&parameter.ty)
                 .ok_or(BuildError::MissingParameterType)?;
-            if ty != return_ty {
-                return Err(BuildError::UnsupportedClaimedExpression);
-            }
             let symbol = resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .ok_or(BuildError::MissingLocalSymbol)?;
+            let scalar = binding_scalar_type(symbol, typed_hir)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
             let local = LocalId::from_index(locals.len());
             locals.push(Local {
                 ty,
+                scalar,
                 source: LocalSource::Parameter { symbol, index },
             });
             locals_by_symbol.insert(symbol, local);
@@ -84,9 +79,14 @@ pub(crate) fn try_build_scalar_body(
                     let symbol = resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
+                    let ty = known_expression_type(&binding.initializer, typed_hir)
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    let scalar = binding_scalar_type(symbol, typed_hir)
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let local = LocalId::from_index(locals.len());
                     locals.push(Local {
-                        ty: return_ty,
+                        ty,
+                        scalar,
                         source: LocalSource::Binding(symbol),
                     });
                     locals_by_symbol.insert(symbol, local);
@@ -108,10 +108,14 @@ pub(crate) fn try_build_scalar_body(
                     )
                 }
             };
+            let destination_local = &locals[local.index()];
+            let destination_ty = destination_local.ty;
+            let destination_scalar = destination_local.scalar;
             lower_expression_to_place(
                 local,
                 value,
-                return_ty,
+                destination_ty,
+                destination_scalar,
                 resolved,
                 &locals_by_symbol,
                 typed_hir,
@@ -123,6 +127,7 @@ pub(crate) fn try_build_scalar_body(
             return_local,
             expression,
             return_ty,
+            return_scalar,
             resolved,
             &locals_by_symbol,
             typed_hir,
@@ -160,13 +165,6 @@ enum ScalarStatement<'a> {
 }
 
 impl<'a> ScalarStatement<'a> {
-    fn value(self) -> &'a Expr {
-        match self {
-            Self::Binding(binding) => &binding.initializer,
-            Self::Assignment(assignment) => &assignment.value,
-        }
-    }
-
     fn is_supported(self, resolved: &ResolveOutput) -> bool {
         match self {
             Self::Binding(binding) => {
@@ -234,6 +232,7 @@ fn lower_expression_to_place(
     destination: LocalId,
     expression: &Expr,
     ty: crate::semantic::TyId,
+    scalar: ScalarType,
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
@@ -251,6 +250,7 @@ fn lower_expression_to_place(
             left: lower_operand(
                 &binary.left,
                 ty,
+                scalar,
                 resolved,
                 locals,
                 typed_hir,
@@ -260,6 +260,7 @@ fn lower_expression_to_place(
             right: lower_operand(
                 &binary.right,
                 ty,
+                scalar,
                 resolved,
                 locals,
                 typed_hir,
@@ -273,6 +274,7 @@ fn lower_expression_to_place(
                 destination,
                 &group.expression,
                 ty,
+                scalar,
                 resolved,
                 locals,
                 typed_hir,
@@ -293,6 +295,7 @@ fn lower_expression_to_place(
 fn lower_operand(
     expression: &Expr,
     ty: crate::semantic::TyId,
+    scalar: ScalarType,
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
@@ -304,6 +307,7 @@ fn lower_operand(
             Expr::Group(group) => lower_operand(
                 &group.expression,
                 ty,
+                scalar,
                 resolved,
                 locals,
                 typed_hir,
@@ -320,12 +324,14 @@ fn lower_operand(
     let temporary = LocalId::from_index(local_declarations.len());
     local_declarations.push(Local {
         ty,
+        scalar,
         source: LocalSource::Temporary(typed_expression.id),
     });
     lower_expression_to_place(
         temporary,
         expression,
         ty,
+        scalar,
         resolved,
         locals,
         typed_hir,
@@ -333,6 +339,17 @@ fn lower_operand(
         statements,
     )?;
     Ok(Operand::Copy(Place { local: temporary }))
+}
+
+fn binding_scalar_type(symbol: LocalSymbolId, typed_hir: &TypedHir) -> Option<ScalarType> {
+    match typed_hir.binding_scalar_view_kind(symbol)? {
+        TypecheckScalarViewKind::I32 => Some(ScalarType::I32),
+        TypecheckScalarViewKind::Usize => Some(ScalarType::Usize),
+        TypecheckScalarViewKind::Bool => Some(ScalarType::Bool),
+        TypecheckScalarViewKind::U8
+        | TypecheckScalarViewKind::Str
+        | TypecheckScalarViewKind::Slice(_) => None,
+    }
 }
 
 fn lower_simple_operand(
@@ -408,6 +425,7 @@ mod tests {
         let body = try_build_scalar_body(
             block,
             &[],
+            ScalarType::I32,
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,
@@ -454,6 +472,7 @@ mod tests {
             try_build_scalar_body(
                 block,
                 &[],
+                ScalarType::I32,
                 &analysis.semantic_db,
                 &file.resolved,
                 &file.typed_hir,
@@ -486,6 +505,7 @@ mod tests {
         let body = try_build_scalar_body(
             block,
             &[],
+            ScalarType::I32,
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,
@@ -534,6 +554,7 @@ mod tests {
         let body = try_build_scalar_body(
             block,
             &[],
+            ScalarType::I32,
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,
