@@ -151,6 +151,10 @@ buildability is MIR validation rather than a parallel AST model.
 - Whole copy aggregate parameter places may become MIR call arguments. Machine-IR projection uses
   the parameter's already validated direct/indirect ABI classification. An indirect argument points
   into the current stack frame and therefore makes tail-call frame reuse ineligible.
+- Copy aggregate results can initialize logical MIR locals. Local aggregate slot numbering starts
+  after all retained parameter and outcome slots, while layout and direct/indirect classification
+  are projected from the checked `TyId` through the compile-unit resolver map. Calls, field loads,
+  and forwarding therefore share one slot identity.
 - Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.

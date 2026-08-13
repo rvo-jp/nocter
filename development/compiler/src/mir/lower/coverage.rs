@@ -115,6 +115,28 @@ fn scalar_value_call_is_supported(
             .is_some()
 }
 
+fn aggregate_value_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
+        && effective_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .is_some_and(|ty| {
+                matches!(
+                    crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+                        resolved_sources.get(&source).copied()
+                    })
+                    .map(|value| value.ty),
+                    Ok(crate::abi::AbiType::Struct(_))
+                        | Ok(crate::abi::AbiType::Array { .. })
+                        | Ok(crate::abi::AbiType::Enum(_))
+                )
+            })
+}
+
 fn scalar_call_shape_is_supported(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
@@ -219,6 +241,30 @@ impl<'a> ScalarStatement<'a> {
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
                     .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
                     && borrow_expression_is_supported(&binding.initializer, resolved);
+                let aggregate = resolved
+                    .local_symbol_id_at_name_span(binding.name_span)
+                    .and_then(|symbol| typed_hir.binding_type_expr(symbol))
+                    .is_some_and(|ty| {
+                        crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
+                            && matches!(
+                                crate::abi::abi_value_from_type_expr_with_resolver(
+                                    ty,
+                                    resolved,
+                                    |source| resolved_sources.get(&source).copied(),
+                                )
+                                .map(|value| value.ty),
+                                Ok(crate::abi::AbiType::Struct(_))
+                                    | Ok(crate::abi::AbiType::Array { .. })
+                                    | Ok(crate::abi::AbiType::Enum(_))
+                            )
+                    })
+                    && matches!(binding.initializer.without_groups(), Expr::Call(call)
+                    if aggregate_value_call_is_supported(
+                        call,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    ));
                 (scalar
                     && known_expression_type(&binding.initializer, typed_hir).is_some()
                     && scalar_expression_is_supported(
@@ -228,6 +274,7 @@ impl<'a> ScalarStatement<'a> {
                         typed_hir,
                     ))
                     || borrow
+                    || aggregate
             }
             Self::Assignment(assignment) => {
                 (assignment.operator == AssignmentOperator::Assign

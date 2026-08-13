@@ -74,17 +74,16 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         ));
                         self.context.locals_by_symbol.insert(symbol, local);
                         self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
-                    } else {
-                        let borrow_ty = self
-                            .context
-                            .semantic
-                            .typed_hir
-                            .binding_type_expr(symbol)
-                            .and_then(|ty| match ty {
-                                crate::ast::TypeExpr::Borrow(borrow) => Some(borrow),
-                                _ => None,
-                            })
-                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    } else if let Some(borrow_ty) = self
+                        .context
+                        .semantic
+                        .typed_hir
+                        .binding_type_expr(symbol)
+                        .and_then(|ty| match ty {
+                            crate::ast::TypeExpr::Borrow(borrow) => Some(borrow),
+                            _ => None,
+                        })
+                    {
                         self.context.locals.push(crate::mir::locals::Local::borrow(
                             ty,
                             borrow_ty.is_readwrite,
@@ -99,6 +98,35 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             borrow_ty.is_readwrite,
                             scope,
                         )?;
+                    } else {
+                        self.context
+                            .locals
+                            .push(crate::mir::locals::Local::aggregate(
+                                ty,
+                                crate::mir::OwnershipKind::Copy,
+                                LocalStorage::Local,
+                                LocalOrigin::Binding(symbol),
+                                scope,
+                            ));
+                        self.context.locals_by_symbol.insert(symbol, local);
+                        let Expr::Call(call) = binding.initializer.without_groups() else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        let source = self
+                            .context
+                            .semantic
+                            .typed_hir
+                            .expression(call.span)
+                            .ok_or(BuildError::MissingTypedExpression)?
+                            .id;
+                        let (callee, arguments, returns_never) =
+                            self.context.lower_call(call, scope)?;
+                        if returns_never {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        }
+                        self.context
+                            .control_flow
+                            .emit_returning_call(source, callee, arguments, local)?;
                     }
                     false
                 }

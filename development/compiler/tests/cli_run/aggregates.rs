@@ -3621,3 +3621,35 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reads_copy_aggregate_call_results_through_mir() {
+    let project = TempProject::new("cli-run-mir-copy-aggregate-call-result");
+    let source = project.write_source(
+        "copy_aggregate_call_result.nct",
+        r#"copy struct Pair {
+    first: i32
+    second: i32
+}
+
+func make(): Pair {
+    return Pair { first: 1, second: 42 }
+}
+
+func main(): i32 {
+    let pair = make()
+    return pair.second
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

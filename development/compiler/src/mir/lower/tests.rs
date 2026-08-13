@@ -262,6 +262,61 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_copy_aggregate_call_results_in_local_slots() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    first: i32
+    second: i32
+}
+
+func make(): Pair {
+    return Pair { first: 1, second: 42 }
+}
+
+func main(): i32 {
+    let pair = make()
+    return pair.second
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("copy aggregate call binding must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Return { destination, .. },
+            ..
+        } if body.locals[destination.local.index()].representation == ValueRepresentation::Aggregate
+    ));
+    assert!(
+        body.projections
+            .iter()
+            .any(|projection| { projection.element == ProjectionElement::Field { offset: 4 } })
+    );
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_wide_integer_arithmetic_with_canonical_kind() {
     let (_sources, analysis) = analyze_text(
         r#"func add(left: i64, right: i64): i64 {

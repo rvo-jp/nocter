@@ -29,6 +29,8 @@ mod storage;
 pub(super) struct BackendContext<'a> {
     body: &'a Body,
     resolved: &'a ResolveOutput,
+    resolved_sources: &'a crate::resolve::ResolvedSources<'a>,
+    typed_hir: &'a TypedHir,
     function_signatures: &'a super::context::FunctionSignatures,
     function_names: &'a super::context::FunctionNames,
     parameters: parameters::ParameterProjection,
@@ -88,6 +90,8 @@ pub(super) fn try_lower_scalar_body(
             &mir_body,
             return_type,
             resolved,
+            resolved_sources,
+            typed_hir,
             function_name,
             function_signatures,
             function_names,
@@ -110,6 +114,8 @@ fn lower_scalar_body(
     body: &Body,
     return_type: &Type,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
@@ -120,6 +126,8 @@ fn lower_scalar_body(
     let context = BackendContext {
         body,
         resolved,
+        resolved_sources,
+        typed_hir,
         function_signatures,
         function_names,
         parameters: parameter_projection,
@@ -241,12 +249,6 @@ fn lower_scalar_body(
                         target,
                     } => {
                         let target_block = &body.blocks[target.index()];
-                        let destination_scalar = local_scalar(body, destination.local)?;
-                        super::expressions::validate_known_call_success_return_passing(
-                            function_signatures.success_return_passing(&call_target),
-                            &callee_name,
-                            &scalar_ir_type(destination_scalar),
-                        )?;
                         let returns_directly = destination.local == body.return_local
                             && target_block.statements.is_empty()
                             && target_block.terminator == Terminator::Return;
@@ -268,12 +270,14 @@ fn lower_scalar_body(
                             });
                             return Ok(instructions);
                         }
-                        instructions.push(call_instruction(
+                        reserve_aggregate_destination(&context, destination, &mut instructions)?;
+                        instructions.push(lower_returning_call(
                             &context,
-                            destination_scalar,
                             destination,
                             call_target,
                             arguments,
+                            &callee_name,
+                            function_signatures,
                         )?);
                         current = *target;
                     }
@@ -427,10 +431,9 @@ fn lower_branch_to_join(
                     .iter()
                     .map(|argument| lower_call_argument(argument, context))
                     .collect::<Result<Vec<_>, _>>()?;
-                let destination_scalar = local_scalar(body, destination.local)?;
+                reserve_aggregate_destination(context, destination, &mut instructions)?;
                 instructions.push(lower_returning_call(
                     context,
-                    destination_scalar,
                     destination,
                     call_target,
                     arguments,
@@ -548,19 +551,87 @@ fn call_instruction(
 
 fn lower_returning_call(
     context: &BackendContext<'_>,
-    scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
     arguments: Vec<ScalarArgument>,
     callee_name: &str,
     function_signatures: &super::context::FunctionSignatures,
 ) -> Result<Instruction, Vec<Diagnostic>> {
+    let representation = context.body.locals[destination.local.index()].representation;
+    if representation == crate::mir::ValueRepresentation::Aggregate {
+        let return_type = function_signatures.return_type(&target).ok_or_else(|| {
+            invalid_mir_diagnostics(format!(
+                "aggregate call to `{callee_name}` has no indexed return type"
+            ))
+        })?;
+        let layout = match return_type {
+            Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+            _ => {
+                return Err(invalid_mir_diagnostics(format!(
+                    "aggregate MIR destination received `{}` from `{callee_name}`",
+                    super::expressions::describe_type(return_type)
+                )));
+            }
+        };
+        super::expressions::validate_known_call_success_return_passing(
+            function_signatures.success_return_passing(&target),
+            callee_name,
+            return_type,
+        )?;
+        return Ok(super::aggregates::aggregate_call_instruction(
+            return_type,
+            aggregate_location(destination, context)?,
+            target,
+            arguments,
+            layout,
+        ));
+    }
+    let scalar = local_scalar(context.body, destination.local)?;
     super::expressions::validate_known_call_success_return_passing(
         function_signatures.success_return_passing(&target),
         callee_name,
         &scalar_ir_type(scalar),
     )?;
     call_instruction(context, scalar, destination, target, arguments)
+}
+
+fn reserve_aggregate_destination(
+    context: &BackendContext<'_>,
+    destination: &Place,
+    instructions: &mut Vec<Instruction>,
+) -> Result<(), Vec<Diagnostic>> {
+    let local = &context.body.locals[destination.local.index()];
+    if local.representation != crate::mir::ValueRepresentation::Aggregate
+        || local.storage != LocalStorage::Local
+    {
+        return Ok(());
+    }
+    let value = aggregate_local_abi_value(local.ty, context)?;
+    let crate::ir::AggregateLocation::Slot(slot_index) = aggregate_location(destination, context)?
+    else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate local destination is not slot-backed",
+        ));
+    };
+    instructions.push(Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    });
+    Ok(())
+}
+
+fn aggregate_local_abi_value(
+    ty: crate::semantic::TyId,
+    context: &BackendContext<'_>,
+) -> Result<crate::abi::AbiValue, Vec<Diagnostic>> {
+    let type_expr = context
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or_else(|| invalid_mir_diagnostics("aggregate local type is missing"))?;
+    crate::abi::abi_value_from_type_expr_with_resolver(type_expr, context.resolved, |source| {
+        context.resolved_sources.get(&source).copied()
+    })
+    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))
 }
 
 fn lower_outcome_call(
@@ -771,20 +842,34 @@ fn lower_aggregate_call_argument(
             ));
         }
     };
-    let LocalStorage::Parameter { ordinal } = context.body.locals[place.local.index()].storage
-    else {
-        return Err(invalid_mir_diagnostics(
-            "aggregate call argument has no machine storage projection",
-        ));
+    let local = &context.body.locals[place.local.index()];
+    let (layout, classification) = match local.storage {
+        LocalStorage::Parameter { ordinal } => {
+            let Some(parameters::ParameterStorage::Aggregate {
+                layout,
+                classification,
+                ..
+            }) = context.parameters.get(ordinal)
+            else {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate MIR parameter has no matching staging slot",
+                ));
+            };
+            (layout, classification)
+        }
+        LocalStorage::Local => {
+            let value = aggregate_local_abi_value(local.ty, context)?;
+            (value.layout, value.classification)
+        }
+        LocalStorage::Return => {
+            return Err(invalid_mir_diagnostics(
+                "aggregate return storage cannot be a call argument",
+            ));
+        }
     };
-    let Some(parameters::ParameterStorage::Aggregate {
-        slot_index,
-        layout,
-        classification,
-    }) = context.parameters.get(ordinal)
-    else {
+    let crate::ir::AggregateLocation::Slot(slot_index) = aggregate_location(place, context)? else {
         return Err(invalid_mir_diagnostics(
-            "aggregate MIR parameter has no matching staging slot",
+            "aggregate argument is not slot-backed",
         ));
     };
     let source = AggregateArgumentSource::Slot(slot_index);
@@ -800,6 +885,40 @@ fn lower_aggregate_call_argument(
             ScalarArgument::AggregateIndirect(AggregateArgument { source })
         }
     })
+}
+
+fn aggregate_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<crate::ir::AggregateLocation, Vec<Diagnostic>> {
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected aggregate destination has no whole-slot projection",
+        ));
+    }
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(crate::ir::AggregateLocation::Return),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) => {
+                Ok(crate::ir::AggregateLocation::Slot(slot_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "aggregate MIR parameter has no matching staging slot",
+            )),
+        },
+        LocalStorage::Local => {
+            let preceding = context.body.locals[..place.local.index()]
+                .iter()
+                .filter(|local| {
+                    local.storage == LocalStorage::Local
+                        && local.representation == crate::mir::ValueRepresentation::Aggregate
+                })
+                .count();
+            Ok(crate::ir::AggregateLocation::Slot(
+                context.parameters.first_local_aggregate_slot() + preceding,
+            ))
+        }
+    }
 }
 
 fn lower_statements(
@@ -1175,21 +1294,8 @@ fn aggregate_field_source(
         return Ok(None);
     };
     let offset = aggregate_field_offset(context.body, place.local, projection)?;
-    let LocalStorage::Parameter { ordinal } = context.body.locals[place.local.index()].storage
-    else {
-        return Err(invalid_mir_diagnostics(
-            "aggregate field source has no machine storage projection",
-        ));
-    };
-    let Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) =
-        context.parameters.get(ordinal)
-    else {
-        return Err(invalid_mir_diagnostics(
-            "aggregate MIR parameter has no matching staging slot",
-        ));
-    };
     Ok(Some((
-        crate::ir::AggregateLocation::Slot(slot_index),
+        aggregate_location(&Place::local(place.local), context)?,
         offset,
     )))
 }

@@ -224,7 +224,10 @@
   current resolver, compile-unit resolver map, and checked HIR. Layout of imported and nested
   aggregate fields therefore uses the same cross-source authority as ABI signature projection.</li><li>Whole copy aggregate parameter places may become MIR call arguments. Machine-IR projection uses
   the parameter's already validated direct/indirect ABI classification. An indirect argument points
-  into the current stack frame and therefore makes tail-call frame reuse ineligible.</li><li>Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
+  into the current stack frame and therefore makes tail-call frame reuse ineligible.</li><li>Copy aggregate results can initialize logical MIR locals. Local aggregate slot numbering starts
+  after all retained parameter and outcome slots, while layout and direct/indirect classification
+  are projected from the checked <code>TyId</code> through the compile-unit resolver map. Calls, field loads,
+  and forwarding therefore share one slot identity.</li><li>Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.</li><li>Built-in integers use canonical <code>IntegerType</code> in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,

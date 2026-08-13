@@ -272,10 +272,9 @@ fn lower_linear_call_terminator(
             destination,
             target,
         } => {
-            let scalar = super::local_scalar(body, destination.local)?;
+            super::reserve_aggregate_destination(context, destination, instructions)?;
             instructions.push(lower_returning_call(
                 context,
-                scalar,
                 destination,
                 call_target,
                 arguments,

@@ -38,6 +38,7 @@ pub(super) enum ParameterStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ParameterProjection {
     storage: Vec<ParameterStorage>,
+    first_local_aggregate_slot: usize,
 }
 
 impl ParameterProjection {
@@ -49,11 +50,30 @@ impl ParameterProjection {
             .iter()
             .map(|parameter| storage_for_name(&parameter.name, slots))
             .collect::<Option<Vec<_>>>()?;
-        Some(Self { storage })
+        let first_local_aggregate_slot = slots
+            .aggregates
+            .iter()
+            .map(|parameter| parameter.slot_index + 1)
+            .chain(
+                slots
+                    .outcomes
+                    .iter()
+                    .map(|parameter| parameter.slot_index + 1),
+            )
+            .max()
+            .unwrap_or(0);
+        Some(Self {
+            storage,
+            first_local_aggregate_slot,
+        })
     }
 
     pub(super) fn get(&self, ordinal: usize) -> Option<ParameterStorage> {
         self.storage.get(ordinal).copied()
+    }
+
+    pub(super) fn first_local_aggregate_slot(&self) -> usize {
+        self.first_local_aggregate_slot
     }
 }
 
