@@ -111,6 +111,7 @@ TypecheckOutput {
       body: BodyId,
       intrinsic_ty: Known(TyId) | Error,
       contextual_ty: Option<TyId>,
+      diverges: bool,
     },
     types: TyId -> normalized TypeExpr,
     compatibility facts,
@@ -126,6 +127,10 @@ compiler does not overwrite an integer literal's intrinsic type merely because a
 provenance, call, operator, coercion, and adjustment facts remain in the same checker-owned
 `TypedHir`. Expression semantics use `ExprId`, declaration targets use `DefId`, and binding facts
 use `LocalSymbolId`.
+
+Divergence is retained independently from contextual type. A call returning `never` may inhabit a
+scalar return context, but its MIR continuation is still non-returning. MIR construction therefore
+does not inspect a type alias or compare an authored type name with the string `never`.
 
 Phase 3 constructs checked MIR once per `BodyId` and retains it in the compile-unit analysis.
 Buildability follows `DefId` call edges in that body, while machine-IR lowering consumes the same

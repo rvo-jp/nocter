@@ -5,10 +5,11 @@
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The first production MIR route now
 owns nongeneric scalar parameters, bindings, assignments, arithmetic, comparisons, explicit
 temporaries, value conditionals, terminal conditionals, return joins, and direct nongeneric scalar
-calls. MIR construction and validation are authoritative after route selection. Buildability and
-machine-IR lowering consume the same retained MIR body, and buildability follows its identity-backed
-call edges without revisiting the AST body. The next boundary is general call continuation inside a
-body, followed by explicit outcome edges, loops, aggregates, borrows, and drops. Do not leave a
+calls in straight-line expression evaluation. MIR construction and validation are authoritative
+after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
+buildability follows its identity-backed call edges without revisiting the AST body. The next
+boundary is structured conversion of call-containing branch paths, followed by explicit outcome
+edges, loops, aggregates, borrows, and drops. Do not leave a
 permanent dual pipeline, add language features, or add standard-library APIs during the architecture
 migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
@@ -27,7 +28,12 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - one compile-unit cache retains checked MIR for buildability and lowering; MIR-routed bodies bypass
   AST buildability traversal, and calls carry canonical `DefId` targets plus explicit returning or
   non-returning continuations
-- the next checkpoint generalizes call continuations beyond a terminal expression before outcome
+- a dedicated control-flow builder owns incomplete blocks during construction; completed MIR never
+  contains placeholder terminators, and direct calls split straight-line bindings, assignments,
+  nested arguments, and operands into ordered CFG edges
+- checked expression facts retain divergence independently from contextual result type, so
+  non-returning calls do not depend on matching the authored spelling `never`
+- the next checkpoint generalizes structured MIR-to-IR branch conversion before outcome
   success/failure edges move into MIR
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
