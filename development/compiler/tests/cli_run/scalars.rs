@@ -404,7 +404,8 @@ func relay(value: &i32): i32 {
 
 func main(): i32 {
     let value = 1
-    return relay(&value)
+    let borrowed = &value
+    return relay(borrowed)
 }
 "#,
     );

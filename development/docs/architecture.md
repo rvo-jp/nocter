@@ -120,6 +120,10 @@ buildability is MIR validation rather than a parallel AST model.
   identities and begin/end points. Loan overlap follows projected places: a root overlaps every
   child, ancestors overlap descendants, and distinct field projections are disjoint. Neither
   cleanup nor alias validity is inferred from AST nesting or a single ambiguous runtime-live flag.
+- MIR construction emits `BeginLoan` when a borrow binding acquires stored scalar storage.
+  Cleanup inserts `EndLoan` on every CFG edge that exits the loan's lexical scope, and machine-IR
+  projection turns only the begin point into pointer materialization. The end point remains a
+  checked lifetime boundary with no runtime instruction.
 - Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
   callable exit, including distinct success and failure states for outcome calls. A wholly

@@ -3,7 +3,7 @@
 use super::body_builder::ControlFlowBuilder;
 use super::{BuildError, SemanticInputs};
 use crate::mir::model::BasicBlock;
-use crate::mir::{Local, LocalId, LoopRegion, ProjectionPath, Scope, ScopeId};
+use crate::mir::{Loan, Local, LocalId, LoopRegion, ProjectionPath, Scope, ScopeId};
 use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
 
@@ -14,6 +14,7 @@ pub(super) struct LoweringContext<'a> {
     pub(super) projections: Vec<ProjectionPath>,
     pub(super) control_flow: ControlFlowBuilder,
     pub(super) loop_regions: Vec<LoopRegion>,
+    pub(super) loans: Vec<Loan>,
     pub(super) scopes: Vec<Scope>,
 }
 
@@ -22,6 +23,7 @@ pub(super) struct LoweredBodyParts {
     pub(super) projections: Vec<ProjectionPath>,
     pub(super) blocks: Vec<BasicBlock>,
     pub(super) loop_regions: Vec<LoopRegion>,
+    pub(super) loans: Vec<Loan>,
     pub(super) scopes: Vec<Scope>,
 }
 
@@ -41,6 +43,7 @@ impl<'a> LoweringContext<'a> {
             projections: Vec::new(),
             control_flow: ControlFlowBuilder::new(root_scope),
             loop_regions: Vec::new(),
+            loans: Vec::new(),
             scopes: vec![root],
         }
     }
@@ -61,6 +64,7 @@ impl<'a> LoweringContext<'a> {
             projections: self.projections,
             blocks: self.control_flow.finish()?,
             loop_regions: self.loop_regions,
+            loans: self.loans,
             scopes: self.scopes,
         })
     }

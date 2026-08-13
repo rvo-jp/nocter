@@ -22,7 +22,6 @@ pub(crate) use locals::{
 pub(crate) use lower::{BuildError, BuildInputs, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::BasicBlock;
-#[cfg(test)]
 pub(crate) use model::Loan;
 pub(crate) use model::{
     BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator, Constant,

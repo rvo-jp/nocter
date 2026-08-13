@@ -61,18 +61,45 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         .binding_type_expr(symbol)
                         .and_then(|ty| self.context.semantic.typed_hir.type_id(ty))
                         .ok_or(BuildError::MissingTypedExpression)?;
-                    let scalar = binding_scalar_type(symbol, self.context.semantic.typed_hir)
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let local = LocalId::from_index(self.context.locals.len());
-                    self.context.locals.push(crate::mir::locals::Local::scalar(
-                        ty,
-                        scalar,
-                        LocalStorage::Local,
-                        LocalOrigin::Binding(symbol),
-                        scope,
-                    ));
-                    self.context.locals_by_symbol.insert(symbol, local);
-                    self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
+                    if let Some(scalar) =
+                        binding_scalar_type(symbol, self.context.semantic.typed_hir)
+                    {
+                        self.context.locals.push(crate::mir::locals::Local::scalar(
+                            ty,
+                            scalar,
+                            LocalStorage::Local,
+                            LocalOrigin::Binding(symbol),
+                            scope,
+                        ));
+                        self.context.locals_by_symbol.insert(symbol, local);
+                        self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
+                    } else {
+                        let borrow_ty = self
+                            .context
+                            .semantic
+                            .typed_hir
+                            .binding_type_expr(symbol)
+                            .and_then(|ty| match ty {
+                                crate::ast::TypeExpr::Borrow(borrow) => Some(borrow),
+                                _ => None,
+                            })
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                        self.context.locals.push(crate::mir::locals::Local::borrow(
+                            ty,
+                            borrow_ty.is_readwrite,
+                            LocalStorage::Local,
+                            LocalOrigin::Binding(symbol),
+                            scope,
+                        ));
+                        self.context.locals_by_symbol.insert(symbol, local);
+                        self.lower_borrow_binding(
+                            local,
+                            &binding.initializer,
+                            borrow_ty.is_readwrite,
+                            scope,
+                        )?;
+                    }
                     false
                 }
                 ScalarStatement::Assignment(assignment) => {
@@ -164,6 +191,58 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
     ) -> Result<(), BuildError> {
         self.context
             .lower_expression_to_place(destination, expression, ty, scalar, scope)
+    }
+
+    fn lower_borrow_binding(
+        &mut self,
+        destination: LocalId,
+        expression: &Expr,
+        readwrite: bool,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let Expr::Borrow(borrow) = expression.without_groups() else {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        };
+        if borrow.is_readwrite != readwrite {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let Expr::Identifier(identifier) = borrow.expression.without_groups() else {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        };
+        let symbol = self
+            .context
+            .semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .map(|symbol| symbol.id)
+            .ok_or(BuildError::MissingLocalSymbol)?;
+        let source = *self
+            .context
+            .locals_by_symbol
+            .get(&symbol)
+            .ok_or(BuildError::MissingLocalSymbol)?;
+        let loan = crate::mir::LoanId::from_index(self.context.loans.len());
+        self.context.loans.push(crate::mir::Loan {
+            id: loan,
+            source: Place::local(source),
+            destination,
+            kind: if readwrite {
+                crate::mir::BorrowKind::Readwrite
+            } else {
+                crate::mir::BorrowKind::Readonly
+            },
+            scope,
+        });
+        let origin = self
+            .context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .map(|expression| Origin::Expression(expression.id))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        self.context
+            .control_flow
+            .push_statement(Statement::BeginLoan { loan, origin })
     }
 
     fn lower_while(

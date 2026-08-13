@@ -809,13 +809,27 @@ fn lower_statements(
     let body = context.body;
     let mut instructions = Vec::new();
     for statement in statements {
+        if let Statement::BeginLoan { loan, .. } = statement {
+            let declaration = body.loans.get(loan.index()).ok_or_else(|| {
+                invalid_mir_diagnostics("borrow statement has no matching loan declaration")
+            })?;
+            instructions.push(Instruction::SetUsizeFromBorrow {
+                destination: UsizeLocation::Local(machine_local_index(
+                    body,
+                    declaration.destination,
+                )),
+                source: lower_borrow_source(declaration.source, context)?,
+            });
+            continue;
+        }
+        if matches!(statement, Statement::EndLoan { .. }) {
+            continue;
+        }
         let Statement::Assign {
             destination, value, ..
         } = statement
         else {
-            return Err(invalid_mir_diagnostics(
-                "borrow loans have not been projected to machine IR",
-            ));
+            unreachable!("all MIR statement kinds handled above");
         };
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
@@ -1095,6 +1109,58 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn lower_borrow_source(
+    place: Place,
+    context: &BackendContext<'_>,
+) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected MIR loans have not been projected to machine IR",
+        ));
+    }
+    let local = &context.body.locals[place.local.index()];
+    Ok(match local.representation {
+        crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
+            crate::ir::BorrowSource::I32(i32_location(&place, context)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::U8) => {
+            crate::ir::BorrowSource::U8(u8_location(&place, context)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Usize)
+        | crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(_)) => {
+            crate::ir::BorrowSource::Usize(match local.representation {
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+                    integer_location(&place, kind, context)?
+                }
+                _ => usize_location(&place, context)?,
+            })
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
+            crate::ir::BorrowSource::Bool(bool_location(&place, context)?)
+        }
+        crate::mir::ValueRepresentation::Borrow => {
+            return lower_borrow_argument_source(&Operand::Copy(place), context);
+        }
+        crate::mir::ValueRepresentation::Aggregate => match local.storage {
+            LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+                Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) => {
+                    crate::ir::BorrowSource::AggregateSlot(slot_index)
+                }
+                _ => {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate MIR loan source has no matching storage projection",
+                    ));
+                }
+            },
+            LocalStorage::Local | LocalStorage::Return => {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate local MIR loans have not been projected to machine IR",
+                ));
+            }
+        },
+    })
 }
 
 fn aggregate_field_source(

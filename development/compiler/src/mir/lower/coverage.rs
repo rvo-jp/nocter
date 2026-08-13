@@ -205,7 +205,7 @@ impl<'a> ScalarStatement<'a> {
     ) -> bool {
         match self {
             Self::Binding(binding) => {
-                resolved
+                let scalar = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .is_some_and(|symbol| {
                         binding_scalar_type(symbol, typed_hir).is_some()
@@ -213,14 +213,21 @@ impl<'a> ScalarStatement<'a> {
                                 .binding_type_expr(symbol)
                                 .and_then(|ty| typed_hir.type_id(ty))
                                 .is_some()
-                    })
+                    });
+                let borrow = resolved
+                    .local_symbol_id_at_name_span(binding.name_span)
+                    .and_then(|symbol| typed_hir.binding_type_expr(symbol))
+                    .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
+                    && borrow_expression_is_supported(&binding.initializer, resolved);
+                (scalar
                     && known_expression_type(&binding.initializer, typed_hir).is_some()
                     && scalar_expression_is_supported(
                         &binding.initializer,
                         resolved,
                         resolved_sources,
                         typed_hir,
-                    )
+                    ))
+                    || borrow
             }
             Self::Assignment(assignment) => {
                 (assignment.operator == AssignmentOperator::Assign
@@ -312,6 +319,16 @@ impl<'a> ScalarStatement<'a> {
             Self::Break | Self::Continue => in_loop,
         }
     }
+}
+
+pub(super) fn borrow_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+    let Expr::Borrow(borrow) = expression.without_groups() else {
+        return false;
+    };
+    let Expr::Identifier(identifier) = borrow.expression.without_groups() else {
+        return false;
+    };
+    resolved.local_symbol_for_identifier(identifier).is_some()
 }
 
 fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {

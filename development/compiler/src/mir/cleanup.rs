@@ -6,7 +6,7 @@
 use super::initialization::InitializationAnalysis;
 use super::locals::{OwnershipKind, ValueRepresentation};
 use super::model::BasicBlock;
-use super::{BasicBlockId, Body, LocalId, Place, ScopeId, Terminator};
+use super::{BasicBlockId, Body, LoanId, LocalId, Place, ScopeId, Statement, Terminator};
 
 pub(super) fn materialize(body: &mut Body) {
     let analysis = super::initialization::analyze(body);
@@ -90,7 +90,8 @@ fn cleanup_edge(
     let places = cleanup_places(body, &exited, |place| {
         analysis.initialized_on_edge(body, from, target, place)
     });
-    prepend_cleanup_chain(body, places, target)
+    let loans = cleanup_loans(body, &exited);
+    prepend_cleanup_chain(body, loans, places, target)
 }
 
 fn cleanup_exit(
@@ -104,7 +105,8 @@ fn cleanup_exit(
     let places = cleanup_places(body, &exited, |place| {
         analysis.initialized_at_exit(body, block, place)
     });
-    if places.is_empty() {
+    let loans = cleanup_loans(body, &exited);
+    if places.is_empty() && loans.is_empty() {
         return terminal;
     }
     let terminal_block = BasicBlockId::from_index(body.blocks.len());
@@ -114,8 +116,17 @@ fn cleanup_exit(
         terminator: terminal,
     });
     Terminator::Goto {
-        target: prepend_cleanup_chain(body, places, terminal_block),
+        target: prepend_cleanup_chain(body, loans, places, terminal_block),
     }
+}
+
+fn cleanup_loans(body: &Body, exited: &[ScopeId]) -> Vec<LoanId> {
+    body.loans
+        .iter()
+        .rev()
+        .filter(|loan| exited.contains(&loan.scope))
+        .map(|loan| loan.id)
+        .collect()
 }
 
 fn cleanup_places(
@@ -159,6 +170,7 @@ fn cleanup_places(
 
 fn prepend_cleanup_chain(
     body: &mut Body,
+    loans: Vec<LoanId>,
     places: Vec<Place>,
     final_target: BasicBlockId,
 ) -> BasicBlockId {
@@ -169,6 +181,18 @@ fn prepend_cleanup_chain(
             scope: body.locals[place.local.index()].scope,
             statements: Vec::new(),
             terminator: Terminator::Drop { place, target },
+        });
+        target = block;
+    }
+    if !loans.is_empty() {
+        let block = BasicBlockId::from_index(body.blocks.len());
+        body.blocks.push(BasicBlock {
+            scope: body.root_scope,
+            statements: loans
+                .into_iter()
+                .map(|loan| Statement::EndLoan { loan })
+                .collect(),
+            terminator: Terminator::Goto { target },
         });
         target = block;
     }

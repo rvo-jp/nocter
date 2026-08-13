@@ -237,7 +237,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             entry: BasicBlockId::from_index(0),
             blocks: parts.blocks,
             loop_regions: parts.loop_regions,
-            loans: Vec::new(),
+            loans: parts.loans,
             projections: parts.projections,
         };
         super::finalize(body).map_err(BuildError::InvalidMir)

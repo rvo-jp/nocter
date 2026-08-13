@@ -181,6 +181,12 @@ fn builds_a_borrow_call_argument_from_a_parameter_place() {
 func relay(value: &i32): i32 {
     return consume(value)
 }
+
+func main(): i32 {
+    let value = 1
+    let borrowed = &value
+    return relay(borrowed)
+}
 "#,
     );
     assert!(analysis.diagnostics().is_empty());
@@ -218,6 +224,40 @@ func relay(value: &i32): i32 {
                 }] if *place == crate::mir::Place::local(LocalId::from_index(1))
             )
     ));
+    assert_eq!(validate(&body), Ok(()));
+
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("local borrow construction must select MIR")
+    .unwrap();
+    assert_eq!(body.loans.len(), 1);
+    assert!(body.blocks.iter().any(|block| {
+        block
+            .statements
+            .iter()
+            .any(|statement| matches!(statement, Statement::BeginLoan { .. }))
+    }));
+    assert!(body.blocks.iter().any(|block| {
+        block
+            .statements
+            .iter()
+            .any(|statement| matches!(statement, Statement::EndLoan { .. }))
+    }));
     assert_eq!(validate(&body), Ok(()));
 }
 

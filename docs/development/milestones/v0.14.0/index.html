@@ -236,7 +236,10 @@ InstanceMember::Coercion(CoercionDecl)
   caller frame.</li><li>Readonly and readwrite borrow parameters retain MIR borrow representation and may be forwarded
   as whole-place call arguments. ABI projection maps the source ordinal to the existing borrow
   parameter word; one IR-level frame-dependence predicate prevents both borrow and indirect
-  aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Nested checked member selections build parent-linked MIR projection paths from the root local to
+  aggregate arguments from entering an unsafe tail call in either lowering route.</li><li>Borrow bindings over stored scalar identifiers create explicit <code>Loan</code> records and <code>BeginLoan</code>
+  statements. Cleanup derives <code>EndLoan</code> statements from lexical scope exits on the CFG, before
+  backend projection materializes the borrow pointer; loan lifetimes are not inferred from AST
+  block endings or kept as backend-only local metadata.</li><li>Nested checked member selections build parent-linked MIR projection paths from the root local to
   the selected field. Backend lowering folds relative layout offsets along that path, so nested and
   cross-source aggregate access does not flatten or rediscover source member syntax.</li><li>MIR scalar identity now covers every built-in integer. Narrow and wide integer parameters,
   constants, arithmetic, shifts, comparisons, calls, aggregate-field loads, and plain or fallible
