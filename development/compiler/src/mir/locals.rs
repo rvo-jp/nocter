@@ -54,10 +54,6 @@ impl Local {
         }
     }
 
-    #[allow(
-        dead_code,
-        reason = "borrow route construction follows the loan-validation checkpoint"
-    )]
     pub(crate) fn borrow(
         ty: TyId,
         readwrite: bool,
@@ -86,10 +82,6 @@ impl Local {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueRepresentation {
     Scalar(ScalarType),
-    #[allow(
-        dead_code,
-        reason = "borrow route construction follows the loan-validation checkpoint"
-    )]
     Borrow,
     Aggregate,
 }
@@ -109,10 +101,6 @@ pub(crate) enum ScalarType {
 pub(crate) enum OwnershipKind {
     Copy,
     Move,
-    #[allow(
-        dead_code,
-        reason = "borrow route construction follows the loan-validation checkpoint"
-    )]
     Borrowed {
         readwrite: bool,
     },

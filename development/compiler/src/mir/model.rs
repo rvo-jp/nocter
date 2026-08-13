@@ -60,10 +60,6 @@ pub(crate) struct Loan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BorrowKind {
-    #[allow(
-        dead_code,
-        reason = "readonly borrow construction follows the loan-validation checkpoint"
-    )]
     Readonly,
     Readwrite,
 }
@@ -103,15 +99,7 @@ pub(crate) enum Statement {
         value: Rvalue,
         origin: Origin,
     },
-    #[allow(
-        dead_code,
-        reason = "borrow route construction follows the loan-validation checkpoint"
-    )]
     BeginLoan { loan: LoanId, origin: Origin },
-    #[allow(
-        dead_code,
-        reason = "borrow route construction follows the loan-validation checkpoint"
-    )]
     EndLoan { loan: LoanId },
 }
 
