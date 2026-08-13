@@ -186,6 +186,47 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_value_if_as_a_mir_control_flow_diamond() {
+    let ir = lower_text(
+        r#"func choose(condition: bool): i32 {
+    return if condition {
+        42
+    } else {
+        7
+    }
+}
+
+func main(): i32 {
+    return choose(true)
+}
+"#,
+    );
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(42),
+                }],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(7),
+                }],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit

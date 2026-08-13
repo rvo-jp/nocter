@@ -61,76 +61,118 @@ fn lower_scalar_body(body: &Body) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
             return Err(invalid_mir_diagnostics("control flow contains a cycle"));
         }
         let block = &body.blocks[current.index()];
-        for statement in &block.statements {
-            let Statement::Assign {
-                destination, value, ..
-            } = statement;
-            match body.locals[destination.local.index()].scalar {
-                ScalarType::I32 => {
-                    let destination = i32_location(destination, body)?;
-                    match value {
-                        Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
-                            destination,
-                            value: lower_i32_operand(operand, body)?,
-                        }),
-                        Rvalue::Binary {
-                            operator,
-                            left,
-                            right,
-                            ..
-                        } => instructions.push(i32_binary_instruction(
-                            *operator,
-                            destination,
-                            lower_i32_operand(left, body)?,
-                            lower_i32_operand(right, body)?,
-                        )),
-                    }
-                }
-                ScalarType::Usize => {
-                    let destination = usize_location(destination, body)?;
-                    match value {
-                        Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
-                            destination,
-                            value: lower_usize_operand(operand, body)?,
-                        }),
-                        Rvalue::Binary {
-                            operator,
-                            left,
-                            right,
-                            ..
-                        } => instructions.push(usize_binary_instruction(
-                            *operator,
-                            destination,
-                            lower_usize_operand(left, body)?,
-                            lower_usize_operand(right, body)?,
-                        )),
-                    }
-                }
-                ScalarType::Bool => {
-                    let destination = bool_location(destination, body)?;
-                    match value {
-                        Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
-                            destination,
-                            value: lower_bool_operand(operand, body)?,
-                        }),
-                        Rvalue::Binary { .. } => {
-                            return Err(invalid_mir_diagnostics(
-                                "boolean scalar route received an arithmetic operation",
-                            ));
-                        }
-                    }
-                }
-            }
-        }
+        instructions.extend(lower_statements(body, &block.statements)?);
 
-        match block.terminator {
-            Terminator::Goto { target } => current = target,
+        match &block.terminator {
+            Terminator::Goto { target } => current = *target,
+            Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+            } => {
+                if !visited.insert(*then_target) || !visited.insert(*else_target) {
+                    return Err(invalid_mir_diagnostics(
+                        "control-flow branch reuses an already lowered block",
+                    ));
+                }
+                let then_block = &body.blocks[then_target.index()];
+                let else_block = &body.blocks[else_target.index()];
+                let (
+                    Terminator::Goto { target: then_join },
+                    Terminator::Goto { target: else_join },
+                ) = (&then_block.terminator, &else_block.terminator)
+                else {
+                    return Err(invalid_mir_diagnostics(
+                        "scalar conditional branches must join explicitly",
+                    ));
+                };
+                if then_join != else_join {
+                    return Err(invalid_mir_diagnostics(
+                        "scalar conditional branches must share one join block",
+                    ));
+                }
+                instructions.push(Instruction::If {
+                    condition: lower_bool_operand(condition, body)?,
+                    then_instructions: lower_statements(body, &then_block.statements)?,
+                    else_instructions: lower_statements(body, &else_block.statements)?,
+                });
+                current = *then_join;
+            }
             Terminator::Return => {
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
         }
     }
+}
+
+fn lower_statements(
+    body: &Body,
+    statements: &[Statement],
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    for statement in statements {
+        let Statement::Assign {
+            destination, value, ..
+        } = statement;
+        match body.locals[destination.local.index()].scalar {
+            ScalarType::I32 => {
+                let destination = i32_location(destination, body)?;
+                match value {
+                    Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
+                        destination,
+                        value: lower_i32_operand(operand, body)?,
+                    }),
+                    Rvalue::Binary {
+                        operator,
+                        left,
+                        right,
+                        ..
+                    } => instructions.push(i32_binary_instruction(
+                        *operator,
+                        destination,
+                        lower_i32_operand(left, body)?,
+                        lower_i32_operand(right, body)?,
+                    )),
+                }
+            }
+            ScalarType::Usize => {
+                let destination = usize_location(destination, body)?;
+                match value {
+                    Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
+                        destination,
+                        value: lower_usize_operand(operand, body)?,
+                    }),
+                    Rvalue::Binary {
+                        operator,
+                        left,
+                        right,
+                        ..
+                    } => instructions.push(usize_binary_instruction(
+                        *operator,
+                        destination,
+                        lower_usize_operand(left, body)?,
+                        lower_usize_operand(right, body)?,
+                    )),
+                }
+            }
+            ScalarType::Bool => {
+                let destination = bool_location(destination, body)?;
+                match value {
+                    Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
+                        destination,
+                        value: lower_bool_operand(operand, body)?,
+                    }),
+                    Rvalue::Binary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received an arithmetic operation",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(instructions)
 }
 
 fn attach_primary_span(

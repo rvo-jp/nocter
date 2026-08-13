@@ -41,6 +41,10 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         target: BasicBlockId,
     },
+    NonBooleanCondition {
+        block: BasicBlockId,
+        actual: ScalarType,
+    },
 }
 
 pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
@@ -119,14 +123,27 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             }
         }
 
-        let Terminator::Goto { target } = block.terminator else {
-            continue;
-        };
-        if body.blocks.get(target.index()).is_none() {
-            errors.push(ValidationError::MissingTarget {
-                block: block_id,
-                target,
-            });
+        match &block.terminator {
+            Terminator::Goto { target } => {
+                validate_target(body, block_id, *target, &mut errors);
+            }
+            Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+            } => {
+                validate_target(body, block_id, *then_target, &mut errors);
+                validate_target(body, block_id, *else_target, &mut errors);
+                if let Some(actual) = operand_scalar(body, condition)
+                    && actual != ScalarType::Bool
+                {
+                    errors.push(ValidationError::NonBooleanCondition {
+                        block: block_id,
+                        actual,
+                    });
+                }
+            }
+            Terminator::Return => {}
         }
     }
 
@@ -134,6 +151,27 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn validate_target(
+    body: &Body,
+    block: BasicBlockId,
+    target: BasicBlockId,
+    errors: &mut Vec<ValidationError>,
+) {
+    if body.blocks.get(target.index()).is_none() {
+        errors.push(ValidationError::MissingTarget { block, target });
+    }
+}
+
+fn operand_scalar(body: &Body, operand: &Operand) -> Option<ScalarType> {
+    match operand {
+        Operand::Constant(constant) => Some(constant.scalar),
+        Operand::Copy(place) => body
+            .locals
+            .get(place.local.index())
+            .map(|local| local.scalar),
     }
 }
 
@@ -189,7 +227,11 @@ mod tests {
                         destination: Place {
                             local: LocalId::from_index(0),
                         },
-                        value: Rvalue::Use(Operand::Constant(Constant { ty, value: 7 })),
+                        value: Rvalue::Use(Operand::Constant(Constant {
+                            ty,
+                            scalar: crate::mir::model::ScalarType::I32,
+                            value: 7,
+                        })),
                         source: ExprId::from_index(0),
                     }],
                     terminator: Terminator::Goto {
@@ -219,6 +261,7 @@ mod tests {
             },
             value: Rvalue::Use(Operand::Constant(Constant {
                 ty: TyId::from_index(1),
+                scalar: crate::mir::model::ScalarType::I32,
                 value: 7,
             })),
             source: ExprId::from_index(0),

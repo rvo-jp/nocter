@@ -123,24 +123,89 @@ pub(crate) fn try_build_scalar_body(
                 &mut mir_statements,
             )?;
         }
-        lower_expression_to_place(
-            return_local,
-            expression,
-            return_ty,
-            return_scalar,
-            resolved,
-            &locals_by_symbol,
-            typed_hir,
-            &mut locals,
-            &mut mir_statements,
-        )?;
-        let body = Body {
-            source_body,
-            source_span: block.span,
-            return_local,
-            locals,
-            entry: BasicBlockId::from_index(0),
-            blocks: vec![
+        let blocks = if let Expr::If(if_) = expression {
+            let condition_ty = known_expression_type(&if_.condition, typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let condition = lower_operand(
+                &if_.condition,
+                condition_ty,
+                ScalarType::Bool,
+                resolved,
+                &locals_by_symbol,
+                typed_hir,
+                &mut locals,
+                &mut mir_statements,
+            )?;
+            let then_result = scalar_branch_result(&if_.then_block)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            let else_result = if_
+                .else_block
+                .as_ref()
+                .and_then(scalar_branch_result)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            let mut then_statements = Vec::new();
+            lower_expression_to_place(
+                return_local,
+                then_result,
+                return_ty,
+                return_scalar,
+                resolved,
+                &locals_by_symbol,
+                typed_hir,
+                &mut locals,
+                &mut then_statements,
+            )?;
+            let mut else_statements = Vec::new();
+            lower_expression_to_place(
+                return_local,
+                else_result,
+                return_ty,
+                return_scalar,
+                resolved,
+                &locals_by_symbol,
+                typed_hir,
+                &mut locals,
+                &mut else_statements,
+            )?;
+            vec![
+                BasicBlock {
+                    statements: mir_statements,
+                    terminator: Terminator::Switch {
+                        condition,
+                        then_target: BasicBlockId::from_index(1),
+                        else_target: BasicBlockId::from_index(2),
+                    },
+                },
+                BasicBlock {
+                    statements: then_statements,
+                    terminator: Terminator::Goto {
+                        target: BasicBlockId::from_index(3),
+                    },
+                },
+                BasicBlock {
+                    statements: else_statements,
+                    terminator: Terminator::Goto {
+                        target: BasicBlockId::from_index(3),
+                    },
+                },
+                BasicBlock {
+                    statements: Vec::new(),
+                    terminator: Terminator::Return,
+                },
+            ]
+        } else {
+            lower_expression_to_place(
+                return_local,
+                expression,
+                return_ty,
+                return_scalar,
+                resolved,
+                &locals_by_symbol,
+                typed_hir,
+                &mut locals,
+                &mut mir_statements,
+            )?;
+            vec![
                 BasicBlock {
                     statements: mir_statements,
                     terminator: Terminator::Goto {
@@ -151,7 +216,15 @@ pub(crate) fn try_build_scalar_body(
                     statements: Vec::new(),
                     terminator: Terminator::Return,
                 },
-            ],
+            ]
+        };
+        let body = Body {
+            source_body,
+            source_span: block.span,
+            return_local,
+            locals,
+            entry: BasicBlockId::from_index(0),
+            blocks,
         };
         validate(&body).map_err(BuildError::InvalidMir)?;
         Ok(body)
@@ -216,8 +289,23 @@ fn scalar_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -
                 && scalar_expression_is_supported(&binary.left, resolved)
                 && scalar_expression_is_supported(&binary.right, resolved)
         }
+        Expr::If(if_) => {
+            scalar_expression_is_supported(&if_.condition, resolved)
+                && scalar_branch_result(&if_.then_block)
+                    .is_some_and(|result| scalar_expression_is_supported(result, resolved))
+                && if_
+                    .else_block
+                    .as_ref()
+                    .and_then(scalar_branch_result)
+                    .is_some_and(|result| scalar_expression_is_supported(result, resolved))
+        }
         _ => false,
     }
+}
+
+fn scalar_branch_result(block: &Block) -> Option<&Expr> {
+    let (statements, result) = scalar_body_parts(block)?;
+    statements.is_empty().then_some(result)
 }
 
 fn known_expression_type(expression: &Expr, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {
@@ -282,7 +370,9 @@ fn lower_expression_to_place(
                 statements,
             );
         }
-        _ => Rvalue::Use(lower_simple_operand(expression, ty, resolved, locals)?),
+        _ => Rvalue::Use(lower_simple_operand(
+            expression, ty, scalar, resolved, locals,
+        )?),
     };
     statements.push(Statement::Assign {
         destination: Place { local: destination },
@@ -314,7 +404,7 @@ fn lower_operand(
                 local_declarations,
                 statements,
             ),
-            _ => lower_simple_operand(expression, ty, resolved, locals),
+            _ => lower_simple_operand(expression, ty, scalar, resolved, locals),
         };
     }
 
@@ -355,17 +445,20 @@ fn binding_scalar_type(symbol: LocalSymbolId, typed_hir: &TypedHir) -> Option<Sc
 fn lower_simple_operand(
     expression: &Expr,
     ty: crate::semantic::TyId,
+    scalar: ScalarType,
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
 ) -> Result<Operand, BuildError> {
     match expression {
         Expr::IntegerLiteral(literal) => Ok(Operand::Constant(Constant {
             ty,
+            scalar,
             value: decode_integer_literal_value(&literal.value)
                 .ok_or(BuildError::InvalidScalarConstant)?,
         })),
         Expr::BoolLiteral(literal) => Ok(Operand::Constant(Constant {
             ty,
+            scalar,
             value: match literal.value.as_str() {
                 "false" => 0,
                 "true" => 1,

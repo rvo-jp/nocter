@@ -78,6 +78,7 @@ pub(crate) enum Operand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Constant {
     pub(crate) ty: TyId,
+    pub(crate) scalar: ScalarType,
     pub(crate) value: u128,
 }
 
@@ -90,8 +91,15 @@ pub(crate) enum BinaryOperator {
     Remainder,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Terminator {
-    Goto { target: BasicBlockId },
+    Goto {
+        target: BasicBlockId,
+    },
+    Switch {
+        condition: Operand,
+        then_target: BasicBlockId,
+        else_target: BasicBlockId,
+    },
     Return,
 }
