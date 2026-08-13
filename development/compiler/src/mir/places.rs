@@ -8,6 +8,35 @@
 use super::dataflow::{LocalSet, ProjectionSet};
 use super::{Body, LocalId, Place, ProjectionPathId};
 
+pub(super) fn overlap(body: &Body, left: Place, right: Place) -> bool {
+    if left.local != right.local {
+        return false;
+    }
+    let (Some(left), Some(right)) = (left.projection, right.projection) else {
+        return true;
+    };
+    if ancestors(body, left).any(|candidate| candidate == right)
+        || ancestors(body, right).any(|candidate| candidate == left)
+    {
+        return true;
+    }
+    let Some(left_path) = body.projections.get(left.index()) else {
+        return true;
+    };
+    let Some(right_path) = body.projections.get(right.index()) else {
+        return true;
+    };
+    match (&left_path.element, &right_path.element) {
+        (
+            super::model::ProjectionElement::Field { offset: left },
+            super::model::ProjectionElement::Field { offset: right },
+        ) if left_path.parent == right_path.parent => left == right,
+        // Index projections can alias unless a later representation proves
+        // their indices distinct. Conservatism here preserves soundness.
+        _ => true,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PlaceState {
     initialized_roots: LocalSet,
@@ -253,5 +282,19 @@ mod tests {
         assert!(!left.is_available(&body, Place::local(aggregate)));
         assert!(!left.is_available(&body, first));
         assert!(!left.is_available(&body, second));
+    }
+
+    #[test]
+    fn field_siblings_are_disjoint_but_each_overlaps_its_root() {
+        let body = aggregate_body();
+        let aggregate = LocalId::from_index(1);
+        let root = Place::local(aggregate);
+        let first = Place::projected(aggregate, ProjectionPathId::from_index(0));
+        let second = Place::projected(aggregate, ProjectionPathId::from_index(1));
+
+        assert!(overlap(&body, root, first));
+        assert!(overlap(&body, first, root));
+        assert!(overlap(&body, first, first));
+        assert!(!overlap(&body, first, second));
     }
 }

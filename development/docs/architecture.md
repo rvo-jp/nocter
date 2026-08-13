@@ -115,8 +115,9 @@ buildability is MIR validation rather than a parallel AST model.
   guesses whether a reachable operand or return place contains a value.
 - Owned cleanup and borrows use separate path-sensitive MIR analyses over the same typed dense-set
   substrate. Drop obligations retain may-live and must-live state across joins; loans have explicit
-  identities and begin/end points, so neither cleanup nor alias validity is inferred from AST
-  nesting or a single ambiguous runtime-live flag.
+  identities and begin/end points. Loan overlap follows projected places: a root overlaps every
+  child, ancestors overlap descendants, and distinct field projections are disjoint. Neither
+  cleanup nor alias validity is inferred from AST nesting or a single ambiguous runtime-live flag.
 - Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
   callable exit, including distinct success and failure states for outcome calls. A wholly

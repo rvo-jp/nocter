@@ -233,7 +233,9 @@ InstanceMember::Coercion(CoercionDecl)
   partial move preserves sibling fields, prevents a later whole-value move, and survives CFG joins
   without flattening the aggregate into one bit.</li><li>Owned values and borrows now have independent path-sensitive MIR domains. Explicit drop edges
   are checked with may-live and must-live obligations; <code>LoanId</code> plus begin/end statements detect
-  alias conflicts, moves or mutations while borrowed, and loans that cross an exit.</li><li>Aggregate places use typed, parent-linked <code>ProjectionPathId</code> records for fields and indexes. The
+  alias conflicts, moves or mutations while borrowed, and loans that cross an exit.</li><li>Loan conflicts compare projected-place overlap rather than only root-local equality. Root/child
+  and ancestor/descendant accesses conflict, while distinct fields may carry independent mutable
+  loans; unresolved index aliasing remains conservatively overlapping.</li><li>Aggregate places use typed, parent-linked <code>ProjectionPathId</code> records for fields and indexes. The
   verifier rejects scalar bases, forward parents, base drift, invalid index operands, and place
   references outside the body's projection arena.</li><li>Definite-initialization retains per-edge and per-exit states. A dedicated cleanup pass combines
   them with the validated scope tree and materializes explicit <code>Drop</code> chains without walking AST

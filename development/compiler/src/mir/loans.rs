@@ -6,7 +6,7 @@
 
 use super::dataflow::LoanSet;
 use super::{
-    BasicBlockId, Body, BorrowKind, CallContinuation, LoanId, LocalId, Operand, OwnershipKind,
+    BasicBlockId, Body, BorrowKind, CallContinuation, LoanId, Operand, OwnershipKind, Place,
     Rvalue, Statement, Terminator,
 };
 use std::collections::{HashSet, VecDeque};
@@ -66,7 +66,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 Statement::Assign {
                     destination, value, ..
                 } => {
-                    reject_mutation(body, block_id, destination.local, &state, &mut errors);
+                    reject_mutation(body, block_id, *destination, &state, &mut errors);
                     reject_rvalue_moves(body, block_id, value, &state, &mut errors);
                 }
                 Statement::BeginLoan { loan, .. } => {
@@ -88,7 +88,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     for (index, other) in body.loans.iter().enumerate() {
                         let other_id = LoanId::from_index(index);
                         if state.may_active.contains(other_id)
-                            && other.source == declaration.source
+                            && super::places::overlap(body, other.source, declaration.source)
                             && (other.kind == BorrowKind::Readwrite
                                 || declaration.kind == BorrowKind::Readwrite)
                         {
@@ -151,7 +151,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 }
             }
             Terminator::Drop { place, target } => {
-                reject_move(body, block_id, place.local, &state, &mut errors);
+                reject_move(body, block_id, *place, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *target, state);
             }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {
@@ -173,7 +173,13 @@ fn validate_declarations(body: &Body, errors: &mut HashSet<LoanError>) {
                 kind: LoanErrorKind::InvalidIdentity,
             });
         }
-        if body.locals.get(loan.source.local.index()).is_none() {
+        if body.locals.get(loan.source.local.index()).is_none()
+            || loan.source.projection.is_some_and(|projection| {
+                body.projections
+                    .get(projection.index())
+                    .is_none_or(|path| path.base != loan.source.local)
+            })
+        {
             errors.insert(LoanError {
                 block: None,
                 loan: expected,
@@ -236,20 +242,20 @@ fn reject_operand_move(
     errors: &mut HashSet<LoanError>,
 ) {
     if let Operand::Move(place) = operand {
-        reject_move(body, block, place.local, state, errors);
+        reject_move(body, block, *place, state, errors);
     }
 }
 
 fn reject_mutation(
     body: &Body,
     block: BasicBlockId,
-    local: LocalId,
+    place: Place,
     state: &LoanState,
     errors: &mut HashSet<LoanError>,
 ) {
     for (index, loan) in body.loans.iter().enumerate() {
         let id = LoanId::from_index(index);
-        if state.may_active.contains(id) && loan.source.local == local {
+        if state.may_active.contains(id) && super::places::overlap(body, loan.source, place) {
             errors.insert(LoanError {
                 block: Some(block),
                 loan: id,
@@ -262,13 +268,13 @@ fn reject_mutation(
 fn reject_move(
     body: &Body,
     block: BasicBlockId,
-    local: LocalId,
+    place: Place,
     state: &LoanState,
     errors: &mut HashSet<LoanError>,
 ) {
     for (index, loan) in body.loans.iter().enumerate() {
         let id = LoanId::from_index(index);
-        if state.may_active.contains(id) && loan.source.local == local {
+        if state.may_active.contains(id) && super::places::overlap(body, loan.source, place) {
             errors.insert(LoanError {
                 block: Some(block),
                 loan: id,
@@ -352,8 +358,8 @@ fn error_kind_order(kind: LoanErrorKind) -> usize {
 mod tests {
     use super::*;
     use crate::mir::{
-        BasicBlock, Loan, Local, LocalOrigin, LocalStorage, Origin, Place, ReturnMode, ScalarType,
-        Scope, ScopeId,
+        BasicBlock, Loan, Local, LocalId, LocalOrigin, LocalStorage, Origin, Place, ReturnMode,
+        ScalarType, Scope, ScopeId,
     };
     use crate::semantic::{BodyId, ExprId, TyId};
     use crate::source::{ByteSpan, SourceId};
@@ -469,6 +475,42 @@ mod tests {
         assert!(validate(&body).iter().any(|error| {
             error.loan == LoanId::from_index(1) && error.kind == LoanErrorKind::ConflictingBorrow
         }));
+    }
+
+    #[test]
+    fn readwrite_loans_to_disjoint_fields_do_not_conflict() {
+        let mut body = body(
+            &[BorrowKind::Readwrite, BorrowKind::Readwrite],
+            vec![block(
+                vec![
+                    loan_statement(true, 0),
+                    loan_statement(true, 1),
+                    loan_statement(false, 1),
+                    loan_statement(false, 0),
+                ],
+                Terminator::Return,
+            )],
+        );
+        let source = LocalId::from_index(1);
+        body.projections = [0, 8]
+            .into_iter()
+            .enumerate()
+            .map(|(index, offset)| crate::mir::ProjectionPath {
+                id: crate::mir::ProjectionPathId::from_index(index),
+                base: source,
+                parent: None,
+                element: crate::mir::ProjectionElement::Field { offset },
+                ty: TyId::from_index(0),
+                representation: crate::mir::ValueRepresentation::Aggregate,
+                ownership: OwnershipKind::Move,
+            })
+            .collect();
+        body.loans[0].source =
+            Place::projected(source, crate::mir::ProjectionPathId::from_index(0));
+        body.loans[1].source =
+            Place::projected(source, crate::mir::ProjectionPathId::from_index(1));
+
+        assert!(validate(&body).is_empty());
     }
 
     #[test]

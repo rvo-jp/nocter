@@ -80,6 +80,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - borrows have body-local `LoanId`, explicit `BeginLoan`/`EndLoan` statements, source and
   destination places, mutability, and lexical scope; one fixed-point loan pass rejects conflicting
   borrows, mutation or move while borrowed, path-dependent invalid ends, and live loans at exits
+- loan conflicts use projected-place overlap instead of root-local equality: roots overlap children,
+  ancestors overlap descendants, distinct fields are disjoint, and index projections remain
+  conservatively aliasing until their indices can be proven distinct
 - initialization, ownership obligations, and loans share one typed dense-set implementation while
   keeping their `LocalId` and `LoanId` domains statically distinct
 - aggregate fields and indexes use body-local `ProjectionPathId` records rooted at a `LocalId`;
