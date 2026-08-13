@@ -546,10 +546,10 @@ func answer(): i32 {
                 target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
-                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    call_i32(I32Location::Local(1), "answer", vec![]),
                     Instruction::AddI32 {
                         destination: I32Location::Local(0),
-                        left: i32_local(0),
+                        left: i32_local(1),
                         right: i32_const(1),
                     },
                     Instruction::SetI32 {
@@ -1342,8 +1342,8 @@ func outer(value: i32): i32 {
                 target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
-                    call_i32(I32Location::Local(0), "inner", vec![]),
-                    call_i32(I32Location::Local(0), "outer", vec![i32_local(0)]),
+                    call_i32(I32Location::Local(1), "inner", vec![]),
+                    call_i32(I32Location::Local(0), "outer", vec![i32_local(1)]),
                     Instruction::SetI32 {
                         destination: I32Location::Return,
                         value: i32_local(0),
@@ -1399,12 +1399,12 @@ func add(a: i32, b: i32): i32 {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_i32(I32Location::Local(0), "left", vec![]),
-            call_i32(I32Location::Local(1), "right", vec![]),
+            call_i32(I32Location::Local(1), "left", vec![]),
+            call_i32(I32Location::Local(2), "right", vec![]),
             call_i32(
                 I32Location::Local(0),
                 "add",
-                vec![i32_local(0), i32_local(1)]
+                vec![i32_local(1), i32_local(2)]
             ),
             Instruction::SetI32 {
                 destination: I32Location::Return,
@@ -1519,12 +1519,12 @@ func right(): i32 {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_i32(I32Location::Local(0), "left", vec![]),
-            call_i32(I32Location::Local(1), "right", vec![]),
+            call_i32(I32Location::Local(1), "left", vec![]),
+            call_i32(I32Location::Local(2), "right", vec![]),
             Instruction::AddI32 {
                 destination: I32Location::Local(0),
-                left: i32_local(0),
-                right: i32_local(1),
+                left: i32_local(1),
+                right: i32_local(2),
             },
             Instruction::SetI32 {
                 destination: I32Location::Return,

@@ -1,7 +1,7 @@
 //! Scalar body selection and control-flow construction from typed HIR.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{BasicBlock, Body, Local, LocalSource, ScalarType, Terminator};
+use super::model::{Body, Local, LocalSource, ScalarType, Terminator};
 use super::validate;
 use super::validate::ValidationError;
 use crate::ast::{Block, Expr, Parameter};
@@ -10,10 +10,12 @@ use crate::semantic::SemanticDb;
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
+mod body_builder;
 mod coverage;
 mod expressions;
+use body_builder::ControlFlowBuilder;
 use coverage::*;
-use expressions::{lower_expression_to_place, lower_operand, lower_tail_call};
+use expressions::{lower_call, lower_expression_to_place, lower_operand};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildError {
@@ -23,6 +25,10 @@ pub(crate) enum BuildError {
     MissingLocalSymbol,
     MissingParameterType,
     MissingCallTarget,
+    MissingOpenBlock,
+    OpenBlockNotTerminated,
+    BlockAlreadyTerminated,
+    UnterminatedReservedBlock,
     UnsupportedClaimedExpression,
     InvalidMir(Vec<ValidationError>),
 }
@@ -82,7 +88,7 @@ pub(crate) fn try_build_scalar_body(
             });
             locals_by_symbol.insert(symbol, local);
         }
-        let mut mir_statements = Vec::new();
+        let mut control_flow = ControlFlowBuilder::new();
         for source_statement in source_statements {
             let (local, value) = match source_statement {
                 ScalarStatement::Binding(binding) => {
@@ -132,10 +138,10 @@ pub(crate) fn try_build_scalar_body(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut mir_statements,
+                &mut control_flow,
             )?;
         }
-        let blocks = if let Some(if_) = tail.conditional() {
+        if let Some(if_) = tail.conditional() {
             let condition_ty = known_expression_type(&if_.condition, typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
             let condition = lower_operand(
@@ -146,7 +152,7 @@ pub(crate) fn try_build_scalar_body(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut mir_statements,
+                &mut control_flow,
             )?;
             let then_result = scalar_branch_result(&if_.then_block)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -155,7 +161,15 @@ pub(crate) fn try_build_scalar_body(
                 .as_ref()
                 .and_then(scalar_branch_result)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let mut then_statements = Vec::new();
+            let then_target = control_flow.reserve_block();
+            let else_target = control_flow.reserve_block();
+            let join_target = control_flow.reserve_block();
+            control_flow.terminate(Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+            })?;
+            control_flow.select_block(then_target)?;
             lower_expression_to_place(
                 return_local,
                 then_result,
@@ -165,9 +179,12 @@ pub(crate) fn try_build_scalar_body(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut then_statements,
+                &mut control_flow,
             )?;
-            let mut else_statements = Vec::new();
+            control_flow.terminate(Terminator::Goto {
+                target: join_target,
+            })?;
+            control_flow.select_block(else_target)?;
             lower_expression_to_place(
                 return_local,
                 else_result,
@@ -177,68 +194,32 @@ pub(crate) fn try_build_scalar_body(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut else_statements,
+                &mut control_flow,
             )?;
-            vec![
-                BasicBlock {
-                    statements: mir_statements,
-                    terminator: Terminator::Switch {
-                        condition,
-                        then_target: BasicBlockId::from_index(1),
-                        else_target: BasicBlockId::from_index(2),
-                    },
-                },
-                BasicBlock {
-                    statements: then_statements,
-                    terminator: Terminator::Goto {
-                        target: BasicBlockId::from_index(3),
-                    },
-                },
-                BasicBlock {
-                    statements: else_statements,
-                    terminator: Terminator::Goto {
-                        target: BasicBlockId::from_index(3),
-                    },
-                },
-                BasicBlock {
-                    statements: Vec::new(),
-                    terminator: Terminator::Return,
-                },
-            ]
+            control_flow.terminate(Terminator::Goto {
+                target: join_target,
+            })?;
+            control_flow.select_block(join_target)?;
+            control_flow.terminate(Terminator::Return)?;
         } else if let Some(Expr::Call(call)) = tail.expression() {
-            let (callee, arguments, returns_never) = lower_tail_call(
+            let source = typed_hir
+                .expression(call.span)
+                .ok_or(BuildError::MissingTypedExpression)?
+                .id;
+            let (callee, arguments, returns_never) = lower_call(
                 call,
                 resolved,
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut mir_statements,
+                &mut control_flow,
             )?;
-            let continuation = if returns_never {
-                crate::mir::CallContinuation::Never
+            if returns_never {
+                control_flow.emit_never_call(source, callee, arguments)?;
             } else {
-                crate::mir::CallContinuation::Return {
-                    destination: crate::mir::Place {
-                        local: return_local,
-                    },
-                    target: BasicBlockId::from_index(1),
-                }
-            };
-            let mut blocks = vec![BasicBlock {
-                statements: mir_statements,
-                terminator: Terminator::Call {
-                    callee,
-                    arguments,
-                    continuation,
-                },
-            }];
-            if !returns_never {
-                blocks.push(BasicBlock {
-                    statements: Vec::new(),
-                    terminator: Terminator::Return,
-                });
+                control_flow.emit_returning_call(source, callee, arguments, return_local)?;
+                control_flow.terminate(Terminator::Return)?;
             }
-            blocks
         } else {
             let expression = tail
                 .expression()
@@ -252,21 +233,11 @@ pub(crate) fn try_build_scalar_body(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut mir_statements,
+                &mut control_flow,
             )?;
-            vec![
-                BasicBlock {
-                    statements: mir_statements,
-                    terminator: Terminator::Goto {
-                        target: BasicBlockId::from_index(1),
-                    },
-                },
-                BasicBlock {
-                    statements: Vec::new(),
-                    terminator: Terminator::Return,
-                },
-            ]
-        };
+            control_flow.terminate(Terminator::Return)?;
+        }
+        let blocks = control_flow.finish()?;
         let body = Body {
             source_body,
             source_span: block.span,

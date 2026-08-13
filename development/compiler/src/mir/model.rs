@@ -136,6 +136,7 @@ pub(crate) enum Terminator {
         else_target: BasicBlockId,
     },
     Call {
+        source: ExprId,
         callee: DefId,
         arguments: Vec<CallArgument>,
         continuation: CallContinuation,

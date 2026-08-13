@@ -479,7 +479,19 @@ fn validate_call_success_return_passing(
     expected_success_type: &Type,
     context: &LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let Some(actual) = context.call_success_return_passing(target) else {
+    validate_known_call_success_return_passing(
+        context.call_success_return_passing(target),
+        callee_name,
+        expected_success_type,
+    )
+}
+
+pub(in crate::ir::lower) fn validate_known_call_success_return_passing(
+    actual: Option<crate::abi::ReturnPassing>,
+    callee_name: &str,
+    expected_success_type: &Type,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(actual) = actual else {
         return Ok(());
     };
     let Some(expected) = expected_success_type.success_return_passing() else {

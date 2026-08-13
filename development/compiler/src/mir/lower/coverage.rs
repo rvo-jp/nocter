@@ -67,6 +67,28 @@ fn scalar_tail_call_is_supported(
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
 ) -> bool {
+    scalar_call_shape_is_supported(call, resolved, typed_hir)
+        && effective_expression_type(call.span, typed_hir)
+            .and_then(|ty| scalar_type(ty, typed_hir))
+            .is_some()
+}
+
+fn scalar_value_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| scalar_type(ty, typed_hir))
+            .is_some()
+}
+
+fn scalar_call_shape_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
         return false;
     };
@@ -76,23 +98,10 @@ fn scalar_tail_call_is_supported(
         .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Function)
         && typed_hir.generic_function_call_target(call.span).is_none()
         && typed_hir.function_call_specialization(call.span).is_none()
-        && typed_hir
-            .expression(call.span)
-            .and_then(|expression| {
-                expression
-                    .contextual_ty
-                    .or(match expression.ty {
-                        PartialSemantic::Known(ty) => Some(ty),
-                        PartialSemantic::Error => None,
-                    })
-                    .and_then(|ty| scalar_type(ty, typed_hir))
-            })
-            .is_some()
         && call.arguments.iter().all(|argument| {
-            !matches!(argument.without_groups(), Expr::Call(_) | Expr::If(_))
-                && known_expression_type(argument, typed_hir)
-                    .and_then(|ty| scalar_type(ty, typed_hir))
-                    .is_some()
+            known_expression_type(argument, typed_hir)
+                .and_then(|ty| scalar_type(ty, typed_hir))
+                .is_some()
                 && scalar_expression_is_supported(argument, resolved, typed_hir)
         })
 }
@@ -168,6 +177,7 @@ pub(super) fn scalar_expression_is_supported(
         Expr::Group(group) => {
             scalar_expression_is_supported(&group.expression, resolved, typed_hir)
         }
+        Expr::Call(call) => scalar_value_call_is_supported(call, resolved, typed_hir),
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir))
@@ -182,6 +192,16 @@ pub(super) fn scalar_expression_is_supported(
     }
 }
 
+fn intrinsic_expression_type(
+    span: crate::source::ByteSpan,
+    typed_hir: &TypedHir,
+) -> Option<crate::semantic::TyId> {
+    let PartialSemantic::Known(ty) = typed_hir.expression(span)?.ty else {
+        return None;
+    };
+    Some(ty)
+}
+
 pub(super) fn scalar_branch_result(block: &Block) -> Option<&Expr> {
     let (statements, tail) = scalar_body_parts(block)?;
     statements.is_empty().then(|| tail.expression()).flatten()
@@ -193,13 +213,29 @@ fn scalar_conditional_is_supported(
     typed_hir: &TypedHir,
 ) -> bool {
     scalar_expression_is_supported(&if_.condition, resolved, typed_hir)
-        && scalar_branch_result(&if_.then_block)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
+        && scalar_branch_result(&if_.then_block).is_some_and(|result| {
+            !expression_contains_call(result)
+                && scalar_expression_is_supported(result, resolved, typed_hir)
+        })
         && if_
             .else_block
             .as_ref()
             .and_then(scalar_branch_result)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
+            .is_some_and(|result| {
+                !expression_contains_call(result)
+                    && scalar_expression_is_supported(result, resolved, typed_hir)
+            })
+}
+
+fn expression_contains_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Call(_) => true,
+        Expr::Group(group) => expression_contains_call(&group.expression),
+        Expr::Binary(binary) => {
+            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
+        }
+        _ => false,
+    }
 }
 
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
@@ -238,7 +274,14 @@ pub(super) fn known_expression_type(
     expression: &Expr,
     typed_hir: &TypedHir,
 ) -> Option<crate::semantic::TyId> {
-    let expression = typed_hir.expression(expression.span())?;
+    effective_expression_type(expression.span(), typed_hir)
+}
+
+fn effective_expression_type(
+    span: crate::source::ByteSpan,
+    typed_hir: &TypedHir,
+) -> Option<crate::semantic::TyId> {
+    let expression = typed_hir.expression(span)?;
     if let Some(ty) = expression.contextual_ty {
         return Some(ty);
     }

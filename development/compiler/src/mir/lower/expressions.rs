@@ -1,6 +1,7 @@
 //! Scalar expression evaluation into MIR places, rvalues, and operands.
 
 use super::BuildError;
+use super::body_builder::ControlFlowBuilder;
 use super::coverage::{known_expression_type, scalar_type};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
@@ -12,22 +13,20 @@ use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
-pub(super) fn lower_tail_call(
+pub(super) fn lower_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::model::Local>,
-    statements: &mut Vec<Statement>,
+    control_flow: &mut ControlFlowBuilder,
 ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
         return Err(BuildError::UnsupportedClaimedExpression);
     };
-    let returns_never = resolved
-        .function_signature_for_call(call)
-        .is_some_and(|signature| {
-            matches!(&signature.return_type, crate::ast::TypeExpr::Reference(reference) if reference.name == "never")
-        });
+    let returns_never = typed_hir
+        .expression(call.span)
+        .is_some_and(|expression| expression.diverges);
     let callee = typed_hir
         .function_call_target(callee.span)
         .map(|definition| resolved.callable_bodies.canonical_definition(definition))
@@ -48,7 +47,7 @@ pub(super) fn lower_tail_call(
                 locals,
                 typed_hir,
                 local_declarations,
-                statements,
+                control_flow,
             )?;
             Ok(CallArgument {
                 operand,
@@ -69,7 +68,7 @@ pub(super) fn lower_expression_to_place(
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::model::Local>,
-    statements: &mut Vec<Statement>,
+    control_flow: &mut ControlFlowBuilder,
 ) -> Result<(), BuildError> {
     let source = typed_hir
         .expression(expression.span())
@@ -88,7 +87,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
-                        statements,
+                        control_flow,
                     )?,
                     right: lower_operand(
                         &binary.right,
@@ -98,7 +97,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
-                        statements,
+                        control_flow,
                     )?,
                     ty,
                 }
@@ -119,7 +118,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
-                        statements,
+                        control_flow,
                     )?,
                     right: lower_operand(
                         &binary.right,
@@ -129,7 +128,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
-                        statements,
+                        control_flow,
                     )?,
                     operand_ty,
                     operand_scalar,
@@ -147,18 +146,32 @@ pub(super) fn lower_expression_to_place(
                 locals,
                 typed_hir,
                 local_declarations,
-                statements,
+                control_flow,
             );
+        }
+        Expr::Call(call) => {
+            let (callee, arguments, returns_never) = lower_call(
+                call,
+                resolved,
+                locals,
+                typed_hir,
+                local_declarations,
+                control_flow,
+            )?;
+            if returns_never {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            return control_flow.emit_returning_call(source, callee, arguments, destination);
         }
         _ => Rvalue::Use(lower_simple_operand(
             expression, ty, scalar, resolved, locals,
         )?),
     };
-    statements.push(Statement::Assign {
+    control_flow.push_statement(Statement::Assign {
         destination: Place { local: destination },
         value,
         source,
-    });
+    })?;
     Ok(())
 }
 
@@ -170,9 +183,9 @@ pub(super) fn lower_operand(
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::model::Local>,
-    statements: &mut Vec<Statement>,
+    control_flow: &mut ControlFlowBuilder,
 ) -> Result<Operand, BuildError> {
-    if !matches!(expression, Expr::Binary(_)) {
+    if !matches!(expression, Expr::Binary(_) | Expr::Call(_)) {
         return match expression {
             Expr::Group(group) => lower_operand(
                 &group.expression,
@@ -182,7 +195,7 @@ pub(super) fn lower_operand(
                 locals,
                 typed_hir,
                 local_declarations,
-                statements,
+                control_flow,
             ),
             _ => lower_simple_operand(expression, ty, scalar, resolved, locals),
         };
@@ -206,7 +219,7 @@ pub(super) fn lower_operand(
         locals,
         typed_hir,
         local_declarations,
-        statements,
+        control_flow,
     )?;
     Ok(Operand::Copy(Place { local: temporary }))
 }

@@ -80,8 +80,10 @@ impl TypedHir {
         expression_span: ByteSpan,
         ty: Option<TypeExpr>,
         scalar: Option<CheckedScalarType>,
+        diverges: bool,
     ) {
-        self.expressions.record_type(expression_span, ty, scalar);
+        self.expressions
+            .record_type(expression_span, ty, scalar, diverges);
     }
 
     pub(super) fn record_contextual_expression_type(

@@ -432,6 +432,7 @@ impl TypedHirBuilder<'_> {
         ty: &Type,
     ) {
         let scalar = checked_scalar_type(ty);
+        let diverges = ty == &Type::Never;
         let mut free_type_parameters = HashSet::new();
         let ty =
             type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters);
@@ -439,7 +440,7 @@ impl TypedHirBuilder<'_> {
             self.record_payload_enum_drop_type_specializations(ty);
         }
         self.facts
-            .record_expression_type(expression_span, ty, scalar);
+            .record_expression_type(expression_span, ty, scalar, diverges);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_contextual_expression_type(

@@ -127,6 +127,7 @@ fn lower_scalar_body(
                 callee,
                 arguments,
                 continuation,
+                ..
             } => {
                 let (call_target, callee_name) =
                     lower_call_target(*callee, resolved, function_names, root_source)?;
@@ -166,6 +167,12 @@ fn lower_scalar_body(
                         target,
                     } => {
                         let target_block = &body.blocks[target.index()];
+                        let destination_scalar = body.locals[destination.local.index()].scalar;
+                        super::expressions::validate_known_call_success_return_passing(
+                            function_signatures.success_return_passing(&call_target),
+                            &callee_name,
+                            &scalar_ir_type(destination_scalar),
+                        )?;
                         let returns_directly = destination.local == body.return_local
                             && target_block.statements.is_empty()
                             && target_block.terminator == Terminator::Return;
@@ -185,7 +192,7 @@ fn lower_scalar_body(
                             });
                             return Ok(instructions);
                         }
-                        instructions.push(match body.locals[destination.local.index()].scalar {
+                        instructions.push(match destination_scalar {
                             ScalarType::I32 => Instruction::CallI32 {
                                 destination: i32_location(destination, body)?,
                                 target: call_target,
@@ -211,6 +218,14 @@ fn lower_scalar_body(
                 return Ok(instructions);
             }
         }
+    }
+}
+
+fn scalar_ir_type(scalar: ScalarType) -> Type {
+    match scalar {
+        ScalarType::I32 => Type::I32,
+        ScalarType::Usize => Type::Usize,
+        ScalarType::Bool => Type::Bool,
     }
 }
 

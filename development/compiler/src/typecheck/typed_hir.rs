@@ -19,6 +19,7 @@ pub(crate) struct TypedExpression {
     pub(crate) body: BodyId,
     pub(crate) ty: PartialSemantic<TyId>,
     pub(crate) contextual_ty: Option<TyId>,
+    pub(crate) diverges: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +58,7 @@ impl TypedExpressionArena {
         expression_span: ByteSpan,
         ty: Option<TypeExpr>,
         scalar: Option<CheckedScalarType>,
+        diverges: bool,
     ) {
         let Some(expression) = self.semantic_db.expression_at(expression_span) else {
             return;
@@ -71,6 +73,11 @@ impl TypedExpressionArena {
             Some(ty) => PartialSemantic::Known(self.intern_type(ty, scalar)),
             None => PartialSemantic::Error,
         };
+        let diverges = diverges
+            || self
+                .expressions
+                .get(&expression)
+                .is_some_and(|expression| expression.diverges);
         self.expressions.insert(
             expression,
             TypedExpression {
@@ -78,6 +85,7 @@ impl TypedExpressionArena {
                 body,
                 ty,
                 contextual_ty: None,
+                diverges,
             },
         );
     }

@@ -35,15 +35,9 @@ fn builds_typed_control_flow_for_a_scalar_literal_body() {
     .unwrap();
 
     assert_eq!(body.source_span, block.span);
-    assert_eq!(body.blocks.len(), 2);
+    assert_eq!(body.blocks.len(), 1);
     assert_eq!(body.blocks[0].statements.len(), 1);
-    assert_eq!(
-        body.blocks[0].terminator,
-        Terminator::Goto {
-            target: BasicBlockId::from_index(1),
-        }
-    );
-    assert_eq!(body.blocks[1].terminator, Terminator::Return);
+    assert_eq!(body.blocks[0].terminator, Terminator::Return);
     assert_eq!(validate(&body), Ok(()));
 }
 
@@ -332,6 +326,7 @@ func main(): i32 {
                 destination,
                 target,
             },
+        ..
     } = &body.blocks[0].terminator
     else {
         panic!("expected MIR call edge");
@@ -345,4 +340,111 @@ func main(): i32 {
     assert_eq!(destination.local, body.return_local);
     assert_eq!(*target, BasicBlockId::from_index(1));
     assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn splits_sequential_and_nested_scalar_calls_into_ordered_cfg_edges() {
+    let (_sources, analysis) = analyze_text(
+        r#"func bump(value: i32): i32 {
+    return value + 1
+}
+
+func main(): i32 {
+    let first = bump(1)
+    let second = bump(first)
+    return second + bump(2)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("ordinary scalar calls must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 4);
+    for (index, block) in body.blocks[..3].iter().enumerate() {
+        let Terminator::Call {
+            source,
+            continuation:
+                crate::mir::CallContinuation::Return {
+                    destination,
+                    target,
+                },
+            ..
+        } = block.terminator
+        else {
+            panic!("expected call edge at block {index}");
+        };
+        assert_eq!(destination.local.index(), index + 1);
+        assert_eq!(target, BasicBlockId::from_index(index + 1));
+        assert_eq!(analysis.semantic_db.expression(source).unwrap().id, source);
+    }
+    assert!(matches!(
+        body.blocks[3].statements.as_slice(),
+        [Statement::Assign {
+            destination,
+            value: Rvalue::Binary { .. },
+            ..
+        }] if destination.local == body.return_local
+    ));
+    assert_eq!(body.blocks[3].terminator, Terminator::Return);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn does_not_claim_calls_inside_conditional_branches_before_structured_cfg_lowering() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32 {
+    return 42
+}
+
+func choose(condition: bool): i32 {
+    if condition {
+        return answer()
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "choose" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(
+        try_build_scalar_body(
+            function.body.as_ref().unwrap(),
+            &function.parameters.parameters,
+            ScalarType::I32,
+            &analysis.semantic_db,
+            &file.resolved,
+            &file.typed_hir,
+        )
+        .is_none()
+    );
 }

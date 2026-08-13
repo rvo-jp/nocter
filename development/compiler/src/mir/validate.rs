@@ -407,6 +407,7 @@ mod tests {
         let mut body = valid_body();
         body.blocks[0].statements.clear();
         body.blocks[0].terminator = Terminator::Call {
+            source: ExprId::from_index(0),
             callee: DefId::from_index(0),
             arguments: vec![CallArgument {
                 operand: Operand::Constant(Constant {

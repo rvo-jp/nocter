@@ -255,9 +255,10 @@ func main(): i32 {
                     },
                     Instruction::If {
                         condition: BoolValue::Location(BoolLocation::Local(0)),
-                        then_instructions: vec![set_return_i32(42), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                        then_instructions: vec![set_return_i32(42)],
+                        else_instructions: vec![set_return_i32(1)],
                     },
+                    Instruction::Return,
                 ],
             },
             Function {

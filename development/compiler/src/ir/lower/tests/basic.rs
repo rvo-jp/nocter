@@ -150,6 +150,46 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_ordered_scalar_call_continuations_through_mir() {
+    let ir = lower_text(
+        r#"func bump(value: i32): i32 {
+    return value + 1
+}
+
+func main(): i32 {
+    let first = bump(1)
+    let second = bump(first)
+    return second + bump(2)
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert_eq!(
+        main.instructions,
+        vec![
+            call_i32(I32Location::Local(0), "bump", vec![I32Value::Const(1)]),
+            call_i32(
+                I32Location::Local(1),
+                "bump",
+                vec![I32Value::Location(I32Location::Local(0))],
+            ),
+            call_i32(I32Location::Local(2), "bump", vec![I32Value::Const(2)]),
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: I32Value::Location(I32Location::Local(1)),
+                right: I32Value::Location(I32Location::Local(2)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn keeps_each_mir_local_scalar_representation_independent_of_the_result() {
     let ir = lower_text(
         r#"func helper(condition: bool, value: i32): i32 {

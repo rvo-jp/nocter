@@ -56,6 +56,7 @@ mod pointer_drops;
 mod pointer_takes;
 mod primitives;
 mod return_validation;
+pub(in crate::ir::lower) use return_validation::validate_known_call_success_return_passing;
 mod tail_calls;
 mod utility;
 

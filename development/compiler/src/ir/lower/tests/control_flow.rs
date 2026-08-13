@@ -160,9 +160,10 @@ func choose(code: i32, flag: bool, size: usize): bool {
                     ),
                     Instruction::If {
                         condition: BoolValue::Location(BoolLocation::Local(0)),
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                        then_instructions: vec![set_return_i32(0)],
+                        else_instructions: vec![set_return_i32(1)],
                     },
+                    Instruction::Return,
                 ],
             },
             Function {
@@ -1594,9 +1595,10 @@ func ready(): bool {
                     call_bool(BoolLocation::Local(0), "ready", vec![]),
                     Instruction::If {
                         condition: BoolValue::Location(BoolLocation::Local(0)),
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                        then_instructions: vec![set_return_i32(0)],
+                        else_instructions: vec![set_return_i32(1)],
                     },
+                    Instruction::Return,
                 ],
             },
             Function {
@@ -1820,20 +1822,21 @@ func ready(): bool {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            call_bool(BoolLocation::Local(1), "ready", vec![]),
             Instruction::SetBool {
                 destination: BoolLocation::Local(0),
                 value: BoolValue::BoolComparison {
                     operator: BoolComparisonOperator::Equal,
-                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(1))),
                     right: Box::new(BoolValue::Const(true)),
                 },
             },
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
+                then_instructions: vec![set_return_i32(42)],
+                else_instructions: vec![set_return_i32(7)],
             },
+            Instruction::Return,
         ]
     );
 }
@@ -1976,17 +1979,22 @@ func right(): bool {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_bool(BoolLocation::Local(0), "left", vec![]),
-            call_bool(BoolLocation::Local(1), "right", vec![]),
-            Instruction::If {
-                condition: BoolValue::BoolComparison {
+            call_bool(BoolLocation::Local(1), "left", vec![]),
+            call_bool(BoolLocation::Local(2), "right", vec![]),
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::BoolComparison {
                     operator: BoolComparisonOperator::Equal,
-                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
-                    right: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                    right: Box::new(BoolValue::Location(BoolLocation::Local(2))),
                 },
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
             },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42)],
+                else_instructions: vec![set_return_i32(7)],
+            },
+            Instruction::Return,
         ]
     );
 }
@@ -2011,16 +2019,21 @@ func answer(): i32 {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_i32(I32Location::Local(0), "answer", vec![]),
-            Instruction::If {
-                condition: BoolValue::I32Comparison {
+            call_i32(I32Location::Local(1), "answer", vec![]),
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::I32Comparison {
                     operator: I32ComparisonOperator::Equal,
-                    left: i32_local(0),
+                    left: i32_local(1),
                     right: i32_const(42),
                 },
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
             },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42)],
+                else_instructions: vec![set_return_i32(7)],
+            },
+            Instruction::Return,
         ]
     );
 }
@@ -2050,21 +2063,22 @@ func limit(): i32 {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            call_i32(I32Location::Local(0), "answer", vec![]),
-            call_i32(I32Location::Local(1), "limit", vec![]),
+            call_i32(I32Location::Local(1), "answer", vec![]),
+            call_i32(I32Location::Local(2), "limit", vec![]),
             Instruction::SetBool {
                 destination: BoolLocation::Local(0),
                 value: BoolValue::I32Comparison {
                     operator: I32ComparisonOperator::LessEqual,
-                    left: i32_local(0),
-                    right: i32_local(1),
+                    left: i32_local(1),
+                    right: i32_local(2),
                 },
             },
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
+                then_instructions: vec![set_return_i32(42)],
+                else_instructions: vec![set_return_i32(7)],
             },
+            Instruction::Return,
         ]
     );
 }
@@ -2142,9 +2156,10 @@ func ready(): bool {
             call_bool(BoolLocation::Local(0), "ready", vec![]),
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
-                then_instructions: vec![set_return_i32(42), Instruction::Return],
-                else_instructions: vec![set_return_i32(7), Instruction::Return],
+                then_instructions: vec![set_return_i32(42)],
+                else_instructions: vec![set_return_i32(7)],
             },
+            Instruction::Return,
         ]
     );
 }
@@ -2211,21 +2226,16 @@ func choose(): bool {
                 call_bool(BoolLocation::Local(0), "ready", vec![]),
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Local(0)),
-                    then_instructions: vec![
-                        Instruction::SetBool {
-                            destination: BoolLocation::Return,
-                            value: BoolValue::Const(false),
-                        },
-                        Instruction::Return,
-                    ],
-                    else_instructions: vec![
-                        Instruction::SetBool {
-                            destination: BoolLocation::Return,
-                            value: BoolValue::Const(true),
-                        },
-                        Instruction::Return,
-                    ],
+                    then_instructions: vec![Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(false),
+                    }],
+                    else_instructions: vec![Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    }],
                 },
+                Instruction::Return,
             ],
         }
     );
