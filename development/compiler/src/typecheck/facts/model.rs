@@ -141,6 +141,10 @@ impl TypedHir {
         self.expressions.type_id(ty)
     }
 
+    pub(crate) fn type_expr_by_id(&self, ty: crate::semantic::TyId) -> Option<&TypeExpr> {
+        self.expressions.type_expr(ty)
+    }
+
     pub(crate) fn scalar_type(&self, ty: crate::semantic::TyId) -> Option<CheckedScalarType> {
         self.expressions.scalar_type(ty)
     }

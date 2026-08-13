@@ -101,6 +101,30 @@ impl ControlFlowBuilder {
         })
     }
 
+    pub(super) fn emit_trapping_outcome_call(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        destination: LocalId,
+    ) -> Result<(), BuildError> {
+        let success = self.reserve_block();
+        let failure = self.reserve_block();
+        self.terminate(Terminator::Call {
+            source,
+            callee,
+            arguments,
+            continuation: CallContinuation::Outcome {
+                destination: Place { local: destination },
+                success,
+                failure,
+            },
+        })?;
+        self.select_block(failure)?;
+        self.terminate(Terminator::Trap)?;
+        self.select_block(success)
+    }
+
     pub(super) fn finish(self) -> Result<Vec<crate::mir::model::BasicBlock>, BuildError> {
         if self.current.is_some() {
             return Err(BuildError::OpenBlockNotTerminated);

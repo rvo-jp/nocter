@@ -23,9 +23,14 @@ pub(super) fn linear_branch_join(
                 continuation: CallContinuation::Never,
                 ..
             } => return Err("non-returning conditional branches do not have a common join"),
+            Terminator::Call {
+                continuation: CallContinuation::Outcome { .. },
+                ..
+            } => return Err("outcome calls require explicit failure-path structuring"),
             Terminator::Switch { .. } => {
                 return Err("nested conditional branches require recursive structuring");
             }
+            Terminator::Trap => return Err("conditional branch traps before its common join"),
             Terminator::Return => return Err("conditional branch returns before its common join"),
         }
     }

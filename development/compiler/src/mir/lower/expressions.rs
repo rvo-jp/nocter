@@ -163,6 +163,23 @@ pub(super) fn lower_expression_to_place(
             }
             return control_flow.emit_returning_call(source, callee, arguments, destination);
         }
+        Expr::Force(force) => {
+            let Expr::Call(call) = force.expression.without_groups() else {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            };
+            let (callee, arguments, returns_never) = lower_call(
+                call,
+                resolved,
+                locals,
+                typed_hir,
+                local_declarations,
+                control_flow,
+            )?;
+            if returns_never {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            return control_flow.emit_trapping_outcome_call(source, callee, arguments, destination);
+        }
         _ => Rvalue::Use(lower_simple_operand(
             expression, ty, scalar, resolved, locals,
         )?),
@@ -185,7 +202,7 @@ pub(super) fn lower_operand(
     local_declarations: &mut Vec<crate::mir::model::Local>,
     control_flow: &mut ControlFlowBuilder,
 ) -> Result<Operand, BuildError> {
-    if !matches!(expression, Expr::Binary(_) | Expr::Call(_)) {
+    if !matches!(expression, Expr::Binary(_) | Expr::Call(_) | Expr::Force(_)) {
         return match expression {
             Expr::Group(group) => lower_operand(
                 &group.expression,

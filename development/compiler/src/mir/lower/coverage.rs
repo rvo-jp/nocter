@@ -178,6 +178,12 @@ pub(super) fn scalar_expression_is_supported(
             scalar_expression_is_supported(&group.expression, resolved, typed_hir)
         }
         Expr::Call(call) => scalar_value_call_is_supported(call, resolved, typed_hir),
+        Expr::Force(force) => {
+            let Expr::Call(call) = force.expression.without_groups() else {
+                return false;
+            };
+            scalar_outcome_call_is_supported(call, resolved, typed_hir)
+        }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir))
@@ -190,6 +196,24 @@ pub(super) fn scalar_expression_is_supported(
         Expr::If(_) => false,
         _ => false,
     }
+}
+
+fn scalar_outcome_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .map(|ty| crate::outcomes::outcome_shape_with_resolver(ty, resolved, |_| None))
+            .is_some_and(|shape| {
+                shape.layers.as_slice() == [crate::outcomes::OutcomeLayer::Fallible]
+                    && typed_hir
+                        .type_id(&shape.payload)
+                        .and_then(|ty| scalar_type(ty, typed_hir))
+                        .is_some()
+            })
 }
 
 fn intrinsic_expression_type(

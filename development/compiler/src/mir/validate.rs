@@ -186,18 +186,32 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 continuation,
                 ..
             } => {
-                if let CallContinuation::Return {
-                    destination,
-                    target,
-                } = continuation
-                {
-                    validate_target(body, block_id, *target, &mut errors);
-                    if body.locals.get(destination.local.index()).is_none() {
-                        errors.push(ValidationError::MissingCallDestination {
-                            block: block_id,
-                            local: destination.local,
-                        });
+                let destination = match continuation {
+                    CallContinuation::Return {
+                        destination,
+                        target,
+                    } => {
+                        validate_target(body, block_id, *target, &mut errors);
+                        Some(destination)
                     }
+                    CallContinuation::Outcome {
+                        destination,
+                        success,
+                        failure,
+                    } => {
+                        validate_target(body, block_id, *success, &mut errors);
+                        validate_target(body, block_id, *failure, &mut errors);
+                        Some(destination)
+                    }
+                    CallContinuation::Never => None,
+                };
+                if let Some(destination) = destination
+                    && body.locals.get(destination.local.index()).is_none()
+                {
+                    errors.push(ValidationError::MissingCallDestination {
+                        block: block_id,
+                        local: destination.local,
+                    });
                 }
                 for (index, argument) in arguments.iter().enumerate() {
                     validate_operand(
@@ -211,7 +225,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                 }
             }
-            Terminator::Return => {}
+            Terminator::Trap | Terminator::Return => {}
         }
     }
 

@@ -103,6 +103,11 @@ pub(crate) enum CallContinuation {
         destination: Place,
         target: BasicBlockId,
     },
+    Outcome {
+        destination: Place,
+        success: BasicBlockId,
+        failure: BasicBlockId,
+    },
     Never,
 }
 
@@ -141,5 +146,6 @@ pub(crate) enum Terminator {
         arguments: Vec<CallArgument>,
         continuation: CallContinuation,
     },
+    Trap,
     Return,
 }

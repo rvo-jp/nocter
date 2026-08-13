@@ -4,7 +4,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value,
-    Instruction, ScalarArgument, Type, UsizeLocation, UsizeValue,
+    Instruction, OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalSource, Operand,
@@ -209,7 +209,42 @@ fn lower_scalar_body(
                         )?);
                         current = *target;
                     }
+                    CallContinuation::Outcome {
+                        destination,
+                        success,
+                        failure,
+                    } => {
+                        let failure_block = &body.blocks[failure.index()];
+                        if !failure_block.statements.is_empty()
+                            || failure_block.terminator != Terminator::Trap
+                        {
+                            return Err(invalid_mir_diagnostics(
+                                "trapping outcome call must have a dedicated trap block",
+                            ));
+                        }
+                        let destination_scalar = body.locals[destination.local.index()].scalar;
+                        validate_outcome_call_return_type(
+                            &call_target,
+                            &callee_name,
+                            destination_scalar,
+                            function_signatures,
+                        )?;
+                        instructions.push(outcome_call_instruction(
+                            destination_scalar,
+                            destination,
+                            call_target,
+                            arguments,
+                            OutcomeFailureMode::Trap,
+                            body,
+                        )?);
+                        visited.insert(*failure);
+                        current = *success;
+                    }
                 }
+            }
+            Terminator::Trap => {
+                instructions.push(Instruction::Trap);
+                return Ok(instructions);
             }
             Terminator::Return => {
                 instructions.push(Instruction::Return);
@@ -217,6 +252,35 @@ fn lower_scalar_body(
             }
         }
     }
+}
+
+fn validate_outcome_call_return_type(
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    destination_scalar: ScalarType,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(return_type) = function_signatures.return_type(target) else {
+        return Ok(());
+    };
+    let Type::Fallible(success) = return_type else {
+        return Err(invalid_mir_diagnostics(format!(
+            "outcome call to `{callee_name}` does not return a fallible value"
+        )));
+    };
+    let expected = scalar_ir_type(destination_scalar);
+    if success.as_ref() != &expected {
+        return Err(invalid_mir_diagnostics(format!(
+            "outcome call to `{callee_name}` returns `{}` but its MIR destination is `{}`",
+            super::expressions::describe_type(success),
+            super::expressions::describe_type(&expected),
+        )));
+    }
+    super::expressions::validate_known_call_success_return_passing(
+        function_signatures.success_return_passing(target),
+        callee_name,
+        &expected,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -304,6 +368,36 @@ fn call_instruction(
             destination: bool_location(destination, body)?,
             target,
             arguments,
+        },
+    })
+}
+
+fn outcome_call_instruction(
+    scalar: ScalarType,
+    destination: &Place,
+    target: crate::ir::CallTarget,
+    arguments: Vec<ScalarArgument>,
+    failure_mode: OutcomeFailureMode,
+    body: &Body,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    Ok(match scalar {
+        ScalarType::I32 => Instruction::CallOutcomeI32 {
+            destination: i32_location(destination, body)?,
+            target,
+            arguments,
+            failure_mode,
+        },
+        ScalarType::Usize => Instruction::CallOutcomeUsize {
+            destination: usize_location(destination, body)?,
+            target,
+            arguments,
+            failure_mode,
+        },
+        ScalarType::Bool => Instruction::CallOutcomeBool {
+            destination: bool_location(destination, body)?,
+            target,
+            arguments,
+            failure_mode,
         },
     })
 }

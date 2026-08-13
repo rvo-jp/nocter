@@ -659,6 +659,38 @@ func answer(): i32! {
 }
 
 #[test]
+fn lowers_nested_forced_fallible_call_through_mir_outcome_edges() {
+    let ir = lower_text(
+        r#"func answer(): i32! {
+    return 41
+}
+
+func main(): i32 {
+    return answer()! + 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::CallOutcomeI32 {
+                destination: I32Location::Local(0),
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+                failure_mode: OutcomeFailureMode::Trap,
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: I32Value::Location(I32Location::Local(0)),
+                right: I32Value::Const(1),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_void_force_unwrap_statement_as_trapping_fallible_call() {
     let ir = lower_text(
         r#"func main(): void {
