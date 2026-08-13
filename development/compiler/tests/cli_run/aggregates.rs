@@ -3637,9 +3637,13 @@ func make(): Pair {
     return Pair { first: 1, second: 42 }
 }
 
+func inspect(pair: Pair): i32 {
+    return pair.second
+}
+
 func main(): i32 {
     let pair = make()
-    return pair.second
+    return inspect(pair)
 }
 "#,
     );

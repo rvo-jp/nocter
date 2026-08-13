@@ -273,9 +273,13 @@ func make(): Pair {
     return Pair { first: 1, second: 42 }
 }
 
+func inspect(pair: Pair): i32 {
+    return pair.second
+}
+
 func main(): i32 {
     let pair = make()
-    return pair.second
+    return inspect(pair)
 }
 "#,
     );
@@ -308,11 +312,13 @@ func main(): i32 {
             ..
         } if body.locals[destination.local.index()].representation == ValueRepresentation::Aggregate
     ));
-    assert!(
-        body.projections
-            .iter()
-            .any(|projection| { projection.element == ProjectionElement::Field { offset: 4 } })
-    );
+    assert!(body.blocks.iter().any(|block| matches!(
+        &block.terminator,
+        Terminator::Call { arguments, .. }
+            if arguments.iter().any(|argument|
+                argument.representation == ValueRepresentation::Aggregate
+                    && matches!(argument.operand, Operand::Copy(_)))
+    )));
     assert_eq!(validate(&body), Ok(()));
 }
 

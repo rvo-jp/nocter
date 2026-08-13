@@ -242,7 +242,8 @@ InstanceMember::Coercion(CoercionDecl)
   block endings or kept as backend-only local metadata.</li><li>Copy aggregate call results may initialize MIR locals and feed checked field projections. The
   backend derives local aggregate slots after retained parameter/outcome slots, reserves them from
   the aggregate's checked ABI layout, and uses the same location projection for field reads and
-  later whole-place call arguments.</li><li>Nested checked member selections build parent-linked MIR projection paths from the root local to
+  whole-place call arguments. Local forwarding preserves direct/indirect ABI classification from
+  the checked <code>TyId</code> instead of treating only parameters as aggregate storage.</li><li>Nested checked member selections build parent-linked MIR projection paths from the root local to
   the selected field. Backend lowering folds relative layout offsets along that path, so nested and
   cross-source aggregate access does not flatten or rediscover source member syntax.</li><li>MIR scalar identity now covers every built-in integer. Narrow and wide integer parameters,
   constants, arithmetic, shifts, comparisons, calls, aggregate-field loads, and plain or fallible
