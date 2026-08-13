@@ -1,6 +1,6 @@
 use crate::analysis::FileAnalysis;
 use crate::analysis::presentation::method_presentation;
-use crate::ast::{ConformanceMember, Item, TypeExpr};
+use crate::ast::{ConformanceMember, TypeExpr};
 use crate::resolve::TypeSymbolKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,14 +14,7 @@ pub(crate) fn plan_missing_interface_members(
     file: &FileAnalysis,
     diagnostic_offset: usize,
 ) -> Option<InterfaceMembersEditPlan> {
-    let conformance = file.ast.items.iter().find_map(|item| {
-        let Item::Conformance(conformance) = item else {
-            return None;
-        };
-        (conformance.target_ty.span().start <= diagnostic_offset
-            && diagnostic_offset <= conformance.target_ty.span().end)
-            .then_some(conformance)
-    })?;
+    let conformance = file.syntax.conformance_at(diagnostic_offset)?;
     let interface_name = type_reference_name(&conformance.interface_ty)?;
     let interface = file
         .resolved

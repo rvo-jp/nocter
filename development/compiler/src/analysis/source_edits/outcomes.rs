@@ -1,5 +1,5 @@
 use crate::analysis::FileAnalysis;
-use crate::ast::{ConstructMemberDecl, Item, TypeExpr};
+use crate::ast::TypeExpr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutcomeContractKind {
@@ -18,65 +18,24 @@ pub(crate) fn plan_outcome_contract(
     diagnostic_offset: usize,
     kind: OutcomeContractKind,
 ) -> Option<OutcomeContractEditPlan> {
-    let return_type =
-        file.ast.items.iter().find_map(|item| match item {
-            Item::Function(function)
-                if function
-                    .body
-                    .as_ref()
-                    .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
-            {
-                Some(&function.return_type)
-            }
-            Item::Interface(interface) => interface.methods.iter().find_map(|method| {
-                method
-                    .body
-                    .as_ref()
-                    .filter(|body| contains(body.span, diagnostic_offset))
-                    .map(|_| &method.return_type)
-            }),
-            Item::Instance(_) | Item::Conformance(_) => item
-                .method_owner()
-                .expect("matched method owner")
-                .methods()
-                .find_map(|method| {
-                    method
-                        .body
-                        .as_ref()
-                        .filter(|body| contains(body.span, diagnostic_offset))
-                        .map(|_| &method.return_type)
-                }),
-            Item::Construct(construct) => construct.members.iter().find_map(|member| match &member
-                .declaration
-            {
-                ConstructMemberDecl::Function(function)
-                    if function
-                        .body
-                        .as_ref()
-                        .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
-                {
-                    Some(&function.return_type)
-                }
-                ConstructMemberDecl::Literal(literal)
-                    if literal
-                        .body
-                        .as_ref()
-                        .is_some_and(|body| contains(body.span, diagnostic_offset)) =>
-                {
-                    Some(&literal.return_type)
-                }
-                ConstructMemberDecl::Function(_) | ConstructMemberDecl::Literal(_) => None,
-            }),
-            Item::Import(_)
-            | Item::FromImport(_)
-            | Item::Function(_)
-            | Item::Test(_)
-            | Item::Primitive(_)
-            | Item::TypeAlias(_)
-            | Item::Struct(_)
-            | Item::Enum(_) => None,
-            Item::Destruct(_) => None,
-        })?;
+    let body = file
+        .resolved
+        .semantic_db
+        .body_containing(file.ast.span.source, diagnostic_offset)?;
+    let owner = file
+        .resolved
+        .callable_bodies
+        .declaration_id(body.owner)
+        .unwrap_or(body.owner);
+    let return_type = match file.syntax.callable(owner)? {
+        crate::analysis::syntax_index::CallableSyntax::Function(function) => &function.return_type,
+        crate::analysis::syntax_index::CallableSyntax::Method { method, .. }
+        | crate::analysis::syntax_index::CallableSyntax::InterfaceMethod(method) => {
+            &method.return_type
+        }
+        crate::analysis::syntax_index::CallableSyntax::Literal(literal) => &literal.return_type,
+        crate::analysis::syntax_index::CallableSyntax::Primitive(_) => return None,
+    };
     if matches!(
         (kind, return_type),
         (OutcomeContractKind::Fallible, TypeExpr::Fallible(_))
@@ -91,10 +50,6 @@ pub(crate) fn plan_outcome_contract(
             OutcomeContractKind::Optional => "?",
         },
     })
-}
-
-fn contains(span: crate::source::ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset <= span.end
 }
 
 #[cfg(test)]

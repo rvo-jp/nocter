@@ -121,6 +121,19 @@ impl SemanticDb {
         self.bodies.get(id.index()).map(|body| body.anchor)
     }
 
+    pub(crate) fn body_containing(
+        &self,
+        source: crate::source::SourceId,
+        offset: usize,
+    ) -> Option<&BodyDefinition> {
+        self.bodies
+            .iter()
+            .filter(|body| {
+                body.span.source == source && body.span.start <= offset && offset <= body.span.end
+            })
+            .min_by_key(|body| (body.span.len(), body.span.start))
+    }
+
     pub(crate) fn declaration_body_for_owner(&self, owner: DefId) -> Option<&BodyDefinition> {
         self.declaration_bodies_by_owner
             .get(&owner)

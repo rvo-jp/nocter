@@ -726,7 +726,7 @@ fn drop_specialization_from_typecheck_fact(
 ) -> Option<DropSpecialization> {
     let (_file, destruct) =
         destruct_declaration_for_span(analysis, specialization.declaration_span)?;
-    let substitutions = declaration_pattern_substitutions_for_self_ty(
+    let substitutions = method_owner_substitutions_for_declaration(
         &destruct.generics,
         &destruct.target_ty,
         &specialization.self_ty,
@@ -762,10 +762,10 @@ pub(crate) fn method_owner_substitutions_for_self_ty(
     owner: &(impl MethodOwnerDecl + ?Sized),
     self_ty: &TypeExpr,
 ) -> Option<HashMap<String, TypeExpr>> {
-    declaration_pattern_substitutions_for_self_ty(owner.generics(), owner.target_ty(), self_ty)
+    method_owner_substitutions_for_declaration(owner.generics(), owner.target_ty(), self_ty)
 }
 
-fn declaration_pattern_substitutions_for_self_ty(
+pub(crate) fn method_owner_substitutions_for_declaration(
     generics: &crate::ast::GenericParamList,
     target_ty: &TypeExpr,
     self_ty: &TypeExpr,

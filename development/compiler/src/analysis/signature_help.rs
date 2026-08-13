@@ -1,13 +1,12 @@
 //! Resolved callable presentation for hover and LSP signature help.
 
-use super::call_specializations::method_owner_substitutions_for_self_ty;
+use super::call_specializations::method_owner_substitutions_for_declaration;
 use super::syntax_index::CallCursorRegion;
+use super::syntax_index::CallableSyntax as CallableDeclaration;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    CallExpr, ConstructMemberDecl, Expr, FunctionDecl, Item, MethodDecl, MethodOwnerDecl,
-    MethodReceiver, Parameter, PrimitiveDecl, TypeExpr, substitute_type_expr_parameters,
+    CallExpr, Expr, MethodReceiver, Parameter, TypeExpr, substitute_type_expr_parameters,
 };
-use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::type_expr_presentation_label;
 use std::collections::HashMap;
@@ -113,8 +112,11 @@ fn signature_info_for_call(
         && let Some(specialization) = file.typed_hir.method_call_specialization(member_span)
     {
         if let CallableDeclaration::Method { owner, .. } = declaration
-            && let Some(owner_substitutions) =
-                method_owner_substitutions_for_self_ty(owner, &specialization.self_ty)
+            && let Some(owner_substitutions) = method_owner_substitutions_for_declaration(
+                &owner.generics,
+                &owner.target_ty,
+                &specialization.self_ty,
+            )
         {
             substitutions.extend(owner_substitutions);
         }
@@ -142,9 +144,11 @@ fn signature_info_for_call(
         CallableDeclaration::Method { owner, .. } => {
             substitutions
                 .entry("Self".to_string())
-                .or_insert_with(|| owner.target_ty().clone());
+                .or_insert_with(|| owner.target_ty.clone());
         }
-        CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
+        CallableDeclaration::Primitive(_)
+        | CallableDeclaration::InterfaceMethod(_)
+        | CallableDeclaration::Literal(_) => {}
     }
 
     let (
@@ -197,6 +201,7 @@ fn signature_info_for_call(
             method.generics.parameters.iter().collect::<Vec<_>>(),
             Some(&method.receiver),
         ),
+        CallableDeclaration::Literal(_) => return None,
     };
 
     let specialized_parameters = parameters
@@ -271,7 +276,11 @@ fn signature_info_for_call(
             })
             .collect(),
         active_parameter: active_parameter(call, offset, parameters.len()),
-        documentation: callable_documentation(sources, declaration, declaration_anchor),
+        documentation: crate::analysis::hover::target_documentation(
+            sources,
+            analysis,
+            declaration_anchor,
+        ),
         result_type: return_type,
         is_specialized: !substitutions.is_empty(),
     })
@@ -357,92 +366,15 @@ fn call_member_span(call: &CallExpr) -> Option<ByteSpan> {
     Some(member.member_span)
 }
 
-enum CallableDeclaration<'a> {
-    Function(&'a FunctionDecl),
-    Primitive(&'a PrimitiveDecl),
-    Method {
-        owner: &'a dyn MethodOwnerDecl,
-        method: &'a MethodDecl,
-    },
-    InterfaceMethod(&'a MethodDecl),
-}
-
-impl CallableDeclaration<'_> {
-    fn span(&self) -> ByteSpan {
-        match self {
-            Self::Function(function) => function.span,
-            Self::Primitive(primitive) => primitive.span,
-            Self::Method { method, .. } => method.span,
-            Self::InterfaceMethod(method) => method.span,
-        }
-    }
-}
-
 fn callable_declaration(
     analysis: &CompileUnitAnalysis,
     target: crate::semantic::DefId,
-) -> Option<CallableDeclaration<'_>> {
-    let target = analysis.semantic_db.definition_anchor(target)?;
-    let file = analysis.file_by_source(target.source)?;
-    file.ast.items.iter().find_map(|item| match item {
-        Item::Function(function)
-            if function.name_span == target || function.member_name_span == target =>
-        {
-            Some(CallableDeclaration::Function(function))
-        }
-        Item::Primitive(primitive) if primitive.name_span == target => {
-            Some(CallableDeclaration::Primitive(primitive))
-        }
-        Item::Instance(_) | Item::Conformance(_) => item.method_owner().and_then(|owner| {
-            owner.methods().find_map(|method| {
-                (method.name_span == target)
-                    .then_some(CallableDeclaration::Method { owner, method })
-            })
-        }),
-        Item::Interface(interface) => interface
-            .methods
-            .iter()
-            .find(|method| method.name_span == target)
-            .map(CallableDeclaration::InterfaceMethod),
-        Item::Construct(construct) => construct.members.iter().find_map(|member| {
-            let ConstructMemberDecl::Function(function) = &member.declaration else {
-                return None;
-            };
-            (function.name_span == target || function.member_name_span == target)
-                .then_some(CallableDeclaration::Function(function))
-        }),
-        _ => None,
-    })
-}
-
-fn callable_documentation(
-    sources: &SourceMap,
-    declaration: CallableDeclaration<'_>,
-    target: ByteSpan,
-) -> Option<String> {
-    let source = sources.get(target.source)?;
-    let text = source.text();
-    let documentation = attach_documentation(
-        target.source,
-        text,
-        &[DocumentationTarget::new(
-            declaration_line_start(text, declaration.span().start),
-            target.start,
-        )],
-    );
-    documentation.get(target.start).map(str::to_string)
-}
-
-fn declaration_line_start(text: &str, node_start: usize) -> usize {
-    let bytes = text.as_bytes();
-    let mut line_start = node_start.min(bytes.len());
-    while line_start > 0 && bytes[line_start - 1] != b'\n' {
-        line_start -= 1;
-    }
-    while line_start < node_start && matches!(bytes[line_start], b' ' | b'\t') {
-        line_start += 1;
-    }
-    line_start
+) -> Option<&CallableDeclaration> {
+    let anchor = analysis.semantic_db.definition_anchor(target)?;
+    analysis
+        .file_by_source(anchor.source)?
+        .syntax
+        .callable(target)
 }
 
 fn parameter_label(

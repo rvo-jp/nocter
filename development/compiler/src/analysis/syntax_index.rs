@@ -5,9 +5,13 @@
 //! editor features do not walk the complete AST independently for each request.
 
 use crate::analysis::editor_targets::{EditorTarget, EditorTargetKind};
-use crate::ast::{AstFile, CallExpr, Expr, Item, ModulePath, TypeExpr, WhereClause};
+use crate::ast::{
+    AstFile, CallExpr, ConformanceDecl, ConstructMemberDecl, Expr, FunctionDecl, GenericParamList,
+    Item, LiteralDecl, MethodDecl, ModulePath, PrimitiveDecl, TypeExpr, WhereClause,
+};
 use crate::comments::{AttachedDocumentation, DocumentationTarget, attach_documentation};
 use crate::resolve::ResolveOutput;
+use crate::semantic::DefId;
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,12 +27,32 @@ pub(crate) enum CallCursorRegion {
     Arguments,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct MethodOwnerSyntax {
+    pub(crate) generics: GenericParamList,
+    pub(crate) target_ty: TypeExpr,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum CallableSyntax {
+    Function(FunctionDecl),
+    Primitive(PrimitiveDecl),
+    Method {
+        owner: MethodOwnerSyntax,
+        method: MethodDecl,
+    },
+    InterfaceMethod(MethodDecl),
+    Literal(LiteralDecl),
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct EditorSyntaxIndex {
     coercion_requirements: Vec<CoercionRequirementSite>,
     module_paths: Vec<ModulePath>,
     editor_targets: Vec<EditorTarget>,
     calls: Vec<CallExpr>,
+    callables: std::collections::HashMap<DefId, CallableSyntax>,
+    conformances: Vec<ConformanceDecl>,
     documentation: AttachedDocumentation,
     documentation_owners: Vec<(ByteSpan, ByteSpan)>,
 }
@@ -65,6 +89,15 @@ impl EditorSyntaxIndex {
             }
         });
         calls.sort_by_key(|call| (call.span.start, call.span.end));
+        let mut callables = std::collections::HashMap::new();
+        let mut conformances = Vec::new();
+        for item in &ast.items {
+            collect_callable_syntax(item, resolved, &mut callables);
+            if let Item::Conformance(conformance) = item {
+                conformances.push(conformance.clone());
+            }
+        }
+        conformances.sort_by_key(|conformance| (conformance.span.start, conformance.span.end));
         let mut documentation_owners = resolved
             .semantic_db
             .definitions()
@@ -99,6 +132,8 @@ impl EditorSyntaxIndex {
             module_paths,
             editor_targets,
             calls,
+            callables,
+            conformances,
             documentation: attach_documentation(ast.span.source, text, &targets),
             documentation_owners,
         }
@@ -135,6 +170,17 @@ impl EditorSyntaxIndex {
             .min_by_key(|call| (call.span.len(), call.span.start))
     }
 
+    pub(crate) fn callable(&self, definition: DefId) -> Option<&CallableSyntax> {
+        self.callables.get(&definition)
+    }
+
+    pub(crate) fn conformance_at(&self, offset: usize) -> Option<&ConformanceDecl> {
+        self.conformances
+            .iter()
+            .filter(|conformance| contains_or_touches(conformance.target_ty.span(), offset))
+            .min_by_key(|conformance| (conformance.span.len(), conformance.span.start))
+    }
+
     pub(crate) fn coercion_requirement_at(
         &self,
         offset: usize,
@@ -153,6 +199,83 @@ impl EditorSyntaxIndex {
                 .min_by_key(|(span, _)| (span.len(), span.start))
                 .and_then(|(_, anchor)| self.documentation.get(anchor.start))
         })
+    }
+}
+
+fn collect_callable_syntax(
+    item: &Item,
+    resolved: &ResolveOutput,
+    callables: &mut std::collections::HashMap<DefId, CallableSyntax>,
+) {
+    let canonical = |anchor| {
+        let definition = resolved.semantic_db.definition_at(anchor)?;
+        Some(
+            resolved
+                .callable_bodies
+                .declaration_id(definition)
+                .unwrap_or(definition),
+        )
+    };
+    match item {
+        Item::Function(function) => {
+            if let Some(definition) = canonical(function.member_name_span) {
+                callables.insert(definition, CallableSyntax::Function(function.clone()));
+            }
+        }
+        Item::Primitive(primitive) => {
+            if let Some(definition) = canonical(primitive.name_span) {
+                callables.insert(definition, CallableSyntax::Primitive(primitive.clone()));
+            }
+        }
+        Item::Instance(_) | Item::Conformance(_) => {
+            let method_owner = item.method_owner().expect("matched method owner");
+            let owner = MethodOwnerSyntax {
+                generics: method_owner.generics().clone(),
+                target_ty: method_owner.target_ty().clone(),
+            };
+            for method in method_owner.methods() {
+                if let Some(definition) = canonical(method.name_span) {
+                    callables.insert(
+                        definition,
+                        CallableSyntax::Method {
+                            owner: owner.clone(),
+                            method: method.clone(),
+                        },
+                    );
+                }
+            }
+        }
+        Item::Interface(interface) => {
+            for method in &interface.methods {
+                if let Some(definition) = canonical(method.name_span) {
+                    callables.insert(definition, CallableSyntax::InterfaceMethod(method.clone()));
+                }
+            }
+        }
+        Item::Construct(construct) => {
+            for member in &construct.members {
+                match &member.declaration {
+                    ConstructMemberDecl::Function(function) => {
+                        if let Some(definition) = canonical(function.member_name_span) {
+                            callables
+                                .insert(definition, CallableSyntax::Function(function.clone()));
+                        }
+                    }
+                    ConstructMemberDecl::Literal(literal) => {
+                        if let Some(definition) = canonical(literal.shape_span) {
+                            callables.insert(definition, CallableSyntax::Literal(literal.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        Item::Import(_)
+        | Item::FromImport(_)
+        | Item::Test(_)
+        | Item::TypeAlias(_)
+        | Item::Struct(_)
+        | Item::Enum(_)
+        | Item::Destruct(_) => {}
     }
 }
 
