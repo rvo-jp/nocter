@@ -95,6 +95,69 @@ func consume(resource: Resource?!): i32 {
 }
 
 #[test]
+fn mir_projects_owned_field_move_without_dropping_the_moved_field() {
+    let function = lower_named_function(
+        r#"struct Resource { fd: i32 }
+
+destruct Resource(&+self) { return }
+
+struct Pair {
+    first: Resource
+    second: Resource
+}
+
+func consume(resource: Resource): i32 {
+    return resource.fd
+}
+
+func main(): i32 {
+    let pair = Pair {
+        first: Resource { fd: 1 },
+        second: Resource { fd: 2 },
+    }
+    let code = consume(move pair.second)
+    return code
+}
+"#,
+        "main",
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallI32 { arguments, .. }
+            if matches!(arguments.as_slice(), [
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::SlotField {
+                        slot_index: 0,
+                        offset: 4,
+                    },
+                    layout: ValueLayout { size: 4, align: 4 },
+                    words: 1,
+                })
+            ])
+    )));
+    let drops = function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("Resource.drop")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 1);
+    assert!(matches!(
+        drops[0],
+        Instruction::CallVoid { arguments, .. }
+            if matches!(arguments.as_slice(), [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlot(0),
+            })])
+    ));
+}
+
+#[test]
 fn mir_semantic_drop_plan_recurses_through_owned_struct_fields() {
     let function = lower_named_function(
         r#"struct Resource {

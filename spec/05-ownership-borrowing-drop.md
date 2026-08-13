@@ -123,7 +123,7 @@ Rules:
 - Scope end of a plain borrow-like value does not by itself extend the borrow, because borrow-like values are non-owning and do not run `drop`.
 - A readonly borrow may overlap with other readonly borrows of the same place.
 - A readwrite borrow must not overlap with any other readonly or readwrite borrow of the same place.
-- `move name`, `drop name`, whole-place assignment, field assignment, and reinitialization are invalid when they conflict with an active borrow.
+- `move place`, `drop name`, whole-place assignment, field assignment, and reinitialization are invalid when they conflict with an active borrow.
 - A borrow cannot outlive the storage it refers to.
 - A borrow cannot outlive a region from which its storage was allocated.
 - A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.
@@ -397,39 +397,47 @@ hidden value exactly once.
 
 ## Move Expressions
 
-`move` is a unary expression that explicitly transfers ownership from a binding.
+`move` is a unary expression that explicitly transfers ownership from a binding or named struct
+field.
 
 ```nct
 let b = move a
 consume(move text)
+consume(move pair.second)
 return move value
 ```
 
 Rules:
 
 - `move` is a reserved keyword, not an ordinary function.
-- `move name` is an expression.
-- The operand of `move` must be a local binding name or parameter binding name.
+- `move place` is an expression.
+- The operand of `move` must be a local binding, parameter binding, or a named struct field rooted
+  in one of those bindings.
 - The operand binding may be immutable or mutable.
-- The operand binding must have a move-only type.
+- The selected place must have a move-only type.
 - Using `move` on a copy type is a compile error.
-- `move name` has the same type as `name`.
-- Evaluating `move name` transfers ownership out of that binding.
-- After `move name`, the binding enters an uninitialized state on all later reachable paths.
+- `move place` has the same type as the selected place.
+- Evaluating `move place` transfers ownership out of that place.
+- After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
+  named-field move, that field is uninitialized and the parent is partially initialized; disjoint
+  initialized fields remain usable and retain their own cleanup obligations.
 - A moved `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](02-values-types.md#reinitialization-after-move-or-drop).
 - A moved `let` binding cannot be reinitialized.
-- A moved binding is not dropped through its original binding.
-- A binding cannot be moved while it is borrowed.
+- Moved storage is not dropped through its original place.
+- A place cannot be moved while it conflicts with an active borrow.
 - `move` describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.
 - Moving a newly constructed value is unnecessary and invalid.
-- Moving from a field, index, dereference, call result, postfix `?` expression, conditional expression, or parenthesized complex expression is invalid.
-- Partial moves from struct fields and index moves from arrays or collections are not supported.
+- Moving from an index, dereference, call result, postfix `?` expression, conditional expression,
+  or parenthesized complex expression is invalid.
+- Partial moves are field-sensitive only for statically named struct fields. Index moves from
+  arrays or collections, enum-payload moves, and computed projections are not supported.
 
 Valid:
 
 ```nct
 let b = move a
 consume(move text)
+consume(move pair.second)
 return move value
 user.name = move name
 ```
@@ -440,7 +448,6 @@ Invalid:
 move make_value()
 move (make_value()?)
 move (condition ? a : b)
-move object.field
 move array[index]
 move copy_value
 ```
@@ -448,11 +455,10 @@ move copy_value
 Assignment may replace a live move-only field when the right-hand side produces
 a complete replacement value. The replacement is evaluated first, then the old
 field is dropped, and ownership of the replacement transfers into the field.
-Moving a value out of a field is invalid because it would require
-tracking the field as separately dead. Code that needs to transfer a field
-separately must transfer or rebuild the whole owner instead. To update a field
-in a functional style, move the whole owner into a new binding, replace the
-field, then return or pass the whole value.
+Moving a named field records that field as separately dead. Automatic cleanup destroys only the
+remaining initialized fields, in their ordinary reverse declaration order. The whole parent
+cannot be used or moved while it remains partially initialized. A mutable parent may restore a
+moved field through field assignment before a later whole-value use.
 
 ```nct
 func rename(user: User, name: String): User {

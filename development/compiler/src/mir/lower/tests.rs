@@ -290,6 +290,89 @@ func main(): i32 {
 }
 
 #[test]
+fn moves_an_owned_aggregate_field_and_cleans_up_its_sibling() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+struct Pair {
+    first: Resource
+    second: Resource
+}
+
+func consume(resource: Resource): i32 {
+    return resource.fd
+}
+
+func main(): i32 {
+    let pair = Pair {
+        first: Resource { fd: 1 },
+        second: Resource { fd: 2 },
+    }
+    let code = consume(move pair.second)
+    return code
+}
+"#,
+    );
+    assert!(
+        analysis.diagnostics().is_empty(),
+        "{:?}",
+        analysis.diagnostics()
+    );
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("owned projected argument must select MIR")
+    .unwrap();
+
+    let moved = body
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::Call { arguments, .. } => {
+                arguments.iter().find_map(|argument| match argument {
+                    crate::mir::CallArgument {
+                        operand: Operand::Move(place),
+                        representation: ValueRepresentation::Aggregate,
+                        ..
+                    } if place.projection.is_some() => Some(*place),
+                    _ => None,
+                })
+            }
+            _ => None,
+        });
+    let dropped = body.blocks.iter().find_map(|block| match block.terminator {
+        Terminator::Drop { place, .. } if place.projection.is_some() => Some(place),
+        _ => None,
+    });
+    let moved = moved.expect("second field must be an explicit projected move");
+    let dropped = dropped.unwrap_or_else(|| panic!("first field must retain cleanup: {body:#?}"));
+    assert_eq!(moved.local, dropped.local);
+    assert_ne!(moved.projection, dropped.projection);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn flattens_nested_struct_literals_to_semantic_leaf_paths() {
     let (_sources, analysis) = analyze_text(
         r#"struct Inner {

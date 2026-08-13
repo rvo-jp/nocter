@@ -623,20 +623,20 @@ pub(super) fn check_expression_ownership(
             ownership.require_initialized(sources, identifier, "use", diagnostics);
         }
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
-            if let Expr::Identifier(identifier) = expression.operand.as_ref()
-                && let Some(ty) = environment.get(&identifier.name)
+            if let Some(place) = expression_place(&expression.operand)
+                && let Some(ty) = environment.get(&place.root)
                 && (non_copy_owned_type_kind_in_environment(ty, resolved, environment).is_some()
                     || matches!(ty, Type::Parameter(name) if !environment
                         .generic_requirements(name)
                         .is_some_and(|requirements| requirements.has_copy())))
             {
                 ownership.ensure_binding_from_environment(
-                    &identifier.name,
-                    identifier.span,
+                    &place.root,
+                    expression.operand.span(),
                     environment,
                     resolved,
                 );
-                ownership.move_binding(sources, identifier, diagnostics);
+                ownership.move_place(sources, place, expression.operand.span(), diagnostics);
             }
         }
         Expr::Propagate(expression) => {

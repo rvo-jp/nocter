@@ -201,14 +201,25 @@ impl OwnershipState {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> bool {
         let place = BorrowPlace::whole(identifier.name.clone());
-        let Some(state) = self.places.state(&place) else {
+        self.require_place_initialized(sources, &place, identifier.span, action, diagnostics)
+    }
+
+    fn require_place_initialized(
+        &self,
+        sources: &SourceMap,
+        place: &BorrowPlace,
+        span: ByteSpan,
+        action: &'static str,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> bool {
+        let Some(state) = self.places.state(place) else {
             return true;
         };
         if !state.is_initialized() {
             diagnostics.push(uninitialized_binding_diagnostic(
                 sources,
-                &identifier.name,
-                identifier.span,
+                &place.display(),
+                span,
                 action,
                 state.previous_action(),
                 state.previous_span(),
@@ -244,6 +255,19 @@ impl OwnershipState {
                 span: identifier.span,
             },
         );
+    }
+
+    pub(super) fn move_place(
+        &mut self,
+        sources: &SourceMap,
+        place: BorrowPlace,
+        span: ByteSpan,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if !self.require_place_initialized(sources, &place, span, "move", diagnostics) {
+            return;
+        }
+        self.places.invalidate(&place, PlaceState::Moved { span });
     }
 
     pub(super) fn drop_binding(

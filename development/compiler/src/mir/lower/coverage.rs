@@ -158,12 +158,7 @@ fn scalar_call_shape_is_supported(
             };
             scalar_type(ty, typed_hir).is_some()
                 && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || aggregate_identifier_operand_is_supported(
-                    argument,
-                    resolved,
-                    resolved_sources,
-                    typed_hir,
-                )
+                || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
                 || borrow_argument_is_supported(
                     argument,
                     SemanticInputs {
@@ -197,7 +192,7 @@ pub(super) fn borrow_identifier_is_supported(
         .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
 }
 
-pub(super) fn aggregate_identifier_operand_is_supported(
+pub(super) fn aggregate_operand_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
@@ -209,15 +204,26 @@ pub(super) fn aggregate_identifier_operand_is_supported(
         }
         expression => (expression, false),
     };
-    let Expr::Identifier(identifier) = expression else {
-        return false;
+    let ty = match expression {
+        Expr::Identifier(identifier) => resolved
+            .local_symbol_for_identifier(identifier)
+            .and_then(|symbol| typed_hir.binding_type_expr(symbol.id)),
+        Expr::Member(member)
+            if super::projections::owned_field_is_supported(
+                member,
+                SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            ) =>
+        {
+            known_expression_type(expression, typed_hir)
+                .and_then(|ty| typed_hir.type_expr_by_id(ty))
+        }
+        _ => None,
     };
-    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
-        return false;
-    };
-    let Some(ty) = typed_hir.binding_type_expr(symbol.id) else {
-        return false;
-    };
+    let Some(ty) = ty else { return false };
     let aggregate = matches!(
         crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
             resolved_sources.get(&source).copied()
@@ -226,6 +232,7 @@ pub(super) fn aggregate_identifier_operand_is_supported(
         Ok(crate::abi::AbiType::Struct(_))
             | Ok(crate::abi::AbiType::Array { .. })
             | Ok(crate::abi::AbiType::Enum(_))
+            | Ok(crate::abi::AbiType::Outcome { .. })
     );
     if !aggregate {
         return false;

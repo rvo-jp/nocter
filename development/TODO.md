@@ -169,13 +169,18 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - optional and fallible drop plans retain ordered outcome layers plus the payload `TyId`; backend
   projection derives every tag and payload offset from the shared outcome storage layout and drops
   the payload only through nested success edges
-- the next checkpoint represents partially initialized owned aggregates in the MIR cleanup model,
-  then routes projected aggregate moves without flattening their obligations
+- named-field moves use the same projection arena as borrows and initialization; the arena expands
+  the owned sibling tree before a partial move, so cleanup destroys each remaining field exactly
+  once and never reconstructs source member expressions
+- direct and indirect aggregate call arguments can address a projected slot range without copying
+  it into a temporary whole-value slot
+- the next checkpoint represents partially initialized aggregate construction, then migrates the
+  remaining optional/catch value and advanced-expression families
 - outcome recovery distinguishes an implicit fallback result from an explicit `return`; the latter
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,649 library tests pass at this checkpoint
+- all 2,653 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

@@ -108,6 +108,69 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn tracks_named_field_moves_independently() {
+    let diagnostics = check_text(
+        r#"struct Resource { value: i32 }
+
+destruct Resource(&+self) { return }
+
+struct Pair {
+    first: Resource
+    second: Resource
+}
+
+func consume(value: Resource): i32 {
+    return value.value
+}
+
+func main(): i32 {
+    let pair = Pair {
+        first: Resource { value: 1 },
+        second: Resource { value: 2 },
+    }
+    let second = consume(move pair.second)
+    let first = consume(move pair.first)
+    return first + second
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_reuse_of_a_moved_named_field() {
+    let diagnostics = check_text(
+        r#"struct Resource { value: i32 }
+
+destruct Resource(&+self) { return }
+
+struct Pair {
+    first: Resource
+    second: Resource
+}
+
+func consume(value: Resource): i32 {
+    return value.value
+}
+
+func main(): i32 {
+    let pair = Pair {
+        first: Resource { value: 1 },
+        second: Resource { value: 2 },
+    }
+    let first = consume(move pair.first)
+    return first + consume(move pair.first)
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("pair.first"));
+}
+
+#[test]
 fn diagnoses_use_after_explicit_drop_of_non_copy_struct() {
     let diagnostics = check_text(
         r#"struct Text {

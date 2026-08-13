@@ -159,6 +159,11 @@ impl EntryEmitter {
             AggregateArgumentSource::Slot(slot_index) => {
                 self.emit_aggregate_slot_address_to_x(slot_index, register, frame)
             }
+            AggregateArgumentSource::SlotField { slot_index, offset } => {
+                self.emit_aggregate_slot_address_to_x(slot_index, register, frame)?;
+                self.encoder.emit_add_x_imm(register, register, offset);
+                Ok(())
+            }
         }
     }
 
@@ -170,7 +175,10 @@ impl EntryEmitter {
         staging_slot: ArgumentStagingSlot,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
-        let AggregateArgumentSource::Slot(slot_index) = source;
+        let (slot_index, field_offset) = match source {
+            AggregateArgumentSource::Slot(slot_index) => (slot_index, 0),
+            AggregateArgumentSource::SlotField { slot_index, offset } => (slot_index, offset),
+        };
         let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
             vec![Diagnostic::error(
                 "E9005",
@@ -183,7 +191,11 @@ impl EntryEmitter {
                 "direct aggregate argument size exceeds u32 range",
             )]
         })?;
-        if slot.size() != layout_size {
+        if field_offset
+            .checked_add(layout_size)
+            .is_none_or(|end| end > slot.size())
+            || (field_offset == 0 && slot.size() != layout_size)
+        {
             return Err(vec![Diagnostic::error(
                 "E9005",
                 "direct aggregate argument source slot size does not match layout",
@@ -206,12 +218,16 @@ impl EntryEmitter {
         })?;
         let chunk_bytes =
             direct_aggregate_chunk_bytes(remaining_bytes, "direct aggregate argument")?;
-        let source_offset = slot.offset().checked_add(offset).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "E9005",
-                "direct aggregate argument source offset overflows",
-            )]
-        })?;
+        let source_offset = slot
+            .offset()
+            .checked_add(field_offset)
+            .and_then(|base| base.checked_add(offset))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate argument source offset overflows",
+                )]
+            })?;
         self.emit_aggregate_copy_stack_chunk_to_scratch(source_offset, chunk_bytes)?;
         self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
         Ok(())

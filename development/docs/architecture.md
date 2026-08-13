@@ -109,6 +109,10 @@ buildability is MIR validation rather than a parallel AST model.
   records retain parent identity, checked result type and ownership, and field offset or checked
   index layout; backend lowering never interprets an AST member or index expression to recover a
   storage path.
+- A named-field move expands the owned sibling projection tree before dataflow. Partial-move
+  cleanup can therefore select the maximal remaining initialized places without an AST walk.
+  Direct and indirect aggregate arguments retain their slot-relative range through machine IR;
+  the backend does not create a whole-value temporary merely to pass a field.
 - Definite initialization is a MIR fixed point over CFG edges. Its place-state domain separates
   whole locals, explicitly initialized projections, and projections invalidated by partial moves.
   A field move therefore preserves available siblings without leaving the aggregate root movable.

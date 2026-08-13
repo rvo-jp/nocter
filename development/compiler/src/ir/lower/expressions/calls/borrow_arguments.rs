@@ -762,6 +762,10 @@ fn lower_readonly_temporary_borrow_source(
                 AggregateArgumentSource::Slot(slot_index) => {
                     Ok((instructions, BorrowSource::AggregateSlot(slot_index)))
                 }
+                AggregateArgumentSource::SlotField { slot_index, offset } => Ok((
+                    instructions,
+                    BorrowSource::AggregateSlotField { slot_index, offset },
+                )),
             }
         }
         _ => Err(unsupported_borrow_argument_diagnostic(

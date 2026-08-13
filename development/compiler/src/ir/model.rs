@@ -910,6 +910,7 @@ pub(crate) struct DirectAggregateArgument {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AggregateArgumentSource {
     Slot(usize),
+    SlotField { slot_index: usize, offset: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

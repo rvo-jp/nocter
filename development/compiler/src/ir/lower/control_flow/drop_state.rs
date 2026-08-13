@@ -462,8 +462,9 @@ fn aggregate_call_argument_slots(instruction: &Instruction) -> HashSet<usize> {
             ScalarArgument::AggregateDirect(argument) => Some(&argument.source),
             _ => None,
         })
-        .map(|source| match source {
-            AggregateArgumentSource::Slot(slot) => *slot,
+        .filter_map(|source| match source {
+            AggregateArgumentSource::Slot(slot) => Some(*slot),
+            AggregateArgumentSource::SlotField { .. } => None,
         })
         .collect()
 }

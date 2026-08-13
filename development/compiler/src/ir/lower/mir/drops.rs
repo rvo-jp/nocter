@@ -16,9 +16,15 @@ pub(super) fn lower_drop(
     place: Place,
     plan: DropPlanId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let location = aggregate_location(&place, context)?;
-    let ty = context.body.locals[place.local.index()].ty;
-    lower_plan(context, location, 0, ty, plan)
+    let location = aggregate_location(&Place::local(place.local), context)?;
+    let (offset, ty) = match place.projection {
+        Some(projection) => (
+            super::aggregate_field_offset(context.body, place.local, projection)?,
+            context.body.projections[projection.index()].ty,
+        ),
+        None => (0, context.body.locals[place.local.index()].ty),
+    };
+    lower_plan(context, location, offset, ty, plan)
 }
 
 fn lower_plan(

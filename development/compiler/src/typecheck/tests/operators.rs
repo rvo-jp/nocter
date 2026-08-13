@@ -752,7 +752,7 @@ fn diagnoses_move_non_binding_operand() {
 }
 
 #[test]
-fn diagnoses_move_field_operand() {
+fn diagnoses_move_of_copy_field() {
     let diagnostics = check_text(
         r#"struct Text {
     start: i32
@@ -768,8 +768,8 @@ func main(): i32 {
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0370");
-    assert!(diagnostics[0].message.contains("binding"));
+    assert_eq!(diagnostics[0].code, "E0394");
+    assert!(diagnostics[0].message.contains("i32"));
 }
 
 #[test]

@@ -212,7 +212,10 @@ pub(super) fn check_unary_expression(
             }
         }
         UnaryOperator::Move => {
-            if !matches!(expression.operand.as_ref(), Expr::Identifier(_)) {
+            if !matches!(
+                expression.operand.as_ref(),
+                Expr::Identifier(_) | Expr::Member(_)
+            ) {
                 diagnostics.push(move_operand_must_be_binding_diagnostic(sources, expression));
             } else if non_copy_owned_type_kind(&operand_type, resolved).is_none()
                 && !matches!(operand_type, Type::Parameter(_) | Type::Projection { .. })

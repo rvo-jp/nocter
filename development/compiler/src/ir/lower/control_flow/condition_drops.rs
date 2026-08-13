@@ -57,8 +57,9 @@ fn collect_aggregate_argument_slots(arguments: &[ScalarArgument], slots: &mut Ha
             ScalarArgument::AggregateDirect(argument) => &argument.source,
             _ => continue,
         };
-        let AggregateArgumentSource::Slot(slot_index) = source;
-        slots.insert(*slot_index);
+        if let AggregateArgumentSource::Slot(slot_index) = source {
+            slots.insert(*slot_index);
+        }
     }
 }
 

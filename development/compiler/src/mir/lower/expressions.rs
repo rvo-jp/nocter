@@ -101,7 +101,7 @@ impl LoweringContext<'_> {
                         representation: crate::mir::ValueRepresentation::Borrow,
                     });
                 }
-                let operand = self.lower_aggregate_identifier_operand(argument)?;
+                let operand = self.lower_aggregate_operand(argument)?;
                 Ok(CallArgument {
                     operand,
                     ty,
@@ -112,8 +112,8 @@ impl LoweringContext<'_> {
         Ok((callee, arguments, returns_never))
     }
 
-    fn lower_aggregate_identifier_operand(&self, expression: &Expr) -> Result<Operand, BuildError> {
-        if !super::coverage::aggregate_identifier_operand_is_supported(
+    fn lower_aggregate_operand(&mut self, expression: &Expr) -> Result<Operand, BuildError> {
+        if !super::coverage::aggregate_operand_is_supported(
             expression,
             self.semantic.resolved,
             self.semantic.resolved_sources,
@@ -121,15 +121,50 @@ impl LoweringContext<'_> {
         ) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        match expression.without_groups() {
+        let (expression, moved) = match expression.without_groups() {
             Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
-                let Operand::Copy(place) = self.lower_stored_identifier(&unary.operand)? else {
-                    return Err(BuildError::UnsupportedClaimedExpression);
-                };
-                Ok(Operand::Move(place))
+                (unary.operand.without_groups(), true)
             }
-            _ => self.lower_stored_identifier(expression),
-        }
+            expression => (expression, false),
+        };
+        let place = match expression {
+            Expr::Identifier(_) => {
+                let Operand::Copy(place) = self.lower_stored_identifier(expression)? else {
+                    unreachable!("stored identifiers lower to copy places")
+                };
+                place
+            }
+            Expr::Member(member) => {
+                let (place, representation) = super::projections::lower_field_place(
+                    member,
+                    self.semantic,
+                    &self.locals_by_symbol,
+                    &mut self.projections,
+                    &mut self.drop_plans,
+                )?;
+                if representation != crate::mir::ValueRepresentation::Aggregate {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                let local = &self.locals[place.local.index()];
+                if let Some(plan) = local.drop_plan {
+                    super::projections::ensure_owned_drop_projections(
+                        place.local,
+                        local.ty,
+                        plan,
+                        self.semantic,
+                        &mut self.projections,
+                        &self.drop_plans,
+                    )?;
+                }
+                place
+            }
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
+        };
+        Ok(if moved {
+            Operand::Move(place)
+        } else {
+            Operand::Copy(place)
+        })
     }
 
     fn lower_stored_identifier(&self, expression: &Expr) -> Result<Operand, BuildError> {

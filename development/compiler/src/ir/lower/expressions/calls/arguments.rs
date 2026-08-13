@@ -352,7 +352,10 @@ fn retain_owned_aggregate_argument(
     parameter_type: &Type,
     callee_name: &str,
 ) -> Result<(), Vec<Diagnostic>> {
-    let AggregateArgumentSource::Slot(slot_index) = source;
+    let slot_index = match source {
+        AggregateArgumentSource::Slot(slot_index) => slot_index,
+        AggregateArgumentSource::SlotField { .. } => return Ok(()),
+    };
     if evaluation
         .context()
         .aggregate_local_by_slot(slot_index)

@@ -852,14 +852,19 @@ fn lower_aggregate_call_argument(
     context: &BackendContext<'_>,
 ) -> Result<ScalarArgument, Vec<Diagnostic>> {
     let place = match operand {
-        Operand::Copy(place) | Operand::Move(place) if place.projection.is_none() => place,
-        Operand::Copy(_) | Operand::Move(_) | Operand::Constant(_) => {
+        Operand::Copy(place) | Operand::Move(place) => place,
+        Operand::Constant(_) => {
             return Err(invalid_mir_diagnostics(
-                "aggregate call argument is not a whole stored place",
+                "aggregate call argument is not a stored place",
             ));
         }
     };
     let local = &context.body.locals[place.local.index()];
+    let argument_ty = place
+        .projection
+        .and_then(|projection| context.body.projections.get(projection.index()))
+        .map_or(local.ty, |projection| projection.ty);
+    let argument_value = aggregate_local_abi_value(argument_ty, context)?;
     let (layout, classification) = match local.storage {
         LocalStorage::Parameter { ordinal } => {
             let Some(parameters::ParameterStorage::Aggregate {
@@ -872,24 +877,36 @@ fn lower_aggregate_call_argument(
                     "aggregate MIR parameter has no matching staging slot",
                 ));
             };
-            (layout, classification)
+            if place.projection.is_some() {
+                (argument_value.layout, argument_value.classification)
+            } else {
+                (layout, classification)
+            }
         }
-        LocalStorage::Local => {
-            let value = aggregate_local_abi_value(local.ty, context)?;
-            (value.layout, value.classification)
-        }
+        LocalStorage::Local => (argument_value.layout, argument_value.classification),
         LocalStorage::Return => {
             return Err(invalid_mir_diagnostics(
                 "aggregate return storage cannot be a call argument",
             ));
         }
     };
-    let crate::ir::AggregateLocation::Slot(slot_index) = aggregate_location(place, context)? else {
+    let crate::ir::AggregateLocation::Slot(slot_index) =
+        aggregate_location(&Place::local(place.local), context)?
+    else {
         return Err(invalid_mir_diagnostics(
             "aggregate argument is not slot-backed",
         ));
     };
-    let source = AggregateArgumentSource::Slot(slot_index);
+    let offset = place
+        .projection
+        .map(|projection| aggregate_field_offset(context.body, place.local, projection))
+        .transpose()?
+        .unwrap_or(0);
+    let source = if offset == 0 {
+        AggregateArgumentSource::Slot(slot_index)
+    } else {
+        AggregateArgumentSource::SlotField { slot_index, offset }
+    };
     Ok(match classification {
         crate::abi::ValueClassification::Direct { words } => {
             ScalarArgument::AggregateDirect(DirectAggregateArgument {

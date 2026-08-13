@@ -1268,22 +1268,14 @@ func main(): i32 {
                     offset: 24,
                     value: usize_const(2),
                 },
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 1,
-                    layout: ValueLayout::new(16, 8),
-                },
-                Instruction::CopyAggregateRange {
-                    destination: AggregateLocation::Slot(1),
-                    destination_offset: 0,
-                    source: AggregateLocation::Slot(0),
-                    source_offset: 8,
-                    layout: ValueLayout::new(16, 8),
-                },
                 Instruction::CallI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("consume"),
                     arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                        source: AggregateArgumentSource::Slot(1),
+                        source: AggregateArgumentSource::SlotField {
+                            slot_index: 0,
+                            offset: 8,
+                        },
                         layout: ValueLayout::new(16, 8),
                         words: 2,
                     })],

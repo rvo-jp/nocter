@@ -233,15 +233,13 @@ pub(in crate::typecheck) fn move_operand_must_be_binding_diagnostic(
     sources: &SourceMap,
     expression: &UnaryExpr,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error(
-        "E0370",
-        "`move` requires a local binding or parameter binding name",
-    );
+    let mut diagnostic =
+        Diagnostic::error("E0370", "`move` requires a stored binding or named field");
     diagnostic.primary_span = sources
         .span_to_json(expression.operand.span())
         .ok()
         .map(Box::new);
-    diagnostic.help = Some("write `move name` with a binding name as the operand".to_string());
+    diagnostic.help = Some("write `move name` or `move value.field`".to_string());
     diagnostic
 }
 

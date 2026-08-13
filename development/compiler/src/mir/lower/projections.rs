@@ -62,6 +62,86 @@ pub(super) fn lower_borrow_field_place(
     lower_field_place_with_borrow_base(member, semantic, locals, projections, drop_plans, true)
 }
 
+/// Materializes the complete owned-field projection tree needed by partial
+/// move dataflow. A move may mention one field, but cleanup must retain every
+/// initialized sibling without reconstructing source member expressions.
+pub(super) fn ensure_owned_drop_projections(
+    base: LocalId,
+    root_ty: crate::semantic::TyId,
+    root_plan: crate::mir::DropPlanId,
+    semantic: SemanticInputs<'_>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &[crate::mir::DropPlan],
+) -> Result<(), BuildError> {
+    let ty = semantic
+        .typed_hir
+        .type_expr_by_id(root_ty)
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let abi = crate::abi::abi_value_from_type_expr_with_resolver(ty, semantic.resolved, |source| {
+        semantic.resolver_for(source)
+    })
+    .map_err(|_| BuildError::UnsupportedClaimedExpression)?
+    .ty;
+    ensure_owned_drop_projections_inner(base, None, &abi, root_plan, projections, drop_plans)
+}
+
+fn ensure_owned_drop_projections_inner(
+    base: LocalId,
+    parent: Option<ProjectionPathId>,
+    abi: &AbiType,
+    plan: crate::mir::DropPlanId,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &[crate::mir::DropPlan],
+) -> Result<(), BuildError> {
+    let Some(crate::mir::DropPlan::Struct { fields, .. }) = drop_plans.get(plan.index()) else {
+        return Ok(());
+    };
+    let AbiType::Struct(abi_fields) = abi else {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    };
+    let layout = layout_struct(abi_fields).map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+    for field in fields.clone() {
+        let offset = layout
+            .fields
+            .get(field.index)
+            .and_then(|field| u32::try_from(field.offset).ok())
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let element = ProjectionElement::Field { offset };
+        let id = projections
+            .iter()
+            .find(|projection| {
+                projection.base == base
+                    && projection.parent == parent
+                    && projection.element == element
+                    && projection.ty == field.ty
+            })
+            .map(|projection| projection.id)
+            .unwrap_or_else(|| {
+                let id = ProjectionPathId::from_index(projections.len());
+                projections.push(ProjectionPath {
+                    id,
+                    base,
+                    parent,
+                    element,
+                    ty: field.ty,
+                    representation: ValueRepresentation::Aggregate,
+                    ownership: OwnershipKind::Move,
+                    drop_plan: Some(field.plan),
+                });
+                id
+            });
+        ensure_owned_drop_projections_inner(
+            base,
+            Some(id),
+            &abi_fields[field.index].ty,
+            field.plan,
+            projections,
+            drop_plans,
+        )?;
+    }
+    Ok(())
+}
+
 fn lower_field_place_with_borrow_base(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
