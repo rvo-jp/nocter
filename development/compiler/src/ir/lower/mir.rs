@@ -19,6 +19,18 @@ mod control_flow;
 mod loops;
 mod storage;
 
+/// Immutable inputs shared by every control-flow structuring path.
+///
+/// Keeping this as one value prevents branches and loop helpers from growing
+/// parallel parameter lists as MIR gains aggregate and borrow projections.
+pub(super) struct BackendContext<'a> {
+    body: &'a Body,
+    resolved: &'a ResolveOutput,
+    function_signatures: &'a super::context::FunctionSignatures,
+    function_names: &'a super::context::FunctionNames,
+    root_source: SourceId,
+}
+
 pub(super) fn try_lower_scalar_body(
     cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
@@ -88,6 +100,13 @@ fn lower_scalar_body(
     root_source: SourceId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
+    let context = BackendContext {
+        body,
+        resolved,
+        function_signatures,
+        function_names,
+        root_source,
+    };
     let mut instructions = Vec::new();
     let mut current = body.entry;
     let mut visited = HashSet::new();
@@ -102,25 +121,17 @@ fn lower_scalar_body(
             .find(|loop_| loop_.header == current)
         {
             let (condition_instructions, condition) = loops::lower_linear_loop_condition(
-                body,
+                &context,
                 current,
                 loop_.condition,
-                resolved,
-                function_signatures,
-                function_names,
-                root_source,
                 &mut visited,
             )?;
             let body_instructions = loops::lower_linear_loop_body(
-                body,
+                &context,
                 loop_.body,
                 loop_.header,
                 loop_.exit,
                 loop_.continue_target,
-                resolved,
-                function_signatures,
-                function_names,
-                root_source,
                 &mut visited,
             )?;
             instructions.push(Instruction::While {
@@ -154,23 +165,15 @@ fn lower_scalar_body(
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, body)?,
                     then_instructions: lower_linear_branch(
-                        body,
+                        &context,
                         *then_target,
                         then_join,
-                        resolved,
-                        function_signatures,
-                        function_names,
-                        root_source,
                         &mut visited,
                     )?,
                     else_instructions: lower_linear_branch(
-                        body,
+                        &context,
                         *else_target,
                         else_join,
-                        resolved,
-                        function_signatures,
-                        function_names,
-                        root_source,
                         &mut visited,
                     )?,
                 });
@@ -264,14 +267,13 @@ fn lower_scalar_body(
                         let failure_mode = outcome_failure_mode(body, *failure)?;
                         let destination_scalar = local_scalar(body, destination.local)?;
                         instructions.push(lower_outcome_call(
-                            body,
+                            &context,
                             destination_scalar,
                             destination,
                             call_target,
                             arguments,
                             failure_mode,
                             &callee_name,
-                            function_signatures,
                         )?);
                         visited.insert(*failure);
                         current = *success;
@@ -352,17 +354,13 @@ fn validate_outcome_call_return_type(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn lower_linear_branch(
-    body: &Body,
+    context: &BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     join: crate::mir::BasicBlockId,
-    resolved: &ResolveOutput,
-    function_signatures: &super::context::FunctionSignatures,
-    function_names: &super::context::FunctionNames,
-    root_source: SourceId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body = context.body;
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
@@ -385,8 +383,12 @@ fn lower_linear_branch(
                     },
                 ..
             } => {
-                let (call_target, callee_name) =
-                    lower_call_target(*callee, resolved, function_names, root_source)?;
+                let (call_target, callee_name) = lower_call_target(
+                    *callee,
+                    context.resolved,
+                    context.function_names,
+                    context.root_source,
+                )?;
                 let arguments = arguments
                     .iter()
                     .map(|argument| lower_call_argument(argument, body))
@@ -399,7 +401,7 @@ fn lower_linear_branch(
                     call_target,
                     arguments,
                     &callee_name,
-                    function_signatures,
+                    context.function_signatures,
                 )?);
                 current = *target;
             }
@@ -455,19 +457,24 @@ fn lower_returning_call(
     call_instruction(scalar, destination, target, arguments, body)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn lower_outcome_call(
-    body: &Body,
+    context: &BackendContext<'_>,
     scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
     arguments: Vec<ScalarArgument>,
     failure_mode: OutcomeFailureMode,
     callee_name: &str,
-    function_signatures: &super::context::FunctionSignatures,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    validate_outcome_call_return_type(&target, callee_name, scalar, function_signatures)?;
-    outcome_call_instruction(scalar, destination, target, arguments, failure_mode, body)
+    validate_outcome_call_return_type(&target, callee_name, scalar, context.function_signatures)?;
+    outcome_call_instruction(
+        scalar,
+        destination,
+        target,
+        arguments,
+        failure_mode,
+        context.body,
+    )
 }
 
 fn outcome_call_instruction(

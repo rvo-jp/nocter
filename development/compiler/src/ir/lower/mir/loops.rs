@@ -8,21 +8,15 @@ use super::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
 use crate::mir::{Body, CallContinuation, Operand, Rvalue, Statement, Terminator};
-use crate::resolve::ResolveOutput;
-use crate::source::SourceId;
 use std::collections::HashSet;
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn lower_linear_loop_condition(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     condition_block: crate::mir::BasicBlockId,
-    resolved: &ResolveOutput,
-    function_signatures: &super::super::context::FunctionSignatures,
-    function_names: &super::super::context::FunctionNames,
-    root_source: SourceId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<(Vec<Instruction>, BoolValue), Vec<Diagnostic>> {
+    let body = context.body;
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
@@ -47,16 +41,8 @@ pub(super) fn lower_linear_loop_condition(
             }
             return Ok((instructions, lower_bool_operand(condition, body)?));
         }
-        current = lower_linear_call_terminator(
-            body,
-            &block.terminator,
-            resolved,
-            function_signatures,
-            function_names,
-            root_source,
-            visited,
-            &mut instructions,
-        )?;
+        current =
+            lower_linear_call_terminator(context, &block.terminator, visited, &mut instructions)?;
     }
 }
 
@@ -93,19 +79,15 @@ fn inline_condition_value(
     super::lower_comparison(*operator, left, right, *operand_scalar, body).map(Some)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn lower_linear_loop_body(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     header: crate::mir::BasicBlockId,
     exit: crate::mir::BasicBlockId,
     continue_target: crate::mir::BasicBlockId,
-    resolved: &ResolveOutput,
-    function_signatures: &super::super::context::FunctionSignatures,
-    function_names: &super::super::context::FunctionNames,
-    root_source: SourceId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body = context.body;
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
@@ -127,12 +109,8 @@ pub(super) fn lower_linear_loop_body(
             }
             Terminator::Call { .. } => {
                 current = lower_linear_call_terminator(
-                    body,
+                    context,
                     &block.terminator,
-                    resolved,
-                    function_signatures,
-                    function_names,
-                    root_source,
                     visited,
                     &mut instructions,
                 )?;
@@ -162,29 +140,21 @@ pub(super) fn lower_linear_loop_body(
                             )
                         })?;
                 let then_instructions = lower_loop_branch_path(
-                    body,
+                    context,
                     *then_target,
                     then_end,
                     header,
                     continue_target,
                     exit,
-                    resolved,
-                    function_signatures,
-                    function_names,
-                    root_source,
                     visited,
                 )?;
                 let else_instructions = lower_loop_branch_path(
-                    body,
+                    context,
                     *else_target,
                     else_end,
                     header,
                     continue_target,
                     exit,
-                    resolved,
-                    function_signatures,
-                    function_names,
-                    root_source,
                     visited,
                 )?;
                 instructions.push(Instruction::If {
@@ -203,20 +173,16 @@ pub(super) fn lower_linear_loop_body(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn lower_loop_branch_path(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     endpoint: crate::mir::BasicBlockId,
     header: crate::mir::BasicBlockId,
     continue_target: crate::mir::BasicBlockId,
     exit: crate::mir::BasicBlockId,
-    resolved: &ResolveOutput,
-    function_signatures: &super::super::context::FunctionSignatures,
-    function_names: &super::super::context::FunctionNames,
-    root_source: SourceId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body = context.body;
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
@@ -239,12 +205,8 @@ fn lower_loop_branch_path(
             }
             Terminator::Call { .. } => {
                 current = lower_linear_call_terminator(
-                    body,
+                    context,
                     &block.terminator,
-                    resolved,
-                    function_signatures,
-                    function_names,
-                    root_source,
                     visited,
                     &mut instructions,
                 )?;
@@ -275,17 +237,13 @@ fn lower_continue_path(
     lower_statements(body, &block.statements)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn lower_linear_call_terminator(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     terminator: &Terminator,
-    resolved: &ResolveOutput,
-    function_signatures: &super::super::context::FunctionSignatures,
-    function_names: &super::super::context::FunctionNames,
-    root_source: SourceId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
     instructions: &mut Vec<Instruction>,
 ) -> Result<crate::mir::BasicBlockId, Vec<Diagnostic>> {
+    let body = context.body;
     let Terminator::Call {
         callee,
         arguments,
@@ -297,8 +255,12 @@ fn lower_linear_call_terminator(
             "linear control-flow path expected a call terminator",
         ));
     };
-    let (call_target, callee_name) =
-        lower_call_target(*callee, resolved, function_names, root_source)?;
+    let (call_target, callee_name) = lower_call_target(
+        *callee,
+        context.resolved,
+        context.function_names,
+        context.root_source,
+    )?;
     let arguments = arguments
         .iter()
         .map(|argument| lower_call_argument(argument, body))
@@ -316,7 +278,7 @@ fn lower_linear_call_terminator(
                 call_target,
                 arguments,
                 &callee_name,
-                function_signatures,
+                context.function_signatures,
             )?);
             Ok(*target)
         }
@@ -327,14 +289,13 @@ fn lower_linear_call_terminator(
         } => {
             let scalar = super::local_scalar(body, destination.local)?;
             instructions.push(lower_outcome_call(
-                body,
+                context,
                 scalar,
                 destination,
                 call_target,
                 arguments,
                 outcome_failure_mode(body, *failure)?,
                 &callee_name,
-                function_signatures,
             )?);
             visited.insert(*failure);
             Ok(*success)
