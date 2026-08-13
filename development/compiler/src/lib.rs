@@ -18,6 +18,7 @@ mod integer;
 pub mod ir;
 pub mod lexer;
 mod literals;
+mod mir;
 mod outcomes;
 pub mod package;
 pub mod parser;

@@ -151,6 +151,30 @@ fn lower_entry_parts(
         lower_entry_return_type(return_type_expr, resolved).map_err(|diagnostics| {
             attach_primary_span_if_absent(diagnostics, sources, return_type_expr.span())
         })?;
+    if matches!(return_type, Type::I32 | Type::Usize)
+        && let Some(mir_body) =
+            crate::mir::try_build_scalar_literal_body(body, &resolved.semantic_db, typed_hir)
+    {
+        let mir_body = mir_body.map_err(|error| {
+            attach_primary_span_if_absent(
+                vec![Diagnostic::error(
+                    "E8000",
+                    format!("compiler could not construct MIR: {error:?}"),
+                )],
+                sources,
+                body.span,
+            )
+        })?;
+        let instructions = super::mir::lower_scalar_literal_body(&mir_body, &return_type).map_err(
+            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, body.span),
+        )?;
+        return Ok(Function {
+            name: name.to_string(),
+            target,
+            return_type,
+            instructions,
+        });
+    }
     let instructions = lower_entry_body(
         name,
         declaration_span,
