@@ -37,6 +37,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   not require AST-shaped lowering or a one-block branch restriction
 - scalar fallible calls have explicit success and failure blocks in MIR; failure terminators
   distinguish trapping from propagation, and fallible bodies wrap successful returns explicitly
+- scalar optional/fallible `otherwise` calls use the same outcome continuation with a lexical
+  failure branch that assigns the destination and rejoins success; machine IR `Recover` is derived
+  from that CFG instead of being selected by AST outcome syntax
 - buildability classifies plain and fallible scalar returns before constructing the shared MIR body;
   MIR validation rejects propagation from plain bodies, and MIR-to-IR derives its outcome failure
   mode from the checked failure edge

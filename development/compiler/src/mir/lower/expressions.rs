@@ -13,6 +13,7 @@ use crate::resolve::{LocalSymbolId, ResolveOutput};
 use std::collections::HashMap;
 
 mod control_flow_expressions;
+mod outcomes;
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 pub(super) fn lower_call(
@@ -288,6 +289,21 @@ pub(super) fn lower_expression_to_place(
                 scope,
             );
         }
+        Expr::Otherwise(otherwise) => {
+            return outcomes::lower_otherwise_to_place(
+                destination,
+                otherwise,
+                ty,
+                scalar,
+                semantic,
+                locals,
+                local_declarations,
+                projections,
+                control_flow,
+                scopes,
+                scope,
+            );
+        }
         Expr::Call(call) => {
             let (callee, arguments, returns_never) = lower_call(
                 call,
@@ -470,6 +486,7 @@ pub(super) fn lower_operand(
             | Expr::Propagate(_)
             | Expr::Member(_)
             | Expr::If(_)
+            | Expr::Otherwise(_)
     ) {
         return match expression {
             Expr::Group(group) => lower_operand(

@@ -285,7 +285,8 @@ fn lower_scalar_body(
                         success,
                         failure,
                     } => {
-                        let failure_mode = outcome_failure_mode(body, *failure)?;
+                        let failure_mode =
+                            outcome_failure_mode(&context, *failure, *success, &mut visited)?;
                         let destination_scalar = local_scalar(body, destination.local)?;
                         instructions.push(lower_outcome_call(
                             &context,
@@ -296,7 +297,6 @@ fn lower_scalar_body(
                             failure_mode,
                             &callee_name,
                         )?);
-                        visited.insert(*failure);
                         current = *success;
                     }
                 }
@@ -326,20 +326,30 @@ fn lower_scalar_body(
 }
 
 fn outcome_failure_mode(
-    body: &Body,
+    context: &BackendContext<'_>,
     failure: crate::mir::BasicBlockId,
+    success: crate::mir::BasicBlockId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
+    let body = context.body;
     let failure_block = &body.blocks[failure.index()];
-    if !failure_block.statements.is_empty() {
-        return Err(invalid_mir_diagnostics(
-            "outcome call must have a dedicated failure block",
-        ));
-    }
-    match failure_block.terminator {
-        Terminator::Trap => Ok(OutcomeFailureMode::Trap),
+    match &failure_block.terminator {
+        Terminator::Trap if failure_block.statements.is_empty() => {
+            visited.insert(failure);
+            Ok(OutcomeFailureMode::Trap)
+        }
         Terminator::PropagateFailure if body.return_mode == ReturnMode::Fallible => {
+            if !failure_block.statements.is_empty() {
+                return Err(invalid_mir_diagnostics(
+                    "failure propagation block contains value instructions",
+                ));
+            }
+            visited.insert(failure);
             Ok(OutcomeFailureMode::Propagate)
         }
+        Terminator::Goto { target } if *target == success => Ok(OutcomeFailureMode::Recover {
+            instructions: lower_linear_branch(context, failure, success, visited)?,
+        }),
         _ => Err(invalid_mir_diagnostics(
             "outcome call failure block has an invalid terminator",
         )),
@@ -355,10 +365,13 @@ fn validate_outcome_call_return_type(
     let Some(return_type) = function_signatures.return_type(target) else {
         return Ok(());
     };
-    let Type::Fallible(success) = return_type else {
-        return Err(invalid_mir_diagnostics(format!(
-            "outcome call to `{callee_name}` does not return a fallible value"
-        )));
+    let success = match return_type {
+        Type::Fallible(success) | Type::Optional(success) => success,
+        _ => {
+            return Err(invalid_mir_diagnostics(format!(
+                "outcome call to `{callee_name}` does not return a recoverable value"
+            )));
+        }
     };
     let expected = scalar_ir_type(destination_scalar);
     if success.as_ref() != &expected {

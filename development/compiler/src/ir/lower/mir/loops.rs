@@ -296,10 +296,9 @@ fn lower_linear_call_terminator(
                 destination,
                 call_target,
                 arguments,
-                outcome_failure_mode(body, *failure)?,
+                outcome_failure_mode(context, *failure, *success, visited)?,
                 &callee_name,
             )?);
-            visited.insert(*failure);
             Ok(*success)
         }
         CallContinuation::Never => Err(super::invalid_mir_diagnostics(

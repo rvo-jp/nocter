@@ -1080,6 +1080,68 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_optional_otherwise_with_a_joined_failure_value() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32? {
+    return none
+}
+
+func main(): i32 {
+    return answer() otherwise { 7 }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("scalar otherwise expression must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 3);
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Outcome {
+                success,
+                failure,
+                ..
+            },
+            ..
+        } if success == BasicBlockId::from_index(1) && failure == BasicBlockId::from_index(2)
+    ));
+    assert!(matches!(
+        body.blocks[2].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Use(Operand::Constant(crate::mir::Constant { value: 7, .. })),
+            ..
+        }]
+    ));
+    assert_eq!(
+        body.blocks[2].terminator,
+        Terminator::Goto {
+            target: BasicBlockId::from_index(1)
+        }
+    );
+    assert_eq!(body.blocks[1].terminator, Terminator::Return);
+}
+
+#[test]
 fn builds_propagated_fallible_calls_with_explicit_failure_edges() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32! {

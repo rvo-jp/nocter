@@ -150,6 +150,30 @@ impl ControlFlowBuilder {
         )
     }
 
+    pub(super) fn begin_handled_outcome_call(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        destination: LocalId,
+        failure_scope: ScopeId,
+    ) -> Result<BasicBlockId, BuildError> {
+        let success = self.reserve_block(self.current_scope()?);
+        let failure = self.reserve_block(failure_scope);
+        self.terminate(Terminator::Call {
+            origin: Origin::Expression(source),
+            callee,
+            arguments,
+            continuation: CallContinuation::Outcome {
+                destination: Place::local(destination),
+                success,
+                failure,
+            },
+        })?;
+        self.select_block(failure)?;
+        Ok(success)
+    }
+
     fn emit_outcome_call(
         &mut self,
         source: ExprId,

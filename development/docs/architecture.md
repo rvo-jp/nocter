@@ -129,6 +129,9 @@ buildability is MIR validation rather than a parallel AST model.
 - MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.
+- Recoverable scalar outcome calls represent `otherwise` as an explicit failure block that writes
+  the call destination and rejoins success. Backend `Recover` mode is a projection of that CFG;
+  `Trap` and `Propagate` remain distinct terminal failure edges.
 - Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
   Checked field selections become typed MIR projection paths; the backend maps those paths to the
   aggregate staging slot established by the same parameter projection used at function entry.

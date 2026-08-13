@@ -493,6 +493,21 @@ pub(super) fn scalar_expression_is_supported(
             };
             scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
         }
+        Expr::Otherwise(otherwise) => {
+            let Expr::Call(call) = otherwise.value.without_groups() else {
+                return false;
+            };
+            scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                && scalar_branch_result(&otherwise.fallback).is_some_and(|fallback| {
+                    !contains_outcome_call(fallback)
+                        && scalar_expression_is_supported(
+                            fallback,
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        )
+                })
+        }
         Expr::Unary(unary) => {
             let Some(operand_ty) = known_expression_type(&unary.operand, typed_hir) else {
                 return false;
@@ -599,6 +614,28 @@ fn scalar_outcome_call_is_supported(
             })
 }
 
+fn scalar_handled_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .map(|ty| crate::outcomes::outcome_shape_with_resolver(ty, resolved, |_| None))
+            .is_some_and(|shape| {
+                matches!(
+                    shape.layers.as_slice(),
+                    [crate::outcomes::OutcomeLayer::Optional]
+                        | [crate::outcomes::OutcomeLayer::Fallible]
+                ) && typed_hir
+                    .type_id(&shape.payload)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    .is_some()
+            })
+}
+
 fn intrinsic_expression_type(
     span: crate::source::ByteSpan,
     typed_hir: &TypedHir,
@@ -637,7 +674,7 @@ fn scalar_conditional_is_supported(
 
 fn contains_outcome_call(expression: &Expr) -> bool {
     match expression {
-        Expr::Force(_) | Expr::Propagate(_) => true,
+        Expr::Force(_) | Expr::Propagate(_) | Expr::Otherwise(_) | Expr::Catch(_) => true,
         Expr::Group(group) => contains_outcome_call(&group.expression),
         Expr::Unary(unary) => contains_outcome_call(&unary.operand),
         Expr::Binary(binary) => {
