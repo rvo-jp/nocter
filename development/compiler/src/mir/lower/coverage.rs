@@ -354,6 +354,9 @@ pub(super) fn scalar_expression_is_supported(
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
         Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
+        Expr::Member(member) => {
+            super::projections::scalar_field_is_supported(member, resolved, typed_hir)
+        }
         Expr::Group(group) => {
             scalar_expression_is_supported(&group.expression, resolved, typed_hir)
         }

@@ -252,7 +252,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         .as_ref()
         .expect("function index contains only body-bearing declarations");
     if function.generics.parameters.is_empty()
-        && let Some(instructions) = super::super::mir::try_lower_scalar_body(
+        && let Some(mir_instructions) = super::super::mir::try_lower_scalar_body(
             mir_bodies,
             body,
             &parameters,
@@ -267,11 +267,13 @@ pub(in crate::ir::lower) fn lower_function<'a>(
             sources,
         )
     {
+        let mut instructions = parameter_setup;
+        instructions.extend(mir_instructions?);
         return Ok(Function {
             name,
             target,
             return_type,
-            instructions: instructions?,
+            instructions,
         });
     }
     let mut context = LoweringContext::new(

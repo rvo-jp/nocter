@@ -1,7 +1,7 @@
 //! Scalar body selection and control-flow construction from typed HIR.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::locals::{Local, LocalOrigin, LocalStorage, ScalarType};
+use super::locals::{Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType};
 use super::model::{Body, ReturnMode, Terminator};
 #[cfg(test)]
 use super::validate;
@@ -16,6 +16,7 @@ use std::collections::HashMap;
 mod body_builder;
 mod coverage;
 mod expressions;
+mod projections;
 mod statements;
 use body_builder::ControlFlowBuilder;
 use coverage::*;
@@ -75,8 +76,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         || !parameters.iter().all(|parameter| {
             resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
-                .is_some_and(|symbol| binding_scalar_type(symbol, typed_hir).is_some())
+                .is_some()
                 && typed_hir.type_id(&parameter.ty).is_some()
+                && parameter_representation(parameter, resolved, typed_hir).is_some()
         })
     {
         return None;
@@ -108,18 +110,37 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             let symbol = resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .ok_or(BuildError::MissingLocalSymbol)?;
-            let scalar = binding_scalar_type(symbol, typed_hir)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
             let local = LocalId::from_index(locals.len());
-            locals.push(Local::scalar(
-                ty,
-                scalar,
-                LocalStorage::Parameter { ordinal: index },
-                LocalOrigin::Parameter(symbol),
-                root_scope,
-            ));
+            let storage = LocalStorage::Parameter { ordinal: index };
+            let origin = LocalOrigin::Parameter(symbol);
+            locals.push(
+                match parameter_representation(parameter, resolved, typed_hir)
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?
+                {
+                    super::ValueRepresentation::Scalar(scalar) => {
+                        Local::scalar(ty, scalar, storage, origin, root_scope)
+                    }
+                    super::ValueRepresentation::Aggregate => Local::aggregate(
+                        ty,
+                        if crate::typecheck::type_expr_is_copy(&parameter.ty, resolved)
+                            .unwrap_or(false)
+                        {
+                            OwnershipKind::Copy
+                        } else {
+                            OwnershipKind::Move
+                        },
+                        storage,
+                        origin,
+                        root_scope,
+                    ),
+                    super::ValueRepresentation::Borrow => {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    }
+                },
+            );
             locals_by_symbol.insert(symbol, local);
         }
+        let mut projections = Vec::new();
         let mut control_flow = ControlFlowBuilder::new(root_scope);
         let mut loop_regions = Vec::new();
         StatementLowerer::new(
@@ -127,6 +148,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             typed_hir,
             &mut locals,
             &mut locals_by_symbol,
+            &mut projections,
             &mut control_flow,
             &mut loop_regions,
             &mut scopes,
@@ -143,6 +165,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
+                &mut projections,
                 &mut control_flow,
                 root_scope,
             )?;
@@ -178,6 +201,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
+                &mut projections,
                 &mut control_flow,
                 then_scope,
             )?;
@@ -194,6 +218,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
+                &mut projections,
                 &mut control_flow,
                 else_scope,
             )?;
@@ -213,6 +238,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
+                &mut projections,
                 &mut control_flow,
                 root_scope,
             )?;
@@ -235,6 +261,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
+                &mut projections,
                 &mut control_flow,
                 root_scope,
             )?;
@@ -253,10 +280,31 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             blocks,
             loop_regions,
             loans: Vec::new(),
-            projections: Vec::new(),
+            projections,
         };
         super::finalize(body).map_err(BuildError::InvalidMir)
     })())
+}
+
+fn parameter_representation(
+    parameter: &Parameter,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> Option<super::ValueRepresentation> {
+    let ty = typed_hir.type_id(&parameter.ty)?;
+    if let Some(scalar) = scalar_type(ty, typed_hir) {
+        return Some(super::ValueRepresentation::Scalar(scalar));
+    }
+    let aggregate = matches!(
+        crate::abi::abi_value_from_type_expr(&parameter.ty, resolved)
+            .ok()?
+            .ty,
+        crate::abi::AbiType::Struct(_)
+            | crate::abi::AbiType::Array { .. }
+            | crate::abi::AbiType::Enum(_)
+    );
+    (aggregate && crate::typecheck::type_expr_is_copy(&parameter.ty, resolved) == Some(true))
+        .then_some(super::ValueRepresentation::Aggregate)
 }
 
 #[cfg(test)]

@@ -1,7 +1,66 @@
 use super::*;
 use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
-use crate::mir::{ComparisonOperator, LocalOrigin, Operand, Rvalue, Statement};
+use crate::mir::{
+    ComparisonOperator, LocalOrigin, Operand, OwnershipKind, ProjectionElement, Rvalue, Statement,
+    ValueRepresentation,
+};
+
+#[test]
+fn builds_a_scalar_field_read_from_a_copy_aggregate_parameter() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    first: i32
+    second: i32
+}
+
+func first(pair: Pair): i32 {
+    return pair.first
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "first" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("copy aggregate field return must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.locals[1].representation,
+        ValueRepresentation::Aggregate
+    );
+    assert_eq!(body.locals[1].ownership, OwnershipKind::Copy);
+    assert!(matches!(
+        body.projections.as_slice(),
+        [crate::mir::ProjectionPath {
+            element: ProjectionElement::Field { offset: 0 },
+            ..
+        }]
+    ));
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Use(Operand::Copy(place)),
+            ..
+        }] if place.projection == Some(body.projections[0].id)
+    ));
+}
 
 #[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {

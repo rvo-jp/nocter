@@ -19,6 +19,7 @@ pub(super) fn lower_call(
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
+    projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
     scope: ScopeId,
 ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
@@ -48,6 +49,7 @@ pub(super) fn lower_call(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             )?;
@@ -70,6 +72,7 @@ pub(super) fn lower_expression_to_place(
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
+    projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
     scope: ScopeId,
 ) -> Result<(), BuildError> {
@@ -90,6 +93,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
+                        projections,
                         control_flow,
                         scope,
                     )?,
@@ -101,6 +105,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
+                        projections,
                         control_flow,
                         scope,
                     )?,
@@ -123,6 +128,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
+                        projections,
                         control_flow,
                         scope,
                     )?,
@@ -134,6 +140,7 @@ pub(super) fn lower_expression_to_place(
                         locals,
                         typed_hir,
                         local_declarations,
+                        projections,
                         control_flow,
                         scope,
                     )?,
@@ -153,6 +160,7 @@ pub(super) fn lower_expression_to_place(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             );
@@ -164,6 +172,7 @@ pub(super) fn lower_expression_to_place(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             )?;
@@ -182,6 +191,7 @@ pub(super) fn lower_expression_to_place(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             )?;
@@ -200,6 +210,7 @@ pub(super) fn lower_expression_to_place(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             )?;
@@ -212,6 +223,19 @@ pub(super) fn lower_expression_to_place(
                 arguments,
                 destination,
             );
+        }
+        Expr::Member(member) => {
+            let (place, field_scalar) = super::projections::lower_scalar_field_place(
+                member,
+                resolved,
+                typed_hir,
+                locals,
+                projections,
+            )?;
+            if field_scalar != scalar {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            Rvalue::Use(Operand::Copy(place))
         }
         _ => Rvalue::Use(lower_simple_operand(
             expression, ty, scalar, resolved, locals,
@@ -233,12 +257,13 @@ pub(super) fn lower_operand(
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
+    projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
     scope: ScopeId,
 ) -> Result<Operand, BuildError> {
     if !matches!(
         expression,
-        Expr::Binary(_) | Expr::Call(_) | Expr::Force(_) | Expr::Propagate(_)
+        Expr::Binary(_) | Expr::Call(_) | Expr::Force(_) | Expr::Propagate(_) | Expr::Member(_)
     ) {
         return match expression {
             Expr::Group(group) => lower_operand(
@@ -249,6 +274,7 @@ pub(super) fn lower_operand(
                 locals,
                 typed_hir,
                 local_declarations,
+                projections,
                 control_flow,
                 scope,
             ),
@@ -276,6 +302,7 @@ pub(super) fn lower_operand(
         locals,
         typed_hir,
         local_declarations,
+        projections,
         control_flow,
         scope,
     )?;

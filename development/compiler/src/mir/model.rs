@@ -35,11 +35,9 @@ pub(crate) struct ProjectionPath {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ProjectionElement {
-    #[allow(
-        dead_code,
-        reason = "aggregate route construction follows the projected-place validation checkpoint"
-    )]
-    Field { offset: u32 },
+    Field {
+        offset: u32,
+    },
     #[allow(
         dead_code,
         reason = "aggregate route construction follows the projected-place validation checkpoint"
@@ -131,10 +129,6 @@ impl Place {
         }
     }
 
-    #[allow(
-        dead_code,
-        reason = "aggregate route construction follows the projected-place validation checkpoint"
-    )]
     pub(crate) const fn projected(local: LocalId, projection: ProjectionPathId) -> Self {
         Self {
             local,

@@ -37,10 +37,6 @@ impl Local {
         }
     }
 
-    #[allow(
-        dead_code,
-        reason = "aggregate lowering will use this constructor in the next Phase 3 checkpoint"
-    )]
     pub(crate) fn aggregate(
         ty: TyId,
         ownership: OwnershipKind,

@@ -23,10 +23,11 @@ pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::Loan;
 #[cfg(test)]
-pub(crate) use model::{BasicBlock, Constant, ProjectionElement, ProjectionPath};
+pub(crate) use model::{BasicBlock, Constant};
 pub(crate) use model::{
     BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator,
-    LoopRegion, Operand, Origin, Place, ReturnMode, Rvalue, Statement, Terminator,
+    LoopRegion, Operand, Origin, Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue,
+    Statement, Terminator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

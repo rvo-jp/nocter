@@ -71,6 +71,7 @@ use sized::*;
 pub(crate) use compile_unit_context::TypecheckCompileUnitContext;
 
 pub(crate) use coercions::specialize_coercion_plan_across_resolvers;
+pub(crate) use copyability::type_expr_is_copy;
 pub(crate) use expansion::{specialize_collection_plan, specialize_sequence_spread_plan};
 use facts::build_typed_hir;
 pub(crate) use facts::{

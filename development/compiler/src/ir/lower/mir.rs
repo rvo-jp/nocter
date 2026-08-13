@@ -625,10 +625,20 @@ fn lower_statements(
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
-                        destination,
-                        value: lower_i32_operand(operand, context)?,
-                    }),
+                    Rvalue::Use(operand) => {
+                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
+                            instructions.push(Instruction::LoadAggregateI32 {
+                                destination,
+                                source,
+                                offset,
+                            });
+                        } else {
+                            instructions.push(Instruction::SetI32 {
+                                destination,
+                                value: lower_i32_operand(operand, context)?,
+                            });
+                        }
+                    }
                     Rvalue::Binary {
                         operator,
                         left,
@@ -650,10 +660,20 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
-                        destination,
-                        value: lower_usize_operand(operand, context)?,
-                    }),
+                    Rvalue::Use(operand) => {
+                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
+                            instructions.push(Instruction::LoadAggregateUsize {
+                                destination,
+                                source,
+                                offset,
+                            });
+                        } else {
+                            instructions.push(Instruction::SetUsize {
+                                destination,
+                                value: lower_usize_operand(operand, context)?,
+                            });
+                        }
+                    }
                     Rvalue::Binary {
                         operator,
                         left,
@@ -675,10 +695,20 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
-                        destination,
-                        value: lower_bool_operand(operand, context)?,
-                    }),
+                    Rvalue::Use(operand) => {
+                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
+                            instructions.push(Instruction::LoadAggregateBool {
+                                destination,
+                                source,
+                                offset,
+                            });
+                        } else {
+                            instructions.push(Instruction::SetBool {
+                                destination,
+                                value: lower_bool_operand(operand, context)?,
+                            });
+                        }
+                    }
                     Rvalue::Binary { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "boolean scalar route received an arithmetic operation",
@@ -699,6 +729,46 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn aggregate_field_source(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<Option<(crate::ir::AggregateLocation, u32)>, Vec<Diagnostic>> {
+    let place = match operand {
+        Operand::Constant(_) => return Ok(None),
+        Operand::Copy(place) | Operand::Move(place) => place,
+    };
+    let Some(projection) = place.projection else {
+        return Ok(None);
+    };
+    let projection = context
+        .body
+        .projections
+        .get(projection.index())
+        .ok_or_else(|| invalid_mir_diagnostics("aggregate field projection is missing"))?;
+    let crate::mir::ProjectionElement::Field { offset } = projection.element else {
+        return Err(invalid_mir_diagnostics(
+            "indexed aggregate projection has not been projected to machine IR",
+        ));
+    };
+    let LocalStorage::Parameter { ordinal } = context.body.locals[place.local.index()].storage
+    else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate field source has no machine storage projection",
+        ));
+    };
+    let Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) =
+        context.parameters.get(ordinal)
+    else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate MIR parameter has no matching staging slot",
+        ));
+    };
+    Ok(Some((
+        crate::ir::AggregateLocation::Slot(slot_index),
+        offset,
+    )))
 }
 
 fn lower_comparison(

@@ -67,7 +67,7 @@ pub(super) struct NonCopyOwnedValueSource {
     pub(super) kind: NonCopyOwnedValueKind,
 }
 
-pub(super) fn type_expr_is_copy(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
+pub(crate) fn type_expr_is_copy(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
     type_expr_is_copy_inner(ty, resolved, &HashMap::new(), &mut HashSet::new(), None)
 }
 

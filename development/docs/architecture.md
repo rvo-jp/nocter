@@ -129,6 +129,9 @@ buildability is MIR validation rather than a parallel AST model.
 - MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.
+- Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
+  Checked field selections become typed MIR projection paths; the backend maps those paths to the
+  aggregate staging slot established by the same parameter projection used at function entry.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

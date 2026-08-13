@@ -27,6 +27,7 @@ pub(super) struct StatementLowerer<'a> {
     typed_hir: &'a TypedHir,
     locals: &'a mut Vec<crate::mir::Local>,
     locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
+    projections: &'a mut Vec<crate::mir::ProjectionPath>,
     control_flow: &'a mut ControlFlowBuilder,
     loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
     scopes: &'a mut Vec<Scope>,
@@ -38,6 +39,7 @@ impl<'a> StatementLowerer<'a> {
         typed_hir: &'a TypedHir,
         locals: &'a mut Vec<crate::mir::Local>,
         locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
+        projections: &'a mut Vec<crate::mir::ProjectionPath>,
         control_flow: &'a mut ControlFlowBuilder,
         loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
         scopes: &'a mut Vec<Scope>,
@@ -47,6 +49,7 @@ impl<'a> StatementLowerer<'a> {
             typed_hir,
             locals,
             locals_by_symbol,
+            projections,
             control_flow,
             loop_regions,
             scopes,
@@ -169,6 +172,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals_by_symbol,
             self.typed_hir,
             self.locals,
+            self.projections,
             self.control_flow,
             scope,
         )
@@ -198,6 +202,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals_by_symbol,
             self.typed_hir,
             self.locals,
+            self.projections,
             self.control_flow,
             parent_scope,
         )?;
@@ -251,6 +256,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals_by_symbol,
             self.typed_hir,
             self.locals,
+            self.projections,
             self.control_flow,
             parent_scope,
         )?;

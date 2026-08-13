@@ -218,7 +218,6 @@ pub(crate) enum Instruction {
         stride: u32,
         value: BoolValue,
     },
-    #[allow(dead_code)]
     LoadAggregateUsize {
         destination: UsizeLocation,
         source: AggregateLocation,
@@ -247,7 +246,6 @@ pub(crate) enum Instruction {
         length: u64,
         stride: u32,
     },
-    #[allow(dead_code)]
     LoadAggregateI32 {
         destination: I32Location,
         source: AggregateLocation,
@@ -275,7 +273,6 @@ pub(crate) enum Instruction {
         length: u64,
         stride: u32,
     },
-    #[allow(dead_code)]
     LoadAggregateBool {
         destination: BoolLocation,
         source: AggregateLocation,
