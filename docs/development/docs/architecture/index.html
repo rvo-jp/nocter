@@ -228,7 +228,9 @@
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.</li><li>Expression-valued conditionals use the same MIR builder at function tails and nested operand
   positions. Both branch blocks carry child <code>ScopeId</code>s, assign one destination, and join in the
-  parent scope; route selection does not depend on where the source expression is written.</li><li>Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
+  parent scope; route selection does not depend on where the source expression is written.</li><li>Value-producing branch and outcome-recovery blocks share one statement-plus-tail MIR builder.
+  Machine-IR projection structures nested diamonds by their nearest common reachable MIR block,
+  so bindings and nested conditionals inside recovery do not require a syntax-shaped backend path.</li><li>Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
   their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
   inversion; lowering does not erase the authored operation before validation.</li><li>Integer casts enter MIR only from exact or lossless conversion decisions retained by typed HIR.
   The MIR cast records both semantic types and scalar representations, validation checks range

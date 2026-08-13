@@ -2,6 +2,74 @@
 
 use crate::mir::{Body, CallContinuation, Terminator};
 
+pub(super) fn structured_join(
+    body: &Body,
+    then_target: crate::mir::BasicBlockId,
+    else_target: crate::mir::BasicBlockId,
+    boundary: Option<crate::mir::BasicBlockId>,
+) -> Option<crate::mir::BasicBlockId> {
+    let then_distances = reachable_distances(body, then_target, boundary);
+    let else_distances = reachable_distances(body, else_target, boundary);
+    then_distances
+        .iter()
+        .filter_map(|(block, then_distance)| {
+            else_distances
+                .get(block)
+                .map(|else_distance| (*block, then_distance + else_distance))
+        })
+        .min_by_key(|(block, distance)| (*distance, block.index()))
+        .map(|(block, _)| block)
+}
+
+pub(super) fn can_reach(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+    target: crate::mir::BasicBlockId,
+) -> bool {
+    reachable_distances(body, start, Some(target)).contains_key(&target)
+}
+
+fn reachable_distances(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+    boundary: Option<crate::mir::BasicBlockId>,
+) -> std::collections::HashMap<crate::mir::BasicBlockId, usize> {
+    let mut distances = std::collections::HashMap::new();
+    let mut queue = std::collections::VecDeque::from([(start, 0)]);
+    while let Some((current, distance)) = queue.pop_front() {
+        if distances.insert(current, distance).is_some() || Some(current) == boundary {
+            continue;
+        }
+        let Some(block) = body.blocks.get(current.index()) else {
+            continue;
+        };
+        let mut enqueue = |target| queue.push_back((target, distance + 1));
+        match &block.terminator {
+            Terminator::Goto { target } | Terminator::Drop { target, .. } => enqueue(*target),
+            Terminator::Switch {
+                then_target,
+                else_target,
+                ..
+            } => {
+                enqueue(*then_target);
+                enqueue(*else_target);
+            }
+            Terminator::Call { continuation, .. } => match continuation {
+                CallContinuation::Never => {}
+                CallContinuation::Return { target, .. } => enqueue(*target),
+                CallContinuation::Outcome {
+                    success, failure, ..
+                } => {
+                    enqueue(*success);
+                    enqueue(*failure);
+                }
+            },
+            Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
+        }
+    }
+    distances
+}
+
 pub(super) fn linear_path_target(
     body: &Body,
     start: crate::mir::BasicBlockId,
@@ -57,44 +125,4 @@ fn dedicated_outcome_failure(body: &Body, failure: crate::mir::BasicBlockId) -> 
                 Terminator::Trap | Terminator::PropagateFailure
             )
     })
-}
-
-pub(super) fn linear_branch_join(
-    body: &Body,
-    start: crate::mir::BasicBlockId,
-) -> Result<crate::mir::BasicBlockId, &'static str> {
-    let mut current = start;
-    let mut visited = std::collections::HashSet::new();
-    loop {
-        if !visited.insert(current) {
-            return Err("conditional branch contains a cycle before its join");
-        }
-        let block = &body.blocks[current.index()];
-        match &block.terminator {
-            Terminator::Goto { target } => return Ok(*target),
-            Terminator::Drop { .. } => {
-                return Err("drop cleanup has not been projected to machine IR");
-            }
-            Terminator::Call {
-                continuation: CallContinuation::Return { target, .. },
-                ..
-            } => current = *target,
-            Terminator::Call {
-                continuation: CallContinuation::Never,
-                ..
-            } => return Err("non-returning conditional branches do not have a common join"),
-            Terminator::Call {
-                continuation: CallContinuation::Outcome { .. },
-                ..
-            } => return Err("outcome calls require explicit failure-path structuring"),
-            Terminator::Switch { .. } => {
-                return Err("nested conditional branches require recursive structuring");
-            }
-            Terminator::Trap => return Err("conditional branch traps before its common join"),
-            Terminator::PropagateFailure => {
-                return Err("conditional branch propagates failure before its common join");
-            }
-            Terminator::Return => return Err("conditional branch returns before its common join"),
-        }
-    }
 }

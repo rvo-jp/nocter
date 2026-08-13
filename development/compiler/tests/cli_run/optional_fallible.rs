@@ -3917,7 +3917,14 @@ construct error {
 }
 
 func main(): i32 {
-    return answer() catch _ { 42 }
+    return answer() catch _ {
+        let base = 40
+        if true {
+            base + 2
+        } else {
+            0
+        }
+    }
 }
 "#,
     );

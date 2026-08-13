@@ -171,31 +171,28 @@ fn lower_scalar_body(
                 then_target,
                 else_target,
             } => {
-                let then_join = control_flow::linear_branch_join(body, *then_target)
-                    .map_err(invalid_mir_diagnostics)?;
-                let else_join = control_flow::linear_branch_join(body, *else_target)
-                    .map_err(invalid_mir_diagnostics)?;
-                if then_join != else_join {
-                    return Err(invalid_mir_diagnostics(
-                        "scalar conditional branches must share one join block",
-                    ));
-                }
+                let join = control_flow::structured_join(body, *then_target, *else_target, None)
+                    .ok_or_else(|| {
+                        invalid_mir_diagnostics(
+                            "scalar conditional branches must share one join block",
+                        )
+                    })?;
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, &context)?,
-                    then_instructions: lower_linear_branch(
+                    then_instructions: lower_branch_to_join(
                         &context,
                         *then_target,
-                        then_join,
+                        join,
                         &mut visited,
                     )?,
-                    else_instructions: lower_linear_branch(
+                    else_instructions: lower_branch_to_join(
                         &context,
                         *else_target,
-                        else_join,
+                        join,
                         &mut visited,
                     )?,
                 });
-                current = then_join;
+                current = join;
             }
             Terminator::Call {
                 callee,
@@ -347,8 +344,8 @@ fn outcome_failure_mode(
             visited.insert(failure);
             Ok(OutcomeFailureMode::Propagate)
         }
-        Terminator::Goto { target } if *target == success => Ok(OutcomeFailureMode::Recover {
-            instructions: lower_linear_branch(context, failure, success, visited)?,
+        _ if control_flow::can_reach(body, failure, success) => Ok(OutcomeFailureMode::Recover {
+            instructions: lower_branch_to_join(context, failure, success, visited)?,
         }),
         _ => Err(invalid_mir_diagnostics(
             "outcome call failure block has an invalid terminator",
@@ -388,7 +385,7 @@ fn validate_outcome_call_return_type(
     )
 }
 
-fn lower_linear_branch(
+fn lower_branch_to_join(
     context: &BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     join: crate::mir::BasicBlockId,
@@ -398,6 +395,9 @@ fn lower_linear_branch(
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
+        if current == join {
+            return Ok(instructions);
+        }
         if !visited.insert(current) {
             return Err(invalid_mir_diagnostics(
                 "control-flow branch reuses an already lowered block",
@@ -406,7 +406,7 @@ fn lower_linear_branch(
         let block = &body.blocks[current.index()];
         instructions.extend(lower_statements(context, &block.statements)?);
         match &block.terminator {
-            Terminator::Goto { target } if *target == join => return Ok(instructions),
+            Terminator::Goto { target } => current = *target,
             Terminator::Call {
                 callee,
                 arguments,
@@ -439,9 +439,71 @@ fn lower_linear_branch(
                 )?);
                 current = *target;
             }
+            Terminator::Call {
+                callee,
+                arguments,
+                continuation:
+                    CallContinuation::Outcome {
+                        destination,
+                        success,
+                        failure,
+                    },
+                ..
+            } => {
+                let (call_target, callee_name) = lower_call_target(
+                    *callee,
+                    context.resolved,
+                    context.function_names,
+                    context.root_source,
+                )?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let destination_scalar = local_scalar(body, destination.local)?;
+                instructions.push(lower_outcome_call(
+                    context,
+                    destination_scalar,
+                    destination,
+                    call_target,
+                    arguments,
+                    outcome_failure_mode(context, *failure, *success, visited)?,
+                    &callee_name,
+                )?);
+                current = *success;
+            }
+            Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+            } => {
+                let branch_join =
+                    control_flow::structured_join(body, *then_target, *else_target, Some(join))
+                        .ok_or_else(|| {
+                            invalid_mir_diagnostics(
+                                "nested scalar conditional branches do not share a join",
+                            )
+                        })?;
+                instructions.push(Instruction::If {
+                    condition: lower_bool_operand(condition, context)?,
+                    then_instructions: lower_branch_to_join(
+                        context,
+                        *then_target,
+                        branch_join,
+                        visited,
+                    )?,
+                    else_instructions: lower_branch_to_join(
+                        context,
+                        *else_target,
+                        branch_join,
+                        visited,
+                    )?,
+                });
+                current = branch_join;
+            }
             _ => {
                 return Err(invalid_mir_diagnostics(
-                    "scalar conditional branch does not follow a linear path to its join",
+                    "scalar conditional branch does not reach its join",
                 ));
             }
         }

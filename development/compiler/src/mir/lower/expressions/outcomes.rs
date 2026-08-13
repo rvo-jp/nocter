@@ -70,8 +70,6 @@ fn lower_recovery_to_place(
     if returns_never {
         return Err(super::super::BuildError::UnsupportedClaimedExpression);
     }
-    let fallback = super::super::coverage::scalar_branch_result(fallback_block)
-        .ok_or(super::super::BuildError::UnsupportedClaimedExpression)?;
     let fallback_scope = context.child_scope(parent_scope, fallback_block.span);
     let success = context.control_flow.begin_handled_outcome_call(
         call_source,
@@ -80,7 +78,14 @@ fn lower_recovery_to_place(
         destination,
         fallback_scope,
     )?;
-    context.lower_expression_to_place(destination, fallback, ty, scalar, fallback_scope)?;
+    super::super::statements::lower_value_block(
+        context,
+        fallback_block,
+        destination,
+        ty,
+        scalar,
+        fallback_scope,
+    )?;
     context
         .control_flow
         .terminate(Terminator::Goto { target: success })?;

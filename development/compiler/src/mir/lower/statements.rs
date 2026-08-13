@@ -3,8 +3,8 @@
 use super::BuildError;
 use super::context::LoweringContext;
 use super::coverage::{
-    ScalarStatement, binding_scalar_type, known_expression_type, scalar_linear_block_statements,
-    scalar_loop_block_statements,
+    ScalarStatement, binding_scalar_type, known_expression_type, scalar_body_parts,
+    scalar_linear_block_statements, scalar_loop_block_statements,
 };
 use super::expressions::mir_assignment_operator;
 use crate::ast::Expr;
@@ -516,5 +516,37 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 .terminate(Terminator::Goto { target: header })?;
         }
         self.context.control_flow.select_block(exit)
+    }
+}
+
+pub(super) fn lower_value_block(
+    context: &mut LoweringContext<'_>,
+    block: &crate::ast::Block,
+    destination: LocalId,
+    ty: crate::semantic::TyId,
+    scalar: ScalarType,
+    scope: ScopeId,
+) -> Result<(), BuildError> {
+    let (statements, tail) =
+        scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    StatementLowerer::new(context).lower(&statements, scope)?;
+    if let Some(conditional) = tail.conditional() {
+        super::expressions::lower_conditional_to_place(
+            context,
+            destination,
+            conditional,
+            ty,
+            scalar,
+            scope,
+        )
+    } else {
+        context.lower_expression_to_place(
+            destination,
+            tail.expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            ty,
+            scalar,
+            scope,
+        )
     }
 }

@@ -79,9 +79,7 @@ impl<'a> ScalarTail<'a> {
     pub(super) fn result_type(self, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {
         match self {
             Self::Expression(expression) => known_expression_type(expression, typed_hir),
-            Self::Conditional(if_) => {
-                known_expression_type(scalar_branch_result(&if_.then_block)?, typed_hir)
-            }
+            Self::Conditional(if_) => scalar_value_block_result_type(&if_.then_block, typed_hir),
         }
     }
 }
@@ -498,15 +496,12 @@ pub(super) fn scalar_expression_is_supported(
                 return false;
             };
             scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
-                && scalar_branch_result(&otherwise.fallback).is_some_and(|fallback| {
-                    !contains_outcome_call(fallback)
-                        && scalar_expression_is_supported(
-                            fallback,
-                            resolved,
-                            resolved_sources,
-                            typed_hir,
-                        )
-                })
+                && scalar_value_block_is_supported(
+                    &otherwise.fallback,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
         }
         Expr::Catch(catch) => {
             let Expr::Call(call) = catch.expression.without_groups() else {
@@ -514,15 +509,12 @@ pub(super) fn scalar_expression_is_supported(
             };
             matches!(catch.binding, crate::ast::CatchBinding::Discard { .. })
                 && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
-                && scalar_branch_result(&catch.catch_block).is_some_and(|fallback| {
-                    !contains_outcome_call(fallback)
-                        && scalar_expression_is_supported(
-                            fallback,
-                            resolved,
-                            resolved_sources,
-                            typed_hir,
-                        )
-                })
+                && scalar_value_block_is_supported(
+                    &catch.catch_block,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
         }
         Expr::Unary(unary) => {
             let Some(operand_ty) = known_expression_type(&unary.operand, typed_hir) else {
@@ -681,9 +673,29 @@ fn intrinsic_expression_type(
     Some(ty)
 }
 
-pub(super) fn scalar_branch_result(block: &Block) -> Option<&Expr> {
-    let (statements, tail) = scalar_body_parts(block)?;
-    statements.is_empty().then(|| tail.expression()).flatten()
+fn scalar_value_block_is_supported(
+    block: &Block,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    let Some((statements, tail)) = scalar_body_parts(block) else {
+        return false;
+    };
+    statements.iter().all(|statement| {
+        statement.is_supported_in_context(resolved, resolved_sources, typed_hir, false)
+    }) && tail.is_supported(SemanticInputs {
+        resolved,
+        resolved_sources,
+        typed_hir,
+    })
+}
+
+fn scalar_value_block_result_type(
+    block: &Block,
+    typed_hir: &TypedHir,
+) -> Option<crate::semantic::TyId> {
+    scalar_body_parts(block)?.1.result_type(typed_hir)
 }
 
 fn scalar_conditional_is_supported(
@@ -693,40 +705,10 @@ fn scalar_conditional_is_supported(
     typed_hir: &TypedHir,
 ) -> bool {
     scalar_expression_is_supported(&if_.condition, resolved, resolved_sources, typed_hir)
-        && scalar_branch_result(&if_.then_block).is_some_and(|result| {
-            !contains_outcome_call(result)
-                && scalar_expression_is_supported(result, resolved, resolved_sources, typed_hir)
+        && scalar_value_block_is_supported(&if_.then_block, resolved, resolved_sources, typed_hir)
+        && if_.else_block.as_ref().is_some_and(|block| {
+            scalar_value_block_is_supported(block, resolved, resolved_sources, typed_hir)
         })
-        && if_
-            .else_block
-            .as_ref()
-            .and_then(scalar_branch_result)
-            .is_some_and(|result| {
-                !contains_outcome_call(result)
-                    && scalar_expression_is_supported(result, resolved, resolved_sources, typed_hir)
-            })
-}
-
-fn contains_outcome_call(expression: &Expr) -> bool {
-    match expression {
-        Expr::Force(_) | Expr::Propagate(_) | Expr::Otherwise(_) | Expr::Catch(_) => true,
-        Expr::Group(group) => contains_outcome_call(&group.expression),
-        Expr::Unary(unary) => contains_outcome_call(&unary.operand),
-        Expr::Binary(binary) => {
-            contains_outcome_call(&binary.left) || contains_outcome_call(&binary.right)
-        }
-        Expr::Call(call) => call.arguments.iter().any(contains_outcome_call),
-        Expr::If(if_) => {
-            contains_outcome_call(&if_.condition)
-                || scalar_branch_result(&if_.then_block).is_some_and(contains_outcome_call)
-                || if_
-                    .else_block
-                    .as_ref()
-                    .and_then(scalar_branch_result)
-                    .is_some_and(contains_outcome_call)
-        }
-        _ => false,
-    }
 }
 
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {

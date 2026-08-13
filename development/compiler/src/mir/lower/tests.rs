@@ -1142,6 +1142,55 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_value_blocks_inside_outcome_recovery() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32? {
+    return none
+}
+
+func main(condition: bool): i32 {
+    return answer() otherwise {
+        let base = 6
+        if condition {
+            base + 1
+        } else {
+            base + 2
+        }
+    }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("scalar recovery value blocks must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 6);
+    assert!(body.locals.iter().any(|local| {
+        matches!(local.origin, LocalOrigin::Binding(symbol)
+            if file.resolved.local_symbol(symbol).unwrap().name == "base")
+    }));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_discard_catch_with_a_joined_failure_value() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32! {
