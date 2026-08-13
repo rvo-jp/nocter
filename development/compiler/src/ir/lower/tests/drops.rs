@@ -43,6 +43,58 @@ func read(resource: Resource): i32 {
 }
 
 #[test]
+fn mir_projects_owned_outcome_cleanup_through_success_tags() {
+    let function = lower_named_function(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+
+func consume(resource: Resource?!): i32 {
+    return 0
+}
+"#,
+        "consume",
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::IfStoredOutcomeTag {
+            tag_offset: 0,
+            success_instructions,
+            outcome_instructions,
+            ..
+        } if outcome_instructions.is_empty()
+            && matches!(success_instructions.as_slice(), [
+                Instruction::IfStoredOutcomeTag {
+                    tag_offset: 8,
+                    success_instructions,
+                    outcome_instructions,
+                    ..
+                }
+            ] if outcome_instructions.is_empty()
+                && matches!(success_instructions.as_slice(), [
+                    Instruction::CallVoid { target, arguments }
+                ] if target == &CallTarget::same_file("Resource.drop")
+                    && matches!(arguments.as_slice(), [
+                        ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlotField {
+                                slot_index: 0,
+                                offset: 16,
+                            },
+                        })
+                    ])))
+    )));
+}
+
+#[test]
 fn mir_semantic_drop_plan_recurses_through_owned_struct_fields() {
     let function = lower_named_function(
         r#"struct Resource {

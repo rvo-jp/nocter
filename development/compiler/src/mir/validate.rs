@@ -768,6 +768,7 @@ fn validate_drop_plans(body: &Body, errors: &mut Vec<ValidationError>) {
                 .iter()
                 .flat_map(|variant| variant.fields.iter().map(|field| field.plan))
                 .collect(),
+            crate::mir::DropPlan::Outcome { payload, .. } => vec![*payload],
         };
         let shape_is_valid = match plan {
             crate::mir::DropPlan::Noop | crate::mir::DropPlan::Direct { .. } => true,
@@ -785,6 +786,19 @@ fn validate_drop_plans(body: &Body, errors: &mut Vec<ValidationError>) {
                         .len()
                         == variants.len()
             }
+            crate::mir::DropPlan::Outcome { layers, .. } => matches!(
+                layers.as_slice(),
+                [crate::outcomes::OutcomeLayer::Optional]
+                    | [crate::outcomes::OutcomeLayer::Fallible]
+                    | [
+                        crate::outcomes::OutcomeLayer::Fallible,
+                        crate::outcomes::OutcomeLayer::Optional
+                    ]
+                    | [
+                        crate::outcomes::OutcomeLayer::Optional,
+                        crate::outcomes::OutcomeLayer::Fallible
+                    ]
+            ),
         };
         if !shape_is_valid {
             errors.push(ValidationError::InvalidDropPlanShape(id));

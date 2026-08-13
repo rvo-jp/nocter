@@ -4,13 +4,14 @@
 
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The production MIR route now owns
 the scalar control-flow subset described below, nested value/recovery blocks, scalar borrow
-bindings and lexical loan endings, borrow-parameter forwarding, and copy aggregate call-result
-locals, fields, forwarding, and fixed-array index loans. One construction context owns mutable MIR state and one backend
+bindings and lexical loan endings, borrow-parameter forwarding, copy aggregate call-result locals,
+fields, forwarding, fixed-array index loans, payload-variant construction, and active-tag cleanup
+for enums and outcomes. One construction context owns mutable MIR state and one backend
 context projects the checked body. MIR construction and validation are authoritative after route
 selection; buildability and machine-IR lowering consume the same retained body and identity-backed
-call edges. The next boundary is owned aggregate construction and an explicit semantic drop plan on
-MIR `Drop` terminators. Do not merely teach the backend to rediscover drop glue from an AST/type
-name. After that, expand aggregate variants and projected moves, regions, closures,
+call edges. The next boundary is partially initialized aggregate ownership and projected aggregate
+moves. Do not teach the backend to rediscover drop glue from an AST/type name. After that, expand
+regions, closures,
 typed literals, interpolation, expansion, and iteration until the AST lowering/buildability routes
 can be deleted. Do not add language features or standard-library APIs during the migration. The
 v0.13.0 tag, archive, release notes, and qualification record are immutable.
@@ -163,16 +164,18 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   the existing bounds-checked aggregate address operation for both constant and dynamic indexes
 - generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
   the monomorphized runtime symbol
-- payload enums and outcome storage remain excluded until their active-variant/tag structure is
-  represented in the same plan domain; never replace that boundary with a direct-destructor-only
-  shortcut
-- the next checkpoint represents active variants and partially initialized owned aggregates in the
-  MIR cleanup model, then routes projected aggregate moves without flattening their obligations
+- payload variant rvalues retain the selected variant `DefId` and semantic payload paths; enum drop
+  plans test the stored tag and destroy only the active payload fields
+- optional and fallible drop plans retain ordered outcome layers plus the payload `TyId`; backend
+  projection derives every tag and payload offset from the shared outcome storage layout and drops
+  the payload only through nested success edges
+- the next checkpoint represents partially initialized owned aggregates in the MIR cleanup model,
+  then routes projected aggregate moves without flattening their obligations
 - outcome recovery distinguishes an implicit fallback result from an explicit `return`; the latter
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,644 library tests pass at this checkpoint
+- all 2,649 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

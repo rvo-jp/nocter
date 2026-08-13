@@ -191,6 +191,10 @@ buildability is MIR validation rather than a parallel AST model.
   collections.
   Finalization validates definite initialization, materializes cleanup edges, and validates the
   completed representation before it can enter the compile-unit cache.
+- Payload-variant construction retains the selected variant definition and semantic payload paths
+  in MIR. Enum cleanup tests the stored tag and recursively destroys only the active payload.
+  Optional and fallible cleanup uses the same drop-plan domain: ordered outcome layers guard a
+  typed payload plan, while backend projection derives offsets from the shared storage layout.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain

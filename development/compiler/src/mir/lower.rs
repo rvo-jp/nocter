@@ -281,6 +281,7 @@ fn parameter_representation(
         crate::abi::AbiType::Struct(_)
             | crate::abi::AbiType::Array { .. }
             | crate::abi::AbiType::Enum(_)
+            | crate::abi::AbiType::Outcome { .. }
     );
     (aggregate
         && (crate::typecheck::type_expr_is_copy(&parameter.ty, semantic.resolved) == Some(true)

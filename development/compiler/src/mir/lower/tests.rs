@@ -113,6 +113,57 @@ func consume(result: Result): i32 {
 }
 
 #[test]
+fn builds_success_only_outcome_cleanup_from_semantic_drop_plans() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Resource {
+    code: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func consume(resource: Resource?!): i32 {
+    return 0
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "consume" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("owned outcome parameter must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.locals[1]
+            .drop_plan
+            .and_then(|plan| body.drop_plans.get(plan.index())),
+        Some(DropPlan::Outcome { layers, payload, .. })
+            if layers == &[
+                crate::outcomes::OutcomeLayer::Fallible,
+                crate::outcomes::OutcomeLayer::Optional,
+            ] && matches!(body.drop_plans.get(payload.index()), Some(DropPlan::Direct { .. }))
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_payload_variant_construction_as_a_semantic_rvalue() {
     let (_sources, analysis) = analyze_text(
         r#"struct Payload {

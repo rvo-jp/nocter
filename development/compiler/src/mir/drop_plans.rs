@@ -6,6 +6,7 @@
 
 use super::DropPlanId;
 use crate::ast::{TypeExpr, substitute_type_expr_parameters};
+use crate::outcomes::OutcomeLayer;
 use crate::resolve::{ResolveOutput, ResolvedSources, TypeSymbolKind};
 use crate::semantic::{DefId, TyId};
 use crate::typecheck::TypedHir;
@@ -28,6 +29,11 @@ pub(crate) enum DropPlan {
     },
     Enum {
         variants: Vec<DropPlanVariant>,
+    },
+    Outcome {
+        layers: Vec<OutcomeLayer>,
+        payload_ty: TyId,
+        payload: DropPlanId,
     },
 }
 
@@ -142,9 +148,31 @@ fn build_inner(
                 resolving,
             )
         }
-        TypeExpr::Optional(_)
-        | TypeExpr::Fallible(_)
-        | TypeExpr::Callable(_)
+        TypeExpr::Optional(_) | TypeExpr::Fallible(_) => {
+            let shape = crate::outcomes::outcome_shape_with_resolver(ty, fallback, |source| {
+                sources.get(&source).copied()
+            });
+            if !shape.is_supported_callable_shape() || shape.layers.is_empty() {
+                return None;
+            }
+            let payload = build_inner(
+                &shape.payload,
+                fallback,
+                sources,
+                typed_hir,
+                plans,
+                resolving,
+            )?;
+            push(
+                plans,
+                DropPlan::Outcome {
+                    layers: shape.layers,
+                    payload_ty: typed_hir.type_id(&shape.payload)?,
+                    payload,
+                },
+            )
+        }
+        TypeExpr::Callable(_)
         | TypeExpr::Closure(_)
         | TypeExpr::Pointer(_)
         | TypeExpr::Borrow(_)

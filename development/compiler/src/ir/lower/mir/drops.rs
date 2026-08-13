@@ -148,6 +148,33 @@ fn lower_plan(
             }
             Ok(instructions)
         }
+        DropPlan::Outcome {
+            layers,
+            payload_ty,
+            payload,
+        } => {
+            let payload_value = aggregate_local_abi_value(*payload_ty, context)?;
+            let storage =
+                crate::outcomes::storage::outcome_storage_layout(layers, payload_value.layout);
+            let payload_offset = u32::try_from(storage.payload_offset)
+                .ok()
+                .and_then(|offset| base_offset.checked_add(offset))
+                .ok_or_else(|| invalid_mir_diagnostics("outcome payload offset is invalid"))?;
+            let mut active = lower_plan(context, location, payload_offset, *payload_ty, *payload)?;
+            for layer in storage.layers.iter().rev() {
+                let tag_offset = u32::try_from(layer.tag_offset)
+                    .ok()
+                    .and_then(|offset| base_offset.checked_add(offset))
+                    .ok_or_else(|| invalid_mir_diagnostics("outcome tag offset is invalid"))?;
+                active = vec![Instruction::IfStoredOutcomeTag {
+                    source: location,
+                    tag_offset,
+                    success_instructions: active,
+                    outcome_instructions: Vec::new(),
+                }];
+            }
+            Ok(active)
+        }
     }
 }
 
