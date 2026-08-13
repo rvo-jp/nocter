@@ -219,6 +219,58 @@ fn builds_wide_integer_arithmetic_with_canonical_kind() {
 }
 
 #[test]
+fn builds_integer_shifts_with_canonical_operators() {
+    let (_sources, analysis) = analyze_text(
+        r#"func shift(value: i64, count: i64): i64 {
+    return (value << count) >> count
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "shift" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let scalar = ScalarType::Integer(crate::integer::IntegerType::I64);
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        scalar,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("integer shifts must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [
+            Statement::Assign {
+                value: Rvalue::Binary {
+                    operator: crate::mir::BinaryOperator::ShiftLeft,
+                    ..
+                },
+                ..
+            },
+            Statement::Assign {
+                value: Rvalue::Binary {
+                    operator: crate::mir::BinaryOperator::ShiftRight,
+                    ..
+                },
+                ..
+            }
+        ]
+    ));
+}
+
+#[test]
 fn builds_short_circuit_boolean_control_flow() {
     let (_sources, analysis) = analyze_text(
         r#"func both(left: bool, right: bool): bool {

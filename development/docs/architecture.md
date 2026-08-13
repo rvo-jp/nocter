@@ -143,7 +143,7 @@ buildability is MIR validation rather than a parallel AST model.
   offsets only after selecting the aggregate's physical storage.
 - Built-in integers use canonical `IntegerType` in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
-  comparison, call, field-load, and return projection.
+  shifts, comparison, call, field-load, and return projection.
 - Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.

@@ -1005,6 +1005,16 @@ fn i32_binary_instruction(
             left,
             right,
         },
+        BinaryOperator::ShiftLeft => Instruction::ShiftLeftI32 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::ShiftRight => Instruction::ShiftRightI32 {
+            destination,
+            left,
+            right,
+        },
     }
 }
 
@@ -1040,6 +1050,16 @@ fn usize_binary_instruction(
             left,
             right,
         },
+        BinaryOperator::ShiftLeft => Instruction::ShiftLeftUsize {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::ShiftRight => Instruction::ShiftRightUsize {
+            destination,
+            left,
+            right,
+        },
     }
 }
 
@@ -1050,6 +1070,8 @@ fn integer_binary_operator(operator: BinaryOperator) -> IntegerBinaryOperator {
         BinaryOperator::Multiply => IntegerBinaryOperator::Multiply,
         BinaryOperator::Divide => IntegerBinaryOperator::Divide,
         BinaryOperator::Remainder => IntegerBinaryOperator::Remainder,
+        BinaryOperator::ShiftLeft => IntegerBinaryOperator::ShiftLeft,
+        BinaryOperator::ShiftRight => IntegerBinaryOperator::ShiftRight,
     }
 }
 

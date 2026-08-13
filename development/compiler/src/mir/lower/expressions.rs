@@ -470,6 +470,8 @@ pub(super) fn mir_binary_operator(operator: crate::ast::BinaryOperator) -> Optio
         crate::ast::BinaryOperator::Multiply => Some(BinaryOperator::Multiply),
         crate::ast::BinaryOperator::Divide => Some(BinaryOperator::Divide),
         crate::ast::BinaryOperator::Remainder => Some(BinaryOperator::Remainder),
+        crate::ast::BinaryOperator::ShiftLeft => Some(BinaryOperator::ShiftLeft),
+        crate::ast::BinaryOperator::ShiftRight => Some(BinaryOperator::ShiftRight),
         _ => None,
     }
 }

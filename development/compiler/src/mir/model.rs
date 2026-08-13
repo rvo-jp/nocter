@@ -202,6 +202,8 @@ pub(crate) enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+    ShiftLeft,
+    ShiftRight,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

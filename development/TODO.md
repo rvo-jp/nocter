@@ -77,7 +77,7 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - nested field access retains one parent-linked projection segment per checked field and folds
   relative offsets only at machine-storage projection
 - canonical `IntegerType` extends MIR scalar construction and machine projection to all built-in
-  integer widths for parameters, arithmetic, comparisons, calls, fields, and returns
+  integer widths for parameters, arithmetic, shifts, comparisons, calls, fields, and returns
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

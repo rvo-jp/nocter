@@ -218,7 +218,7 @@
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.</li><li>Built-in integers use canonical <code>IntegerType</code> in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
-  comparison, call, field-load, and return projection.</li><li>Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
+  shifts, comparison, call, field-load, and return projection.</li><li>Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
