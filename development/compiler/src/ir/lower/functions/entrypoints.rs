@@ -246,6 +246,27 @@ pub(in crate::ir::lower) fn lower_function<'a>(
             }
         };
     let success_type = return_type.success_type().clone();
+    let body = function
+        .body
+        .as_ref()
+        .expect("function index contains only body-bearing declarations");
+    if function.generics.parameters.is_empty()
+        && parameters.is_empty()
+        && let Some(instructions) = super::super::mir::try_lower_scalar_body(
+            body,
+            &return_type,
+            resolved,
+            typed_hir,
+            sources,
+        )
+    {
+        return Ok(Function {
+            name,
+            target,
+            return_type,
+            instructions: instructions?,
+        });
+    }
     let mut context = LoweringContext::new(
         name.clone(),
         success_type,
@@ -271,10 +292,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &function.name,
-        function
-            .body
-            .as_ref()
-            .expect("function index contains only body-bearing declarations"),
+        body,
         &return_type,
         root_source,
         resolved,

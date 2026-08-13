@@ -4,12 +4,38 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue};
 use crate::mir::{BinaryOperator, Body, Operand, Place, Rvalue, Statement, Terminator};
+use crate::resolve::ResolveOutput;
+use crate::source::{ByteSpan, SourceMap};
+use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
-pub(super) fn lower_scalar_body(
-    body: &Body,
+pub(super) fn try_lower_scalar_body(
+    body: &crate::ast::Block,
     return_type: &Type,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+    sources: &SourceMap,
+) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
+    if !matches!(return_type, Type::I32 | Type::Usize) {
+        return None;
+    }
+    let mir_body =
+        crate::mir::try_build_scalar_body(body, &resolved.semantic_db, resolved, typed_hir)?;
+    Some(match mir_body {
+        Ok(mir_body) => lower_scalar_body(&mir_body, return_type)
+            .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
+        Err(error) => Err(attach_primary_span(
+            vec![Diagnostic::error(
+                "E8000",
+                format!("compiler could not construct MIR: {error:?}"),
+            )],
+            sources,
+            body.span,
+        )),
+    })
+}
+
+fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
     let mut instructions = Vec::new();
     let mut current = body.entry;
@@ -81,6 +107,17 @@ pub(super) fn lower_scalar_body(
             }
         }
     }
+}
+
+fn attach_primary_span(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn i32_binary_instruction(

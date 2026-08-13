@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn lowers_zero_parameter_scalar_helpers_through_the_common_mir_route() {
+    let ir = lower_text(
+        r#"func helper(): i32 {
+    let base = 40
+    return base + 2
+}
+
+func main(): i32 {
+    return helper()
+}
+"#,
+    );
+    let helper = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "helper")
+        .unwrap();
+
+    assert_eq!(
+        helper.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: I32Value::Const(40),
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: I32Value::Location(I32Location::Local(0)),
+                right: I32Value::Const(2),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit
