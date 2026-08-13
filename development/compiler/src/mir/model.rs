@@ -85,6 +85,11 @@ pub(crate) enum Rvalue {
 pub(crate) enum Operand {
     Constant(Constant),
     Copy(Place),
+    #[allow(
+        dead_code,
+        reason = "owned aggregate lowering will construct move operands next"
+    )]
+    Move(Place),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

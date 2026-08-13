@@ -71,6 +71,13 @@ pub(crate) enum ValidationError {
         expected: ValueRepresentation,
         actual: ValueRepresentation,
     },
+    InvalidOperandOwnership {
+        block: BasicBlockId,
+        location: OperandLocation,
+        local: LocalId,
+        operand: OperandOwnership,
+        ownership: OwnershipKind,
+    },
     AssignmentRequiresScalar {
         block: BasicBlockId,
         statement: usize,
@@ -116,6 +123,12 @@ pub(crate) enum ValidationError {
 pub(crate) enum OperandLocation {
     Statement(usize),
     CallArgument(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OperandOwnership {
+    Copy,
+    Move,
 }
 
 pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
@@ -213,6 +226,13 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         OperandLocation::Statement(statement_index),
                         operand,
                         destination_local.representation,
+                        &mut errors,
+                    );
+                    validate_operand_ownership(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        operand,
                         &mut errors,
                     );
                     ty
@@ -422,7 +442,7 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
             || (id == body.return_local) == (local.storage == LocalStorage::Return);
         let scalar_ownership_is_trivial =
             !matches!(local.representation, ValueRepresentation::Scalar(_))
-                || local.ownership == OwnershipKind::Trivial;
+                || local.ownership == OwnershipKind::Copy;
         if !storage_matches_origin
             || !return_storage_matches_identity
             || !scalar_ownership_is_trivial
@@ -502,7 +522,40 @@ fn validate_operand(
         });
     }
     validate_operand_scalar(body, block, location, operand, expected_scalar, errors);
+    validate_operand_ownership(body, block, location, operand, errors);
     actual_ty
+}
+
+fn validate_operand_ownership(
+    body: &Body,
+    block: BasicBlockId,
+    location: OperandLocation,
+    operand: &Operand,
+    errors: &mut Vec<ValidationError>,
+) {
+    let (place, operation) = match operand {
+        Operand::Constant(_) => return,
+        Operand::Copy(place) => (place, OperandOwnership::Copy),
+        Operand::Move(place) => (place, OperandOwnership::Move),
+    };
+    let Some(local) = body.locals.get(place.local.index()) else {
+        return;
+    };
+    let valid = match (operation, local.ownership) {
+        (OperandOwnership::Copy, OwnershipKind::Copy)
+        | (OperandOwnership::Copy, OwnershipKind::Borrowed { readwrite: false })
+        | (OperandOwnership::Move, OwnershipKind::Move) => true,
+        (OperandOwnership::Copy | OperandOwnership::Move, _) => false,
+    };
+    if !valid {
+        errors.push(ValidationError::InvalidOperandOwnership {
+            block,
+            location,
+            local: place.local,
+            operand: operation,
+            ownership: local.ownership,
+        });
+    }
 }
 
 fn validate_operand_scalar(
@@ -578,7 +631,7 @@ fn validate_target(
 fn operand_representation(body: &Body, operand: &Operand) -> Option<ValueRepresentation> {
     match operand {
         Operand::Constant(constant) => Some(ValueRepresentation::Scalar(constant.scalar)),
-        Operand::Copy(place) => body
+        Operand::Copy(place) | Operand::Move(place) => body
             .locals
             .get(place.local.index())
             .map(|local| local.representation),
@@ -594,7 +647,7 @@ fn operand_type(
 ) -> Option<TyId> {
     match operand {
         Operand::Constant(constant) => Some(constant.ty),
-        Operand::Copy(place) => match body.locals.get(place.local.index()) {
+        Operand::Copy(place) | Operand::Move(place) => match body.locals.get(place.local.index()) {
             Some(local) => Some(local.ty),
             None => {
                 errors.push(ValidationError::MissingOperandLocal {
@@ -786,7 +839,7 @@ mod tests {
             LocalOrigin::Desugared(span()),
             body.root_scope,
         );
-        invalid.ownership = OwnershipKind::Owned;
+        invalid.ownership = OwnershipKind::Move;
         body.locals.push(invalid);
 
         assert_eq!(

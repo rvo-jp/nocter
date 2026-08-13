@@ -30,6 +30,14 @@ impl LocalSet {
             .is_some_and(|word| word & (1 << bit) != 0)
     }
 
+    pub(super) fn remove(&mut self, local: LocalId) {
+        let word = local.index() / u64::BITS as usize;
+        let bit = local.index() % u64::BITS as usize;
+        if let Some(word) = self.words.get_mut(word) {
+            *word &= !(1 << bit);
+        }
+    }
+
     /// Intersects `self` with `other` and reports whether the set changed.
     pub(super) fn intersect_with(&mut self, other: &Self) -> bool {
         debug_assert_eq!(self.words.len(), other.words.len());
@@ -57,6 +65,8 @@ mod tests {
         for index in [0, 63, 64, 129] {
             assert!(set.contains(LocalId::from_index(index)));
         }
+        set.remove(LocalId::from_index(64));
+        assert!(!set.contains(LocalId::from_index(64)));
         for index in [1, 62, 65, 128, 130] {
             assert!(!set.contains(LocalId::from_index(index)));
         }

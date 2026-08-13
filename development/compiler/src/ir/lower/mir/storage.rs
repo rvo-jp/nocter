@@ -113,7 +113,9 @@ fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
 }
 
 fn operand_use_count(operand: &Operand, local: LocalId) -> usize {
-    usize::from(matches!(operand, Operand::Copy(place) if place.local == local))
+    usize::from(
+        matches!(operand, Operand::Copy(place) | Operand::Move(place) if place.local == local),
+    )
 }
 
 #[cfg(test)]

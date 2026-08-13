@@ -30,7 +30,28 @@ impl Local {
         Self {
             ty,
             representation: ValueRepresentation::Scalar(scalar),
-            ownership: OwnershipKind::Trivial,
+            ownership: OwnershipKind::Copy,
+            storage,
+            origin,
+            scope,
+        }
+    }
+
+    #[allow(
+        dead_code,
+        reason = "aggregate lowering will use this constructor in the next Phase 3 checkpoint"
+    )]
+    pub(crate) fn aggregate(
+        ty: TyId,
+        ownership: OwnershipKind,
+        storage: LocalStorage,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            ty,
+            representation: ValueRepresentation::Aggregate,
+            ownership,
             storage,
             origin,
             scope,
@@ -46,10 +67,6 @@ impl Local {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[expect(
-    dead_code,
-    reason = "aggregate representation is introduced before its Phase 3 lowering checkpoint"
-)]
 pub(crate) enum ValueRepresentation {
     Scalar(ScalarType),
     Aggregate,
@@ -67,11 +84,11 @@ pub(crate) enum ScalarType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[expect(
     dead_code,
-    reason = "owned and borrowed locals are introduced before their Phase 3 lowering checkpoint"
+    reason = "borrowed locals are introduced before their Phase 3 lowering checkpoint"
 )]
 pub(crate) enum OwnershipKind {
-    Trivial,
-    Owned,
+    Copy,
+    Move,
     Borrowed { readwrite: bool },
 }
 

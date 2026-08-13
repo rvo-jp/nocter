@@ -840,7 +840,9 @@ fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Dia
                     invalid_mir_diagnostics("i32 constant is outside its runtime representation")
                 })
         }
-        Operand::Copy(place) => i32_location(place, body).map(I32Value::Location),
+        Operand::Copy(place) | Operand::Move(place) => {
+            i32_location(place, body).map(I32Value::Location)
+        }
     }
 }
 
@@ -851,7 +853,9 @@ fn lower_usize_operand(operand: &Operand, body: &Body) -> Result<UsizeValue, Vec
             .map_err(|_| {
                 invalid_mir_diagnostics("usize constant is outside its runtime representation")
             }),
-        Operand::Copy(place) => usize_location(place, body).map(UsizeValue::Location),
+        Operand::Copy(place) | Operand::Move(place) => {
+            usize_location(place, body).map(UsizeValue::Location)
+        }
     }
 }
 
@@ -864,7 +868,9 @@ fn lower_bool_operand(operand: &Operand, body: &Body) -> Result<BoolValue, Vec<D
                 "bool constant is outside its runtime representation",
             )),
         },
-        Operand::Copy(place) => bool_location(place, body).map(BoolValue::Location),
+        Operand::Copy(place) | Operand::Move(place) => {
+            bool_location(place, body).map(BoolValue::Location)
+        }
     }
 }
 

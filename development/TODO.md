@@ -71,6 +71,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   the success edge
 - one dense body-local dataflow set backs initialization and is the shared state domain for the
   upcoming move, loan, and drop-obligation analyses; CFG joins do not allocate hash sets
+- MIR distinguishes copy and move operands; move consumes definite-initialization state, so a later
+  use on any reachable path is rejected before machine IR, while static copy/move/borrow behavior
+  remains independent from representation and drop shape
 - the next checkpoint introduces owned aggregate locals and materializes explicit cleanup blocks
   from these scope transitions
 

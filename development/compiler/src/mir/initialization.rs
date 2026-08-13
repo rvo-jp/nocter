@@ -46,9 +46,9 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                 destination, value, ..
             } = statement;
             for operand in rvalue_operands(value) {
-                validate_operand(
+                validate_and_apply_operand(
                     operand,
-                    &initialized,
+                    &mut initialized,
                     block_id,
                     InitializationLocation::Statement(statement_index),
                     body.locals.len(),
@@ -67,9 +67,9 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                 then_target,
                 else_target,
             } => {
-                validate_operand(
+                validate_and_apply_operand(
                     condition,
-                    &initialized,
+                    &mut initialized,
                     block_id,
                     InitializationLocation::Switch,
                     body.locals.len(),
@@ -84,9 +84,9 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                 ..
             } => {
                 for (index, argument) in arguments.iter().enumerate() {
-                    validate_operand(
+                    validate_and_apply_operand(
                         &argument.operand,
-                        &initialized,
+                        &mut initialized,
                         block_id,
                         InitializationLocation::CallArgument(index),
                         body.locals.len(),
@@ -171,23 +171,30 @@ fn rvalue_operands(value: &Rvalue) -> impl Iterator<Item = &Operand> {
     operands.into_iter().flatten()
 }
 
-fn validate_operand(
+fn validate_and_apply_operand(
     operand: &Operand,
-    initialized: &LocalSet,
+    initialized: &mut LocalSet,
     block: BasicBlockId,
     location: InitializationLocation,
     local_count: usize,
     errors: &mut HashSet<InitializationError>,
 ) {
-    if let Operand::Copy(place) = operand
-        && place.local.index() < local_count
-        && !initialized.contains(place.local)
-    {
+    let place = match operand {
+        Operand::Constant(_) => return,
+        Operand::Copy(place) | Operand::Move(place) => place,
+    };
+    if place.local.index() >= local_count {
+        return;
+    }
+    if !initialized.contains(place.local) {
         errors.insert(InitializationError {
             block,
             location,
             local: place.local,
         });
+    }
+    if matches!(operand, Operand::Move(_)) {
+        initialized.remove(place.local);
     }
 }
 
@@ -197,5 +204,88 @@ fn location_order(location: InitializationLocation) -> usize {
         InitializationLocation::Switch => usize::MAX - 2,
         InitializationLocation::CallArgument(index) => usize::MAX / 2 + index,
         InitializationLocation::Return => usize::MAX,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{
+        BasicBlock, Constant, Local, LocalOrigin, Origin, Place, ReturnMode, ScalarType, Scope,
+        ScopeId, Statement, Terminator,
+    };
+    use crate::semantic::{BodyId, ExprId, TyId};
+    use crate::source::{ByteSpan, SourceId};
+
+    #[test]
+    fn a_move_removes_the_source_from_later_state() {
+        let span = ByteSpan::new(SourceId::new(0), 0, 1);
+        let ty = TyId::from_index(0);
+        let root_scope = ScopeId::from_index(0);
+        let source = LocalId::from_index(1);
+        let body = Body {
+            source_body: BodyId::from_index(0),
+            source_span: span,
+            return_local: LocalId::from_index(0),
+            return_mode: ReturnMode::Plain,
+            root_scope,
+            scopes: vec![Scope::root(span)],
+            locals: vec![
+                Local::scalar(
+                    ty,
+                    ScalarType::I32,
+                    LocalStorage::Return,
+                    LocalOrigin::Return,
+                    root_scope,
+                ),
+                Local::scalar(
+                    ty,
+                    ScalarType::I32,
+                    LocalStorage::Local,
+                    LocalOrigin::Desugared(span),
+                    root_scope,
+                ),
+            ],
+            entry: BasicBlockId::from_index(0),
+            blocks: vec![BasicBlock {
+                scope: root_scope,
+                statements: vec![
+                    Statement::Assign {
+                        destination: Place { local: source },
+                        value: Rvalue::Use(Operand::Constant(Constant {
+                            ty,
+                            scalar: ScalarType::I32,
+                            value: 1,
+                        })),
+                        origin: Origin::Expression(ExprId::from_index(0)),
+                    },
+                    Statement::Assign {
+                        destination: Place {
+                            local: LocalId::from_index(0),
+                        },
+                        value: Rvalue::Use(Operand::Move(Place { local: source })),
+                        origin: Origin::Expression(ExprId::from_index(1)),
+                    },
+                    Statement::Assign {
+                        destination: Place {
+                            local: LocalId::from_index(0),
+                        },
+                        value: Rvalue::Use(Operand::Move(Place { local: source })),
+                        origin: Origin::Expression(ExprId::from_index(2)),
+                    },
+                ],
+                terminator: Terminator::Return,
+            }],
+            loop_regions: Vec::new(),
+        };
+
+        assert_eq!(
+            validate(&body),
+            vec![InitializationError {
+                block: BasicBlockId::from_index(0),
+                location: InitializationLocation::Statement(2),
+                local: source,
+            }]
+        );
     }
 }
