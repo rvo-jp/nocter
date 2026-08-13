@@ -506,7 +506,7 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         let storage_matches_origin = matches!(
             (local.storage, local.origin),
             (LocalStorage::Return, LocalOrigin::Return)
-                | (LocalStorage::Parameter(_), LocalOrigin::Parameter(_))
+                | (LocalStorage::Parameter { .. }, LocalOrigin::Parameter(_))
                 | (
                     LocalStorage::Local,
                     LocalOrigin::Binding(_) | LocalOrigin::Temporary(_) | LocalOrigin::Desugared(_)
@@ -523,13 +523,13 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         {
             errors.push(ValidationError::InvalidLocalContract(id));
         }
-        if let LocalStorage::Parameter(parameter_index) = local.storage
-            && let Some(first) = parameter_storage.insert(parameter_index, id)
+        if let LocalStorage::Parameter { ordinal } = local.storage
+            && let Some(first) = parameter_storage.insert(ordinal, id)
         {
             errors.push(ValidationError::DuplicateParameterStorage {
                 first,
                 duplicate: id,
-                index: parameter_index,
+                index: ordinal,
             });
         }
     }
@@ -983,7 +983,7 @@ mod tests {
         let mut invalid = Local::scalar(
             ty,
             ScalarType::I32,
-            LocalStorage::Parameter(0),
+            LocalStorage::Parameter { ordinal: 0 },
             LocalOrigin::Desugared(span()),
             body.root_scope,
         );
@@ -1006,7 +1006,7 @@ mod tests {
             body.locals.push(Local::scalar(
                 ty,
                 ScalarType::I32,
-                LocalStorage::Parameter(0),
+                LocalStorage::Parameter { ordinal: 0 },
                 LocalOrigin::Desugared(span()),
                 body.root_scope,
             ));

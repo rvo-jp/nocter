@@ -828,7 +828,7 @@ fn usize_binary_instruction(
 fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnostic>> {
     match body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(I32Location::Return),
-        LocalStorage::Parameter(index) => Ok(I32Location::Parameter(index)),
+        LocalStorage::Parameter { ordinal } => Ok(I32Location::Parameter(ordinal)),
         LocalStorage::Local => Ok(I32Location::Local(machine_local_index(body, place.local))),
     }
 }
@@ -836,7 +836,7 @@ fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnosti
 fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagnostic>> {
     match body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(UsizeLocation::Return),
-        LocalStorage::Parameter(index) => Ok(UsizeLocation::Parameter(index)),
+        LocalStorage::Parameter { ordinal } => Ok(UsizeLocation::Parameter(ordinal)),
         LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(body, place.local))),
     }
 }
@@ -844,7 +844,7 @@ fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagn
 fn bool_location(place: &Place, body: &Body) -> Result<BoolLocation, Vec<Diagnostic>> {
     match body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(BoolLocation::Return),
-        LocalStorage::Parameter(index) => Ok(BoolLocation::Parameter(index)),
+        LocalStorage::Parameter { ordinal } => Ok(BoolLocation::Parameter(ordinal)),
         LocalStorage::Local => Ok(BoolLocation::Local(machine_local_index(body, place.local))),
     }
 }

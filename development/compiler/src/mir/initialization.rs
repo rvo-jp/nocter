@@ -65,7 +65,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
     }
     let mut initial = PlaceState::new(body);
     for (index, local) in body.locals.iter().enumerate() {
-        if matches!(local.storage, LocalStorage::Parameter(_)) {
+        if matches!(local.storage, LocalStorage::Parameter { .. }) {
             initial.initialize(body, Place::local(LocalId::from_index(index)));
         }
     }

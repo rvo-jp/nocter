@@ -48,7 +48,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
 
     let mut initial = PlaceState::new(body);
     for (index, local) in body.locals.iter().enumerate() {
-        if matches!(local.storage, LocalStorage::Parameter(_))
+        if matches!(local.storage, LocalStorage::Parameter { .. })
             && local.ownership == OwnershipKind::Move
             && local.representation == ValueRepresentation::Aggregate
         {
@@ -344,7 +344,7 @@ mod tests {
                 Local::aggregate(
                     ty,
                     OwnershipKind::Move,
-                    LocalStorage::Parameter(0),
+                    LocalStorage::Parameter { ordinal: 0 },
                     LocalOrigin::Desugared(span),
                     scope,
                 ),

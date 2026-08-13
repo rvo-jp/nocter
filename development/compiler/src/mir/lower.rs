@@ -114,7 +114,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             locals.push(Local::scalar(
                 ty,
                 scalar,
-                LocalStorage::Parameter(index),
+                LocalStorage::Parameter { ordinal: index },
                 LocalOrigin::Parameter(symbol),
                 root_scope,
             ));

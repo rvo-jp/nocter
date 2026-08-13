@@ -101,7 +101,8 @@ buildability is MIR validation rather than a parallel AST model.
 - MIR locals keep semantic type, runtime representation, ownership behavior, logical storage,
   source identity, and lexical scope as separate checked contracts. Basic blocks retain the same
   `ScopeId` tree, so cleanup construction can derive every exited scope from CFG edges.
-  Machine-local slot projection is a later conversion and may omit only proven
+  Parameter storage retains source ordinal rather than an ABI word index. Parameter ABI words and
+  machine-local slots are later backend projections; local-slot projection may omit only proven
   single-definition/single-use values.
 - Aggregate places are a base `LocalId` plus an optional validated `ProjectionPathId`. Projection
   records retain parent identity, checked result type and ownership, and field offset or checked

@@ -123,7 +123,7 @@ pub(crate) enum OwnershipKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LocalStorage {
     Return,
-    Parameter(usize),
+    Parameter { ordinal: usize },
     Local,
 }
 

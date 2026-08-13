@@ -60,6 +60,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - MIR locals now keep checked value representation, ownership behavior, logical storage, and
   source identity as independent contracts; validation rejects invalid combinations and duplicate
   parameter storage before lowering
+- parameter storage records source ordinal rather than reusing an ABI word index; mixed-width and
+  aggregate parameter layouts are a machine-IR projection instead of leaking into MIR identity
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop
