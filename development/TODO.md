@@ -88,6 +88,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - definite-initialization analysis retains edge and exit states; cleanup materialization combines
   those states with `ScopeId` transitions to insert reverse-declaration-order `Drop` chains on
   ordinary, branch, call-success, call-failure, return, and propagation paths
+- initialization and drop-obligation dataflow now uses a shared projected-place state: whole roots,
+  explicitly initialized projections, and partially moved projections remain distinct across CFG
+  joins, so moving one field neither consumes its siblings nor leaves the root falsely available
 - one MIR `Call` terminator now carries the checked value representation of every argument rather
   than a scalar-only tag; scalar machine-IR lowering is an explicit projection, while aggregate
   and borrow call routes can reuse the same call identity and continuation model

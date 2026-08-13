@@ -88,7 +88,7 @@ fn cleanup_edge(
         return target;
     };
     let locals = cleanup_locals(body, &exited, |local| {
-        analysis.initialized_on_edge(from, target, local)
+        analysis.initialized_on_edge(body, from, target, Place::local(local))
     });
     prepend_cleanup_chain(body, locals, target)
 }
@@ -102,7 +102,7 @@ fn cleanup_exit(
 ) -> Terminator {
     let exited = scope_ancestors(body, source_scope);
     let locals = cleanup_locals(body, &exited, |local| {
-        analysis.initialized_at_exit(block, local)
+        analysis.initialized_at_exit(body, block, Place::local(local))
     });
     if locals.is_empty() {
         return terminal;

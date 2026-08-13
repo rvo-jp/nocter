@@ -4,18 +4,18 @@
 //! only whether one concrete local currently owns a live obligation. Keeping
 //! that state in MIR replaces syntax-shaped cleanup heuristics in lowering.
 
-use super::dataflow::LocalSet;
 use super::locals::ValueRepresentation;
+use super::places::PlaceState;
 use super::{
-    BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, OwnershipKind, Rvalue,
-    Terminator,
+    BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, OwnershipKind, Place,
+    Rvalue, Terminator,
 };
 use std::collections::{HashSet, VecDeque};
 
 #[derive(Debug, Clone)]
 struct ObligationState {
-    may_live: LocalSet,
-    must_live: LocalSet,
+    may_live: PlaceState,
+    must_live: PlaceState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,13 +46,13 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
         return Vec::new();
     }
 
-    let mut initial = LocalSet::new(body.locals.len());
+    let mut initial = PlaceState::new(body);
     for (index, local) in body.locals.iter().enumerate() {
         if matches!(local.storage, LocalStorage::Parameter(_))
             && local.ownership == OwnershipKind::Move
             && local.representation == ValueRepresentation::Aggregate
         {
-            initial.insert(LocalId::from_index(index));
+            initial.initialize(body, Place::local(LocalId::from_index(index)));
         }
     }
 
@@ -80,10 +80,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 destination, value, ..
             } = statement
             {
-                consume_rvalue_moves(value, &mut state);
+                consume_rvalue_moves(body, value, &mut state);
                 activate_destination(
                     body,
-                    destination.local,
+                    *destination,
                     &mut state,
                     block_id,
                     DropObligationLocation::Assignment(statement_index),
@@ -93,15 +93,17 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
         }
 
         match &block.terminator {
-            Terminator::Goto { target } => merge_entry(&mut entries, &mut queue, *target, state),
+            Terminator::Goto { target } => {
+                merge_entry(&mut entries, &mut queue, *target, state, body)
+            }
             Terminator::Switch {
                 condition,
                 then_target,
                 else_target,
             } => {
-                consume_operand_move(condition, &mut state);
-                merge_entry(&mut entries, &mut queue, *then_target, state.clone());
-                merge_entry(&mut entries, &mut queue, *else_target, state);
+                consume_operand_move(body, condition, &mut state);
+                merge_entry(&mut entries, &mut queue, *then_target, state.clone(), body);
+                merge_entry(&mut entries, &mut queue, *else_target, state, body);
             }
             Terminator::Call {
                 arguments,
@@ -109,7 +111,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 ..
             } => {
                 for argument in arguments {
-                    consume_operand_move(&argument.operand, &mut state);
+                    consume_operand_move(body, &argument.operand, &mut state);
                 }
                 match continuation {
                     CallContinuation::Return {
@@ -118,13 +120,13 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                     } => {
                         activate_destination(
                             body,
-                            destination.local,
+                            *destination,
                             &mut state,
                             block_id,
                             DropObligationLocation::Exit,
                             &mut errors,
                         );
-                        merge_entry(&mut entries, &mut queue, *target, state);
+                        merge_entry(&mut entries, &mut queue, *target, state, body);
                     }
                     CallContinuation::Outcome {
                         destination,
@@ -134,14 +136,14 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         let failure_state = state.clone();
                         activate_destination(
                             body,
-                            destination.local,
+                            *destination,
                             &mut state,
                             block_id,
                             DropObligationLocation::Exit,
                             &mut errors,
                         );
-                        merge_entry(&mut entries, &mut queue, *success, state);
-                        merge_entry(&mut entries, &mut queue, *failure, failure_state);
+                        merge_entry(&mut entries, &mut queue, *success, state, body);
+                        merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
                     }
                     CallContinuation::Never => validate_exit(body, block_id, &state, &mut errors),
                 }
@@ -154,7 +156,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         local: place.local,
                         kind: DropObligationErrorKind::DropOfNonOwned,
                     });
-                } else if !state.must_live.contains(place.local) {
+                } else if !state.must_live.is_available(body, *place) {
                     errors.insert(DropObligationError {
                         block: block_id,
                         location: DropObligationLocation::Drop,
@@ -162,10 +164,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         kind: DropObligationErrorKind::DropOfInactive,
                     });
                 } else {
-                    state.may_live.remove(place.local);
-                    state.must_live.remove(place.local);
+                    state.may_live.move_out(body, *place);
+                    state.must_live.move_out(body, *place);
                 }
-                merge_entry(&mut entries, &mut queue, *target, state);
+                merge_entry(&mut entries, &mut queue, *target, state, body);
             }
             Terminator::Return | Terminator::Trap | Terminator::PropagateFailure => {
                 validate_exit(body, block_id, &state, &mut errors);
@@ -187,25 +189,25 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
 
 fn activate_destination(
     body: &Body,
-    local: LocalId,
+    place: Place,
     state: &mut ObligationState,
     block: BasicBlockId,
     location: DropObligationLocation,
     errors: &mut HashSet<DropObligationError>,
 ) {
-    if !owned_local(body, local) {
+    if !owned_place(body, place) {
         return;
     }
-    if state.may_live.contains(local) {
+    if state.may_live.any_available_within(body, place) {
         errors.insert(DropObligationError {
             block,
             location,
-            local,
+            local: place.local,
             kind: DropObligationErrorKind::Overwrite,
         });
     }
-    state.may_live.insert(local);
-    state.must_live.insert(local);
+    state.may_live.initialize(body, place);
+    state.must_live.initialize(body, place);
 }
 
 fn validate_exit(
@@ -219,7 +221,7 @@ fn validate_exit(
         if id != body.return_local
             && local.ownership == OwnershipKind::Move
             && local.representation == ValueRepresentation::Aggregate
-            && state.may_live.contains(id)
+            && state.may_live.any_available_within(body, Place::local(id))
         {
             errors.insert(DropObligationError {
                 block,
@@ -238,20 +240,33 @@ fn owned_local(body: &Body, local: LocalId) -> bool {
     })
 }
 
-fn consume_rvalue_moves(value: &Rvalue, state: &mut ObligationState) {
+fn owned_place(body: &Body, place: Place) -> bool {
+    let Some(projection) = place.projection else {
+        return owned_local(body, place.local);
+    };
+    body.projections
+        .get(projection.index())
+        .is_some_and(|projection| {
+            projection.base == place.local
+                && projection.ownership == OwnershipKind::Move
+                && projection.representation == ValueRepresentation::Aggregate
+        })
+}
+
+fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState) {
     match value {
-        Rvalue::Use(operand) => consume_operand_move(operand, state),
+        Rvalue::Use(operand) => consume_operand_move(body, operand, state),
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
-            consume_operand_move(left, state);
-            consume_operand_move(right, state);
+            consume_operand_move(body, left, state);
+            consume_operand_move(body, right, state);
         }
     }
 }
 
-fn consume_operand_move(operand: &Operand, state: &mut ObligationState) {
+fn consume_operand_move(body: &Body, operand: &Operand, state: &mut ObligationState) {
     if let Operand::Move(place) = operand {
-        state.may_live.remove(place.local);
-        state.must_live.remove(place.local);
+        state.may_live.move_out(body, *place);
+        state.must_live.move_out(body, *place);
     }
 }
 
@@ -260,6 +275,7 @@ fn merge_entry(
     queue: &mut VecDeque<BasicBlockId>,
     target: BasicBlockId,
     incoming: ObligationState,
+    body: &Body,
 ) {
     let Some(entry) = entries.get_mut(target.index()) else {
         return;
@@ -270,8 +286,8 @@ fn merge_entry(
             true
         }
         Some(existing) => {
-            let may_changed = existing.may_live.union_with(&incoming.may_live);
-            let must_changed = existing.must_live.intersect_with(&incoming.must_live);
+            let may_changed = existing.may_live.union_with(&incoming.may_live, body);
+            let must_changed = existing.must_live.intersect_with(&incoming.must_live, body);
             may_changed || must_changed
         }
     };

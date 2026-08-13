@@ -107,10 +107,12 @@ buildability is MIR validation rather than a parallel AST model.
   records retain parent identity, checked result type and ownership, and field offset or checked
   index layout; backend lowering never interprets an AST member or index expression to recover a
   storage path.
-- Definite initialization is a MIR fixed point over CFG edges. Joins intersect initialized-local
-  sets, ordinary calls initialize their destination on the return edge, and fallible calls do so
-  only on the success edge. Machine IR therefore never guesses whether a reachable operand or
-  return place contains a value.
+- Definite initialization is a MIR fixed point over CFG edges. Its place-state domain separates
+  whole locals, explicitly initialized projections, and projections invalidated by partial moves.
+  A field move therefore preserves available siblings without leaving the aggregate root movable.
+  Joins intersect normalized place availability, ordinary calls initialize their destination on
+  the return edge, and fallible calls do so only on the success edge. Machine IR therefore never
+  guesses whether a reachable operand or return place contains a value.
 - Owned cleanup and borrows use separate path-sensitive MIR analyses over the same typed dense-set
   substrate. Drop obligations retain may-live and must-live state across joins; loans have explicit
   identities and begin/end points, so neither cleanup nor alias validity is inferred from AST

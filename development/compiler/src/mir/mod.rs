@@ -10,10 +10,11 @@ mod loans;
 mod locals;
 mod lower;
 mod model;
+mod places;
 mod scopes;
 mod validate;
 
-pub(crate) use ids::{BasicBlockId, LoanId, LocalId, ScopeId};
+pub(crate) use ids::{BasicBlockId, LoanId, LocalId, ProjectionPathId, ScopeId};
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,
@@ -22,7 +23,7 @@ pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::Loan;
 #[cfg(test)]
-pub(crate) use model::{BasicBlock, Constant};
+pub(crate) use model::{BasicBlock, Constant, ProjectionElement, ProjectionPath};
 pub(crate) use model::{
     BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator,
     LoopRegion, Operand, Origin, Place, ReturnMode, Rvalue, Statement, Terminator,

@@ -228,7 +228,10 @@ InstanceMember::Coercion(CoercionDecl)
   invalid local or scope contracts, non-boolean conditions, invalid control-flow targets, and
   malformed loop regions before machine IR is produced.</li><li>A fixed-point definite-initialization verifier checks reachable operands and returns. Branch joins
   intersect initialized sets, while fallible calls initialize their destination only along the
-  success edge.</li><li>Owned values and borrows now have independent path-sensitive MIR domains. Explicit drop edges
+  success edge.</li><li>Initialization and drop-obligation state is place-sensitive rather than local-sensitive. Whole
+  roots, explicitly initialized projections, and invalidated projections remain distinct, so a
+  partial move preserves sibling fields, prevents a later whole-value move, and survives CFG joins
+  without flattening the aggregate into one bit.</li><li>Owned values and borrows now have independent path-sensitive MIR domains. Explicit drop edges
   are checked with may-live and must-live obligations; <code>LoanId</code> plus begin/end statements detect
   alias conflicts, moves or mutations while borrowed, and loans that cross an exit.</li><li>Aggregate places use typed, parent-linked <code>ProjectionPathId</code> records for fields and indexes. The
   verifier rejects scalar bases, forward parents, base drift, invalid index operands, and place

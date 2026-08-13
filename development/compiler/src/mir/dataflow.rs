@@ -1,6 +1,6 @@
 //! Dense sets over typed identity domains local to one MIR body.
 
-use super::{LoanId, LocalId};
+use super::{LoanId, LocalId, ProjectionPathId};
 use std::marker::PhantomData;
 
 pub(super) trait DenseId: Copy {
@@ -14,6 +14,12 @@ impl DenseId for LocalId {
 }
 
 impl DenseId for LoanId {
+    fn index(self) -> usize {
+        self.index()
+    }
+}
+
+impl DenseId for ProjectionPathId {
     fn index(self) -> usize {
         self.index()
     }
@@ -84,6 +90,7 @@ impl<I: DenseId> DenseSet<I> {
 
 pub(super) type LocalSet = DenseSet<LocalId>;
 pub(super) type LoanSet = DenseSet<LoanId>;
+pub(super) type ProjectionSet = DenseSet<ProjectionPathId>;
 
 #[cfg(test)]
 mod tests {

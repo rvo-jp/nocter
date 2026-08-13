@@ -1,7 +1,7 @@
 //! Path-sensitive definite-initialization validation for MIR locals.
 
-use super::dataflow::LocalSet;
-use super::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Rvalue};
+use super::places::PlaceState;
+use super::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Place, Rvalue};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,26 +22,32 @@ pub(crate) struct InitializationError {
 
 pub(super) struct InitializationAnalysis {
     errors: Vec<InitializationError>,
-    edge_states: HashMap<(BasicBlockId, BasicBlockId), LocalSet>,
-    exit_states: HashMap<BasicBlockId, LocalSet>,
+    edge_states: HashMap<(BasicBlockId, BasicBlockId), PlaceState>,
+    exit_states: HashMap<BasicBlockId, PlaceState>,
 }
 
 impl InitializationAnalysis {
     pub(super) fn initialized_on_edge(
         &self,
+        body: &Body,
         from: BasicBlockId,
         to: BasicBlockId,
-        local: LocalId,
+        place: Place,
     ) -> bool {
         self.edge_states
             .get(&(from, to))
-            .is_some_and(|state| state.contains(local))
+            .is_some_and(|state| state.is_available(body, place))
     }
 
-    pub(super) fn initialized_at_exit(&self, block: BasicBlockId, local: LocalId) -> bool {
+    pub(super) fn initialized_at_exit(
+        &self,
+        body: &Body,
+        block: BasicBlockId,
+        place: Place,
+    ) -> bool {
         self.exit_states
             .get(&block)
-            .is_some_and(|state| state.contains(local))
+            .is_some_and(|state| state.is_available(body, place))
     }
 }
 
@@ -57,10 +63,10 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
             exit_states: HashMap::new(),
         };
     }
-    let mut initial = LocalSet::new(body.locals.len());
+    let mut initial = PlaceState::new(body);
     for (index, local) in body.locals.iter().enumerate() {
         if matches!(local.storage, LocalStorage::Parameter(_)) {
-            initial.insert(LocalId::from_index(index));
+            initial.initialize(body, Place::local(LocalId::from_index(index)));
         }
     }
     let mut entries = vec![None; body.blocks.len()];
@@ -88,11 +94,11 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                             &mut initialized,
                             block_id,
                             InitializationLocation::Statement(statement_index),
-                            body.locals.len(),
+                            body,
                             &mut errors,
                         );
                     }
-                    initialized.insert(destination.local);
+                    initialized.initialize(body, *destination);
                 }
                 crate::mir::Statement::BeginLoan { loan, .. } => {
                     if let Some(loan) = body.loans.get(loan.index()) {
@@ -101,15 +107,15 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                             &mut initialized,
                             block_id,
                             InitializationLocation::Statement(statement_index),
-                            body.locals.len(),
+                            body,
                             &mut errors,
                         );
-                        initialized.insert(loan.destination);
+                        initialized.initialize(body, Place::local(loan.destination));
                     }
                 }
                 crate::mir::Statement::EndLoan { loan } => {
                     if let Some(loan) = body.loans.get(loan.index()) {
-                        initialized.remove(loan.destination);
+                        initialized.move_out(body, Place::local(loan.destination));
                     }
                 }
             }
@@ -118,7 +124,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
         match &block.terminator {
             crate::mir::Terminator::Goto { target } => {
                 edge_states.insert((block_id, *target), initialized.clone());
-                merge_entry(&mut entries, &mut queue, *target, initialized);
+                merge_entry(&mut entries, &mut queue, *target, initialized, body);
             }
             crate::mir::Terminator::Switch {
                 condition,
@@ -130,13 +136,19 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     &mut initialized,
                     block_id,
                     InitializationLocation::Switch,
-                    body.locals.len(),
+                    body,
                     &mut errors,
                 );
                 edge_states.insert((block_id, *then_target), initialized.clone());
                 edge_states.insert((block_id, *else_target), initialized.clone());
-                merge_entry(&mut entries, &mut queue, *then_target, initialized.clone());
-                merge_entry(&mut entries, &mut queue, *else_target, initialized);
+                merge_entry(
+                    &mut entries,
+                    &mut queue,
+                    *then_target,
+                    initialized.clone(),
+                    body,
+                );
+                merge_entry(&mut entries, &mut queue, *else_target, initialized, body);
             }
             crate::mir::Terminator::Call {
                 arguments,
@@ -149,7 +161,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         &mut initialized,
                         block_id,
                         InitializationLocation::CallArgument(index),
-                        body.locals.len(),
+                        body,
                         &mut errors,
                     );
                 }
@@ -158,9 +170,9 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         destination,
                         target,
                     } => {
-                        initialized.insert(destination.local);
+                        initialized.initialize(body, *destination);
                         edge_states.insert((block_id, *target), initialized.clone());
-                        merge_entry(&mut entries, &mut queue, *target, initialized);
+                        merge_entry(&mut entries, &mut queue, *target, initialized, body);
                     }
                     CallContinuation::Outcome {
                         destination,
@@ -168,11 +180,11 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         failure,
                     } => {
                         let failure_state = initialized.clone();
-                        initialized.insert(destination.local);
+                        initialized.initialize(body, *destination);
                         edge_states.insert((block_id, *success), initialized.clone());
                         edge_states.insert((block_id, *failure), failure_state.clone());
-                        merge_entry(&mut entries, &mut queue, *success, initialized);
-                        merge_entry(&mut entries, &mut queue, *failure, failure_state);
+                        merge_entry(&mut entries, &mut queue, *success, initialized, body);
+                        merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
                     }
                     CallContinuation::Never => {}
                 }
@@ -183,15 +195,15 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     &mut initialized,
                     block_id,
                     InitializationLocation::Drop,
-                    body.locals.len(),
+                    body,
                     &mut errors,
                 );
                 edge_states.insert((block_id, *target), initialized.clone());
-                merge_entry(&mut entries, &mut queue, *target, initialized);
+                merge_entry(&mut entries, &mut queue, *target, initialized, body);
             }
             crate::mir::Terminator::Return => {
                 if body.locals.get(body.return_local.index()).is_some()
-                    && !initialized.contains(body.return_local)
+                    && !initialized.is_available(body, Place::local(body.return_local))
                 {
                     errors.insert(InitializationError {
                         block: block_id,
@@ -223,10 +235,11 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
 }
 
 fn merge_entry(
-    entries: &mut [Option<LocalSet>],
+    entries: &mut [Option<PlaceState>],
     queue: &mut VecDeque<BasicBlockId>,
     target: BasicBlockId,
-    incoming: LocalSet,
+    incoming: PlaceState,
+    body: &Body,
 ) {
     let Some(entry) = entries.get_mut(target.index()) else {
         return;
@@ -236,7 +249,7 @@ fn merge_entry(
             *entry = Some(incoming);
             true
         }
-        Some(existing) => existing.intersect_with(&incoming),
+        Some(existing) => existing.intersect_with(&incoming, body),
     };
     if changed {
         queue.push_back(target);
@@ -255,20 +268,20 @@ fn rvalue_operands(value: &Rvalue) -> impl Iterator<Item = &Operand> {
 
 fn validate_and_apply_operand(
     operand: &Operand,
-    initialized: &mut LocalSet,
+    initialized: &mut PlaceState,
     block: BasicBlockId,
     location: InitializationLocation,
-    local_count: usize,
+    body: &Body,
     errors: &mut HashSet<InitializationError>,
 ) {
     let place = match operand {
         Operand::Constant(_) => return,
         Operand::Copy(place) | Operand::Move(place) => place,
     };
-    if place.local.index() >= local_count {
+    if place.local.index() >= body.locals.len() {
         return;
     }
-    if !initialized.contains(place.local) {
+    if !initialized.is_available(body, *place) {
         errors.insert(InitializationError {
             block,
             location,
@@ -276,7 +289,7 @@ fn validate_and_apply_operand(
         });
     }
     if matches!(operand, Operand::Move(_)) {
-        initialized.remove(place.local);
+        initialized.move_out(body, *place);
     }
 }
 
