@@ -19,6 +19,10 @@ pub(super) fn scalar_field_is_supported(member: &MemberExpr, semantic: SemanticI
     })
 }
 
+pub(super) fn field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
+    field_path_parts(member, semantic).is_some()
+}
+
 pub(super) fn lower_scalar_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
@@ -26,16 +30,28 @@ pub(super) fn lower_scalar_field_place(
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ScalarType), BuildError> {
+    let (place, representation) =
+        lower_field_place(member, semantic, locals, projections, drop_plans)?;
+    let ValueRepresentation::Scalar(scalar) = representation else {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    };
+    Ok((place, scalar))
+}
+
+pub(super) fn lower_field_place(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
+) -> Result<(Place, ValueRepresentation), BuildError> {
     let parts =
         field_path_parts(member, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
-    let ValueRepresentation::Scalar(scalar) = parts
+    let representation = parts
         .segments
         .last()
         .ok_or(BuildError::UnsupportedClaimedExpression)?
-        .representation
-    else {
-        return Err(BuildError::UnsupportedClaimedExpression);
-    };
+        .representation;
     let base = *locals
         .get(&parts.base_symbol)
         .ok_or(BuildError::MissingLocalSymbol)?;
@@ -85,7 +101,7 @@ pub(super) fn lower_scalar_field_place(
             base,
             parent.ok_or(BuildError::UnsupportedClaimedExpression)?,
         ),
-        scalar,
+        representation,
     ))
 }
 

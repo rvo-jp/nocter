@@ -275,25 +275,39 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         if borrow.is_readwrite != readwrite {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        let Expr::Identifier(identifier) = borrow.expression.without_groups() else {
-            return Err(BuildError::UnsupportedClaimedExpression);
+        let source = match borrow.expression.without_groups() {
+            Expr::Identifier(identifier) => {
+                let symbol = self
+                    .context
+                    .semantic
+                    .resolved
+                    .local_symbol_for_identifier(identifier)
+                    .map(|symbol| symbol.id)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                Place::local(
+                    *self
+                        .context
+                        .locals_by_symbol
+                        .get(&symbol)
+                        .ok_or(BuildError::MissingLocalSymbol)?,
+                )
+            }
+            Expr::Member(member) => {
+                super::projections::lower_field_place(
+                    member,
+                    self.context.semantic,
+                    &self.context.locals_by_symbol,
+                    &mut self.context.projections,
+                    &mut self.context.drop_plans,
+                )?
+                .0
+            }
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
         };
-        let symbol = self
-            .context
-            .semantic
-            .resolved
-            .local_symbol_for_identifier(identifier)
-            .map(|symbol| symbol.id)
-            .ok_or(BuildError::MissingLocalSymbol)?;
-        let source = *self
-            .context
-            .locals_by_symbol
-            .get(&symbol)
-            .ok_or(BuildError::MissingLocalSymbol)?;
         let loan = crate::mir::LoanId::from_index(self.context.loans.len());
         self.context.loans.push(crate::mir::Loan {
             id: loan,
-            source: Place::local(source),
+            source,
             destination,
             kind: if readwrite {
                 crate::mir::BorrowKind::Readwrite

@@ -64,7 +64,7 @@ impl LoweringContext<'_> {
                         representation: crate::mir::ValueRepresentation::Borrow,
                     });
                 }
-                let operand = self.lower_copy_aggregate_identifier(argument)?;
+                let operand = self.lower_aggregate_identifier_operand(argument)?;
                 Ok(CallArgument {
                     operand,
                     ty,
@@ -75,8 +75,8 @@ impl LoweringContext<'_> {
         Ok((callee, arguments, returns_never))
     }
 
-    fn lower_copy_aggregate_identifier(&self, expression: &Expr) -> Result<Operand, BuildError> {
-        if !super::coverage::copy_aggregate_identifier_is_supported(
+    fn lower_aggregate_identifier_operand(&self, expression: &Expr) -> Result<Operand, BuildError> {
+        if !super::coverage::aggregate_identifier_operand_is_supported(
             expression,
             self.semantic.resolved,
             self.semantic.resolved_sources,
@@ -84,7 +84,15 @@ impl LoweringContext<'_> {
         ) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        self.lower_stored_identifier(expression)
+        match expression.without_groups() {
+            Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+                let Operand::Copy(place) = self.lower_stored_identifier(&unary.operand)? else {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                };
+                Ok(Operand::Move(place))
+            }
+            _ => self.lower_stored_identifier(expression),
+        }
     }
 
     fn lower_stored_identifier(&self, expression: &Expr) -> Result<Operand, BuildError> {

@@ -41,6 +41,47 @@ func main(): i32 {
 }
 
 #[test]
+fn mir_projects_aggregate_field_loans_to_borrow_storage() {
+    let function = lower_named_function(
+        r#"copy struct Pair {
+    tag: u8
+    value: i32
+}
+
+func consume(value: &i32): i32 {
+    return 42
+}
+
+func main(): i32 {
+    let pair = Pair { tag: 1, value: 7 }
+    let borrowed = &pair.value
+    return consume(borrowed)
+}
+"#,
+        "main",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::SetUsizeFromBorrow {
+                destination: UsizeLocation::Local(1),
+                source: BorrowSource::AggregateSlotField {
+                    slot_index: 0,
+                    offset: 4,
+                },
+            })
+    );
+    assert!(function.instructions.contains(&Instruction::CallI32 {
+        destination: I32Location::Return,
+        target: CallTarget::same_file("consume"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::BorrowLocal(UsizeLocation::Local(1)),
+        })],
+    }));
+}
+
+#[test]
 fn lowers_method_call_aggregate_field_receiver_as_implicit_readonly_borrow() {
     let ir = lower_text(
         r#"copy struct File {

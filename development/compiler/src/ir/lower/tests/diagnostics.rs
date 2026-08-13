@@ -418,7 +418,26 @@ func main(): i32 {
 "#,
     );
 
-    assert_runtime_aggregate_drop_state(&ir);
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .expect("fixture must lower main");
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::While { condition_instructions, .. }
+            if condition_instructions.iter().any(|instruction| matches!(
+                instruction,
+                Instruction::CallBool { target, arguments, .. }
+                    if target == &CallTarget::same_file("consume")
+                        && matches!(arguments.as_slice(), [ScalarArgument::AggregateDirect(_)])
+            ))
+    )));
+    assert!(!main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallVoid { target, .. }
+            if target == &CallTarget::same_file("File.drop")
+    )));
 }
 
 #[test]

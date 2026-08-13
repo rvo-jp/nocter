@@ -158,7 +158,7 @@ fn scalar_call_shape_is_supported(
             };
             scalar_type(ty, typed_hir).is_some()
                 && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || copy_aggregate_identifier_is_supported(
+                || aggregate_identifier_operand_is_supported(
                     argument,
                     resolved,
                     resolved_sources,
@@ -182,13 +182,19 @@ pub(super) fn borrow_identifier_is_supported(
         .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
 }
 
-pub(super) fn copy_aggregate_identifier_is_supported(
+pub(super) fn aggregate_identifier_operand_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
     resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    let Expr::Identifier(identifier) = expression.without_groups() else {
+    let (expression, explicitly_moved) = match expression.without_groups() {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            (unary.operand.without_groups(), true)
+        }
+        expression => (expression, false),
+    };
+    let Expr::Identifier(identifier) = expression else {
         return false;
     };
     let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
@@ -197,7 +203,7 @@ pub(super) fn copy_aggregate_identifier_is_supported(
     let Some(ty) = typed_hir.binding_type_expr(symbol.id) else {
         return false;
     };
-    matches!(
+    let aggregate = matches!(
         crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
             resolved_sources.get(&source).copied()
         })
@@ -205,7 +211,18 @@ pub(super) fn copy_aggregate_identifier_is_supported(
         Ok(crate::abi::AbiType::Struct(_))
             | Ok(crate::abi::AbiType::Array { .. })
             | Ok(crate::abi::AbiType::Enum(_))
-    ) && crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
+    );
+    if !aggregate {
+        return false;
+    }
+    match crate::typecheck::type_expr_is_copy(ty, resolved) {
+        Some(true) => !explicitly_moved,
+        Some(false) => {
+            explicitly_moved
+                && super::super::drop_plans::is_supported(ty, resolved, resolved_sources, typed_hir)
+        }
+        None => false,
+    }
 }
 
 impl<'a> ScalarStatement<'a> {
@@ -240,7 +257,14 @@ impl<'a> ScalarStatement<'a> {
                     .local_symbol_id_at_name_span(binding.name_span)
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
                     .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
-                    && borrow_expression_is_supported(&binding.initializer, resolved);
+                    && borrow_expression_is_supported(
+                        &binding.initializer,
+                        SemanticInputs {
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        },
+                    );
                 let aggregate = resolved
                     .local_symbol_id_at_name_span(binding.name_span)
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
@@ -386,14 +410,21 @@ impl<'a> ScalarStatement<'a> {
     }
 }
 
-pub(super) fn borrow_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+pub(super) fn borrow_expression_is_supported(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
     let Expr::Borrow(borrow) = expression.without_groups() else {
         return false;
     };
-    let Expr::Identifier(identifier) = borrow.expression.without_groups() else {
-        return false;
-    };
-    resolved.local_symbol_for_identifier(identifier).is_some()
+    match borrow.expression.without_groups() {
+        Expr::Identifier(identifier) => semantic
+            .resolved
+            .local_symbol_for_identifier(identifier)
+            .is_some(),
+        Expr::Member(member) => super::projections::field_is_supported(member, semantic),
+        _ => false,
+    }
 }
 
 fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {

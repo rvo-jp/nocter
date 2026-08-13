@@ -1141,7 +1141,7 @@ func main(): i32 {
                 value: i32_const(1),
             },
             call_bool(
-                BoolLocation::Local(0),
+                BoolLocation::Local(1),
                 "consume",
                 vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
                     source: AggregateArgumentSource::Slot(0),
@@ -1150,22 +1150,17 @@ func main(): i32 {
                 })],
             ),
             Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Local(0)),
-                then_instructions: vec![
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_const(0),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_const(1),
-                    },
-                    Instruction::Return,
-                ],
+                condition: BoolValue::Location(BoolLocation::Local(1)),
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                }],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(1),
+                }],
             },
+            Instruction::Return,
         ],
     );
 }
@@ -1222,7 +1217,7 @@ func main(): i32 {
                 value: i32_const(1),
             },
             call_bool(
-                BoolLocation::Local(0),
+                BoolLocation::Local(1),
                 "consume",
                 vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
                     source: AggregateArgumentSource::Slot(0),
@@ -1231,22 +1226,17 @@ func main(): i32 {
                 })],
             ),
             Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Local(0)),
-                then_instructions: vec![
-                    Instruction::SetBool {
-                        destination: BoolLocation::Return,
-                        value: BoolValue::Const(true),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetBool {
-                        destination: BoolLocation::Return,
-                        value: BoolValue::Const(false),
-                    },
-                    Instruction::Return,
-                ],
+                condition: BoolValue::Location(BoolLocation::Local(1)),
+                then_instructions: vec![Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Const(true),
+                }],
+                else_instructions: vec![Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Const(false),
+                }],
             },
+            Instruction::Return,
         ],
     );
 }

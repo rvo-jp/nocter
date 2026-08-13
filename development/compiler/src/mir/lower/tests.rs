@@ -497,6 +497,120 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_a_loan_from_an_aggregate_field_projection() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    tag: u8
+    value: i32
+}
+
+func consume(value: &i32): i32 {
+    return 42
+}
+
+func main(): i32 {
+    let pair = Pair { tag: 1, value: 7 }
+    let borrowed = &pair.value
+    return consume(borrowed)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("aggregate field borrow must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.loans.as_slice(),
+        [crate::mir::Loan {
+            source: crate::mir::Place {
+                local,
+                projection: Some(_),
+            },
+            ..
+        }] if *local == LocalId::from_index(1)
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn transfers_an_owned_aggregate_call_argument_with_a_move_operand() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+destruct File(&+self) {
+    return
+}
+
+func consume(file: File): i32 {
+    return file.fd
+}
+
+func main(): i32 {
+    let file = File { fd: 7 }
+    return consume(move file)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("owned aggregate move call must select MIR")
+    .unwrap();
+
+    assert!(body.blocks.iter().any(|block| matches!(
+        &block.terminator,
+        Terminator::Call { arguments, .. }
+            if matches!(arguments.as_slice(), [crate::mir::CallArgument {
+                operand: Operand::Move(place),
+                representation: ValueRepresentation::Aggregate,
+                ..
+            }] if *place == crate::mir::Place::local(LocalId::from_index(1)))
+    )));
+    assert!(!body.blocks.iter().any(|block| matches!(
+        block.terminator,
+        Terminator::Drop { place, .. }
+            if place == crate::mir::Place::local(LocalId::from_index(1))
+    )));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_copy_aggregate_call_results_in_local_slots() {
     let (_sources, analysis) = analyze_text(
         r#"copy struct Pair {

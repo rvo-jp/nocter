@@ -154,6 +154,8 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   MIR branch/loop structuring follows materialized cleanup chains, including break and continue
 - nested struct and fixed-array literals flatten into scalar leaves under semantic field/index
   paths; validation owns path uniqueness while ABI offsets remain a backend-only projection
+- aggregate-field borrow bindings retain projected MIR loans, and owned aggregate call arguments
+  transfer their initialization/drop obligation through an explicit move operand
 - generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
   the monomorphized runtime symbol
 - payload enums and outcome storage remain excluded until their active-variant/tag structure is
@@ -164,7 +166,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,638 library tests pass at this checkpoint
+- all 2,641 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

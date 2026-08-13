@@ -1382,10 +1382,19 @@ fn lower_borrow_source(
     place: Place,
     context: &BackendContext<'_>,
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
-    if place.projection.is_some() {
-        return Err(invalid_mir_diagnostics(
-            "projected MIR loans have not been projected to machine IR",
-        ));
+    if let Some(projection) = place.projection {
+        let offset = aggregate_field_offset(context.body, place.local, projection)?;
+        let location = aggregate_location(&Place::local(place.local), context)?;
+        let crate::ir::AggregateLocation::Slot(slot_index) = location else {
+            return Err(invalid_mir_diagnostics(
+                "projected MIR loan source is not backed by an aggregate slot",
+            ));
+        };
+        return Ok(if offset == 0 {
+            crate::ir::BorrowSource::AggregateSlot(slot_index)
+        } else {
+            crate::ir::BorrowSource::AggregateSlotField { slot_index, offset }
+        });
     }
     let local = &context.body.locals[place.local.index()];
     Ok(match local.representation {
