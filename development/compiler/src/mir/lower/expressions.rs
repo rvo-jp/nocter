@@ -1,8 +1,8 @@
 //! Scalar expression evaluation into MIR places, rvalues, and operands.
 
-use super::BuildError;
 use super::body_builder::ControlFlowBuilder;
 use super::coverage::{known_expression_type, scalar_type};
+use super::{BuildError, SemanticInputs};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
@@ -10,14 +10,12 @@ use crate::mir::{
     Place, Rvalue, ScalarType, ScopeId, Statement,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
-use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
 pub(super) fn lower_call(
     call: &crate::ast::CallExpr,
-    resolved: &ResolveOutput,
+    semantic: SemanticInputs<'_>,
     locals: &HashMap<LocalSymbolId, LocalId>,
-    typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
@@ -26,28 +24,34 @@ pub(super) fn lower_call(
     let Expr::Identifier(callee) = call.callee.without_groups() else {
         return Err(BuildError::UnsupportedClaimedExpression);
     };
-    let returns_never = typed_hir
+    let returns_never = semantic
+        .typed_hir
         .expression(call.span)
         .is_some_and(|expression| expression.diverges);
-    let callee = typed_hir
+    let callee = semantic
+        .typed_hir
         .function_call_target(callee.span)
-        .map(|definition| resolved.callable_bodies.canonical_definition(definition))
+        .map(|definition| {
+            semantic
+                .resolved
+                .callable_bodies
+                .canonical_definition(definition)
+        })
         .ok_or(BuildError::MissingCallTarget)?;
     let arguments = call
         .arguments
         .iter()
         .map(|argument| {
-            let ty = known_expression_type(argument, typed_hir)
+            let ty = known_expression_type(argument, semantic.typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
-            let scalar =
-                scalar_type(ty, typed_hir).ok_or(BuildError::UnsupportedClaimedExpression)?;
+            let scalar = scalar_type(ty, semantic.typed_hir)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
             let operand = lower_operand(
                 argument,
                 ty,
                 scalar,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
@@ -68,15 +72,15 @@ pub(super) fn lower_expression_to_place(
     expression: &Expr,
     ty: crate::semantic::TyId,
     scalar: ScalarType,
-    resolved: &ResolveOutput,
+    semantic: SemanticInputs<'_>,
     locals: &HashMap<LocalSymbolId, LocalId>,
-    typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
     scope: ScopeId,
 ) -> Result<(), BuildError> {
-    let source = typed_hir
+    let source = semantic
+        .typed_hir
         .expression(expression.span())
         .ok_or(BuildError::MissingTypedExpression)?
         .id;
@@ -89,9 +93,8 @@ pub(super) fn lower_expression_to_place(
                         &binary.left,
                         ty,
                         scalar,
-                        resolved,
+                        semantic,
                         locals,
-                        typed_hir,
                         local_declarations,
                         projections,
                         control_flow,
@@ -101,9 +104,8 @@ pub(super) fn lower_expression_to_place(
                         &binary.right,
                         ty,
                         scalar,
-                        resolved,
+                        semantic,
                         locals,
-                        typed_hir,
                         local_declarations,
                         projections,
                         control_flow,
@@ -114,9 +116,9 @@ pub(super) fn lower_expression_to_place(
             } else {
                 let operator = mir_comparison_operator(binary.operator)
                     .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                let operand_ty = known_expression_type(&binary.left, typed_hir)
+                let operand_ty = known_expression_type(&binary.left, semantic.typed_hir)
                     .ok_or(BuildError::MissingTypedExpression)?;
-                let operand_scalar = scalar_type(operand_ty, typed_hir)
+                let operand_scalar = scalar_type(operand_ty, semantic.typed_hir)
                     .ok_or(BuildError::UnsupportedClaimedExpression)?;
                 Rvalue::Compare {
                     operator,
@@ -124,9 +126,8 @@ pub(super) fn lower_expression_to_place(
                         &binary.left,
                         operand_ty,
                         operand_scalar,
-                        resolved,
+                        semantic,
                         locals,
-                        typed_hir,
                         local_declarations,
                         projections,
                         control_flow,
@@ -136,9 +137,8 @@ pub(super) fn lower_expression_to_place(
                         &binary.right,
                         operand_ty,
                         operand_scalar,
-                        resolved,
+                        semantic,
                         locals,
-                        typed_hir,
                         local_declarations,
                         projections,
                         control_flow,
@@ -156,9 +156,8 @@ pub(super) fn lower_expression_to_place(
                 &group.expression,
                 ty,
                 scalar,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
@@ -168,9 +167,8 @@ pub(super) fn lower_expression_to_place(
         Expr::Call(call) => {
             let (callee, arguments, returns_never) = lower_call(
                 call,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
@@ -187,9 +185,8 @@ pub(super) fn lower_expression_to_place(
             };
             let (callee, arguments, returns_never) = lower_call(
                 call,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
@@ -206,9 +203,8 @@ pub(super) fn lower_expression_to_place(
             };
             let (callee, arguments, returns_never) = lower_call(
                 call,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
@@ -227,8 +223,7 @@ pub(super) fn lower_expression_to_place(
         Expr::Member(member) => {
             let (place, field_scalar) = super::projections::lower_scalar_field_place(
                 member,
-                resolved,
-                typed_hir,
+                semantic,
                 locals,
                 projections,
             )?;
@@ -238,7 +233,11 @@ pub(super) fn lower_expression_to_place(
             Rvalue::Use(Operand::Copy(place))
         }
         _ => Rvalue::Use(lower_simple_operand(
-            expression, ty, scalar, resolved, locals,
+            expression,
+            ty,
+            scalar,
+            semantic.resolved,
+            locals,
         )?),
     };
     control_flow.push_statement(Statement::Assign {
@@ -253,9 +252,8 @@ pub(super) fn lower_operand(
     expression: &Expr,
     ty: crate::semantic::TyId,
     scalar: ScalarType,
-    resolved: &ResolveOutput,
+    semantic: SemanticInputs<'_>,
     locals: &HashMap<LocalSymbolId, LocalId>,
-    typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
@@ -270,19 +268,19 @@ pub(super) fn lower_operand(
                 &group.expression,
                 ty,
                 scalar,
-                resolved,
+                semantic,
                 locals,
-                typed_hir,
                 local_declarations,
                 projections,
                 control_flow,
                 scope,
             ),
-            _ => lower_simple_operand(expression, ty, scalar, resolved, locals),
+            _ => lower_simple_operand(expression, ty, scalar, semantic.resolved, locals),
         };
     }
 
-    let typed_expression = typed_hir
+    let typed_expression = semantic
+        .typed_hir
         .expression(expression.span())
         .ok_or(BuildError::MissingTypedExpression)?;
     let temporary = LocalId::from_index(local_declarations.len());
@@ -298,9 +296,8 @@ pub(super) fn lower_operand(
         expression,
         ty,
         scalar,
-        resolved,
+        semantic,
         locals,
-        typed_hir,
         local_declarations,
         projections,
         control_flow,

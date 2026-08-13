@@ -8,7 +8,7 @@ use super::validate;
 use super::validate::ValidationError;
 use super::{Scope, ScopeId};
 use crate::ast::{Block, Expr, Parameter};
-use crate::resolve::ResolveOutput;
+use crate::resolve::{ResolveOutput, ResolvedSources};
 use crate::semantic::SemanticDb;
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
@@ -22,6 +22,27 @@ use body_builder::ControlFlowBuilder;
 use coverage::*;
 use expressions::{lower_call, lower_expression_to_place, lower_operand};
 use statements::StatementLowerer;
+
+#[derive(Debug, Clone, Copy)]
+struct SemanticInputs<'a> {
+    resolved: &'a ResolveOutput,
+    resolved_sources: &'a ResolvedSources<'a>,
+    typed_hir: &'a TypedHir,
+}
+
+impl<'a> SemanticInputs<'a> {
+    fn resolver_for(self, source: crate::source::SourceId) -> Option<&'a ResolveOutput> {
+        self.resolved_sources.get(&source).copied()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BuildInputs<'a> {
+    pub(crate) semantic_db: &'a SemanticDb,
+    pub(crate) resolved: &'a ResolveOutput,
+    pub(crate) resolved_sources: &'a ResolvedSources<'a>,
+    pub(crate) typed_hir: &'a TypedHir,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildError {
@@ -48,14 +69,18 @@ fn try_build_scalar_body(
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
 ) -> Option<Result<Body, BuildError>> {
+    let resolved_sources = ResolvedSources::new();
     try_build_scalar_body_with_return_mode(
         block,
         parameters,
         return_scalar,
         ReturnMode::Plain,
-        semantic_db,
-        resolved,
-        typed_hir,
+        BuildInputs {
+            semantic_db,
+            resolved,
+            resolved_sources: &resolved_sources,
+            typed_hir,
+        },
     )
 }
 
@@ -64,32 +89,37 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
     parameters: &[Parameter],
     return_scalar: ScalarType,
     return_mode: ReturnMode,
-    semantic_db: &SemanticDb,
-    resolved: &ResolveOutput,
-    typed_hir: &TypedHir,
+    inputs: BuildInputs<'_>,
 ) -> Option<Result<Body, BuildError>> {
+    let semantic = SemanticInputs {
+        resolved: inputs.resolved,
+        resolved_sources: inputs.resolved_sources,
+        typed_hir: inputs.typed_hir,
+    };
     let (source_statements, tail) = scalar_body_parts(block)?;
     if !source_statements
         .iter()
-        .all(|statement| statement.is_supported(resolved, typed_hir))
-        || !tail.is_supported(resolved, typed_hir)
+        .all(|statement| statement.is_supported(semantic))
+        || !tail.is_supported(semantic)
         || !parameters.iter().all(|parameter| {
-            resolved
+            inputs
+                .resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .is_some()
-                && typed_hir.type_id(&parameter.ty).is_some()
-                && parameter_representation(parameter, resolved, typed_hir).is_some()
+                && inputs.typed_hir.type_id(&parameter.ty).is_some()
+                && parameter_representation(parameter, semantic).is_some()
         })
     {
         return None;
     }
 
-    let return_ty = tail.result_type(typed_hir)?;
-    if scalar_type(return_ty, typed_hir) != Some(return_scalar) {
+    let return_ty = tail.result_type(inputs.typed_hir)?;
+    if scalar_type(return_ty, inputs.typed_hir) != Some(return_scalar) {
         return None;
     }
     Some((|| {
-        let source_body = semantic_db
+        let source_body = inputs
+            .semantic_db
             .body_at(block.span)
             .ok_or(BuildError::MissingSourceBody)?;
         let return_local = LocalId::from_index(0);
@@ -104,17 +134,19 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         )];
         let mut locals_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
-            let ty = typed_hir
+            let ty = inputs
+                .typed_hir
                 .type_id(&parameter.ty)
                 .ok_or(BuildError::MissingParameterType)?;
-            let symbol = resolved
+            let symbol = inputs
+                .resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .ok_or(BuildError::MissingLocalSymbol)?;
             let local = LocalId::from_index(locals.len());
             let storage = LocalStorage::Parameter { ordinal: index };
             let origin = LocalOrigin::Parameter(symbol);
             locals.push(
-                match parameter_representation(parameter, resolved, typed_hir)
+                match parameter_representation(parameter, semantic)
                     .ok_or(BuildError::UnsupportedClaimedExpression)?
                 {
                     super::ValueRepresentation::Scalar(scalar) => {
@@ -122,7 +154,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                     }
                     super::ValueRepresentation::Aggregate => Local::aggregate(
                         ty,
-                        if crate::typecheck::type_expr_is_copy(&parameter.ty, resolved)
+                        if crate::typecheck::type_expr_is_copy(&parameter.ty, inputs.resolved)
                             .unwrap_or(false)
                         {
                             OwnershipKind::Copy
@@ -144,8 +176,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         let mut control_flow = ControlFlowBuilder::new(root_scope);
         let mut loop_regions = Vec::new();
         StatementLowerer::new(
-            resolved,
-            typed_hir,
+            semantic,
             &mut locals,
             &mut locals_by_symbol,
             &mut projections,
@@ -155,15 +186,14 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         )
         .lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
-            let condition_ty = known_expression_type(&if_.condition, typed_hir)
+            let condition_ty = known_expression_type(&if_.condition, inputs.typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
             let condition = lower_operand(
                 &if_.condition,
                 condition_ty,
                 ScalarType::Bool,
-                resolved,
+                semantic,
                 &locals_by_symbol,
-                typed_hir,
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
@@ -197,9 +227,8 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 then_result,
                 return_ty,
                 return_scalar,
-                resolved,
+                semantic,
                 &locals_by_symbol,
-                typed_hir,
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
@@ -214,9 +243,8 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 else_result,
                 return_ty,
                 return_scalar,
-                resolved,
+                semantic,
                 &locals_by_symbol,
-                typed_hir,
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
@@ -228,15 +256,15 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             control_flow.select_block(join_target)?;
             control_flow.terminate(Terminator::Return)?;
         } else if let Some(Expr::Call(call)) = tail.expression() {
-            let source = typed_hir
+            let source = inputs
+                .typed_hir
                 .expression(call.span)
                 .ok_or(BuildError::MissingTypedExpression)?
                 .id;
             let (callee, arguments, returns_never) = lower_call(
                 call,
-                resolved,
+                semantic,
                 &locals_by_symbol,
-                typed_hir,
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
@@ -257,9 +285,8 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 expression,
                 return_ty,
                 return_scalar,
-                resolved,
+                semantic,
                 &locals_by_symbol,
-                typed_hir,
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
@@ -288,23 +315,27 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
 
 fn parameter_representation(
     parameter: &Parameter,
-    resolved: &ResolveOutput,
-    typed_hir: &TypedHir,
+    semantic: SemanticInputs<'_>,
 ) -> Option<super::ValueRepresentation> {
-    let ty = typed_hir.type_id(&parameter.ty)?;
-    if let Some(scalar) = scalar_type(ty, typed_hir) {
+    let ty = semantic.typed_hir.type_id(&parameter.ty)?;
+    if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
         return Some(super::ValueRepresentation::Scalar(scalar));
     }
     let aggregate = matches!(
-        crate::abi::abi_value_from_type_expr(&parameter.ty, resolved)
-            .ok()?
-            .ty,
+        crate::abi::abi_value_from_type_expr_with_resolver(
+            &parameter.ty,
+            semantic.resolved,
+            |source| semantic.resolver_for(source),
+        )
+        .ok()?
+        .ty,
         crate::abi::AbiType::Struct(_)
             | crate::abi::AbiType::Array { .. }
             | crate::abi::AbiType::Enum(_)
     );
-    (aggregate && crate::typecheck::type_expr_is_copy(&parameter.ty, resolved) == Some(true))
-        .then_some(super::ValueRepresentation::Aggregate)
+    (aggregate
+        && crate::typecheck::type_expr_is_copy(&parameter.ty, semantic.resolved) == Some(true))
+    .then_some(super::ValueRepresentation::Aggregate)
 }
 
 #[cfg(test)]

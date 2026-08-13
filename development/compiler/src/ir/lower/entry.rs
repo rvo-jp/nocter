@@ -164,6 +164,7 @@ fn lower_entry_parts(
         &[],
         &return_type,
         resolved,
+        &resolved_sources,
         typed_hir,
         name,
         &function_signatures,

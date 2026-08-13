@@ -33,9 +33,12 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
                 parameters,
                 return_scalar,
                 return_mode,
-                &callable.resolved.semantic_db,
-                callable.resolved,
-                callable.typed_hir,
+                crate::mir::BuildInputs {
+                    semantic_db: &callable.resolved.semantic_db,
+                    resolved: callable.resolved,
+                    resolved_sources,
+                    typed_hir: callable.typed_hir,
+                },
             )
         });
         match body {

@@ -19,7 +19,7 @@ pub(crate) use index::BodyCache;
 pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,
 };
-pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
+pub(crate) use lower::{BuildError, BuildInputs, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::Loan;
 #[cfg(test)]

@@ -1,19 +1,18 @@
 //! Scalar statement and natural-loop CFG construction.
 
-use super::BuildError;
 use super::body_builder::ControlFlowBuilder;
 use super::coverage::{
     ScalarStatement, binding_scalar_type, known_expression_type, scalar_linear_block_statements,
     scalar_loop_block_statements,
 };
 use super::expressions::{lower_expression_to_place, lower_operand};
+use super::{BuildError, SemanticInputs};
 use crate::ast::Expr;
 use crate::mir::{
     BinaryOperator, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand, Origin, Place,
     Rvalue, ScalarType, Scope, ScopeId, Statement, Terminator,
 };
-use crate::resolve::{LocalSymbolId, ResolveOutput};
-use crate::typecheck::TypedHir;
+use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
@@ -23,8 +22,7 @@ struct LoopTargets {
 }
 
 pub(super) struct StatementLowerer<'a> {
-    resolved: &'a ResolveOutput,
-    typed_hir: &'a TypedHir,
+    semantic: SemanticInputs<'a>,
     locals: &'a mut Vec<crate::mir::Local>,
     locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
     projections: &'a mut Vec<crate::mir::ProjectionPath>,
@@ -35,8 +33,7 @@ pub(super) struct StatementLowerer<'a> {
 
 impl<'a> StatementLowerer<'a> {
     pub(super) fn new(
-        resolved: &'a ResolveOutput,
-        typed_hir: &'a TypedHir,
+        semantic: SemanticInputs<'a>,
         locals: &'a mut Vec<crate::mir::Local>,
         locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
         projections: &'a mut Vec<crate::mir::ProjectionPath>,
@@ -45,8 +42,7 @@ impl<'a> StatementLowerer<'a> {
         scopes: &'a mut Vec<Scope>,
     ) -> Self {
         Self {
-            resolved,
-            typed_hir,
+            semantic,
             locals,
             locals_by_symbol,
             projections,
@@ -77,15 +73,17 @@ impl<'a> StatementLowerer<'a> {
             let exits_block = match *statement {
                 ScalarStatement::Binding(binding) => {
                     let symbol = self
+                        .semantic
                         .resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
                     let ty = self
+                        .semantic
                         .typed_hir
                         .binding_type_expr(symbol)
-                        .and_then(|ty| self.typed_hir.type_id(ty))
+                        .and_then(|ty| self.semantic.typed_hir.type_id(ty))
                         .ok_or(BuildError::MissingTypedExpression)?;
-                    let scalar = binding_scalar_type(symbol, self.typed_hir)
+                    let scalar = binding_scalar_type(symbol, self.semantic.typed_hir)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let local = LocalId::from_index(self.locals.len());
                     self.locals.push(crate::mir::locals::Local::scalar(
@@ -104,6 +102,7 @@ impl<'a> StatementLowerer<'a> {
                         return Err(BuildError::UnsupportedClaimedExpression);
                     };
                     let symbol = self
+                        .semantic
                         .resolved
                         .local_symbol_for_identifier(identifier)
                         .map(|symbol| symbol.id)
@@ -168,9 +167,8 @@ impl<'a> StatementLowerer<'a> {
             expression,
             ty,
             scalar,
-            self.resolved,
+            self.semantic,
             self.locals_by_symbol,
-            self.typed_hir,
             self.locals,
             self.projections,
             self.control_flow,
@@ -192,15 +190,14 @@ impl<'a> StatementLowerer<'a> {
         })?;
 
         self.control_flow.select_block(condition_target)?;
-        let condition_ty = known_expression_type(&statement.condition, self.typed_hir)
+        let condition_ty = known_expression_type(&statement.condition, self.semantic.typed_hir)
             .ok_or(BuildError::MissingTypedExpression)?;
         let condition = lower_operand(
             &statement.condition,
             condition_ty,
             ScalarType::Bool,
-            self.resolved,
+            self.semantic,
             self.locals_by_symbol,
-            self.typed_hir,
             self.locals,
             self.projections,
             self.control_flow,
@@ -221,9 +218,13 @@ impl<'a> StatementLowerer<'a> {
         });
 
         self.control_flow.select_block(body_target)?;
-        let body_statements =
-            scalar_loop_block_statements(&statement.body, self.resolved, self.typed_hir)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let body_statements = scalar_loop_block_statements(
+            &statement.body,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+            self.semantic.typed_hir,
+        )
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
             &body_statements,
             Some(LoopTargets {
@@ -246,15 +247,14 @@ impl<'a> StatementLowerer<'a> {
         loop_targets: Option<LoopTargets>,
         parent_scope: ScopeId,
     ) -> Result<bool, BuildError> {
-        let condition_ty = known_expression_type(&statement.condition, self.typed_hir)
+        let condition_ty = known_expression_type(&statement.condition, self.semantic.typed_hir)
             .ok_or(BuildError::MissingTypedExpression)?;
         let condition = lower_operand(
             &statement.condition,
             condition_ty,
             ScalarType::Bool,
-            self.resolved,
+            self.semantic,
             self.locals_by_symbol,
-            self.typed_hir,
             self.locals,
             self.projections,
             self.control_flow,
@@ -278,8 +278,9 @@ impl<'a> StatementLowerer<'a> {
         self.control_flow.select_block(then_target)?;
         let then_statements = scalar_linear_block_statements(
             &statement.then_block,
-            self.resolved,
-            self.typed_hir,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+            self.semantic.typed_hir,
             loop_targets.is_some(),
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -297,8 +298,9 @@ impl<'a> StatementLowerer<'a> {
             .map(|block| {
                 scalar_linear_block_statements(
                     block,
-                    self.resolved,
-                    self.typed_hir,
+                    self.semantic.resolved,
+                    self.semantic.resolved_sources,
+                    self.semantic.typed_hir,
                     loop_targets.is_some(),
                 )
                 .ok_or(BuildError::UnsupportedClaimedExpression)
@@ -331,15 +333,17 @@ impl<'a> StatementLowerer<'a> {
             .terminate(Terminator::Goto { target: preheader })?;
         self.control_flow.select_block(preheader)?;
         let symbol = self
+            .semantic
             .resolved
             .local_symbol_id_at_name_span(statement.name_span)
             .ok_or(BuildError::MissingLocalSymbol)?;
         let ty = self
+            .semantic
             .typed_hir
             .binding_type_expr(symbol)
-            .and_then(|ty| self.typed_hir.type_id(ty))
+            .and_then(|ty| self.semantic.typed_hir.type_id(ty))
             .ok_or(BuildError::MissingTypedExpression)?;
-        let scalar = binding_scalar_type(symbol, self.typed_hir)
+        let scalar = binding_scalar_type(symbol, self.semantic.typed_hir)
             .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let value = LocalId::from_index(self.locals.len());
         self.locals.push(crate::mir::locals::Local::scalar(
@@ -363,6 +367,7 @@ impl<'a> StatementLowerer<'a> {
         self.lower_value(end, &statement.end, ty, scalar, loop_scope)?;
 
         let bool_ty = self
+            .semantic
             .typed_hir
             .type_id(&crate::ast::TypeExpr::Reference(
                 crate::ast::TypeReference {
@@ -413,9 +418,13 @@ impl<'a> StatementLowerer<'a> {
         });
 
         self.control_flow.select_block(body)?;
-        let body_statements =
-            scalar_loop_block_statements(&statement.body, self.resolved, self.typed_hir)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let body_statements = scalar_loop_block_statements(
+            &statement.body,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+            self.semantic.typed_hir,
+        )
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
             &body_statements,
             Some(LoopTargets {
@@ -457,6 +466,7 @@ impl<'a> StatementLowerer<'a> {
         let loop_scope = self.child_scope(parent_scope, statement.span);
         let body_scope = self.child_scope(loop_scope, statement.body.span);
         let bool_ty = self
+            .semantic
             .typed_hir
             .type_id(&crate::ast::TypeExpr::Reference(
                 crate::ast::TypeReference {
@@ -488,9 +498,13 @@ impl<'a> StatementLowerer<'a> {
             exit,
         });
         self.control_flow.select_block(body)?;
-        let body_statements =
-            scalar_loop_block_statements(&statement.body, self.resolved, self.typed_hir)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let body_statements = scalar_loop_block_statements(
+            &statement.body,
+            self.semantic.resolved,
+            self.semantic.resolved_sources,
+            self.semantic.typed_hir,
+        )
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let exits_body = self.lower_in_context(
             &body_statements,
             Some(LoopTargets {

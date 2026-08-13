@@ -206,6 +206,58 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reads_scalar_after_cross_source_aggregate_field() {
+    let project = TempProject::new("cli-run-cross-source-aggregate-field-layout");
+    project.write_source(
+        "types/index.nct",
+        r#"pub copy struct Pair {
+    pub first: usize
+    pub second: usize
+}
+"#,
+    );
+    project.write_source(
+        "holder/index.nct",
+        r#"use ../types.Pair
+
+pub copy struct Envelope {
+    pub pair: Pair
+    pub code: i32
+}
+
+pub func make_value(): Envelope {
+    let pair = Pair { first: 1, second: 2 }
+    return Envelope { pair: pair, code: 42 }
+}
+
+pub func read_code(value: Envelope): i32 {
+    return value.code
+}
+"#,
+    );
+    let source = project.write_source(
+        "index.nct",
+        r#"use ./holder.{make_value, read_code}
+
+func main(): i32 {
+    return read_code(make_value())
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_stack_passed_direct_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-imported-stack-passed-direct-aggregate-arg");
     project.write_nocter_home_file(

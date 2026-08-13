@@ -66,6 +66,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   aggregate staging slot, including parameters following multiword values
 - copy aggregate parameters retain aggregate MIR representation; checked field selections become
   typed projection paths and backend lowering maps them to the shared ABI staging-slot projection
+- one immutable MIR build-input bundle carries the semantic database, current resolver,
+  compile-unit resolver map, and checked HIR; aggregate layout no longer silently narrows to the
+  current source while selecting the MIR route
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

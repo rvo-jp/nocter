@@ -2,6 +2,7 @@
 //! A body rejected here remains on the legacy route; once accepted, MIR
 //! construction and validation errors are authoritative.
 
+use super::SemanticInputs;
 use super::expressions::{mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -46,18 +47,32 @@ impl<'a> ScalarTail<'a> {
         }
     }
 
-    pub(super) fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
+    pub(super) fn is_supported(self, semantic: SemanticInputs<'_>) -> bool {
         match self {
-            Self::Expression(Expr::Call(call)) => {
-                scalar_tail_call_is_supported(call, resolved, typed_hir)
-            }
-            Self::Expression(Expr::If(if_)) => {
-                scalar_conditional_is_supported(if_, resolved, typed_hir)
-            }
-            Self::Expression(expression) => {
-                scalar_expression_is_supported(expression, resolved, typed_hir)
-            }
-            Self::Conditional(if_) => scalar_conditional_is_supported(if_, resolved, typed_hir),
+            Self::Expression(Expr::Call(call)) => scalar_tail_call_is_supported(
+                call,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
+            Self::Expression(Expr::If(if_)) => scalar_conditional_is_supported(
+                if_,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
+            Self::Expression(expression) => scalar_expression_is_supported(
+                expression,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
+            Self::Conditional(if_) => scalar_conditional_is_supported(
+                if_,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
         }
     }
 
@@ -74,9 +89,10 @@ impl<'a> ScalarTail<'a> {
 fn scalar_tail_call_is_supported(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    scalar_call_shape_is_supported(call, resolved, typed_hir)
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         // A failure-only `error` call can acquire the surrounding success
         // type contextually, but it is not a scalar-returning call. Until MIR
         // carries failure payload values explicitly, leave that construct on
@@ -92,9 +108,10 @@ fn scalar_tail_call_is_supported(
 fn scalar_value_call_is_supported(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    scalar_call_shape_is_supported(call, resolved, typed_hir)
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         && intrinsic_expression_type(call.span, typed_hir)
             .and_then(|ty| scalar_type(ty, typed_hir))
             .is_some()
@@ -103,6 +120,7 @@ fn scalar_value_call_is_supported(
 fn scalar_call_shape_is_supported(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
@@ -118,18 +136,24 @@ fn scalar_call_shape_is_supported(
             known_expression_type(argument, typed_hir)
                 .and_then(|ty| scalar_type(ty, typed_hir))
                 .is_some()
-                && scalar_expression_is_supported(argument, resolved, typed_hir)
+                && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
         })
 }
 
 impl<'a> ScalarStatement<'a> {
-    pub(super) fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
-        self.is_supported_in_context(resolved, typed_hir, false)
+    pub(super) fn is_supported(self, semantic: SemanticInputs<'_>) -> bool {
+        self.is_supported_in_context(
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+            false,
+        )
     }
 
     fn is_supported_in_context(
         self,
         resolved: &ResolveOutput,
+        resolved_sources: &crate::resolve::ResolvedSources<'_>,
         typed_hir: &TypedHir,
         in_loop: bool,
     ) -> bool {
@@ -145,28 +169,56 @@ impl<'a> ScalarStatement<'a> {
                                 .is_some()
                     })
                     && known_expression_type(&binding.initializer, typed_hir).is_some()
-                    && scalar_expression_is_supported(&binding.initializer, resolved, typed_hir)
+                    && scalar_expression_is_supported(
+                        &binding.initializer,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
             }
             Self::Assignment(assignment) => {
                 assignment.operator == AssignmentOperator::Assign
                     && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()))
                     && known_expression_type(&assignment.value, typed_hir).is_some()
-                    && scalar_expression_is_supported(&assignment.value, resolved, typed_hir)
+                    && scalar_expression_is_supported(
+                        &assignment.value,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
             }
             Self::While(statement) => {
-                scalar_expression_is_supported(&statement.condition, resolved, typed_hir)
-                    && known_expression_type(&statement.condition, typed_hir)
-                        .and_then(|ty| scalar_type(ty, typed_hir))
-                        == Some(crate::mir::ScalarType::Bool)
-                    && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+                scalar_expression_is_supported(
+                    &statement.condition,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                ) && known_expression_type(&statement.condition, typed_hir)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    == Some(crate::mir::ScalarType::Bool)
+                    && scalar_loop_block_statements(
+                        &statement.body,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
+                    .is_some()
             }
             Self::If(statement) => {
-                scalar_expression_is_supported(&statement.condition, resolved, typed_hir)
-                    && known_expression_type(&statement.condition, typed_hir)
-                        .and_then(|ty| scalar_type(ty, typed_hir))
-                        == Some(crate::mir::ScalarType::Bool)
+                scalar_expression_is_supported(
+                    &statement.condition,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                ) && known_expression_type(&statement.condition, typed_hir)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    == Some(crate::mir::ScalarType::Bool)
                     && scalar_conditional_statement_is_supported(
-                        statement, resolved, typed_hir, in_loop,
+                        statement,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                        in_loop,
                     )
             }
             Self::ForRange(statement) => {
@@ -186,12 +238,29 @@ impl<'a> ScalarStatement<'a> {
                     && known_expression_type(&statement.end, typed_hir)
                         .and_then(|ty| scalar_type(ty, typed_hir))
                         == Some(binding_scalar)
-                    && scalar_expression_is_supported(&statement.start, resolved, typed_hir)
-                    && scalar_expression_is_supported(&statement.end, resolved, typed_hir)
-                    && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+                    && scalar_expression_is_supported(
+                        &statement.start,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
+                    && scalar_expression_is_supported(
+                        &statement.end,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
+                    && scalar_loop_block_statements(
+                        &statement.body,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    )
+                    .is_some()
             }
             Self::Loop(statement) => {
-                scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+                scalar_loop_block_statements(&statement.body, resolved, resolved_sources, typed_hir)
+                    .is_some()
             }
             Self::Break | Self::Continue => in_loop,
         }
@@ -215,6 +284,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
 pub(super) fn scalar_linear_block_statements<'a>(
     block: &'a Block,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
     in_loop: bool,
 ) -> Option<Vec<ScalarStatement<'a>>> {
@@ -237,7 +307,7 @@ pub(super) fn scalar_linear_block_statements<'a>(
                     | ScalarStatement::ForRange(_)
                     | ScalarStatement::Loop(_)
             )
-            || !statement.is_supported_in_context(resolved, typed_hir, in_loop)
+            || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, in_loop)
         {
             return None;
         }
@@ -252,18 +322,25 @@ pub(super) fn scalar_linear_block_statements<'a>(
 fn scalar_conditional_statement_is_supported(
     statement: &IfStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
     in_loop: bool,
 ) -> bool {
-    let Some(then_statements) =
-        scalar_linear_block_statements(&statement.then_block, resolved, typed_hir, in_loop)
-    else {
+    let Some(then_statements) = scalar_linear_block_statements(
+        &statement.then_block,
+        resolved,
+        resolved_sources,
+        typed_hir,
+        in_loop,
+    ) else {
         return false;
     };
     let else_statements = statement
         .else_block
         .as_ref()
-        .map(|block| scalar_linear_block_statements(block, resolved, typed_hir, in_loop))
+        .map(|block| {
+            scalar_linear_block_statements(block, resolved, resolved_sources, typed_hir, in_loop)
+        })
         .unwrap_or_else(|| Some(Vec::new()));
     let Some(else_statements) = else_statements else {
         return false;
@@ -286,6 +363,7 @@ fn scalar_conditional_statement_is_supported(
 pub(super) fn scalar_loop_block_statements<'a>(
     block: &'a Block,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> Option<Vec<ScalarStatement<'a>>> {
     if block.result.is_some() {
@@ -304,7 +382,7 @@ pub(super) fn scalar_loop_block_statements<'a>(
                 statement,
                 ScalarStatement::While(_) | ScalarStatement::ForRange(_) | ScalarStatement::Loop(_)
             )
-            || !statement.is_supported_in_context(resolved, typed_hir, true)
+            || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true)
         {
             return None;
         }
@@ -348,36 +426,54 @@ pub(super) fn scalar_body_parts(
 pub(super) fn scalar_expression_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
     match expression {
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
         Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
-        Expr::Member(member) => {
-            super::projections::scalar_field_is_supported(member, resolved, typed_hir)
-        }
+        Expr::Member(member) => super::projections::scalar_field_is_supported(
+            member,
+            SemanticInputs {
+                resolved,
+                resolved_sources,
+                typed_hir,
+            },
+        ),
         Expr::Group(group) => {
-            scalar_expression_is_supported(&group.expression, resolved, typed_hir)
+            scalar_expression_is_supported(&group.expression, resolved, resolved_sources, typed_hir)
         }
-        Expr::Call(call) => scalar_value_call_is_supported(call, resolved, typed_hir),
+        Expr::Call(call) => {
+            scalar_value_call_is_supported(call, resolved, resolved_sources, typed_hir)
+        }
         Expr::Force(force) => {
             let Expr::Call(call) = force.expression.without_groups() else {
                 return false;
             };
-            scalar_outcome_call_is_supported(call, resolved, typed_hir)
+            scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
         }
         Expr::Propagate(propagate) => {
             let Expr::Call(call) = propagate.expression.without_groups() else {
                 return false;
             };
-            scalar_outcome_call_is_supported(call, resolved, typed_hir)
+            scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
         }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir))
-                && scalar_expression_is_supported(&binary.left, resolved, typed_hir)
-                && scalar_expression_is_supported(&binary.right, resolved, typed_hir)
+                && scalar_expression_is_supported(
+                    &binary.left,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
+                && scalar_expression_is_supported(
+                    &binary.right,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
         }
         // A top-level value conditional is selected by `ScalarTail`. Nested
         // conditionals require expression-level CFG construction and must not
@@ -390,9 +486,10 @@ pub(super) fn scalar_expression_is_supported(
 fn scalar_outcome_call_is_supported(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    scalar_call_shape_is_supported(call, resolved, typed_hir)
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
         && intrinsic_expression_type(call.span, typed_hir)
             .and_then(|ty| typed_hir.type_expr_by_id(ty))
             .map(|ty| crate::outcomes::outcome_shape_with_resolver(ty, resolved, |_| None))
@@ -423,12 +520,13 @@ pub(super) fn scalar_branch_result(block: &Block) -> Option<&Expr> {
 fn scalar_conditional_is_supported(
     if_: &IfStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
 ) -> bool {
-    scalar_expression_is_supported(&if_.condition, resolved, typed_hir)
+    scalar_expression_is_supported(&if_.condition, resolved, resolved_sources, typed_hir)
         && scalar_branch_result(&if_.then_block).is_some_and(|result| {
             !contains_outcome_call(result)
-                && scalar_expression_is_supported(result, resolved, typed_hir)
+                && scalar_expression_is_supported(result, resolved, resolved_sources, typed_hir)
         })
         && if_
             .else_block
@@ -436,7 +534,7 @@ fn scalar_conditional_is_supported(
             .and_then(scalar_branch_result)
             .is_some_and(|result| {
                 !contains_outcome_call(result)
-                    && scalar_expression_is_supported(result, resolved, typed_hir)
+                    && scalar_expression_is_supported(result, resolved, resolved_sources, typed_hir)
             })
 }
 

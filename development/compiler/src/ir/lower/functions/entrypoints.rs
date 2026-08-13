@@ -258,6 +258,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
             &parameters,
             &return_type,
             resolved,
+            &resolved_sources,
             typed_hir,
             &name,
             &function_signatures,

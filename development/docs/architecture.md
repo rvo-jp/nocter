@@ -132,6 +132,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
   Checked field selections become typed MIR projection paths; the backend maps those paths to the
   aggregate staging slot established by the same parameter projection used at function entry.
+- MIR construction takes one immutable semantic input bundle containing the semantic database,
+  current resolver, compile-unit resolver map, and checked HIR. Layout of imported and nested
+  aggregate fields therefore uses the same cross-source authority as ABI signature projection.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

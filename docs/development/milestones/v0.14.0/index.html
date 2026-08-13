@@ -228,7 +228,9 @@ InstanceMember::Coercion(CoercionDecl)
   staging slots. A parameter after a multiword value no longer relies on ordinal/ABI-index
   coincidence.</li><li>Copy aggregate parameters now remain aggregate MIR locals. Checked field selection becomes a
   typed <code>ProjectionPath</code>, and MIR-to-machine-IR maps that path onto the parameter's ABI staging
-  slot. Scalar field reads therefore no longer recover an aggregate member from source AST.</li><li>The structural verifier rejects missing locals and blocks, type or scalar-representation drift,
+  slot. Scalar field reads therefore no longer recover an aggregate member from source AST.</li><li>MIR construction receives one immutable compile-unit semantic input bundle. Aggregate layout
+  follows the shared source-resolution map, so fields following cross-source aggregate members use
+  the same layout authority as function ABI classification.</li><li>The structural verifier rejects missing locals and blocks, type or scalar-representation drift,
   invalid local or scope contracts, non-boolean conditions, invalid control-flow targets, and
   malformed loop regions before machine IR is produced.</li><li>A fixed-point definite-initialization verifier checks reachable operands and returns. Branch joins
   intersect initialized sets, while fallible calls initialize their destination only along the

@@ -669,9 +669,12 @@ func main(): i32! {
         &[],
         ScalarType::I32,
         ReturnMode::Fallible,
-        &analysis.semantic_db,
-        &file.resolved,
-        &file.typed_hir,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
     )
     .expect("propagating scalar outcome calls must select MIR")
     .unwrap();

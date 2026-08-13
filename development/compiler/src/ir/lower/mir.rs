@@ -39,6 +39,7 @@ pub(super) fn try_lower_scalar_body(
     parameters: &[crate::ast::Parameter],
     return_type: &Type,
     resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
     typed_hir: &TypedHir,
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
@@ -68,9 +69,12 @@ pub(super) fn try_lower_scalar_body(
             parameters,
             return_scalar,
             return_mode,
-            &resolved.semantic_db,
-            resolved,
-            typed_hir,
+            crate::mir::BuildInputs {
+                semantic_db: &resolved.semantic_db,
+                resolved,
+                resolved_sources,
+                typed_hir,
+            },
         )
     })?;
     Some(match mir_body {
