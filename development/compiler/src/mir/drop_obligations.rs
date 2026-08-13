@@ -256,6 +256,11 @@ fn owned_place(body: &Body, place: Place) -> bool {
 fn consume_rvalue_moves(body: &Body, value: &Rvalue, state: &mut ObligationState) {
     match value {
         Rvalue::Use(operand) => consume_operand_move(body, operand, state),
+        Rvalue::Aggregate { fields } => {
+            for field in fields {
+                consume_operand_move(body, &field.operand, state);
+            }
+        }
         Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
             consume_operand_move(body, operand, state);
         }

@@ -26,9 +26,9 @@ pub(crate) use lower::{BuildError, BuildInputs, try_build_scalar_body_with_retur
 pub(crate) use model::BasicBlock;
 pub(crate) use model::Loan;
 pub(crate) use model::{
-    BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator, Constant,
-    LoopRegion, Operand, Origin, Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue,
-    Statement, Terminator, UnaryOperator,
+    AggregateFieldValue, BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation,
+    ComparisonOperator, Constant, LoopRegion, Operand, Origin, Place, ProjectionElement,
+    ProjectionPath, ReturnMode, Rvalue, Statement, Terminator, UnaryOperator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

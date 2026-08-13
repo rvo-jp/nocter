@@ -175,6 +175,14 @@ fn lower_scalar_body(
 
         match &block.terminator {
             Terminator::Goto { target } => current = *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(drops::lower_drop(&context, *place, *plan)?);
+                current = *target;
+            }
             Terminator::Switch {
                 condition,
                 then_target,
@@ -303,14 +311,6 @@ fn lower_scalar_body(
                     }
                 }
             }
-            Terminator::Drop {
-                place,
-                plan,
-                target,
-            } => {
-                instructions.extend(drops::lower_drop(&context, *place, *plan)?);
-                current = *target;
-            }
             Terminator::Trap => {
                 instructions.push(Instruction::Trap);
                 return Ok(instructions);
@@ -415,6 +415,14 @@ fn lower_branch_to_join(
         instructions.extend(lower_statements(context, &block.statements)?);
         match &block.terminator {
             Terminator::Goto { target } => current = *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(drops::lower_drop(context, *place, *plan)?);
+                current = *target;
+            }
             Terminator::Call {
                 callee,
                 arguments,
@@ -954,10 +962,39 @@ fn lower_statements(
         else {
             unreachable!("all MIR statement kinds handled above");
         };
+        if let Rvalue::Aggregate { fields } = value {
+            reserve_aggregate_destination(context, destination, &mut instructions)?;
+            let location = aggregate_location(destination, context)?;
+            let abi =
+                aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?;
+            let crate::abi::AbiType::Struct(abi_fields) = &abi.ty else {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate MIR rvalue does not describe struct storage",
+                ));
+            };
+            let layout = crate::abi::layout_struct(abi_fields)
+                .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+            for field in fields {
+                let offset = layout
+                    .fields
+                    .get(field.index)
+                    .and_then(|field| u32::try_from(field.offset).ok())
+                    .ok_or_else(|| invalid_mir_diagnostics("aggregate field offset is invalid"))?;
+                instructions.push(store_aggregate_scalar(
+                    location,
+                    offset,
+                    field.scalar,
+                    &field.operand,
+                    context,
+                )?);
+            }
+            continue;
+        }
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
+                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateI32 {
@@ -1015,6 +1052,7 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
+                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateU8 {
@@ -1063,6 +1101,7 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
+                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateUsize {
@@ -1111,6 +1150,7 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
+                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateInteger {
@@ -1172,6 +1212,7 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
+                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateBool {
@@ -1232,6 +1273,43 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn store_aggregate_scalar(
+    destination: crate::ir::AggregateLocation,
+    offset: u32,
+    scalar: ScalarType,
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    Ok(match scalar {
+        ScalarType::I32 => Instruction::StoreAggregateI32 {
+            destination,
+            offset,
+            value: lower_i32_operand(operand, context)?,
+        },
+        ScalarType::U8 => Instruction::StoreAggregateU8 {
+            destination,
+            offset,
+            value: lower_u8_operand(operand, context)?,
+        },
+        ScalarType::Usize => Instruction::StoreAggregateUsize {
+            destination,
+            offset,
+            value: lower_usize_operand(operand, context)?,
+        },
+        ScalarType::Integer(kind) => Instruction::StoreAggregateInteger {
+            kind,
+            destination,
+            offset,
+            value: lower_integer_operand(operand, kind, context)?,
+        },
+        ScalarType::Bool => Instruction::StoreAggregateBool {
+            destination,
+            offset,
+            value: lower_bool_operand(operand, context)?,
+        },
+    })
 }
 
 fn lower_borrow_source(

@@ -150,6 +150,10 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - owned aggregate parameters use the production MIR route, including direct, nested-field, and
   reverse-order fixed-array destruction; move-only values without runtime cleanup use an explicit
   no-op ownership plan
+- scalar-field owned struct literals now use an aggregate MIR rvalue and the same cleanup model;
+  MIR branch/loop structuring follows materialized cleanup chains, including break and continue
+- generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
+  the monomorphized runtime symbol
 - payload enums and outcome storage remain excluded until their active-variant/tag structure is
   represented in the same plan domain; never replace that boundary with a direct-destructor-only
   shortcut
@@ -158,7 +162,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,631 library tests pass at this checkpoint
+- all 2,633 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

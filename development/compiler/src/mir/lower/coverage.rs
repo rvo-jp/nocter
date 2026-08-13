@@ -245,7 +245,13 @@ impl<'a> ScalarStatement<'a> {
                     .local_symbol_id_at_name_span(binding.name_span)
                     .and_then(|symbol| typed_hir.binding_type_expr(symbol))
                     .is_some_and(|ty| {
-                        crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
+                        (crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
+                            || super::super::drop_plans::is_supported(
+                                ty,
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            ))
                             && matches!(
                                 crate::abi::abi_value_from_type_expr_with_resolver(
                                     ty,
@@ -258,13 +264,21 @@ impl<'a> ScalarStatement<'a> {
                                     | Ok(crate::abi::AbiType::Enum(_))
                             )
                     })
-                    && matches!(binding.initializer.without_groups(), Expr::Call(call)
-                    if aggregate_value_call_is_supported(
-                        call,
-                        resolved,
-                        resolved_sources,
-                        typed_hir,
-                    ));
+                    && match binding.initializer.without_groups() {
+                        Expr::Call(call) => aggregate_value_call_is_supported(
+                            call,
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        ),
+                        Expr::StructLiteral(literal) => scalar_struct_literal_is_supported(
+                            literal,
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        ),
+                        _ => false,
+                    };
                 (scalar
                     && known_expression_type(&binding.initializer, typed_hir).is_some()
                     && scalar_expression_is_supported(
@@ -366,6 +380,34 @@ impl<'a> ScalarStatement<'a> {
             Self::Break | Self::Continue => in_loop,
         }
     }
+}
+
+fn scalar_struct_literal_is_supported(
+    literal: &crate::ast::StructLiteralExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    let result_is_aggregate = typed_hir
+        .expression(literal.span)
+        .and_then(|expression| match expression.ty {
+            crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+            crate::typecheck::PartialSemantic::Error => None,
+        })
+        .is_some_and(|ty| scalar_type(ty, typed_hir).is_none());
+    result_is_aggregate
+        && literal.fields.iter().all(|field| {
+            typed_hir.field_target(field.name_span).is_some()
+                && known_expression_type(&field.value, typed_hir)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    .is_some()
+                && scalar_expression_is_supported(
+                    &field.value,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
+        })
 }
 
 pub(super) fn borrow_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {

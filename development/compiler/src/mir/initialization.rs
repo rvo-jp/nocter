@@ -256,15 +256,17 @@ fn merge_entry(
     }
 }
 
-fn rvalue_operands(value: &Rvalue) -> impl Iterator<Item = &Operand> {
-    let operands = match value {
-        Rvalue::Use(operand) => [Some(operand), None],
-        Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => [Some(operand), None],
-        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
-            [Some(left), Some(right)]
+fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
+    match value {
+        Rvalue::Use(operand) => Box::new(std::iter::once(operand)),
+        Rvalue::Aggregate { fields } => Box::new(fields.iter().map(|field| &field.operand)),
+        Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
+            Box::new(std::iter::once(operand))
         }
-    };
-    operands.into_iter().flatten()
+        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
+            Box::new([left, right].into_iter())
+        }
+    }
 }
 
 fn validate_and_apply_operand(

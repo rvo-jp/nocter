@@ -666,29 +666,17 @@ func maybe_answer(): i32? {
                 value: i32_const(3),
             },
             Instruction::CallOutcomeI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 target: CallTarget::same_file("maybe_answer"),
                 arguments: vec![],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetI32 {
-                            destination: I32Location::Local(0),
-                            value: i32_const(7),
-                        },
-                        drop_call.clone(),
-                        Instruction::SetI32 {
-                            destination: I32Location::Return,
-                            value: i32_local(0),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(7),
+                    }],
                 },
             },
             drop_call,
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
-            },
             Instruction::Return,
         ],
     );

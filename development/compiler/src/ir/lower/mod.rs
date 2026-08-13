@@ -840,6 +840,15 @@ impl<'a> FunctionIndex<'a> {
                 })
                 .collect(),
             self.definitions
+                .values()
+                .filter_map(|function| function.drop_name_declaration())
+                .filter_map(|(span, ty, name)| {
+                    let authored = self.semantic_db.definition_at(span)?;
+                    let definition = self.callable_bodies.canonical_definition(authored);
+                    Some((definition, canonical_type_expr(ty), name))
+                })
+                .collect(),
+            self.definitions
                 .keys()
                 .map(|target| (call_target_name(target).to_string(), target.clone()))
                 .chain(self.method_target_aliases.iter().cloned())
@@ -1415,6 +1424,19 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Literal { .. } => None,
             IndexedDeclaration::Closure { .. } => None,
         }
+    }
+
+    fn drop_name_declaration(&self) -> Option<(crate::source::ByteSpan, &TypeExpr, String)> {
+        let IndexedDeclaration::Drop {
+            declaration,
+            self_ty,
+            name,
+            ..
+        } = &self.declaration
+        else {
+            return None;
+        };
+        Some((declaration.keyword_span, self_ty, name.clone()))
     }
 }
 

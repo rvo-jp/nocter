@@ -36,6 +36,7 @@ fn lower_plan(
             context,
             location,
             base_offset,
+            ty,
             *destructor,
         )?]),
         DropPlan::Struct { destructor, fields } => {
@@ -49,7 +50,13 @@ fn lower_plan(
                 .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
             let mut instructions = Vec::new();
             if let Some(destructor) = destructor {
-                instructions.push(direct_drop(context, location, base_offset, *destructor)?);
+                instructions.push(direct_drop(
+                    context,
+                    location,
+                    base_offset,
+                    ty,
+                    *destructor,
+                )?);
             }
             for field in fields.iter().rev() {
                 let offset = layout
@@ -103,14 +110,25 @@ fn direct_drop(
     context: &BackendContext<'_>,
     location: AggregateLocation,
     offset: u32,
+    ty: crate::semantic::TyId,
     destructor: crate::semantic::DefId,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let (target, _) = super::lower_call_target(
-        destructor,
-        context.resolved,
-        context.function_names,
-        context.root_source,
-    )?;
+    let type_expr = context
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or_else(|| invalid_mir_diagnostics("drop plan type is missing"))?;
+    let name = context
+        .function_names
+        .name_for_drop(destructor, type_expr)
+        .ok_or_else(|| invalid_mir_diagnostics("drop target has no indexed runtime name"))?
+        .clone();
+    let source = context
+        .resolved
+        .semantic_db
+        .definition_anchor(destructor)
+        .ok_or_else(|| invalid_mir_diagnostics("drop target has no source anchor"))?
+        .source;
+    let target = super::super::call_target_for_source(source, context.root_source, name);
     let source = match (location, offset) {
         (AggregateLocation::Slot(slot_index), 0) => BorrowSource::AggregateSlot(slot_index),
         (AggregateLocation::Slot(slot_index), offset) => {

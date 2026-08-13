@@ -137,6 +137,40 @@ func ignore(resources: [Resource; 2]): i32 {
 }
 
 #[test]
+fn mir_constructs_and_destroys_an_owned_scalar_field_struct() {
+    let function = lower_named_function(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func main(): i32 {
+    let resource = Resource { fd: 7 }
+    return resource.fd
+}
+"#,
+        "main",
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateI32 {
+            destination: AggregateLocation::Slot(0),
+            offset: 0,
+            value: I32Value::Const(7),
+        }
+    )));
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallVoid { target, .. }
+            if target == &CallTarget::same_file("Resource.drop")
+    )));
+}
+
+#[test]
 fn does_not_drop_a_direct_owner_before_its_struct_initialization_completes() {
     let ir = lower_text(
         r#"struct Resource {
@@ -818,7 +852,7 @@ func main(): i32 {
                         value: i32_const(3),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         value: i32_const(0),
                     },
                     Instruction::CallVoid {
@@ -826,10 +860,6 @@ func main(): i32 {
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
-                    },
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -880,7 +910,7 @@ func main(): i32 {
                         value: i32_const(3),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         value: i32_const(0),
                     },
                     Instruction::CallVoid {
@@ -888,10 +918,6 @@ func main(): i32 {
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
-                    },
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -2069,7 +2095,7 @@ func answer(): i32 {
                 value: i32_const(3),
             },
             Instruction::CallI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 target: CallTarget::same_file("answer"),
                 arguments: vec![],
             },
@@ -2078,10 +2104,6 @@ func answer(): i32 {
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
                 })],
-            },
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
             },
             Instruction::Return,
         ],
@@ -2135,31 +2157,11 @@ func main(): i32 {
             },
             Instruction::If {
                 condition: BoolValue::Const(true),
-                then_instructions: vec![
-                    Instruction::SetI32 {
-                        destination: I32Location::Local(0),
-                        value: i32_const(0),
-                    },
-                    drop_call.clone(),
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetI32 {
-                        destination: I32Location::Local(0),
-                        value: i32_const(1),
-                    },
-                    drop_call,
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
-                    Instruction::Return,
-                ],
+                then_instructions: vec![set_return_i32(0)],
+                else_instructions: vec![set_return_i32(1)],
             },
+            drop_call,
+            Instruction::Return,
         ],
     );
 }
@@ -2286,31 +2288,17 @@ func choose(flag: bool): usize {
             },
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![
-                    Instruction::SetUsize {
-                        destination: UsizeLocation::Local(0),
-                        value: usize_const(7),
-                    },
-                    drop_call.clone(),
-                    Instruction::SetUsize {
-                        destination: UsizeLocation::Return,
-                        value: usize_local(0),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetUsize {
-                        destination: UsizeLocation::Local(0),
-                        value: usize_const(9),
-                    },
-                    drop_call,
-                    Instruction::SetUsize {
-                        destination: UsizeLocation::Return,
-                        value: usize_local(0),
-                    },
-                    Instruction::Return,
-                ],
+                then_instructions: vec![Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_const(7),
+                }],
+                else_instructions: vec![Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_const(9),
+                }],
             },
+            drop_call,
+            Instruction::Return,
         ],
     );
 }
@@ -2422,44 +2410,13 @@ func main(): i32 {
                 condition: BoolValue::Const(true),
                 then_instructions: vec![Instruction::If {
                     condition: BoolValue::Const(false),
-                    then_instructions: vec![
-                        Instruction::SetI32 {
-                            destination: I32Location::Local(0),
-                            value: i32_const(0),
-                        },
-                        drop_call.clone(),
-                        Instruction::SetI32 {
-                            destination: I32Location::Return,
-                            value: i32_local(0),
-                        },
-                        Instruction::Return,
-                    ],
-                    else_instructions: vec![
-                        Instruction::SetI32 {
-                            destination: I32Location::Local(0),
-                            value: i32_const(1),
-                        },
-                        drop_call.clone(),
-                        Instruction::SetI32 {
-                            destination: I32Location::Return,
-                            value: i32_local(0),
-                        },
-                        Instruction::Return,
-                    ],
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
                 }],
-                else_instructions: vec![
-                    Instruction::SetI32 {
-                        destination: I32Location::Local(0),
-                        value: i32_const(2),
-                    },
-                    drop_call,
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
-                    Instruction::Return,
-                ],
+                else_instructions: vec![set_return_i32(2)],
             },
+            drop_call,
+            Instruction::Return,
         ],
     );
 }

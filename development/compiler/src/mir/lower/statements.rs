@@ -54,12 +54,17 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         .resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
-                    let ty = self
+                    let binding_type_expr = self
                         .context
                         .semantic
                         .typed_hir
                         .binding_type_expr(symbol)
-                        .and_then(|ty| self.context.semantic.typed_hir.type_id(ty))
+                        .ok_or(BuildError::MissingTypedExpression)?;
+                    let ty = self
+                        .context
+                        .semantic
+                        .typed_hir
+                        .type_id(binding_type_expr)
                         .ok_or(BuildError::MissingTypedExpression)?;
                     let local = LocalId::from_index(self.context.locals.len());
                     if let Some(scalar) =
@@ -99,34 +104,59 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                             scope,
                         )?;
                     } else {
-                        self.context
-                            .locals
-                            .push(crate::mir::locals::Local::aggregate(
-                                ty,
-                                crate::mir::OwnershipKind::Copy,
-                                LocalStorage::Local,
-                                LocalOrigin::Binding(symbol),
-                                scope,
-                            ));
-                        self.context.locals_by_symbol.insert(symbol, local);
-                        let Expr::Call(call) = binding.initializer.without_groups() else {
-                            return Err(BuildError::UnsupportedClaimedExpression);
+                        let ownership = if crate::typecheck::type_expr_is_copy(
+                            binding_type_expr,
+                            self.context.semantic.resolved,
+                        ) == Some(true)
+                        {
+                            crate::mir::OwnershipKind::Copy
+                        } else {
+                            crate::mir::OwnershipKind::Move
                         };
-                        let source = self
-                            .context
-                            .semantic
-                            .typed_hir
-                            .expression(call.span)
-                            .ok_or(BuildError::MissingTypedExpression)?
-                            .id;
-                        let (callee, arguments, returns_never) =
-                            self.context.lower_call(call, scope)?;
-                        if returns_never {
-                            return Err(BuildError::UnsupportedClaimedExpression);
+                        let mut aggregate = crate::mir::locals::Local::aggregate(
+                            ty,
+                            ownership,
+                            LocalStorage::Local,
+                            LocalOrigin::Binding(symbol),
+                            scope,
+                        );
+                        if ownership == crate::mir::OwnershipKind::Move {
+                            aggregate.drop_plan = Some(
+                                super::super::drop_plans::build(
+                                    binding_type_expr,
+                                    self.context.semantic.resolved,
+                                    self.context.semantic.resolved_sources,
+                                    self.context.semantic.typed_hir,
+                                    &mut self.context.drop_plans,
+                                )
+                                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                            );
                         }
-                        self.context
-                            .control_flow
-                            .emit_returning_call(source, callee, arguments, local)?;
+                        self.context.locals.push(aggregate);
+                        self.context.locals_by_symbol.insert(symbol, local);
+                        match binding.initializer.without_groups() {
+                            Expr::Call(call) => {
+                                let source = self
+                                    .context
+                                    .semantic
+                                    .typed_hir
+                                    .expression(call.span)
+                                    .ok_or(BuildError::MissingTypedExpression)?
+                                    .id;
+                                let (callee, arguments, returns_never) =
+                                    self.context.lower_call(call, scope)?;
+                                if returns_never {
+                                    return Err(BuildError::UnsupportedClaimedExpression);
+                                }
+                                self.context
+                                    .control_flow
+                                    .emit_returning_call(source, callee, arguments, local)?;
+                            }
+                            Expr::StructLiteral(literal) => {
+                                self.lower_struct_literal(local, literal, scope)?;
+                            }
+                            _ => return Err(BuildError::UnsupportedClaimedExpression),
+                        }
                     }
                     false
                 }
@@ -219,6 +249,71 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
     ) -> Result<(), BuildError> {
         self.context
             .lower_expression_to_place(destination, expression, ty, scalar, scope)
+    }
+
+    fn lower_struct_literal(
+        &mut self,
+        destination: LocalId,
+        literal: &crate::ast::StructLiteralExpr,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let type_name = match &literal.ty {
+            crate::ast::TypeExpr::Reference(reference) => reference.name.as_str(),
+            crate::ast::TypeExpr::Generic(generic) => generic.name.as_str(),
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
+        };
+        let symbol = self
+            .context
+            .semantic
+            .resolved
+            .type_symbol_by_reference_name(type_name)
+            .or_else(|| {
+                type_name.rsplit_once('.').and_then(|(_, short)| {
+                    self.context
+                        .semantic
+                        .resolved
+                        .type_symbol_by_reference_name(short)
+                })
+            })
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let field_indexes = literal
+            .fields
+            .iter()
+            .map(|field| {
+                symbol
+                    .fields
+                    .iter()
+                    .position(|candidate| candidate.name == field.name)
+                    .ok_or(BuildError::UnsupportedClaimedExpression)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut fields = Vec::with_capacity(literal.fields.len());
+        for (field, index) in literal.fields.iter().zip(field_indexes) {
+            let ty = known_expression_type(&field.value, self.context.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let scalar = super::coverage::scalar_type(ty, self.context.semantic.typed_hir)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            fields.push(crate::mir::AggregateFieldValue {
+                index,
+                ty,
+                scalar,
+                operand: self
+                    .context
+                    .lower_operand(&field.value, ty, scalar, scope)?,
+            });
+        }
+        let origin = self
+            .context
+            .semantic
+            .typed_hir
+            .expression(literal.span)
+            .map(|expression| Origin::Expression(expression.id))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        self.context.control_flow.push_statement(Statement::Assign {
+            destination: Place::local(destination),
+            value: Rvalue::Aggregate { fields },
+            origin,
+        })
     }
 
     fn lower_borrow_binding(

@@ -297,6 +297,34 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                     ty
                 }
+                super::model::Rvalue::Aggregate { fields } => {
+                    if destination_local.representation != ValueRepresentation::Aggregate {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_local.representation,
+                        });
+                    }
+                    for field in fields {
+                        validate_operand(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            &field.operand,
+                            field.ty,
+                            field.scalar,
+                            &mut errors,
+                        );
+                        validate_operand_ownership(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            &field.operand,
+                            &mut errors,
+                        );
+                    }
+                    Some(destination_local.ty)
+                }
                 super::model::Rvalue::Unary {
                     operator,
                     operand,

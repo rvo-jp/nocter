@@ -118,6 +118,10 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
+        Rvalue::Aggregate { fields } => fields
+            .iter()
+            .map(|field| operand_use_count(&field.operand, local))
+            .sum(),
         Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
             operand_use_count(operand, local)
         }

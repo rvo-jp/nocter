@@ -92,6 +92,14 @@ pub(super) fn lower_linear_loop_body(
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
+        if current == continue_target {
+            instructions.extend(lower_continue_path(context, continue_target, header)?);
+            return Ok(instructions);
+        }
+        if current == exit {
+            instructions.push(Instruction::Break);
+            return Ok(instructions);
+        }
         if !visited.insert(current) {
             return Err(super::invalid_mir_diagnostics(
                 "loop body reuses an already lowered block",
@@ -107,6 +115,24 @@ pub(super) fn lower_linear_loop_body(
             Terminator::Goto { target } if *target == exit => {
                 instructions.push(Instruction::Break);
                 return Ok(instructions);
+            }
+            Terminator::Goto { target } => current = *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(super::drops::lower_drop(context, *place, *plan)?);
+                if *target == continue_target {
+                    instructions.extend(lower_continue_path(context, continue_target, header)?);
+                    instructions.push(Instruction::Continue);
+                    return Ok(instructions);
+                }
+                if *target == exit {
+                    instructions.push(Instruction::Break);
+                    return Ok(instructions);
+                }
+                current = *target;
             }
             Terminator::Call { .. } => {
                 current = lower_linear_call_terminator(
@@ -166,9 +192,10 @@ pub(super) fn lower_linear_loop_body(
                 current = join;
             }
             _ => {
-                return Err(super::invalid_mir_diagnostics(
-                    "loop body does not follow a linear path to its backedge or exit",
-                ));
+                return Err(super::invalid_mir_diagnostics(format!(
+                    "loop body does not follow a linear path to its backedge or exit: block {current:?} has {:?}",
+                    block.terminator
+                )));
             }
         }
     }
@@ -187,6 +214,15 @@ fn lower_loop_branch_path(
     let mut instructions = Vec::new();
     let mut current = start;
     loop {
+        if current == endpoint {
+            if endpoint == continue_target {
+                instructions.extend(lower_continue_path(context, continue_target, header)?);
+                instructions.push(Instruction::Continue);
+            } else if endpoint == exit {
+                instructions.push(Instruction::Break);
+            }
+            return Ok(instructions);
+        }
         if !visited.insert(current) {
             return Err(super::invalid_mir_diagnostics(
                 "loop conditional branch reuses an already lowered block",
@@ -203,6 +239,24 @@ fn lower_loop_branch_path(
                     instructions.push(Instruction::Break);
                 }
                 return Ok(instructions);
+            }
+            Terminator::Goto { target } => current = *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(super::drops::lower_drop(context, *place, *plan)?);
+                if *target == endpoint {
+                    if endpoint == continue_target {
+                        instructions.extend(lower_continue_path(context, continue_target, header)?);
+                        instructions.push(Instruction::Continue);
+                    } else if endpoint == exit {
+                        instructions.push(Instruction::Break);
+                    }
+                    return Ok(instructions);
+                }
+                current = *target;
             }
             Terminator::Call { .. } => {
                 current = lower_linear_call_terminator(

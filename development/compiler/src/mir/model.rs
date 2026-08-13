@@ -135,6 +135,9 @@ impl Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
+    Aggregate {
+        fields: Vec<AggregateFieldValue>,
+    },
     Unary {
         operator: UnaryOperator,
         operand: Operand,
@@ -161,6 +164,14 @@ pub(crate) enum Rvalue {
         operand_scalar: ScalarType,
         result_ty: TyId,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AggregateFieldValue {
+    pub(crate) index: usize,
+    pub(crate) ty: TyId,
+    pub(crate) scalar: ScalarType,
+    pub(crate) operand: Operand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -337,22 +337,38 @@ struct CallResolution<'a> {
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
     by_definition: HashMap<DefId, String>,
+    drops_by_definition_and_type: HashMap<(DefId, String), String>,
     unique_targets: UniqueCallTargets,
 }
 
 impl FunctionNames {
     pub(super) fn from_index(
         functions: Vec<(DefId, String)>,
+        drops: Vec<(DefId, String, String)>,
         targets: Vec<(String, CallTarget)>,
     ) -> Self {
         Self {
             by_definition: functions.into_iter().collect(),
+            drops_by_definition_and_type: drops
+                .into_iter()
+                .map(|(definition, ty, name)| ((definition, ty), name))
+                .collect(),
             unique_targets: UniqueCallTargets::new(targets),
         }
     }
 
     pub(in crate::ir::lower) fn name_for_definition(&self, definition: DefId) -> Option<&String> {
         self.by_definition.get(&definition)
+    }
+
+    pub(in crate::ir::lower) fn name_for_drop(
+        &self,
+        definition: DefId,
+        ty: &crate::ast::TypeExpr,
+    ) -> Option<&String> {
+        self.drops_by_definition_and_type
+            .get(&(definition, crate::ast::canonical_type_expr(ty)))
+            .or_else(|| self.name_for_definition(definition))
     }
 
     fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {

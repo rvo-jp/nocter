@@ -227,6 +227,11 @@ fn reject_rvalue_moves(
 ) {
     match value {
         Rvalue::Use(operand) => reject_operand_move(body, block, operand, state, errors),
+        Rvalue::Aggregate { fields } => {
+            for field in fields {
+                reject_operand_move(body, block, &field.operand, state, errors);
+            }
+        }
         Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
             reject_operand_move(body, block, operand, state, errors);
         }
