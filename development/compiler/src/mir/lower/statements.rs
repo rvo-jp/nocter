@@ -172,6 +172,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals,
             self.projections,
             self.control_flow,
+            self.scopes,
             scope,
         )
     }
@@ -201,6 +202,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals,
             self.projections,
             self.control_flow,
+            self.scopes,
             parent_scope,
         )?;
         let condition_block = self.control_flow.current_block()?;
@@ -258,6 +260,7 @@ impl<'a> StatementLowerer<'a> {
             self.locals,
             self.projections,
             self.control_flow,
+            self.scopes,
             parent_scope,
         )?;
         let then_scope = self.child_scope(parent_scope, statement.then_block.span);

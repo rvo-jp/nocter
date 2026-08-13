@@ -555,7 +555,7 @@ fn makes_nested_scalar_evaluation_order_explicit_with_a_temporary() {
 }
 
 #[test]
-fn does_not_claim_nested_control_flow_as_a_scalar_operand() {
+fn builds_nested_value_control_flow_as_a_scalar_operand() {
     let (_sources, analysis) = analyze_text(
         r#"func choose(condition: bool): i32 {
     return (if condition { 40 } else { 5 }) + 2
@@ -574,17 +574,31 @@ fn does_not_claim_nested_control_flow_as_a_scalar_operand() {
         })
         .unwrap();
 
-    assert!(
-        try_build_scalar_body(
-            function.body.as_ref().unwrap(),
-            &function.parameters.parameters,
-            ScalarType::I32,
-            &analysis.semantic_db,
-            &file.resolved,
-            &file.typed_hir,
-        )
-        .is_none()
-    );
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("nested value control flow must select MIR")
+    .unwrap();
+
+    assert_eq!(body.scopes.len(), 3);
+    assert_eq!(body.blocks.len(), 4);
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Switch { .. }
+    ));
+    assert!(matches!(
+        body.blocks[3].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Binary { .. },
+            ..
+        }]
+    ));
+    assert_eq!(body.blocks[3].terminator, Terminator::Return);
 }
 
 #[test]

@@ -20,7 +20,7 @@ mod projections;
 mod statements;
 use body_builder::ControlFlowBuilder;
 use coverage::*;
-use expressions::{lower_call, lower_expression_to_place, lower_operand};
+use expressions::{lower_call, lower_conditional_to_place, lower_expression_to_place};
 use statements::StatementLowerer;
 
 #[derive(Debug, Clone, Copy)]
@@ -186,45 +186,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         )
         .lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
-            let condition_ty = known_expression_type(&if_.condition, inputs.typed_hir)
-                .ok_or(BuildError::MissingTypedExpression)?;
-            let condition = lower_operand(
-                &if_.condition,
-                condition_ty,
-                ScalarType::Bool,
-                semantic,
-                &locals_by_symbol,
-                &mut locals,
-                &mut projections,
-                &mut control_flow,
-                root_scope,
-            )?;
-            let then_result = scalar_branch_result(&if_.then_block)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let else_result = if_
-                .else_block
-                .as_ref()
-                .and_then(scalar_branch_result)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let then_scope = ScopeId::from_index(scopes.len());
-            scopes.push(Scope::child(root_scope, if_.then_block.span));
-            let else_scope = ScopeId::from_index(scopes.len());
-            scopes.push(Scope::child(
-                root_scope,
-                if_.else_block.as_ref().map_or(if_.span, |block| block.span),
-            ));
-            let then_target = control_flow.reserve_block(then_scope);
-            let else_target = control_flow.reserve_block(else_scope);
-            let join_target = control_flow.reserve_block(root_scope);
-            control_flow.terminate(Terminator::Switch {
-                condition,
-                then_target,
-                else_target,
-            })?;
-            control_flow.select_block(then_target)?;
-            lower_expression_to_place(
+            lower_conditional_to_place(
                 return_local,
-                then_result,
+                if_,
                 return_ty,
                 return_scalar,
                 semantic,
@@ -232,28 +196,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
-                then_scope,
+                &mut scopes,
+                root_scope,
             )?;
-            control_flow.terminate(Terminator::Goto {
-                target: join_target,
-            })?;
-            control_flow.select_block(else_target)?;
-            lower_expression_to_place(
-                return_local,
-                else_result,
-                return_ty,
-                return_scalar,
-                semantic,
-                &locals_by_symbol,
-                &mut locals,
-                &mut projections,
-                &mut control_flow,
-                else_scope,
-            )?;
-            control_flow.terminate(Terminator::Goto {
-                target: join_target,
-            })?;
-            control_flow.select_block(join_target)?;
             control_flow.terminate(Terminator::Return)?;
         } else if let Some(Expr::Call(call)) = tail.expression() {
             let source = inputs
@@ -268,6 +213,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
+                &mut scopes,
                 root_scope,
             )?;
             if returns_never {
@@ -290,6 +236,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 &mut locals,
                 &mut projections,
                 &mut control_flow,
+                &mut scopes,
                 root_scope,
             )?;
             control_flow.terminate(Terminator::Return)?;

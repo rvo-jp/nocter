@@ -260,8 +260,10 @@ InstanceMember::Coercion(CoercionDecl)
   bindings, assignments, arithmetic, and value or terminal conditionals. Once selected, MIR
   construction or validation failure is authoritative; the route does not fall back to the
   AST-driven lowerer.</li><li>Value <code>if</code> and terminal <code>if</code> normalize to the same control-flow diamond with one return join.
-  Nested scalar evaluation uses explicit MIR temporaries, so evaluation order is not reconstructed
-  by backend lowering.</li><li>Scalar calls, fallible success/failure edges, <code>while</code>, unconditional <code>loop</code>, and i32/usize range
+  The same conditional builder handles nested values inside arithmetic and call arguments, assigns
+  both child scopes into one destination place, and rejoins in the parent scope. Nested scalar
+  evaluation uses explicit MIR temporaries, so evaluation order is not reconstructed by backend
+  lowering.</li><li>Scalar calls, fallible success/failure edges, <code>while</code>, unconditional <code>loop</code>, and i32/usize range
   loops now use the retained MIR body in both buildability and machine-IR lowering. Range setup
   uses an explicit loop-scope preheader, and branch joins plus loop exits derive innermost-first
   exited scopes from CFG block identities.</li><li>Boolean <code>&amp;&amp;</code> and <code>||</code> normalize to a MIR switch, a selected right-hand or constant

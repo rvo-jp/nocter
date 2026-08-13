@@ -60,6 +60,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - boolean `&&` and `||` lower to an explicit MIR switch with distinct right-hand and
   short-circuit paths followed by a shared join; calls and failures on the right-hand side are
   therefore evaluated only on the selected CFG edge
+- expression-valued `if` uses one reusable MIR conditional builder at function tails, inside
+  arithmetic, and in call arguments; each branch retains a child lexical scope and converges on
+  the destination place instead of selecting a route by syntax position
 - MIR locals now keep checked value representation, ownership behavior, logical storage, and
   source identity as independent contracts; validation rejects invalid combinations and duplicate
   parameter storage before lowering

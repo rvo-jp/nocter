@@ -220,7 +220,9 @@
   machine-IR integer operations while preserving width and signedness through arithmetic,
   shifts, comparison, call, field-load, and return projection.</li><li>Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
-  traps, and future cleanup on the skipped edge remain unreachable by construction.</li><li>Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
+  traps, and future cleanup on the skipped edge remain unreachable by construction.</li><li>Expression-valued conditionals use the same MIR builder at function tails and nested operand
+  positions. Both branch blocks carry child <code>ScopeId</code>s, assign one destination, and join in the
+  parent scope; route selection does not depend on where the source expression is written.</li><li>Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
   their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
   inversion; lowering does not erase the authored operation before validation.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only

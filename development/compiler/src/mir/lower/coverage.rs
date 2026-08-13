@@ -533,10 +533,9 @@ pub(super) fn scalar_expression_is_supported(
                     typed_hir,
                 )
         }
-        // A top-level value conditional is selected by `ScalarTail`. Nested
-        // conditionals require expression-level CFG construction and must not
-        // be claimed as ordinary scalar operands before that route exists.
-        Expr::If(_) => false,
+        Expr::If(if_) => {
+            scalar_conditional_is_supported(if_, resolved, resolved_sources, typed_hir)
+        }
         _ => false,
     }
 }
@@ -610,10 +609,20 @@ fn contains_outcome_call(expression: &Expr) -> bool {
     match expression {
         Expr::Force(_) | Expr::Propagate(_) => true,
         Expr::Group(group) => contains_outcome_call(&group.expression),
+        Expr::Unary(unary) => contains_outcome_call(&unary.operand),
         Expr::Binary(binary) => {
             contains_outcome_call(&binary.left) || contains_outcome_call(&binary.right)
         }
         Expr::Call(call) => call.arguments.iter().any(contains_outcome_call),
+        Expr::If(if_) => {
+            contains_outcome_call(&if_.condition)
+                || scalar_branch_result(&if_.then_block).is_some_and(contains_outcome_call)
+                || if_
+                    .else_block
+                    .as_ref()
+                    .and_then(scalar_branch_result)
+                    .is_some_and(contains_outcome_call)
+        }
         _ => false,
     }
 }

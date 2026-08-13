@@ -12,6 +12,9 @@ use crate::mir::{
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use std::collections::HashMap;
 
+mod control_flow_expressions;
+pub(super) use control_flow_expressions::lower_conditional_to_place;
+
 pub(super) fn lower_call(
     call: &crate::ast::CallExpr,
     semantic: SemanticInputs<'_>,
@@ -19,6 +22,7 @@ pub(super) fn lower_call(
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
+    scopes: &mut Vec<crate::mir::Scope>,
     scope: ScopeId,
 ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
@@ -54,6 +58,7 @@ pub(super) fn lower_call(
                     local_declarations,
                     projections,
                     control_flow,
+                    scopes,
                     scope,
                 )?;
                 return Ok(CallArgument {
@@ -109,6 +114,7 @@ pub(super) fn lower_expression_to_place(
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
+    scopes: &mut Vec<crate::mir::Scope>,
     scope: ScopeId,
 ) -> Result<(), BuildError> {
     let source = semantic
@@ -131,6 +137,7 @@ pub(super) fn lower_expression_to_place(
             local_declarations,
             projections,
             control_flow,
+            scopes,
             scope,
             source,
         );
@@ -153,6 +160,7 @@ pub(super) fn lower_expression_to_place(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
                 scope,
             )?,
             ty,
@@ -170,6 +178,7 @@ pub(super) fn lower_expression_to_place(
                         local_declarations,
                         projections,
                         control_flow,
+                        scopes,
                         scope,
                     )?,
                     right: lower_operand(
@@ -181,6 +190,7 @@ pub(super) fn lower_expression_to_place(
                         local_declarations,
                         projections,
                         control_flow,
+                        scopes,
                         scope,
                     )?,
                     ty,
@@ -203,6 +213,7 @@ pub(super) fn lower_expression_to_place(
                         local_declarations,
                         projections,
                         control_flow,
+                        scopes,
                         scope,
                     )?,
                     right: lower_operand(
@@ -214,6 +225,7 @@ pub(super) fn lower_expression_to_place(
                         local_declarations,
                         projections,
                         control_flow,
+                        scopes,
                         scope,
                     )?,
                     operand_ty,
@@ -233,6 +245,22 @@ pub(super) fn lower_expression_to_place(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
+                scope,
+            );
+        }
+        Expr::If(if_) => {
+            return lower_conditional_to_place(
+                destination,
+                if_,
+                ty,
+                scalar,
+                semantic,
+                locals,
+                local_declarations,
+                projections,
+                control_flow,
+                scopes,
                 scope,
             );
         }
@@ -244,6 +272,7 @@ pub(super) fn lower_expression_to_place(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
                 scope,
             )?;
             if returns_never {
@@ -262,6 +291,7 @@ pub(super) fn lower_expression_to_place(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
                 scope,
             )?;
             if returns_never {
@@ -280,6 +310,7 @@ pub(super) fn lower_expression_to_place(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
                 scope,
             )?;
             if returns_never {
@@ -329,6 +360,7 @@ fn lower_short_circuit_to_place(
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
+    scopes: &mut Vec<crate::mir::Scope>,
     scope: ScopeId,
     source: crate::semantic::ExprId,
 ) -> Result<(), BuildError> {
@@ -341,6 +373,7 @@ fn lower_short_circuit_to_place(
         local_declarations,
         projections,
         control_flow,
+        scopes,
         scope,
     )?;
     let right_target = control_flow.reserve_block(scope);
@@ -382,6 +415,7 @@ fn lower_short_circuit_to_place(
         local_declarations,
         projections,
         control_flow,
+        scopes,
         scope,
     )?;
     control_flow.terminate(crate::mir::Terminator::Goto {
@@ -399,11 +433,18 @@ pub(super) fn lower_operand(
     local_declarations: &mut Vec<crate::mir::Local>,
     projections: &mut Vec<crate::mir::ProjectionPath>,
     control_flow: &mut ControlFlowBuilder,
+    scopes: &mut Vec<crate::mir::Scope>,
     scope: ScopeId,
 ) -> Result<Operand, BuildError> {
     if !matches!(
         expression,
-        Expr::Binary(_) | Expr::Call(_) | Expr::Force(_) | Expr::Propagate(_) | Expr::Member(_)
+        Expr::Unary(_)
+            | Expr::Binary(_)
+            | Expr::Call(_)
+            | Expr::Force(_)
+            | Expr::Propagate(_)
+            | Expr::Member(_)
+            | Expr::If(_)
     ) {
         return match expression {
             Expr::Group(group) => lower_operand(
@@ -415,6 +456,7 @@ pub(super) fn lower_operand(
                 local_declarations,
                 projections,
                 control_flow,
+                scopes,
                 scope,
             ),
             _ => lower_simple_operand(expression, ty, scalar, semantic.resolved, locals),
@@ -443,6 +485,7 @@ pub(super) fn lower_operand(
         local_declarations,
         projections,
         control_flow,
+        scopes,
         scope,
     )?;
     Ok(Operand::Copy(Place::local(temporary)))

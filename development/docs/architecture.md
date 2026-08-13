@@ -147,6 +147,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.
+- Expression-valued conditionals use the same MIR builder at function tails and nested operand
+  positions. Both branch blocks carry child `ScopeId`s, assign one destination, and join in the
+  parent scope; route selection does not depend on where the source expression is written.
 - Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
   their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
   inversion; lowering does not erase the authored operation before validation.
