@@ -1,6 +1,7 @@
 use super::*;
 use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
+use crate::mir::{ComparisonOperator, Operand, Rvalue, Statement};
 
 #[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {
@@ -239,4 +240,52 @@ fn does_not_collapse_other_integer_parameters_into_usize_mir() {
         )
         .is_none()
     );
+}
+
+#[test]
+fn builds_primitive_comparison_as_a_typed_mir_rvalue() {
+    let (_sources, analysis) = analyze_text(
+        r#"func choose(value: usize): i32 {
+    if value < value {
+        return 1
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "choose" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("primitive comparisons must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.blocks[0].statements.last(),
+        Some(Statement::Assign {
+            value: Rvalue::Compare {
+                operator: ComparisonOperator::Less,
+                operand_scalar: ScalarType::Usize,
+                ..
+            },
+            ..
+        })
+    ));
+    assert_eq!(validate(&body), Ok(()));
 }

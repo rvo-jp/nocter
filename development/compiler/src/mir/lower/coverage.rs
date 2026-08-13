@@ -2,9 +2,10 @@
 //! A body rejected here remains on the legacy route; once accepted, MIR
 //! construction and validation errors are authoritative.
 
-use super::mir_binary_operator;
+use super::expressions::{mir_binary_operator, mir_comparison_operator};
 use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Stmt};
 use crate::literals::decode_integer_literal_value;
+use crate::mir::ComparisonOperator;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedHir};
 
@@ -36,10 +37,15 @@ impl<'a> ScalarTail<'a> {
         }
     }
 
-    pub(super) fn is_supported(self, resolved: &ResolveOutput) -> bool {
+    pub(super) fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
         match self {
-            Self::Expression(expression) => scalar_expression_is_supported(expression, resolved),
-            Self::Conditional(if_) => scalar_conditional_is_supported(if_, resolved),
+            Self::Expression(Expr::If(if_)) => {
+                scalar_conditional_is_supported(if_, resolved, typed_hir)
+            }
+            Self::Expression(expression) => {
+                scalar_expression_is_supported(expression, resolved, typed_hir)
+            }
+            Self::Conditional(if_) => scalar_conditional_is_supported(if_, resolved, typed_hir),
         }
     }
 
@@ -67,13 +73,13 @@ impl<'a> ScalarStatement<'a> {
                                 .is_some()
                     })
                     && known_expression_type(&binding.initializer, typed_hir).is_some()
-                    && scalar_expression_is_supported(&binding.initializer, resolved)
+                    && scalar_expression_is_supported(&binding.initializer, resolved, typed_hir)
             }
             Self::Assignment(assignment) => {
                 assignment.operator == AssignmentOperator::Assign
                     && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()))
                     && known_expression_type(&assignment.value, typed_hir).is_some()
-                    && scalar_expression_is_supported(&assignment.value, resolved)
+                    && scalar_expression_is_supported(&assignment.value, resolved, typed_hir)
             }
         }
     }
@@ -112,16 +118,23 @@ pub(super) fn scalar_body_parts(
     Some((statements, tail))
 }
 
-pub(super) fn scalar_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+pub(super) fn scalar_expression_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
     match expression {
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
         Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
-        Expr::Group(group) => scalar_expression_is_supported(&group.expression, resolved),
+        Expr::Group(group) => {
+            scalar_expression_is_supported(&group.expression, resolved, typed_hir)
+        }
         Expr::Binary(binary) => {
-            mir_binary_operator(binary.operator).is_some()
-                && scalar_expression_is_supported(&binary.left, resolved)
-                && scalar_expression_is_supported(&binary.right, resolved)
+            (mir_binary_operator(binary.operator).is_some()
+                || scalar_comparison_is_supported(binary, typed_hir))
+                && scalar_expression_is_supported(&binary.left, resolved, typed_hir)
+                && scalar_expression_is_supported(&binary.right, resolved, typed_hir)
         }
         // A top-level value conditional is selected by `ScalarTail`. Nested
         // conditionals require expression-level CFG construction and must not
@@ -136,15 +149,51 @@ pub(super) fn scalar_branch_result(block: &Block) -> Option<&Expr> {
     statements.is_empty().then(|| tail.expression()).flatten()
 }
 
-fn scalar_conditional_is_supported(if_: &IfStmt, resolved: &ResolveOutput) -> bool {
-    scalar_expression_is_supported(&if_.condition, resolved)
+fn scalar_conditional_is_supported(
+    if_: &IfStmt,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_expression_is_supported(&if_.condition, resolved, typed_hir)
         && scalar_branch_result(&if_.then_block)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved))
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
         && if_
             .else_block
             .as_ref()
             .and_then(scalar_branch_result)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved))
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
+}
+
+fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
+    let Some(operator) = mir_comparison_operator(binary.operator) else {
+        return false;
+    };
+    if let Some(plan) = typed_hir.comparison_plan(binary.operator_span)
+        && (plan.method.is_some()
+            || plan.left_conversion.is_some()
+            || plan.right_conversion.is_some())
+    {
+        return false;
+    }
+    let Some(left_ty) = known_expression_type(&binary.left, typed_hir) else {
+        return false;
+    };
+    let Some(right_ty) = known_expression_type(&binary.right, typed_hir) else {
+        return false;
+    };
+    let Some(left) = scalar_type(left_ty, typed_hir) else {
+        return false;
+    };
+    let Some(right) = scalar_type(right_ty, typed_hir) else {
+        return false;
+    };
+    left_ty == right_ty
+        && left == right
+        && (!matches!(left, super::ScalarType::Bool)
+            || matches!(
+                operator,
+                ComparisonOperator::Equal | ComparisonOperator::NotEqual
+            ))
 }
 
 pub(super) fn known_expression_type(

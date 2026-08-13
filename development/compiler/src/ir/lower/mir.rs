@@ -3,11 +3,12 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue,
+    BoolComparisonOperator, BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value,
+    Instruction, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
-    BinaryOperator, Body, LocalId, LocalSource, Operand, Place, Rvalue, ScalarType, Statement,
-    Terminator,
+    BinaryOperator, Body, ComparisonOperator, LocalId, LocalSource, Operand, Place, Rvalue,
+    ScalarType, Statement, Terminator,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
@@ -138,6 +139,11 @@ fn lower_statements(
                         lower_i32_operand(left, body)?,
                         lower_i32_operand(right, body)?,
                     )),
+                    Rvalue::Compare { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "i32 scalar route received a comparison result",
+                        ));
+                    }
                 }
             }
             ScalarType::Usize => {
@@ -158,6 +164,11 @@ fn lower_statements(
                         lower_usize_operand(left, body)?,
                         lower_usize_operand(right, body)?,
                     )),
+                    Rvalue::Compare { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "usize scalar route received a comparison result",
+                        ));
+                    }
                 }
             }
             ScalarType::Bool => {
@@ -172,11 +183,73 @@ fn lower_statements(
                             "boolean scalar route received an arithmetic operation",
                         ));
                     }
+                    Rvalue::Compare {
+                        operator,
+                        left,
+                        right,
+                        operand_scalar,
+                        ..
+                    } => instructions.push(Instruction::SetBool {
+                        destination,
+                        value: lower_comparison(*operator, left, right, *operand_scalar, body)?,
+                    }),
                 }
             }
         }
     }
     Ok(instructions)
+}
+
+fn lower_comparison(
+    operator: ComparisonOperator,
+    left: &Operand,
+    right: &Operand,
+    operand_scalar: ScalarType,
+    body: &Body,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    Ok(match operand_scalar {
+        ScalarType::I32 => BoolValue::I32Comparison {
+            operator: integer_comparison_operator(operator),
+            left: lower_i32_operand(left, body)?,
+            right: lower_i32_operand(right, body)?,
+        },
+        ScalarType::Usize => BoolValue::UsizeComparison {
+            operator: integer_comparison_operator(operator),
+            left: lower_usize_operand(left, body)?,
+            right: lower_usize_operand(right, body)?,
+        },
+        ScalarType::Bool => BoolValue::BoolComparison {
+            operator: bool_comparison_operator(operator)?,
+            left: Box::new(lower_bool_operand(left, body)?),
+            right: Box::new(lower_bool_operand(right, body)?),
+        },
+    })
+}
+
+fn integer_comparison_operator(operator: ComparisonOperator) -> I32ComparisonOperator {
+    match operator {
+        ComparisonOperator::Equal => I32ComparisonOperator::Equal,
+        ComparisonOperator::NotEqual => I32ComparisonOperator::NotEqual,
+        ComparisonOperator::Less => I32ComparisonOperator::Less,
+        ComparisonOperator::LessEqual => I32ComparisonOperator::LessEqual,
+        ComparisonOperator::Greater => I32ComparisonOperator::Greater,
+        ComparisonOperator::GreaterEqual => I32ComparisonOperator::GreaterEqual,
+    }
+}
+
+fn bool_comparison_operator(
+    operator: ComparisonOperator,
+) -> Result<BoolComparisonOperator, Vec<Diagnostic>> {
+    match operator {
+        ComparisonOperator::Equal => Ok(BoolComparisonOperator::Equal),
+        ComparisonOperator::NotEqual => Ok(BoolComparisonOperator::NotEqual),
+        ComparisonOperator::Less
+        | ComparisonOperator::LessEqual
+        | ComparisonOperator::Greater
+        | ComparisonOperator::GreaterEqual => Err(invalid_mir_diagnostics(
+            "boolean scalar route received an ordered comparison",
+        )),
+    }
 }
 
 fn attach_primary_span(

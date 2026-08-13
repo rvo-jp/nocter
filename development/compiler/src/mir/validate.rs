@@ -37,6 +37,12 @@ pub(crate) enum ValidationError {
         expected: ScalarType,
         actual: ScalarType,
     },
+    AssignmentScalarMismatch {
+        block: BasicBlockId,
+        statement: usize,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     MissingTarget {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -72,47 +78,63 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             };
             let value_ty = match value {
                 super::model::Rvalue::Use(operand) => {
-                    operand_type(body, block_id, statement_index, operand, &mut errors)
+                    let ty = operand_type(body, block_id, statement_index, operand, &mut errors);
+                    validate_operand_scalar(
+                        body,
+                        block_id,
+                        statement_index,
+                        operand,
+                        destination_local.scalar,
+                        &mut errors,
+                    );
+                    ty
                 }
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
                 } => {
                     for operand in [left, right] {
-                        if let Some(actual) =
-                            operand_type(body, block_id, statement_index, operand, &mut errors)
-                            && actual != *ty
-                        {
-                            errors.push(ValidationError::OperandTypeMismatch {
-                                block: block_id,
-                                statement: statement_index,
-                                expected: *ty,
-                                actual,
-                            });
-                        }
+                        validate_operand(
+                            body,
+                            block_id,
+                            statement_index,
+                            operand,
+                            *ty,
+                            destination_local.scalar,
+                            &mut errors,
+                        );
                     }
                     Some(*ty)
                 }
-            };
-            let operands = match value {
-                super::model::Rvalue::Use(operand) => [Some(operand), None],
-                super::model::Rvalue::Binary { left, right, .. } => [Some(left), Some(right)],
-            };
-            for operand in operands.into_iter().flatten() {
-                let Operand::Copy(place) = operand else {
-                    continue;
-                };
-                let Some(source_local) = body.locals.get(place.local.index()) else {
-                    continue;
-                };
-                if source_local.scalar != destination_local.scalar {
-                    errors.push(ValidationError::OperandScalarMismatch {
-                        block: block_id,
-                        statement: statement_index,
-                        expected: destination_local.scalar,
-                        actual: source_local.scalar,
-                    });
+                super::model::Rvalue::Compare {
+                    left,
+                    right,
+                    operand_ty,
+                    operand_scalar,
+                    result_ty,
+                    ..
+                } => {
+                    for operand in [left, right] {
+                        validate_operand(
+                            body,
+                            block_id,
+                            statement_index,
+                            operand,
+                            *operand_ty,
+                            *operand_scalar,
+                            &mut errors,
+                        );
+                    }
+                    if destination_local.scalar != ScalarType::Bool {
+                        errors.push(ValidationError::AssignmentScalarMismatch {
+                            block: block_id,
+                            statement: statement_index,
+                            expected: ScalarType::Bool,
+                            actual: destination_local.scalar,
+                        });
+                    }
+                    Some(*result_ty)
                 }
-            }
+            };
             if value_ty.is_some_and(|value_ty| destination_local.ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {
                     block: block_id,
@@ -151,6 +173,50 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn validate_operand(
+    body: &Body,
+    block: BasicBlockId,
+    statement: usize,
+    operand: &Operand,
+    expected_ty: TyId,
+    expected_scalar: ScalarType,
+    errors: &mut Vec<ValidationError>,
+) -> Option<TyId> {
+    let actual_ty = operand_type(body, block, statement, operand, errors);
+    if let Some(actual) = actual_ty
+        && actual != expected_ty
+    {
+        errors.push(ValidationError::OperandTypeMismatch {
+            block,
+            statement,
+            expected: expected_ty,
+            actual,
+        });
+    }
+    validate_operand_scalar(body, block, statement, operand, expected_scalar, errors);
+    actual_ty
+}
+
+fn validate_operand_scalar(
+    body: &Body,
+    block: BasicBlockId,
+    statement: usize,
+    operand: &Operand,
+    expected: ScalarType,
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(actual) = operand_scalar(body, operand)
+        && actual != expected
+    {
+        errors.push(ValidationError::OperandScalarMismatch {
+            block,
+            statement,
+            expected,
+            actual,
+        });
     }
 }
 

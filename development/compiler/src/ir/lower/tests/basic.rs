@@ -227,14 +227,18 @@ func main(): i32 {
 }
 
 #[test]
-fn keeps_nested_value_if_on_the_complete_lowering_route() {
+fn lowers_primitive_comparison_through_mir() {
     let ir = lower_text(
-        r#"func choose(condition: bool): i32 {
-    return (if condition { 40 } else { 5 }) + 2
+        r#"func choose(value: usize): i32 {
+    if value < value {
+        return 1
+    } else {
+        return 2
+    }
 }
 
 func main(): i32 {
-    return choose(true)
+    return choose(1)
 }
 "#,
     );
@@ -244,10 +248,31 @@ func main(): i32 {
         .find(|function| function.name == "choose")
         .unwrap();
 
-    assert!(matches!(
-        choose.instructions.as_slice(),
-        [Instruction::If { .. }]
-    ));
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                    right: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                },
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(1),
+                }],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(2),
+                }],
+            },
+            Instruction::Return,
+        ]
+    );
 }
 
 #[test]

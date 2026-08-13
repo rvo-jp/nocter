@@ -949,9 +949,10 @@ fn lowers_entry_bool_equality_binding() {
             },
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Local(2)),
-                then_instructions: vec![set_return_i32(1), Instruction::Return],
-                else_instructions: vec![set_return_i32(0), Instruction::Return],
+                then_instructions: vec![set_return_i32(1)],
+                else_instructions: vec![set_return_i32(0)],
             },
+            Instruction::Return,
         ]
     );
 }
@@ -1157,15 +1158,20 @@ fn lowers_entry_terminal_if_with_i32_equality_condition() {
                     destination: I32Location::Local(0),
                     value: i32_const(42),
                 },
-                Instruction::If {
-                    condition: BoolValue::I32Comparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::I32Comparison {
                         operator: I32ComparisonOperator::Equal,
                         left: i32_local(0),
                         right: i32_const(42),
                     },
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
+                },
+                Instruction::Return,
             ],
         }])
     );
@@ -1196,15 +1202,20 @@ fn lowers_entry_terminal_if_with_i32_less_condition() {
                     destination: I32Location::Local(0),
                     value: i32_const(41),
                 },
-                Instruction::If {
-                    condition: BoolValue::I32Comparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::I32Comparison {
                         operator: I32ComparisonOperator::Less,
                         left: i32_local(0),
                         right: i32_const(42),
                     },
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
+                },
+                Instruction::Return,
             ],
         }])
     );
@@ -1359,15 +1370,22 @@ func differs(left: i32, right: i32): i32 {
                 name: "differs".to_string(),
                 target: crate::ir::CallTarget::same_file("differs".to_string()),
                 return_type: Type::I32,
-                instructions: vec![Instruction::If {
-                    condition: BoolValue::I32Comparison {
-                        operator: I32ComparisonOperator::NotEqual,
-                        left: i32_param(0),
-                        right: i32_param(1),
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(0),
+                        value: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::NotEqual,
+                            left: i32_param(0),
+                            right: i32_param(1),
+                        },
                     },
-                    then_instructions: vec![set_return_i32(1), Instruction::Return],
-                    else_instructions: vec![set_return_i32(0), Instruction::Return],
-                }],
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(1)],
+                        else_instructions: vec![set_return_i32(0)],
+                    },
+                    Instruction::Return,
+                ],
             },
         ])
     );
@@ -1403,15 +1421,22 @@ func at_least(left: i32, right: i32): i32 {
                 name: "at_least".to_string(),
                 target: crate::ir::CallTarget::same_file("at_least".to_string()),
                 return_type: Type::I32,
-                instructions: vec![Instruction::If {
-                    condition: BoolValue::I32Comparison {
-                        operator: I32ComparisonOperator::GreaterEqual,
-                        left: i32_param(0),
-                        right: i32_param(1),
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(0),
+                        value: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::GreaterEqual,
+                            left: i32_param(0),
+                            right: i32_param(1),
+                        },
                     },
-                    then_instructions: vec![set_return_i32(1), Instruction::Return],
-                    else_instructions: vec![set_return_i32(0), Instruction::Return],
-                }],
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(1)],
+                        else_instructions: vec![set_return_i32(0)],
+                    },
+                    Instruction::Return,
+                ],
             },
         ])
     );

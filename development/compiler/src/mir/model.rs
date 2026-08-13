@@ -67,6 +67,14 @@ pub(crate) enum Rvalue {
         right: Operand,
         ty: TyId,
     },
+    Compare {
+        operator: ComparisonOperator,
+        left: Operand,
+        right: Operand,
+        operand_ty: TyId,
+        operand_scalar: ScalarType,
+        result_ty: TyId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,6 +97,16 @@ pub(crate) enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ComparisonOperator {
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

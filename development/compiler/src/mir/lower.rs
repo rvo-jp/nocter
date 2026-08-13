@@ -1,22 +1,19 @@
-//! First vertical typed-HIR-to-MIR route: a scalar integer literal returned by
-//! an otherwise source-empty body.
+//! Scalar body selection and control-flow construction from typed HIR.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{
-    BasicBlock, BinaryOperator, Body, Constant, Local, LocalSource, Operand, Place, Rvalue,
-    ScalarType, Statement, Terminator,
-};
+use super::model::{BasicBlock, Body, Local, LocalSource, ScalarType, Terminator};
 use super::validate;
 use super::validate::ValidationError;
 use crate::ast::{Block, Expr, Parameter};
-use crate::literals::decode_integer_literal_value;
-use crate::resolve::{LocalSymbolId, ResolveOutput};
+use crate::resolve::ResolveOutput;
 use crate::semantic::SemanticDb;
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
 mod coverage;
+mod expressions;
 use coverage::*;
+use expressions::{lower_expression_to_place, lower_operand};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildError {
@@ -41,7 +38,7 @@ pub(crate) fn try_build_scalar_body(
     if !source_statements
         .iter()
         .all(|statement| statement.is_supported(resolved, typed_hir))
-        || !tail.is_supported(resolved)
+        || !tail.is_supported(resolved, typed_hir)
         || !parameters.iter().all(|parameter| {
             resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
@@ -243,168 +240,6 @@ pub(crate) fn try_build_scalar_body(
         validate(&body).map_err(BuildError::InvalidMir)?;
         Ok(body)
     })())
-}
-
-fn lower_expression_to_place(
-    destination: LocalId,
-    expression: &Expr,
-    ty: crate::semantic::TyId,
-    scalar: ScalarType,
-    resolved: &ResolveOutput,
-    locals: &HashMap<LocalSymbolId, LocalId>,
-    typed_hir: &TypedHir,
-    local_declarations: &mut Vec<Local>,
-    statements: &mut Vec<Statement>,
-) -> Result<(), BuildError> {
-    let source = typed_hir
-        .expression(expression.span())
-        .ok_or(BuildError::MissingTypedExpression)?
-        .id;
-    let value = match expression {
-        Expr::Binary(binary) => Rvalue::Binary {
-            operator: mir_binary_operator(binary.operator)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?,
-            left: lower_operand(
-                &binary.left,
-                ty,
-                scalar,
-                resolved,
-                locals,
-                typed_hir,
-                local_declarations,
-                statements,
-            )?,
-            right: lower_operand(
-                &binary.right,
-                ty,
-                scalar,
-                resolved,
-                locals,
-                typed_hir,
-                local_declarations,
-                statements,
-            )?,
-            ty,
-        },
-        Expr::Group(group) => {
-            return lower_expression_to_place(
-                destination,
-                &group.expression,
-                ty,
-                scalar,
-                resolved,
-                locals,
-                typed_hir,
-                local_declarations,
-                statements,
-            );
-        }
-        _ => Rvalue::Use(lower_simple_operand(
-            expression, ty, scalar, resolved, locals,
-        )?),
-    };
-    statements.push(Statement::Assign {
-        destination: Place { local: destination },
-        value,
-        source,
-    });
-    Ok(())
-}
-
-fn lower_operand(
-    expression: &Expr,
-    ty: crate::semantic::TyId,
-    scalar: ScalarType,
-    resolved: &ResolveOutput,
-    locals: &HashMap<LocalSymbolId, LocalId>,
-    typed_hir: &TypedHir,
-    local_declarations: &mut Vec<Local>,
-    statements: &mut Vec<Statement>,
-) -> Result<Operand, BuildError> {
-    if !matches!(expression, Expr::Binary(_)) {
-        return match expression {
-            Expr::Group(group) => lower_operand(
-                &group.expression,
-                ty,
-                scalar,
-                resolved,
-                locals,
-                typed_hir,
-                local_declarations,
-                statements,
-            ),
-            _ => lower_simple_operand(expression, ty, scalar, resolved, locals),
-        };
-    }
-
-    let typed_expression = typed_hir
-        .expression(expression.span())
-        .ok_or(BuildError::MissingTypedExpression)?;
-    let temporary = LocalId::from_index(local_declarations.len());
-    local_declarations.push(Local {
-        ty,
-        scalar,
-        source: LocalSource::Temporary(typed_expression.id),
-    });
-    lower_expression_to_place(
-        temporary,
-        expression,
-        ty,
-        scalar,
-        resolved,
-        locals,
-        typed_hir,
-        local_declarations,
-        statements,
-    )?;
-    Ok(Operand::Copy(Place { local: temporary }))
-}
-
-fn lower_simple_operand(
-    expression: &Expr,
-    ty: crate::semantic::TyId,
-    scalar: ScalarType,
-    resolved: &ResolveOutput,
-    locals: &HashMap<LocalSymbolId, LocalId>,
-) -> Result<Operand, BuildError> {
-    match expression {
-        Expr::IntegerLiteral(literal) => Ok(Operand::Constant(Constant {
-            ty,
-            scalar,
-            value: decode_integer_literal_value(&literal.value)
-                .ok_or(BuildError::InvalidScalarConstant)?,
-        })),
-        Expr::BoolLiteral(literal) => Ok(Operand::Constant(Constant {
-            ty,
-            scalar,
-            value: match literal.value.as_str() {
-                "false" => 0,
-                "true" => 1,
-                _ => return Err(BuildError::InvalidScalarConstant),
-            },
-        })),
-        Expr::Identifier(identifier) => {
-            let symbol = resolved
-                .local_symbol_for_identifier(identifier)
-                .map(|symbol| symbol.id)
-                .ok_or(BuildError::MissingLocalSymbol)?;
-            Ok(Operand::Copy(Place {
-                local: *locals.get(&symbol).ok_or(BuildError::MissingLocalSymbol)?,
-            }))
-        }
-        _ => Err(BuildError::UnsupportedClaimedExpression),
-    }
-}
-
-fn mir_binary_operator(operator: crate::ast::BinaryOperator) -> Option<BinaryOperator> {
-    match operator {
-        crate::ast::BinaryOperator::Add => Some(BinaryOperator::Add),
-        crate::ast::BinaryOperator::Subtract => Some(BinaryOperator::Subtract),
-        crate::ast::BinaryOperator::Multiply => Some(BinaryOperator::Multiply),
-        crate::ast::BinaryOperator::Divide => Some(BinaryOperator::Divide),
-        crate::ast::BinaryOperator::Remainder => Some(BinaryOperator::Remainder),
-        _ => None,
-    }
 }
 
 #[cfg(test)]
