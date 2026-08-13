@@ -43,14 +43,28 @@ pub(super) struct TypedExpressionArena {
 }
 
 impl TypedExpressionArena {
-    pub(super) fn new(semantic_db: Arc<SemanticDb>) -> Self {
-        Self {
+    pub(super) fn new(semantic_db: Arc<SemanticDb>, anchor: ByteSpan) -> Self {
+        let mut arena = Self {
             semantic_db,
             types: Vec::new(),
             scalar_types: Vec::new(),
             type_ids: HashMap::new(),
             expressions: HashMap::new(),
+        };
+        for (name, scalar) in [
+            ("bool", CheckedScalarType::Bool),
+            ("i32", CheckedScalarType::Integer(IntegerType::I32)),
+            ("usize", CheckedScalarType::Integer(IntegerType::Usize)),
+        ] {
+            arena.intern_type(
+                TypeExpr::Reference(crate::ast::TypeReference {
+                    span: anchor,
+                    name: name.to_string(),
+                }),
+                Some(scalar),
+            );
         }
+        arena
     }
 
     pub(super) fn record_type(

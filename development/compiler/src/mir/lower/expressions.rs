@@ -209,7 +209,7 @@ pub(super) fn lower_expression_to_place(
     control_flow.push_statement(Statement::Assign {
         destination: Place { local: destination },
         value,
-        source,
+        origin: crate::mir::Origin::Expression(source),
     })?;
     Ok(())
 }

@@ -39,9 +39,12 @@ pub(crate) struct TypedHir {
 }
 
 impl TypedHir {
-    pub(super) fn new(semantic_db: Arc<SemanticDb>) -> Self {
+    pub(super) fn new(semantic_db: Arc<SemanticDb>, anchor: ByteSpan) -> Self {
         Self {
-            expressions: crate::typecheck::typed_hir::TypedExpressionArena::new(semantic_db),
+            expressions: crate::typecheck::typed_hir::TypedExpressionArena::new(
+                semantic_db,
+                anchor,
+            ),
             binding_type_labels: HashMap::new(),
             binding_type_exprs: HashMap::new(),
             interpolation_plans: HashMap::new(),

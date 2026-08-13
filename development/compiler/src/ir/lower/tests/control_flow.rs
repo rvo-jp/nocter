@@ -369,14 +369,11 @@ fn lowers_continue_inside_nonterminal_range_for_with_increment() {
                     left: i32_local(0),
                     right: i32_local(1),
                 },
-                body_instructions: vec![
-                    Instruction::AddI32 {
-                        destination: I32Location::Local(0),
-                        left: i32_local(0),
-                        right: i32_const(1),
-                    },
-                    Instruction::Continue,
-                ],
+                body_instructions: vec![Instruction::AddI32 {
+                    destination: I32Location::Local(0),
+                    left: i32_local(0),
+                    right: i32_const(1),
+                }],
             },
             Instruction::SetI32 {
                 destination: I32Location::Return,
@@ -593,15 +590,12 @@ func answer(): i32! {
                 value: i32_const(0),
             },
             Instruction::While {
-                condition_instructions: vec![Instruction::SetBool {
-                    destination: BoolLocation::Local(1),
-                    value: BoolValue::I32Comparison {
-                        operator: I32ComparisonOperator::Less,
-                        left: i32_local(0),
-                        right: i32_const(1),
-                    },
-                }],
-                condition: BoolValue::Location(BoolLocation::Local(1)),
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(0),
+                    right: i32_const(1),
+                },
                 body_instructions: vec![Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("answer"),
@@ -2604,15 +2598,12 @@ fn lowers_conditional_break_and_continue_edges_inside_mir_while() {
                 value: i32_const(0),
             },
             Instruction::While {
-                condition_instructions: vec![Instruction::SetBool {
-                    destination: BoolLocation::Local(1),
-                    value: BoolValue::I32Comparison {
-                        operator: I32ComparisonOperator::Less,
-                        left: i32_local(0),
-                        right: i32_const(4),
-                    },
-                }],
-                condition: BoolValue::Location(BoolLocation::Local(1)),
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(0),
+                    right: i32_const(4),
+                },
                 body_instructions: vec![
                     Instruction::AddI32 {
                         destination: I32Location::Local(0),
@@ -2620,7 +2611,7 @@ fn lowers_conditional_break_and_continue_edges_inside_mir_while() {
                         right: i32_const(1),
                     },
                     Instruction::SetBool {
-                        destination: BoolLocation::Local(2),
+                        destination: BoolLocation::Local(1),
                         value: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: i32_local(0),
@@ -2628,12 +2619,12 @@ fn lowers_conditional_break_and_continue_edges_inside_mir_while() {
                         },
                     },
                     Instruction::If {
-                        condition: BoolValue::Location(BoolLocation::Local(2)),
+                        condition: BoolValue::Location(BoolLocation::Local(1)),
                         then_instructions: vec![Instruction::Continue],
                         else_instructions: vec![],
                     },
                     Instruction::SetBool {
-                        destination: BoolLocation::Local(3),
+                        destination: BoolLocation::Local(2),
                         value: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: i32_local(0),
@@ -2641,7 +2632,7 @@ fn lowers_conditional_break_and_continue_edges_inside_mir_while() {
                         },
                     },
                     Instruction::If {
-                        condition: BoolValue::Location(BoolLocation::Local(3)),
+                        condition: BoolValue::Location(BoolLocation::Local(2)),
                         then_instructions: vec![Instruction::Break],
                         else_instructions: vec![],
                     },

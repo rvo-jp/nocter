@@ -7,7 +7,7 @@ use super::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
-use crate::mir::{Body, CallContinuation, Terminator};
+use crate::mir::{Body, CallContinuation, Operand, Rvalue, Statement, Terminator};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 use std::collections::HashSet;
@@ -39,6 +39,10 @@ pub(super) fn lower_linear_loop_condition(
                     "loop condition path does not end in a switch",
                 ));
             };
+            if let Some(value) = inline_condition_value(body, &block.statements, condition)? {
+                instructions.pop();
+                return Ok((instructions, value));
+            }
             return Ok((instructions, lower_bool_operand(condition, body)?));
         }
         current = lower_linear_call_terminator(
@@ -54,13 +58,42 @@ pub(super) fn lower_linear_loop_condition(
     }
 }
 
+fn inline_condition_value(
+    body: &Body,
+    statements: &[Statement],
+    condition: &Operand,
+) -> Result<Option<BoolValue>, Vec<Diagnostic>> {
+    let Operand::Copy(condition_place) = condition else {
+        return Ok(None);
+    };
+    let Some(Statement::Assign {
+        destination,
+        value:
+            Rvalue::Compare {
+                operator,
+                left,
+                right,
+                operand_scalar,
+                ..
+            },
+        ..
+    }) = statements.last()
+    else {
+        return Ok(None);
+    };
+    if destination != condition_place {
+        return Ok(None);
+    }
+    super::lower_comparison(*operator, left, right, *operand_scalar, body).map(Some)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_linear_loop_body(
     body: &Body,
     start: crate::mir::BasicBlockId,
     header: crate::mir::BasicBlockId,
     exit: crate::mir::BasicBlockId,
-    body_exit: control_flow::LoopBodyExit,
+    continue_target: crate::mir::BasicBlockId,
     resolved: &ResolveOutput,
     function_signatures: &super::super::context::FunctionSignatures,
     function_names: &super::super::context::FunctionNames,
@@ -78,20 +111,11 @@ pub(super) fn lower_linear_loop_body(
         let block = &body.blocks[current.index()];
         instructions.extend(lower_statements(body, &block.statements)?);
         match &block.terminator {
-            Terminator::Goto { target } if *target == header => {
-                if body_exit != control_flow::LoopBodyExit::Backedge {
-                    return Err(super::invalid_mir_diagnostics(
-                        "loop body exit changed during MIR structuring",
-                    ));
-                }
+            Terminator::Goto { target } if *target == continue_target => {
+                instructions.extend(lower_continue_path(body, continue_target, header)?);
                 return Ok(instructions);
             }
             Terminator::Goto { target } if *target == exit => {
-                if body_exit != control_flow::LoopBodyExit::Break {
-                    return Err(super::invalid_mir_diagnostics(
-                        "loop body exit changed during MIR structuring",
-                    ));
-                }
                 instructions.push(Instruction::Break);
                 return Ok(instructions);
             }
@@ -124,17 +148,19 @@ pub(super) fn lower_linear_loop_body(
                             "loop conditional else-branch is not a linear path",
                         )
                     })?;
-                let join = control_flow::conditional_join(then_end, else_end, header, exit)
-                    .ok_or_else(|| {
-                        super::invalid_mir_diagnostics(
-                            "loop conditional does not have one continuation path",
-                        )
-                    })?;
+                let join =
+                    control_flow::conditional_join(then_end, else_end, continue_target, exit)
+                        .ok_or_else(|| {
+                            super::invalid_mir_diagnostics(
+                                "loop conditional does not have one continuation path",
+                            )
+                        })?;
                 let then_instructions = lower_loop_branch_path(
                     body,
                     *then_target,
                     then_end,
                     header,
+                    continue_target,
                     exit,
                     resolved,
                     function_signatures,
@@ -147,6 +173,7 @@ pub(super) fn lower_linear_loop_body(
                     *else_target,
                     else_end,
                     header,
+                    continue_target,
                     exit,
                     resolved,
                     function_signatures,
@@ -176,6 +203,7 @@ fn lower_loop_branch_path(
     start: crate::mir::BasicBlockId,
     endpoint: crate::mir::BasicBlockId,
     header: crate::mir::BasicBlockId,
+    continue_target: crate::mir::BasicBlockId,
     exit: crate::mir::BasicBlockId,
     resolved: &ResolveOutput,
     function_signatures: &super::super::context::FunctionSignatures,
@@ -195,7 +223,8 @@ fn lower_loop_branch_path(
         instructions.extend(lower_statements(body, &block.statements)?);
         match &block.terminator {
             Terminator::Goto { target } if *target == endpoint => {
-                if endpoint == header {
+                if endpoint == continue_target {
+                    instructions.extend(lower_continue_path(body, continue_target, header)?);
                     instructions.push(Instruction::Continue);
                 } else if endpoint == exit {
                     instructions.push(Instruction::Break);
@@ -221,6 +250,23 @@ fn lower_loop_branch_path(
             }
         }
     }
+}
+
+fn lower_continue_path(
+    body: &Body,
+    continue_target: crate::mir::BasicBlockId,
+    header: crate::mir::BasicBlockId,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if continue_target == header {
+        return Ok(Vec::new());
+    }
+    let block = &body.blocks[continue_target.index()];
+    if block.terminator != (Terminator::Goto { target: header }) {
+        return Err(super::invalid_mir_diagnostics(
+            "loop continue target does not lead to its header",
+        ));
+    }
+    lower_statements(body, &block.statements)
 }
 
 #[allow(clippy::too_many_arguments)]

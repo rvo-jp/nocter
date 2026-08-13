@@ -58,6 +58,10 @@ pub(crate) enum ValidationError {
     PropagationFromPlainBody {
         block: BasicBlockId,
     },
+    InvalidLoopCondition {
+        header: BasicBlockId,
+        condition: BasicBlockId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +77,35 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     }
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
+    }
+    for region in &body.loop_regions {
+        for target in [
+            region.header,
+            region.condition,
+            region.body,
+            region.continue_target,
+            region.exit,
+        ] {
+            if body.blocks.get(target.index()).is_none() {
+                errors.push(ValidationError::MissingTarget {
+                    block: region.header,
+                    target,
+                });
+            }
+        }
+        if !matches!(
+            body.blocks.get(region.condition.index()).map(|block| &block.terminator),
+            Some(Terminator::Switch {
+                then_target,
+                else_target,
+                ..
+            }) if *then_target == region.body && *else_target == region.exit
+        ) {
+            errors.push(ValidationError::InvalidLoopCondition {
+                header: region.header,
+                condition: region.condition,
+            });
+        }
     }
 
     for (block_index, block) in body.blocks.iter().enumerate() {
@@ -367,7 +400,7 @@ mod tests {
                             scalar: crate::mir::model::ScalarType::I32,
                             value: 7,
                         })),
-                        source: ExprId::from_index(0),
+                        origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
                     }],
                     terminator: Terminator::Goto {
                         target: BasicBlockId::from_index(1),
@@ -378,6 +411,7 @@ mod tests {
                     terminator: Terminator::Return,
                 },
             ],
+            loop_regions: Vec::new(),
         }
     }
 
@@ -415,7 +449,7 @@ mod tests {
                 scalar: crate::mir::model::ScalarType::I32,
                 value: 7,
             })),
-            source: ExprId::from_index(0),
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
         };
         body.blocks[0].terminator = Terminator::Goto {
             target: BasicBlockId::from_index(8),
@@ -444,7 +478,7 @@ mod tests {
         let mut body = valid_body();
         body.blocks[0].statements.clear();
         body.blocks[0].terminator = Terminator::Call {
-            source: ExprId::from_index(0),
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
             callee: DefId::from_index(0),
             arguments: vec![CallArgument {
                 operand: Operand::Constant(Constant {

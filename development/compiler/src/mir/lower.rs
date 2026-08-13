@@ -112,12 +112,14 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             locals_by_symbol.insert(symbol, local);
         }
         let mut control_flow = ControlFlowBuilder::new();
+        let mut loop_regions = Vec::new();
         StatementLowerer::new(
             resolved,
             typed_hir,
             &mut locals,
             &mut locals_by_symbol,
             &mut control_flow,
+            &mut loop_regions,
         )
         .lower(&source_statements)?;
         if let Some(if_) = tail.conditional() {
@@ -225,6 +227,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             locals,
             entry: BasicBlockId::from_index(0),
             blocks,
+            loop_regions,
         };
         validate(&body).map_err(BuildError::InvalidMir)?;
         Ok(body)

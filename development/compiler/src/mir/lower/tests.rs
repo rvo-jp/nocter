@@ -379,9 +379,10 @@ func main(): i32 {
     .unwrap();
 
     assert_eq!(body.blocks.len(), 4);
+    assert!(body.loop_regions.is_empty());
     for (index, block) in body.blocks[..3].iter().enumerate() {
         let Terminator::Call {
-            source,
+            origin,
             continuation:
                 crate::mir::CallContinuation::Return {
                     destination,
@@ -391,6 +392,9 @@ func main(): i32 {
         } = block.terminator
         else {
             panic!("expected call edge at block {index}");
+        };
+        let crate::mir::Origin::Expression(source) = origin else {
+            panic!("expected expression-backed call origin");
         };
         assert_eq!(destination.local.index(), index + 1);
         assert_eq!(target, BasicBlockId::from_index(index + 1));
@@ -604,6 +608,16 @@ fn builds_scalar_while_as_a_backedge_cfg() {
     .unwrap();
 
     assert_eq!(body.blocks.len(), 4);
+    assert_eq!(
+        body.loop_regions,
+        vec![crate::mir::LoopRegion {
+            header: BasicBlockId::from_index(1),
+            condition: BasicBlockId::from_index(1),
+            body: BasicBlockId::from_index(2),
+            continue_target: BasicBlockId::from_index(1),
+            exit: BasicBlockId::from_index(3),
+        }]
+    );
     assert_eq!(
         body.blocks[0].terminator,
         Terminator::Goto {

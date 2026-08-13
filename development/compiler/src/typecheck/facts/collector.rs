@@ -4,7 +4,7 @@ use crate::typecheck::copyability::non_copy_owned_type_kind;
 pub(in crate::typecheck) fn build_typed_hir(ast: &AstFile, resolved: &ResolveOutput) -> TypedHir {
     let mut collector = TypedHirBuilder {
         resolved,
-        facts: TypedHir::new(resolved.semantic_db.clone()),
+        facts: TypedHir::new(resolved.semantic_db.clone(), ast.span),
         generic_parameters: Vec::new(),
         associated_types: Vec::new(),
     };

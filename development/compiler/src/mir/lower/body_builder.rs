@@ -2,7 +2,7 @@
 
 use super::BuildError;
 use crate::mir::ids::BasicBlockId;
-use crate::mir::{CallArgument, CallContinuation, LocalId, Place, Statement, Terminator};
+use crate::mir::{CallArgument, CallContinuation, LocalId, Origin, Place, Statement, Terminator};
 use crate::semantic::{DefId, ExprId};
 
 #[derive(Debug, Default)]
@@ -67,6 +67,10 @@ impl ControlFlowBuilder {
         Ok(())
     }
 
+    pub(super) fn current_block(&self) -> Result<BasicBlockId, BuildError> {
+        self.current.ok_or(BuildError::MissingOpenBlock)
+    }
+
     pub(super) fn emit_returning_call(
         &mut self,
         source: ExprId,
@@ -76,7 +80,7 @@ impl ControlFlowBuilder {
     ) -> Result<(), BuildError> {
         let target = self.reserve_block();
         self.terminate(Terminator::Call {
-            source,
+            origin: Origin::Expression(source),
             callee,
             arguments,
             continuation: CallContinuation::Return {
@@ -94,7 +98,7 @@ impl ControlFlowBuilder {
         arguments: Vec<CallArgument>,
     ) -> Result<(), BuildError> {
         self.terminate(Terminator::Call {
-            source,
+            origin: Origin::Expression(source),
             callee,
             arguments,
             continuation: CallContinuation::Never,
@@ -142,7 +146,7 @@ impl ControlFlowBuilder {
         let success = self.reserve_block();
         let failure = self.reserve_block();
         self.terminate(Terminator::Call {
-            source,
+            origin: Origin::Expression(source),
             callee,
             arguments,
             continuation: CallContinuation::Outcome {

@@ -4,7 +4,8 @@
 
 use super::expressions::{mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Stmt, WhileStmt,
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, Stmt,
+    WhileStmt,
 };
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
@@ -16,6 +17,7 @@ pub(super) enum ScalarStatement<'a> {
     Binding(&'a BindingStmt),
     Assignment(&'a AssignmentStmt),
     If(&'a IfStmt),
+    ForRange(&'a ForRangeStmt),
     While(&'a WhileStmt),
     Break,
     Continue,
@@ -159,6 +161,27 @@ impl<'a> ScalarStatement<'a> {
                         statement, resolved, typed_hir, in_loop,
                     )
             }
+            Self::ForRange(statement) => {
+                let Some(symbol) = resolved.local_symbol_id_at_name_span(statement.name_span)
+                else {
+                    return false;
+                };
+                let Some(binding_scalar) = binding_scalar_type(symbol, typed_hir) else {
+                    return false;
+                };
+                matches!(
+                    binding_scalar,
+                    crate::mir::ScalarType::I32 | crate::mir::ScalarType::Usize
+                ) && known_expression_type(&statement.start, typed_hir)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    == Some(binding_scalar)
+                    && known_expression_type(&statement.end, typed_hir)
+                        .and_then(|ty| scalar_type(ty, typed_hir))
+                        == Some(binding_scalar)
+                    && scalar_expression_is_supported(&statement.start, resolved, typed_hir)
+                    && scalar_expression_is_supported(&statement.end, resolved, typed_hir)
+                    && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+            }
             Self::Break | Self::Continue => in_loop,
         }
     }
@@ -169,6 +192,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
         Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
         Stmt::If(statement) => Some(ScalarStatement::If(statement)),
+        Stmt::ForRange(statement) => Some(ScalarStatement::ForRange(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
@@ -196,7 +220,7 @@ pub(super) fn scalar_linear_block_statements<'a>(
         if exited
             || matches!(
                 statement,
-                ScalarStatement::If(_) | ScalarStatement::While(_)
+                ScalarStatement::If(_) | ScalarStatement::While(_) | ScalarStatement::ForRange(_)
             )
             || !statement.is_supported_in_context(resolved, typed_hir, in_loop)
         {
@@ -261,7 +285,10 @@ pub(super) fn scalar_loop_block_statements<'a>(
     let mut exited = false;
     for statement in &statements {
         if exited
-            || matches!(statement, ScalarStatement::While(_))
+            || matches!(
+                statement,
+                ScalarStatement::While(_) | ScalarStatement::ForRange(_)
+            )
             || !statement.is_supported_in_context(resolved, typed_hir, true)
         {
             return None;

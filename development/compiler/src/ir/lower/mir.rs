@@ -95,7 +95,11 @@ fn lower_scalar_body(
         if !visited.insert(current) {
             return Err(invalid_mir_diagnostics("control flow contains a cycle"));
         }
-        if let Some(loop_) = control_flow::linear_loop(body, current) {
+        if let Some(loop_) = body
+            .loop_regions
+            .iter()
+            .find(|loop_| loop_.header == current)
+        {
             let (condition_instructions, condition) = loops::lower_linear_loop_condition(
                 body,
                 current,
@@ -109,9 +113,9 @@ fn lower_scalar_body(
             let body_instructions = loops::lower_linear_loop_body(
                 body,
                 loop_.body,
-                current,
+                loop_.header,
                 loop_.exit,
-                loop_.body_exit,
+                loop_.continue_target,
                 resolved,
                 function_signatures,
                 function_names,
@@ -796,9 +800,10 @@ fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnosti
     match &body.locals[place.local.index()].source {
         LocalSource::Return => Ok(I32Location::Return),
         LocalSource::Parameter { index, .. } => Ok(I32Location::Parameter(*index)),
-        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
-            Ok(I32Location::Local(machine_local_index(body, place.local)))
-        }
+        LocalSource::Binding(_)
+        | LocalSource::Temporary(_)
+        | LocalSource::Desugared(_)
+        | LocalSource::Virtual(_) => Ok(I32Location::Local(machine_local_index(body, place.local))),
     }
 }
 
@@ -806,7 +811,10 @@ fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagn
     match &body.locals[place.local.index()].source {
         LocalSource::Return => Ok(UsizeLocation::Return),
         LocalSource::Parameter { index, .. } => Ok(UsizeLocation::Parameter(*index)),
-        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
+        LocalSource::Binding(_)
+        | LocalSource::Temporary(_)
+        | LocalSource::Desugared(_)
+        | LocalSource::Virtual(_) => {
             Ok(UsizeLocation::Local(machine_local_index(body, place.local)))
         }
     }
@@ -816,7 +824,10 @@ fn bool_location(place: &Place, body: &Body) -> Result<BoolLocation, Vec<Diagnos
     match &body.locals[place.local.index()].source {
         LocalSource::Return => Ok(BoolLocation::Return),
         LocalSource::Parameter { index, .. } => Ok(BoolLocation::Parameter(*index)),
-        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
+        LocalSource::Binding(_)
+        | LocalSource::Temporary(_)
+        | LocalSource::Desugared(_)
+        | LocalSource::Virtual(_) => {
             Ok(BoolLocation::Local(machine_local_index(body, place.local)))
         }
     }
@@ -828,7 +839,7 @@ fn machine_local_index(body: &Body, local: LocalId) -> usize {
         .filter(|local| {
             matches!(
                 local.source,
-                LocalSource::Binding(_) | LocalSource::Temporary(_)
+                LocalSource::Binding(_) | LocalSource::Temporary(_) | LocalSource::Desugared(_)
             )
         })
         .count()

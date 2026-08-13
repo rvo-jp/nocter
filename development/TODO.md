@@ -9,8 +9,7 @@ calls in straight-line, conditional, and natural-loop expression evaluation, plu
 propagating scalar fallible calls. MIR construction and validation are authoritative
 after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
 buildability follows its identity-backed call edges without revisiting the AST body. The next
-boundary is conditional and range-loop control flow, followed by aggregates, borrows, ownership
-cleanup, and drops. Do not leave a
+boundary is owned aggregates, borrows, ownership cleanup, and drops. Do not leave a
 permanent dual pipeline, add language features, or add standard-library APIs during the architecture
 migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
@@ -49,8 +48,16 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - conditional loop-body branches classify each terminal edge as a local join, back-edge, or loop
   exit; conditional `continue` and `break` therefore remain ordinary checked CFG edges until
   machine-IR structuring
-- the next checkpoint adds range iteration and then introduces owned aggregate locals with explicit
-  scope-exit cleanup edges
+- checked bodies retain validated `LoopRegion` records alongside CFG edges, so machine-IR lowering
+  does not rediscover loop structure from incidental block shape; range loops use an explicit
+  increment target while ordinary `while` loops continue directly to their header
+- MIR origins distinguish authored `ExprId` operations from compiler-desugared operations; scalar
+  range comparison and increment operations therefore do not borrow unrelated expression identity
+- the checked type arena interns foundational scalar types for compiler-generated typed operations,
+  and virtual comparison locals do not consume machine-local slots after condition inlining
+- scalar i32/usize range loops, including `break`, `continue`, and post-loop shadowing, now use the
+  same retained MIR body in buildability and lowering
+- the next checkpoint introduces owned aggregate locals and explicit scope-exit cleanup edges
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

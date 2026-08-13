@@ -15,12 +15,22 @@ pub(crate) struct Body {
     pub(crate) locals: Vec<Local>,
     pub(crate) entry: BasicBlockId,
     pub(crate) blocks: Vec<BasicBlock>,
+    pub(crate) loop_regions: Vec<LoopRegion>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReturnMode {
     Plain,
     Fallible,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LoopRegion {
+    pub(crate) header: BasicBlockId,
+    pub(crate) condition: BasicBlockId,
+    pub(crate) body: BasicBlockId,
+    pub(crate) continue_target: BasicBlockId,
+    pub(crate) exit: BasicBlockId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +53,14 @@ pub(crate) enum LocalSource {
     Parameter { symbol: LocalSymbolId, index: usize },
     Binding(LocalSymbolId),
     Temporary(ExprId),
+    Desugared(ByteSpan),
+    Virtual(ByteSpan),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Origin {
+    Expression(ExprId),
+    Desugared(ByteSpan),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +74,7 @@ pub(crate) enum Statement {
     Assign {
         destination: Place,
         value: Rvalue,
-        source: ExprId,
+        origin: Origin,
     },
 }
 
@@ -148,7 +166,7 @@ pub(crate) enum Terminator {
         else_target: BasicBlockId,
     },
     Call {
-        source: ExprId,
+        origin: Origin,
         callee: DefId,
         arguments: Vec<CallArgument>,
         continuation: CallContinuation,
