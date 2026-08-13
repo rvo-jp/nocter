@@ -19,7 +19,7 @@ use std::collections::HashMap;
 pub(crate) enum BuildError {
     MissingSourceBody,
     MissingTypedExpression,
-    InvalidIntegerConstant,
+    InvalidScalarConstant,
     MissingLocalSymbol,
     MissingParameterType,
     UnsupportedClaimedExpression,
@@ -210,6 +210,7 @@ fn scalar_body_parts(block: &Block) -> Option<(Vec<ScalarStatement<'_>>, &Expr)>
 fn scalar_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
     match expression {
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value).is_some(),
+        Expr::BoolLiteral(literal) => matches!(literal.value.as_str(), "true" | "false"),
         Expr::Identifier(identifier) => resolved.local_symbol_for_identifier(identifier).is_some(),
         Expr::Group(group) => scalar_expression_is_supported(&group.expression, resolved),
         Expr::Binary(binary) => {
@@ -344,7 +345,15 @@ fn lower_simple_operand(
         Expr::IntegerLiteral(literal) => Ok(Operand::Constant(Constant {
             ty,
             value: decode_integer_literal_value(&literal.value)
-                .ok_or(BuildError::InvalidIntegerConstant)?,
+                .ok_or(BuildError::InvalidScalarConstant)?,
+        })),
+        Expr::BoolLiteral(literal) => Ok(Operand::Constant(Constant {
+            ty,
+            value: match literal.value.as_str() {
+                "false" => 0,
+                "true" => 1,
+                _ => return Err(BuildError::InvalidScalarConstant),
+            },
         })),
         Expr::Identifier(identifier) => {
             let symbol = resolved

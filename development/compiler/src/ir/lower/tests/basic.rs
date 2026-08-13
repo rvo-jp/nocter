@@ -109,6 +109,47 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_bool_parameters_and_results_through_scalar_mir() {
+    let ir = lower_text(
+        r#"func helper(value: bool): bool {
+    var result = value
+    result = false
+    return result
+}
+
+func main(): i32 {
+    let value = helper(true)
+    return 0
+}
+"#,
+    );
+    let helper = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "helper")
+        .unwrap();
+
+    assert_eq!(
+        helper.instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Location(BoolLocation::Parameter(0)),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(false),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Return,
+                value: BoolValue::Location(BoolLocation::Local(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit

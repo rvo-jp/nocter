@@ -2,7 +2,9 @@
 //! AST-driven lowering family has been removed from its production route.
 
 use crate::diagnostics::Diagnostic;
-use crate::ir::{I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue};
+use crate::ir::{
+    BoolLocation, BoolValue, I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue,
+};
 use crate::mir::{
     BinaryOperator, Body, LocalId, LocalSource, Operand, Place, Rvalue, Statement, Terminator,
 };
@@ -19,7 +21,7 @@ pub(super) fn try_lower_scalar_body(
     typed_hir: &TypedHir,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    if !matches!(return_type, Type::I32 | Type::Usize) {
+    if !matches!(return_type, Type::I32 | Type::Usize | Type::Bool) {
         return None;
     }
     let mir_body = crate::mir::try_build_scalar_body(
@@ -97,6 +99,20 @@ fn lower_scalar_body(body: &Body, return_type: &Type) -> Result<Vec<Instruction>
                             lower_usize_operand(left, body)?,
                             lower_usize_operand(right, body)?,
                         )),
+                    }
+                }
+                Type::Bool => {
+                    let destination = bool_location(destination, body)?;
+                    match value {
+                        Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
+                            destination,
+                            value: lower_bool_operand(operand, body)?,
+                        }),
+                        Rvalue::Binary { .. } => {
+                            return Err(invalid_mir_diagnostics(
+                                "boolean scalar route received an arithmetic operation",
+                            ));
+                        }
                     }
                 }
                 _ => {
@@ -218,6 +234,16 @@ fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagn
     }
 }
 
+fn bool_location(place: &Place, body: &Body) -> Result<BoolLocation, Vec<Diagnostic>> {
+    match &body.locals[place.local.index()].source {
+        LocalSource::Return => Ok(BoolLocation::Return),
+        LocalSource::Parameter { index, .. } => Ok(BoolLocation::Parameter(*index)),
+        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
+            Ok(BoolLocation::Local(machine_local_index(body, place.local)))
+        }
+    }
+}
+
 fn machine_local_index(body: &Body, local: LocalId) -> usize {
     body.locals[..local.index()]
         .iter()
@@ -251,6 +277,19 @@ fn lower_usize_operand(operand: &Operand, body: &Body) -> Result<UsizeValue, Vec
                 invalid_mir_diagnostics("usize constant is outside its runtime representation")
             }),
         Operand::Copy(place) => usize_location(place, body).map(UsizeValue::Location),
+    }
+}
+
+fn lower_bool_operand(operand: &Operand, body: &Body) -> Result<BoolValue, Vec<Diagnostic>> {
+    match operand {
+        Operand::Constant(constant) => match constant.value {
+            0 => Ok(BoolValue::Const(false)),
+            1 => Ok(BoolValue::Const(true)),
+            _ => Err(invalid_mir_diagnostics(
+                "bool constant is outside its runtime representation",
+            )),
+        },
+        Operand::Copy(place) => bool_location(place, body).map(BoolValue::Location),
     }
 }
 
