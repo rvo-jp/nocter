@@ -50,6 +50,12 @@ use crate::source_scopes::SourceScopeMap;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
+/// One compile-unit view of per-source resolution results.
+///
+/// Semantic and lowering stages share this map instead of declaring
+/// stage-specific aliases for the same authority.
+pub(crate) type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
+
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
     resolve_compile_unit(
         sources,

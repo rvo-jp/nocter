@@ -27,7 +27,7 @@ use super::errors::ErrorPayload;
 use super::types::type_expr_with_self_type;
 
 pub(super) type ErrorPayloads = HashMap<CallTarget, ErrorPayload>;
-pub(super) type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
+pub(super) type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
 
 pub(super) struct LoweringContext<'a> {
     function_name: String,

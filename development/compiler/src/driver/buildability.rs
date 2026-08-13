@@ -136,7 +136,7 @@ struct CallableIndex<'a> {
     root_source: SourceId,
 }
 
-type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
+type ResolvedSources<'a> = crate::resolve::ResolvedSources<'a>;
 type CallableNames = HashMap<DefId, String>;
 
 impl<'a> CallableIndex<'a> {
