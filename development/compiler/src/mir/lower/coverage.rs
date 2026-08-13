@@ -3,7 +3,9 @@
 //! construction and validation errors are authoritative.
 
 use super::expressions::{mir_binary_operator, mir_comparison_operator};
-use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Stmt};
+use crate::ast::{
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Stmt, WhileStmt,
+};
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
@@ -13,6 +15,9 @@ use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedHir};
 pub(super) enum ScalarStatement<'a> {
     Binding(&'a BindingStmt),
     Assignment(&'a AssignmentStmt),
+    While(&'a WhileStmt),
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -108,6 +113,15 @@ fn scalar_call_shape_is_supported(
 
 impl<'a> ScalarStatement<'a> {
     pub(super) fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
+        self.is_supported_in_context(resolved, typed_hir, false)
+    }
+
+    fn is_supported_in_context(
+        self,
+        resolved: &ResolveOutput,
+        typed_hir: &TypedHir,
+        in_loop: bool,
+    ) -> bool {
         match self {
             Self::Binding(binding) => {
                 resolved
@@ -128,8 +142,57 @@ impl<'a> ScalarStatement<'a> {
                     && known_expression_type(&assignment.value, typed_hir).is_some()
                     && scalar_expression_is_supported(&assignment.value, resolved, typed_hir)
             }
+            Self::While(statement) => {
+                scalar_expression_is_supported(&statement.condition, resolved, typed_hir)
+                    && known_expression_type(&statement.condition, typed_hir)
+                        .and_then(|ty| scalar_type(ty, typed_hir))
+                        == Some(crate::mir::ScalarType::Bool)
+                    && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+            }
+            Self::Break | Self::Continue => in_loop,
         }
     }
+}
+
+fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
+    match statement {
+        Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
+        Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
+        Stmt::While(statement) => Some(ScalarStatement::While(statement)),
+        Stmt::Break(_) => Some(ScalarStatement::Break),
+        Stmt::Continue(_) => Some(ScalarStatement::Continue),
+        _ => None,
+    }
+}
+
+pub(super) fn scalar_loop_block_statements<'a>(
+    block: &'a Block,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> Option<Vec<ScalarStatement<'a>>> {
+    if block.result.is_some() {
+        return None;
+    }
+    let statements = block
+        .statements
+        .iter()
+        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
+        .map(scalar_statement)
+        .collect::<Option<Vec<_>>>()?;
+    let mut exited = false;
+    for statement in &statements {
+        if exited
+            || matches!(statement, ScalarStatement::While(_))
+            || !statement.is_supported_in_context(resolved, typed_hir, true)
+        {
+            return None;
+        }
+        exited = matches!(
+            statement,
+            ScalarStatement::Break | ScalarStatement::Continue
+        );
+    }
+    Some(statements)
 }
 
 pub(super) fn scalar_body_parts(
@@ -156,11 +219,7 @@ pub(super) fn scalar_body_parts(
     };
     let statements = body_statements
         .iter()
-        .map(|statement| match statement {
-            Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
-            Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
-            _ => None,
-        })
+        .map(|statement| scalar_statement(statement))
         .collect::<Option<Vec<_>>>()?;
     Some((statements, tail))
 }

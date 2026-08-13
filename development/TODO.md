@@ -5,11 +5,12 @@
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The first production MIR route now
 owns nongeneric scalar parameters, bindings, assignments, arithmetic, comparisons, explicit
 temporaries, value conditionals, terminal conditionals, return joins, and direct nongeneric scalar
-calls in straight-line and conditional expression evaluation, plus trapping and propagating scalar
-fallible calls. MIR construction and validation are authoritative
+calls in straight-line, conditional, and natural-loop expression evaluation, plus trapping and
+propagating scalar fallible calls. MIR construction and validation are authoritative
 after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
 buildability follows its identity-backed call edges without revisiting the AST body. The next
-boundary is failure-path cleanup, followed by loops, aggregates, borrows, and drops. Do not leave a
+boundary is conditional and range-loop control flow, followed by aggregates, borrows, ownership
+cleanup, and drops. Do not leave a
 permanent dual pipeline, add language features, or add standard-library APIs during the architecture
 migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
@@ -40,8 +41,13 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - buildability classifies plain and fallible scalar returns before constructing the shared MIR body;
   MIR validation rejects propagation from plain bodies, and MIR-to-IR derives its outcome failure
   mode from the checked failure edge
-- the next checkpoint models failure-path cleanup before extending the same checked control-flow
-  foundation to loops
+- scalar `while` statements lower to a condition header, body back-edge, and exit block; `break` and
+  `continue` normalize to exit and back-edges instead of surviving as syntax-specific MIR nodes
+- loop conditions and linear bodies may contain ordinary, trapping, and propagating scalar calls;
+  dedicated MIR-to-IR loop structuring discovers the complete condition path rather than assuming
+  that the condition occupies one block
+- the next checkpoint extends loop bodies to conditional exits and range iteration before owned
+  aggregate locals introduce scope-exit cleanup edges
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

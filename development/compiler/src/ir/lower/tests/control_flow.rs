@@ -449,11 +449,11 @@ func ready(): bool {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
                 body_instructions: vec![
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Local(1),
                         value: i32_const(1),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Local(1),
                         value: i32_const(2),
                     },
                 ],
@@ -560,6 +560,103 @@ fn lowers_outer_scalar_assignment_inside_nonterminal_while_body() {
             },
             Instruction::Return,
         ],
+    );
+}
+
+#[test]
+fn lowers_scalar_outcome_edges_inside_mir_while_body() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var value = 0
+    while value < 1 {
+        value = answer()!
+    }
+    return value
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::While {
+                condition_instructions: vec![Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Less,
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                }],
+                condition: BoolValue::Location(BoolLocation::Local(1)),
+                body_instructions: vec![Instruction::CallOutcomeI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                    failure_mode: OutcomeFailureMode::Trap,
+                }],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_propagated_outcome_edges_inside_mir_while_condition() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    while (ready()?) {
+    }
+    return 0
+}
+
+func ready(): bool! {
+    return false
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![Instruction::CallOutcomeBool {
+                    destination: BoolLocation::Local(0),
+                    target: CallTarget::same_file("ready"),
+                    arguments: vec![],
+                    failure_mode: OutcomeFailureMode::Propagate,
+                }],
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                body_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::ReturnOutcomeSuccess,
+        ]
     );
 }
 

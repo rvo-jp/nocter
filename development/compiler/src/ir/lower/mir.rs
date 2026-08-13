@@ -16,6 +16,7 @@ use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
 mod control_flow;
+mod loops;
 
 pub(super) fn try_lower_scalar_body(
     cache: &crate::mir::BodyCache,
@@ -94,6 +95,38 @@ fn lower_scalar_body(
         if !visited.insert(current) {
             return Err(invalid_mir_diagnostics("control flow contains a cycle"));
         }
+        if let Some(loop_) = control_flow::linear_loop(body, current) {
+            let (condition_instructions, condition) = loops::lower_linear_loop_condition(
+                body,
+                current,
+                loop_.condition,
+                resolved,
+                function_signatures,
+                function_names,
+                root_source,
+                &mut visited,
+            )?;
+            let body_instructions = loops::lower_linear_loop_body(
+                body,
+                loop_.body,
+                current,
+                loop_.exit,
+                loop_.body_exit,
+                resolved,
+                function_signatures,
+                function_names,
+                root_source,
+                &mut visited,
+            )?;
+            instructions.push(Instruction::While {
+                condition_instructions,
+                condition,
+                body_instructions,
+            });
+            current = loop_.exit;
+            continue;
+        }
+
         let block = &body.blocks[current.index()];
         instructions.extend(lower_statements(body, &block.statements)?);
 
@@ -223,40 +256,17 @@ fn lower_scalar_body(
                         success,
                         failure,
                     } => {
-                        let failure_block = &body.blocks[failure.index()];
-                        let failure_mode = if !failure_block.statements.is_empty() {
-                            return Err(invalid_mir_diagnostics(
-                                "outcome call must have a dedicated failure block",
-                            ));
-                        } else {
-                            match failure_block.terminator {
-                                Terminator::Trap => OutcomeFailureMode::Trap,
-                                Terminator::PropagateFailure
-                                    if body.return_mode == ReturnMode::Fallible =>
-                                {
-                                    OutcomeFailureMode::Propagate
-                                }
-                                _ => {
-                                    return Err(invalid_mir_diagnostics(
-                                        "outcome call failure block has an invalid terminator",
-                                    ));
-                                }
-                            }
-                        };
+                        let failure_mode = outcome_failure_mode(body, *failure)?;
                         let destination_scalar = body.locals[destination.local.index()].scalar;
-                        validate_outcome_call_return_type(
-                            &call_target,
-                            &callee_name,
-                            destination_scalar,
-                            function_signatures,
-                        )?;
-                        instructions.push(outcome_call_instruction(
+                        instructions.push(lower_outcome_call(
+                            body,
                             destination_scalar,
                             destination,
                             call_target,
                             arguments,
                             failure_mode,
-                            body,
+                            &callee_name,
+                            function_signatures,
                         )?);
                         visited.insert(*failure);
                         current = *success;
@@ -279,6 +289,27 @@ fn lower_scalar_body(
                 return Ok(instructions);
             }
         }
+    }
+}
+
+fn outcome_failure_mode(
+    body: &Body,
+    failure: crate::mir::BasicBlockId,
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
+    let failure_block = &body.blocks[failure.index()];
+    if !failure_block.statements.is_empty() {
+        return Err(invalid_mir_diagnostics(
+            "outcome call must have a dedicated failure block",
+        ));
+    }
+    match failure_block.terminator {
+        Terminator::Trap => Ok(OutcomeFailureMode::Trap),
+        Terminator::PropagateFailure if body.return_mode == ReturnMode::Fallible => {
+            Ok(OutcomeFailureMode::Propagate)
+        }
+        _ => Err(invalid_mir_diagnostics(
+            "outcome call failure block has an invalid terminator",
+        )),
     }
 }
 
@@ -351,17 +382,14 @@ fn lower_linear_branch(
                     .map(|argument| lower_call_argument(argument, body))
                     .collect::<Result<Vec<_>, _>>()?;
                 let destination_scalar = body.locals[destination.local.index()].scalar;
-                super::expressions::validate_known_call_success_return_passing(
-                    function_signatures.success_return_passing(&call_target),
-                    &callee_name,
-                    &scalar_ir_type(destination_scalar),
-                )?;
-                instructions.push(call_instruction(
+                instructions.push(lower_returning_call(
+                    body,
                     destination_scalar,
                     destination,
                     call_target,
                     arguments,
-                    body,
+                    &callee_name,
+                    function_signatures,
                 )?);
                 current = *target;
             }
@@ -398,6 +426,38 @@ fn call_instruction(
             arguments,
         },
     })
+}
+
+fn lower_returning_call(
+    body: &Body,
+    scalar: ScalarType,
+    destination: &Place,
+    target: crate::ir::CallTarget,
+    arguments: Vec<ScalarArgument>,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    super::expressions::validate_known_call_success_return_passing(
+        function_signatures.success_return_passing(&target),
+        callee_name,
+        &scalar_ir_type(scalar),
+    )?;
+    call_instruction(scalar, destination, target, arguments, body)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_outcome_call(
+    body: &Body,
+    scalar: ScalarType,
+    destination: &Place,
+    target: crate::ir::CallTarget,
+    arguments: Vec<ScalarArgument>,
+    failure_mode: OutcomeFailureMode,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    validate_outcome_call_return_type(&target, callee_name, scalar, function_signatures)?;
+    outcome_call_instruction(scalar, destination, target, arguments, failure_mode, body)
 }
 
 fn outcome_call_instruction(

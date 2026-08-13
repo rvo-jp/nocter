@@ -568,3 +568,105 @@ func main(): i32! {
     assert_eq!(body.blocks[1].terminator, Terminator::Return);
     assert_eq!(validate(&body), Ok(()));
 }
+
+#[test]
+fn builds_scalar_while_as_a_backedge_cfg() {
+    let (_sources, analysis) = analyze_text(
+        r#"func main(): i32 {
+    var value = 0
+    while value < 4 {
+        value = value + 1
+    }
+    return value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("scalar while loops must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 4);
+    assert_eq!(
+        body.blocks[0].terminator,
+        Terminator::Goto {
+            target: BasicBlockId::from_index(1),
+        }
+    );
+    assert!(matches!(
+        body.blocks[1].terminator,
+        Terminator::Switch {
+            then_target,
+            else_target,
+            ..
+        } if then_target == BasicBlockId::from_index(2)
+            && else_target == BasicBlockId::from_index(3)
+    ));
+    assert_eq!(
+        body.blocks[2].terminator,
+        Terminator::Goto {
+            target: BasicBlockId::from_index(1),
+        }
+    );
+    assert_eq!(body.blocks[3].terminator, Terminator::Return);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn maps_scalar_break_to_the_loop_exit_edge() {
+    let (_sources, analysis) = analyze_text(
+        r#"func main(): i32 {
+    while true {
+        break
+    }
+    return 7
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("scalar loop exits must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.blocks[2].terminator,
+        Terminator::Goto {
+            target: BasicBlockId::from_index(3),
+        }
+    );
+    assert_eq!(validate(&body), Ok(()));
+}

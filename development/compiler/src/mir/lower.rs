@@ -13,9 +13,11 @@ use std::collections::HashMap;
 mod body_builder;
 mod coverage;
 mod expressions;
+mod statements;
 use body_builder::ControlFlowBuilder;
 use coverage::*;
 use expressions::{lower_call, lower_expression_to_place, lower_operand};
+use statements::StatementLowerer;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildError {
@@ -110,58 +112,14 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             locals_by_symbol.insert(symbol, local);
         }
         let mut control_flow = ControlFlowBuilder::new();
-        for source_statement in source_statements {
-            let (local, value) = match source_statement {
-                ScalarStatement::Binding(binding) => {
-                    let symbol = resolved
-                        .local_symbol_id_at_name_span(binding.name_span)
-                        .ok_or(BuildError::MissingLocalSymbol)?;
-                    let ty = typed_hir
-                        .binding_type_expr(symbol)
-                        .and_then(|ty| typed_hir.type_id(ty))
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                    let scalar = binding_scalar_type(symbol, typed_hir)
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    let local = LocalId::from_index(locals.len());
-                    locals.push(Local {
-                        ty,
-                        scalar,
-                        source: LocalSource::Binding(symbol),
-                    });
-                    locals_by_symbol.insert(symbol, local);
-                    (local, &binding.initializer)
-                }
-                ScalarStatement::Assignment(assignment) => {
-                    let Expr::Identifier(identifier) = &assignment.target else {
-                        return Err(BuildError::UnsupportedClaimedExpression);
-                    };
-                    let symbol = resolved
-                        .local_symbol_for_identifier(identifier)
-                        .map(|symbol| symbol.id)
-                        .ok_or(BuildError::MissingLocalSymbol)?;
-                    (
-                        *locals_by_symbol
-                            .get(&symbol)
-                            .ok_or(BuildError::MissingLocalSymbol)?,
-                        &assignment.value,
-                    )
-                }
-            };
-            let destination_local = &locals[local.index()];
-            let destination_ty = destination_local.ty;
-            let destination_scalar = destination_local.scalar;
-            lower_expression_to_place(
-                local,
-                value,
-                destination_ty,
-                destination_scalar,
-                resolved,
-                &locals_by_symbol,
-                typed_hir,
-                &mut locals,
-                &mut control_flow,
-            )?;
-        }
+        StatementLowerer::new(
+            resolved,
+            typed_hir,
+            &mut locals,
+            &mut locals_by_symbol,
+            &mut control_flow,
+        )
+        .lower(&source_statements)?;
         if let Some(if_) = tail.conditional() {
             let condition_ty = known_expression_type(&if_.condition, typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
