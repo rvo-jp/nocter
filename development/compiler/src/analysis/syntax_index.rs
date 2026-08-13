@@ -64,6 +64,14 @@ pub(crate) enum CallableSyntax {
         owner: MethodOwnerSyntax,
         method: MethodDecl,
     },
+    Operator {
+        owner: MethodOwnerSyntax,
+        operator: crate::ast::OperatorDecl,
+    },
+    Coercion {
+        owner: MethodOwnerSyntax,
+        coercion: crate::ast::CoercionEntry,
+    },
     InterfaceMethod(MethodDecl),
     Literal(LiteralDecl),
 }
@@ -518,7 +526,42 @@ fn collect_callable_syntax(
                 callables.insert(definition, CallableSyntax::Primitive(primitive.clone()));
             }
         }
-        Item::Instance(_) | Item::Conformance(_) => {
+        Item::Instance(instance) => {
+            let method_owner = item.method_owner().expect("matched method owner");
+            let owner = MethodOwnerSyntax {
+                generics: method_owner.generics().clone(),
+                target_ty: method_owner.target_ty().clone(),
+            };
+            for member in &instance.members {
+                let (anchor, callable) = match member {
+                    crate::ast::InstanceMember::Method(method) => (
+                        method.name_span,
+                        CallableSyntax::Method {
+                            owner: owner.clone(),
+                            method: method.clone(),
+                        },
+                    ),
+                    crate::ast::InstanceMember::Operator(operator) => (
+                        operator.anchor_span(),
+                        CallableSyntax::Operator {
+                            owner: owner.clone(),
+                            operator: operator.clone(),
+                        },
+                    ),
+                    crate::ast::InstanceMember::Coercion(coercion) => (
+                        coercion.as_span,
+                        CallableSyntax::Coercion {
+                            owner: owner.clone(),
+                            coercion: coercion.clone(),
+                        },
+                    ),
+                };
+                if let Some(definition) = canonical(anchor) {
+                    callables.insert(definition, callable);
+                }
+            }
+        }
+        Item::Conformance(_) => {
             let method_owner = item.method_owner().expect("matched method owner");
             let owner = MethodOwnerSyntax {
                 generics: method_owner.generics().clone(),
@@ -603,6 +646,7 @@ const fn definition_accepts_documentation(kind: crate::semantic::DefinitionKind)
 #[cfg(test)]
 mod tests {
     use crate::analysis::single_file::analyze_single_file_text;
+    use crate::source::ByteSpan;
 
     #[test]
     fn indexes_nested_callable_requirement_sites_once() {
@@ -612,5 +656,43 @@ mod tests {
         let offset = text.find("as &str").unwrap();
         let site = file.syntax.coercion_requirement_at(offset).unwrap();
         assert_eq!(&text[site.focus_span.start..site.focus_span.end], "as");
+    }
+
+    #[test]
+    fn indexes_every_instance_callable_with_its_generic_owner() {
+        let text = r#"struct Box<T> { value: T }
+instance Box<T> {
+    operator (&self == other: &Self): bool { return true }
+    coerce &self as &T from self { return &self.value }
+}
+"#;
+        let (_sources, analysis) = analyze_single_file_text("syntax.nct", text).unwrap();
+        let file = analysis.root_file().unwrap();
+        let source = file.ast.span.source;
+        let equality = text.find("==").unwrap();
+        let coercion = text.find("as &T").unwrap();
+        let equality = file
+            .resolved
+            .semantic_db
+            .definition_at(ByteSpan::new(source, equality, equality + 2))
+            .unwrap();
+        let coercion = file
+            .resolved
+            .semantic_db
+            .definition_at(ByteSpan::new(source, coercion, coercion + 2))
+            .unwrap();
+
+        let super::CallableSyntax::Operator { owner, .. } =
+            file.syntax.callable(equality).expect("operator syntax")
+        else {
+            panic!("expected operator syntax");
+        };
+        assert_eq!(owner.generics.parameters[0].name, "T");
+        let super::CallableSyntax::Coercion { owner, .. } =
+            file.syntax.callable(coercion).expect("coercion syntax")
+        else {
+            panic!("expected coercion syntax");
+        };
+        assert_eq!(owner.generics.parameters[0].name, "T");
     }
 }

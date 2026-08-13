@@ -1,8 +1,7 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DestructDecl, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
-    substitute_type_expr_parameters,
+    DestructDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::semantic::{BodyId, DefId};
 use crate::source::ByteSpan;
@@ -334,7 +333,7 @@ fn redirect_interface_method_specialization(
     else {
         return specialization;
     };
-    let Some((_, owner, _)) = method_syntax(analysis, actual_definition) else {
+    let Some((_, owner)) = callable_owner_syntax(analysis, actual_definition) else {
         return specialization;
     };
     let Some(owner_substitutions) = method_owner_substitutions_for_declaration(
@@ -650,7 +649,7 @@ fn protocol_method_call_specialization(
 ) -> Option<MethodCallSpecialization> {
     let definition = analysis.semantic_db.definition(method.def_id)?;
     let owner_id = definition.owner?;
-    let Some((_, owner, _)) = method_syntax(analysis, method.def_id) else {
+    let Some((_, owner)) = callable_owner_syntax(analysis, method.def_id) else {
         return matches!(
             analysis.semantic_db.definition(owner_id)?.kind,
             crate::semantic::DefinitionKind::Interface
@@ -671,21 +670,21 @@ fn protocol_method_call_specialization(
     Some(method.as_method_call_specialization(generic_parameters, substitutions))
 }
 
-fn method_syntax(
+fn callable_owner_syntax(
     analysis: &CompileUnitAnalysis,
     definition: DefId,
-) -> Option<(
-    &FileAnalysis,
-    &super::syntax_index::MethodOwnerSyntax,
-    &MethodDecl,
-)> {
+) -> Option<(&FileAnalysis, &super::syntax_index::MethodOwnerSyntax)> {
     analysis.files.iter().find_map(|file| {
-        let super::syntax_index::CallableSyntax::Method { owner, method } =
-            file.syntax.callable(definition)?
-        else {
-            return None;
+        let owner = match file.syntax.callable(definition)? {
+            super::syntax_index::CallableSyntax::Method { owner, .. }
+            | super::syntax_index::CallableSyntax::Operator { owner, .. }
+            | super::syntax_index::CallableSyntax::Coercion { owner, .. } => owner,
+            super::syntax_index::CallableSyntax::Function(_)
+            | super::syntax_index::CallableSyntax::Primitive(_)
+            | super::syntax_index::CallableSyntax::InterfaceMethod(_)
+            | super::syntax_index::CallableSyntax::Literal(_) => return None,
         };
-        Some((file, owner, method))
+        Some((file, owner))
     })
 }
 
@@ -704,7 +703,7 @@ fn callable_body_for_definition(
         .unwrap_or(declaration);
     let body_span = analysis.semantic_db.declaration_body_for_owner(body)?.span;
     let file = analysis.file_by_source(body_span.source)?;
-    let owner = method_syntax(analysis, declaration).map(|(_, owner, _)| owner);
+    let owner = callable_owner_syntax(analysis, declaration).map(|(_, owner)| owner);
     Some((file, owner, body_span))
 }
 

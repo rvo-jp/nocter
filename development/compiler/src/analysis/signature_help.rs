@@ -148,6 +148,8 @@ fn signature_info_for_call(
         }
         CallableDeclaration::Primitive(_)
         | CallableDeclaration::InterfaceMethod(_)
+        | CallableDeclaration::Operator { .. }
+        | CallableDeclaration::Coercion { .. }
         | CallableDeclaration::Literal(_) => {}
     }
 
@@ -201,7 +203,9 @@ fn signature_info_for_call(
             method.generics.parameters.iter().collect::<Vec<_>>(),
             Some(&method.receiver),
         ),
-        CallableDeclaration::Literal(_) => return None,
+        CallableDeclaration::Operator { .. }
+        | CallableDeclaration::Coercion { .. }
+        | CallableDeclaration::Literal(_) => return None,
     };
 
     let specialized_parameters = parameters

@@ -33,6 +33,12 @@ pub(crate) fn plan_outcome_contract(
         | crate::analysis::syntax_index::CallableSyntax::InterfaceMethod(method) => {
             &method.return_type
         }
+        crate::analysis::syntax_index::CallableSyntax::Operator { operator, .. } => {
+            &operator.callable().return_type
+        }
+        crate::analysis::syntax_index::CallableSyntax::Coercion { coercion, .. } => {
+            &coercion.callable().return_type
+        }
         crate::analysis::syntax_index::CallableSyntax::Literal(literal) => &literal.return_type,
         crate::analysis::syntax_index::CallableSyntax::Primitive(_) => return None,
     };
