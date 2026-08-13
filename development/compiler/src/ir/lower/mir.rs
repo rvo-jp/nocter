@@ -17,6 +17,7 @@ use std::collections::HashSet;
 
 mod control_flow;
 mod loops;
+mod parameters;
 mod storage;
 
 /// Immutable inputs shared by every control-flow structuring path.
@@ -28,6 +29,7 @@ pub(super) struct BackendContext<'a> {
     resolved: &'a ResolveOutput,
     function_signatures: &'a super::context::FunctionSignatures,
     function_names: &'a super::context::FunctionNames,
+    parameters: parameters::ParameterProjection,
     root_source: SourceId,
 }
 
@@ -41,6 +43,7 @@ pub(super) fn try_lower_scalar_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    parameter_slots: &super::context::LoweringParameterSlots,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
@@ -57,6 +60,8 @@ pub(super) fn try_lower_scalar_body(
         _ => return None,
     };
     let body_id = resolved.semantic_db.body_at(body.span)?;
+    let parameter_projection =
+        parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
     let mir_body = cache.get_or_build(body_id, || {
         crate::mir::try_build_scalar_body_with_return_mode(
             body,
@@ -76,6 +81,7 @@ pub(super) fn try_lower_scalar_body(
             function_name,
             function_signatures,
             function_names,
+            parameter_projection,
             root_source,
         )
         .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
@@ -97,6 +103,7 @@ fn lower_scalar_body(
     function_name: &str,
     function_signatures: &super::context::FunctionSignatures,
     function_names: &super::context::FunctionNames,
+    parameter_projection: parameters::ParameterProjection,
     root_source: SourceId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
@@ -105,6 +112,7 @@ fn lower_scalar_body(
         resolved,
         function_signatures,
         function_names,
+        parameters: parameter_projection,
         root_source,
     };
     let mut instructions = Vec::new();
@@ -144,7 +152,7 @@ fn lower_scalar_body(
         }
 
         let block = &body.blocks[current.index()];
-        instructions.extend(lower_statements(body, &block.statements)?);
+        instructions.extend(lower_statements(&context, &block.statements)?);
 
         match &block.terminator {
             Terminator::Goto { target } => current = *target,
@@ -163,7 +171,7 @@ fn lower_scalar_body(
                     ));
                 }
                 instructions.push(Instruction::If {
-                    condition: lower_bool_operand(condition, body)?,
+                    condition: lower_bool_operand(condition, &context)?,
                     then_instructions: lower_linear_branch(
                         &context,
                         *then_target,
@@ -189,7 +197,7 @@ fn lower_scalar_body(
                     lower_call_target(*callee, resolved, function_names, root_source)?;
                 let arguments = arguments
                     .iter()
-                    .map(|argument| lower_call_argument(argument, body))
+                    .map(|argument| lower_call_argument(argument, &context))
                     .collect::<Result<Vec<_>, _>>()?;
                 let fits_tail_call_abi = arguments
                     .iter()
@@ -251,11 +259,11 @@ fn lower_scalar_body(
                             return Ok(instructions);
                         }
                         instructions.push(call_instruction(
+                            &context,
                             destination_scalar,
                             destination,
                             call_target,
                             arguments,
-                            body,
                         )?);
                         current = *target;
                     }
@@ -370,7 +378,7 @@ fn lower_linear_branch(
             ));
         }
         let block = &body.blocks[current.index()];
-        instructions.extend(lower_statements(body, &block.statements)?);
+        instructions.extend(lower_statements(context, &block.statements)?);
         match &block.terminator {
             Terminator::Goto { target } if *target == join => return Ok(instructions),
             Terminator::Call {
@@ -391,11 +399,11 @@ fn lower_linear_branch(
                 )?;
                 let arguments = arguments
                     .iter()
-                    .map(|argument| lower_call_argument(argument, body))
+                    .map(|argument| lower_call_argument(argument, context))
                     .collect::<Result<Vec<_>, _>>()?;
                 let destination_scalar = local_scalar(body, destination.local)?;
                 instructions.push(lower_returning_call(
-                    body,
+                    context,
                     destination_scalar,
                     destination,
                     call_target,
@@ -415,25 +423,25 @@ fn lower_linear_branch(
 }
 
 fn call_instruction(
+    context: &BackendContext<'_>,
     scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
     arguments: Vec<ScalarArgument>,
-    body: &Body,
 ) -> Result<Instruction, Vec<Diagnostic>> {
     Ok(match scalar {
         ScalarType::I32 => Instruction::CallI32 {
-            destination: i32_location(destination, body)?,
+            destination: i32_location(destination, context)?,
             target,
             arguments,
         },
         ScalarType::Usize => Instruction::CallUsize {
-            destination: usize_location(destination, body)?,
+            destination: usize_location(destination, context)?,
             target,
             arguments,
         },
         ScalarType::Bool => Instruction::CallBool {
-            destination: bool_location(destination, body)?,
+            destination: bool_location(destination, context)?,
             target,
             arguments,
         },
@@ -441,7 +449,7 @@ fn call_instruction(
 }
 
 fn lower_returning_call(
-    body: &Body,
+    context: &BackendContext<'_>,
     scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
@@ -454,7 +462,7 @@ fn lower_returning_call(
         callee_name,
         &scalar_ir_type(scalar),
     )?;
-    call_instruction(scalar, destination, target, arguments, body)
+    call_instruction(context, scalar, destination, target, arguments)
 }
 
 fn lower_outcome_call(
@@ -468,38 +476,38 @@ fn lower_outcome_call(
 ) -> Result<Instruction, Vec<Diagnostic>> {
     validate_outcome_call_return_type(&target, callee_name, scalar, context.function_signatures)?;
     outcome_call_instruction(
+        context,
         scalar,
         destination,
         target,
         arguments,
         failure_mode,
-        context.body,
     )
 }
 
 fn outcome_call_instruction(
+    context: &BackendContext<'_>,
     scalar: ScalarType,
     destination: &Place,
     target: crate::ir::CallTarget,
     arguments: Vec<ScalarArgument>,
     failure_mode: OutcomeFailureMode,
-    body: &Body,
 ) -> Result<Instruction, Vec<Diagnostic>> {
     Ok(match scalar {
         ScalarType::I32 => Instruction::CallOutcomeI32 {
-            destination: i32_location(destination, body)?,
+            destination: i32_location(destination, context)?,
             target,
             arguments,
             failure_mode,
         },
         ScalarType::Usize => Instruction::CallOutcomeUsize {
-            destination: usize_location(destination, body)?,
+            destination: usize_location(destination, context)?,
             target,
             arguments,
             failure_mode,
         },
         ScalarType::Bool => Instruction::CallOutcomeBool {
-            destination: bool_location(destination, body)?,
+            destination: bool_location(destination, context)?,
             target,
             arguments,
             failure_mode,
@@ -578,17 +586,17 @@ fn validate_tail_call_return_type(
 
 fn lower_call_argument(
     argument: &crate::mir::CallArgument,
-    body: &Body,
+    context: &BackendContext<'_>,
 ) -> Result<ScalarArgument, Vec<Diagnostic>> {
     Ok(match argument.representation {
         crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
-            ScalarArgument::I32(lower_i32_operand(&argument.operand, body)?)
+            ScalarArgument::I32(lower_i32_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
-            ScalarArgument::Usize(lower_usize_operand(&argument.operand, body)?)
+            ScalarArgument::Usize(lower_usize_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
-            ScalarArgument::Bool(lower_bool_operand(&argument.operand, body)?)
+            ScalarArgument::Bool(lower_bool_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Aggregate => {
             return Err(invalid_mir_diagnostics(
@@ -599,9 +607,10 @@ fn lower_call_argument(
 }
 
 fn lower_statements(
-    body: &Body,
+    context: &BackendContext<'_>,
     statements: &[Statement],
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body = context.body;
     let mut instructions = Vec::new();
     for statement in statements {
         let Statement::Assign {
@@ -614,11 +623,11 @@ fn lower_statements(
         };
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
-                let destination = i32_location(destination, body)?;
+                let destination = i32_location(destination, context)?;
                 match value {
                     Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
                         destination,
-                        value: lower_i32_operand(operand, body)?,
+                        value: lower_i32_operand(operand, context)?,
                     }),
                     Rvalue::Binary {
                         operator,
@@ -628,8 +637,8 @@ fn lower_statements(
                     } => instructions.push(i32_binary_instruction(
                         *operator,
                         destination,
-                        lower_i32_operand(left, body)?,
-                        lower_i32_operand(right, body)?,
+                        lower_i32_operand(left, context)?,
+                        lower_i32_operand(right, context)?,
                     )),
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
@@ -639,11 +648,11 @@ fn lower_statements(
                 }
             }
             ScalarType::Usize => {
-                let destination = usize_location(destination, body)?;
+                let destination = usize_location(destination, context)?;
                 match value {
                     Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
                         destination,
-                        value: lower_usize_operand(operand, body)?,
+                        value: lower_usize_operand(operand, context)?,
                     }),
                     Rvalue::Binary {
                         operator,
@@ -653,8 +662,8 @@ fn lower_statements(
                     } => instructions.push(usize_binary_instruction(
                         *operator,
                         destination,
-                        lower_usize_operand(left, body)?,
-                        lower_usize_operand(right, body)?,
+                        lower_usize_operand(left, context)?,
+                        lower_usize_operand(right, context)?,
                     )),
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
@@ -664,11 +673,11 @@ fn lower_statements(
                 }
             }
             ScalarType::Bool => {
-                let destination = bool_location(destination, body)?;
+                let destination = bool_location(destination, context)?;
                 match value {
                     Rvalue::Use(operand) => instructions.push(Instruction::SetBool {
                         destination,
-                        value: lower_bool_operand(operand, body)?,
+                        value: lower_bool_operand(operand, context)?,
                     }),
                     Rvalue::Binary { .. } => {
                         return Err(invalid_mir_diagnostics(
@@ -683,7 +692,7 @@ fn lower_statements(
                         ..
                     } => instructions.push(Instruction::SetBool {
                         destination,
-                        value: lower_comparison(*operator, left, right, *operand_scalar, body)?,
+                        value: lower_comparison(*operator, left, right, *operand_scalar, context)?,
                     }),
                 }
             }
@@ -697,23 +706,23 @@ fn lower_comparison(
     left: &Operand,
     right: &Operand,
     operand_scalar: ScalarType,
-    body: &Body,
+    context: &BackendContext<'_>,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
     Ok(match operand_scalar {
         ScalarType::I32 => BoolValue::I32Comparison {
             operator: integer_comparison_operator(operator),
-            left: lower_i32_operand(left, body)?,
-            right: lower_i32_operand(right, body)?,
+            left: lower_i32_operand(left, context)?,
+            right: lower_i32_operand(right, context)?,
         },
         ScalarType::Usize => BoolValue::UsizeComparison {
             operator: integer_comparison_operator(operator),
-            left: lower_usize_operand(left, body)?,
-            right: lower_usize_operand(right, body)?,
+            left: lower_usize_operand(left, context)?,
+            right: lower_usize_operand(right, context)?,
         },
         ScalarType::Bool => BoolValue::BoolComparison {
             operator: bool_comparison_operator(operator)?,
-            left: Box::new(lower_bool_operand(left, body)?),
-            right: Box::new(lower_bool_operand(right, body)?),
+            left: Box::new(lower_bool_operand(left, context)?),
+            right: Box::new(lower_bool_operand(right, context)?),
         },
     })
 }
@@ -825,27 +834,66 @@ fn usize_binary_instruction(
     }
 }
 
-fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnostic>> {
-    match body.locals[place.local.index()].storage {
+fn i32_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<I32Location, Vec<Diagnostic>> {
+    match context.body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(I32Location::Return),
-        LocalStorage::Parameter { ordinal } => Ok(I32Location::Parameter(ordinal)),
-        LocalStorage::Local => Ok(I32Location::Local(machine_local_index(body, place.local))),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::I32 { abi_index }) => {
+                Ok(I32Location::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "i32 MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(I32Location::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
     }
 }
 
-fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagnostic>> {
-    match body.locals[place.local.index()].storage {
+fn usize_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<UsizeLocation, Vec<Diagnostic>> {
+    match context.body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(UsizeLocation::Return),
-        LocalStorage::Parameter { ordinal } => Ok(UsizeLocation::Parameter(ordinal)),
-        LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(body, place.local))),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Usize { abi_index }) => {
+                Ok(UsizeLocation::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "usize MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
     }
 }
 
-fn bool_location(place: &Place, body: &Body) -> Result<BoolLocation, Vec<Diagnostic>> {
-    match body.locals[place.local.index()].storage {
+fn bool_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<BoolLocation, Vec<Diagnostic>> {
+    match context.body.locals[place.local.index()].storage {
         LocalStorage::Return => Ok(BoolLocation::Return),
-        LocalStorage::Parameter { ordinal } => Ok(BoolLocation::Parameter(ordinal)),
-        LocalStorage::Local => Ok(BoolLocation::Local(machine_local_index(body, place.local))),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Bool { abi_index }) => {
+                Ok(BoolLocation::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "bool MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(BoolLocation::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
     }
 }
 
@@ -859,7 +907,10 @@ fn local_scalar(body: &Body, local: LocalId) -> Result<ScalarType, Vec<Diagnosti
         .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received an aggregate local"))
 }
 
-fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Diagnostic>> {
+fn lower_i32_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<I32Value, Vec<Diagnostic>> {
     match operand {
         Operand::Constant(constant) => {
             i32::try_from(constant.value)
@@ -869,12 +920,15 @@ fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Dia
                 })
         }
         Operand::Copy(place) | Operand::Move(place) => {
-            i32_location(place, body).map(I32Value::Location)
+            i32_location(place, context).map(I32Value::Location)
         }
     }
 }
 
-fn lower_usize_operand(operand: &Operand, body: &Body) -> Result<UsizeValue, Vec<Diagnostic>> {
+fn lower_usize_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
     match operand {
         Operand::Constant(constant) => u64::try_from(constant.value)
             .map(UsizeValue::Const)
@@ -882,12 +936,15 @@ fn lower_usize_operand(operand: &Operand, body: &Body) -> Result<UsizeValue, Vec
                 invalid_mir_diagnostics("usize constant is outside its runtime representation")
             }),
         Operand::Copy(place) | Operand::Move(place) => {
-            usize_location(place, body).map(UsizeValue::Location)
+            usize_location(place, context).map(UsizeValue::Location)
         }
     }
 }
 
-fn lower_bool_operand(operand: &Operand, body: &Body) -> Result<BoolValue, Vec<Diagnostic>> {
+fn lower_bool_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<BoolValue, Vec<Diagnostic>> {
     match operand {
         Operand::Constant(constant) => match constant.value {
             0 => Ok(BoolValue::Const(false)),
@@ -897,7 +954,7 @@ fn lower_bool_operand(operand: &Operand, body: &Body) -> Result<BoolValue, Vec<D
             )),
         },
         Operand::Copy(place) | Operand::Move(place) => {
-            bool_location(place, body).map(BoolValue::Location)
+            bool_location(place, context).map(BoolValue::Location)
         }
     }
 }

@@ -224,7 +224,9 @@ InstanceMember::Coercion(CoercionDecl)
   for checked type equality, and independent checked representation, ownership, logical-storage,
   source-origin, and lexical-scope contracts. Basic blocks retain the same validated <code>ScopeId</code>
   tree; MIR parameter storage is a source ordinal, while machine-local and parameter ABI indexes
-  are projected only while lowering MIR to machine IR.</li><li>The structural verifier rejects missing locals and blocks, type or scalar-representation drift,
+  are projected only while lowering MIR to machine IR.</li><li>One backend parameter projection maps those ordinals to scalar ABI word positions or aggregate
+  staging slots. A parameter after a multiword value no longer relies on ordinal/ABI-index
+  coincidence.</li><li>The structural verifier rejects missing locals and blocks, type or scalar-representation drift,
   invalid local or scope contracts, non-boolean conditions, invalid control-flow targets, and
   malformed loop regions before machine IR is produced.</li><li>A fixed-point definite-initialization verifier checks reachable operands and returns. Branch joins
   intersect initialized sets, while fallible calls initialize their destination only along the

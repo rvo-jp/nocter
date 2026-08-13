@@ -262,6 +262,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
             &name,
             &function_signatures,
             &function_names,
+            &parameter_slots,
             root_source,
             sources,
         )

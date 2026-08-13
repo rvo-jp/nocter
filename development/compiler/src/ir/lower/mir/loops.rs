@@ -7,7 +7,7 @@ use super::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
-use crate::mir::{Body, CallContinuation, Operand, Rvalue, Statement, Terminator};
+use crate::mir::{CallContinuation, Operand, Rvalue, Statement, Terminator};
 use std::collections::HashSet;
 
 pub(super) fn lower_linear_loop_condition(
@@ -26,7 +26,7 @@ pub(super) fn lower_linear_loop_condition(
             ));
         }
         let block = &body.blocks[current.index()];
-        instructions.extend(lower_statements(body, &block.statements)?);
+        instructions.extend(lower_statements(context, &block.statements)?);
         if current == condition_block {
             let Terminator::Switch { condition, .. } = &block.terminator else {
                 return Err(super::invalid_mir_diagnostics(
@@ -34,12 +34,12 @@ pub(super) fn lower_linear_loop_condition(
                 ));
             };
             if let Some(value) =
-                inline_condition_value(body, condition_block, &block.statements, condition)?
+                inline_condition_value(context, condition_block, &block.statements, condition)?
             {
                 instructions.pop();
                 return Ok((instructions, value));
             }
-            return Ok((instructions, lower_bool_operand(condition, body)?));
+            return Ok((instructions, lower_bool_operand(condition, context)?));
         }
         current =
             lower_linear_call_terminator(context, &block.terminator, visited, &mut instructions)?;
@@ -47,11 +47,12 @@ pub(super) fn lower_linear_loop_condition(
 }
 
 fn inline_condition_value(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     condition_block: crate::mir::BasicBlockId,
     statements: &[Statement],
     condition: &Operand,
 ) -> Result<Option<BoolValue>, Vec<Diagnostic>> {
+    let body = context.body;
     if super::storage::inlined_loop_condition_local(body, condition_block).is_none() {
         return Ok(None);
     }
@@ -76,7 +77,7 @@ fn inline_condition_value(
     if destination != condition_place {
         return Ok(None);
     }
-    super::lower_comparison(*operator, left, right, *operand_scalar, body).map(Some)
+    super::lower_comparison(*operator, left, right, *operand_scalar, context).map(Some)
 }
 
 pub(super) fn lower_linear_loop_body(
@@ -97,10 +98,10 @@ pub(super) fn lower_linear_loop_body(
             ));
         }
         let block = &body.blocks[current.index()];
-        instructions.extend(lower_statements(body, &block.statements)?);
+        instructions.extend(lower_statements(context, &block.statements)?);
         match &block.terminator {
             Terminator::Goto { target } if *target == continue_target => {
-                instructions.extend(lower_continue_path(body, continue_target, header)?);
+                instructions.extend(lower_continue_path(context, continue_target, header)?);
                 return Ok(instructions);
             }
             Terminator::Goto { target } if *target == exit => {
@@ -158,7 +159,7 @@ pub(super) fn lower_linear_loop_body(
                     visited,
                 )?;
                 instructions.push(Instruction::If {
-                    condition: lower_bool_operand(condition, body)?,
+                    condition: lower_bool_operand(condition, context)?,
                     then_instructions,
                     else_instructions,
                 });
@@ -192,11 +193,11 @@ fn lower_loop_branch_path(
             ));
         }
         let block = &body.blocks[current.index()];
-        instructions.extend(lower_statements(body, &block.statements)?);
+        instructions.extend(lower_statements(context, &block.statements)?);
         match &block.terminator {
             Terminator::Goto { target } if *target == endpoint => {
                 if endpoint == continue_target {
-                    instructions.extend(lower_continue_path(body, continue_target, header)?);
+                    instructions.extend(lower_continue_path(context, continue_target, header)?);
                     instructions.push(Instruction::Continue);
                 } else if endpoint == exit {
                     instructions.push(Instruction::Break);
@@ -221,10 +222,11 @@ fn lower_loop_branch_path(
 }
 
 fn lower_continue_path(
-    body: &Body,
+    context: &super::BackendContext<'_>,
     continue_target: crate::mir::BasicBlockId,
     header: crate::mir::BasicBlockId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body = context.body;
     if continue_target == header {
         return Ok(Vec::new());
     }
@@ -234,7 +236,7 @@ fn lower_continue_path(
             "loop continue target does not lead to its header",
         ));
     }
-    lower_statements(body, &block.statements)
+    lower_statements(context, &block.statements)
 }
 
 fn lower_linear_call_terminator(
@@ -263,7 +265,7 @@ fn lower_linear_call_terminator(
     )?;
     let arguments = arguments
         .iter()
-        .map(|argument| lower_call_argument(argument, body))
+        .map(|argument| lower_call_argument(argument, context))
         .collect::<Result<Vec<_>, _>>()?;
     match continuation {
         CallContinuation::Return {
@@ -272,7 +274,7 @@ fn lower_linear_call_terminator(
         } => {
             let scalar = super::local_scalar(body, destination.local)?;
             instructions.push(lower_returning_call(
-                body,
+                context,
                 scalar,
                 destination,
                 call_target,
