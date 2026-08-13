@@ -114,6 +114,10 @@ impl<'a> StatementLowerer<'a> {
                     self.lower_for_range(statement)?;
                     false
                 }
+                ScalarStatement::Loop(statement) => {
+                    self.lower_loop(statement)?;
+                    false
+                }
                 ScalarStatement::Break => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
                     self.control_flow.terminate(Terminator::Goto {
@@ -402,6 +406,56 @@ impl<'a> StatementLowerer<'a> {
         })?;
         self.control_flow
             .terminate(Terminator::Goto { target: header })?;
+        self.control_flow.select_block(exit)
+    }
+
+    fn lower_loop(&mut self, statement: &crate::ast::LoopStmt) -> Result<(), BuildError> {
+        let bool_ty = self
+            .typed_hir
+            .type_id(&crate::ast::TypeExpr::Reference(
+                crate::ast::TypeReference {
+                    span: statement.span,
+                    name: "bool".to_string(),
+                },
+            ))
+            .ok_or(BuildError::MissingTypedExpression)?;
+        let header = self.control_flow.reserve_block();
+        let body = self.control_flow.reserve_block();
+        let exit = self.control_flow.reserve_block();
+        self.control_flow
+            .terminate(Terminator::Goto { target: header })?;
+        self.control_flow.select_block(header)?;
+        self.control_flow.terminate(Terminator::Switch {
+            condition: Operand::Constant(crate::mir::model::Constant {
+                ty: bool_ty,
+                scalar: ScalarType::Bool,
+                value: 1,
+            }),
+            then_target: body,
+            else_target: exit,
+        })?;
+        self.loop_regions.push(crate::mir::LoopRegion {
+            header,
+            condition: header,
+            body,
+            continue_target: header,
+            exit,
+        });
+        self.control_flow.select_block(body)?;
+        let body_statements =
+            scalar_loop_block_statements(&statement.body, self.resolved, self.typed_hir)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let exits_body = self.lower_in_context(
+            &body_statements,
+            Some(LoopTargets {
+                break_target: exit,
+                continue_target: header,
+            }),
+        )?;
+        if !exits_body {
+            self.control_flow
+                .terminate(Terminator::Goto { target: header })?;
+        }
         self.control_flow.select_block(exit)
     }
 }

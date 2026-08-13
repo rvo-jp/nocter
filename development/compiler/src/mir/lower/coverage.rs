@@ -4,8 +4,8 @@
 
 use super::expressions::{mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, Stmt,
-    WhileStmt,
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
+    Stmt, WhileStmt,
 };
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
@@ -18,6 +18,7 @@ pub(super) enum ScalarStatement<'a> {
     Assignment(&'a AssignmentStmt),
     If(&'a IfStmt),
     ForRange(&'a ForRangeStmt),
+    Loop(&'a LoopStmt),
     While(&'a WhileStmt),
     Break,
     Continue,
@@ -182,6 +183,9 @@ impl<'a> ScalarStatement<'a> {
                     && scalar_expression_is_supported(&statement.end, resolved, typed_hir)
                     && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
             }
+            Self::Loop(statement) => {
+                scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
+            }
             Self::Break | Self::Continue => in_loop,
         }
     }
@@ -193,6 +197,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
         Stmt::If(statement) => Some(ScalarStatement::If(statement)),
         Stmt::ForRange(statement) => Some(ScalarStatement::ForRange(statement)),
+        Stmt::Loop(statement) => Some(ScalarStatement::Loop(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
@@ -220,7 +225,10 @@ pub(super) fn scalar_linear_block_statements<'a>(
         if exited
             || matches!(
                 statement,
-                ScalarStatement::If(_) | ScalarStatement::While(_) | ScalarStatement::ForRange(_)
+                ScalarStatement::If(_)
+                    | ScalarStatement::While(_)
+                    | ScalarStatement::ForRange(_)
+                    | ScalarStatement::Loop(_)
             )
             || !statement.is_supported_in_context(resolved, typed_hir, in_loop)
         {
@@ -287,7 +295,7 @@ pub(super) fn scalar_loop_block_statements<'a>(
         if exited
             || matches!(
                 statement,
-                ScalarStatement::While(_) | ScalarStatement::ForRange(_)
+                ScalarStatement::While(_) | ScalarStatement::ForRange(_) | ScalarStatement::Loop(_)
             )
             || !statement.is_supported_in_context(resolved, typed_hir, true)
         {

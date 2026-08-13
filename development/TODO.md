@@ -55,8 +55,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   range comparison and increment operations therefore do not borrow unrelated expression identity
 - the checked type arena interns foundational scalar types for compiler-generated typed operations,
   and virtual comparison locals do not consume machine-local slots after condition inlining
-- scalar i32/usize range loops, including `break`, `continue`, and post-loop shadowing, now use the
-  same retained MIR body in buildability and lowering
+- scalar `while`, unconditional `loop`, and i32/usize range loops, including `break`, `continue`,
+  and post-loop shadowing, now use the same retained MIR body in buildability and lowering
 - the next checkpoint introduces owned aggregate locals and explicit scope-exit cleanup edges
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
