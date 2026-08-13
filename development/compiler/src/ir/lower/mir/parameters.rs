@@ -4,7 +4,7 @@
 //! staging slots are selected once here from the already validated parameter
 //! layout, including parameters that consume multiple words.
 
-use crate::abi::ValueLayout;
+use crate::abi::{ValueClassification, ValueLayout};
 use crate::ast::Parameter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +21,7 @@ pub(super) enum ParameterStorage {
     Aggregate {
         slot_index: usize,
         layout: ValueLayout,
+        classification: ValueClassification,
     },
 }
 
@@ -66,6 +67,14 @@ fn storage_for_name(
         .map(|parameter| ParameterStorage::Aggregate {
             slot_index: parameter.slot_index,
             layout: parameter.layout,
+            classification: match parameter.source {
+                super::super::context::AggregateParameterSource::Indirect { .. } => {
+                    ValueClassification::Indirect
+                }
+                super::super::context::AggregateParameterSource::Direct { words, .. } => {
+                    ValueClassification::Direct { words }
+                }
+            },
         })
 }
 

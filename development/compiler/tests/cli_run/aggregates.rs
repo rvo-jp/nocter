@@ -137,15 +137,19 @@ pub func make_pair(): Pair {
 pub func read_second(pair: Pair): i32 {
     return pair.second
 }
+
+pub func forward(pair: Pair): i32 {
+    return read_second(pair)
+}
 "#,
     );
     let source = project.write_source(
         "imported_direct_aggregate_call.nct",
-        r#"use std/text.{Pair, make_pair, read_second}
+        r#"use std/text.{Pair, forward, make_pair}
 
 func main(): i32 {
     let pair = make_pair()
-    return read_second(pair)
+    return forward(pair)
 }
 "#,
     );
@@ -233,14 +237,18 @@ pub func make_value(): Envelope {
 pub func read_code(value: Envelope): i32 {
     return value.code
 }
+
+pub func forward(value: Envelope): i32 {
+    return read_code(value)
+}
 "#,
     );
     let source = project.write_source(
         "index.nct",
-        r#"use ./holder.{make_value, read_code}
+        r#"use ./holder.{forward, make_value}
 
 func main(): i32 {
-    return read_code(make_value())
+    return forward(make_value())
 }
 "#,
     );

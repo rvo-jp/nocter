@@ -3,8 +3,9 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value,
-    Instruction, OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
+    AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
+    DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -207,7 +208,10 @@ fn lower_scalar_body(
                     .iter()
                     .map(ScalarArgument::abi_word_count)
                     .sum::<usize>()
-                    <= crate::abi::ARGUMENT_REGISTER_COUNT;
+                    <= crate::abi::ARGUMENT_REGISTER_COUNT
+                    && !arguments
+                        .iter()
+                        .any(|argument| matches!(argument, ScalarArgument::AggregateIndirect(_)));
 
                 match continuation {
                     CallContinuation::Never => {
@@ -602,10 +606,56 @@ fn lower_call_argument(
         crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
             ScalarArgument::Bool(lower_bool_operand(&argument.operand, context)?)
         }
-        crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Aggregate => {
+        crate::mir::ValueRepresentation::Aggregate => {
+            lower_aggregate_call_argument(&argument.operand, context)?
+        }
+        crate::mir::ValueRepresentation::Borrow => {
             return Err(invalid_mir_diagnostics(
-                "non-scalar MIR call arguments have not been projected to machine IR",
+                "borrow MIR call arguments have not been projected to machine IR",
             ));
+        }
+    })
+}
+
+fn lower_aggregate_call_argument(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<ScalarArgument, Vec<Diagnostic>> {
+    let place = match operand {
+        Operand::Copy(place) | Operand::Move(place) if place.projection.is_none() => place,
+        Operand::Copy(_) | Operand::Move(_) | Operand::Constant(_) => {
+            return Err(invalid_mir_diagnostics(
+                "aggregate call argument is not a whole stored place",
+            ));
+        }
+    };
+    let LocalStorage::Parameter { ordinal } = context.body.locals[place.local.index()].storage
+    else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate call argument has no machine storage projection",
+        ));
+    };
+    let Some(parameters::ParameterStorage::Aggregate {
+        slot_index,
+        layout,
+        classification,
+    }) = context.parameters.get(ordinal)
+    else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate MIR parameter has no matching staging slot",
+        ));
+    };
+    let source = AggregateArgumentSource::Slot(slot_index);
+    Ok(match classification {
+        crate::abi::ValueClassification::Direct { words } => {
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source,
+                layout,
+                words,
+            })
+        }
+        crate::abi::ValueClassification::Indirect => {
+            ScalarArgument::AggregateIndirect(AggregateArgument { source })
         }
     })
 }

@@ -133,11 +133,44 @@ fn scalar_call_shape_is_supported(
         && typed_hir.generic_function_call_target(call.span).is_none()
         && typed_hir.function_call_specialization(call.span).is_none()
         && call.arguments.iter().all(|argument| {
-            known_expression_type(argument, typed_hir)
-                .and_then(|ty| scalar_type(ty, typed_hir))
-                .is_some()
+            let Some(ty) = known_expression_type(argument, typed_hir) else {
+                return false;
+            };
+            scalar_type(ty, typed_hir).is_some()
                 && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
+                || copy_aggregate_identifier_is_supported(
+                    argument,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
         })
+}
+
+pub(super) fn copy_aggregate_identifier_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    let Expr::Identifier(identifier) = expression.without_groups() else {
+        return false;
+    };
+    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+        return false;
+    };
+    let Some(ty) = typed_hir.binding_type_expr(symbol.id) else {
+        return false;
+    };
+    matches!(
+        crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+            resolved_sources.get(&source).copied()
+        })
+        .map(|value| value.ty),
+        Ok(crate::abi::AbiType::Struct(_))
+            | Ok(crate::abi::AbiType::Array { .. })
+            | Ok(crate::abi::AbiType::Enum(_))
+    ) && crate::typecheck::type_expr_is_copy(ty, resolved) == Some(true)
 }
 
 impl<'a> ScalarStatement<'a> {

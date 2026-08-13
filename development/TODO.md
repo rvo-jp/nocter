@@ -69,6 +69,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - one immutable MIR build-input bundle carries the semantic database, current resolver,
   compile-unit resolver map, and checked HIR; aggregate layout no longer silently narrows to the
   current source while selecting the MIR route
+- copy aggregate parameter forwarding uses MIR call arguments and the validated direct/indirect
+  parameter classification; indirect stack-slot arguments prohibit tail-call frame reuse
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

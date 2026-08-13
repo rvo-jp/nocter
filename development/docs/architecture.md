@@ -135,6 +135,9 @@ buildability is MIR validation rather than a parallel AST model.
 - MIR construction takes one immutable semantic input bundle containing the semantic database,
   current resolver, compile-unit resolver map, and checked HIR. Layout of imported and nested
   aggregate fields therefore uses the same cross-source authority as ABI signature projection.
+- Whole copy aggregate parameter places may become MIR call arguments. Machine-IR projection uses
+  the parameter's already validated direct/indirect ABI classification. An indirect argument points
+  into the current stack frame and therefore makes tail-call frame reuse ineligible.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

@@ -44,27 +44,59 @@ pub(super) fn lower_call(
         .map(|argument| {
             let ty = known_expression_type(argument, semantic.typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
-            let scalar = scalar_type(ty, semantic.typed_hir)
-                .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let operand = lower_operand(
-                argument,
-                ty,
-                scalar,
-                semantic,
-                locals,
-                local_declarations,
-                projections,
-                control_flow,
-                scope,
-            )?;
+            if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
+                let operand = lower_operand(
+                    argument,
+                    ty,
+                    scalar,
+                    semantic,
+                    locals,
+                    local_declarations,
+                    projections,
+                    control_flow,
+                    scope,
+                )?;
+                return Ok(CallArgument {
+                    operand,
+                    ty,
+                    representation: crate::mir::ValueRepresentation::Scalar(scalar),
+                });
+            }
+            let operand = lower_copy_aggregate_identifier(argument, semantic, locals)?;
             Ok(CallArgument {
                 operand,
                 ty,
-                representation: crate::mir::ValueRepresentation::Scalar(scalar),
+                representation: crate::mir::ValueRepresentation::Aggregate,
             })
         })
         .collect::<Result<Vec<_>, BuildError>>()?;
     Ok((callee, arguments, returns_never))
+}
+
+fn lower_copy_aggregate_identifier(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+) -> Result<Operand, BuildError> {
+    if !super::coverage::copy_aggregate_identifier_is_supported(
+        expression,
+        semantic.resolved,
+        semantic.resolved_sources,
+        semantic.typed_hir,
+    ) {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    }
+    let Expr::Identifier(identifier) = expression.without_groups() else {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    };
+    let symbol = semantic
+        .resolved
+        .local_symbol_for_identifier(identifier)
+        .ok_or(BuildError::MissingLocalSymbol)?;
+    let local = *locals
+        .get(&symbol.id)
+        .ok_or(BuildError::MissingLocalSymbol)?;
+    Ok(Operand::Copy(Place::local(local)))
 }
 
 pub(super) fn lower_expression_to_place(

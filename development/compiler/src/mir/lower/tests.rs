@@ -63,6 +63,62 @@ func first(pair: Pair): i32 {
 }
 
 #[test]
+fn builds_a_copy_aggregate_call_argument_from_a_parameter_place() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    first: i32
+    second: i32
+}
+
+func read(pair: Pair): i32 {
+    return pair.second
+}
+
+func forward(pair: Pair): i32 {
+    return read(pair)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "forward" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("copy aggregate forwarding must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        &body.blocks[0].terminator,
+        Terminator::Call {
+            arguments,
+            continuation: crate::mir::CallContinuation::Return { .. },
+            ..
+        } if matches!(
+            arguments.as_slice(),
+            [crate::mir::CallArgument {
+                operand: Operand::Copy(place),
+                representation: ValueRepresentation::Aggregate,
+                ..
+            }] if *place == crate::mir::Place::local(crate::mir::LocalId::from_index(1))
+        )
+    ));
+}
+
+#[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {
     let (_sources, analysis) = analyze_text(
         r#"func main(): i32 {
