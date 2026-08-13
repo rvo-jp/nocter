@@ -40,7 +40,7 @@ pub(crate) use type_notation::canonical_type_expr;
 pub(crate) use types::substitute_type_expr_parameters;
 pub(crate) use visit::{
     closure_expression_by_span, visit_block_expressions_without_nested_closures, visit_expression,
-    visit_file_expressions,
+    visit_file_expressions, visit_file_statements,
 };
 pub(crate) use visit_types::visit_type_exprs;
 

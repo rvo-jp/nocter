@@ -122,6 +122,23 @@ impl SemanticDb {
         self.definitions.get(id.index())
     }
 
+    pub(crate) fn definition_ancestor_distance(
+        &self,
+        ancestor: DefId,
+        descendant: DefId,
+    ) -> Option<usize> {
+        let mut current = Some(descendant);
+        let mut distance = 0;
+        while let Some(definition) = current {
+            if definition == ancestor {
+                return Some(distance);
+            }
+            current = self.definition(definition)?.owner;
+            distance += 1;
+        }
+        None
+    }
+
     pub(crate) fn body_at(&self, location: ByteSpan) -> Option<BodyId> {
         self.bodies_by_location.get(&location).copied()
     }

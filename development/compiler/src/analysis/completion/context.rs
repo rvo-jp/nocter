@@ -1,10 +1,10 @@
 use super::*;
 use crate::ast::ConformanceMember;
 
-pub(super) fn completion_context_at_offset(
+pub(super) fn recovery_completion_context_at_offset(
     ast: &AstFile,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     ast.items
         .iter()
         .find_map(|item| completion_context_in_item_at_offset(item, offset))
@@ -13,7 +13,7 @@ pub(super) fn completion_context_at_offset(
 fn completion_context_in_item_at_offset(
     item: &Item,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     match item {
         Item::Function(function) => function
             .body
@@ -70,7 +70,7 @@ fn completion_context_in_item_at_offset(
 fn completion_context_in_block_at_offset(
     block: &Block,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     block
         .statements
         .iter()
@@ -86,7 +86,7 @@ fn completion_context_in_block_at_offset(
 fn completion_context_in_statement_at_offset(
     statement: &Stmt,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     match statement {
         Stmt::Return(statement) => statement
             .expression
@@ -145,7 +145,7 @@ fn completion_context_in_statement_at_offset(
             completion_context_in_expression_at_offset(&statement.allocator, offset)
                 .or_else(|| {
                     cursor_touches_span(statement.allocator.span(), offset)
-                        .then_some(CompletionContext::RegionAllocator)
+                        .then_some(RecoveryCompletionContext::RegionAllocator)
                 })
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
         }
@@ -167,7 +167,7 @@ fn cursor_touches_span(span: ByteSpan, offset: usize) -> bool {
 fn completion_context_in_expression_at_offset(
     expression: &Expr,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     match expression {
         Expr::Closure(expression) => {
             completion_context_in_block_at_offset(&expression.body, offset)
@@ -185,7 +185,7 @@ fn completion_context_in_expression_at_offset(
             .iter()
             .find_map(|element| completion_context_in_expression_at_offset(element, offset)),
         Expr::TypedSequenceLiteral(expression) => (expression.target.span().end <= offset)
-            .then_some(CompletionContext::LiteralShape(&expression.target))
+            .then_some(RecoveryCompletionContext::LiteralShape(&expression.target))
             .filter(|_| offset <= expression.elements_span.start)
             .or_else(|| {
                 expression
@@ -200,7 +200,7 @@ fn completion_context_in_expression_at_offset(
             }),
         Expr::TypedStringLiteral(expression) => (expression.target.span().end <= offset
             && offset <= expression.text.span.start)
-            .then_some(CompletionContext::LiteralShape(&expression.target))
+            .then_some(RecoveryCompletionContext::LiteralShape(&expression.target))
             .or_else(|| {
                 expression.using.as_ref().and_then(|using| {
                     completion_context_in_expression_at_offset(&using.allocator, offset)
@@ -210,7 +210,9 @@ fn completion_context_in_expression_at_offset(
             .fields
             .iter()
             .find_map(|field| completion_context_in_expression_at_offset(&field.value, offset))
-            .or_else(|| struct_literal_field_completion_context_at_offset(expression, offset)),
+            .or_else(|| {
+                struct_literal_field_recovery_completion_context_at_offset(expression, offset)
+            }),
         Expr::Propagate(expression) => {
             completion_context_in_expression_at_offset(&expression.expression, offset)
         }
@@ -293,13 +295,13 @@ fn completion_context_in_expression_at_offset(
 fn enum_pattern_completion_context_in_if_is_at_offset(
     statement: &IfIsStmt,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     offset_in_member_completion(
         statement.enum_name_span,
         statement.variant_name_span,
         offset,
     )
-    .then_some(CompletionContext::EnumPatternMembers(
+    .then_some(RecoveryCompletionContext::EnumPatternMembers(
         statement.enum_name.as_str(),
     ))
 }
@@ -307,7 +309,7 @@ fn enum_pattern_completion_context_in_if_is_at_offset(
 fn completion_context_in_switch_at_offset(
     statement: &SwitchStmt,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     statement
         .arms
         .iter()
@@ -329,32 +331,32 @@ fn completion_context_in_switch_at_offset(
 fn enum_pattern_completion_context_in_switch_arm_at_offset(
     arm: &SwitchArm,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     offset_in_member_completion(arm.enum_name_span, arm.variant_name_span, offset).then_some(
-        CompletionContext::EnumPatternMembers(arm.enum_name.as_str()),
+        RecoveryCompletionContext::EnumPatternMembers(arm.enum_name.as_str()),
     )
 }
 
 fn member_completion_context_in_member_expression_at_offset(
     expression: &MemberExpr,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     let Expr::Identifier(owner) = expression.object.without_groups() else {
         return None;
     };
 
     offset_in_member_completion(owner.span, expression.member_span, offset).then_some(
-        CompletionContext::MemberAccess {
+        RecoveryCompletionContext::MemberAccess {
             owner_name: owner.name.as_str(),
             owner_span: owner.span,
         },
     )
 }
 
-fn struct_literal_field_completion_context_at_offset(
+fn struct_literal_field_recovery_completion_context_at_offset(
     literal: &StructLiteralExpr,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
+) -> Option<RecoveryCompletionContext<'_>> {
     if !span_contains(literal.fields_span, offset) {
         return None;
     }
@@ -366,9 +368,85 @@ fn struct_literal_field_completion_context_at_offset(
         return None;
     }
 
-    Some(CompletionContext::StructLiteralFields { literal, offset })
+    Some(RecoveryCompletionContext::StructLiteralFields { literal, offset })
 }
 
 fn offset_in_member_completion(owner_span: ByteSpan, member_span: ByteSpan, offset: usize) -> bool {
     owner_span.source == member_span.source && owner_span.end < offset && offset <= member_span.end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::completion_sites::CompletionSiteKind;
+    use crate::analysis::test_support::analyze_text;
+
+    #[test]
+    fn indexed_sites_match_the_complete_recovery_walk_at_every_offset() {
+        let text = r#"struct Point { pub x: i32, pub y: i32 }
+
+enum Choice { hit miss }
+
+struct Allocator { state: usize }
+
+func main(point: Point, choice: Choice, allocator: Allocator): i32 {
+    let values = Vec<i32> [1, 2]
+    let text = String "hello"
+    let made = Point { x: point.x, y: 2 }
+    region temp using allocator {
+        if choice is Choice.hit {
+            return point.x
+        }
+    }
+    return match choice {
+        Choice.hit { made.x }
+        Choice.miss { 0 }
+    }
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("root file");
+
+        for offset in 0..=text.len() {
+            assert_eq!(
+                normalize_indexed(file.completion_sites.at_offset(offset)),
+                normalize_recovery(recovery_completion_context_at_offset(&file.ast, offset)),
+                "completion context mismatch at {offset}"
+            );
+        }
+    }
+
+    fn normalize_indexed(context: Option<&CompletionSiteKind>) -> Option<String> {
+        Some(match context? {
+            CompletionSiteKind::LiteralShape(target) => {
+                format!("literal:{}", crate::ast::canonical_type_expr(target))
+            }
+            CompletionSiteKind::RegionAllocator => "region".to_string(),
+            CompletionSiteKind::EnumPatternMembers(owner) => format!("enum:{owner}"),
+            CompletionSiteKind::MemberAccess {
+                owner_name,
+                owner_span,
+            } => format!("member:{owner_name}:{owner_span:?}"),
+            CompletionSiteKind::StructLiteralFields(literal) => {
+                format!("struct:{:?}", literal.span)
+            }
+        })
+    }
+
+    fn normalize_recovery(context: Option<RecoveryCompletionContext<'_>>) -> Option<String> {
+        Some(match context? {
+            RecoveryCompletionContext::LiteralShape(target) => {
+                format!("literal:{}", crate::ast::canonical_type_expr(target))
+            }
+            RecoveryCompletionContext::RegionAllocator => "region".to_string(),
+            RecoveryCompletionContext::EnumPatternMembers(owner) => format!("enum:{owner}"),
+            RecoveryCompletionContext::MemberAccess {
+                owner_name,
+                owner_span,
+            } => format!("member:{owner_name}:{owner_span:?}"),
+            RecoveryCompletionContext::StructLiteralFields { literal, .. } => {
+                format!("struct:{:?}", literal.span)
+            }
+        })
+    }
 }

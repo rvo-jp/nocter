@@ -29,7 +29,7 @@ use crate::typecheck::{
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
-use context::completion_context_at_offset;
+use context::recovery_completion_context_at_offset;
 use members::{
     ValueMemberOwner, enum_variant_completion_items, member_completion_items,
     struct_literal_field_completion_items,
@@ -65,7 +65,7 @@ pub(crate) struct CompletionItemInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CompletionContext<'a> {
+enum RecoveryCompletionContext<'a> {
     LiteralShape(&'a TypeExpr),
     RegionAllocator,
     EnumPatternMembers(&'a str),
@@ -96,9 +96,7 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     if let Some(site) = file.syntax.provenance_at(offset) {
         return provenance_origin_items(site.receiver, &site.parameters);
     }
-    if let Some(items) =
-        contextual_completion_items(&file.ast, &file.resolved, &file.typed_hir, offset)
-    {
+    if let Some(items) = contextual_completion_items_for_file(file, offset) {
         return items;
     }
 
@@ -176,7 +174,8 @@ pub(crate) fn literal_shape_completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
-    let CompletionContext::LiteralShape(target) = completion_context_at_offset(&file.ast, offset)?
+    let super::completion_sites::CompletionSiteKind::LiteralShape(target) =
+        file.completion_sites.at_offset(offset)?
     else {
         return None;
     };
@@ -273,7 +272,9 @@ pub(crate) fn completion_items_for_text_at_offset(
         return Some(items);
     }
 
-    if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, &facts, offset) {
+    if let Some(items) =
+        recovery_contextual_completion_items(&parsed.ast, &resolved, &facts, offset)
+    {
         return Some(items);
     }
 
@@ -892,33 +893,69 @@ fn parameter_detail(parameter: &ParameterSignature, resolved: &ResolveOutput) ->
     )
 }
 
-fn contextual_completion_items(
+fn contextual_completion_items_for_file(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    use super::completion_sites::CompletionSiteKind;
+
+    match file.completion_sites.at_offset(offset)? {
+        CompletionSiteKind::LiteralShape(target) => {
+            let items = literal_shape_completion_items(&file.resolved, target);
+            (!items.is_empty()).then_some(items)
+        }
+        CompletionSiteKind::RegionAllocator => {
+            Some(region_allocator_completion_items_for_file(file, offset))
+        }
+        CompletionSiteKind::EnumPatternMembers(enum_name) => Some(
+            file.resolved
+                .type_symbol_by_name(enum_name)
+                .map(|symbol| enum_variant_completion_items(symbol, &file.resolved))
+                .unwrap_or_default(),
+        ),
+        CompletionSiteKind::MemberAccess {
+            owner_name,
+            owner_span,
+        } => Some(member_completion_items(
+            &file.resolved,
+            &file.typed_hir,
+            owner_name,
+            *owner_span,
+            offset,
+        )),
+        CompletionSiteKind::StructLiteralFields(literal) => Some(
+            struct_literal_field_completion_items(&file.resolved, literal, offset),
+        ),
+    }
+}
+
+fn recovery_contextual_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
     facts: &TypedHir,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
-    match completion_context_at_offset(ast, offset)? {
-        CompletionContext::LiteralShape(target) => {
+    match recovery_completion_context_at_offset(ast, offset)? {
+        RecoveryCompletionContext::LiteralShape(target) => {
             let items = literal_shape_completion_items(resolved, target);
             (!items.is_empty()).then_some(items)
         }
-        CompletionContext::RegionAllocator => Some(region_allocator_completion_items(
+        RecoveryCompletionContext::RegionAllocator => Some(region_allocator_completion_items(
             ast, resolved, facts, offset,
         )),
-        CompletionContext::EnumPatternMembers(enum_name) => Some(
+        RecoveryCompletionContext::EnumPatternMembers(enum_name) => Some(
             resolved
                 .type_symbol_by_name(enum_name)
                 .map(|symbol| enum_variant_completion_items(symbol, resolved))
                 .unwrap_or_default(),
         ),
-        CompletionContext::MemberAccess {
+        RecoveryCompletionContext::MemberAccess {
             owner_name,
             owner_span,
         } => Some(member_completion_items(
-            ast, resolved, facts, owner_name, owner_span, offset,
+            resolved, facts, owner_name, owner_span, offset,
         )),
-        CompletionContext::StructLiteralFields { literal, offset } => Some(
+        RecoveryCompletionContext::StructLiteralFields { literal, offset } => Some(
             struct_literal_field_completion_items(resolved, literal, offset),
         ),
     }
@@ -1030,6 +1067,20 @@ fn region_allocator_completion_items(
             item.declaration_span
                 .and_then(|span| facts.binding_type_expr(span))
                 .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, resolved))
+        })
+        .collect()
+}
+
+fn region_allocator_completion_items_for_file(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Vec<CompletionItemInfo> {
+    local_completion_items_for_file(file, offset)
+        .into_iter()
+        .filter(|item| {
+            item.declaration_span
+                .and_then(|span| file.typed_hir.binding_type_expr(span))
+                .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, &file.resolved))
         })
         .collect()
 }

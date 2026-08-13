@@ -5,6 +5,7 @@ pub(crate) mod coercions;
 mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;
+mod completion_sites;
 pub(crate) mod constructions;
 pub(crate) mod conversions;
 pub(crate) mod definition;
@@ -209,6 +210,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) syntax: syntax_index::EditorSyntaxIndex,
     pub(crate) lexical_scopes: lexical_scopes::LexicalScopeIndex,
+    pub(crate) completion_sites: completion_sites::CompletionSiteIndex,
     pub(crate) semantic_identifiers: Vec<semantic::ClassifiedIdentifier>,
     pub(crate) regions: Vec<regions::RegionAnalysisFact>,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -376,6 +378,7 @@ fn analyze_compile_unit_with_root_policy(
                 let typed_hir = checked.typed_hir;
                 let lexical_scopes =
                     lexical_scopes::LexicalScopeIndex::new(file, &resolved.semantic_db);
+                let completion_sites = completion_sites::CompletionSiteIndex::new(file);
                 let occurrences = occurrences::SemanticOccurrenceIndex::new_with_lexical_scopes(
                     file,
                     resolved,
@@ -403,6 +406,7 @@ fn analyze_compile_unit_with_root_policy(
                     occurrences,
                     syntax,
                     lexical_scopes,
+                    completion_sites,
                     semantic_identifiers,
                     regions,
                     diagnostics,

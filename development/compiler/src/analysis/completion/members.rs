@@ -1,7 +1,6 @@
 use super::*;
 
 pub(super) fn member_completion_items(
-    ast: &AstFile,
     resolved: &ResolveOutput,
     facts: &TypedHir,
     owner_name: &str,
@@ -76,7 +75,7 @@ pub(super) fn member_completion_items(
         }));
         return items;
     }
-    let owners = generic_bound_member_owners(ast, resolved, owner_ty, offset);
+    let owners = generic_bound_member_owners(resolved, facts, owner_ty, offset);
     unambiguous_capability_member_items(
         owners,
         resolved,
@@ -320,15 +319,15 @@ fn method_completion_item(
 }
 
 fn generic_bound_member_owners<'a>(
-    ast: &'a AstFile,
     resolved: &'a ResolveOutput,
+    facts: &'a TypedHir,
     ty: &TypeExpr,
     offset: usize,
 ) -> Vec<ValueMemberOwner<'a>> {
     let Some(parameter_name) = borrowed_reference_name(ty) else {
         return Vec::new();
     };
-    generic_bounds_at_offset(ast, parameter_name, offset)
+    generic_bounds_at_offset(resolved, facts, parameter_name, ty.span().source, offset)
         .into_iter()
         .filter_map(|bound| {
             let mut owner = value_member_owner(resolved, bound)?;
@@ -353,41 +352,32 @@ fn borrowed_reference_name(ty: &TypeExpr) -> Option<&str> {
 }
 
 fn generic_bounds_at_offset<'a>(
-    ast: &'a AstFile,
+    resolved: &ResolveOutput,
+    facts: &'a TypedHir,
     parameter_name: &str,
+    source: crate::source::SourceId,
     offset: usize,
 ) -> Vec<&'a TypeExpr> {
-    ast.items
-        .iter()
-        .find_map(|item| {
-            let (generics, requirements) = match item {
-                Item::Function(function)
-                    if function
-                        .body
-                        .as_ref()
-                        .is_some_and(|body| span_contains(body.span, offset)) =>
-                {
-                    (&function.generics, function.requirements.as_ref())
-                }
-                Item::Instance(_) | Item::Conformance(_) if span_contains(item.span(), offset) => {
-                    let owner = item.method_owner().expect("matched method owner");
-                    (owner.generics(), owner.requirements())
-                }
-                _ => return None,
-            };
-            generics
-                .parameters
-                .iter()
-                .find(|parameter| parameter.name == parameter_name)
-                .map(|_| {
-                    requirements
-                        .into_iter()
-                        .flat_map(|clause| clause.generic_requirements())
-                        .filter(|requirement| requirement.name == parameter_name)
-                        .flat_map(|requirement| &requirement.bounds)
-                        .collect()
-                })
+    let Some(body_owner) = resolved
+        .semantic_db
+        .body_containing(source, offset)
+        .map(|body| body.owner)
+    else {
+        return Vec::new();
+    };
+    facts
+        .generic_parameter_declarations()
+        .filter(|parameter| parameter.name == parameter_name)
+        .filter_map(|parameter| {
+            let definition = resolved.semantic_db.definition_at(parameter.span)?;
+            let owner = resolved.semantic_db.definition(definition)?.owner?;
+            let distance = resolved
+                .semantic_db
+                .definition_ancestor_distance(owner, body_owner)?;
+            Some((distance, parameter))
         })
+        .min_by_key(|(distance, _)| *distance)
+        .map(|(_, parameter)| parameter.bounds.iter().collect())
         .unwrap_or_default()
 }
 
