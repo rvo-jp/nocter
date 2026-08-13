@@ -227,6 +227,30 @@ func main(): i32 {
 }
 
 #[test]
+fn keeps_nested_value_if_on_the_complete_lowering_route() {
+    let ir = lower_text(
+        r#"func choose(condition: bool): i32 {
+    return (if condition { 40 } else { 5 }) + 2
+}
+
+func main(): i32 {
+    return choose(true)
+}
+"#,
+    );
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+
+    assert!(matches!(
+        choose.instructions.as_slice(),
+        [Instruction::If { .. }]
+    ));
+}
+
+#[test]
 fn normalizes_terminal_if_returns_to_the_same_mir_join() {
     let ir = lower_text(
         r#"func choose(condition: bool): i32 {

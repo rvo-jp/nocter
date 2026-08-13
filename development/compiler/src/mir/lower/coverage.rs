@@ -123,7 +123,10 @@ pub(super) fn scalar_expression_is_supported(expression: &Expr, resolved: &Resol
                 && scalar_expression_is_supported(&binary.left, resolved)
                 && scalar_expression_is_supported(&binary.right, resolved)
         }
-        Expr::If(if_) => scalar_conditional_is_supported(if_, resolved),
+        // A top-level value conditional is selected by `ScalarTail`. Nested
+        // conditionals require expression-level CFG construction and must not
+        // be claimed as ordinary scalar operands before that route exists.
+        Expr::If(_) => false,
         _ => false,
     }
 }

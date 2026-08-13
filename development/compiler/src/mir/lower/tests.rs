@@ -174,3 +174,36 @@ fn makes_nested_scalar_evaluation_order_explicit_with_a_temporary() {
     )));
     assert_eq!(validate(&body), Ok(()));
 }
+
+#[test]
+fn does_not_claim_nested_control_flow_as_a_scalar_operand() {
+    let (_sources, analysis) = analyze_text(
+        r#"func choose(condition: bool): i32 {
+    return (if condition { 40 } else { 5 }) + 2
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "choose" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(
+        try_build_scalar_body(
+            function.body.as_ref().unwrap(),
+            &function.parameters.parameters,
+            ScalarType::I32,
+            &analysis.semantic_db,
+            &file.resolved,
+            &file.typed_hir,
+        )
+        .is_none()
+    );
+}
