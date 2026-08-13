@@ -76,18 +76,20 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
         };
 
         for (statement_index, statement) in block.statements.iter().enumerate() {
-            let super::Statement::Assign {
+            if let super::Statement::Assign {
                 destination, value, ..
-            } = statement;
-            consume_rvalue_moves(value, &mut state);
-            activate_destination(
-                body,
-                destination.local,
-                &mut state,
-                block_id,
-                DropObligationLocation::Assignment(statement_index),
-                &mut errors,
-            );
+            } = statement
+            {
+                consume_rvalue_moves(value, &mut state);
+                activate_destination(
+                    body,
+                    destination.local,
+                    &mut state,
+                    block_id,
+                    DropObligationLocation::Assignment(statement_index),
+                    &mut errors,
+                );
+            }
         }
 
         match &block.terminator {
@@ -334,6 +336,7 @@ mod tests {
             entry: BasicBlockId::from_index(0),
             blocks,
             loop_regions: Vec::new(),
+            loans: Vec::new(),
         }
     }
 

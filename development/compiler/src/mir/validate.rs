@@ -10,6 +10,7 @@ use crate::semantic::TyId;
 pub(crate) enum ValidationError {
     Initialization(super::initialization::InitializationError),
     DropObligation(super::drop_obligations::DropObligationError),
+    Loan(super::loans::LoanError),
     MissingReturnLocal(LocalId),
     MissingRootScope(super::ScopeId),
     InvalidRootScope(super::ScopeId),
@@ -202,9 +203,15 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             });
         }
         for (statement_index, statement) in block.statements.iter().enumerate() {
+            if !matches!(statement, Statement::Assign { .. }) {
+                continue;
+            }
             let Statement::Assign {
                 destination, value, ..
-            } = statement;
+            } = statement
+            else {
+                unreachable!("non-assignment statements were handled above")
+            };
             let Some(destination_local) = body.locals.get(destination.local.index()) else {
                 errors.push(ValidationError::MissingAssignmentLocal {
                     block: block_id,
@@ -291,7 +298,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                                 actual,
                             });
                         }
-                        ValueRepresentation::Aggregate => {
+                        ValueRepresentation::Borrow | ValueRepresentation::Aggregate => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
@@ -403,6 +410,11 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         super::drop_obligations::validate(body)
             .into_iter()
             .map(ValidationError::DropObligation),
+    );
+    errors.extend(
+        super::loans::validate(body)
+            .into_iter()
+            .map(ValidationError::Loan),
     );
 
     if errors.is_empty() {
@@ -593,7 +605,7 @@ fn validate_operand_scalar(
                 actual,
             });
         }
-        Some(actual @ ValueRepresentation::Aggregate) => {
+        Some(actual @ (ValueRepresentation::Borrow | ValueRepresentation::Aggregate)) => {
             errors.push(ValidationError::OperandRepresentationMismatch {
                 block,
                 location,
@@ -734,6 +746,7 @@ mod tests {
                 },
             ],
             loop_regions: Vec::new(),
+            loans: Vec::new(),
         }
     }
 

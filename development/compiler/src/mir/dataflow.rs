@@ -1,38 +1,57 @@
-//! Dense sets over one MIR body's `LocalId` domain.
+//! Dense sets over typed identity domains local to one MIR body.
 
-use super::LocalId;
+use super::{LoanId, LocalId};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct LocalSet {
-    words: Vec<u64>,
+pub(super) trait DenseId: Copy {
+    fn index(self) -> usize;
 }
 
-impl LocalSet {
-    pub(super) fn new(local_count: usize) -> Self {
+impl DenseId for LocalId {
+    fn index(self) -> usize {
+        self.index()
+    }
+}
+
+impl DenseId for LoanId {
+    fn index(self) -> usize {
+        self.index()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DenseSet<I> {
+    words: Vec<u64>,
+    identity: PhantomData<I>,
+}
+
+impl<I: DenseId> DenseSet<I> {
+    pub(super) fn new(identity_count: usize) -> Self {
         Self {
-            words: vec![0; local_count.div_ceil(u64::BITS as usize)],
+            words: vec![0; identity_count.div_ceil(u64::BITS as usize)],
+            identity: PhantomData,
         }
     }
 
-    pub(super) fn insert(&mut self, local: LocalId) {
-        let word = local.index() / u64::BITS as usize;
-        let bit = local.index() % u64::BITS as usize;
+    pub(super) fn insert(&mut self, identity: I) {
+        let word = identity.index() / u64::BITS as usize;
+        let bit = identity.index() % u64::BITS as usize;
         if let Some(word) = self.words.get_mut(word) {
             *word |= 1 << bit;
         }
     }
 
-    pub(super) fn contains(&self, local: LocalId) -> bool {
-        let word = local.index() / u64::BITS as usize;
-        let bit = local.index() % u64::BITS as usize;
+    pub(super) fn contains(&self, identity: I) -> bool {
+        let word = identity.index() / u64::BITS as usize;
+        let bit = identity.index() % u64::BITS as usize;
         self.words
             .get(word)
             .is_some_and(|word| word & (1 << bit) != 0)
     }
 
-    pub(super) fn remove(&mut self, local: LocalId) {
-        let word = local.index() / u64::BITS as usize;
-        let bit = local.index() % u64::BITS as usize;
+    pub(super) fn remove(&mut self, identity: I) {
+        let word = identity.index() / u64::BITS as usize;
+        let bit = identity.index() % u64::BITS as usize;
         if let Some(word) = self.words.get_mut(word) {
             *word &= !(1 << bit);
         }
@@ -62,6 +81,9 @@ impl LocalSet {
         changed
     }
 }
+
+pub(super) type LocalSet = DenseSet<LocalId>;
+pub(super) type LoanSet = DenseSet<LoanId>;
 
 #[cfg(test)]
 mod tests {

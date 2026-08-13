@@ -77,6 +77,11 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - `Drop` is an explicit MIR terminator, and a separate fixed-point obligation pass uses may-live
   and must-live sets to reject leaks, overwrites, double drops, and cleanup reached after a move;
   conditional ownership is therefore not flattened into one unreliable live flag
+- borrows have body-local `LoanId`, explicit `BeginLoan`/`EndLoan` statements, source and
+  destination places, mutability, and lexical scope; one fixed-point loan pass rejects conflicting
+  borrows, mutation or move while borrowed, path-dependent invalid ends, and live loans at exits
+- initialization, ownership obligations, and loans share one typed dense-set implementation while
+  keeping their `LocalId` and `LoanId` domains statically distinct
 - the next checkpoint routes owned aggregate locals through MIR and materializes explicit cleanup
   blocks from validated scope transitions
 

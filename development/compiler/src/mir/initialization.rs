@@ -43,20 +43,41 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
             continue;
         };
         for (statement_index, statement) in block.statements.iter().enumerate() {
-            let crate::mir::Statement::Assign {
-                destination, value, ..
-            } = statement;
-            for operand in rvalue_operands(value) {
-                validate_and_apply_operand(
-                    operand,
-                    &mut initialized,
-                    block_id,
-                    InitializationLocation::Statement(statement_index),
-                    body.locals.len(),
-                    &mut errors,
-                );
+            match statement {
+                crate::mir::Statement::Assign {
+                    destination, value, ..
+                } => {
+                    for operand in rvalue_operands(value) {
+                        validate_and_apply_operand(
+                            operand,
+                            &mut initialized,
+                            block_id,
+                            InitializationLocation::Statement(statement_index),
+                            body.locals.len(),
+                            &mut errors,
+                        );
+                    }
+                    initialized.insert(destination.local);
+                }
+                crate::mir::Statement::BeginLoan { loan, .. } => {
+                    if let Some(loan) = body.loans.get(loan.index()) {
+                        validate_and_apply_operand(
+                            &Operand::Copy(loan.source),
+                            &mut initialized,
+                            block_id,
+                            InitializationLocation::Statement(statement_index),
+                            body.locals.len(),
+                            &mut errors,
+                        );
+                        initialized.insert(loan.destination);
+                    }
+                }
+                crate::mir::Statement::EndLoan { loan } => {
+                    if let Some(loan) = body.loans.get(loan.index()) {
+                        initialized.remove(loan.destination);
+                    }
+                }
             }
-            initialized.insert(destination.local);
         }
 
         match &block.terminator {
@@ -290,6 +311,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             loop_regions: Vec::new(),
+            loans: Vec::new(),
         };
 
         assert_eq!(

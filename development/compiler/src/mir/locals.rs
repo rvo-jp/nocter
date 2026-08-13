@@ -58,10 +58,31 @@ impl Local {
         }
     }
 
+    #[allow(
+        dead_code,
+        reason = "borrow route construction follows the loan-validation checkpoint"
+    )]
+    pub(crate) fn borrow(
+        ty: TyId,
+        readwrite: bool,
+        storage: LocalStorage,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            ty,
+            representation: ValueRepresentation::Borrow,
+            ownership: OwnershipKind::Borrowed { readwrite },
+            storage,
+            origin,
+            scope,
+        }
+    }
+
     pub(crate) fn scalar_type(&self) -> Option<ScalarType> {
         match self.representation {
             ValueRepresentation::Scalar(scalar) => Some(scalar),
-            ValueRepresentation::Aggregate => None,
+            ValueRepresentation::Borrow | ValueRepresentation::Aggregate => None,
         }
     }
 }
@@ -69,6 +90,11 @@ impl Local {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueRepresentation {
     Scalar(ScalarType),
+    #[allow(
+        dead_code,
+        reason = "borrow route construction follows the loan-validation checkpoint"
+    )]
+    Borrow,
     Aggregate,
 }
 
@@ -82,14 +108,16 @@ pub(crate) enum ScalarType {
 /// Static ownership behavior of a local's type. Runtime initialization and
 /// drop obligations are represented separately on control-flow paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[expect(
-    dead_code,
-    reason = "borrowed locals are introduced before their Phase 3 lowering checkpoint"
-)]
 pub(crate) enum OwnershipKind {
     Copy,
     Move,
-    Borrowed { readwrite: bool },
+    #[allow(
+        dead_code,
+        reason = "borrow route construction follows the loan-validation checkpoint"
+    )]
+    Borrowed {
+        readwrite: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

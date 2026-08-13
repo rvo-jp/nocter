@@ -107,6 +107,10 @@ buildability is MIR validation rather than a parallel AST model.
   sets, ordinary calls initialize their destination on the return edge, and fallible calls do so
   only on the success edge. Machine IR therefore never guesses whether a reachable operand or
   return place contains a value.
+- Owned cleanup and borrows use separate path-sensitive MIR analyses over the same typed dense-set
+  substrate. Drop obligations retain may-live and must-live state across joins; loans have explicit
+  identities and begin/end points, so neither cleanup nor alias validity is inferred from AST
+  nesting or a single ambiguous runtime-live flag.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain

@@ -251,6 +251,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             entry: BasicBlockId::from_index(0),
             blocks,
             loop_regions,
+            loans: Vec::new(),
         };
         validate(&body).map_err(BuildError::InvalidMir)?;
         Ok(body)

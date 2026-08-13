@@ -228,7 +228,9 @@ InstanceMember::Coercion(CoercionDecl)
   invalid local or scope contracts, non-boolean conditions, invalid control-flow targets, and
   malformed loop regions before machine IR is produced.</li><li>A fixed-point definite-initialization verifier checks reachable operands and returns. Branch joins
   intersect initialized sets, while fallible calls initialize their destination only along the
-  success edge.</li><li>Nongeneric scalar functions route through MIR when their bodies contain supported parameters,
+  success edge.</li><li>Owned values and borrows now have independent path-sensitive MIR domains. Explicit drop edges
+  are checked with may-live and must-live obligations; <code>LoanId</code> plus begin/end statements detect
+  alias conflicts, moves or mutations while borrowed, and loans that cross an exit.</li><li>Nongeneric scalar functions route through MIR when their bodies contain supported parameters,
   bindings, assignments, arithmetic, and value or terminal conditionals. Once selected, MIR
   construction or validation failure is authoritative; the route does not fall back to the
   AST-driven lowerer.</li><li>Value <code>if</code> and terminal <code>if</code> normalize to the same control-flow diamond with one return join.

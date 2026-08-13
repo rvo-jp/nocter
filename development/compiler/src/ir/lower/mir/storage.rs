@@ -58,6 +58,11 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                 .iter()
                 .filter(|statement| match statement {
                     crate::mir::Statement::Assign { destination, .. } => destination.local == local,
+                    crate::mir::Statement::BeginLoan { loan, .. } => body
+                        .loans
+                        .get(loan.index())
+                        .is_some_and(|loan| loan.destination == local),
+                    crate::mir::Statement::EndLoan { .. } => false,
                 })
                 .count();
             let terminator = match &block.terminator {
@@ -83,6 +88,12 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                 .iter()
                 .map(|statement| match statement {
                     crate::mir::Statement::Assign { value, .. } => rvalue_use_count(value, local),
+                    crate::mir::Statement::BeginLoan { loan, .. } => body
+                        .loans
+                        .get(loan.index())
+                        .is_some_and(|loan| loan.source.local == local)
+                        as usize,
+                    crate::mir::Statement::EndLoan { .. } => 0,
                 })
                 .sum::<usize>();
             let terminator = match &block.terminator {
@@ -220,6 +231,7 @@ mod tests {
                 continue_target: BasicBlockId::from_index(0),
                 exit: BasicBlockId::from_index(2),
             }],
+            loans: Vec::new(),
         }
     }
 

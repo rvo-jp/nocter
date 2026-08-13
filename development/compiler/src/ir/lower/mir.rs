@@ -588,7 +588,12 @@ fn lower_statements(
     for statement in statements {
         let Statement::Assign {
             destination, value, ..
-        } = statement;
+        } = statement
+        else {
+            return Err(invalid_mir_diagnostics(
+                "borrow loans have not been projected to machine IR",
+            ));
+        };
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
                 let destination = i32_location(destination, body)?;

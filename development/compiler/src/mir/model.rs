@@ -1,7 +1,7 @@
 //! Minimal executable MIR model. New execution forms extend this model before
 //! their AST-driven lowering path is removed.
 
-use super::ids::{BasicBlockId, LocalId, ScopeId};
+use super::ids::{BasicBlockId, LoanId, LocalId, ScopeId};
 use super::locals::{Local, ScalarType};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
@@ -18,6 +18,26 @@ pub(crate) struct Body {
     pub(crate) entry: BasicBlockId,
     pub(crate) blocks: Vec<BasicBlock>,
     pub(crate) loop_regions: Vec<LoopRegion>,
+    pub(crate) loans: Vec<Loan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Loan {
+    pub(crate) id: LoanId,
+    pub(crate) source: Place,
+    pub(crate) destination: LocalId,
+    pub(crate) kind: BorrowKind,
+    pub(crate) scope: ScopeId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BorrowKind {
+    #[allow(
+        dead_code,
+        reason = "readonly borrow construction follows the loan-validation checkpoint"
+    )]
+    Readonly,
+    Readwrite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +75,16 @@ pub(crate) enum Statement {
         value: Rvalue,
         origin: Origin,
     },
+    #[allow(
+        dead_code,
+        reason = "borrow route construction follows the loan-validation checkpoint"
+    )]
+    BeginLoan { loan: LoanId, origin: Origin },
+    #[allow(
+        dead_code,
+        reason = "borrow route construction follows the loan-validation checkpoint"
+    )]
+    EndLoan { loan: LoanId },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
