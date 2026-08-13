@@ -409,7 +409,7 @@ func main(): i32 {
 }
 
 #[test]
-fn does_not_claim_calls_inside_conditional_branches_before_structured_cfg_lowering() {
+fn builds_calls_inside_conditional_branches_as_linear_paths_to_the_join() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32 {
     return 42
@@ -436,15 +436,30 @@ func choose(condition: bool): i32 {
         })
         .unwrap();
 
-    assert!(
-        try_build_scalar_body(
-            function.body.as_ref().unwrap(),
-            &function.parameters.parameters,
-            ScalarType::I32,
-            &analysis.semantic_db,
-            &file.resolved,
-            &file.typed_hir,
-        )
-        .is_none()
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("linear branch calls must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 5);
+    assert!(matches!(
+        body.blocks[1].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Return { target, .. },
+            ..
+        } if target == BasicBlockId::from_index(4)
+    ));
+    assert_eq!(
+        body.blocks[4].terminator,
+        Terminator::Goto {
+            target: BasicBlockId::from_index(3),
+        }
     );
+    assert_eq!(validate(&body), Ok(()));
 }

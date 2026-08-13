@@ -6,7 +6,7 @@ mod lower;
 mod model;
 mod validate;
 
-pub(crate) use ids::LocalId;
+pub(crate) use ids::{BasicBlockId, LocalId};
 pub(crate) use index::BodyCache;
 pub(crate) use lower::{BuildError, try_build_scalar_body};
 pub(crate) use model::{

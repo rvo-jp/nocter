@@ -213,29 +213,13 @@ fn scalar_conditional_is_supported(
     typed_hir: &TypedHir,
 ) -> bool {
     scalar_expression_is_supported(&if_.condition, resolved, typed_hir)
-        && scalar_branch_result(&if_.then_block).is_some_and(|result| {
-            !expression_contains_call(result)
-                && scalar_expression_is_supported(result, resolved, typed_hir)
-        })
+        && scalar_branch_result(&if_.then_block)
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
         && if_
             .else_block
             .as_ref()
             .and_then(scalar_branch_result)
-            .is_some_and(|result| {
-                !expression_contains_call(result)
-                    && scalar_expression_is_supported(result, resolved, typed_hir)
-            })
-}
-
-fn expression_contains_call(expression: &Expr) -> bool {
-    match expression {
-        Expr::Call(_) => true,
-        Expr::Group(group) => expression_contains_call(&group.expression),
-        Expr::Binary(binary) => {
-            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
-        }
-        _ => false,
-    }
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
 }
 
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {

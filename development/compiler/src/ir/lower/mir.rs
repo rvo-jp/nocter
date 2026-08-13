@@ -15,6 +15,8 @@ use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
+mod control_flow;
+
 pub(super) fn try_lower_scalar_body(
     cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
@@ -95,22 +97,10 @@ fn lower_scalar_body(
                 then_target,
                 else_target,
             } => {
-                if !visited.insert(*then_target) || !visited.insert(*else_target) {
-                    return Err(invalid_mir_diagnostics(
-                        "control-flow branch reuses an already lowered block",
-                    ));
-                }
-                let then_block = &body.blocks[then_target.index()];
-                let else_block = &body.blocks[else_target.index()];
-                let (
-                    Terminator::Goto { target: then_join },
-                    Terminator::Goto { target: else_join },
-                ) = (&then_block.terminator, &else_block.terminator)
-                else {
-                    return Err(invalid_mir_diagnostics(
-                        "scalar conditional branches must join explicitly",
-                    ));
-                };
+                let then_join = control_flow::linear_branch_join(body, *then_target)
+                    .map_err(invalid_mir_diagnostics)?;
+                let else_join = control_flow::linear_branch_join(body, *else_target)
+                    .map_err(invalid_mir_diagnostics)?;
                 if then_join != else_join {
                     return Err(invalid_mir_diagnostics(
                         "scalar conditional branches must share one join block",
@@ -118,10 +108,28 @@ fn lower_scalar_body(
                 }
                 instructions.push(Instruction::If {
                     condition: lower_bool_operand(condition, body)?,
-                    then_instructions: lower_statements(body, &then_block.statements)?,
-                    else_instructions: lower_statements(body, &else_block.statements)?,
+                    then_instructions: lower_linear_branch(
+                        body,
+                        *then_target,
+                        then_join,
+                        resolved,
+                        function_signatures,
+                        function_names,
+                        root_source,
+                        &mut visited,
+                    )?,
+                    else_instructions: lower_linear_branch(
+                        body,
+                        *else_target,
+                        else_join,
+                        resolved,
+                        function_signatures,
+                        function_names,
+                        root_source,
+                        &mut visited,
+                    )?,
                 });
-                current = *then_join;
+                current = then_join;
             }
             Terminator::Call {
                 callee,
@@ -192,23 +200,13 @@ fn lower_scalar_body(
                             });
                             return Ok(instructions);
                         }
-                        instructions.push(match destination_scalar {
-                            ScalarType::I32 => Instruction::CallI32 {
-                                destination: i32_location(destination, body)?,
-                                target: call_target,
-                                arguments,
-                            },
-                            ScalarType::Usize => Instruction::CallUsize {
-                                destination: usize_location(destination, body)?,
-                                target: call_target,
-                                arguments,
-                            },
-                            ScalarType::Bool => Instruction::CallBool {
-                                destination: bool_location(destination, body)?,
-                                target: call_target,
-                                arguments,
-                            },
-                        });
+                        instructions.push(call_instruction(
+                            destination_scalar,
+                            destination,
+                            call_target,
+                            arguments,
+                            body,
+                        )?);
                         current = *target;
                     }
                 }
@@ -219,6 +217,95 @@ fn lower_scalar_body(
             }
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_linear_branch(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+    join: crate::mir::BasicBlockId,
+    resolved: &ResolveOutput,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    root_source: SourceId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    let mut current = start;
+    loop {
+        if !visited.insert(current) {
+            return Err(invalid_mir_diagnostics(
+                "control-flow branch reuses an already lowered block",
+            ));
+        }
+        let block = &body.blocks[current.index()];
+        instructions.extend(lower_statements(body, &block.statements)?);
+        match &block.terminator {
+            Terminator::Goto { target } if *target == join => return Ok(instructions),
+            Terminator::Call {
+                callee,
+                arguments,
+                continuation:
+                    CallContinuation::Return {
+                        destination,
+                        target,
+                    },
+                ..
+            } => {
+                let (call_target, callee_name) =
+                    lower_call_target(*callee, resolved, function_names, root_source)?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, body))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let destination_scalar = body.locals[destination.local.index()].scalar;
+                super::expressions::validate_known_call_success_return_passing(
+                    function_signatures.success_return_passing(&call_target),
+                    &callee_name,
+                    &scalar_ir_type(destination_scalar),
+                )?;
+                instructions.push(call_instruction(
+                    destination_scalar,
+                    destination,
+                    call_target,
+                    arguments,
+                    body,
+                )?);
+                current = *target;
+            }
+            _ => {
+                return Err(invalid_mir_diagnostics(
+                    "scalar conditional branch does not follow a linear path to its join",
+                ));
+            }
+        }
+    }
+}
+
+fn call_instruction(
+    scalar: ScalarType,
+    destination: &Place,
+    target: crate::ir::CallTarget,
+    arguments: Vec<ScalarArgument>,
+    body: &Body,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    Ok(match scalar {
+        ScalarType::I32 => Instruction::CallI32 {
+            destination: i32_location(destination, body)?,
+            target,
+            arguments,
+        },
+        ScalarType::Usize => Instruction::CallUsize {
+            destination: usize_location(destination, body)?,
+            target,
+            arguments,
+        },
+        ScalarType::Bool => Instruction::CallBool {
+            destination: bool_location(destination, body)?,
+            target,
+            arguments,
+        },
+    })
 }
 
 fn scalar_ir_type(scalar: ScalarType) -> Type {

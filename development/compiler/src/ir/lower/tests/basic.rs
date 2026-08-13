@@ -267,6 +267,45 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_linear_call_paths_inside_a_mir_conditional() {
+    let ir = lower_text(
+        r#"func answer(): i32 {
+    return 42
+}
+
+func choose(condition: bool): i32 {
+    return if condition {
+        answer()
+    } else {
+        7
+    }
+}
+
+func main(): i32 {
+    return choose(true)
+}
+"#,
+    );
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![call_i32(I32Location::Return, "answer", vec![])],
+                else_instructions: vec![set_return_i32(7)],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_primitive_comparison_through_mir() {
     let ir = lower_text(
         r#"func choose(value: usize): i32 {
