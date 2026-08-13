@@ -122,6 +122,21 @@ impl SemanticDb {
         self.definitions.get(id.index())
     }
 
+    pub(crate) fn definition_containing(
+        &self,
+        source: crate::source::SourceId,
+        offset: usize,
+    ) -> Option<&Definition> {
+        self.definitions
+            .iter()
+            .filter(|definition| {
+                definition.span.source == source
+                    && definition.span.start <= offset
+                    && offset <= definition.span.end
+            })
+            .min_by_key(|definition| (definition.span.len(), definition.span.start))
+    }
+
     pub(crate) fn definition_ancestor_distance(
         &self,
         ancestor: DefId,
@@ -135,6 +150,22 @@ impl SemanticDb {
             }
             current = self.definition(definition)?.owner;
             distance += 1;
+        }
+        None
+    }
+
+    pub(crate) fn definition_ancestor_with_kinds(
+        &self,
+        descendant: DefId,
+        kinds: &[DefinitionKind],
+    ) -> Option<&Definition> {
+        let mut current = Some(descendant);
+        while let Some(definition) = current {
+            let record = self.definition(definition)?;
+            if kinds.contains(&record.kind) {
+                return Some(record);
+            }
+            current = record.owner;
         }
         None
     }

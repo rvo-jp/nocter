@@ -88,9 +88,12 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    if let Some(items) =
-        associated_type_completion_items(&file.ast, &file.resolved, &file.typed_hir, offset)
-    {
+    if let Some(items) = associated_type_completion_items(
+        &file.resolved,
+        &file.typed_hir,
+        file.ast.span.source,
+        offset,
+    ) {
         return items;
     }
     if let Some(site) = file.syntax.provenance_at(offset) {
@@ -110,11 +113,11 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         file.lexical_scopes.visible_imports(offset),
         &local_names,
     ));
-    if !copy_requirement_completion_is_allowed(&file.ast, offset) {
+    if !file.syntax.copy_requirement_is_allowed(offset) {
         items.retain(|item| item.label != "copy");
     }
-    apply_operator_completion(&file.ast, offset, &mut items);
-    apply_operator_requirement_completion(&file.ast, offset, &mut items);
+    apply_operator_completion_for_file(file, offset, &mut items);
+    apply_operator_requirement_completion_for_file(file, offset, &mut items);
     items
 }
 
@@ -175,7 +178,7 @@ pub(crate) fn literal_shape_completion_items_for_file_analysis_at_offset(
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     let super::completion_sites::CompletionSiteKind::LiteralShape(target) =
-        file.completion_sites.at_offset(offset)?
+        file.syntax.completion_site_at(offset)?
     else {
         return None;
     };
@@ -264,7 +267,8 @@ pub(crate) fn completion_items_for_text_at_offset(
         &resolved,
     );
 
-    if let Some(items) = associated_type_completion_items(&parsed.ast, &resolved, &facts, offset) {
+    if let Some(items) = associated_type_completion_items(&resolved, &facts, parsed.source, offset)
+    {
         return Some(items);
     }
 
@@ -378,6 +382,80 @@ fn apply_operator_requirement_completion(
             declaration_span: Some(parameter.name_span),
         });
     }
+    append_operator_requirement_candidates(items);
+}
+
+fn apply_operator_requirement_completion_for_file(
+    file: &FileAnalysis,
+    offset: usize,
+    items: &mut Vec<CompletionItemInfo>,
+) {
+    if !file.syntax.operator_requirement_contains(offset) {
+        return;
+    }
+    for parameter in active_generic_parameters(file, offset) {
+        if items.iter().any(|item| item.label == parameter.name) {
+            continue;
+        }
+        items.push(CompletionItemInfo {
+            label: parameter.name.clone(),
+            kind: CompletionItemKind::Class,
+            detail: Some("generic type parameter".to_string()),
+            documentation: None,
+            insert_text: None,
+            sort_text: None,
+            declaration_span: Some(parameter.span),
+        });
+    }
+    append_operator_requirement_candidates(items);
+}
+
+fn active_generic_parameters(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Vec<&crate::typecheck::GenericParameterFact> {
+    let Some(owner) = file
+        .resolved
+        .semantic_db
+        .definition_containing(file.ast.span.source, offset)
+        .map(|definition| definition.id)
+    else {
+        return Vec::new();
+    };
+    let mut by_name = HashMap::<&str, (usize, &crate::typecheck::GenericParameterFact)>::new();
+    for parameter in file.typed_hir.generic_parameter_declarations() {
+        let Some(parameter_owner) = file
+            .resolved
+            .semantic_db
+            .definition_at(parameter.span)
+            .and_then(|definition| file.resolved.semantic_db.definition(definition))
+            .and_then(|definition| definition.owner)
+        else {
+            continue;
+        };
+        let Some(distance) = file
+            .resolved
+            .semantic_db
+            .definition_ancestor_distance(parameter_owner, owner)
+        else {
+            continue;
+        };
+        let entry = by_name
+            .entry(parameter.name.as_str())
+            .or_insert((distance, parameter));
+        if distance < entry.0 {
+            *entry = (distance, parameter);
+        }
+    }
+    let mut parameters = by_name
+        .into_values()
+        .map(|(_, parameter)| parameter)
+        .collect::<Vec<_>>();
+    parameters.sort_by_key(|parameter| parameter.span.start);
+    parameters
+}
+
+fn append_operator_requirement_candidates(items: &mut Vec<CompletionItemInfo>) {
     for (label, detail, insert_text) in [
         ("==", "equality operator requirement", "&T == &T): bool"),
         ("<", "strict-order operator requirement", "&T < &T): bool"),
@@ -399,6 +477,18 @@ fn apply_operator_requirement_completion(
     }
 }
 
+fn apply_operator_completion_for_file(
+    file: &FileAnalysis,
+    offset: usize,
+    items: &mut Vec<CompletionItemInfo>,
+) {
+    items.retain(|item| item.label != "operator");
+    let Some(instance) = file.syntax.instance_declaration_at(offset) else {
+        return;
+    };
+    append_operator_completion(instance, items);
+}
+
 fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<CompletionItemInfo>) {
     items.retain(|item| item.label != "operator");
     let Some(instance) = ast.items.iter().find_map(|item| {
@@ -414,6 +504,13 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
     }) else {
         return;
     };
+    append_operator_completion(instance, items);
+}
+
+fn append_operator_completion(
+    instance: &crate::ast::InstanceDecl,
+    items: &mut Vec<CompletionItemInfo>,
+) {
     let owner = crate::ast::canonical_type_expr(&instance.target_ty);
     let has_equality = instance.operators().any(|operator| {
         matches!(
@@ -494,9 +591,9 @@ fn apply_operator_completion(ast: &AstFile, offset: usize, items: &mut Vec<Compl
 }
 
 fn associated_type_completion_items(
-    ast: &AstFile,
     resolved: &ResolveOutput,
     facts: &TypedHir,
+    source: crate::source::SourceId,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     let projection = facts.type_occurrences().find_map(|occurrence| {
@@ -507,48 +604,9 @@ fn associated_type_completion_items(
             .then_some(projection)
     })?;
     let entries = match projection.base.as_ref() {
-        TypeExpr::Reference(reference) if reference.name == "Self" => ast
-            .items
-            .iter()
-            .find(|item| item.span().start <= offset && offset <= item.span().end)
-            .and_then(|item| match item {
-                Item::Interface(interface) => Some(
-                    interface
-                        .associated_types
-                        .iter()
-                        .map(|associated| {
-                            (
-                                associated.name.clone(),
-                                interface.name.clone(),
-                                associated.name_span,
-                            )
-                        })
-                        .collect::<Vec<_>>(),
-                ),
-                Item::Conformance(conformance) => {
-                    let name = match &conformance.interface_ty {
-                        TypeExpr::Reference(reference) => &reference.name,
-                        TypeExpr::Generic(generic) => &generic.name,
-                        _ => return None,
-                    };
-                    let interface = resolved.type_symbol_by_reference_name(name)?;
-                    Some(
-                        interface
-                            .associated_types
-                            .iter()
-                            .map(|associated| {
-                                (
-                                    associated.name.clone(),
-                                    interface.canonical_name.clone(),
-                                    associated.name_span,
-                                )
-                            })
-                            .collect(),
-                    )
-                }
-                _ => None,
-            })
-            .unwrap_or_default(),
+        TypeExpr::Reference(reference) if reference.name == "Self" => {
+            self_associated_type_entries(resolved, source, offset).unwrap_or_default()
+        }
         TypeExpr::Reference(reference) => facts
             .generic_parameter_declarations()
             .find(|parameter| parameter.name == reference.name)
@@ -591,6 +649,58 @@ fn associated_type_completion_items(
                 insert_text: Some(name),
                 sort_text: None,
                 declaration_span: Some(declaration_span),
+            })
+            .collect(),
+    )
+}
+
+fn self_associated_type_entries(
+    resolved: &ResolveOutput,
+    source: crate::source::SourceId,
+    offset: usize,
+) -> Option<Vec<(String, String, ByteSpan)>> {
+    let enclosing = resolved.semantic_db.definition_containing(source, offset)?;
+    let owner = resolved.semantic_db.definition_ancestor_with_kinds(
+        enclosing.id,
+        &[
+            crate::semantic::DefinitionKind::Interface,
+            crate::semantic::DefinitionKind::Conformance,
+        ],
+    )?;
+    let interface = match resolved.declaration(owner.id)? {
+        crate::resolve::ResolvedDeclaration::Symbol(symbol) => {
+            let SymbolKind::Type(interface) = &symbol.kind else {
+                return None;
+            };
+            interface
+        }
+        crate::resolve::ResolvedDeclaration::Conformance(conformance) => {
+            let name = match &conformance.interface_ty {
+                TypeExpr::Reference(reference) => &reference.name,
+                TypeExpr::Generic(generic) => &generic.name,
+                _ => return None,
+            };
+            resolved.type_symbol_by_reference_name(name)?
+        }
+        crate::resolve::ResolvedDeclaration::Field(_, _)
+        | crate::resolve::ResolvedDeclaration::Variant(_, _)
+        | crate::resolve::ResolvedDeclaration::AssociatedType(_, _)
+        | crate::resolve::ResolvedDeclaration::AssociatedFunction(_, _)
+        | crate::resolve::ResolvedDeclaration::Method(_, _)
+        | crate::resolve::ResolvedDeclaration::Destructor(_, _)
+        | crate::resolve::ResolvedDeclaration::Literal(_, _)
+        | crate::resolve::ResolvedDeclaration::Coercion(_) => return None,
+    };
+    Some(
+        interface
+            .associated_types
+            .iter()
+            .map(|associated| {
+                (
+                    associated.name.clone(),
+                    interface.canonical_name.clone(),
+                    associated.name_span,
+                )
             })
             .collect(),
     )
@@ -899,7 +1009,7 @@ fn contextual_completion_items_for_file(
 ) -> Option<Vec<CompletionItemInfo>> {
     use super::completion_sites::CompletionSiteKind;
 
-    match file.completion_sites.at_offset(offset)? {
+    match file.syntax.completion_site_at(offset)? {
         CompletionSiteKind::LiteralShape(target) => {
             let items = literal_shape_completion_items(&file.resolved, target);
             (!items.is_empty()).then_some(items)

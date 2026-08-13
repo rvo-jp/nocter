@@ -7,7 +7,7 @@
 use crate::analysis::editor_targets::{EditorTarget, EditorTargetKind};
 use crate::ast::{
     AstFile, CallExpr, ConformanceDecl, ConstructMemberDecl, Expr, FunctionDecl, GenericParamList,
-    Item, LiteralDecl, MethodDecl, ModulePath, PrimitiveDecl, TypeExpr, WhereClause,
+    Item, LiteralDecl, MethodDecl, ModulePath, PrimitiveDecl, TypeExpr,
 };
 use crate::comments::{AttachedDocumentation, DocumentationTarget, attach_documentation};
 use crate::resolve::ResolveOutput;
@@ -70,6 +70,7 @@ pub(crate) enum CallableSyntax {
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct EditorSyntaxIndex {
+    completion_sites: super::completion_sites::CompletionSiteIndex,
     coercion_requirements: Vec<CoercionRequirementSite>,
     module_paths: Vec<ModulePath>,
     editor_targets: Vec<EditorTarget>,
@@ -89,9 +90,10 @@ pub(crate) struct EditorSyntaxIndex {
 
 impl EditorSyntaxIndex {
     pub(crate) fn new(text: &str, ast: &AstFile, resolved: &ResolveOutput) -> Self {
+        let completion_sites = super::completion_sites::CompletionSiteIndex::new(ast);
         let mut coercion_requirements = Vec::new();
         for item in &ast.items {
-            for clause in item_requirement_clauses(item).into_iter().flatten() {
+            for clause in super::completion_sites::item_requirement_clauses(item) {
                 coercion_requirements.extend(clause.coercion_requirements().map(|requirement| {
                     CoercionRequirementSite {
                         focus_span: requirement.as_span,
@@ -189,6 +191,7 @@ impl EditorSyntaxIndex {
             })
             .collect::<Vec<_>>();
         Self {
+            completion_sites,
             coercion_requirements,
             module_paths,
             editor_targets,
@@ -205,6 +208,28 @@ impl EditorSyntaxIndex {
             documentation: attach_documentation(ast.span.source, text, &targets),
             documentation_owners,
         }
+    }
+
+    pub(super) fn completion_site_at(
+        &self,
+        offset: usize,
+    ) -> Option<&super::completion_sites::CompletionSiteKind> {
+        self.completion_sites.at_offset(offset)
+    }
+
+    pub(super) fn copy_requirement_is_allowed(&self, offset: usize) -> bool {
+        self.completion_sites.copy_requirement_is_allowed(offset)
+    }
+
+    pub(super) fn operator_requirement_contains(&self, offset: usize) -> bool {
+        self.completion_sites.operator_requirement_contains(offset)
+    }
+
+    pub(super) fn instance_declaration_at(
+        &self,
+        offset: usize,
+    ) -> Option<&crate::ast::InstanceDecl> {
+        self.completion_sites.instance_declaration_at(offset)
     }
 
     pub(crate) fn module_path_at(&self, offset: usize) -> Option<&ModulePath> {
@@ -542,40 +567,6 @@ fn collect_callable_syntax(
         | Item::Struct(_)
         | Item::Enum(_)
         | Item::Destruct(_) => {}
-    }
-}
-
-fn item_requirement_clauses(item: &Item) -> Vec<Option<&WhereClause>> {
-    match item {
-        Item::Function(function) => vec![function.requirements.as_ref()],
-        Item::Primitive(primitive) => vec![primitive.requirements.as_ref()],
-        Item::TypeAlias(alias) => vec![alias.requirements.as_ref()],
-        Item::Struct(struct_) => vec![struct_.requirements.as_ref()],
-        Item::Enum(enum_) => vec![enum_.requirements.as_ref()],
-        Item::Interface(interface) => std::iter::once(interface.requirements.as_ref())
-            .chain(
-                interface
-                    .methods
-                    .iter()
-                    .map(|method| method.requirements.as_ref()),
-            )
-            .collect(),
-        Item::Instance(_) | Item::Conformance(_) => {
-            let owner = item.method_owner().expect("matched method owner");
-            std::iter::once(owner.requirements())
-                .chain(owner.methods().map(|method| method.requirements.as_ref()))
-                .collect()
-        }
-        Item::Construct(construct) => construct
-            .functions()
-            .map(|(_, function)| function.requirements.as_ref())
-            .chain(
-                construct
-                    .literals()
-                    .map(|(_, literal)| literal.requirements.as_ref()),
-            )
-            .collect(),
-        Item::Import(_) | Item::FromImport(_) | Item::Test(_) | Item::Destruct(_) => Vec::new(),
     }
 }
 

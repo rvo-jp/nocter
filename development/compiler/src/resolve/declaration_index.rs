@@ -2,8 +2,8 @@
 
 use super::{
     AssociatedFunctionSignature, AssociatedTypeSignature, CoercionSignature, DestructSignature,
-    EnumVariantSignature, LiteralSignature, MethodSignature, ResolveOutput, StructFieldSignature,
-    Symbol, SymbolId, SymbolKind, TypeSymbol,
+    EnumVariantSignature, InterfaceConformance, LiteralSignature, MethodSignature, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolId, SymbolKind, TypeSymbol,
 };
 use crate::builtin_types::BuiltinTypeOwner;
 use crate::semantic::DefId;
@@ -24,6 +24,7 @@ enum DeclarationLocator {
     AssociatedType(OwnerLocator, usize),
     AssociatedFunction(OwnerLocator, usize),
     Method(OwnerLocator, usize),
+    Conformance(OwnerLocator, usize),
     ConformanceMethod(OwnerLocator, usize, usize),
     Destructor(OwnerLocator),
     Literal(OwnerLocator, usize),
@@ -93,6 +94,11 @@ impl DeclarationIndex {
             DeclarationLocator::Method(owner, index)
         });
         for (conformance_index, conformance) in owner.interface_conformances.iter().enumerate() {
+            self.insert(
+                output,
+                conformance.declaration_span,
+                DeclarationLocator::Conformance(locator, conformance_index),
+            );
             for (method_index, method) in conformance.methods.iter().enumerate() {
                 self.insert(
                     output,
@@ -166,6 +172,10 @@ impl DeclarationIndex {
                 let owner = owner.get(output)?;
                 ResolvedDeclaration::Method(owner, owner.methods.get(index)?)
             }
+            DeclarationLocator::Conformance(owner, index) => {
+                let owner = owner.get(output)?;
+                ResolvedDeclaration::Conformance(owner.interface_conformances.get(index)?)
+            }
             DeclarationLocator::ConformanceMethod(owner, conformance, method) => {
                 let owner = owner.get(output)?;
                 ResolvedDeclaration::Method(
@@ -237,6 +247,7 @@ pub(crate) enum ResolvedDeclaration<'a> {
     AssociatedType(&'a TypeSymbol, &'a AssociatedTypeSignature),
     AssociatedFunction(&'a TypeSymbol, &'a AssociatedFunctionSignature),
     Method(&'a TypeSymbol, &'a MethodSignature),
+    Conformance(&'a InterfaceConformance),
     Destructor(&'a TypeSymbol, &'a DestructSignature),
     Literal(&'a TypeSymbol, &'a LiteralSignature),
     Coercion(&'a CoercionSignature),
@@ -268,6 +279,10 @@ instance Record {
 construct Record {
     pub literal ""(text: &str): Self { return Record { value: 0 } }
 }
+conform Named for Record {
+    type Item = i32
+    method &self.name(): &str { return "record" }
+}
 "#,
         );
         let lexed = lex(&sources, source);
@@ -284,6 +299,7 @@ construct Record {
                     | DefinitionKind::EnumVariant
                     | DefinitionKind::AssociatedType
                     | DefinitionKind::Method
+                    | DefinitionKind::Conformance
                     | DefinitionKind::Literal
                     | DefinitionKind::Coercion
             ) {

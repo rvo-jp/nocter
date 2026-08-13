@@ -80,6 +80,7 @@ fn completion_recovers_operator_requirement_and_offers_fixed_shapes() {
 {
     return &container[index]
 }
+
 "#;
     let offset = text.find("where (").expect("operator requirement") + "where (".len();
     let recovered = completion_recovery_text(text, offset).expect("expected recovery text");
@@ -94,6 +95,35 @@ fn completion_recovers_operator_requirement_and_offers_fixed_shapes() {
     assert!(items.iter().any(|item| item.label == "=="));
     assert!(items.iter().any(|item| item.label == "[]"));
     assert!(items.iter().any(|item| item.label == "..."));
+}
+
+#[test]
+fn analyzed_method_operator_requirement_uses_its_semantic_generic_scope() {
+    let text = r#"struct Box<T> { value: T }
+
+instance Box<T> {
+    method &self.equal<U>(other: &U): bool where (&T == &U): bool {
+        return false
+    }
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.find("(&T").expect("operator requirement") + 1;
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    for parameter in ["T", "U"] {
+        assert!(
+            items.iter().any(|item| {
+                item.label == parameter && item.detail.as_deref() == Some("generic type parameter")
+            }),
+            "missing `{parameter}` from {items:#?}"
+        );
+    }
+    for operator in ["==", "<", "[]", "..."] {
+        assert!(items.iter().any(|item| item.label == operator));
+    }
 }
 
 #[test]
@@ -1451,6 +1481,60 @@ func project<S>(source: S): S. where S: Source {
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>(),
         vec!["Item"]
+    );
+}
+
+#[test]
+fn analyzed_self_projection_uses_the_enclosing_interface_identity() {
+    let text = r#"interface Source {
+    pub type Item
+    pub type Error
+    pub method &self.read(): Self.Item
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.find("Self.Item").expect("projection") + "Self.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Item", "Error"]
+    );
+}
+
+#[test]
+fn analyzed_self_projection_uses_the_enclosing_conformance_identity() {
+    let text = r#"interface Source {
+    pub type Item
+    pub type Error
+    pub method &self.read(): Self.Item
+}
+
+struct Number { value: i32 }
+
+conform Source for Number {
+    type Item = i32
+    type Error = i32
+    method &self.read(): Self.Item { return self.value }
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("root file");
+    let offset = text.rfind("Self.Item").expect("projection") + "Self.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Item", "Error"]
     );
 }
 

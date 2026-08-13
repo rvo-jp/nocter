@@ -409,7 +409,7 @@ func main(point: Point, choice: Choice, allocator: Allocator): i32 {
 
         for offset in 0..=text.len() {
             assert_eq!(
-                normalize_indexed(file.completion_sites.at_offset(offset)),
+                normalize_indexed(file.syntax.completion_site_at(offset)),
                 normalize_recovery(recovery_completion_context_at_offset(&file.ast, offset)),
                 "completion context mismatch at {offset}"
             );
