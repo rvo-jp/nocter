@@ -263,6 +263,49 @@ fn builds_u8_arithmetic_with_dedicated_scalar_storage() {
 }
 
 #[test]
+fn builds_checked_integer_casts() {
+    let (_sources, analysis) = analyze_text(
+        r#"func widen(value: u8): i32 {
+    return value as i32
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "widen" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("checked integer cast must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Cast {
+                source_scalar: ScalarType::U8,
+                target_scalar: ScalarType::I32,
+                ..
+            },
+            ..
+        }]
+    ));
+}
+
+#[test]
 fn builds_integer_shifts_with_canonical_operators() {
     let (_sources, analysis) = analyze_text(
         r#"func shift(value: i64, count: i64): i64 {

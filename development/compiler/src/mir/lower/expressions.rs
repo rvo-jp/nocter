@@ -165,6 +165,30 @@ pub(super) fn lower_expression_to_place(
             )?,
             ty,
         },
+        Expr::TypeConversion(conversion) => {
+            let source_ty = known_expression_type(&conversion.expression, semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let source_scalar = scalar_type(source_ty, semantic.typed_hir)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
+            Rvalue::Cast {
+                operand: lower_operand(
+                    &conversion.expression,
+                    source_ty,
+                    source_scalar,
+                    semantic,
+                    locals,
+                    local_declarations,
+                    projections,
+                    control_flow,
+                    scopes,
+                    scope,
+                )?,
+                source_ty,
+                source_scalar,
+                target_ty: ty,
+                target_scalar: scalar,
+            }
+        }
         Expr::Binary(binary) => {
             if let Some(operator) = mir_binary_operator(binary.operator) {
                 Rvalue::Binary {
@@ -439,6 +463,7 @@ pub(super) fn lower_operand(
     if !matches!(
         expression,
         Expr::Unary(_)
+            | Expr::TypeConversion(_)
             | Expr::Binary(_)
             | Expr::Call(_)
             | Expr::Force(_)

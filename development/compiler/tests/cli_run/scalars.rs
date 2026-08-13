@@ -458,3 +458,37 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_executes_lossless_integer_casts_through_mir() {
+    let project = TempProject::new("cli-run-lossless-integer-casts");
+    let source = project.write_source(
+        "lossless_integer_casts.nct",
+        r#"func widen_byte(value: u8): i32 {
+    return value as i32
+}
+
+func widen_number(value: i32): i64 {
+    return value as i64
+}
+
+func main(): i32 {
+    if widen_byte(40) == 40 && widen_number(-7) == -7 {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

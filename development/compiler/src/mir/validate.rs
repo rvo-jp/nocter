@@ -118,6 +118,12 @@ pub(crate) enum ValidationError {
         operator: super::UnaryOperator,
         scalar: ScalarType,
     },
+    InvalidScalarCast {
+        block: BasicBlockId,
+        statement: usize,
+        source: ScalarType,
+        target: ScalarType,
+    },
     MissingTarget {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -321,6 +327,50 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         });
                     }
                     Some(*ty)
+                }
+                super::model::Rvalue::Cast {
+                    operand,
+                    source_ty,
+                    source_scalar,
+                    target_ty,
+                    target_scalar,
+                } => {
+                    validate_operand(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        operand,
+                        *source_ty,
+                        *source_scalar,
+                        &mut errors,
+                    );
+                    match destination_local.representation {
+                        ValueRepresentation::Scalar(actual) if actual != *target_scalar => {
+                            errors.push(ValidationError::AssignmentScalarMismatch {
+                                block: block_id,
+                                statement: statement_index,
+                                expected: *target_scalar,
+                                actual,
+                            });
+                        }
+                        ValueRepresentation::Borrow | ValueRepresentation::Aggregate => {
+                            errors.push(ValidationError::AssignmentRequiresScalar {
+                                block: block_id,
+                                statement: statement_index,
+                                actual: destination_local.representation,
+                            });
+                        }
+                        ValueRepresentation::Scalar(_) => {}
+                    }
+                    if !lossless_scalar_cast(*source_scalar, *target_scalar) {
+                        errors.push(ValidationError::InvalidScalarCast {
+                            block: block_id,
+                            statement: statement_index,
+                            source: *source_scalar,
+                            target: *target_scalar,
+                        });
+                    }
+                    Some(*target_ty)
                 }
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
@@ -861,6 +911,33 @@ fn place_projection(body: &Body, place: super::Place) -> Option<&ProjectionPath>
     (projection.base == place.local).then_some(projection)
 }
 
+fn lossless_scalar_cast(source: ScalarType, target: ScalarType) -> bool {
+    if source == target {
+        return true;
+    }
+    let Some(source) = integer_kind(source) else {
+        return false;
+    };
+    let Some(target) = integer_kind(target) else {
+        return false;
+    };
+    match (source.is_signed(), target.is_signed()) {
+        (true, false) => false,
+        (false, true) => target.bit_width() > source.bit_width(),
+        _ => target.bit_width() >= source.bit_width(),
+    }
+}
+
+fn integer_kind(scalar: ScalarType) -> Option<crate::integer::IntegerType> {
+    match scalar {
+        ScalarType::I32 => Some(crate::integer::IntegerType::I32),
+        ScalarType::U8 => Some(crate::integer::IntegerType::U8),
+        ScalarType::Usize => Some(crate::integer::IntegerType::Usize),
+        ScalarType::Integer(kind) => Some(kind),
+        ScalarType::Bool => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -949,6 +1026,37 @@ mod tests {
                 statement: 0,
                 operator: crate::mir::UnaryOperator::LogicalNot,
                 scalar: ScalarType::I32,
+            }])
+        );
+    }
+
+    #[test]
+    fn rejects_lossy_scalar_casts() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        body.blocks[0].statements[0] = Statement::Assign {
+            destination: Place::local(LocalId::from_index(0)),
+            value: Rvalue::Cast {
+                operand: Operand::Constant(Constant {
+                    ty,
+                    scalar: ScalarType::Usize,
+                    value: 0,
+                }),
+                source_ty: ty,
+                source_scalar: ScalarType::Usize,
+                target_ty: ty,
+                target_scalar: ScalarType::I32,
+            },
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+        };
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::InvalidScalarCast {
+                block: BasicBlockId::from_index(0),
+                statement: 0,
+                source: ScalarType::Usize,
+                target: ScalarType::I32,
             }])
         );
     }

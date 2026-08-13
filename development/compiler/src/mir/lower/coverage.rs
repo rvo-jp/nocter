@@ -518,6 +518,33 @@ pub(super) fn scalar_expression_is_supported(
                     typed_hir,
                 )
         }
+        Expr::TypeConversion(conversion) => {
+            let Some(source_ty) = known_expression_type(&conversion.expression, typed_hir) else {
+                return false;
+            };
+            let Some(target_ty) = known_expression_type(expression, typed_hir) else {
+                return false;
+            };
+            let Some(source_scalar) = scalar_type(source_ty, typed_hir) else {
+                return false;
+            };
+            let Some(target_scalar) = scalar_type(target_ty, typed_hir) else {
+                return false;
+            };
+            let checked_numeric_conversion = source_scalar == target_scalar
+                || typed_hir
+                    .conversion_plan(conversion.span)
+                    .is_some_and(|plan| {
+                        plan.kind == crate::typecheck::TypecheckConversionKind::LosslessInteger
+                    });
+            checked_numeric_conversion
+                && scalar_expression_is_supported(
+                    &conversion.expression,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
+        }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir)

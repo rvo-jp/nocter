@@ -728,6 +728,14 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Cast {
+                        operand,
+                        source_scalar,
+                        ..
+                    } => instructions.push(Instruction::SetI32 {
+                        destination,
+                        value: lower_cast_to_i32(*source_scalar, operand, context)?,
+                    }),
                     Rvalue::Unary {
                         operator: UnaryOperator::Negate,
                         operand,
@@ -777,6 +785,14 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Cast {
+                        operand,
+                        source_scalar,
+                        ..
+                    } => instructions.push(Instruction::SetU8 {
+                        destination,
+                        value: lower_cast_to_u8(*source_scalar, operand, context)?,
+                    }),
                     Rvalue::Unary { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "u8 scalar route received an invalid unary operation",
@@ -817,6 +833,14 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Cast {
+                        operand,
+                        source_scalar,
+                        ..
+                    } => instructions.push(Instruction::SetUsize {
+                        destination,
+                        value: lower_cast_to_word(*source_scalar, operand, context)?,
+                    }),
                     Rvalue::Unary { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "usize scalar route received an invalid unary operation",
@@ -858,6 +882,14 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Cast {
+                        operand,
+                        source_scalar,
+                        ..
+                    } => instructions.push(Instruction::SetUsize {
+                        destination,
+                        value: lower_cast_to_word(*source_scalar, operand, context)?,
+                    }),
                     Rvalue::Unary {
                         operator: UnaryOperator::Negate,
                         operand,
@@ -909,6 +941,19 @@ fn lower_statements(
                                 value: lower_bool_operand(operand, context)?,
                             });
                         }
+                    }
+                    Rvalue::Cast {
+                        operand,
+                        source_scalar: ScalarType::Bool,
+                        ..
+                    } => instructions.push(Instruction::SetBool {
+                        destination,
+                        value: lower_bool_operand(operand, context)?,
+                    }),
+                    Rvalue::Cast { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received a numeric cast",
+                        ));
                     }
                     Rvalue::Unary {
                         operator: UnaryOperator::LogicalNot,
@@ -1344,6 +1389,58 @@ fn local_scalar(body: &Body, local: LocalId) -> Result<ScalarType, Vec<Diagnosti
     body.locals[local.index()]
         .scalar_type()
         .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received an aggregate local"))
+}
+
+fn lower_cast_to_i32(
+    source: ScalarType,
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<I32Value, Vec<Diagnostic>> {
+    match source {
+        ScalarType::I32 => lower_i32_operand(operand, context),
+        ScalarType::U8 => Ok(I32Value::U8ZeroExtend(Box::new(lower_u8_operand(
+            operand, context,
+        )?))),
+        ScalarType::Integer(kind) => Ok(I32Value::IntegerWord(Box::new(lower_integer_operand(
+            operand, kind, context,
+        )?))),
+        ScalarType::Usize | ScalarType::Bool => Err(invalid_mir_diagnostics(
+            "i32 MIR destination received a non-lossless scalar cast",
+        )),
+    }
+}
+
+fn lower_cast_to_u8(
+    source: ScalarType,
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<U8Value, Vec<Diagnostic>> {
+    match source {
+        ScalarType::U8 => lower_u8_operand(operand, context),
+        ScalarType::I32 | ScalarType::Usize | ScalarType::Integer(_) | ScalarType::Bool => Err(
+            invalid_mir_diagnostics("u8 MIR destination received a non-lossless scalar cast"),
+        ),
+    }
+}
+
+fn lower_cast_to_word(
+    source: ScalarType,
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match source {
+        ScalarType::I32 => Ok(UsizeValue::I32SignExtend(Box::new(lower_i32_operand(
+            operand, context,
+        )?))),
+        ScalarType::U8 => Ok(UsizeValue::U8ZeroExtend(Box::new(lower_u8_operand(
+            operand, context,
+        )?))),
+        ScalarType::Usize => lower_usize_operand(operand, context),
+        ScalarType::Integer(kind) => lower_integer_operand(operand, kind, context),
+        ScalarType::Bool => Err(invalid_mir_diagnostics(
+            "integer MIR destination received a boolean cast",
+        )),
+    }
 }
 
 fn lower_i32_operand(

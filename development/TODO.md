@@ -86,6 +86,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   longer falls out of the integer route because generic word slots cannot describe its ABI
 - authored numeric negation and boolean inversion retain dedicated checked MIR unary operations;
   structural validation rejects operator/scalar drift before backend instruction selection
+- explicit integer `as` expressions selected as exact or lossless by type checking retain source
+  and target `TyId`/scalar identities in MIR; the verifier independently rejects lossy casts and
+  backend projection performs the required sign or zero extension
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

@@ -145,6 +145,13 @@ pub(crate) enum Rvalue {
         operand: Operand,
         ty: TyId,
     },
+    Cast {
+        operand: Operand,
+        source_ty: TyId,
+        source_scalar: ScalarType,
+        target_ty: TyId,
+        target_scalar: ScalarType,
+    },
     Binary {
         operator: BinaryOperator,
         left: Operand,
