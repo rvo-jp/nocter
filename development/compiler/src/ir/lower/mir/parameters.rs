@@ -15,6 +15,10 @@ pub(super) enum ParameterStorage {
     Usize {
         abi_index: usize,
     },
+    Integer {
+        kind: crate::integer::IntegerType,
+        abi_index: usize,
+    },
     Bool {
         abi_index: usize,
     },
@@ -56,6 +60,14 @@ fn storage_for_name(
     }
     if let Some(abi_index) = named_word(&slots.usize, name) {
         return Some(ParameterStorage::Usize { abi_index });
+    }
+    if let Some((abi_index, kind)) = slots.integer.iter().enumerate().find_map(|(index, value)| {
+        value
+            .as_ref()
+            .filter(|(candidate, _)| candidate == name)
+            .map(|(_, kind)| (index, *kind))
+    }) {
+        return Some(ParameterStorage::Integer { kind, abi_index });
     }
     if let Some(abi_index) = named_word(&slots.bool, name) {
         return Some(ParameterStorage::Bool { abi_index });

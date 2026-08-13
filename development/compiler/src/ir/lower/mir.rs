@@ -5,7 +5,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
     DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
+    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -52,10 +52,12 @@ pub(super) fn try_lower_scalar_body(
     let (return_scalar, return_mode) = match return_type {
         Type::I32 => (ScalarType::I32, ReturnMode::Plain),
         Type::Usize => (ScalarType::Usize, ReturnMode::Plain),
+        Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Plain),
         Type::Bool => (ScalarType::Bool, ReturnMode::Plain),
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => (ScalarType::I32, ReturnMode::Fallible),
             Type::Usize => (ScalarType::Usize, ReturnMode::Fallible),
+            Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Fallible),
             Type::Bool => (ScalarType::Bool, ReturnMode::Fallible),
             _ => return None,
         },
@@ -448,6 +450,11 @@ fn call_instruction(
             target,
             arguments,
         },
+        ScalarType::Integer(kind) => Instruction::CallUsize {
+            destination: integer_location(destination, kind, context)?,
+            target,
+            arguments,
+        },
         ScalarType::Bool => Instruction::CallBool {
             destination: bool_location(destination, context)?,
             target,
@@ -514,6 +521,12 @@ fn outcome_call_instruction(
             arguments,
             failure_mode,
         },
+        ScalarType::Integer(kind) => Instruction::CallOutcomeUsize {
+            destination: integer_location(destination, kind, context)?,
+            target,
+            arguments,
+            failure_mode,
+        },
         ScalarType::Bool => Instruction::CallOutcomeBool {
             destination: bool_location(destination, context)?,
             target,
@@ -527,6 +540,7 @@ fn scalar_ir_type(scalar: ScalarType) -> Type {
     match scalar {
         ScalarType::I32 => Type::I32,
         ScalarType::Usize => Type::Usize,
+        ScalarType::Integer(kind) => Type::Integer(kind),
         ScalarType::Bool => Type::Bool,
     }
 }
@@ -602,6 +616,9 @@ fn lower_call_argument(
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
             ScalarArgument::Usize(lower_usize_operand(&argument.operand, context)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(kind)) => {
+            ScalarArgument::Usize(lower_integer_operand(&argument.operand, kind, context)?)
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
             ScalarArgument::Bool(lower_bool_operand(&argument.operand, context)?)
@@ -746,6 +763,43 @@ fn lower_statements(
                     }
                 }
             }
+            ScalarType::Integer(kind) => {
+                let destination = integer_location(destination, kind, context)?;
+                match value {
+                    Rvalue::Use(operand) => {
+                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
+                            instructions.push(Instruction::LoadAggregateInteger {
+                                kind,
+                                destination,
+                                source,
+                                offset,
+                            });
+                        } else {
+                            instructions.push(Instruction::SetUsize {
+                                destination,
+                                value: lower_integer_operand(operand, kind, context)?,
+                            });
+                        }
+                    }
+                    Rvalue::Binary {
+                        operator,
+                        left,
+                        right,
+                        ..
+                    } => instructions.push(Instruction::IntegerBinary {
+                        kind,
+                        operator: integer_binary_operator(*operator),
+                        destination,
+                        left: lower_integer_operand(left, kind, context)?,
+                        right: lower_integer_operand(right, kind, context)?,
+                    }),
+                    Rvalue::Compare { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "integer scalar route received a comparison result",
+                        ));
+                    }
+                }
+            }
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
@@ -868,6 +922,12 @@ fn lower_comparison(
             left: lower_usize_operand(left, context)?,
             right: lower_usize_operand(right, context)?,
         },
+        ScalarType::Integer(kind) => BoolValue::IntegerComparison {
+            kind,
+            operator: integer_comparison_operator(operator),
+            left: lower_integer_operand(left, kind, context)?,
+            right: lower_integer_operand(right, kind, context)?,
+        },
         ScalarType::Bool => BoolValue::BoolComparison {
             operator: bool_comparison_operator(operator)?,
             left: Box::new(lower_bool_operand(left, context)?),
@@ -983,6 +1043,16 @@ fn usize_binary_instruction(
     }
 }
 
+fn integer_binary_operator(operator: BinaryOperator) -> IntegerBinaryOperator {
+    match operator {
+        BinaryOperator::Add => IntegerBinaryOperator::Add,
+        BinaryOperator::Subtract => IntegerBinaryOperator::Subtract,
+        BinaryOperator::Multiply => IntegerBinaryOperator::Multiply,
+        BinaryOperator::Divide => IntegerBinaryOperator::Divide,
+        BinaryOperator::Remainder => IntegerBinaryOperator::Remainder,
+    }
+}
+
 fn i32_location(
     place: &Place,
     context: &BackendContext<'_>,
@@ -1016,6 +1086,29 @@ fn usize_location(
             }
             _ => Err(invalid_mir_diagnostics(
                 "usize MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
+    }
+}
+
+fn integer_location(
+    place: &Place,
+    kind: crate::integer::IntegerType,
+    context: &BackendContext<'_>,
+) -> Result<UsizeLocation, Vec<Diagnostic>> {
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(UsizeLocation::Return),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Integer {
+                kind: actual,
+                abi_index,
+            }) if actual == kind => Ok(UsizeLocation::Parameter(abi_index)),
+            _ => Err(invalid_mir_diagnostics(
+                "integer MIR parameter has no matching ABI projection",
             )),
         },
         LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(
@@ -1086,6 +1179,23 @@ fn lower_usize_operand(
             }),
         Operand::Copy(place) | Operand::Move(place) => {
             usize_location(place, context).map(UsizeValue::Location)
+        }
+    }
+}
+
+fn lower_integer_operand(
+    operand: &Operand,
+    kind: crate::integer::IntegerType,
+    context: &BackendContext<'_>,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match operand {
+        Operand::Constant(constant) => u64::try_from(constant.value)
+            .map(|value| UsizeValue::Const(kind.canonical_word(value)))
+            .map_err(|_| {
+                invalid_mir_diagnostics("integer constant is outside its runtime representation")
+            }),
+        Operand::Copy(place) | Operand::Move(place) => {
+            integer_location(place, kind, context).map(UsizeValue::Location)
         }
     }
 }

@@ -98,6 +98,7 @@ pub(crate) enum ValueRepresentation {
 pub(crate) enum ScalarType {
     I32,
     Usize,
+    Integer(crate::integer::IntegerType),
     Bool,
 }
 

@@ -141,6 +141,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.
+- Built-in integers use canonical `IntegerType` in MIR. Non-legacy widths share the word-based
+  machine-IR integer operations while preserving width and signedness through arithmetic,
+  comparison, call, field-load, and return projection.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

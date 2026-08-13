@@ -172,6 +172,53 @@ func forward(pair: Pair): i32 {
 }
 
 #[test]
+fn builds_wide_integer_arithmetic_with_canonical_kind() {
+    let (_sources, analysis) = analyze_text(
+        r#"func add(left: i64, right: i64): i64 {
+    return left + right
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "add" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let scalar = ScalarType::Integer(crate::integer::IntegerType::I64);
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        scalar,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("wide integer arithmetic must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.locals[0].representation,
+        ValueRepresentation::Scalar(scalar)
+    );
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Binary {
+                operator: crate::mir::BinaryOperator::Add,
+                ..
+            },
+            ..
+        }]
+    ));
+}
+
+#[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {
     let (_sources, analysis) = analyze_text(
         r#"func main(): i32 {

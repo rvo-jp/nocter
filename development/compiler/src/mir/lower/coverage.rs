@@ -656,6 +656,6 @@ pub(super) fn scalar_type(
             Some(super::ScalarType::Usize)
         }
         CheckedScalarType::Bool => Some(super::ScalarType::Bool),
-        CheckedScalarType::Integer(_) => None,
+        CheckedScalarType::Integer(kind) => Some(super::ScalarType::Integer(kind)),
     }
 }

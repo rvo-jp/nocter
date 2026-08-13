@@ -216,7 +216,9 @@
   the parameter's already validated direct/indirect ABI classification. An indirect argument points
   into the current stack frame and therefore makes tail-call frame reuse ineligible.</li><li>Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
-  offsets only after selecting the aggregate's physical storage.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
+  offsets only after selecting the aggregate's physical storage.</li><li>Built-in integers use canonical <code>IntegerType</code> in MIR. Non-legacy widths share the word-based
+  machine-IR integer operations while preserving width and signedness through arithmetic,
+  comparison, call, field-load, and return projection.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.</li><li>MIR builders produce a construction-only body and pass it through one <code>finalize</code> boundary.
   Finalization validates definite initialization, materializes cleanup edges, and validates the
