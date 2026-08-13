@@ -1,0 +1,232 @@
+//! Projection of logical MIR locals onto machine-IR local slots.
+//!
+//! MIR locals always have real logical storage. This late projection may omit
+//! a local only when the machine-IR conversion consumes its sole definition
+//! and use as one expression.
+
+use crate::mir::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Rvalue};
+
+pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
+    body.locals[..local.index()]
+        .iter()
+        .enumerate()
+        .filter(|(index, local)| {
+            local.storage == LocalStorage::Local
+                && !is_inlined_loop_condition(body, LocalId::from_index(*index))
+        })
+        .count()
+}
+
+pub(super) fn inlined_loop_condition_local(
+    body: &Body,
+    condition_block: BasicBlockId,
+) -> Option<LocalId> {
+    let block = body.blocks.get(condition_block.index())?;
+    let crate::mir::Terminator::Switch { condition, .. } = &block.terminator else {
+        return None;
+    };
+    let Operand::Copy(condition) = condition else {
+        return None;
+    };
+    let Some(crate::mir::Statement::Assign {
+        destination,
+        value: Rvalue::Compare { .. },
+        ..
+    }) = block.statements.last()
+    else {
+        return None;
+    };
+    (destination == condition
+        && local_definition_count(body, destination.local) == 1
+        && local_use_count(body, destination.local) == 1)
+        .then_some(destination.local)
+}
+
+fn is_inlined_loop_condition(body: &Body, local: LocalId) -> bool {
+    body.loop_regions.iter().any(|region| {
+        inlined_loop_condition_local(body, region.condition)
+            .is_some_and(|candidate| candidate == local)
+    })
+}
+
+fn local_definition_count(body: &Body, local: LocalId) -> usize {
+    body.blocks
+        .iter()
+        .map(|block| {
+            let statements = block
+                .statements
+                .iter()
+                .filter(|statement| match statement {
+                    crate::mir::Statement::Assign { destination, .. } => destination.local == local,
+                })
+                .count();
+            let terminator = match &block.terminator {
+                crate::mir::Terminator::Call {
+                    continuation:
+                        CallContinuation::Return { destination, .. }
+                        | CallContinuation::Outcome { destination, .. },
+                    ..
+                } if destination.local == local => 1,
+                _ => 0,
+            };
+            statements + terminator
+        })
+        .sum()
+}
+
+fn local_use_count(body: &Body, local: LocalId) -> usize {
+    body.blocks
+        .iter()
+        .map(|block| {
+            let statements = block
+                .statements
+                .iter()
+                .map(|statement| match statement {
+                    crate::mir::Statement::Assign { value, .. } => rvalue_use_count(value, local),
+                })
+                .sum::<usize>();
+            let terminator = match &block.terminator {
+                crate::mir::Terminator::Switch { condition, .. } => {
+                    operand_use_count(condition, local)
+                }
+                crate::mir::Terminator::Call { arguments, .. } => arguments
+                    .iter()
+                    .map(|argument| operand_use_count(&argument.operand, local))
+                    .sum(),
+                crate::mir::Terminator::Goto { .. }
+                | crate::mir::Terminator::Trap
+                | crate::mir::Terminator::PropagateFailure
+                | crate::mir::Terminator::Return => 0,
+            };
+            statements + terminator
+        })
+        .sum()
+}
+
+fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
+    match value {
+        Rvalue::Use(operand) => operand_use_count(operand, local),
+        Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
+            operand_use_count(left, local) + operand_use_count(right, local)
+        }
+    }
+}
+
+fn operand_use_count(operand: &Operand, local: LocalId) -> usize {
+    usize::from(matches!(operand, Operand::Copy(place) if place.local == local))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{
+        BasicBlock, Constant, Local, LocalOrigin, LoopRegion, Place, ScalarType, Statement,
+        Terminator,
+    };
+    use crate::semantic::{BodyId, ExprId, TyId};
+    use crate::source::{ByteSpan, SourceId};
+
+    fn body_with_condition(extra_use: bool) -> Body {
+        let span = ByteSpan::new(SourceId::new(0), 0, 1);
+        let ty = TyId::from_index(0);
+        let condition = LocalId::from_index(1);
+        let mut statements = vec![Statement::Assign {
+            destination: Place { local: condition },
+            value: Rvalue::Compare {
+                operator: crate::mir::ComparisonOperator::Equal,
+                left: Operand::Constant(Constant {
+                    ty,
+                    scalar: ScalarType::I32,
+                    value: 1,
+                }),
+                right: Operand::Constant(Constant {
+                    ty,
+                    scalar: ScalarType::I32,
+                    value: 1,
+                }),
+                operand_ty: ty,
+                operand_scalar: ScalarType::I32,
+                result_ty: ty,
+            },
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+        }];
+        if extra_use {
+            statements.insert(
+                0,
+                Statement::Assign {
+                    destination: Place {
+                        local: LocalId::from_index(0),
+                    },
+                    value: Rvalue::Use(Operand::Copy(Place { local: condition })),
+                    origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+                },
+            );
+        }
+        Body {
+            source_body: BodyId::from_index(0),
+            source_span: span,
+            return_local: LocalId::from_index(0),
+            return_mode: crate::mir::ReturnMode::Plain,
+            locals: vec![
+                Local::scalar(
+                    ty,
+                    ScalarType::Bool,
+                    LocalStorage::Return,
+                    LocalOrigin::Return,
+                ),
+                Local::scalar(
+                    ty,
+                    ScalarType::Bool,
+                    LocalStorage::Local,
+                    LocalOrigin::Temporary(ExprId::from_index(0)),
+                ),
+            ],
+            entry: BasicBlockId::from_index(0),
+            blocks: vec![
+                BasicBlock {
+                    statements,
+                    terminator: Terminator::Switch {
+                        condition: Operand::Copy(Place { local: condition }),
+                        then_target: BasicBlockId::from_index(1),
+                        else_target: BasicBlockId::from_index(2),
+                    },
+                },
+                BasicBlock {
+                    statements: Vec::new(),
+                    terminator: Terminator::Goto {
+                        target: BasicBlockId::from_index(0),
+                    },
+                },
+                BasicBlock {
+                    statements: Vec::new(),
+                    terminator: Terminator::Return,
+                },
+            ],
+            loop_regions: vec![LoopRegion {
+                header: BasicBlockId::from_index(0),
+                condition: BasicBlockId::from_index(0),
+                body: BasicBlockId::from_index(1),
+                continue_target: BasicBlockId::from_index(0),
+                exit: BasicBlockId::from_index(2),
+            }],
+        }
+    }
+
+    #[test]
+    fn omits_a_single_use_inlined_loop_condition() {
+        let body = body_with_condition(false);
+        assert_eq!(
+            inlined_loop_condition_local(&body, BasicBlockId::from_index(0)),
+            Some(LocalId::from_index(1))
+        );
+    }
+
+    #[test]
+    fn retains_a_condition_local_with_another_use() {
+        let body = body_with_condition(true);
+        assert_eq!(
+            inlined_loop_condition_local(&body, BasicBlockId::from_index(0)),
+            None
+        );
+    }
+}

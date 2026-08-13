@@ -6,11 +6,11 @@ use super::coverage::{
     ScalarStatement, binding_scalar_type, known_expression_type, scalar_linear_block_statements,
     scalar_loop_block_statements,
 };
-use super::expressions::{lower_expression_to_place, lower_operand, mir_comparison_operator};
+use super::expressions::{lower_expression_to_place, lower_operand};
 use crate::ast::Expr;
 use crate::mir::{
-    BinaryOperator, ComparisonOperator, LocalId, LocalSource, Operand, Origin, Place, Rvalue,
-    ScalarType, Statement, Terminator,
+    BinaryOperator, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand, Origin, Place,
+    Rvalue, ScalarType, Statement, Terminator,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
@@ -25,7 +25,7 @@ struct LoopTargets {
 pub(super) struct StatementLowerer<'a> {
     resolved: &'a ResolveOutput,
     typed_hir: &'a TypedHir,
-    locals: &'a mut Vec<crate::mir::model::Local>,
+    locals: &'a mut Vec<crate::mir::Local>,
     locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
     control_flow: &'a mut ControlFlowBuilder,
     loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
@@ -35,7 +35,7 @@ impl<'a> StatementLowerer<'a> {
     pub(super) fn new(
         resolved: &'a ResolveOutput,
         typed_hir: &'a TypedHir,
-        locals: &'a mut Vec<crate::mir::model::Local>,
+        locals: &'a mut Vec<crate::mir::Local>,
         locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
         control_flow: &'a mut ControlFlowBuilder,
         loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
@@ -77,11 +77,12 @@ impl<'a> StatementLowerer<'a> {
                     let scalar = binding_scalar_type(symbol, self.typed_hir)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     let local = LocalId::from_index(self.locals.len());
-                    self.locals.push(crate::mir::model::Local {
+                    self.locals.push(crate::mir::locals::Local::scalar(
                         ty,
                         scalar,
-                        source: LocalSource::Binding(symbol),
-                    });
+                        LocalStorage::Local,
+                        LocalOrigin::Binding(symbol),
+                    ));
                     self.locals_by_symbol.insert(symbol, local);
                     self.lower_value(local, &binding.initializer, ty, scalar)?;
                     false
@@ -101,7 +102,9 @@ impl<'a> StatementLowerer<'a> {
                         .ok_or(BuildError::MissingLocalSymbol)?;
                     let declaration = &self.locals[local.index()];
                     let ty = declaration.ty;
-                    let scalar = declaration.scalar;
+                    let scalar = declaration
+                        .scalar_type()
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     self.lower_value(local, &assignment.value, ty, scalar)?;
                     false
                 }
@@ -181,14 +184,6 @@ impl<'a> StatementLowerer<'a> {
             self.locals,
             self.control_flow,
         )?;
-        if matches!(
-            &statement.condition,
-            Expr::Binary(binary) if mir_comparison_operator(binary.operator).is_some()
-        ) && let Operand::Copy(place) = &condition
-        {
-            self.locals[place.local.index()].source =
-                LocalSource::Virtual(statement.condition.span());
-        }
         let condition_block = self.control_flow.current_block()?;
         self.control_flow.terminate(Terminator::Switch {
             condition,
@@ -305,20 +300,22 @@ impl<'a> StatementLowerer<'a> {
         let scalar = binding_scalar_type(symbol, self.typed_hir)
             .ok_or(BuildError::UnsupportedClaimedExpression)?;
         let value = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::model::Local {
+        self.locals.push(crate::mir::locals::Local::scalar(
             ty,
             scalar,
-            source: LocalSource::Binding(symbol),
-        });
+            LocalStorage::Local,
+            LocalOrigin::Binding(symbol),
+        ));
         self.locals_by_symbol.insert(symbol, value);
         self.lower_value(value, &statement.start, ty, scalar)?;
 
         let end = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::model::Local {
+        self.locals.push(crate::mir::locals::Local::scalar(
             ty,
             scalar,
-            source: LocalSource::Desugared(statement.range_span),
-        });
+            LocalStorage::Local,
+            LocalOrigin::Desugared(statement.range_span),
+        ));
         self.lower_value(end, &statement.end, ty, scalar)?;
 
         let bool_ty = self
@@ -331,11 +328,12 @@ impl<'a> StatementLowerer<'a> {
             ))
             .ok_or(BuildError::MissingTypedExpression)?;
         let condition_local = LocalId::from_index(self.locals.len());
-        self.locals.push(crate::mir::model::Local {
-            ty: bool_ty,
-            scalar: ScalarType::Bool,
-            source: LocalSource::Virtual(statement.range_span),
-        });
+        self.locals.push(crate::mir::locals::Local::scalar(
+            bool_ty,
+            ScalarType::Bool,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(statement.range_span),
+        ));
 
         let header = self.control_flow.reserve_block();
         let body = self.control_flow.reserve_block();

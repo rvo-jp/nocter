@@ -1,7 +1,8 @@
 //! Scalar body selection and control-flow construction from typed HIR.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, Local, LocalSource, ReturnMode, ScalarType, Terminator};
+use super::locals::{Local, LocalOrigin, LocalStorage, ScalarType};
+use super::model::{Body, ReturnMode, Terminator};
 use super::validate;
 use super::validate::ValidationError;
 use crate::ast::{Block, Expr, Parameter};
@@ -88,11 +89,12 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             .body_at(block.span)
             .ok_or(BuildError::MissingSourceBody)?;
         let return_local = LocalId::from_index(0);
-        let mut locals = vec![Local {
-            ty: return_ty,
-            scalar: return_scalar,
-            source: LocalSource::Return,
-        }];
+        let mut locals = vec![Local::scalar(
+            return_ty,
+            return_scalar,
+            LocalStorage::Return,
+            LocalOrigin::Return,
+        )];
         let mut locals_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
             let ty = typed_hir
@@ -104,11 +106,12 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             let scalar = binding_scalar_type(symbol, typed_hir)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
             let local = LocalId::from_index(locals.len());
-            locals.push(Local {
+            locals.push(Local::scalar(
                 ty,
                 scalar,
-                source: LocalSource::Parameter { symbol, index },
-            });
+                LocalStorage::Parameter(index),
+                LocalOrigin::Parameter(symbol),
+            ));
             locals_by_symbol.insert(symbol, local);
         }
         let mut control_flow = ControlFlowBuilder::new();

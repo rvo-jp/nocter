@@ -2,12 +2,19 @@
 //! failures, not alternate source-language diagnostics.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, CallContinuation, Operand, ScalarType, Statement, Terminator};
+use super::locals::{LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation};
+use super::model::{Body, CallContinuation, Operand, Statement, Terminator};
 use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ValidationError {
     MissingReturnLocal(LocalId),
+    InvalidLocalContract(LocalId),
+    DuplicateParameterStorage {
+        first: LocalId,
+        duplicate: LocalId,
+        index: usize,
+    },
     MissingEntryBlock(BasicBlockId),
     MissingAssignmentLocal {
         block: BasicBlockId,
@@ -43,6 +50,17 @@ pub(crate) enum ValidationError {
         expected: ScalarType,
         actual: ScalarType,
     },
+    OperandRepresentationMismatch {
+        block: BasicBlockId,
+        location: OperandLocation,
+        expected: ValueRepresentation,
+        actual: ValueRepresentation,
+    },
+    AssignmentRequiresScalar {
+        block: BasicBlockId,
+        statement: usize,
+        actual: ValueRepresentation,
+    },
     MissingTarget {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -53,7 +71,7 @@ pub(crate) enum ValidationError {
     },
     NonBooleanCondition {
         block: BasicBlockId,
-        actual: ScalarType,
+        actual: ValueRepresentation,
     },
     PropagationFromPlainBody {
         block: BasicBlockId,
@@ -86,6 +104,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     if body.locals.get(body.return_local.index()).is_none() {
         errors.push(ValidationError::MissingReturnLocal(body.return_local));
     }
+    validate_local_contracts(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
     }
@@ -162,12 +181,12 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         operand,
                         &mut errors,
                     );
-                    validate_operand_scalar(
+                    validate_operand_representation(
                         body,
                         block_id,
                         OperandLocation::Statement(statement_index),
                         operand,
-                        destination_local.scalar,
+                        destination_local.representation,
                         &mut errors,
                     );
                     ty
@@ -175,16 +194,24 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
                 } => {
-                    for operand in [left, right] {
-                        validate_operand(
-                            body,
-                            block_id,
-                            OperandLocation::Statement(statement_index),
-                            operand,
-                            *ty,
-                            destination_local.scalar,
-                            &mut errors,
-                        );
+                    if let Some(destination_scalar) = destination_local.scalar_type() {
+                        for operand in [left, right] {
+                            validate_operand(
+                                body,
+                                block_id,
+                                OperandLocation::Statement(statement_index),
+                                operand,
+                                *ty,
+                                destination_scalar,
+                                &mut errors,
+                            );
+                        }
+                    } else {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_local.representation,
+                        });
                     }
                     Some(*ty)
                 }
@@ -207,13 +234,23 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             &mut errors,
                         );
                     }
-                    if destination_local.scalar != ScalarType::Bool {
-                        errors.push(ValidationError::AssignmentScalarMismatch {
-                            block: block_id,
-                            statement: statement_index,
-                            expected: ScalarType::Bool,
-                            actual: destination_local.scalar,
-                        });
+                    match destination_local.representation {
+                        ValueRepresentation::Scalar(actual) if actual != ScalarType::Bool => {
+                            errors.push(ValidationError::AssignmentScalarMismatch {
+                                block: block_id,
+                                statement: statement_index,
+                                expected: ScalarType::Bool,
+                                actual,
+                            });
+                        }
+                        ValueRepresentation::Aggregate => {
+                            errors.push(ValidationError::AssignmentRequiresScalar {
+                                block: block_id,
+                                statement: statement_index,
+                                actual: destination_local.representation,
+                            });
+                        }
+                        ValueRepresentation::Scalar(_) => {}
                     }
                     Some(*result_ty)
                 }
@@ -239,8 +276,8 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             } => {
                 validate_target(body, block_id, *then_target, &mut errors);
                 validate_target(body, block_id, *else_target, &mut errors);
-                if let Some(actual) = operand_scalar(body, condition)
-                    && actual != ScalarType::Bool
+                if let Some(actual) = operand_representation(body, condition)
+                    && actual != ValueRepresentation::Scalar(ScalarType::Bool)
                 {
                     errors.push(ValidationError::NonBooleanCondition {
                         block: block_id,
@@ -303,6 +340,43 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
+    let mut parameter_storage = std::collections::HashMap::new();
+    let return_local_exists = body.locals.get(body.return_local.index()).is_some();
+    for (index, local) in body.locals.iter().enumerate() {
+        let id = LocalId::from_index(index);
+        let storage_matches_origin = matches!(
+            (local.storage, local.origin),
+            (LocalStorage::Return, LocalOrigin::Return)
+                | (LocalStorage::Parameter(_), LocalOrigin::Parameter(_))
+                | (
+                    LocalStorage::Local,
+                    LocalOrigin::Binding(_) | LocalOrigin::Temporary(_) | LocalOrigin::Desugared(_)
+                )
+        );
+        let return_storage_matches_identity = !return_local_exists
+            || (id == body.return_local) == (local.storage == LocalStorage::Return);
+        let scalar_ownership_is_trivial =
+            !matches!(local.representation, ValueRepresentation::Scalar(_))
+                || local.ownership == OwnershipKind::Trivial;
+        if !storage_matches_origin
+            || !return_storage_matches_identity
+            || !scalar_ownership_is_trivial
+        {
+            errors.push(ValidationError::InvalidLocalContract(id));
+        }
+        if let LocalStorage::Parameter(parameter_index) = local.storage
+            && let Some(first) = parameter_storage.insert(parameter_index, id)
+        {
+            errors.push(ValidationError::DuplicateParameterStorage {
+                first,
+                duplicate: id,
+                index: parameter_index,
+            });
+        }
     }
 }
 
@@ -378,10 +452,39 @@ fn validate_operand_scalar(
     expected: ScalarType,
     errors: &mut Vec<ValidationError>,
 ) {
-    if let Some(actual) = operand_scalar(body, operand)
+    match operand_representation(body, operand) {
+        Some(ValueRepresentation::Scalar(actual)) if actual != expected => {
+            errors.push(ValidationError::OperandScalarMismatch {
+                block,
+                location,
+                expected,
+                actual,
+            });
+        }
+        Some(actual @ ValueRepresentation::Aggregate) => {
+            errors.push(ValidationError::OperandRepresentationMismatch {
+                block,
+                location,
+                expected: ValueRepresentation::Scalar(expected),
+                actual,
+            });
+        }
+        Some(ValueRepresentation::Scalar(_)) | None => {}
+    }
+}
+
+fn validate_operand_representation(
+    body: &Body,
+    block: BasicBlockId,
+    location: OperandLocation,
+    operand: &Operand,
+    expected: ValueRepresentation,
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(actual) = operand_representation(body, operand)
         && actual != expected
     {
-        errors.push(ValidationError::OperandScalarMismatch {
+        errors.push(ValidationError::OperandRepresentationMismatch {
             block,
             location,
             expected,
@@ -401,13 +504,13 @@ fn validate_target(
     }
 }
 
-fn operand_scalar(body: &Body, operand: &Operand) -> Option<ScalarType> {
+fn operand_representation(body: &Body, operand: &Operand) -> Option<ValueRepresentation> {
     match operand {
-        Operand::Constant(constant) => Some(constant.scalar),
+        Operand::Constant(constant) => Some(ValueRepresentation::Scalar(constant.scalar)),
         Operand::Copy(place) => body
             .locals
             .get(place.local.index())
-            .map(|local| local.scalar),
+            .map(|local| local.representation),
     }
 }
 
@@ -437,9 +540,8 @@ fn operand_type(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::model::{
-        BasicBlock, CallArgument, Constant, Local, LocalSource, Operand, Place, Rvalue,
-    };
+    use crate::mir::locals::{Local, LocalOrigin, LocalStorage};
+    use crate::mir::model::{BasicBlock, CallArgument, Constant, Operand, Place, Rvalue};
     use crate::semantic::{BodyId, DefId, ExprId};
     use crate::source::{ByteSpan, SourceId};
 
@@ -454,11 +556,12 @@ mod tests {
             source_span: span(),
             return_local: LocalId::from_index(0),
             return_mode: crate::mir::ReturnMode::Plain,
-            locals: vec![Local {
+            locals: vec![Local::scalar(
                 ty,
-                scalar: crate::mir::model::ScalarType::I32,
-                source: LocalSource::Return,
-            }],
+                ScalarType::I32,
+                LocalStorage::Return,
+                LocalOrigin::Return,
+            )],
             entry: BasicBlockId::from_index(0),
             blocks: vec![
                 BasicBlock {
@@ -468,7 +571,7 @@ mod tests {
                         },
                         value: Rvalue::Use(Operand::Constant(Constant {
                             ty,
-                            scalar: crate::mir::model::ScalarType::I32,
+                            scalar: ScalarType::I32,
                             value: 7,
                         })),
                         origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
@@ -517,7 +620,7 @@ mod tests {
             },
             value: Rvalue::Use(Operand::Constant(Constant {
                 ty: TyId::from_index(1),
-                scalar: crate::mir::model::ScalarType::I32,
+                scalar: ScalarType::I32,
                 value: 7,
             })),
             origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
@@ -590,6 +693,54 @@ mod tests {
                     location: OperandLocation::CallArgument(0),
                     expected: ScalarType::I32,
                     actual: ScalarType::Usize,
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn rejects_local_storage_origin_and_ownership_drift() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        let mut invalid = Local::scalar(
+            ty,
+            ScalarType::I32,
+            LocalStorage::Parameter(0),
+            LocalOrigin::Desugared(span()),
+        );
+        invalid.ownership = OwnershipKind::Owned;
+        body.locals.push(invalid);
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::InvalidLocalContract(
+                LocalId::from_index(1)
+            )])
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_parameter_storage() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        for _ in 0..2 {
+            body.locals.push(Local::scalar(
+                ty,
+                ScalarType::I32,
+                LocalStorage::Parameter(0),
+                LocalOrigin::Desugared(span()),
+            ));
+        }
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![
+                ValidationError::InvalidLocalContract(LocalId::from_index(1)),
+                ValidationError::InvalidLocalContract(LocalId::from_index(2)),
+                ValidationError::DuplicateParameterStorage {
+                    first: LocalId::from_index(1),
+                    duplicate: LocalId::from_index(2),
+                    index: 0,
                 },
             ])
         );

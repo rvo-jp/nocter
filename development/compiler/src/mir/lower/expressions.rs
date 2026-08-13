@@ -6,8 +6,8 @@ use super::coverage::{known_expression_type, scalar_type};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
-    BinaryOperator, CallArgument, ComparisonOperator, LocalId, LocalSource, Operand, Place, Rvalue,
-    ScalarType, Statement,
+    BinaryOperator, CallArgument, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand,
+    Place, Rvalue, ScalarType, Statement,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
@@ -18,7 +18,7 @@ pub(super) fn lower_call(
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
-    local_declarations: &mut Vec<crate::mir::model::Local>,
+    local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
 ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
@@ -67,7 +67,7 @@ pub(super) fn lower_expression_to_place(
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
-    local_declarations: &mut Vec<crate::mir::model::Local>,
+    local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
 ) -> Result<(), BuildError> {
     let source = typed_hir
@@ -221,7 +221,7 @@ pub(super) fn lower_operand(
     resolved: &ResolveOutput,
     locals: &HashMap<LocalSymbolId, LocalId>,
     typed_hir: &TypedHir,
-    local_declarations: &mut Vec<crate::mir::model::Local>,
+    local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
 ) -> Result<Operand, BuildError> {
     if !matches!(
@@ -247,11 +247,12 @@ pub(super) fn lower_operand(
         .expression(expression.span())
         .ok_or(BuildError::MissingTypedExpression)?;
     let temporary = LocalId::from_index(local_declarations.len());
-    local_declarations.push(crate::mir::model::Local {
+    local_declarations.push(crate::mir::locals::Local::scalar(
         ty,
         scalar,
-        source: LocalSource::Temporary(typed_expression.id),
-    });
+        LocalStorage::Local,
+        LocalOrigin::Temporary(typed_expression.id),
+    ));
     lower_expression_to_place(
         temporary,
         expression,

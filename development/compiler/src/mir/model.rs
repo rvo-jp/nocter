@@ -2,7 +2,7 @@
 //! their AST-driven lowering path is removed.
 
 use super::ids::{BasicBlockId, LocalId};
-use crate::resolve::LocalSymbolId;
+use super::locals::{Local, ScalarType};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
 
@@ -31,30 +31,6 @@ pub(crate) struct LoopRegion {
     pub(crate) body: BasicBlockId,
     pub(crate) continue_target: BasicBlockId,
     pub(crate) exit: BasicBlockId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Local {
-    pub(crate) ty: TyId,
-    pub(crate) scalar: ScalarType,
-    pub(crate) source: LocalSource,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ScalarType {
-    I32,
-    Usize,
-    Bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LocalSource {
-    Return,
-    Parameter { symbol: LocalSymbolId, index: usize },
-    Binding(LocalSymbolId),
-    Temporary(ExprId),
-    Desugared(ByteSpan),
-    Virtual(ByteSpan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

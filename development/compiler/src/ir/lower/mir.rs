@@ -7,7 +7,7 @@ use crate::ir::{
     Instruction, OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
-    BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalSource, Operand,
+    BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
     Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator,
 };
 use crate::resolve::ResolveOutput;
@@ -17,6 +17,7 @@ use std::collections::HashSet;
 
 mod control_flow;
 mod loops;
+mod storage;
 
 pub(super) fn try_lower_scalar_body(
     cache: &crate::mir::BodyCache,
@@ -219,7 +220,7 @@ fn lower_scalar_body(
                         target,
                     } => {
                         let target_block = &body.blocks[target.index()];
-                        let destination_scalar = body.locals[destination.local.index()].scalar;
+                        let destination_scalar = local_scalar(body, destination.local)?;
                         super::expressions::validate_known_call_success_return_passing(
                             function_signatures.success_return_passing(&call_target),
                             &callee_name,
@@ -261,7 +262,7 @@ fn lower_scalar_body(
                         failure,
                     } => {
                         let failure_mode = outcome_failure_mode(body, *failure)?;
-                        let destination_scalar = body.locals[destination.local.index()].scalar;
+                        let destination_scalar = local_scalar(body, destination.local)?;
                         instructions.push(lower_outcome_call(
                             body,
                             destination_scalar,
@@ -385,7 +386,7 @@ fn lower_linear_branch(
                     .iter()
                     .map(|argument| lower_call_argument(argument, body))
                     .collect::<Result<Vec<_>, _>>()?;
-                let destination_scalar = body.locals[destination.local.index()].scalar;
+                let destination_scalar = local_scalar(body, destination.local)?;
                 instructions.push(lower_returning_call(
                     body,
                     destination_scalar,
@@ -583,7 +584,7 @@ fn lower_statements(
         let Statement::Assign {
             destination, value, ..
         } = statement;
-        match body.locals[destination.local.index()].scalar {
+        match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
                 let destination = i32_location(destination, body)?;
                 match value {
@@ -797,52 +798,37 @@ fn usize_binary_instruction(
 }
 
 fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnostic>> {
-    match &body.locals[place.local.index()].source {
-        LocalSource::Return => Ok(I32Location::Return),
-        LocalSource::Parameter { index, .. } => Ok(I32Location::Parameter(*index)),
-        LocalSource::Binding(_)
-        | LocalSource::Temporary(_)
-        | LocalSource::Desugared(_)
-        | LocalSource::Virtual(_) => Ok(I32Location::Local(machine_local_index(body, place.local))),
+    match body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(I32Location::Return),
+        LocalStorage::Parameter(index) => Ok(I32Location::Parameter(index)),
+        LocalStorage::Local => Ok(I32Location::Local(machine_local_index(body, place.local))),
     }
 }
 
 fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagnostic>> {
-    match &body.locals[place.local.index()].source {
-        LocalSource::Return => Ok(UsizeLocation::Return),
-        LocalSource::Parameter { index, .. } => Ok(UsizeLocation::Parameter(*index)),
-        LocalSource::Binding(_)
-        | LocalSource::Temporary(_)
-        | LocalSource::Desugared(_)
-        | LocalSource::Virtual(_) => {
-            Ok(UsizeLocation::Local(machine_local_index(body, place.local)))
-        }
+    match body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(UsizeLocation::Return),
+        LocalStorage::Parameter(index) => Ok(UsizeLocation::Parameter(index)),
+        LocalStorage::Local => Ok(UsizeLocation::Local(machine_local_index(body, place.local))),
     }
 }
 
 fn bool_location(place: &Place, body: &Body) -> Result<BoolLocation, Vec<Diagnostic>> {
-    match &body.locals[place.local.index()].source {
-        LocalSource::Return => Ok(BoolLocation::Return),
-        LocalSource::Parameter { index, .. } => Ok(BoolLocation::Parameter(*index)),
-        LocalSource::Binding(_)
-        | LocalSource::Temporary(_)
-        | LocalSource::Desugared(_)
-        | LocalSource::Virtual(_) => {
-            Ok(BoolLocation::Local(machine_local_index(body, place.local)))
-        }
+    match body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(BoolLocation::Return),
+        LocalStorage::Parameter(index) => Ok(BoolLocation::Parameter(index)),
+        LocalStorage::Local => Ok(BoolLocation::Local(machine_local_index(body, place.local))),
     }
 }
 
 fn machine_local_index(body: &Body, local: LocalId) -> usize {
-    body.locals[..local.index()]
-        .iter()
-        .filter(|local| {
-            matches!(
-                local.source,
-                LocalSource::Binding(_) | LocalSource::Temporary(_) | LocalSource::Desugared(_)
-            )
-        })
-        .count()
+    storage::machine_local_index(body, local)
+}
+
+fn local_scalar(body: &Body, local: LocalId) -> Result<ScalarType, Vec<Diagnostic>> {
+    body.locals[local.index()]
+        .scalar_type()
+        .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received an aggregate local"))
 }
 
 fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Diagnostic>> {

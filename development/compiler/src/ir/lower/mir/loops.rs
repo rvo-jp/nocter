@@ -39,7 +39,9 @@ pub(super) fn lower_linear_loop_condition(
                     "loop condition path does not end in a switch",
                 ));
             };
-            if let Some(value) = inline_condition_value(body, &block.statements, condition)? {
+            if let Some(value) =
+                inline_condition_value(body, condition_block, &block.statements, condition)?
+            {
                 instructions.pop();
                 return Ok((instructions, value));
             }
@@ -60,9 +62,13 @@ pub(super) fn lower_linear_loop_condition(
 
 fn inline_condition_value(
     body: &Body,
+    condition_block: crate::mir::BasicBlockId,
     statements: &[Statement],
     condition: &Operand,
 ) -> Result<Option<BoolValue>, Vec<Diagnostic>> {
+    if super::storage::inlined_loop_condition_local(body, condition_block).is_none() {
+        return Ok(None);
+    }
     let Operand::Copy(condition_place) = condition else {
         return Ok(None);
     };
@@ -302,7 +308,7 @@ fn lower_linear_call_terminator(
             destination,
             target,
         } => {
-            let scalar = body.locals[destination.local.index()].scalar;
+            let scalar = super::local_scalar(body, destination.local)?;
             instructions.push(lower_returning_call(
                 body,
                 scalar,
@@ -319,7 +325,7 @@ fn lower_linear_call_terminator(
             success,
             failure,
         } => {
-            let scalar = body.locals[destination.local.index()].scalar;
+            let scalar = super::local_scalar(body, destination.local)?;
             instructions.push(lower_outcome_call(
                 body,
                 scalar,

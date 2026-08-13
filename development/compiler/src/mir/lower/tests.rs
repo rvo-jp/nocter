@@ -1,7 +1,7 @@
 use super::*;
 use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
-use crate::mir::{ComparisonOperator, Operand, Rvalue, Statement};
+use crate::mir::{ComparisonOperator, LocalOrigin, Operand, Rvalue, Statement};
 
 #[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {
@@ -116,7 +116,7 @@ fn keys_straight_line_bindings_by_resolved_local_identity() {
         .local_symbol_id_at_name_span(binding.name_span)
         .unwrap();
     assert_eq!(body.locals.len(), 2);
-    assert_eq!(body.locals[1].source, LocalSource::Binding(symbol));
+    assert_eq!(body.locals[1].origin, LocalOrigin::Binding(symbol));
     assert_eq!(body.blocks[0].statements.len(), 2);
     assert!(matches!(
         body.blocks[0].statements[1],
@@ -158,7 +158,7 @@ fn makes_nested_scalar_evaluation_order_explicit_with_a_temporary() {
     .unwrap();
 
     assert_eq!(body.locals.len(), 2);
-    assert!(matches!(body.locals[1].source, LocalSource::Temporary(_)));
+    assert!(matches!(body.locals[1].origin, LocalOrigin::Temporary(_)));
     assert_eq!(body.blocks[0].statements.len(), 2);
     assert!(body.blocks[0].statements.iter().all(|statement| matches!(
         statement,
