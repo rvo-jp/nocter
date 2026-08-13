@@ -88,6 +88,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - definite-initialization analysis retains edge and exit states; cleanup materialization combines
   those states with `ScopeId` transitions to insert reverse-declaration-order `Drop` chains on
   ordinary, branch, call-success, call-failure, return, and propagation paths
+- one MIR `Call` terminator now carries the checked value representation of every argument rather
+  than a scalar-only tag; scalar machine-IR lowering is an explicit projection, while aggregate
+  and borrow call routes can reuse the same call identity and continuation model
 - the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint

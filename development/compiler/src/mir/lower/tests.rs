@@ -336,7 +336,10 @@ func main(): i32 {
         crate::semantic::DefinitionKind::Function
     );
     assert_eq!(arguments.len(), 1);
-    assert_eq!(arguments[0].scalar, ScalarType::I32);
+    assert_eq!(
+        arguments[0].representation,
+        crate::mir::ValueRepresentation::Scalar(ScalarType::I32)
+    );
     assert_eq!(destination.local, body.return_local);
     assert_eq!(*target, BasicBlockId::from_index(1));
     assert_eq!(validate(&body), Ok(()));

@@ -184,7 +184,7 @@ pub(crate) struct Constant {
 pub(crate) struct CallArgument {
     pub(crate) operand: Operand,
     pub(crate) ty: TyId,
-    pub(crate) scalar: ScalarType,
+    pub(crate) representation: ValueRepresentation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -573,10 +573,21 @@ fn lower_call_argument(
     argument: &crate::mir::CallArgument,
     body: &Body,
 ) -> Result<ScalarArgument, Vec<Diagnostic>> {
-    Ok(match argument.scalar {
-        ScalarType::I32 => ScalarArgument::I32(lower_i32_operand(&argument.operand, body)?),
-        ScalarType::Usize => ScalarArgument::Usize(lower_usize_operand(&argument.operand, body)?),
-        ScalarType::Bool => ScalarArgument::Bool(lower_bool_operand(&argument.operand, body)?),
+    Ok(match argument.representation {
+        crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
+            ScalarArgument::I32(lower_i32_operand(&argument.operand, body)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
+            ScalarArgument::Usize(lower_usize_operand(&argument.operand, body)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::Bool) => {
+            ScalarArgument::Bool(lower_bool_operand(&argument.operand, body)?)
+        }
+        crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Aggregate => {
+            return Err(invalid_mir_diagnostics(
+                "non-scalar MIR call arguments have not been projected to machine IR",
+            ));
+        }
     })
 }
 

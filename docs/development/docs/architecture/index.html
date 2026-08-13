@@ -198,7 +198,9 @@
   identities and begin/end points, so neither cleanup nor alias validity is inferred from AST
   nesting or a single ambiguous runtime-live flag.</li><li>Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
-  callable exit, including distinct success and failure states for outcome calls.</li><li>IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.</li><li>Optional and fallible layers retain distinct IR type identities even when they share a callable
+  callable exit, including distinct success and failure states for outcome calls.</li><li>MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
+  and aggregate arguments therefore share call identity and continuation semantics; conversion to
+  ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.</li><li>IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.</li><li>Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain
   fallible-only.</li><li>ABI classification is centralized in <code>abi</code> and shared by lowering and backend validation.</li><li>Unsupported user source stops at buildability; backend validation remains a guard against drifted
   or hand-built IR.</li><li>Target-specific syscalls and encoding stay inside backend/target and target-gated standard-library

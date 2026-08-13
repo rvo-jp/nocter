@@ -401,13 +401,30 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     });
                 }
                 for (index, argument) in arguments.iter().enumerate() {
-                    validate_operand(
+                    let location = OperandLocation::CallArgument(index);
+                    let actual =
+                        operand_type(body, block_id, location, &argument.operand, &mut errors);
+                    if actual.is_some_and(|actual| actual != argument.ty) {
+                        errors.push(ValidationError::OperandTypeMismatch {
+                            block: block_id,
+                            location,
+                            expected: argument.ty,
+                            actual: actual.unwrap(),
+                        });
+                    }
+                    validate_operand_representation(
                         body,
                         block_id,
-                        OperandLocation::CallArgument(index),
+                        location,
                         &argument.operand,
-                        argument.ty,
-                        argument.scalar,
+                        argument.representation,
+                        &mut errors,
+                    );
+                    validate_operand_ownership(
+                        body,
+                        block_id,
+                        location,
+                        &argument.operand,
                         &mut errors,
                     );
                 }
@@ -924,7 +941,7 @@ mod tests {
                     value: 7,
                 }),
                 ty: TyId::from_index(0),
-                scalar: ScalarType::I32,
+                representation: ValueRepresentation::Scalar(ScalarType::I32),
             }],
             continuation: CallContinuation::Return {
                 destination: Place::local(LocalId::from_index(4)),
@@ -949,11 +966,11 @@ mod tests {
                     expected: TyId::from_index(0),
                     actual: TyId::from_index(1),
                 },
-                ValidationError::OperandScalarMismatch {
+                ValidationError::OperandRepresentationMismatch {
                     block: BasicBlockId::from_index(0),
                     location: OperandLocation::CallArgument(0),
-                    expected: ScalarType::I32,
-                    actual: ScalarType::Usize,
+                    expected: ValueRepresentation::Scalar(ScalarType::I32),
+                    actual: ValueRepresentation::Scalar(ScalarType::Usize),
                 },
             ])
         );

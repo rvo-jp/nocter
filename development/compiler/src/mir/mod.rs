@@ -15,7 +15,9 @@ mod validate;
 
 pub(crate) use ids::{BasicBlockId, LoanId, LocalId, ScopeId};
 pub(crate) use index::BodyCache;
-pub(crate) use locals::{Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType};
+pub(crate) use locals::{
+    Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,
+};
 pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::Loan;

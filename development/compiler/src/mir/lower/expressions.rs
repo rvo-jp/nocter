@@ -54,7 +54,7 @@ pub(super) fn lower_call(
             Ok(CallArgument {
                 operand,
                 ty,
-                scalar,
+                representation: crate::mir::ValueRepresentation::Scalar(scalar),
             })
         })
         .collect::<Result<Vec<_>, BuildError>>()?;

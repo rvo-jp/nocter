@@ -118,6 +118,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
   callable exit, including distinct success and failure states for outcome calls.
+- MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
+  and aggregate arguments therefore share call identity and continuation semantics; conversion to
+  ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain
