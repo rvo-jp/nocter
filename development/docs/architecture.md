@@ -119,7 +119,10 @@ buildability is MIR validation rather than a parallel AST model.
   nesting or a single ambiguous runtime-live flag.
 - Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
-  callable exit, including distinct success and failure states for outcome calls.
+  callable exit, including distinct success and failure states for outcome calls. A wholly
+  available owned local produces one root drop; after a partial move, maximal remaining owned
+  projections produce separate drops, so cleanup neither destroys moved storage nor leaks sibling
+  fields.
 - MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.

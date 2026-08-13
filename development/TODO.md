@@ -91,6 +91,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - initialization and drop-obligation dataflow now uses a shared projected-place state: whole roots,
   explicitly initialized projections, and partially moved projections remain distinct across CFG
   joins, so moving one field neither consumes its siblings nor leaves the root falsely available
+- cleanup materialization drops an available owned root once, or the maximal remaining owned
+  projections after a partial move; moved fields are not destroyed and sibling destructors are not
+  lost
 - one MIR `Call` terminator now carries the checked value representation of every argument rather
   than a scalar-only tag; scalar machine-IR lowering is an explicit projection, while aggregate
   and borrow call routes can reuse the same call identity and continuation model

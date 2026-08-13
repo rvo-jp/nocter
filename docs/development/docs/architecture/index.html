@@ -200,7 +200,10 @@
   identities and begin/end points, so neither cleanup nor alias validity is inferred from AST
   nesting or a single ambiguous runtime-live flag.</li><li>Cleanup materialization consumes retained definite-initialization edge states and lexical scope
   transitions. It inserts explicit reverse-order drop chains for each concrete CFG successor and
-  callable exit, including distinct success and failure states for outcome calls.</li><li>MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
+  callable exit, including distinct success and failure states for outcome calls. A wholly
+  available owned local produces one root drop; after a partial move, maximal remaining owned
+  projections produce separate drops, so cleanup neither destroys moved storage nor leaks sibling
+  fields.</li><li>MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only

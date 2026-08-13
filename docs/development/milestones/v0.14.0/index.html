@@ -237,7 +237,9 @@ InstanceMember::Coercion(CoercionDecl)
   verifier rejects scalar bases, forward parents, base drift, invalid index operands, and place
   references outside the body's projection arena.</li><li>Definite-initialization retains per-edge and per-exit states. A dedicated cleanup pass combines
   them with the validated scope tree and materializes explicit <code>Drop</code> chains without walking AST
-  blocks or flattening outcome success and failure into one state.</li><li>Primitive lowering now uses a closed <code>IntrinsicId</code> after resolution. Pointer, view, process,
+  blocks or flattening outcome success and failure into one state.</li><li>Cleanup selects whole owned roots when available and maximal remaining owned projections after a
+  partial move. This prevents both whole-value destruction of moved storage and loss of sibling
+  field destructors.</li><li>Primitive lowering now uses a closed <code>IntrinsicId</code> after resolution. Pointer, view, process,
   allocation, I/O, and syscall operations no longer select backend behavior with string equality.</li><li>Nongeneric scalar functions route through MIR when their bodies contain supported parameters,
   bindings, assignments, arithmetic, and value or terminal conditionals. Once selected, MIR
   construction or validation failure is authoritative; the route does not fall back to the

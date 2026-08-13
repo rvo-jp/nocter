@@ -87,10 +87,10 @@ fn cleanup_edge(
     else {
         return target;
     };
-    let locals = cleanup_locals(body, &exited, |local| {
-        analysis.initialized_on_edge(body, from, target, Place::local(local))
+    let places = cleanup_places(body, &exited, |place| {
+        analysis.initialized_on_edge(body, from, target, place)
     });
-    prepend_cleanup_chain(body, locals, target)
+    prepend_cleanup_chain(body, places, target)
 }
 
 fn cleanup_exit(
@@ -101,10 +101,10 @@ fn cleanup_exit(
     terminal: Terminator,
 ) -> Terminator {
     let exited = scope_ancestors(body, source_scope);
-    let locals = cleanup_locals(body, &exited, |local| {
-        analysis.initialized_at_exit(body, block, Place::local(local))
+    let places = cleanup_places(body, &exited, |place| {
+        analysis.initialized_at_exit(body, block, place)
     });
-    if locals.is_empty() {
+    if places.is_empty() {
         return terminal;
     }
     let terminal_block = BasicBlockId::from_index(body.blocks.len());
@@ -114,16 +114,16 @@ fn cleanup_exit(
         terminator: terminal,
     });
     Terminator::Goto {
-        target: prepend_cleanup_chain(body, locals, terminal_block),
+        target: prepend_cleanup_chain(body, places, terminal_block),
     }
 }
 
-fn cleanup_locals(
+fn cleanup_places(
     body: &Body,
     exited: &[ScopeId],
-    initialized: impl Fn(LocalId) -> bool,
-) -> Vec<LocalId> {
-    let mut locals = Vec::new();
+    initialized: impl Fn(Place) -> bool,
+) -> Vec<Place> {
+    let mut places = Vec::new();
     for scope in exited {
         for (index, local) in body.locals.iter().enumerate().rev() {
             let id = LocalId::from_index(index);
@@ -131,30 +131,44 @@ fn cleanup_locals(
                 && local.scope == *scope
                 && local.representation == ValueRepresentation::Aggregate
                 && local.ownership == OwnershipKind::Move
-                && initialized(id)
             {
-                locals.push(id);
+                let root = Place::local(id);
+                if initialized(root) {
+                    places.push(root);
+                    continue;
+                }
+                for projection in body.projections.iter().rev().filter(|projection| {
+                    projection.base == id
+                        && projection.representation == ValueRepresentation::Aggregate
+                        && projection.ownership == OwnershipKind::Move
+                }) {
+                    let place = Place::projected(id, projection.id);
+                    if initialized(place)
+                        && projection
+                            .parent
+                            .is_none_or(|parent| !initialized(Place::projected(id, parent)))
+                    {
+                        places.push(place);
+                    }
+                }
             }
         }
     }
-    locals
+    places
 }
 
 fn prepend_cleanup_chain(
     body: &mut Body,
-    locals: Vec<LocalId>,
+    places: Vec<Place>,
     final_target: BasicBlockId,
 ) -> BasicBlockId {
     let mut target = final_target;
-    for local in locals.into_iter().rev() {
+    for place in places.into_iter().rev() {
         let block = BasicBlockId::from_index(body.blocks.len());
         body.blocks.push(BasicBlock {
-            scope: body.locals[local.index()].scope,
+            scope: body.locals[place.local.index()].scope,
             statements: Vec::new(),
-            terminator: Terminator::Drop {
-                place: Place::local(local),
-                target,
-            },
+            terminator: Terminator::Drop { place, target },
         });
         target = block;
     }
@@ -255,6 +269,129 @@ mod tests {
             matches!(
                 block.terminator,
                 Terminator::Drop { place, .. } if place == Place::local(owned)
+            )
+        }));
+    }
+
+    #[test]
+    fn materializes_remaining_owned_projection_after_partial_move() {
+        let span = ByteSpan::new(SourceId::new(0), 0, 1);
+        let scope = ScopeId::from_index(0);
+        let scalar_ty = TyId::from_index(0);
+        let aggregate_ty = TyId::from_index(1);
+        let source = LocalId::from_index(1);
+        let moved_field = LocalId::from_index(2);
+        let first = crate::mir::ProjectionPathId::from_index(0);
+        let second = crate::mir::ProjectionPathId::from_index(1);
+        let mut body = Body {
+            source_body: BodyId::from_index(0),
+            source_span: span,
+            return_local: LocalId::from_index(0),
+            return_mode: ReturnMode::Plain,
+            root_scope: scope,
+            scopes: vec![Scope::root(span)],
+            locals: vec![
+                Local::scalar(
+                    scalar_ty,
+                    ScalarType::I32,
+                    LocalStorage::Return,
+                    LocalOrigin::Return,
+                    scope,
+                ),
+                Local::aggregate(
+                    aggregate_ty,
+                    OwnershipKind::Move,
+                    LocalStorage::Local,
+                    LocalOrigin::Desugared(span),
+                    scope,
+                ),
+                Local::aggregate(
+                    aggregate_ty,
+                    OwnershipKind::Move,
+                    LocalStorage::Local,
+                    LocalOrigin::Desugared(span),
+                    scope,
+                ),
+            ],
+            entry: BasicBlockId::from_index(0),
+            blocks: vec![
+                BasicBlock {
+                    scope,
+                    statements: Vec::new(),
+                    terminator: Terminator::Call {
+                        origin: Origin::Expression(ExprId::from_index(0)),
+                        callee: DefId::from_index(0),
+                        arguments: Vec::new(),
+                        continuation: CallContinuation::Return {
+                            destination: Place::local(source),
+                            target: BasicBlockId::from_index(1),
+                        },
+                    },
+                },
+                BasicBlock {
+                    scope,
+                    statements: vec![
+                        Statement::Assign {
+                            destination: Place::local(moved_field),
+                            value: Rvalue::Use(crate::mir::Operand::Move(Place::projected(
+                                source, first,
+                            ))),
+                            origin: Origin::Expression(ExprId::from_index(1)),
+                        },
+                        Statement::Assign {
+                            destination: Place::local(LocalId::from_index(0)),
+                            value: Rvalue::Use(crate::mir::Operand::Constant(
+                                crate::mir::Constant {
+                                    ty: scalar_ty,
+                                    scalar: ScalarType::I32,
+                                    value: 0,
+                                },
+                            )),
+                            origin: Origin::Expression(ExprId::from_index(2)),
+                        },
+                    ],
+                    terminator: Terminator::Return,
+                },
+            ],
+            loop_regions: Vec::new(),
+            loans: Vec::new(),
+            projections: vec![
+                crate::mir::ProjectionPath {
+                    id: first,
+                    base: source,
+                    parent: None,
+                    element: crate::mir::ProjectionElement::Field { offset: 0 },
+                    ty: aggregate_ty,
+                    representation: ValueRepresentation::Aggregate,
+                    ownership: OwnershipKind::Move,
+                },
+                crate::mir::ProjectionPath {
+                    id: second,
+                    base: source,
+                    parent: None,
+                    element: crate::mir::ProjectionElement::Field { offset: 8 },
+                    ty: aggregate_ty,
+                    representation: ValueRepresentation::Aggregate,
+                    ownership: OwnershipKind::Move,
+                },
+            ],
+        };
+
+        assert!(crate::mir::validate(&body).is_err());
+        materialize(&mut body);
+        assert!(crate::mir::validate(&body).is_ok());
+        assert!(body.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                Terminator::Drop { place, .. }
+                    if place == Place::projected(source, second)
+            )
+        }));
+        assert!(!body.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                Terminator::Drop { place, .. }
+                    if place == Place::local(source)
             )
         }));
     }
