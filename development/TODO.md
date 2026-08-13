@@ -162,6 +162,9 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - checked fixed-array element borrows now append an index segment to the same MIR projection arena;
   the segment retains its `usize` operand, length, and stride, while backend projection supplies
   the existing bounds-checked aggregate address operation for both constant and dynamic indexes
+- fixed-array scalar reads, assignments, and compound assignments use the same index place;
+  assignment validation reads the projected type and representation, while one backend scalar
+  projection emits field or bounds-checked index loads and stores
 - generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
   the monomorphized runtime symbol
 - payload variant rvalues retain the selected variant `DefId` and semantic payload paths; enum drop
@@ -181,7 +184,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,654 library tests pass at this checkpoint
+- all 2,656 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

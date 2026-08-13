@@ -487,6 +487,46 @@ func addend(): i32 {
 }
 
 #[test]
+fn lowers_scalar_returning_fixed_array_access_through_mir_projection() {
+    let function = lower_named_function(
+        r#"func access(index: usize): i32 {
+    var values: [i32; 2] = [7, 9]
+    values[index] += 3
+    return values[index]
+}
+
+func main(): i32 {
+    return access(1)
+}
+"#,
+        "access",
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::LoadAggregateI32Indexed {
+            source: AggregateLocation::Slot(0),
+            base_offset: 0,
+            index: UsizeValue::Location(UsizeLocation::Parameter(0)),
+            length: 2,
+            stride: 4,
+            ..
+        }
+    )));
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateI32Indexed {
+            destination: AggregateLocation::Slot(0),
+            base_offset: 0,
+            index: UsizeValue::Location(UsizeLocation::Parameter(0)),
+            length: 2,
+            stride: 4,
+            ..
+        }
+    )));
+}
+
+#[test]
 fn lowers_fixed_array_aggregate_field_indexing() {
     let function = lower_named_function(
         r#"struct Bag {

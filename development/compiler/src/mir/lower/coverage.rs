@@ -363,9 +363,28 @@ impl<'a> ScalarStatement<'a> {
                     || aggregate
             }
             Self::Assignment(assignment) => {
+                let target_is_supported = match &assignment.target {
+                    Expr::Identifier(identifier) => resolved
+                        .local_symbol_for_identifier(identifier)
+                        .is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()),
+                    Expr::Index(index) => {
+                        known_expression_type(&assignment.target, typed_hir)
+                            .and_then(|ty| scalar_type(ty, typed_hir))
+                            .is_some()
+                            && super::indexes::is_supported(
+                                index,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                    }
+                    _ => false,
+                };
                 (assignment.operator == AssignmentOperator::Assign
                     || mir_assignment_operator(assignment.operator).is_some())
-                    && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()))
+                    && target_is_supported
                     && known_expression_type(&assignment.value, typed_hir).is_some()
                     && scalar_expression_is_supported(
                         &assignment.value,
@@ -635,6 +654,19 @@ pub(super) fn scalar_expression_is_supported(
                 typed_hir,
             },
         ),
+        Expr::Index(index) => {
+            known_expression_type(expression, typed_hir)
+                .and_then(|ty| scalar_type(ty, typed_hir))
+                .is_some()
+                && super::indexes::is_supported(
+                    index,
+                    SemanticInputs {
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    },
+                )
+        }
         Expr::Group(group) => {
             scalar_expression_is_supported(&group.expression, resolved, resolved_sources, typed_hir)
         }

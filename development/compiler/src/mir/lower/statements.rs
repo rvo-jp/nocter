@@ -185,46 +185,95 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     false
                 }
                 ScalarStatement::Assignment(assignment) => {
-                    let Expr::Identifier(identifier) = &assignment.target else {
-                        return Err(BuildError::UnsupportedClaimedExpression);
-                    };
-                    let symbol = self
-                        .context
-                        .semantic
-                        .resolved
-                        .local_symbol_for_identifier(identifier)
-                        .map(|symbol| symbol.id)
-                        .ok_or(BuildError::MissingLocalSymbol)?;
-                    let local = *self
-                        .context
-                        .locals_by_symbol
-                        .get(&symbol)
-                        .ok_or(BuildError::MissingLocalSymbol)?;
-                    let declaration = &self.context.locals[local.index()];
-                    let ty = declaration.ty;
-                    let scalar = declaration
-                        .scalar_type()
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    let (destination, ty, scalar) =
+                        self.lower_assignment_target(&assignment.target, scope)?;
                     if assignment.operator == crate::ast::AssignmentOperator::Assign {
-                        self.lower_value(local, &assignment.value, ty, scalar, scope)?;
+                        if destination.projection.is_none() {
+                            self.lower_value(
+                                destination.local,
+                                &assignment.value,
+                                ty,
+                                scalar,
+                                scope,
+                            )?;
+                        } else {
+                            let value = self.scalar_temporary(
+                                ty,
+                                scalar,
+                                LocalOrigin::Temporary(
+                                    self.context
+                                        .semantic
+                                        .typed_hir
+                                        .expression(assignment.value.span())
+                                        .ok_or(BuildError::MissingTypedExpression)?
+                                        .id,
+                                ),
+                                scope,
+                            );
+                            self.lower_value(value, &assignment.value, ty, scalar, scope)?;
+                            self.context
+                                .control_flow
+                                .push_statement(Statement::Assign {
+                                    destination,
+                                    value: Rvalue::Use(Operand::Copy(Place::local(value))),
+                                    origin: Origin::Desugared(assignment.operator_span),
+                                })?;
+                        }
                     } else {
                         let operator = mir_assignment_operator(assignment.operator)
                             .ok_or(BuildError::UnsupportedClaimedExpression)?;
                         let right =
                             self.context
                                 .lower_operand(&assignment.value, ty, scalar, scope)?;
+                        let current = if destination.projection.is_some() {
+                            let current = self.scalar_temporary(
+                                ty,
+                                scalar,
+                                LocalOrigin::Desugared(assignment.operator_span),
+                                scope,
+                            );
+                            self.context
+                                .control_flow
+                                .push_statement(Statement::Assign {
+                                    destination: Place::local(current),
+                                    value: Rvalue::Use(Operand::Copy(destination)),
+                                    origin: Origin::Desugared(assignment.operator_span),
+                                })?;
+                            Place::local(current)
+                        } else {
+                            destination
+                        };
+                        let result = if destination.projection.is_some() {
+                            self.scalar_temporary(
+                                ty,
+                                scalar,
+                                LocalOrigin::Desugared(assignment.operator_span),
+                                scope,
+                            )
+                        } else {
+                            destination.local
+                        };
                         self.context
                             .control_flow
                             .push_statement(Statement::Assign {
-                                destination: Place::local(local),
+                                destination: Place::local(result),
                                 value: Rvalue::Binary {
                                     operator,
-                                    left: Operand::Copy(Place::local(local)),
+                                    left: Operand::Copy(current),
                                     right,
                                     ty,
                                 },
                                 origin: Origin::Desugared(assignment.operator_span),
                             })?;
+                        if destination.projection.is_some() {
+                            self.context
+                                .control_flow
+                                .push_statement(Statement::Assign {
+                                    destination,
+                                    value: Rvalue::Use(Operand::Copy(Place::local(result))),
+                                    origin: Origin::Desugared(assignment.operator_span),
+                                })?;
+                        }
                     }
                     false
                 }
@@ -273,6 +322,66 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
     ) -> Result<(), BuildError> {
         self.context
             .lower_expression_to_place(destination, expression, ty, scalar, scope)
+    }
+
+    fn lower_assignment_target(
+        &mut self,
+        expression: &Expr,
+        scope: ScopeId,
+    ) -> Result<(Place, crate::semantic::TyId, ScalarType), BuildError> {
+        match expression {
+            Expr::Identifier(identifier) => {
+                let symbol = self
+                    .context
+                    .semantic
+                    .resolved
+                    .local_symbol_for_identifier(identifier)
+                    .map(|symbol| symbol.id)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                let local = *self
+                    .context
+                    .locals_by_symbol
+                    .get(&symbol)
+                    .ok_or(BuildError::MissingLocalSymbol)?;
+                let declaration = &self.context.locals[local.index()];
+                let scalar = declaration
+                    .scalar_type()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                Ok((Place::local(local), declaration.ty, scalar))
+            }
+            Expr::Index(index) => {
+                let (place, representation) =
+                    super::indexes::lower_place(self.context, index, scope)?;
+                let crate::mir::ValueRepresentation::Scalar(scalar) = representation else {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                };
+                let ty = self.context.projections[place
+                    .projection
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?
+                    .index()]
+                .ty;
+                Ok((place, ty, scalar))
+            }
+            _ => Err(BuildError::UnsupportedClaimedExpression),
+        }
+    }
+
+    fn scalar_temporary(
+        &mut self,
+        ty: crate::semantic::TyId,
+        scalar: ScalarType,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> LocalId {
+        let local = LocalId::from_index(self.context.locals.len());
+        self.context.locals.push(crate::mir::locals::Local::scalar(
+            ty,
+            scalar,
+            LocalStorage::Local,
+            origin,
+            scope,
+        ));
+        local
     }
 
     fn lower_borrow_binding(

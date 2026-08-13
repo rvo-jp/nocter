@@ -914,6 +914,86 @@ func main(index: usize): i32 {
 }
 
 #[test]
+fn builds_dynamic_fixed_array_scalar_reads_and_writes() {
+    let (_sources, analysis) = analyze_text(
+        r#"func main(index: usize): i32 {
+    var values: [i32; 2] = [7, 9]
+    values[index] += 3
+    return values[index]
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("fixed-array scalar access must select MIR")
+    .unwrap();
+
+    let index_projection = body
+        .projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.element,
+                ProjectionElement::Index {
+                    index: Operand::Copy(crate::mir::Place {
+                        local,
+                        projection: None,
+                    }),
+                    length: 2,
+                    stride: 4,
+                } if local == LocalId::from_index(1)
+            )
+        })
+        .expect("dynamic index projection");
+    let projected = crate::mir::Place::projected(index_projection.base, index_projection.id);
+    let projected_reads = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .filter(|statement| {
+            matches!(
+                statement,
+                Statement::Assign {
+                    value: Rvalue::Use(Operand::Copy(place)),
+                    ..
+                } if *place == projected
+            )
+        })
+        .count();
+    let projected_writes = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .filter(|statement| {
+            matches!(
+                statement,
+                Statement::Assign { destination, .. } if *destination == projected
+            )
+        })
+        .count();
+    assert_eq!(projected_reads, 2);
+    assert_eq!(projected_writes, 1);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn transfers_an_owned_aggregate_call_argument_with_a_move_operand() {
     let (_sources, analysis) = analyze_text(
         r#"struct File {

@@ -280,6 +280,27 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 });
                 continue;
             };
+            let (destination_ty, destination_representation) = if let Some(projection) =
+                destination.projection
+            {
+                match body.projections.get(projection.index()) {
+                    Some(path) if path.base == destination.local => (path.ty, path.representation),
+                    Some(_) | None => {
+                        errors.push(ValidationError::MissingPlaceProjection {
+                            block: block_id,
+                            location: OperandLocation::Statement(statement_index),
+                            projection,
+                        });
+                        continue;
+                    }
+                }
+            } else {
+                (destination_local.ty, destination_local.representation)
+            };
+            let destination_scalar = match destination_representation {
+                ValueRepresentation::Scalar(scalar) => Some(scalar),
+                ValueRepresentation::Borrow | ValueRepresentation::Aggregate => None,
+            };
             let value_ty = match value {
                 super::model::Rvalue::Use(operand) => {
                     let ty = operand_type(
@@ -294,7 +315,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         block_id,
                         OperandLocation::Statement(statement_index),
                         operand,
-                        destination_local.representation,
+                        destination_representation,
                         &mut errors,
                     );
                     validate_operand_ownership(
@@ -307,11 +328,11 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     ty
                 }
                 super::model::Rvalue::Aggregate { leaves } => {
-                    if destination_local.representation != ValueRepresentation::Aggregate {
+                    if destination_representation != ValueRepresentation::Aggregate {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
                             statement: statement_index,
-                            actual: destination_local.representation,
+                            actual: destination_representation,
                         });
                     }
                     let mut paths = std::collections::HashSet::new();
@@ -344,14 +365,14 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             &mut errors,
                         );
                     }
-                    Some(destination_local.ty)
+                    Some(destination_ty)
                 }
                 super::model::Rvalue::Variant { leaves, .. } => {
-                    if destination_local.representation != ValueRepresentation::Aggregate {
+                    if destination_representation != ValueRepresentation::Aggregate {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
                             statement: statement_index,
-                            actual: destination_local.representation,
+                            actual: destination_representation,
                         });
                     }
                     let mut paths = std::collections::HashSet::new();
@@ -387,14 +408,14 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             &mut errors,
                         );
                     }
-                    Some(destination_local.ty)
+                    Some(destination_ty)
                 }
                 super::model::Rvalue::Unary {
                     operator,
                     operand,
                     ty,
                 } => {
-                    if let Some(destination_scalar) = destination_local.scalar_type() {
+                    if let Some(destination_scalar) = destination_scalar {
                         validate_operand(
                             body,
                             block_id,
@@ -426,7 +447,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
                             statement: statement_index,
-                            actual: destination_local.representation,
+                            actual: destination_representation,
                         });
                     }
                     Some(*ty)
@@ -447,7 +468,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         *source_scalar,
                         &mut errors,
                     );
-                    match destination_local.representation {
+                    match destination_representation {
                         ValueRepresentation::Scalar(actual) if actual != *target_scalar => {
                             errors.push(ValidationError::AssignmentScalarMismatch {
                                 block: block_id,
@@ -460,7 +481,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
-                                actual: destination_local.representation,
+                                actual: destination_representation,
                             });
                         }
                         ValueRepresentation::Scalar(_) => {}
@@ -478,7 +499,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
                 } => {
-                    if let Some(destination_scalar) = destination_local.scalar_type() {
+                    if let Some(destination_scalar) = destination_scalar {
                         for operand in [left, right] {
                             validate_operand(
                                 body,
@@ -494,7 +515,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
                             statement: statement_index,
-                            actual: destination_local.representation,
+                            actual: destination_representation,
                         });
                     }
                     Some(*ty)
@@ -518,7 +539,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             &mut errors,
                         );
                     }
-                    match destination_local.representation {
+                    match destination_representation {
                         ValueRepresentation::Scalar(actual) if actual != ScalarType::Bool => {
                             errors.push(ValidationError::AssignmentScalarMismatch {
                                 block: block_id,
@@ -531,7 +552,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             errors.push(ValidationError::AssignmentRequiresScalar {
                                 block: block_id,
                                 statement: statement_index,
-                                actual: destination_local.representation,
+                                actual: destination_representation,
                             });
                         }
                         ValueRepresentation::Scalar(_) => {}
@@ -539,11 +560,11 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     Some(*result_ty)
                 }
             };
-            if value_ty.is_some_and(|value_ty| destination_local.ty != value_ty) {
+            if value_ty.is_some_and(|value_ty| destination_ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {
                     block: block_id,
                     statement: statement_index,
-                    destination: destination_local.ty,
+                    destination: destination_ty,
                     value: value_ty.unwrap(),
                 });
             }

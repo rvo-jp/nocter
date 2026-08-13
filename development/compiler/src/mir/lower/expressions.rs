@@ -358,6 +358,13 @@ impl LoweringContext<'_> {
                 }
                 Rvalue::Use(Operand::Copy(place))
             }
+            Expr::Index(index) => {
+                let (place, representation) = super::indexes::lower_place(self, index, scope)?;
+                if representation != crate::mir::ValueRepresentation::Scalar(scalar) {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+                Rvalue::Use(Operand::Copy(place))
+            }
             _ => Rvalue::Use(self.lower_simple_operand(expression, ty, scalar)?),
         };
         self.control_flow.push_statement(Statement::Assign {
@@ -430,6 +437,7 @@ impl LoweringContext<'_> {
                 | Expr::Force(_)
                 | Expr::Propagate(_)
                 | Expr::Member(_)
+                | Expr::Index(_)
                 | Expr::If(_)
                 | Expr::Otherwise(_)
                 | Expr::Catch(_)

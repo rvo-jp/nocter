@@ -1065,6 +1065,15 @@ fn lower_statements(
             }
             continue;
         }
+        if destination.projection.is_some() {
+            let Rvalue::Use(operand) = value else {
+                return Err(invalid_mir_diagnostics(
+                    "projected scalar assignment must materialize its value first",
+                ));
+            };
+            instructions.push(aggregate_scalar_store(destination, operand, context)?);
+            continue;
+        }
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
@@ -1073,12 +1082,12 @@ fn lower_statements(
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
-                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
-                            instructions.push(Instruction::LoadAggregateI32 {
-                                destination,
-                                source,
-                                offset,
-                            });
+                        if let Some(instruction) = aggregate_scalar_load(
+                            ScalarDestination::I32(destination),
+                            operand,
+                            context,
+                        )? {
+                            instructions.push(instruction);
                         } else {
                             instructions.push(Instruction::SetI32 {
                                 destination,
@@ -1133,12 +1142,12 @@ fn lower_statements(
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
-                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
-                            instructions.push(Instruction::LoadAggregateU8 {
-                                destination,
-                                source,
-                                offset,
-                            });
+                        if let Some(instruction) = aggregate_scalar_load(
+                            ScalarDestination::U8(destination),
+                            operand,
+                            context,
+                        )? {
+                            instructions.push(instruction);
                         } else {
                             instructions.push(Instruction::SetU8 {
                                 destination,
@@ -1184,12 +1193,12 @@ fn lower_statements(
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
-                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
-                            instructions.push(Instruction::LoadAggregateUsize {
-                                destination,
-                                source,
-                                offset,
-                            });
+                        if let Some(instruction) = aggregate_scalar_load(
+                            ScalarDestination::Usize(destination),
+                            operand,
+                            context,
+                        )? {
+                            instructions.push(instruction);
                         } else {
                             instructions.push(Instruction::SetUsize {
                                 destination,
@@ -1235,13 +1244,12 @@ fn lower_statements(
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
-                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
-                            instructions.push(Instruction::LoadAggregateInteger {
-                                kind,
-                                destination,
-                                source,
-                                offset,
-                            });
+                        if let Some(instruction) = aggregate_scalar_load(
+                            ScalarDestination::Integer(kind, destination),
+                            operand,
+                            context,
+                        )? {
+                            instructions.push(instruction);
                         } else {
                             instructions.push(Instruction::SetUsize {
                                 destination,
@@ -1299,12 +1307,12 @@ fn lower_statements(
                         unreachable!("aggregate rvalue handled above")
                     }
                     Rvalue::Use(operand) => {
-                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
-                            instructions.push(Instruction::LoadAggregateBool {
-                                destination,
-                                source,
-                                offset,
-                            });
+                        if let Some(instruction) = aggregate_scalar_load(
+                            ScalarDestination::Bool(destination),
+                            operand,
+                            context,
+                        )? {
+                            instructions.push(instruction);
                         } else {
                             instructions.push(Instruction::SetBool {
                                 destination,
@@ -1560,16 +1568,12 @@ fn lower_borrow_source(
             return Ok(crate::ir::BorrowSource::AggregateIndex {
                 source: aggregate_location(&Place::local(place.local), context)?,
                 base_offset,
-                index: match lower_usize_operand(&index, context)? {
+                index: match lower_direct_usize_index(&index, context)? {
                     UsizeValue::Const(value) => crate::ir::SliceElementIndex::Const(value),
                     UsizeValue::Location(location) => {
                         crate::ir::SliceElementIndex::Location(location)
                     }
-                    _ => {
-                        return Err(invalid_mir_diagnostics(
-                            "MIR index operand did not lower to a direct usize value",
-                        ));
-                    }
+                    _ => unreachable!("direct index validation accepts only constants and places"),
                 },
                 length,
                 stride,
@@ -1738,10 +1742,98 @@ fn aggregate_borrow_projection(
     })
 }
 
-fn aggregate_field_source(
+#[derive(Debug, Clone, Copy)]
+enum ScalarDestination {
+    I32(I32Location),
+    U8(U8Location),
+    Usize(UsizeLocation),
+    Integer(crate::integer::IntegerType, UsizeLocation),
+    Bool(BoolLocation),
+}
+
+fn aggregate_scalar_store(
+    destination: &Place,
     operand: &Operand,
     context: &BackendContext<'_>,
-) -> Result<Option<(crate::ir::AggregateLocation, u32)>, Vec<Diagnostic>> {
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let projection_id = destination.projection.ok_or_else(|| {
+        invalid_mir_diagnostics("aggregate scalar store has no destination projection")
+    })?;
+    let contract = context
+        .body
+        .projections
+        .get(projection_id.index())
+        .filter(|projection| projection.base == destination.local)
+        .ok_or_else(|| invalid_mir_diagnostics("aggregate scalar store projection is missing"))?;
+    let crate::mir::ValueRepresentation::Scalar(scalar) = contract.representation else {
+        return Err(invalid_mir_diagnostics(
+            "aggregate scalar store projection is not scalar",
+        ));
+    };
+    let location = aggregate_location(&Place::local(destination.local), context)?;
+    match aggregate_borrow_projection(context.body, destination.local, projection_id)? {
+        AggregateBorrowProjection::Field { offset } => {
+            store_aggregate_scalar(location, offset, scalar, operand, context)
+        }
+        AggregateBorrowProjection::Index {
+            base_offset,
+            index,
+            length,
+            stride,
+        } => {
+            let index = lower_direct_usize_index(&index, context)?;
+            Ok(match scalar {
+                ScalarType::I32 => Instruction::StoreAggregateI32Indexed {
+                    destination: location,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                    value: lower_i32_operand(operand, context)?,
+                },
+                ScalarType::U8 => Instruction::StoreAggregateU8Indexed {
+                    destination: location,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                    value: lower_u8_operand(operand, context)?,
+                },
+                ScalarType::Usize => Instruction::StoreAggregateUsizeIndexed {
+                    destination: location,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                    value: lower_usize_operand(operand, context)?,
+                },
+                ScalarType::Integer(kind) => Instruction::StoreAggregateIntegerIndexed {
+                    kind,
+                    destination: location,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                    value: lower_integer_operand(operand, kind, context)?,
+                },
+                ScalarType::Bool => Instruction::StoreAggregateBoolIndexed {
+                    destination: location,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                    value: lower_bool_operand(operand, context)?,
+                },
+            })
+        }
+    }
+}
+
+fn aggregate_scalar_load(
+    destination: ScalarDestination,
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<Option<Instruction>, Vec<Diagnostic>> {
     let place = match operand {
         Operand::Constant(_) => return Ok(None),
         Operand::Copy(place) | Operand::Move(place) => place,
@@ -1749,11 +1841,103 @@ fn aggregate_field_source(
     let Some(projection) = place.projection else {
         return Ok(None);
     };
-    let offset = aggregate_field_offset(context.body, place.local, projection)?;
-    Ok(Some((
-        aggregate_location(&Place::local(place.local), context)?,
-        offset,
-    )))
+    let source = aggregate_location(&Place::local(place.local), context)?;
+    let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
+    Ok(Some(match projection {
+        AggregateBorrowProjection::Field { offset } => match destination {
+            ScalarDestination::I32(destination) => Instruction::LoadAggregateI32 {
+                destination,
+                source,
+                offset,
+            },
+            ScalarDestination::U8(destination) => Instruction::LoadAggregateU8 {
+                destination,
+                source,
+                offset,
+            },
+            ScalarDestination::Usize(destination) => Instruction::LoadAggregateUsize {
+                destination,
+                source,
+                offset,
+            },
+            ScalarDestination::Integer(kind, destination) => Instruction::LoadAggregateInteger {
+                kind,
+                destination,
+                source,
+                offset,
+            },
+            ScalarDestination::Bool(destination) => Instruction::LoadAggregateBool {
+                destination,
+                source,
+                offset,
+            },
+        },
+        AggregateBorrowProjection::Index {
+            base_offset,
+            index,
+            length,
+            stride,
+        } => {
+            let index = lower_direct_usize_index(&index, context)?;
+            match destination {
+                ScalarDestination::I32(destination) => Instruction::LoadAggregateI32Indexed {
+                    destination,
+                    source,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                },
+                ScalarDestination::U8(destination) => Instruction::LoadAggregateU8Indexed {
+                    destination,
+                    source,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                },
+                ScalarDestination::Usize(destination) => Instruction::LoadAggregateUsizeIndexed {
+                    destination,
+                    source,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                },
+                ScalarDestination::Integer(kind, destination) => {
+                    Instruction::LoadAggregateIntegerIndexed {
+                        kind,
+                        destination,
+                        source,
+                        base_offset,
+                        index,
+                        length,
+                        stride,
+                    }
+                }
+                ScalarDestination::Bool(destination) => Instruction::LoadAggregateBoolIndexed {
+                    destination,
+                    source,
+                    base_offset,
+                    index,
+                    length,
+                    stride,
+                },
+            }
+        }
+    }))
+}
+
+fn lower_direct_usize_index(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match lower_usize_operand(operand, context)? {
+        value @ (UsizeValue::Const(_) | UsizeValue::Location(_)) => Ok(value),
+        _ => Err(invalid_mir_diagnostics(
+            "MIR index operand did not lower to a direct usize value",
+        )),
+    }
 }
 
 fn aggregate_field_offset(

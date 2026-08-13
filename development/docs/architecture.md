@@ -162,6 +162,11 @@ buildability is MIR validation rather than a parallel AST model.
 - Nested aggregate members remain parent-linked MIR projection paths. Each segment carries checked
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.
+- Scalar field and fixed-array index access share one projected-place contract for reads and
+  writes. MIR validates an assignment against the final projection's `TyId` and representation,
+  not its aggregate root; backend projection alone chooses an offset load/store or a
+  bounds-checked indexed load/store. Compound assignment materializes its read and result as
+  ordinary scalar MIR locals before writing the projected place.
 - Built-in integers use canonical `IntegerType` in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
   shifts, comparison, call, field-load, and return projection.
