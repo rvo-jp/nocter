@@ -176,6 +176,7 @@ fn lower_process_entry(
             root.ast.span.source,
             &root.resolved,
             &root.typed_hir,
+            &analysis.mir_bodies,
             resolved_sources.clone(),
             error_payloads.clone(),
         )
@@ -191,6 +192,7 @@ fn lower_process_entry(
                 entry_file.ast.span.source,
                 &entry_file.resolved,
                 &entry_file.typed_hir,
+                &analysis.mir_bodies,
                 resolved_sources.clone(),
                 error_payloads.clone(),
             )
@@ -204,6 +206,7 @@ fn lower_process_entry(
     lower_reachable_functions(
         &mut functions,
         &function_index,
+        &analysis.mir_bodies,
         &function_signatures,
         &function_names,
         &error_payloads,
@@ -255,6 +258,7 @@ fn lower_signature_parameter_type(
 fn lower_reachable_functions(
     lowered: &mut Vec<Function>,
     function_index: &FunctionIndex<'_>,
+    mir_bodies: &crate::mir::BodyCache,
     function_signatures: &FunctionSignatures,
     function_names: &FunctionNames,
     error_payloads: &ErrorPayloads,
@@ -288,6 +292,7 @@ fn lower_reachable_functions(
         let function = function.lower(
             target,
             sources,
+            mir_bodies,
             function_signatures.clone(),
             function_names.clone(),
             error_payloads.clone(),
@@ -1083,6 +1088,7 @@ impl<'a> IndexedCallable<'a> {
         &self,
         target: CallTarget,
         sources: &SourceMap,
+        mir_bodies: &crate::mir::BodyCache,
         function_signatures: FunctionSignatures,
         function_names: FunctionNames,
         error_payloads: ErrorPayloads,
@@ -1100,6 +1106,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name.clone(),
                 sources,
+                mir_bodies,
                 target,
                 function_signatures,
                 function_names,

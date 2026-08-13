@@ -15,6 +15,7 @@ use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
 pub(super) fn try_lower_scalar_body(
+    cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
     parameters: &[crate::ast::Parameter],
     return_type: &Type,
@@ -28,14 +29,17 @@ pub(super) fn try_lower_scalar_body(
         Type::Bool => ScalarType::Bool,
         _ => return None,
     };
-    let mir_body = crate::mir::try_build_scalar_body(
-        body,
-        parameters,
-        return_scalar,
-        &resolved.semantic_db,
-        resolved,
-        typed_hir,
-    )?;
+    let body_id = resolved.semantic_db.body_at(body.span)?;
+    let mir_body = cache.get_or_build(body_id, || {
+        crate::mir::try_build_scalar_body(
+            body,
+            parameters,
+            return_scalar,
+            &resolved.semantic_db,
+            resolved,
+            typed_hir,
+        )
+    })?;
     Some(match mir_body {
         Ok(mir_body) => lower_scalar_body(&mir_body)
             .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),

@@ -5,6 +5,25 @@ use crate::parser::parse;
 use std::collections::HashMap;
 
 #[test]
+fn retains_checked_mir_for_machine_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"func main(): i32 {
+    let value = 20
+    return value + 2
+}
+"#,
+    );
+
+    assert_eq!(analysis.mir_bodies.len(), 0);
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(analysis.mir_bodies.len(), 1);
+
+    crate::ir::lower_executable(&analysis, &sources).unwrap();
+    assert_eq!(analysis.mir_bodies.len(), 1);
+}
+
+#[test]
 fn accepts_region_statements_at_the_buildability_boundary() {
     let (sources, analysis) = analyze_text(
         r#"struct Allocator {

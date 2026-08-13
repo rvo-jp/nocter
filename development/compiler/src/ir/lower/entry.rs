@@ -51,6 +51,7 @@ pub(super) fn lower_entry_function(
         root_source,
         resolved,
         typed_hir,
+        &crate::mir::BodyCache::default(),
         resolved_sources,
         error_payloads,
     )
@@ -65,6 +66,7 @@ pub(super) fn lower_entry_function_with_target(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
+    mir_bodies: &crate::mir::BodyCache,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -97,6 +99,7 @@ pub(super) fn lower_entry_function_with_target(
         root_source,
         resolved,
         typed_hir,
+        mir_bodies,
         resolved_sources,
         error_payloads,
     )
@@ -111,6 +114,7 @@ pub(super) fn lower_test_entry_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
+    mir_bodies: &crate::mir::BodyCache,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -127,6 +131,7 @@ pub(super) fn lower_test_entry_function(
         root_source,
         resolved,
         typed_hir,
+        mir_bodies,
         resolved_sources,
         error_payloads,
     )
@@ -144,6 +149,7 @@ fn lower_entry_parts(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
+    mir_bodies: &crate::mir::BodyCache,
     resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -151,9 +157,15 @@ fn lower_entry_parts(
         lower_entry_return_type(return_type_expr, resolved).map_err(|diagnostics| {
             attach_primary_span_if_absent(diagnostics, sources, return_type_expr.span())
         })?;
-    if let Some(instructions) =
-        super::mir::try_lower_scalar_body(body, &[], &return_type, resolved, typed_hir, sources)
-    {
+    if let Some(instructions) = super::mir::try_lower_scalar_body(
+        mir_bodies,
+        body,
+        &[],
+        &return_type,
+        resolved,
+        typed_hir,
+        sources,
+    ) {
         return Ok(Function {
             name: name.to_string(),
             target,

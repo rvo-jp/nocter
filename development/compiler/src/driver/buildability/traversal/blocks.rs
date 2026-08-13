@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     callable: &IndexedCallable<'_>,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     root_source: SourceId,
     names: &CallableNames,
     resolved_sources: &ResolvedSources<'_>,
@@ -21,6 +22,36 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
 
     enqueue_drop_targets_in_callable(callable, root_source, queue);
 
+    if let Some(parameters) = callable.mir_parameters
+        && let Some(return_scalar) = callable_scalar_return_type(callable, resolved_sources)
+        && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
+    {
+        let body = mir_bodies.get_or_build(body_id, || {
+            crate::mir::try_build_scalar_body(
+                callable.body,
+                parameters,
+                return_scalar,
+                &callable.resolved.semantic_db,
+                callable.resolved,
+                callable.typed_hir,
+            )
+        });
+        match body {
+            Some(Ok(_)) => return,
+            Some(Err(error)) => {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "E8000",
+                        format!("compiler could not construct MIR: {error:?}"),
+                    )
+                    .with_primary_span_if_absent(sources, callable.body.span),
+                );
+                return;
+            }
+            None => {}
+        }
+    }
+
     collect_terminal_return_block_diagnostics(
         callable.body,
         callable.return_type.as_ref(),
@@ -35,6 +66,23 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
         queue,
         diagnostics,
     );
+}
+
+fn callable_scalar_return_type(
+    callable: &IndexedCallable<'_>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<crate::mir::ScalarType> {
+    let return_type = callable.return_type.as_ref()?;
+    let value = abi_value_from_type_expr_with_resolver(return_type, callable.resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .ok()?;
+    match value.ty {
+        AbiType::I32 => Some(crate::mir::ScalarType::I32),
+        AbiType::Usize => Some(crate::mir::ScalarType::Usize),
+        AbiType::Bool => Some(crate::mir::ScalarType::Bool),
+        _ => None,
+    }
 }
 
 pub(in crate::driver::buildability) fn enqueue_drop_targets_in_callable(

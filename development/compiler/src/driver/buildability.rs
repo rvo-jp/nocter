@@ -55,6 +55,7 @@ pub(super) fn v0_buildability_diagnostics(
         collect_callable_diagnostics(
             callable,
             sources,
+            &analysis.mir_bodies,
             root_source,
             &index.names,
             &index.resolved_sources,
@@ -97,6 +98,7 @@ pub(super) fn v0_test_buildability_diagnostics(
     collect_callable_diagnostics(
         &callable,
         sources,
+        &analysis.mir_bodies,
         root_source,
         &index.names,
         &index.resolved_sources,
@@ -115,6 +117,7 @@ pub(super) fn v0_test_buildability_diagnostics(
         collect_callable_diagnostics(
             callable,
             sources,
+            &analysis.mir_bodies,
             root_source,
             &index.names,
             &index.resolved_sources,
@@ -493,6 +496,7 @@ impl<'a> CallableIndex<'a> {
 struct IndexedCallable<'a> {
     span: ByteSpan,
     body: &'a Block,
+    mir_parameters: Option<&'a [Parameter]>,
     return_type: Option<TypeExpr>,
     substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
@@ -511,6 +515,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: test.span,
             body: &test.body,
+            mir_parameters: None,
             return_type: Some(test.return_type()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -546,6 +551,7 @@ impl<'a> IndexedCallable<'a> {
                 .body
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
+            mir_parameters: Some(&function.parameters.parameters),
             return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -588,6 +594,7 @@ impl<'a> IndexedCallable<'a> {
                 .body
                 .as_ref()
                 .expect("buildability indexes only body-bearing functions"),
+            mir_parameters: None,
             return_type: Some(return_type),
             substitutions,
             resolved: &file.resolved,
@@ -629,6 +636,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: method.span,
             body,
+            mir_parameters: None,
             return_type: Some(return_type),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
@@ -661,6 +669,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: drop_.span,
             body: &drop_.body,
+            mir_parameters: None,
             return_type: None,
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
@@ -686,6 +695,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: expression.span,
             body: &expression.body,
+            mir_parameters: None,
             return_type: Some((*plan.ty.return_type).clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,

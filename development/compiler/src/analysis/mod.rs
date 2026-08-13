@@ -152,6 +152,7 @@ pub(crate) struct CompileUnitAnalysis {
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
     pub(crate) callable_bodies: CallableBodyIndex,
+    pub(crate) mir_bodies: crate::mir::BodyCache,
     call_specializations: std::sync::OnceLock<call_specializations::CallSpecializations>,
 }
 
@@ -418,6 +419,7 @@ fn analyze_compile_unit_with_root_policy(
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
         callable_bodies: unit.callable_bodies.clone(),
+        mir_bodies: crate::mir::BodyCache::default(),
         call_specializations: std::sync::OnceLock::new(),
     }
 }

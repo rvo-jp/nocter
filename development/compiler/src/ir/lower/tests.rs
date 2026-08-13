@@ -112,6 +112,7 @@ fn lower_named_function_with_signatures(
         &HashMap::new(),
         function_name.to_string(),
         &fixture.sources,
+        &analysis.mir_bodies,
         CallTarget::same_file(function_name),
         function_signatures,
         index.names(),
@@ -139,6 +140,7 @@ fn lower_named_function_with_nocter_home_files(
         .lower(
             target,
             &fixture.sources,
+            &analysis.mir_bodies,
             index.signatures(),
             index.names(),
             index.error_payloads(root.ast.span.source),
@@ -175,6 +177,7 @@ fn lower_imported_named_function_with_nocter_home_files(
         .lower(
             target,
             &fixture.sources,
+            &analysis.mir_bodies,
             index.signatures(),
             index.names(),
             index.error_payloads(root.ast.span.source),

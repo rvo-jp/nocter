@@ -174,6 +174,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
+    mir_bodies: &crate::mir::BodyCache,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -252,6 +253,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         .expect("function index contains only body-bearing declarations");
     if function.generics.parameters.is_empty()
         && let Some(instructions) = super::super::mir::try_lower_scalar_body(
+            mir_bodies,
             body,
             &parameters,
             &return_type,
