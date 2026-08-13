@@ -508,6 +508,22 @@ pub(super) fn scalar_expression_is_supported(
                         )
                 })
         }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = catch.expression.without_groups() else {
+                return false;
+            };
+            matches!(catch.binding, crate::ast::CatchBinding::Discard { .. })
+                && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                && scalar_branch_result(&catch.catch_block).is_some_and(|fallback| {
+                    !contains_outcome_call(fallback)
+                        && scalar_expression_is_supported(
+                            fallback,
+                            resolved,
+                            resolved_sources,
+                            typed_hir,
+                        )
+                })
+        }
         Expr::Unary(unary) => {
             let Some(operand_ty) = known_expression_type(&unary.operand, typed_hir) else {
                 return false;
@@ -633,6 +649,25 @@ fn scalar_handled_call_is_supported(
                     .type_id(&shape.payload)
                     .and_then(|ty| scalar_type(ty, typed_hir))
                     .is_some()
+            })
+}
+
+fn scalar_caught_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .map(|ty| crate::outcomes::outcome_shape_with_resolver(ty, resolved, |_| None))
+            .is_some_and(|shape| {
+                shape.layers.as_slice() == [crate::outcomes::OutcomeLayer::Fallible]
+                    && typed_hir
+                        .type_id(&shape.payload)
+                        .and_then(|ty| scalar_type(ty, typed_hir))
+                        .is_some()
             })
 }
 

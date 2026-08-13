@@ -304,6 +304,21 @@ pub(super) fn lower_expression_to_place(
                 scope,
             );
         }
+        Expr::Catch(catch) => {
+            return outcomes::lower_discard_catch_to_place(
+                destination,
+                catch,
+                ty,
+                scalar,
+                semantic,
+                locals,
+                local_declarations,
+                projections,
+                control_flow,
+                scopes,
+                scope,
+            );
+        }
         Expr::Call(call) => {
             let (callee, arguments, returns_never) = lower_call(
                 call,
@@ -487,6 +502,7 @@ pub(super) fn lower_operand(
             | Expr::Member(_)
             | Expr::If(_)
             | Expr::Otherwise(_)
+            | Expr::Catch(_)
     ) {
         return match expression {
             Expr::Group(group) => lower_operand(

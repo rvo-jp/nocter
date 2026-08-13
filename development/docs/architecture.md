@@ -132,6 +132,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Recoverable scalar outcome calls represent `otherwise` as an explicit failure block that writes
   the call destination and rejoins success. Backend `Recover` mode is a projection of that CFG;
   `Trap` and `Propagate` remain distinct terminal failure edges.
+- A discarded scalar catch uses the same failure branch without an error-payload local. The CFG
+  rejoin determines recovery semantics, while a named catch will require an explicit failure
+  payload place rather than a backend-only binding convention.
 - Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
   Checked field selections become typed MIR projection paths; the backend maps those paths to the
   aggregate staging slot established by the same parameter projection used at function entry.

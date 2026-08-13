@@ -40,6 +40,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - scalar optional/fallible `otherwise` calls use the same outcome continuation with a lexical
   failure branch that assigns the destination and rejoins success; machine IR `Recover` is derived
   from that CFG instead of being selected by AST outcome syntax
+- `catch _` for scalar fallible calls shares the same recovery CFG without manufacturing an error
+  binding; discarded error payloads stay absent from MIR locals and backend recovery skips the
+  success payload write after executing the failure branch
 - buildability classifies plain and fallible scalar returns before constructing the shared MIR body;
   MIR validation rejects propagation from plain bodies, and MIR-to-IR derives its outcome failure
   mode from the checked failure edge

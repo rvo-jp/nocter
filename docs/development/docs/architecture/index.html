@@ -210,7 +210,9 @@
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.</li><li>Recoverable scalar outcome calls represent <code>otherwise</code> as an explicit failure block that writes
   the call destination and rejoins success. Backend <code>Recover</code> mode is a projection of that CFG;
-  <code>Trap</code> and <code>Propagate</code> remain distinct terminal failure edges.</li><li>Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
+  <code>Trap</code> and <code>Propagate</code> remain distinct terminal failure edges.</li><li>A discarded scalar catch uses the same failure branch without an error-payload local. The CFG
+  rejoin determines recovery semantics, while a named catch will require an explicit failure
+  payload place rather than a backend-only binding convention.</li><li>Copy aggregate parameters are represented as aggregate MIR locals rather than ABI word lists.
   Checked field selections become typed MIR projection paths; the backend maps those paths to the
   aggregate staging slot established by the same parameter projection used at function entry.</li><li>MIR construction takes one immutable semantic input bundle containing the semantic database,
   current resolver, compile-unit resolver map, and checked HIR. Layout of imported and nested

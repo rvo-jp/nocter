@@ -3894,3 +3894,41 @@ func lookup(): i32!? {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_recovers_discarded_catch_through_mir() {
+    let project = TempProject::new("cli-run-mir-discard-catch");
+    project.write_nocter_home_file(
+        "std/error/index.nct",
+        r#"pub(/) primitive new_error(code: &str, message: &str): error
+
+construct error {
+    pub default func new(code: &str, message: &str): Self from code | message {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "mir_discard_catch.nct",
+        r#"func answer(): i32! {
+    return error.new("app.answer", "failed")
+}
+
+func main(): i32 {
+    return answer() catch _ { 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
