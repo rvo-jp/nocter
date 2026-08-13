@@ -17,7 +17,7 @@ pub(in crate::ir::lower) fn primitive_take_value_at_ptr_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    context.primitive_name_for_call(call) == Some("take_value_at_ptr")
+    context.intrinsic_for_call(call) == Some(crate::intrinsics::IntrinsicId::TakeValueAtPtr)
 }
 
 pub(in crate::ir::lower) fn lower_take_value_at_ptr_primitive_call(

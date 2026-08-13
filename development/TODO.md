@@ -91,6 +91,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - one MIR `Call` terminator now carries the checked value representation of every argument rather
   than a scalar-only tag; scalar machine-IR lowering is an explicit projection, while aggregate
   and borrow call routes can reuse the same call identity and continuation model
+- primitive source names are recognized once as a closed `IntrinsicId` domain; pointer, view,
+  process, allocation, I/O, and syscall lowering no longer dispatches backend semantics by string
+  comparison
 - the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint

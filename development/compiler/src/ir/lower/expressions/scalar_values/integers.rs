@@ -707,7 +707,7 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     value,
                 });
             }
-            if context.primitive_name_for_call(call) == Some("from_addr") {
+            if context.intrinsic_for_call(call) == Some(crate::intrinsics::IntrinsicId::FromAddr) {
                 let (instructions, value) =
                     lower_pointer_address_expression_to_word(expression, context, temporaries)?;
                 return Ok(LoweredUsizeValue {

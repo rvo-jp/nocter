@@ -294,7 +294,7 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
                     &mut temporaries,
                 );
             }
-            if context.primitive_name_for_call(call) == Some("from_addr") {
+            if context.intrinsic_for_call(call) == Some(crate::intrinsics::IntrinsicId::FromAddr) {
                 let (mut instructions, value) = lower_pointer_address_expression_to_word(
                     expression,
                     context,

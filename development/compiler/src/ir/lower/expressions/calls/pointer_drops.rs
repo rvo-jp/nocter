@@ -5,8 +5,8 @@ pub(in crate::ir::lower::expressions) fn primitive_drop_value_at_ptr_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("drop_value_at_ptr")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::DropValueAtPtr)
     )
 }
 

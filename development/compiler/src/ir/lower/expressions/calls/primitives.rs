@@ -71,8 +71,8 @@ pub(in crate::ir::lower) fn primitive_trap_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("trap" | "unreachable")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::Trap | crate::intrinsics::IntrinsicId::Unreachable)
     )
 }
 
@@ -81,8 +81,11 @@ pub(in crate::ir::lower::expressions) fn primitive_exit_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("exit_raw" | "allocation_abort_raw")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::ExitRaw
+                | crate::intrinsics::IntrinsicId::AllocationAbortRaw
+        )
     )
 }
 
@@ -91,8 +94,8 @@ pub(in crate::ir::lower::expressions) fn primitive_write_text_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("write_text_raw")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::WriteTextRaw)
     )
 }
 
@@ -101,8 +104,12 @@ pub(in crate::ir::lower::expressions) fn primitive_open_read_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("open_read_raw" | "create_raw" | "append_raw")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::OpenReadRaw
+                | crate::intrinsics::IntrinsicId::CreateRaw
+                | crate::intrinsics::IntrinsicId::AppendRaw
+        )
     )
 }
 
@@ -111,8 +118,8 @@ pub(in crate::ir::lower::expressions) fn primitive_write_bytes_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("write_bytes_raw")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::WriteBytesRaw)
     )
 }
 
@@ -121,8 +128,8 @@ pub(in crate::ir::lower::expressions) fn primitive_read_bytes_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("read_bytes_raw")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::ReadBytesRaw)
     )
 }
 
@@ -130,7 +137,10 @@ pub(in crate::ir::lower::expressions) fn primitive_close_fd_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("close_fd_raw"))
+    matches!(
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::CloseFdRaw)
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_bytes_from_str_call(
@@ -138,8 +148,8 @@ pub(in crate::ir::lower::expressions) fn primitive_bytes_from_str_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("bytes_from_str")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::BytesFromStr)
     )
 }
 
@@ -148,8 +158,10 @@ pub(in crate::ir::lower::expressions) fn primitive_view_len_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("str_len_raw" | "slice_len_raw")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::StrLenRaw | crate::intrinsics::IntrinsicId::SliceLenRaw
+        )
     )
 }
 
@@ -158,8 +170,11 @@ pub(in crate::ir::lower::expressions) fn primitive_view_pointer_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("str_ptr_addr_raw" | "slice_ptr_addr_raw")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::StrPtrAddrRaw
+                | crate::intrinsics::IntrinsicId::SlicePtrAddrRaw
+        )
     )
 }
 
@@ -223,7 +238,10 @@ pub(in crate::ir::lower::expressions) fn primitive_addr_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("addr"))
+    matches!(
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::Addr)
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_from_ref_call(
@@ -231,8 +249,8 @@ pub(in crate::ir::lower::expressions) fn primitive_from_ref_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("from_ref" | "from_ref_mut")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::FromRef | crate::intrinsics::IntrinsicId::FromRefMut)
     )
 }
 
@@ -241,8 +259,11 @@ pub(in crate::ir::lower::expressions) fn primitive_pointee_layout_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("pointee_size" | "pointee_align")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::PointeeSize
+                | crate::intrinsics::IntrinsicId::PointeeAlign
+        )
     )
 }
 
@@ -250,14 +271,20 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_count_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("arg_count_raw"))
+    matches!(
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::ArgCountRaw)
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_env_count_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("env_count_raw"))
+    matches!(
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::EnvCountRaw)
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_current_allocation_state_call(
@@ -265,8 +292,8 @@ pub(in crate::ir::lower::expressions) fn primitive_current_allocation_state_call
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("current_allocator_state")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::CurrentAllocatorState)
     )
 }
 
@@ -275,8 +302,8 @@ pub(in crate::ir::lower::expressions) fn primitive_current_allocation_kind_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("current_allocator_kind")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::CurrentAllocatorKind)
     )
 }
 
@@ -284,7 +311,10 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("arg_raw"))
+    matches!(
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::ArgRaw)
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_env_entry_raw_call(
@@ -292,8 +322,11 @@ pub(in crate::ir::lower::expressions) fn primitive_env_entry_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("env_name_raw" | "env_value_raw")
+        context.intrinsic_for_call(call),
+        Some(
+            crate::intrinsics::IntrinsicId::EnvNameRaw
+                | crate::intrinsics::IntrinsicId::EnvValueRaw
+        )
     )
 }
 
@@ -302,8 +335,8 @@ pub(in crate::ir::lower::expressions) fn primitive_copy_str_to_ptr_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("copy_str_to_ptr")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::CopyStrToPtr)
     )
 }
 
@@ -312,8 +345,8 @@ pub(in crate::ir::lower::expressions) fn primitive_copy_ptr_to_ptr_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("copy_ptr_to_ptr")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::CopyPtrToPtr)
     )
 }
 
@@ -322,8 +355,8 @@ pub(in crate::ir::lower::expressions) fn primitive_store_u8_to_ptr_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("store_u8_to_ptr")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::StoreU8ToPtr)
     )
 }
 
@@ -332,8 +365,8 @@ pub(in crate::ir::lower::expressions) fn primitive_store_value_to_ptr_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("store_value_to_ptr")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::StoreValueToPtr)
     )
 }
 
@@ -342,8 +375,8 @@ pub(in crate::ir::lower::expressions) fn primitive_str_from_raw_parts_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("str_from_raw_parts")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::StrFromRawParts)
     )
 }
 
@@ -352,8 +385,8 @@ pub(in crate::ir::lower::expressions) fn primitive_str_subview_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
-        Some("str_subview_unchecked")
+        context.intrinsic_for_call(call),
+        Some(crate::intrinsics::IntrinsicId::StrSubviewUnchecked)
     )
 }
 
@@ -362,12 +395,12 @@ pub(in crate::ir::lower::expressions) fn primitive_slice_from_raw_parts_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
+        context.intrinsic_for_call(call),
         Some(
-            "slice_from_raw_parts"
-                | "slice_from_raw_parts_mut"
-                | "slice_from_raw_parts_value"
-                | "slice_from_raw_parts_value_mut"
+            crate::intrinsics::IntrinsicId::SliceFromRawParts
+                | crate::intrinsics::IntrinsicId::SliceFromRawPartsMut
+                | crate::intrinsics::IntrinsicId::SliceFromRawPartsValue
+                | crate::intrinsics::IntrinsicId::SliceFromRawPartsValueMut
         )
     )
 }
@@ -444,14 +477,14 @@ fn lower_from_ref_primitive_call_to_borrow_source(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
-    let Some(primitive_name) = context.primitive_name_for_call(call) else {
+    let Some(primitive_name) = context.intrinsic_for_call(call) else {
         return Err(unsupported_pointer_primitive_diagnostic(
             "borrow-to-pointer conversion requires a pointer primitive",
         ));
     };
     let is_readwrite = match primitive_name {
-        "from_ref" => false,
-        "from_ref_mut" => true,
+        crate::intrinsics::IntrinsicId::FromRef => false,
+        crate::intrinsics::IntrinsicId::FromRefMut => true,
         _ => {
             return Err(unsupported_pointer_primitive_diagnostic(
                 "borrow-to-pointer conversion requires `from_ref` or `from_ref_mut`",
@@ -487,7 +520,7 @@ fn lower_from_ref_primitive_call_to_borrow_source(
     let (instructions, argument) = lower_borrow_argument(
         &call.arguments[0],
         &parameter_type,
-        primitive_name,
+        primitive_name.source_name(),
         context,
         temporaries,
     )?;
@@ -499,8 +532,9 @@ pub(in crate::ir::lower::expressions) fn lower_pointee_layout_primitive_call_to_
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
-    let primitive_name = context
-        .primitive_name_for_call(call)
+    let primitive = context.intrinsic_for_call(call);
+    let primitive_name = primitive
+        .map(crate::intrinsics::IntrinsicId::source_name)
         .unwrap_or("pointee layout primitive");
     if call.arguments.len() != 1 {
         return Err(unsupported_pointer_primitive_diagnostic(format!(
@@ -527,8 +561,8 @@ pub(in crate::ir::lower::expressions) fn lower_pointee_layout_primitive_call_to_
             "`{primitive_name}` requires a pointer element type with an ABI layout",
         )
     })?;
-    let result = match primitive_name {
-        "pointee_align" => value.layout.align,
+    let result = match primitive {
+        Some(crate::intrinsics::IntrinsicId::PointeeAlign) => value.layout.align,
         _ => value.layout.size,
     };
     Ok((instructions, UsizeValue::Const(result)))
@@ -579,7 +613,7 @@ pub(in crate::ir::lower::expressions) fn lower_env_entry_raw_primitive_call_to_v
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, StrValue), Vec<Diagnostic>> {
-    let primitive_name = context.primitive_name_for_call(call).ok_or_else(|| {
+    let primitive_name = context.intrinsic_for_call(call).ok_or_else(|| {
         unsupported_pointer_primitive_diagnostic("expected environment primitive")
     })?;
     if call.arguments.len() != 1 {
@@ -590,8 +624,12 @@ pub(in crate::ir::lower::expressions) fn lower_env_entry_raw_primitive_call_to_v
 
     let index = lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
     let value = match primitive_name {
-        "env_name_raw" => StrValue::ProcessEnvironmentName { index: index.value },
-        "env_value_raw" => StrValue::ProcessEnvironmentValue { index: index.value },
+        crate::intrinsics::IntrinsicId::EnvNameRaw => {
+            StrValue::ProcessEnvironmentName { index: index.value }
+        }
+        crate::intrinsics::IntrinsicId::EnvValueRaw => {
+            StrValue::ProcessEnvironmentValue { index: index.value }
+        }
         _ => {
             return Err(unsupported_pointer_primitive_diagnostic(
                 "expected indexed environment primitive",
@@ -1045,7 +1083,8 @@ pub(in crate::ir::lower::expressions) fn lower_exit_raw_primitive_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if context.primitive_name_for_call(call) == Some("allocation_abort_raw") {
+    if context.intrinsic_for_call(call) == Some(crate::intrinsics::IntrinsicId::AllocationAbortRaw)
+    {
         if !call.arguments.is_empty() {
             return Err(vec![Diagnostic::error(
                 "E8006",
@@ -1113,9 +1152,9 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
 
     let (mut instructions, path) =
         lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
-    let (flags, mode) = match context.primitive_name_for_call(call) {
-        Some("create_raw") => (1 + 512 + 1024, 438),
-        Some("append_raw") => (1 + 8 + 512, 438),
+    let (flags, mode) = match context.intrinsic_for_call(call) {
+        Some(crate::intrinsics::IntrinsicId::CreateRaw) => (1 + 512 + 1024, 438),
+        Some(crate::intrinsics::IntrinsicId::AppendRaw) => (1 + 8 + 512, 438),
         _ => (0, 0),
     };
     instructions.push(Instruction::OpenRead {
@@ -1129,14 +1168,14 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
 }
 
 fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usize> {
-    match context.primitive_name_for_call(call)? {
-        "syscall0" => Some(0),
-        "syscall1" => Some(1),
-        "syscall2" => Some(2),
-        "syscall3" => Some(3),
-        "syscall4" => Some(4),
-        "syscall5" => Some(5),
-        "syscall6" => Some(6),
+    match context.intrinsic_for_call(call)? {
+        crate::intrinsics::IntrinsicId::Syscall(0) => Some(0),
+        crate::intrinsics::IntrinsicId::Syscall(1) => Some(1),
+        crate::intrinsics::IntrinsicId::Syscall(2) => Some(2),
+        crate::intrinsics::IntrinsicId::Syscall(3) => Some(3),
+        crate::intrinsics::IntrinsicId::Syscall(4) => Some(4),
+        crate::intrinsics::IntrinsicId::Syscall(5) => Some(5),
+        crate::intrinsics::IntrinsicId::Syscall(6) => Some(6),
         _ => None,
     }
 }
@@ -1155,7 +1194,8 @@ pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     match expression {
         Expr::Call(call)
-            if context.primitive_name_for_call(call) == Some("from_addr")
+            if context.intrinsic_for_call(call)
+                == Some(crate::intrinsics::IntrinsicId::FromAddr)
                 && call.arguments.len() == 1 =>
         {
             let address =

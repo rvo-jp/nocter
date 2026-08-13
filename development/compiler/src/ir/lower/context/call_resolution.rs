@@ -487,11 +487,16 @@ impl<'a> LoweringContext<'a> {
         Some((target, specialization.target_name.clone()))
     }
 
-    pub(in crate::ir::lower) fn primitive_name_for_call(&self, call: &CallExpr) -> Option<&str> {
+    pub(in crate::ir::lower) fn intrinsic_for_call(
+        &self,
+        call: &CallExpr,
+    ) -> Option<crate::intrinsics::IntrinsicId> {
         let resolution = self.call_resolution.as_ref()?;
         let symbol = resolution.resolved.symbol_for_call(call)?;
         match &symbol.kind {
-            SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
+            SymbolKind::Primitive(_) => {
+                crate::intrinsics::IntrinsicId::from_source_name(&symbol.name)
+            }
             SymbolKind::Imported(_)
                 if std_os_imported_primitive_name(&symbol.name)
                     || matches!(
@@ -507,7 +512,7 @@ impl<'a> LoweringContext<'a> {
                         )
                     ) =>
             {
-                Some(symbol.name.as_str())
+                crate::intrinsics::IntrinsicId::from_source_name(&symbol.name)
             }
             SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
         }

@@ -1212,15 +1212,15 @@ pub(super) fn call_expression(expression: &Expr) -> Option<&CallExpr> {
 
 fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
-        context.primitive_name_for_call(call),
+        context.intrinsic_for_call(call),
         Some(
-            "syscall0"
-                | "syscall1"
-                | "syscall2"
-                | "syscall3"
-                | "syscall4"
-                | "syscall5"
-                | "syscall6"
+            crate::intrinsics::IntrinsicId::Syscall(0)
+                | crate::intrinsics::IntrinsicId::Syscall(1)
+                | crate::intrinsics::IntrinsicId::Syscall(2)
+                | crate::intrinsics::IntrinsicId::Syscall(3)
+                | crate::intrinsics::IntrinsicId::Syscall(4)
+                | crate::intrinsics::IntrinsicId::Syscall(5)
+                | crate::intrinsics::IntrinsicId::Syscall(6)
         )
     )
 }
@@ -1248,7 +1248,8 @@ fn lower_aggregate_pointer_field_value(
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     match expression {
         Expr::Call(call)
-            if context.primitive_name_for_call(call) == Some("from_addr")
+            if context.intrinsic_for_call(call)
+                == Some(crate::intrinsics::IntrinsicId::FromAddr)
                 && call.arguments.len() == 1 =>
         {
             lower_usize_expression_to_word(&call.arguments[0], context)

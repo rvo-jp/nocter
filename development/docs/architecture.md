@@ -121,6 +121,9 @@ buildability is MIR validation rather than a parallel AST model.
 - MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
   ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.
+- Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
+  boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
+  for diagnostics and source-boundary recognition.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain

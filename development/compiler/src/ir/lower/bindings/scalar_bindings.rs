@@ -307,25 +307,30 @@ pub(super) fn primitive_call_scalar_binding_kind(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
-    match context.primitive_name_for_call(call)? {
-        "addr" | "from_addr" | "from_ref" | "from_ref_mut" | "pointee_size" => {
-            Some(ScalarBindingKind::Usize)
-        }
-        "str_from_raw_parts" | "str_subview_unchecked" => Some(ScalarBindingKind::Str),
-        "bytes_from_str" => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
-            TypecheckSliceElementKind::U8,
-        ))),
-        "slice_from_raw_parts"
-        | "slice_from_raw_parts_mut"
-        | "slice_from_raw_parts_value"
-        | "slice_from_raw_parts_value_mut" => Some(ScalarBindingKind::Slice(
-            slice_type_info_from_call_return(call, context).unwrap_or_else(|| {
-                slice_type_info_from_kind(
-                    call_return_slice_element_kind(call, context)
-                        .unwrap_or(TypecheckSliceElementKind::Other),
-                )
-            }),
+    match context.intrinsic_for_call(call)? {
+        crate::intrinsics::IntrinsicId::Addr
+        | crate::intrinsics::IntrinsicId::FromAddr
+        | crate::intrinsics::IntrinsicId::FromRef
+        | crate::intrinsics::IntrinsicId::FromRefMut
+        | crate::intrinsics::IntrinsicId::PointeeSize => Some(ScalarBindingKind::Usize),
+        crate::intrinsics::IntrinsicId::StrFromRawParts
+        | crate::intrinsics::IntrinsicId::StrSubviewUnchecked => Some(ScalarBindingKind::Str),
+        crate::intrinsics::IntrinsicId::BytesFromStr => Some(ScalarBindingKind::Slice(
+            slice_type_info_from_kind(TypecheckSliceElementKind::U8),
         )),
+        crate::intrinsics::IntrinsicId::SliceFromRawParts
+        | crate::intrinsics::IntrinsicId::SliceFromRawPartsMut
+        | crate::intrinsics::IntrinsicId::SliceFromRawPartsValue
+        | crate::intrinsics::IntrinsicId::SliceFromRawPartsValueMut => {
+            Some(ScalarBindingKind::Slice(
+                slice_type_info_from_call_return(call, context).unwrap_or_else(|| {
+                    slice_type_info_from_kind(
+                        call_return_slice_element_kind(call, context)
+                            .unwrap_or(TypecheckSliceElementKind::Other),
+                    )
+                }),
+            ))
+        }
         _ => None,
     }
 }
@@ -334,9 +339,11 @@ pub(super) fn primitive_call_fallible_success_scalar_binding_kind(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
-    match context.primitive_name_for_call(call)? {
-        "open_read_raw" | "create_raw" | "append_raw" => Some(ScalarBindingKind::I32),
-        "read_bytes_raw" => Some(ScalarBindingKind::Usize),
+    match context.intrinsic_for_call(call)? {
+        crate::intrinsics::IntrinsicId::OpenReadRaw
+        | crate::intrinsics::IntrinsicId::CreateRaw
+        | crate::intrinsics::IntrinsicId::AppendRaw => Some(ScalarBindingKind::I32),
+        crate::intrinsics::IntrinsicId::ReadBytesRaw => Some(ScalarBindingKind::Usize),
         _ => None,
     }
 }
