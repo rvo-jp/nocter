@@ -20,6 +20,13 @@ pub(crate) struct ExportSyntax {
     pub(crate) visibility: crate::ast::Visibility,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct ProvenanceSyntaxSite {
+    pub(crate) span: ByteSpan,
+    pub(crate) receiver: Option<crate::ast::MethodReceiverMode>,
+    pub(crate) parameters: Vec<crate::ast::Parameter>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LiteralSyntaxSite {
     pub(crate) expression_span: ByteSpan,
@@ -72,6 +79,7 @@ pub(crate) struct EditorSyntaxIndex {
     interpolations: Vec<crate::ast::InterpolatedStringExpr>,
     from_imports: Vec<crate::ast::FromImportItem>,
     exports: Vec<ExportSyntax>,
+    provenance_sites: Vec<ProvenanceSyntaxSite>,
     callables: std::collections::HashMap<DefId, CallableSyntax>,
     destructors: std::collections::HashMap<DefId, crate::ast::DestructDecl>,
     conformances: Vec<ConformanceDecl>,
@@ -130,9 +138,11 @@ impl EditorSyntaxIndex {
         let mut conformances = Vec::new();
         let mut from_imports = Vec::new();
         let mut exports = Vec::new();
+        let mut provenance_sites = Vec::new();
         for item in &ast.items {
             collect_callable_syntax(item, resolved, &mut callables);
             collect_export_syntax(item, &mut exports);
+            collect_provenance_syntax(item, &mut provenance_sites);
             if let Item::FromImport(import) = item {
                 from_imports.push(import.clone());
             }
@@ -148,6 +158,7 @@ impl EditorSyntaxIndex {
         conformances.sort_by_key(|conformance| (conformance.span.start, conformance.span.end));
         from_imports.sort_by_key(|import| (import.span.start, import.span.end));
         exports.sort_by_key(|export| (export.anchor.start, export.anchor.end));
+        provenance_sites.sort_by_key(|site| (site.span.start, site.span.end));
         let mut documentation_owners = resolved
             .semantic_db
             .definitions()
@@ -187,6 +198,7 @@ impl EditorSyntaxIndex {
             interpolations,
             from_imports,
             exports,
+            provenance_sites,
             callables,
             destructors,
             conformances,
@@ -272,6 +284,13 @@ impl EditorSyntaxIndex {
             .map(|export| export.anchor)
     }
 
+    pub(crate) fn provenance_at(&self, offset: usize) -> Option<&ProvenanceSyntaxSite> {
+        self.provenance_sites
+            .iter()
+            .filter(|site| contains_or_touches(site.span, offset))
+            .min_by_key(|site| (site.span.len(), site.span.start))
+    }
+
     pub(crate) fn destructor(&self, definition: DefId) -> Option<&crate::ast::DestructDecl> {
         self.destructors.get(&definition)
     }
@@ -325,6 +344,73 @@ impl EditorSyntaxIndex {
                 .min_by_key(|(span, _)| (span.len(), span.start))
                 .and_then(|(_, anchor)| self.documentation.get(anchor.start))
         })
+    }
+}
+
+fn collect_provenance_syntax(item: &Item, sites: &mut Vec<ProvenanceSyntaxSite>) {
+    let mut push = |clause: Option<&crate::ast::ResultProvenanceClause>,
+                    receiver,
+                    parameters: &crate::ast::ParameterList| {
+        if let Some(clause) = clause {
+            sites.push(ProvenanceSyntaxSite {
+                span: clause.span,
+                receiver,
+                parameters: parameters.parameters.clone(),
+            });
+        }
+    };
+    match item {
+        Item::Function(function) => push(
+            function.result_provenance.as_ref(),
+            None,
+            &function.parameters,
+        ),
+        Item::Primitive(primitive) => push(
+            primitive.result_provenance.as_ref(),
+            None,
+            &primitive.parameters,
+        ),
+        Item::Interface(interface) => {
+            for method in &interface.methods {
+                push(
+                    method.result_provenance.as_ref(),
+                    Some(method.receiver.mode),
+                    &method.parameters,
+                );
+            }
+        }
+        Item::Instance(_) | Item::Conformance(_) => {
+            for method in item.method_owner().expect("matched method owner").methods() {
+                push(
+                    method.result_provenance.as_ref(),
+                    Some(method.receiver.mode),
+                    &method.parameters,
+                );
+            }
+        }
+        Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                push(
+                    function.result_provenance.as_ref(),
+                    None,
+                    &function.parameters,
+                );
+            }
+            for (_, literal) in construct.literals() {
+                push(
+                    literal.result_provenance.as_ref(),
+                    None,
+                    &literal.parameters,
+                );
+            }
+        }
+        Item::Import(_)
+        | Item::FromImport(_)
+        | Item::Test(_)
+        | Item::TypeAlias(_)
+        | Item::Struct(_)
+        | Item::Enum(_)
+        | Item::Destruct(_) => {}
     }
 }
 

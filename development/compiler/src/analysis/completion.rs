@@ -93,8 +93,8 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     {
         return items;
     }
-    if let Some(items) = result_provenance_completion_items(&file.ast, offset) {
-        return items;
+    if let Some(site) = file.syntax.provenance_at(offset) {
+        return provenance_origin_items(site.receiver, &site.parameters);
     }
     if let Some(items) =
         contextual_completion_items(&file.ast, &file.resolved, &file.typed_hir, offset)
