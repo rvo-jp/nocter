@@ -9,6 +9,7 @@ pub(crate) enum InitializationLocation {
     Statement(usize),
     Switch,
     CallArgument(usize),
+    Drop,
     Return,
 }
 
@@ -114,6 +115,17 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                     CallContinuation::Never => {}
                 }
             }
+            crate::mir::Terminator::Drop { place, target } => {
+                validate_and_apply_operand(
+                    &Operand::Move(*place),
+                    &mut initialized,
+                    block_id,
+                    InitializationLocation::Drop,
+                    body.locals.len(),
+                    &mut errors,
+                );
+                merge_entry(&mut entries, &mut queue, *target, initialized);
+            }
             crate::mir::Terminator::Return => {
                 if body.locals.get(body.return_local.index()).is_some()
                     && !initialized.contains(body.return_local)
@@ -203,6 +215,7 @@ fn location_order(location: InitializationLocation) -> usize {
         InitializationLocation::Statement(index) => index,
         InitializationLocation::Switch => usize::MAX - 2,
         InitializationLocation::CallArgument(index) => usize::MAX / 2 + index,
+        InitializationLocation::Drop => usize::MAX - 1,
         InitializationLocation::Return => usize::MAX,
     }
 }

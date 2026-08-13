@@ -278,6 +278,11 @@ fn lower_scalar_body(
                     }
                 }
             }
+            Terminator::Drop { .. } => {
+                return Err(invalid_mir_diagnostics(
+                    "drop cleanup has not been projected to machine IR",
+                ));
+            }
             Terminator::Trap => {
                 instructions.push(Instruction::Trap);
                 return Ok(instructions);

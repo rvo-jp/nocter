@@ -49,6 +49,18 @@ impl LocalSet {
         }
         changed
     }
+
+    /// Unions `self` with `other` and reports whether the set changed.
+    pub(super) fn union_with(&mut self, other: &Self) -> bool {
+        debug_assert_eq!(self.words.len(), other.words.len());
+        let mut changed = false;
+        for (word, other) in self.words.iter_mut().zip(&other.words) {
+            let union = *word | *other;
+            changed |= union != *word;
+            *word = union;
+        }
+        changed
+    }
 }
 
 #[cfg(test)]

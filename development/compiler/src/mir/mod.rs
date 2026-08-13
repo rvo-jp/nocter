@@ -1,6 +1,7 @@
 //! Checked control-flow representation between typed HIR and machine IR.
 
 mod dataflow;
+mod drop_obligations;
 mod ids;
 mod index;
 mod initialization;
@@ -12,7 +13,7 @@ mod validate;
 
 pub(crate) use ids::{BasicBlockId, LocalId, ScopeId};
 pub(crate) use index::BodyCache;
-pub(crate) use locals::{Local, LocalOrigin, LocalStorage, ScalarType};
+pub(crate) use locals::{Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType};
 pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
 #[cfg(test)]
 pub(crate) use model::{BasicBlock, Constant};

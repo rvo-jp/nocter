@@ -9,6 +9,7 @@ use crate::semantic::TyId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ValidationError {
     Initialization(super::initialization::InitializationError),
+    DropObligation(super::drop_obligations::DropObligationError),
     MissingReturnLocal(LocalId),
     MissingRootScope(super::ScopeId),
     InvalidRootScope(super::ScopeId),
@@ -123,6 +124,7 @@ pub(crate) enum ValidationError {
 pub(crate) enum OperandLocation {
     Statement(usize),
     CallArgument(usize),
+    Drop,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -375,6 +377,16 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                 }
             }
+            Terminator::Drop { place, target } => {
+                validate_target(body, block_id, *target, &mut errors);
+                operand_type(
+                    body,
+                    block_id,
+                    OperandLocation::Drop,
+                    &Operand::Move(*place),
+                    &mut errors,
+                );
+            }
             Terminator::PropagateFailure if body.return_mode == super::ReturnMode::Plain => {
                 errors.push(ValidationError::PropagationFromPlainBody { block: block_id });
             }
@@ -386,6 +398,11 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         super::initialization::validate(body)
             .into_iter()
             .map(ValidationError::Initialization),
+    );
+    errors.extend(
+        super::drop_obligations::validate(body)
+            .into_iter()
+            .map(ValidationError::DropObligation),
     );
 
     if errors.is_empty() {
@@ -476,6 +493,7 @@ fn linear_path_reaches(body: &Body, start: BasicBlockId, destination: BasicBlock
         };
         current = match &block.terminator {
             Terminator::Goto { target } => *target,
+            Terminator::Drop { target, .. } => *target,
             Terminator::Call {
                 continuation: CallContinuation::Return { target, .. },
                 ..

@@ -15,6 +15,7 @@ pub(super) fn linear_path_target(
         let block = body.blocks.get(current.index())?;
         match &block.terminator {
             Terminator::Goto { target } => return Some(*target),
+            Terminator::Drop { target, .. } => current = *target,
             Terminator::Call {
                 continuation: CallContinuation::Return { target, .. },
                 ..
@@ -71,6 +72,9 @@ pub(super) fn linear_branch_join(
         let block = &body.blocks[current.index()];
         match &block.terminator {
             Terminator::Goto { target } => return Ok(*target),
+            Terminator::Drop { .. } => {
+                return Err("drop cleanup has not been projected to machine IR");
+            }
             Terminator::Call {
                 continuation: CallContinuation::Return { target, .. },
                 ..

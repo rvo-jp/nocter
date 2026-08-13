@@ -94,6 +94,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                     .map(|argument| operand_use_count(&argument.operand, local))
                     .sum(),
                 crate::mir::Terminator::Goto { .. }
+                | crate::mir::Terminator::Drop { .. }
                 | crate::mir::Terminator::Trap
                 | crate::mir::Terminator::PropagateFailure
                 | crate::mir::Terminator::Return => 0,

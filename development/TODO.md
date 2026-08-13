@@ -9,7 +9,7 @@ calls in straight-line, conditional, and natural-loop expression evaluation, plu
 propagating scalar fallible calls. MIR construction and validation are authoritative
 after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
 buildability follows its identity-backed call edges without revisiting the AST body. The next
-boundary is owned aggregates, borrows, ownership cleanup, and drops. Do not leave a
+boundary is owned aggregate construction, borrow loans, and cleanup materialization. Do not leave a
 permanent dual pipeline, add language features, or add standard-library APIs during the architecture
 migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
@@ -74,8 +74,11 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - MIR distinguishes copy and move operands; move consumes definite-initialization state, so a later
   use on any reachable path is rejected before machine IR, while static copy/move/borrow behavior
   remains independent from representation and drop shape
-- the next checkpoint introduces owned aggregate locals and materializes explicit cleanup blocks
-  from these scope transitions
+- `Drop` is an explicit MIR terminator, and a separate fixed-point obligation pass uses may-live
+  and must-live sets to reject leaks, overwrites, double drops, and cleanup reached after a move;
+  conditional ownership is therefore not flattened into one unreliable live flag
+- the next checkpoint routes owned aggregate locals through MIR and materializes explicit cleanup
+  blocks from validated scope transitions
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 
