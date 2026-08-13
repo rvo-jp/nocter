@@ -77,6 +77,13 @@ fn scalar_tail_call_is_supported(
     typed_hir: &TypedHir,
 ) -> bool {
     scalar_call_shape_is_supported(call, resolved, typed_hir)
+        // A failure-only `error` call can acquire the surrounding success
+        // type contextually, but it is not a scalar-returning call. Until MIR
+        // carries failure payload values explicitly, leave that construct on
+        // the outcome-aware route instead of manufacturing a scalar result.
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| scalar_type(ty, typed_hir))
+            .is_some()
         && effective_expression_type(call.span, typed_hir)
             .and_then(|ty| scalar_type(ty, typed_hir))
             .is_some()

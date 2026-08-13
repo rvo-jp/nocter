@@ -3,9 +3,9 @@
 use super::ids::{BasicBlockId, LocalId};
 use super::locals::{Local, LocalOrigin, LocalStorage, ScalarType};
 use super::model::{Body, ReturnMode, Terminator};
-use super::validate::ValidationError;
 #[cfg(test)]
 use super::validate;
+use super::validate::ValidationError;
 use super::{Scope, ScopeId};
 use crate::ast::{Block, Expr, Parameter};
 use crate::resolve::ResolveOutput;
