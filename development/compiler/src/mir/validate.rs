@@ -2,7 +2,7 @@
 //! failures, not alternate source-language diagnostics.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, Statement, Terminator};
+use super::model::{Body, Operand, Statement, Terminator};
 use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +19,11 @@ pub(crate) enum ValidationError {
         statement: usize,
         destination: TyId,
         value: TyId,
+    },
+    MissingOperandLocal {
+        block: BasicBlockId,
+        statement: usize,
+        local: LocalId,
     },
     MissingTarget {
         block: BasicBlockId,
@@ -49,7 +54,20 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 });
                 continue;
             };
-            let value_ty = value.ty();
+            let value_ty = match value.operand() {
+                Operand::Constant(constant) => constant.ty,
+                Operand::Copy(place) => {
+                    let Some(local) = body.locals.get(place.local.index()) else {
+                        errors.push(ValidationError::MissingOperandLocal {
+                            block: block_id,
+                            statement: statement_index,
+                            local: place.local,
+                        });
+                        continue;
+                    };
+                    local.ty
+                }
+            };
             if destination_local.ty != value_ty {
                 errors.push(ValidationError::AssignmentTypeMismatch {
                     block: block_id,
@@ -81,7 +99,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::model::{BasicBlock, Constant, Local, Operand, Place, Rvalue};
+    use crate::mir::model::{BasicBlock, Constant, Local, LocalSource, Operand, Place, Rvalue};
     use crate::semantic::{BodyId, ExprId};
     use crate::source::{ByteSpan, SourceId};
 
@@ -97,7 +115,7 @@ mod tests {
             return_local: LocalId::from_index(0),
             locals: vec![Local {
                 ty,
-                source: Some(span()),
+                source: LocalSource::Return,
             }],
             entry: BasicBlockId::from_index(0),
             blocks: vec![

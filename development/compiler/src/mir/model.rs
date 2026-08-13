@@ -2,6 +2,7 @@
 //! their AST-driven lowering path is removed.
 
 use super::ids::{BasicBlockId, LocalId};
+use crate::resolve::LocalSymbolId;
 use crate::semantic::{BodyId, ExprId, TyId};
 use crate::source::ByteSpan;
 
@@ -18,7 +19,13 @@ pub(crate) struct Body {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Local {
     pub(crate) ty: TyId,
-    pub(crate) source: Option<ByteSpan>,
+    pub(crate) source: LocalSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LocalSource {
+    Return,
+    Binding(LocalSymbolId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +56,7 @@ pub(crate) enum Rvalue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Operand {
     Constant(Constant),
+    Copy(Place),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,18 +71,10 @@ pub(crate) enum Terminator {
     Return,
 }
 
-impl Body {
-    pub(crate) fn return_type(&self) -> Option<TyId> {
-        self.locals
-            .get(self.return_local.index())
-            .map(|local| local.ty)
-    }
-}
-
 impl Rvalue {
-    pub(crate) const fn ty(&self) -> TyId {
+    pub(crate) fn operand(&self) -> &Operand {
         match self {
-            Self::Use(Operand::Constant(constant)) => constant.ty,
+            Self::Use(operand) => operand,
         }
     }
 }

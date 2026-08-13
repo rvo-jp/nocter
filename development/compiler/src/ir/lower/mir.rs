@@ -3,10 +3,10 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue};
-use crate::mir::{Body, Operand, Rvalue, Statement, Terminator};
+use crate::mir::{Body, Operand, Place, Rvalue, Statement, Terminator};
 use std::collections::HashSet;
 
-pub(super) fn lower_scalar_literal_body(
+pub(super) fn lower_scalar_body(
     body: &Body,
     return_type: &Type,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -23,36 +23,22 @@ pub(super) fn lower_scalar_literal_body(
         for statement in &block.statements {
             let Statement::Assign {
                 destination,
-                value: Rvalue::Use(Operand::Constant(constant)),
+                value: Rvalue::Use(operand),
                 ..
             } = statement;
-            if destination.local != body.return_local || constant.ty != body.return_type().unwrap()
-            {
-                return Err(invalid_mir_diagnostics(
-                    "scalar literal route assigned a non-return place",
-                ));
-            }
             match return_type {
                 Type::I32 => {
-                    let value = i32::try_from(constant.value).map_err(|_| {
-                        invalid_mir_diagnostics(
-                            "i32 constant is outside its runtime representation",
-                        )
-                    })?;
+                    let value = lower_i32_operand(operand, body)?;
                     instructions.push(Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: I32Value::Const(value),
+                        destination: i32_location(destination, body)?,
+                        value,
                     });
                 }
                 Type::Usize => {
-                    let value = u64::try_from(constant.value).map_err(|_| {
-                        invalid_mir_diagnostics(
-                            "usize constant is outside its runtime representation",
-                        )
-                    })?;
+                    let value = lower_usize_operand(operand, body)?;
                     instructions.push(Instruction::SetUsize {
-                        destination: UsizeLocation::Return,
-                        value: UsizeValue::Const(value),
+                        destination: usize_location(destination, body)?,
+                        value,
                     });
                 }
                 _ => {
@@ -70,6 +56,46 @@ pub(super) fn lower_scalar_literal_body(
                 return Ok(instructions);
             }
         }
+    }
+}
+
+fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnostic>> {
+    if place.local == body.return_local {
+        Ok(I32Location::Return)
+    } else {
+        Ok(I32Location::Local(place.local.index() - 1))
+    }
+}
+
+fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagnostic>> {
+    if place.local == body.return_local {
+        Ok(UsizeLocation::Return)
+    } else {
+        Ok(UsizeLocation::Local(place.local.index() - 1))
+    }
+}
+
+fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Diagnostic>> {
+    match operand {
+        Operand::Constant(constant) => {
+            i32::try_from(constant.value)
+                .map(I32Value::Const)
+                .map_err(|_| {
+                    invalid_mir_diagnostics("i32 constant is outside its runtime representation")
+                })
+        }
+        Operand::Copy(place) => i32_location(place, body).map(I32Value::Location),
+    }
+}
+
+fn lower_usize_operand(operand: &Operand, body: &Body) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match operand {
+        Operand::Constant(constant) => u64::try_from(constant.value)
+            .map(UsizeValue::Const)
+            .map_err(|_| {
+                invalid_mir_diagnostics("usize constant is outside its runtime representation")
+            }),
+        Operand::Copy(place) => usize_location(place, body).map(UsizeValue::Location),
     }
 }
 

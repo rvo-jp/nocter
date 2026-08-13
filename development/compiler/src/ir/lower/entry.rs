@@ -153,7 +153,7 @@ fn lower_entry_parts(
         })?;
     if matches!(return_type, Type::I32 | Type::Usize)
         && let Some(mir_body) =
-            crate::mir::try_build_scalar_literal_body(body, &resolved.semantic_db, typed_hir)
+            crate::mir::try_build_scalar_body(body, &resolved.semantic_db, resolved, typed_hir)
     {
         let mir_body = mir_body.map_err(|error| {
             attach_primary_span_if_absent(
@@ -165,9 +165,10 @@ fn lower_entry_parts(
                 body.span,
             )
         })?;
-        let instructions = super::mir::lower_scalar_literal_body(&mir_body, &return_type).map_err(
-            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, body.span),
-        )?;
+        let instructions =
+            super::mir::lower_scalar_body(&mir_body, &return_type).map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, body.span)
+            })?;
         return Ok(Function {
             name: name.to_string(),
             target,
