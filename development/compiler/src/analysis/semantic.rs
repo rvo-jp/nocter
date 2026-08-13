@@ -34,7 +34,7 @@ pub(crate) fn classified_identifiers_for_file_analysis(
     _text: &str,
     file: &FileAnalysis,
 ) -> Vec<ClassifiedIdentifier> {
-    classified_identifiers_for_analysis(&file.ast, &file.resolved, &file.occurrences, &file.syntax)
+    file.semantic_identifiers.clone()
 }
 
 pub(crate) fn classified_identifiers_for_single_file_text(
@@ -89,7 +89,7 @@ fn classify_single_file_text(text: &str) -> Option<Vec<ClassifiedIdentifier>> {
     ))
 }
 
-fn classified_identifiers_for_analysis(
+pub(super) fn classified_identifiers_for_analysis(
     ast: &crate::ast::AstFile,
     resolved: &ResolveOutput,
     occurrences: &SemanticOccurrenceIndex,

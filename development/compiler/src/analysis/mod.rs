@@ -197,6 +197,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) typed_hir: TypedHir,
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) syntax: syntax_index::EditorSyntaxIndex,
+    pub(crate) semantic_identifiers: Vec<semantic::ClassifiedIdentifier>,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -369,12 +370,19 @@ fn analyze_compile_unit_with_root_policy(
                     file,
                     resolved,
                 );
+                let semantic_identifiers = semantic::classified_identifiers_for_analysis(
+                    file,
+                    resolved,
+                    &occurrences,
+                    &syntax,
+                );
                 FileAnalysis {
                     ast: file.clone(),
                     resolved: resolved.clone(),
                     typed_hir,
                     occurrences,
                     syntax,
+                    semantic_identifiers,
                     diagnostics,
                     is_root,
                 }
