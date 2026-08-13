@@ -575,6 +575,7 @@ pub(super) fn scalar_expression_is_supported(
                 return false;
             };
             scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                && otherwise.fallback.result.is_some()
                 && scalar_value_block_is_supported(
                     &otherwise.fallback,
                     resolved,
@@ -588,6 +589,7 @@ pub(super) fn scalar_expression_is_supported(
             };
             matches!(catch.binding, crate::ast::CatchBinding::Discard { .. })
                 && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                && catch.catch_block.result.is_some()
                 && scalar_value_block_is_supported(
                     &catch.catch_block,
                     resolved,

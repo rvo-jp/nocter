@@ -282,7 +282,14 @@ fn lowers_entry_returning_negative_i32_literal() {
 
     assert_eq!(
         ir.functions[0].instructions,
-        vec![set_return_i32(-42), Instruction::Return]
+        vec![
+            Instruction::SubtractI32 {
+                destination: I32Location::Return,
+                left: i32_const(0),
+                right: i32_const(42),
+            },
+            Instruction::Return,
+        ]
     );
 }
 
@@ -326,9 +333,14 @@ fn lowers_nested_negative_integer_literal() {
         ir.functions[0].instructions,
         vec![
             Instruction::SubtractI32 {
+                destination: I32Location::Local(0),
+                left: i32_const(0),
+                right: i32_const(42),
+            },
+            Instruction::SubtractI32 {
                 destination: I32Location::Return,
                 left: i32_const(0),
-                right: i32_const(-42),
+                right: i32_local(0),
             },
             Instruction::Return
         ]

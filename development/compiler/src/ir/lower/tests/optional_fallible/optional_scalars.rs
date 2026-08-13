@@ -606,8 +606,8 @@ func maybe_answer(): i32? {
                     destination: I32Location::Return,
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: OutcomeFailureMode::Handle {
-                        instructions: vec![set_return_i32(7), Instruction::Return],
+                    failure_mode: OutcomeFailureMode::Recover {
+                        instructions: vec![set_return_i32(7)],
                     },
                 },
                 Instruction::Return,
@@ -765,14 +765,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
                 destination: U8Location::Return,
                 target: CallTarget::same_file("maybe_byte"),
                 arguments: vec![],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetU8 {
-                            destination: U8Location::Return,
-                            value: U8Value::Const(7),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: U8Value::Const(7),
+                    }],
                 },
             },
             Instruction::Return,
@@ -788,14 +785,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
                 destination: UsizeLocation::Return,
                 target: CallTarget::same_file("maybe_size"),
                 arguments: vec![],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetUsize {
-                            destination: UsizeLocation::Return,
-                            value: UsizeValue::Const(7),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: UsizeValue::Const(7),
+                    }],
                 },
             },
             Instruction::Return,
@@ -811,14 +805,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
                 destination: BoolLocation::Return,
                 target: CallTarget::same_file("maybe_flag"),
                 arguments: vec![],
-                failure_mode: OutcomeFailureMode::Handle {
-                    instructions: vec![
-                        Instruction::SetBool {
-                            destination: BoolLocation::Return,
-                            value: BoolValue::Const(true),
-                        },
-                        Instruction::Return,
-                    ],
+                failure_mode: OutcomeFailureMode::Recover {
+                    instructions: vec![Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    }],
                 },
             },
             Instruction::Return,

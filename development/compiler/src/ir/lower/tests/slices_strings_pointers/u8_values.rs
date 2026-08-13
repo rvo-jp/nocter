@@ -706,23 +706,20 @@ func choose(flag: bool): u8 {
             name: "choose".to_string(),
             target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: Type::U8,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![
-                    Instruction::SetU8 {
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![Instruction::SetU8 {
                         destination: U8Location::Return,
                         value: u8_const(7),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetU8 {
+                    }],
+                    else_instructions: vec![Instruction::SetU8 {
                         destination: U8Location::Return,
                         value: u8_const(9),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+                    }],
+                },
+                Instruction::Return,
+            ],
         }
     );
 }

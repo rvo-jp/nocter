@@ -60,6 +60,9 @@ fn lower_recovery_to_place(
     scalar: ScalarType,
     parent_scope: ScopeId,
 ) -> Result<(), super::super::BuildError> {
+    if fallback_block.result.is_none() {
+        return Err(super::super::BuildError::UnsupportedClaimedExpression);
+    }
     let call_source = context
         .semantic
         .typed_hir

@@ -99,8 +99,13 @@ pub(crate) enum Statement {
         value: Rvalue,
         origin: Origin,
     },
-    BeginLoan { loan: LoanId, origin: Origin },
-    EndLoan { loan: LoanId },
+    BeginLoan {
+        loan: LoanId,
+        origin: Origin,
+    },
+    EndLoan {
+        loan: LoanId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -101,9 +101,7 @@ pub(crate) enum ScalarType {
 pub(crate) enum OwnershipKind {
     Copy,
     Move,
-    Borrowed {
-        readwrite: bool,
-    },
+    Borrowed { readwrite: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

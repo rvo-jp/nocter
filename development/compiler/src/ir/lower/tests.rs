@@ -5,11 +5,10 @@ use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolComparisonOperator,
-    BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument, BorrowSource, CallTarget,
-    DirectAggregateArgument, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IrModule, OutcomeFailureMode, ScalarArgument, SliceElementAddressKind, SliceElementIndex,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget, DirectAggregateArgument,
+    Function, I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule,
+    OutcomeFailureMode, ScalarArgument, SliceElementAddressKind, SliceElementIndex, SliceLocation,
+    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
