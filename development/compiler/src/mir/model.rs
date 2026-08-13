@@ -136,7 +136,7 @@ impl Place {
 pub(crate) enum Rvalue {
     Use(Operand),
     Aggregate {
-        fields: Vec<AggregateFieldValue>,
+        leaves: Vec<AggregateLeaf>,
     },
     Unary {
         operator: UnaryOperator,
@@ -167,11 +167,17 @@ pub(crate) enum Rvalue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AggregateFieldValue {
-    pub(crate) index: usize,
+pub(crate) struct AggregateLeaf {
+    pub(crate) path: Vec<AggregateElement>,
     pub(crate) ty: TyId,
     pub(crate) scalar: ScalarType,
     pub(crate) operand: Operand,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum AggregateElement {
+    Field(usize),
+    Index(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

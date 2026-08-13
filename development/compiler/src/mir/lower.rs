@@ -13,6 +13,7 @@ use crate::semantic::SemanticDb;
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
 
+mod aggregates;
 mod body_builder;
 mod context;
 mod coverage;

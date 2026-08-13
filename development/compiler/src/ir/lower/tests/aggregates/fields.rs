@@ -1,6 +1,46 @@
 use super::*;
 
 #[test]
+fn mir_projects_nested_struct_literal_leaf_paths_to_abi_offsets() {
+    let function = lower_named_function(
+        r#"copy struct Inner {
+    value: i32
+}
+
+copy struct Outer {
+    tag: u8
+    inner: Inner
+}
+
+func main(): i32 {
+    let outer = Outer { tag: 1, inner: Inner { value: 42 } }
+    return outer.inner.value
+}
+"#,
+        "main",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateU8 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: u8_const(1),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: i32_const(42),
+            })
+    );
+}
+
+#[test]
 fn lowers_method_call_aggregate_field_receiver_as_implicit_readonly_borrow() {
     let ir = lower_text(
         r#"copy struct File {

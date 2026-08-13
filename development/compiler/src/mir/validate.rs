@@ -118,6 +118,14 @@ pub(crate) enum ValidationError {
         statement: usize,
         actual: ValueRepresentation,
     },
+    EmptyAggregateLeafPath {
+        block: BasicBlockId,
+        statement: usize,
+    },
+    DuplicateAggregateLeafPath {
+        block: BasicBlockId,
+        statement: usize,
+    },
     InvalidUnaryOperation {
         block: BasicBlockId,
         statement: usize,
@@ -297,7 +305,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                     ty
                 }
-                super::model::Rvalue::Aggregate { fields } => {
+                super::model::Rvalue::Aggregate { leaves } => {
                     if destination_local.representation != ValueRepresentation::Aggregate {
                         errors.push(ValidationError::AssignmentRequiresScalar {
                             block: block_id,
@@ -305,21 +313,33 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             actual: destination_local.representation,
                         });
                     }
-                    for field in fields {
+                    let mut paths = std::collections::HashSet::new();
+                    for leaf in leaves {
+                        if leaf.path.is_empty() {
+                            errors.push(ValidationError::EmptyAggregateLeafPath {
+                                block: block_id,
+                                statement: statement_index,
+                            });
+                        } else if !paths.insert(&leaf.path) {
+                            errors.push(ValidationError::DuplicateAggregateLeafPath {
+                                block: block_id,
+                                statement: statement_index,
+                            });
+                        }
                         validate_operand(
                             body,
                             block_id,
                             OperandLocation::Statement(statement_index),
-                            &field.operand,
-                            field.ty,
-                            field.scalar,
+                            &leaf.operand,
+                            leaf.ty,
+                            leaf.scalar,
                             &mut errors,
                         );
                         validate_operand_ownership(
                             body,
                             block_id,
                             OperandLocation::Statement(statement_index),
-                            &field.operand,
+                            &leaf.operand,
                             &mut errors,
                         );
                     }
@@ -1116,6 +1136,57 @@ mod tests {
                 operator: crate::mir::UnaryOperator::LogicalNot,
                 scalar: ScalarType::I32,
             }])
+        );
+    }
+
+    #[test]
+    fn rejects_empty_and_duplicate_aggregate_leaf_paths() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        body.locals[0] = Local::aggregate(
+            ty,
+            OwnershipKind::Copy,
+            LocalStorage::Return,
+            LocalOrigin::Return,
+            body.root_scope,
+        );
+        let leaf = crate::mir::AggregateLeaf {
+            path: vec![crate::mir::AggregateElement::Field(0)],
+            ty,
+            scalar: ScalarType::I32,
+            operand: Operand::Constant(Constant {
+                ty,
+                scalar: ScalarType::I32,
+                value: 7,
+            }),
+        };
+        body.blocks[0].statements[0] = Statement::Assign {
+            destination: Place::local(LocalId::from_index(0)),
+            value: Rvalue::Aggregate {
+                leaves: vec![
+                    crate::mir::AggregateLeaf {
+                        path: Vec::new(),
+                        ..leaf.clone()
+                    },
+                    leaf.clone(),
+                    leaf,
+                ],
+            },
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+        };
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![
+                ValidationError::EmptyAggregateLeafPath {
+                    block: BasicBlockId::from_index(0),
+                    statement: 0,
+                },
+                ValidationError::DuplicateAggregateLeafPath {
+                    block: BasicBlockId::from_index(0),
+                    statement: 0,
+                },
+            ])
         );
     }
 

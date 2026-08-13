@@ -104,17 +104,140 @@ func main(): i32 {
             .any(|block| block.statements.iter().any(|statement| matches!(
                 statement,
                 Statement::Assign {
-                    value: Rvalue::Aggregate { fields },
+                    value: Rvalue::Aggregate { leaves },
                     ..
                 } if matches!(
-                    fields.as_slice(),
-                    [crate::mir::AggregateFieldValue {
-                        index: 0,
+                    leaves.as_slice(),
+                    [crate::mir::AggregateLeaf {
+                        path,
                         operand: Operand::Constant(crate::mir::Constant { value: 7, .. }),
                         ..
-                    }]
+                    }] if path == &[crate::mir::AggregateElement::Field(0)]
                 )
             )))
+    );
+}
+
+#[test]
+fn flattens_nested_struct_literals_to_semantic_leaf_paths() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Inner {
+    value: i32
+}
+
+struct Outer {
+    tag: u8
+    inner: Inner
+}
+
+func main(): i32 {
+    let outer = Outer { tag: 1, inner: Inner { value: 42 } }
+    return outer.inner.value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("nested struct literal must select MIR")
+    .unwrap();
+
+    let leaves = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .find_map(|statement| match statement {
+            Statement::Assign {
+                value: Rvalue::Aggregate { leaves },
+                ..
+            } => Some(leaves),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        leaves
+            .iter()
+            .map(|leaf| leaf.path.as_slice())
+            .collect::<Vec<_>>(),
+        vec![
+            &[crate::mir::AggregateElement::Field(0)][..],
+            &[
+                crate::mir::AggregateElement::Field(1),
+                crate::mir::AggregateElement::Field(0),
+            ][..],
+        ]
+    );
+}
+
+#[test]
+fn flattens_fixed_array_literals_to_semantic_leaf_paths() {
+    let (_sources, analysis) = analyze_text(
+        r#"func main(): i32 {
+    let values: [i32; 3] = [10, 20, 30]
+    return 0
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("fixed array literal must select MIR")
+    .unwrap();
+
+    let leaves = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .find_map(|statement| match statement {
+            Statement::Assign {
+                value: Rvalue::Aggregate { leaves },
+                ..
+            } => Some(leaves),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        leaves
+            .iter()
+            .map(|leaf| leaf.path.as_slice())
+            .collect::<Vec<_>>(),
+        vec![
+            &[crate::mir::AggregateElement::Index(0)][..],
+            &[crate::mir::AggregateElement::Index(1)][..],
+            &[crate::mir::AggregateElement::Index(2)][..],
+        ]
     );
 }
 

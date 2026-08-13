@@ -271,12 +271,16 @@ impl<'a> ScalarStatement<'a> {
                             resolved_sources,
                             typed_hir,
                         ),
-                        Expr::StructLiteral(literal) => scalar_struct_literal_is_supported(
-                            literal,
-                            resolved,
-                            resolved_sources,
-                            typed_hir,
-                        ),
+                        Expr::StructLiteral(_) | Expr::ArrayLiteral(_) => {
+                            super::aggregates::literal_is_supported(
+                                &binding.initializer,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            )
+                        }
                         _ => false,
                     };
                 (scalar
@@ -380,34 +384,6 @@ impl<'a> ScalarStatement<'a> {
             Self::Break | Self::Continue => in_loop,
         }
     }
-}
-
-fn scalar_struct_literal_is_supported(
-    literal: &crate::ast::StructLiteralExpr,
-    resolved: &ResolveOutput,
-    resolved_sources: &crate::resolve::ResolvedSources<'_>,
-    typed_hir: &TypedHir,
-) -> bool {
-    let result_is_aggregate = typed_hir
-        .expression(literal.span)
-        .and_then(|expression| match expression.ty {
-            crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
-            crate::typecheck::PartialSemantic::Error => None,
-        })
-        .is_some_and(|ty| scalar_type(ty, typed_hir).is_none());
-    result_is_aggregate
-        && literal.fields.iter().all(|field| {
-            typed_hir.field_target(field.name_span).is_some()
-                && known_expression_type(&field.value, typed_hir)
-                    .and_then(|ty| scalar_type(ty, typed_hir))
-                    .is_some()
-                && scalar_expression_is_supported(
-                    &field.value,
-                    resolved,
-                    resolved_sources,
-                    typed_hir,
-                )
-        })
 }
 
 pub(super) fn borrow_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {

@@ -962,29 +962,23 @@ fn lower_statements(
         else {
             unreachable!("all MIR statement kinds handled above");
         };
-        if let Rvalue::Aggregate { fields } = value {
+        if let Rvalue::Aggregate { leaves } = value {
             reserve_aggregate_destination(context, destination, &mut instructions)?;
             let location = aggregate_location(destination, context)?;
             let abi =
                 aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?;
-            let crate::abi::AbiType::Struct(abi_fields) = &abi.ty else {
-                return Err(invalid_mir_diagnostics(
-                    "aggregate MIR rvalue does not describe struct storage",
-                ));
-            };
-            let layout = crate::abi::layout_struct(abi_fields)
-                .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
-            for field in fields {
-                let offset = layout
-                    .fields
-                    .get(field.index)
-                    .and_then(|field| u32::try_from(field.offset).ok())
-                    .ok_or_else(|| invalid_mir_diagnostics("aggregate field offset is invalid"))?;
+            for leaf in leaves {
+                let (offset, leaf_abi) = aggregate_leaf_projection(&abi.ty, &leaf.path)?;
+                if !abi_type_matches_scalar(leaf_abi, leaf.scalar) {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate MIR leaf scalar does not match its ABI projection",
+                    ));
+                }
                 instructions.push(store_aggregate_scalar(
                     location,
                     offset,
-                    field.scalar,
-                    &field.operand,
+                    leaf.scalar,
+                    &leaf.operand,
                     context,
                 )?);
             }
@@ -1273,6 +1267,78 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn aggregate_leaf_projection<'a>(
+    root: &'a crate::abi::AbiType,
+    path: &[crate::mir::AggregateElement],
+) -> Result<(u32, &'a crate::abi::AbiType), Vec<Diagnostic>> {
+    if path.is_empty() {
+        return Err(invalid_mir_diagnostics(
+            "aggregate MIR leaf has an empty projection path",
+        ));
+    }
+    let mut ty = root;
+    let mut offset = 0_u64;
+    for element in path {
+        match (element, ty) {
+            (crate::mir::AggregateElement::Field(index), crate::abi::AbiType::Struct(fields)) => {
+                let layout = crate::abi::layout_struct(fields)
+                    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+                let field = fields.get(*index).ok_or_else(|| {
+                    invalid_mir_diagnostics("aggregate MIR field path is outside its struct")
+                })?;
+                let field_layout = layout.fields.get(*index).ok_or_else(|| {
+                    invalid_mir_diagnostics("aggregate MIR field has no ABI layout")
+                })?;
+                offset = offset.checked_add(field_layout.offset).ok_or_else(|| {
+                    invalid_mir_diagnostics("aggregate MIR field offset overflowed")
+                })?;
+                ty = &field.ty;
+            }
+            (
+                crate::mir::AggregateElement::Index(index),
+                crate::abi::AbiType::Array { element, length },
+            ) => {
+                let index = u64::try_from(*index).map_err(|_| {
+                    invalid_mir_diagnostics("aggregate MIR array index is not representable")
+                })?;
+                if index >= *length {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate MIR array index is outside its array",
+                    ));
+                }
+                let stride = crate::abi::array_element_stride(element)
+                    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+                offset = offset
+                    .checked_add(stride.checked_mul(index).ok_or_else(|| {
+                        invalid_mir_diagnostics("aggregate MIR array offset overflowed")
+                    })?)
+                    .ok_or_else(|| {
+                        invalid_mir_diagnostics("aggregate MIR array offset overflowed")
+                    })?;
+                ty = element;
+            }
+            _ => {
+                return Err(invalid_mir_diagnostics(
+                    "aggregate MIR path does not match its aggregate layout",
+                ));
+            }
+        }
+    }
+    let offset = u32::try_from(offset)
+        .map_err(|_| invalid_mir_diagnostics("aggregate MIR leaf offset is not representable"))?;
+    Ok((offset, ty))
+}
+
+fn abi_type_matches_scalar(abi: &crate::abi::AbiType, scalar: ScalarType) -> bool {
+    match scalar {
+        ScalarType::I32 => *abi == crate::abi::AbiType::I32,
+        ScalarType::U8 => *abi == crate::abi::AbiType::U8,
+        ScalarType::Usize => *abi == crate::abi::AbiType::Usize,
+        ScalarType::Bool => *abi == crate::abi::AbiType::Bool,
+        ScalarType::Integer(kind) => abi.integer_type() == Some(kind),
+    }
 }
 
 fn store_aggregate_scalar(

@@ -55,10 +55,7 @@ func main(): i32 {
                 slot_index: 0,
                 offset: 4,
             },
-            BorrowSource::AggregateSlotField {
-                slot_index: 0,
-                offset: 0,
-            },
+            BorrowSource::AggregateSlot(0),
         ]
     );
 }
@@ -707,6 +704,45 @@ fn lowers_zero_length_fixed_array_literal_binding() {
 }
 
 #[test]
+fn mir_projects_fixed_array_literal_leaf_paths_to_abi_offsets() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    let values: [i32; 3] = [10, 20, 30]
+    return 0
+}
+"#,
+        "main",
+    );
+
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(12, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(10),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: i32_const(20),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 8,
+                value: i32_const(30),
+            },
+            set_return_i32(0),
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_zero_length_fixed_array_copy_binding_and_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -1186,20 +1222,23 @@ func consume(left: [u8; 0], right: [u8; 0]): i32 {
                 layout,
             })
     );
-    assert!(main.instructions.contains(&Instruction::CallI32 {
-        destination: I32Location::Local(0),
-        target: CallTarget::same_file("consume"),
-        arguments: vec![
-            ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                source: AggregateArgumentSource::Slot(1),
-                layout,
-                words: 0,
-            }),
-            ScalarArgument::AggregateDirect(DirectAggregateArgument {
-                source: AggregateArgumentSource::Slot(2),
-                layout,
-                words: 0,
-            }),
-        ],
-    }));
+    assert!(
+        main.instructions.contains(&Instruction::CallI32 {
+            destination: I32Location::Local(3),
+            target: CallTarget::same_file("consume"),
+            arguments: vec![
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(1),
+                    layout,
+                    words: 0,
+                }),
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(2),
+                    layout,
+                    words: 0,
+                }),
+            ],
+        }),
+        "{main:?}"
+    );
 }
