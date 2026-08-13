@@ -14,6 +14,16 @@ use crate::resolve::ResolveOutput;
 use crate::semantic::DefId;
 use crate::source::ByteSpan;
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LiteralSyntaxSite {
+    pub(crate) expression_span: ByteSpan,
+    pub(crate) target_span: ByteSpan,
+    pub(crate) argument_span: ByteSpan,
+    pub(crate) left_delimiter_span: ByteSpan,
+    pub(crate) right_delimiter_span: ByteSpan,
+    pub(crate) shape: crate::ast::LiteralShape,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CoercionRequirementSite {
     pub(crate) focus_span: ByteSpan,
@@ -51,6 +61,7 @@ pub(crate) struct EditorSyntaxIndex {
     module_paths: Vec<ModulePath>,
     editor_targets: Vec<EditorTarget>,
     calls: Vec<CallExpr>,
+    literals: Vec<LiteralSyntaxSite>,
     callables: std::collections::HashMap<DefId, CallableSyntax>,
     conformances: Vec<ConformanceDecl>,
     documentation: AttachedDocumentation,
@@ -83,12 +94,18 @@ impl EditorSyntaxIndex {
             .collect::<Vec<_>>();
         module_paths.sort_by_key(|path| (path.span.start, path.span.end));
         let mut calls = Vec::new();
+        let mut literals = Vec::new();
         crate::ast::visit_file_expressions(ast, &mut |expression| {
             if let Expr::Call(call) = expression {
                 calls.push(call.clone());
             }
+            if let Some(literal) = literal_syntax_site(expression) {
+                literals.push(literal);
+            }
         });
         calls.sort_by_key(|call| (call.span.start, call.span.end));
+        literals
+            .sort_by_key(|literal| (literal.expression_span.start, literal.expression_span.end));
         let mut callables = std::collections::HashMap::new();
         let mut conformances = Vec::new();
         for item in &ast.items {
@@ -132,6 +149,7 @@ impl EditorSyntaxIndex {
             module_paths,
             editor_targets,
             calls,
+            literals,
             callables,
             conformances,
             documentation: attach_documentation(ast.span.source, text, &targets),
@@ -174,6 +192,26 @@ impl EditorSyntaxIndex {
         self.callables.get(&definition)
     }
 
+    pub(crate) fn literal_at(
+        &self,
+        offset: usize,
+        include_arguments: bool,
+    ) -> Option<LiteralSyntaxSite> {
+        self.literals
+            .iter()
+            .copied()
+            .filter(|literal| {
+                if include_arguments {
+                    contains_or_touches(literal.argument_span, offset)
+                } else {
+                    contains(literal.target_span, offset)
+                        || contains(literal.left_delimiter_span, offset)
+                        || contains(literal.right_delimiter_span, offset)
+                }
+            })
+            .min_by_key(|literal| (literal.expression_span.len(), literal.expression_span.start))
+    }
+
     pub(crate) fn conformance_at(&self, offset: usize) -> Option<&ConformanceDecl> {
         self.conformances
             .iter()
@@ -199,6 +237,40 @@ impl EditorSyntaxIndex {
                 .min_by_key(|(span, _)| (span.len(), span.start))
                 .and_then(|(_, anchor)| self.documentation.get(anchor.start))
         })
+    }
+}
+
+fn literal_syntax_site(expression: &Expr) -> Option<LiteralSyntaxSite> {
+    match expression {
+        Expr::TypedSequenceLiteral(literal) => {
+            let left = ByteSpan::new(
+                literal.elements_span.source,
+                literal.elements_span.start,
+                (literal.elements_span.start + 1).min(literal.elements_span.end),
+            );
+            let right_start = literal.elements_span.end.saturating_sub(1);
+            Some(LiteralSyntaxSite {
+                expression_span: literal.span,
+                target_span: literal.target.span(),
+                argument_span: literal.elements_span,
+                left_delimiter_span: left,
+                right_delimiter_span: ByteSpan::new(
+                    literal.elements_span.source,
+                    right_start,
+                    literal.elements_span.end,
+                ),
+                shape: crate::ast::LiteralShape::Sequence,
+            })
+        }
+        Expr::TypedStringLiteral(literal) => Some(LiteralSyntaxSite {
+            expression_span: literal.span,
+            target_span: literal.target.span(),
+            argument_span: literal.text.span,
+            left_delimiter_span: literal.text.span,
+            right_delimiter_span: literal.text.span,
+            shape: crate::ast::LiteralShape::String,
+        }),
+        _ => None,
     }
 }
 

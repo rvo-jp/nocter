@@ -4,7 +4,7 @@ use super::literal_specializations::{
     LiteralSpecialization, literal_specialization_for_expression_span,
 };
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{Expr, Item, LiteralDecl, LiteralShape, visit_file_expressions};
+use crate::ast::{Expr, LiteralDecl, LiteralShape};
 use crate::source::ByteSpan;
 use crate::typecheck::type_expr_presentation_label;
 
@@ -41,7 +41,7 @@ pub(crate) fn literal_editor_info_at_offset(
     let site = literal_site_at_offset(file, offset, region)?;
     let specialization =
         literal_specialization_for_expression_span(analysis, file, site.expression_span)?;
-    let declaration = literal_declaration(analysis, specialization.declaration_span)?;
+    let declaration = literal_declaration(analysis, specialization.def_id)?;
     Some(editor_info(file, site, declaration, specialization, offset))
 }
 
@@ -76,42 +76,15 @@ pub(crate) fn literal_definition_target_at_offset(
     ))
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct LiteralSite {
-    expression_span: ByteSpan,
-    target_span: ByteSpan,
-    argument_span: ByteSpan,
-    left_delimiter_span: ByteSpan,
-    right_delimiter_span: ByteSpan,
-    shape: LiteralShape,
-}
+pub(crate) type LiteralSite = super::syntax_index::LiteralSyntaxSite;
 
 fn literal_site_at_offset(
     file: &FileAnalysis,
     offset: usize,
     region: LiteralCursorRegion,
 ) -> Option<LiteralSite> {
-    let mut match_ = None;
-    visit_file_expressions(&file.ast, &mut |expression| {
-        if match_.is_some() {
-            return;
-        }
-        let Some(site) = literal_site(expression) else {
-            return;
-        };
-        let contains = match region {
-            LiteralCursorRegion::Hover => {
-                span_contains(site.target_span, offset)
-                    || span_contains(site.left_delimiter_span, offset)
-                    || span_contains(site.right_delimiter_span, offset)
-            }
-            LiteralCursorRegion::Arguments => span_touches(site.argument_span, offset),
-        };
-        if contains {
-            match_ = Some(site);
-        }
-    });
-    match_
+    file.syntax
+        .literal_at(offset, region == LiteralCursorRegion::Arguments)
 }
 
 pub(crate) fn literal_site(expression: &Expr) -> Option<LiteralSite> {
@@ -172,19 +145,16 @@ fn literal_focus_span(site: LiteralSite, offset: usize) -> ByteSpan {
 
 fn literal_declaration(
     analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
+    definition: crate::semantic::DefId,
 ) -> Option<&LiteralDecl> {
-    analysis
-        .file_by_source(declaration_span.source)?
-        .ast
-        .items
-        .iter()
-        .find_map(|item| match item {
-            Item::Construct(construct) => construct
-                .literals()
-                .find_map(|(_, literal)| (literal.span == declaration_span).then_some(literal)),
-            _ => None,
-        })
+    analysis.files.iter().find_map(|file| {
+        let super::syntax_index::CallableSyntax::Literal(literal) =
+            file.syntax.callable(definition)?
+        else {
+            return None;
+        };
+        Some(literal)
+    })
 }
 
 fn editor_info(

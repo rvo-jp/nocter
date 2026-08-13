@@ -6,11 +6,11 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
     symbol: &Symbol,
 ) -> Option<(String, Option<String>)> {
     let file = analysis.file_by_source(symbol.declaration_span.source)?;
-    let declaration = file
-        .resolved
-        .symbols
-        .symbols()
-        .find(|candidate| candidate.declaration_span == symbol.declaration_span)?;
+    let crate::resolve::ResolvedDeclaration::Symbol(declaration) =
+        file.resolved.declaration(symbol.def_id)?
+    else {
+        return None;
+    };
     let label = match &declaration.kind {
         SymbolKind::Function(signature) => {
             crate::analysis::presentation::callable_signature_presentation(

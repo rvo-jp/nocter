@@ -10,6 +10,7 @@ mod collector;
 mod compile_unit_context;
 mod conformance;
 mod constructions;
+mod declaration_index;
 mod diagnostics;
 mod generic_requirements;
 mod imports;
@@ -39,6 +40,7 @@ pub use symbols::{
 };
 
 pub(crate) use compile_unit_context::ResolveCompileUnitContext;
+pub(crate) use declaration_index::ResolvedDeclaration;
 use module_index::ModuleIndex;
 
 use crate::ast::{AstFile, Item};
@@ -163,6 +165,7 @@ pub(crate) fn resolve_compile_unit_with_context(
     crate::timing::measure_detail("resolve.callable_bodies", || {
         resolver.resolve_callable_bodies(root)
     });
+    resolver.output.rebuild_declaration_index();
     resolver.output
 }
 

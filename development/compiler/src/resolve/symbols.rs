@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::builtin_surfaces::BuiltinTypeSurface;
+use super::declaration_index::DeclarationIndex;
 use super::generic_requirements::GenericRequirements;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,9 +47,18 @@ pub struct ResolveOutput {
     pub(crate) callable_bodies: CallableBodyIndex,
     pub(crate) source_modules: SourceModuleMap,
     pub(crate) source_scopes: SourceScopeMap,
+    declaration_index: DeclarationIndex,
 }
 
 impl ResolveOutput {
+    pub(crate) fn declaration(&self, definition: DefId) -> Option<super::ResolvedDeclaration<'_>> {
+        self.declaration_index.get(self, definition)
+    }
+
+    pub(super) fn rebuild_declaration_index(&mut self) {
+        self.declaration_index = DeclarationIndex::build(self);
+    }
+
     pub(crate) fn canonical_callable_definition(&self, span: ByteSpan) -> Option<DefId> {
         let definition = self.semantic_db.definition_at(span)?;
         Some(self.callable_bodies.canonical_definition(definition))
@@ -337,10 +347,6 @@ impl ResolveOutput {
             .and_then(|owner| self.builtin_type_surfaces.get(&owner))
     }
 
-    pub(crate) fn builtin_type_surfaces(&self) -> impl Iterator<Item = &BuiltinTypeSurface> + '_ {
-        self.builtin_type_surfaces.values()
-    }
-
     pub(crate) fn builtin_owner_for_symbol(&self, symbol: &TypeSymbol) -> Option<BuiltinTypeOwner> {
         self.builtin_type_surfaces
             .values()
@@ -441,6 +447,7 @@ impl ResolveOutput {
             callable_bodies: CallableBodyIndex::default(),
             source_modules: SourceModuleMap::default(),
             source_scopes: SourceScopeMap::default(),
+            declaration_index: DeclarationIndex::default(),
         }
     }
 
