@@ -494,7 +494,8 @@ pub(super) fn scalar_expression_is_supported(
         }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
-                || scalar_comparison_is_supported(binary, typed_hir))
+                || scalar_comparison_is_supported(binary, typed_hir)
+                || scalar_logical_is_supported(binary, typed_hir))
                 && scalar_expression_is_supported(
                     &binary.left,
                     resolved,
@@ -514,6 +515,16 @@ pub(super) fn scalar_expression_is_supported(
         Expr::If(_) => false,
         _ => false,
     }
+}
+
+fn scalar_logical_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
+    matches!(
+        binary.operator,
+        crate::ast::BinaryOperator::LogicalAnd | crate::ast::BinaryOperator::LogicalOr
+    ) && known_expression_type(&binary.left, typed_hir).and_then(|ty| scalar_type(ty, typed_hir))
+        == Some(super::ScalarType::Bool)
+        && known_expression_type(&binary.right, typed_hir).and_then(|ty| scalar_type(ty, typed_hir))
+            == Some(super::ScalarType::Bool)
 }
 
 fn scalar_outcome_call_is_supported(

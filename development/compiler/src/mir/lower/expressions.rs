@@ -116,6 +116,25 @@ pub(super) fn lower_expression_to_place(
         .expression(expression.span())
         .ok_or(BuildError::MissingTypedExpression)?
         .id;
+    if let Expr::Binary(binary) = expression
+        && matches!(
+            binary.operator,
+            crate::ast::BinaryOperator::LogicalAnd | crate::ast::BinaryOperator::LogicalOr
+        )
+    {
+        return lower_short_circuit_to_place(
+            destination,
+            binary,
+            ty,
+            semantic,
+            locals,
+            local_declarations,
+            projections,
+            control_flow,
+            scope,
+            source,
+        );
+    }
     let value = match expression {
         Expr::Binary(binary) => {
             if let Some(operator) = mir_binary_operator(binary.operator) {
@@ -278,6 +297,76 @@ pub(super) fn lower_expression_to_place(
         origin: crate::mir::Origin::Expression(source),
     })?;
     Ok(())
+}
+
+fn lower_short_circuit_to_place(
+    destination: LocalId,
+    binary: &crate::ast::BinaryExpr,
+    ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    local_declarations: &mut Vec<crate::mir::Local>,
+    projections: &mut Vec<crate::mir::ProjectionPath>,
+    control_flow: &mut ControlFlowBuilder,
+    scope: ScopeId,
+    source: crate::semantic::ExprId,
+) -> Result<(), BuildError> {
+    let left = lower_operand(
+        &binary.left,
+        ty,
+        ScalarType::Bool,
+        semantic,
+        locals,
+        local_declarations,
+        projections,
+        control_flow,
+        scope,
+    )?;
+    let right_target = control_flow.reserve_block(scope);
+    let short_target = control_flow.reserve_block(scope);
+    let join_target = control_flow.reserve_block(scope);
+    let (then_target, else_target, short_value) = match binary.operator {
+        crate::ast::BinaryOperator::LogicalAnd => (right_target, short_target, 0),
+        crate::ast::BinaryOperator::LogicalOr => (short_target, right_target, 1),
+        _ => return Err(BuildError::UnsupportedClaimedExpression),
+    };
+    control_flow.terminate(crate::mir::Terminator::Switch {
+        condition: left,
+        then_target,
+        else_target,
+    })?;
+
+    control_flow.select_block(short_target)?;
+    control_flow.push_statement(Statement::Assign {
+        destination: Place::local(destination),
+        value: Rvalue::Use(Operand::Constant(crate::mir::Constant {
+            ty,
+            scalar: ScalarType::Bool,
+            value: short_value,
+        })),
+        origin: crate::mir::Origin::Expression(source),
+    })?;
+    control_flow.terminate(crate::mir::Terminator::Goto {
+        target: join_target,
+    })?;
+
+    control_flow.select_block(right_target)?;
+    lower_expression_to_place(
+        destination,
+        &binary.right,
+        ty,
+        ScalarType::Bool,
+        semantic,
+        locals,
+        local_declarations,
+        projections,
+        control_flow,
+        scope,
+    )?;
+    control_flow.terminate(crate::mir::Terminator::Goto {
+        target: join_target,
+    })?;
+    control_flow.select_block(join_target)
 }
 
 pub(super) fn lower_operand(

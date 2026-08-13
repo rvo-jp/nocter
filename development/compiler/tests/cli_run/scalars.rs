@@ -387,3 +387,44 @@ func right_count(): usize {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_short_circuits_boolean_rhs() {
+    let project = TempProject::new("cli-run-short-circuit-boolean-rhs");
+    let source = project.write_source(
+        "short_circuit_boolean_rhs.nct",
+        r#"func zero(): i32 {
+    return 0
+}
+
+func skipped_by_and(): bool {
+    return false && (1 / zero() == 0)
+}
+
+func skipped_by_or(): bool {
+    return true || (1 / zero() == 0)
+}
+
+func main(): i32 {
+    if skipped_by_and() {
+        return 1
+    }
+    if skipped_by_or() {
+        return 42
+    }
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

@@ -219,6 +219,58 @@ fn builds_wide_integer_arithmetic_with_canonical_kind() {
 }
 
 #[test]
+fn builds_short_circuit_boolean_control_flow() {
+    let (_sources, analysis) = analyze_text(
+        r#"func both(left: bool, right: bool): bool {
+    return left && right
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "both" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::Bool,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("short-circuit boolean expression must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks.len(), 4);
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Switch { .. }
+    ));
+    assert!(matches!(
+        body.blocks[1].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Use(Operand::Copy(_)),
+            ..
+        }]
+    ));
+    assert!(matches!(
+        body.blocks[2].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Use(Operand::Constant(crate::mir::Constant { value: 0, .. })),
+            ..
+        }]
+    ));
+    assert_eq!(body.blocks[3].terminator, Terminator::Return);
+}
+
+#[test]
 fn builds_typed_control_flow_for_a_scalar_literal_body() {
     let (_sources, analysis) = analyze_text(
         r#"func main(): i32 {

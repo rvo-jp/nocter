@@ -57,6 +57,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   and virtual comparison locals do not consume machine-local slots after condition inlining
 - scalar `while`, unconditional `loop`, and i32/usize range loops, including `break`, `continue`,
   and post-loop shadowing, now use the same retained MIR body in buildability and lowering
+- boolean `&&` and `||` lower to an explicit MIR switch with distinct right-hand and
+  short-circuit paths followed by a shared join; calls and failures on the right-hand side are
+  therefore evaluated only on the selected CFG edge
 - MIR locals now keep checked value representation, ownership behavior, logical storage, and
   source identity as independent contracts; validation rejects invalid combinations and duplicate
   parameter storage before lowering
