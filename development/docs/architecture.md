@@ -98,6 +98,11 @@ buildability is MIR validation rather than a parallel AST model.
   paths to a common join. Trapping fallible calls use separate success and trap successors rather
   than an AST-only failure flag. Unsupported body families are selected before MIR construction and
   remain on the named migration route; a selected MIR body never falls back.
+- MIR locals keep semantic type, runtime representation, ownership behavior, logical storage,
+  source identity, and lexical scope as separate checked contracts. Basic blocks retain the same
+  `ScopeId` tree, so cleanup construction can derive every exited scope from CFG edges.
+  Machine-local slot projection is a later conversion and may omit only proven
+  single-definition/single-use values.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain

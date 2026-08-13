@@ -183,7 +183,11 @@
   ordered blocks and explicit result places. Structural MIR-to-IR conversion follows linear branch
   paths to a common join. Trapping fallible calls use separate success and trap successors rather
   than an AST-only failure flag. Unsupported body families are selected before MIR construction and
-  remain on the named migration route; a selected MIR body never falls back.</li><li>IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.</li><li>Optional and fallible layers retain distinct IR type identities even when they share a callable
+  remain on the named migration route; a selected MIR body never falls back.</li><li>MIR locals keep semantic type, runtime representation, ownership behavior, logical storage,
+  source identity, and lexical scope as separate checked contracts. Basic blocks retain the same
+  <code>ScopeId</code> tree, so cleanup construction can derive every exited scope from CFG edges.
+  Machine-local slot projection is a later conversion and may omit only proven
+  single-definition/single-use values.</li><li>IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.</li><li>Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain
   fallible-only.</li><li>ABI classification is centralized in <code>abi</code> and shared by lowering and backend validation.</li><li>Unsupported user source stops at buildability; backend validation remains a guard against drifted
   or hand-built IR.</li><li>Target-specific syscalls and encoding stay inside backend/target and target-gated standard-library
