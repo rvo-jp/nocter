@@ -26,6 +26,7 @@ pub(crate) struct Local {
 pub(crate) enum LocalSource {
     Return,
     Binding(LocalSymbolId),
+    Temporary(ExprId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +52,12 @@ pub(crate) struct Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
+    Binary {
+        operator: BinaryOperator,
+        left: Operand,
+        right: Operand,
+        ty: TyId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,15 +73,16 @@ pub(crate) struct Constant {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Terminator {
     Goto { target: BasicBlockId },
     Return,
-}
-
-impl Rvalue {
-    pub(crate) fn operand(&self) -> &Operand {
-        match self {
-            Self::Use(operand) => operand,
-        }
-    }
 }

@@ -3,7 +3,7 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue};
-use crate::mir::{Body, Operand, Place, Rvalue, Statement, Terminator};
+use crate::mir::{BinaryOperator, Body, Operand, Place, Rvalue, Statement, Terminator};
 use std::collections::HashSet;
 
 pub(super) fn lower_scalar_body(
@@ -22,24 +22,48 @@ pub(super) fn lower_scalar_body(
         let block = &body.blocks[current.index()];
         for statement in &block.statements {
             let Statement::Assign {
-                destination,
-                value: Rvalue::Use(operand),
-                ..
+                destination, value, ..
             } = statement;
             match return_type {
                 Type::I32 => {
-                    let value = lower_i32_operand(operand, body)?;
-                    instructions.push(Instruction::SetI32 {
-                        destination: i32_location(destination, body)?,
-                        value,
-                    });
+                    let destination = i32_location(destination, body)?;
+                    match value {
+                        Rvalue::Use(operand) => instructions.push(Instruction::SetI32 {
+                            destination,
+                            value: lower_i32_operand(operand, body)?,
+                        }),
+                        Rvalue::Binary {
+                            operator,
+                            left,
+                            right,
+                            ..
+                        } => instructions.push(i32_binary_instruction(
+                            *operator,
+                            destination,
+                            lower_i32_operand(left, body)?,
+                            lower_i32_operand(right, body)?,
+                        )),
+                    }
                 }
                 Type::Usize => {
-                    let value = lower_usize_operand(operand, body)?;
-                    instructions.push(Instruction::SetUsize {
-                        destination: usize_location(destination, body)?,
-                        value,
-                    });
+                    let destination = usize_location(destination, body)?;
+                    match value {
+                        Rvalue::Use(operand) => instructions.push(Instruction::SetUsize {
+                            destination,
+                            value: lower_usize_operand(operand, body)?,
+                        }),
+                        Rvalue::Binary {
+                            operator,
+                            left,
+                            right,
+                            ..
+                        } => instructions.push(usize_binary_instruction(
+                            *operator,
+                            destination,
+                            lower_usize_operand(left, body)?,
+                            lower_usize_operand(right, body)?,
+                        )),
+                    }
                 }
                 _ => {
                     return Err(invalid_mir_diagnostics(
@@ -56,6 +80,76 @@ pub(super) fn lower_scalar_body(
                 return Ok(instructions);
             }
         }
+    }
+}
+
+fn i32_binary_instruction(
+    operator: BinaryOperator,
+    destination: I32Location,
+    left: I32Value,
+    right: I32Value,
+) -> Instruction {
+    match operator {
+        BinaryOperator::Add => Instruction::AddI32 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Subtract => Instruction::SubtractI32 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Multiply => Instruction::MultiplyI32 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Divide => Instruction::DivideI32 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Remainder => Instruction::RemainderI32 {
+            destination,
+            left,
+            right,
+        },
+    }
+}
+
+fn usize_binary_instruction(
+    operator: BinaryOperator,
+    destination: UsizeLocation,
+    left: UsizeValue,
+    right: UsizeValue,
+) -> Instruction {
+    match operator {
+        BinaryOperator::Add => Instruction::AddUsize {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Subtract => Instruction::SubtractUsize {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Multiply => Instruction::MultiplyUsize {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Divide => Instruction::DivideUsize {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Remainder => Instruction::RemainderUsize {
+            destination,
+            left,
+            right,
+        },
     }
 }
 

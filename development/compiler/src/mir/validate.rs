@@ -25,6 +25,12 @@ pub(crate) enum ValidationError {
         statement: usize,
         local: LocalId,
     },
+    OperandTypeMismatch {
+        block: BasicBlockId,
+        statement: usize,
+        expected: TyId,
+        actual: TyId,
+    },
     MissingTarget {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -54,26 +60,35 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 });
                 continue;
             };
-            let value_ty = match value.operand() {
-                Operand::Constant(constant) => constant.ty,
-                Operand::Copy(place) => {
-                    let Some(local) = body.locals.get(place.local.index()) else {
-                        errors.push(ValidationError::MissingOperandLocal {
-                            block: block_id,
-                            statement: statement_index,
-                            local: place.local,
-                        });
-                        continue;
-                    };
-                    local.ty
+            let value_ty = match value {
+                super::model::Rvalue::Use(operand) => {
+                    operand_type(body, block_id, statement_index, operand, &mut errors)
+                }
+                super::model::Rvalue::Binary {
+                    left, right, ty, ..
+                } => {
+                    for operand in [left, right] {
+                        if let Some(actual) =
+                            operand_type(body, block_id, statement_index, operand, &mut errors)
+                            && actual != *ty
+                        {
+                            errors.push(ValidationError::OperandTypeMismatch {
+                                block: block_id,
+                                statement: statement_index,
+                                expected: *ty,
+                                actual,
+                            });
+                        }
+                    }
+                    Some(*ty)
                 }
             };
-            if destination_local.ty != value_ty {
+            if value_ty.is_some_and(|value_ty| destination_local.ty != value_ty) {
                 errors.push(ValidationError::AssignmentTypeMismatch {
                     block: block_id,
                     statement: statement_index,
                     destination: destination_local.ty,
-                    value: value_ty,
+                    value: value_ty.unwrap(),
                 });
             }
         }
@@ -93,6 +108,29 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn operand_type(
+    body: &Body,
+    block: BasicBlockId,
+    statement: usize,
+    operand: &Operand,
+    errors: &mut Vec<ValidationError>,
+) -> Option<TyId> {
+    match operand {
+        Operand::Constant(constant) => Some(constant.ty),
+        Operand::Copy(place) => match body.locals.get(place.local.index()) {
+            Some(local) => Some(local.ty),
+            None => {
+                errors.push(ValidationError::MissingOperandLocal {
+                    block,
+                    statement,
+                    local: place.local,
+                });
+                None
+            }
+        },
     }
 }
 
