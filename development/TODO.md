@@ -89,6 +89,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - explicit integer `as` expressions selected as exact or lossless by type checking retain source
   and target `TyId`/scalar identities in MIR; the verifier independently rejects lossy casts and
   backend projection performs the required sign or zero extension
+- scalar compound assignments normalize to one MIR read-modify-write assignment using the same
+  checked binary operators as ordinary expressions; all integer storage classes share this route
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

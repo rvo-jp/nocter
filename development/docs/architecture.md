@@ -159,6 +159,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Integer casts enter MIR only from exact or lossless conversion decisions retained by typed HIR.
   The MIR cast records both semantic types and scalar representations, validation checks range
   inclusion again, and backend projection alone materializes sign or zero extension.
+- Scalar compound assignments are represented as ordinary MIR read-modify-write assignments.
+  Their operators share the same closed `BinaryOperator` domain as expression arithmetic, so
+  machine lowering does not infer compound semantics from an AST assignment token.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

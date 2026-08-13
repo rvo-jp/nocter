@@ -565,6 +565,19 @@ pub(super) fn mir_binary_operator(operator: crate::ast::BinaryOperator) -> Optio
     }
 }
 
+pub(super) fn mir_assignment_operator(
+    operator: crate::ast::AssignmentOperator,
+) -> Option<BinaryOperator> {
+    match operator {
+        crate::ast::AssignmentOperator::AddAssign => Some(BinaryOperator::Add),
+        crate::ast::AssignmentOperator::SubtractAssign => Some(BinaryOperator::Subtract),
+        crate::ast::AssignmentOperator::MultiplyAssign => Some(BinaryOperator::Multiply),
+        crate::ast::AssignmentOperator::DivideAssign => Some(BinaryOperator::Divide),
+        crate::ast::AssignmentOperator::RemainderAssign => Some(BinaryOperator::Remainder),
+        crate::ast::AssignmentOperator::Assign => None,
+    }
+}
+
 pub(super) fn mir_comparison_operator(
     operator: crate::ast::BinaryOperator,
 ) -> Option<ComparisonOperator> {

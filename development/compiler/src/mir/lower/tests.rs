@@ -513,7 +513,7 @@ fn builds_typed_control_flow_for_a_scalar_literal_body() {
 }
 
 #[test]
-fn does_not_claim_a_body_with_runtime_statements() {
+fn builds_compound_assignment_as_read_modify_write() {
     let (_sources, analysis) = analyze_text(
         r#"func main(): i32 {
     var value = 42
@@ -534,17 +534,30 @@ fn does_not_claim_a_body_with_runtime_statements() {
         })
         .unwrap();
 
-    assert!(
-        try_build_scalar_body(
-            block,
-            &[],
-            ScalarType::I32,
-            &analysis.semantic_db,
-            &file.resolved,
-            &file.typed_hir,
-        )
-        .is_none()
-    );
+    let body = try_build_scalar_body(
+        block,
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("compound assignment must select MIR")
+    .unwrap();
+
+    assert_eq!(body.blocks[0].statements.len(), 3);
+    assert!(matches!(
+        &body.blocks[0].statements[1],
+        Statement::Assign {
+            value: Rvalue::Binary {
+                operator: crate::mir::BinaryOperator::Add,
+                left: Operand::Copy(place),
+                ..
+            },
+            destination,
+            ..
+        } if place == destination
+    ));
 }
 
 #[test]

@@ -5,7 +5,7 @@ use super::coverage::{
     ScalarStatement, binding_scalar_type, known_expression_type, scalar_linear_block_statements,
     scalar_loop_block_statements,
 };
-use super::expressions::{lower_expression_to_place, lower_operand};
+use super::expressions::{lower_expression_to_place, lower_operand, mir_assignment_operator};
 use super::{BuildError, SemanticInputs};
 use crate::ast::Expr;
 use crate::mir::{
@@ -116,7 +116,34 @@ impl<'a> StatementLowerer<'a> {
                     let scalar = declaration
                         .scalar_type()
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    self.lower_value(local, &assignment.value, ty, scalar, scope)?;
+                    if assignment.operator == crate::ast::AssignmentOperator::Assign {
+                        self.lower_value(local, &assignment.value, ty, scalar, scope)?;
+                    } else {
+                        let operator = mir_assignment_operator(assignment.operator)
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                        let right = lower_operand(
+                            &assignment.value,
+                            ty,
+                            scalar,
+                            self.semantic,
+                            self.locals_by_symbol,
+                            self.locals,
+                            self.projections,
+                            self.control_flow,
+                            self.scopes,
+                            scope,
+                        )?;
+                        self.control_flow.push_statement(Statement::Assign {
+                            destination: Place::local(local),
+                            value: Rvalue::Binary {
+                                operator,
+                                left: Operand::Copy(Place::local(local)),
+                                right,
+                                ty,
+                            },
+                            origin: Origin::Desugared(assignment.operator_span),
+                        })?;
+                    }
                     false
                 }
                 ScalarStatement::While(statement) => {

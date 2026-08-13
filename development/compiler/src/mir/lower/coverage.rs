@@ -3,7 +3,7 @@
 //! construction and validation errors are authoritative.
 
 use super::SemanticInputs;
-use super::expressions::{mir_binary_operator, mir_comparison_operator};
+use super::expressions::{mir_assignment_operator, mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
     Stmt, WhileStmt,
@@ -210,7 +210,8 @@ impl<'a> ScalarStatement<'a> {
                     )
             }
             Self::Assignment(assignment) => {
-                assignment.operator == AssignmentOperator::Assign
+                (assignment.operator == AssignmentOperator::Assign
+                    || mir_assignment_operator(assignment.operator).is_some())
                     && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()))
                     && known_expression_type(&assignment.value, typed_hir).is_some()
                     && scalar_expression_is_supported(

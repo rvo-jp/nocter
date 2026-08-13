@@ -228,7 +228,9 @@
   their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
   inversion; lowering does not erase the authored operation before validation.</li><li>Integer casts enter MIR only from exact or lossless conversion decisions retained by typed HIR.
   The MIR cast records both semantic types and scalar representations, validation checks range
-  inclusion again, and backend projection alone materializes sign or zero extension.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
+  inclusion again, and backend projection alone materializes sign or zero extension.</li><li>Scalar compound assignments are represented as ordinary MIR read-modify-write assignments.
+  Their operators share the same closed <code>BinaryOperator</code> domain as expression arithmetic, so
+  machine lowering does not infer compound semantics from an AST assignment token.</li><li>Primitive declarations are recognized as a closed <code>IntrinsicId</code> at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.</li><li>MIR builders produce a construction-only body and pass it through one <code>finalize</code> boundary.
   Finalization validates definite initialization, materializes cleanup edges, and validates the
