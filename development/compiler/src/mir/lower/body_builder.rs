@@ -103,7 +103,7 @@ impl ControlFlowBuilder {
             callee,
             arguments,
             continuation: CallContinuation::Return {
-                destination: Place { local: destination },
+                destination: Place::local(destination),
                 target,
             },
         })?;
@@ -170,7 +170,7 @@ impl ControlFlowBuilder {
             callee,
             arguments,
             continuation: CallContinuation::Outcome {
-                destination: Place { local: destination },
+                destination: Place::local(destination),
                 success,
                 failure,
             },

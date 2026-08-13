@@ -187,7 +187,10 @@
   source identity, and lexical scope as separate checked contracts. Basic blocks retain the same
   <code>ScopeId</code> tree, so cleanup construction can derive every exited scope from CFG edges.
   Machine-local slot projection is a later conversion and may omit only proven
-  single-definition/single-use values.</li><li>Definite initialization is a MIR fixed point over CFG edges. Joins intersect initialized-local
+  single-definition/single-use values.</li><li>Aggregate places are a base <code>LocalId</code> plus an optional validated <code>ProjectionPathId</code>. Projection
+  records retain parent identity, checked result type and ownership, and field offset or checked
+  index layout; backend lowering never interprets an AST member or index expression to recover a
+  storage path.</li><li>Definite initialization is a MIR fixed point over CFG edges. Joins intersect initialized-local
   sets, ordinary calls initialize their destination on the return edge, and fallible calls do so
   only on the success edge. Machine IR therefore never guesses whether a reachable operand or
   return place contains a value.</li><li>Owned cleanup and borrows use separate path-sensitive MIR analyses over the same typed dense-set

@@ -337,6 +337,7 @@ mod tests {
             blocks,
             loop_regions: Vec::new(),
             loans: Vec::new(),
+            projections: Vec::new(),
         }
     }
 
@@ -349,9 +350,7 @@ mod tests {
     }
 
     fn owned_place() -> Place {
-        Place {
-            local: LocalId::from_index(1),
-        }
+        Place::local(LocalId::from_index(1))
     }
 
     #[test]

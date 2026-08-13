@@ -416,9 +416,7 @@ mod tests {
             ));
             loans.push(Loan {
                 id: LoanId::from_index(index),
-                source: Place {
-                    local: LocalId::from_index(1),
-                },
+                source: Place::local(LocalId::from_index(1)),
                 destination,
                 kind,
                 scope,
@@ -436,6 +434,7 @@ mod tests {
             blocks,
             loop_regions: Vec::new(),
             loans,
+            projections: Vec::new(),
         }
     }
 
@@ -480,12 +479,8 @@ mod tests {
                 vec![
                     loan_statement(true, 0),
                     Statement::Assign {
-                        destination: Place {
-                            local: LocalId::from_index(0),
-                        },
-                        value: Rvalue::Use(Operand::Move(Place {
-                            local: LocalId::from_index(1),
-                        })),
+                        destination: Place::local(LocalId::from_index(0)),
+                        value: Rvalue::Use(Operand::Move(Place::local(LocalId::from_index(1)))),
                         origin: Origin::Expression(ExprId::from_index(1)),
                     },
                     loan_statement(false, 0),

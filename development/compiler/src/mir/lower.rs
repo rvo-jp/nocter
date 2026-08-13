@@ -252,6 +252,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             blocks,
             loop_regions,
             loans: Vec::new(),
+            projections: Vec::new(),
         };
         validate(&body).map_err(BuildError::InvalidMir)?;
         Ok(body)

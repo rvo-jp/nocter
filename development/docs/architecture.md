@@ -103,6 +103,10 @@ buildability is MIR validation rather than a parallel AST model.
   `ScopeId` tree, so cleanup construction can derive every exited scope from CFG edges.
   Machine-local slot projection is a later conversion and may omit only proven
   single-definition/single-use values.
+- Aggregate places are a base `LocalId` plus an optional validated `ProjectionPathId`. Projection
+  records retain parent identity, checked result type and ownership, and field offset or checked
+  index layout; backend lowering never interprets an AST member or index expression to recover a
+  storage path.
 - Definite initialization is a MIR fixed point over CFG edges. Joins intersect initialized-local
   sets, ordinary calls initialize their destination on the return edge, and fallible calls do so
   only on the success edge. Machine IR therefore never guesses whether a reachable operand or

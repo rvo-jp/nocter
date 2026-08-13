@@ -82,6 +82,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   borrows, mutation or move while borrowed, path-dependent invalid ends, and live loans at exits
 - initialization, ownership obligations, and loans share one typed dense-set implementation while
   keeping their `LocalId` and `LoanId` domains statically distinct
+- aggregate fields and indexes use body-local `ProjectionPathId` records rooted at a `LocalId`;
+  each path retains its checked type, representation, ownership, parent path, and layout operation,
+  so later analyses do not recover field or index meaning from AST member expressions
 - the next checkpoint routes owned aggregate locals through MIR and materializes explicit cleanup
   blocks from validated scope transitions
 

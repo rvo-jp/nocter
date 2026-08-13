@@ -382,13 +382,11 @@ impl<'a> StatementLowerer<'a> {
             .terminate(Terminator::Goto { target: header })?;
         self.control_flow.select_block(header)?;
         self.control_flow.push_statement(Statement::Assign {
-            destination: Place {
-                local: condition_local,
-            },
+            destination: Place::local(condition_local),
             value: Rvalue::Compare {
                 operator: ComparisonOperator::Less,
-                left: Operand::Copy(Place { local: value }),
-                right: Operand::Copy(Place { local: end }),
+                left: Operand::Copy(Place::local(value)),
+                right: Operand::Copy(Place::local(end)),
                 operand_ty: ty,
                 operand_scalar: scalar,
                 result_ty: bool_ty,
@@ -396,9 +394,7 @@ impl<'a> StatementLowerer<'a> {
             origin: Origin::Desugared(statement.range_span),
         })?;
         self.control_flow.terminate(Terminator::Switch {
-            condition: Operand::Copy(Place {
-                local: condition_local,
-            }),
+            condition: Operand::Copy(Place::local(condition_local)),
             then_target: body,
             else_target: exit,
         })?;
@@ -429,10 +425,10 @@ impl<'a> StatementLowerer<'a> {
 
         self.control_flow.select_block(increment)?;
         self.control_flow.push_statement(Statement::Assign {
-            destination: Place { local: value },
+            destination: Place::local(value),
             value: Rvalue::Binary {
                 operator: BinaryOperator::Add,
-                left: Operand::Copy(Place { local: value }),
+                left: Operand::Copy(Place::local(value)),
                 right: Operand::Constant(crate::mir::model::Constant {
                     ty,
                     scalar,

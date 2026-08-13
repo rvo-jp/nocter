@@ -1,9 +1,11 @@
 //! Structural MIR verification. Validation errors are compiler invariant
 //! failures, not alternate source-language diagnostics.
 
-use super::ids::{BasicBlockId, LocalId};
+use super::ids::{BasicBlockId, LocalId, ProjectionPathId};
 use super::locals::{LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation};
-use super::model::{Body, CallContinuation, Operand, Statement, Terminator};
+use super::model::{
+    Body, CallContinuation, Operand, ProjectionElement, ProjectionPath, Statement, Terminator,
+};
 use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,6 +13,31 @@ pub(crate) enum ValidationError {
     Initialization(super::initialization::InitializationError),
     DropObligation(super::drop_obligations::DropObligationError),
     Loan(super::loans::LoanError),
+    InvalidProjectionIdentity(ProjectionPathId),
+    MissingProjectionBase {
+        projection: ProjectionPathId,
+        local: LocalId,
+    },
+    InvalidProjectionParent {
+        projection: ProjectionPathId,
+        parent: ProjectionPathId,
+    },
+    ProjectionBaseMismatch {
+        projection: ProjectionPathId,
+        expected: LocalId,
+        actual: LocalId,
+    },
+    ProjectionOfScalar {
+        projection: ProjectionPathId,
+    },
+    InvalidProjectionIndex {
+        projection: ProjectionPathId,
+    },
+    MissingPlaceProjection {
+        block: BasicBlockId,
+        location: OperandLocation,
+        projection: ProjectionPathId,
+    },
     MissingReturnLocal(LocalId),
     MissingRootScope(super::ScopeId),
     InvalidRootScope(super::ScopeId),
@@ -141,6 +168,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     }
     validate_scopes(body, &mut errors);
     validate_local_contracts(body, &mut errors);
+    validate_projection_paths(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
     }
@@ -490,6 +518,58 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
     }
 }
 
+fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
+    for (index, projection) in body.projections.iter().enumerate() {
+        let id = ProjectionPathId::from_index(index);
+        if projection.id != id {
+            errors.push(ValidationError::InvalidProjectionIdentity(id));
+        }
+        let Some(base) = body.locals.get(projection.base.index()) else {
+            errors.push(ValidationError::MissingProjectionBase {
+                projection: id,
+                local: projection.base,
+            });
+            continue;
+        };
+        let parent_representation = match projection.parent {
+            Some(parent) if parent.index() >= index => {
+                errors.push(ValidationError::InvalidProjectionParent {
+                    projection: id,
+                    parent,
+                });
+                continue;
+            }
+            Some(parent) => {
+                let Some(parent_path) = body.projections.get(parent.index()) else {
+                    errors.push(ValidationError::InvalidProjectionParent {
+                        projection: id,
+                        parent,
+                    });
+                    continue;
+                };
+                if parent_path.base != projection.base {
+                    errors.push(ValidationError::ProjectionBaseMismatch {
+                        projection: id,
+                        expected: parent_path.base,
+                        actual: projection.base,
+                    });
+                }
+                parent_path.representation
+            }
+            None => base.representation,
+        };
+        if matches!(parent_representation, ValueRepresentation::Scalar(_)) {
+            errors.push(ValidationError::ProjectionOfScalar { projection: id });
+        }
+        if let ProjectionElement::Index { index, .. } = &projection.element
+            && operand_representation(body, index)
+                != Some(ValueRepresentation::Scalar(ScalarType::Usize))
+        {
+            errors.push(ValidationError::InvalidProjectionIndex { projection: id });
+        }
+    }
+}
+
 fn linear_path_reaches(body: &Body, start: BasicBlockId, destination: BasicBlockId) -> bool {
     let mut current = start;
     let mut visited = std::collections::HashSet::new();
@@ -571,7 +651,8 @@ fn validate_operand_ownership(
     let Some(local) = body.locals.get(place.local.index()) else {
         return;
     };
-    let valid = match (operation, local.ownership) {
+    let ownership = place_projection(body, *place).map_or(local.ownership, |path| path.ownership);
+    let valid = match (operation, ownership) {
         (OperandOwnership::Copy, OwnershipKind::Copy)
         | (OperandOwnership::Copy, OwnershipKind::Borrowed { readwrite: false })
         | (OperandOwnership::Move, OwnershipKind::Move) => true,
@@ -583,7 +664,7 @@ fn validate_operand_ownership(
             location,
             local: place.local,
             operand: operation,
-            ownership: local.ownership,
+            ownership,
         });
     }
 }
@@ -661,10 +742,13 @@ fn validate_target(
 fn operand_representation(body: &Body, operand: &Operand) -> Option<ValueRepresentation> {
     match operand {
         Operand::Constant(constant) => Some(ValueRepresentation::Scalar(constant.scalar)),
-        Operand::Copy(place) | Operand::Move(place) => body
-            .locals
-            .get(place.local.index())
-            .map(|local| local.representation),
+        Operand::Copy(place) | Operand::Move(place) => place_projection(body, *place)
+            .map(|projection| projection.representation)
+            .or_else(|| {
+                body.locals
+                    .get(place.local.index())
+                    .map(|local| local.representation)
+            }),
     }
 }
 
@@ -678,7 +762,23 @@ fn operand_type(
     match operand {
         Operand::Constant(constant) => Some(constant.ty),
         Operand::Copy(place) | Operand::Move(place) => match body.locals.get(place.local.index()) {
-            Some(local) => Some(local.ty),
+            Some(local) => {
+                if let Some(projection) = place.projection {
+                    match body.projections.get(projection.index()) {
+                        Some(path) if path.base == place.local => Some(path.ty),
+                        Some(_) | None => {
+                            errors.push(ValidationError::MissingPlaceProjection {
+                                block,
+                                location,
+                                projection,
+                            });
+                            None
+                        }
+                    }
+                } else {
+                    Some(local.ty)
+                }
+            }
             None => {
                 errors.push(ValidationError::MissingOperandLocal {
                     block,
@@ -689,6 +789,11 @@ fn operand_type(
             }
         },
     }
+}
+
+fn place_projection(body: &Body, place: super::Place) -> Option<&ProjectionPath> {
+    let projection = body.projections.get(place.projection?.index())?;
+    (projection.base == place.local).then_some(projection)
 }
 
 #[cfg(test)]
@@ -725,9 +830,7 @@ mod tests {
                 BasicBlock {
                     scope: root_scope,
                     statements: vec![Statement::Assign {
-                        destination: Place {
-                            local: LocalId::from_index(0),
-                        },
+                        destination: Place::local(LocalId::from_index(0)),
                         value: Rvalue::Use(Operand::Constant(Constant {
                             ty,
                             scalar: ScalarType::I32,
@@ -747,6 +850,7 @@ mod tests {
             ],
             loop_regions: Vec::new(),
             loans: Vec::new(),
+            projections: Vec::new(),
         }
     }
 
@@ -776,9 +880,7 @@ mod tests {
         let mut body = valid_body();
         body.return_local = LocalId::from_index(4);
         body.blocks[0].statements[0] = Statement::Assign {
-            destination: Place {
-                local: LocalId::from_index(0),
-            },
+            destination: Place::local(LocalId::from_index(0)),
             value: Rvalue::Use(Operand::Constant(Constant {
                 ty: TyId::from_index(1),
                 scalar: ScalarType::I32,
@@ -825,9 +927,7 @@ mod tests {
                 scalar: ScalarType::I32,
             }],
             continuation: CallContinuation::Return {
-                destination: Place {
-                    local: LocalId::from_index(4),
-                },
+                destination: Place::local(LocalId::from_index(4)),
                 target: BasicBlockId::from_index(8),
             },
         };
@@ -910,6 +1010,83 @@ mod tests {
     }
 
     #[test]
+    fn accepts_identity_backed_aggregate_field_projection() {
+        let mut body = valid_body();
+        let base = LocalId::from_index(body.locals.len());
+        let ty = body.locals[0].ty;
+        body.locals.push(Local::aggregate(
+            ty,
+            OwnershipKind::Copy,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(span()),
+            body.root_scope,
+        ));
+        body.projections.push(ProjectionPath {
+            id: ProjectionPathId::from_index(0),
+            base,
+            parent: None,
+            element: ProjectionElement::Field { offset: 8 },
+            ty,
+            representation: ValueRepresentation::Scalar(ScalarType::I32),
+            ownership: OwnershipKind::Copy,
+        });
+
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn rejects_projection_from_scalar_base() {
+        let mut body = valid_body();
+        body.projections.push(ProjectionPath {
+            id: ProjectionPathId::from_index(0),
+            base: body.return_local,
+            parent: None,
+            element: ProjectionElement::Field { offset: 0 },
+            ty: body.locals[0].ty,
+            representation: ValueRepresentation::Scalar(ScalarType::I32),
+            ownership: OwnershipKind::Copy,
+        });
+
+        assert!(matches!(
+            validate(&body),
+            Err(errors) if errors.contains(&ValidationError::ProjectionOfScalar {
+                projection: ProjectionPathId::from_index(0),
+            })
+        ));
+    }
+
+    #[test]
+    fn rejects_forward_projection_parent() {
+        let mut body = valid_body();
+        let base = LocalId::from_index(body.locals.len());
+        let ty = body.locals[0].ty;
+        body.locals.push(Local::aggregate(
+            ty,
+            OwnershipKind::Copy,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(span()),
+            body.root_scope,
+        ));
+        body.projections.push(ProjectionPath {
+            id: ProjectionPathId::from_index(0),
+            base,
+            parent: Some(ProjectionPathId::from_index(1)),
+            element: ProjectionElement::Field { offset: 0 },
+            ty,
+            representation: ValueRepresentation::Aggregate,
+            ownership: OwnershipKind::Copy,
+        });
+
+        assert!(matches!(
+            validate(&body),
+            Err(errors) if errors.contains(&ValidationError::InvalidProjectionParent {
+                projection: ProjectionPathId::from_index(0),
+                parent: ProjectionPathId::from_index(1),
+            })
+        ));
+    }
+
+    #[test]
     fn rejects_missing_local_scope() {
         let mut body = valid_body();
         body.locals[0].scope = crate::mir::ScopeId::from_index(4);
@@ -952,12 +1129,8 @@ mod tests {
             body.root_scope,
         ));
         body.blocks[0].statements[0] = Statement::Assign {
-            destination: Place {
-                local: body.return_local,
-            },
-            value: Rvalue::Use(Operand::Copy(Place {
-                local: LocalId::from_index(1),
-            })),
+            destination: Place::local(body.return_local),
+            value: Rvalue::Use(Operand::Copy(Place::local(LocalId::from_index(1)))),
             origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
         };
 
@@ -1002,7 +1175,7 @@ mod tests {
             BasicBlock {
                 scope: body.root_scope,
                 statements: vec![Statement::Assign {
-                    destination: Place { local: value },
+                    destination: Place::local(value),
                     value: Rvalue::Use(Operand::Constant(Constant {
                         ty,
                         scalar: ScalarType::I32,
@@ -1024,10 +1197,8 @@ mod tests {
             BasicBlock {
                 scope: body.root_scope,
                 statements: vec![Statement::Assign {
-                    destination: Place {
-                        local: body.return_local,
-                    },
-                    value: Rvalue::Use(Operand::Copy(Place { local: value })),
+                    destination: Place::local(body.return_local),
+                    value: Rvalue::Use(Operand::Copy(Place::local(value))),
                     origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
                 }],
                 terminator: Terminator::Return,

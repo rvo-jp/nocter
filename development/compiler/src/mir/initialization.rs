@@ -285,7 +285,7 @@ mod tests {
                 scope: root_scope,
                 statements: vec![
                     Statement::Assign {
-                        destination: Place { local: source },
+                        destination: Place::local(source),
                         value: Rvalue::Use(Operand::Constant(Constant {
                             ty,
                             scalar: ScalarType::I32,
@@ -294,17 +294,13 @@ mod tests {
                         origin: Origin::Expression(ExprId::from_index(0)),
                     },
                     Statement::Assign {
-                        destination: Place {
-                            local: LocalId::from_index(0),
-                        },
-                        value: Rvalue::Use(Operand::Move(Place { local: source })),
+                        destination: Place::local(LocalId::from_index(0)),
+                        value: Rvalue::Use(Operand::Move(Place::local(source))),
                         origin: Origin::Expression(ExprId::from_index(1)),
                     },
                     Statement::Assign {
-                        destination: Place {
-                            local: LocalId::from_index(0),
-                        },
-                        value: Rvalue::Use(Operand::Move(Place { local: source })),
+                        destination: Place::local(LocalId::from_index(0)),
+                        value: Rvalue::Use(Operand::Move(Place::local(source))),
                         origin: Origin::Expression(ExprId::from_index(2)),
                     },
                 ],
@@ -312,6 +308,7 @@ mod tests {
             }],
             loop_regions: Vec::new(),
             loans: Vec::new(),
+            projections: Vec::new(),
         };
 
         assert_eq!(

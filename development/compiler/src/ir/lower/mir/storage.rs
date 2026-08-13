@@ -146,7 +146,7 @@ mod tests {
         let root_scope = crate::mir::ScopeId::from_index(0);
         let condition = LocalId::from_index(1);
         let mut statements = vec![Statement::Assign {
-            destination: Place { local: condition },
+            destination: Place::local(condition),
             value: Rvalue::Compare {
                 operator: crate::mir::ComparisonOperator::Equal,
                 left: Operand::Constant(Constant {
@@ -169,10 +169,8 @@ mod tests {
             statements.insert(
                 0,
                 Statement::Assign {
-                    destination: Place {
-                        local: LocalId::from_index(0),
-                    },
-                    value: Rvalue::Use(Operand::Copy(Place { local: condition })),
+                    destination: Place::local(LocalId::from_index(0)),
+                    value: Rvalue::Use(Operand::Copy(Place::local(condition))),
                     origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
                 },
             );
@@ -206,7 +204,7 @@ mod tests {
                     scope: root_scope,
                     statements,
                     terminator: Terminator::Switch {
-                        condition: Operand::Copy(Place { local: condition }),
+                        condition: Operand::Copy(Place::local(condition)),
                         then_target: BasicBlockId::from_index(1),
                         else_target: BasicBlockId::from_index(2),
                     },
@@ -232,6 +230,7 @@ mod tests {
                 exit: BasicBlockId::from_index(2),
             }],
             loans: Vec::new(),
+            projections: Vec::new(),
         }
     }
 

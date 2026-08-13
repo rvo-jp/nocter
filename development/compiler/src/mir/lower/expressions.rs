@@ -218,7 +218,7 @@ pub(super) fn lower_expression_to_place(
         )?),
     };
     control_flow.push_statement(Statement::Assign {
-        destination: Place { local: destination },
+        destination: Place::local(destination),
         value,
         origin: crate::mir::Origin::Expression(source),
     })?;
@@ -279,7 +279,7 @@ pub(super) fn lower_operand(
         control_flow,
         scope,
     )?;
-    Ok(Operand::Copy(Place { local: temporary }))
+    Ok(Operand::Copy(Place::local(temporary)))
 }
 
 fn lower_simple_operand(
@@ -310,9 +310,9 @@ fn lower_simple_operand(
                 .local_symbol_for_identifier(identifier)
                 .map(|symbol| symbol.id)
                 .ok_or(BuildError::MissingLocalSymbol)?;
-            Ok(Operand::Copy(Place {
-                local: *locals.get(&symbol).ok_or(BuildError::MissingLocalSymbol)?,
-            }))
+            Ok(Operand::Copy(Place::local(
+                *locals.get(&symbol).ok_or(BuildError::MissingLocalSymbol)?,
+            )))
         }
         _ => Err(BuildError::UnsupportedClaimedExpression),
     }

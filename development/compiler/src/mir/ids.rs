@@ -20,4 +20,12 @@ macro_rules! mir_id {
 mir_id!(BasicBlockId);
 mir_id!(LocalId);
 mir_id!(LoanId);
+#[allow(
+    dead_code,
+    reason = "aggregate route construction follows the projected-place validation checkpoint"
+)]
+mod projection_path_id {
+    mir_id!(ProjectionPathId);
+}
+pub(crate) use projection_path_id::ProjectionPathId;
 mir_id!(ScopeId);

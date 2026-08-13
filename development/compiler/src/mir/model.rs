@@ -1,8 +1,8 @@
 //! Minimal executable MIR model. New execution forms extend this model before
 //! their AST-driven lowering path is removed.
 
-use super::ids::{BasicBlockId, LoanId, LocalId, ScopeId};
-use super::locals::{Local, ScalarType};
+use super::ids::{BasicBlockId, LoanId, LocalId, ProjectionPathId, ScopeId};
+use super::locals::{Local, OwnershipKind, ScalarType, ValueRepresentation};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
 
@@ -19,6 +19,36 @@ pub(crate) struct Body {
     pub(crate) blocks: Vec<BasicBlock>,
     pub(crate) loop_regions: Vec<LoopRegion>,
     pub(crate) loans: Vec<Loan>,
+    pub(crate) projections: Vec<ProjectionPath>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProjectionPath {
+    pub(crate) id: ProjectionPathId,
+    pub(crate) base: LocalId,
+    pub(crate) parent: Option<ProjectionPathId>,
+    pub(crate) element: ProjectionElement,
+    pub(crate) ty: TyId,
+    pub(crate) representation: ValueRepresentation,
+    pub(crate) ownership: OwnershipKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ProjectionElement {
+    #[allow(
+        dead_code,
+        reason = "aggregate route construction follows the projected-place validation checkpoint"
+    )]
+    Field { offset: u32 },
+    #[allow(
+        dead_code,
+        reason = "aggregate route construction follows the projected-place validation checkpoint"
+    )]
+    Index {
+        index: Operand,
+        length: u64,
+        stride: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +120,27 @@ pub(crate) enum Statement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Place {
     pub(crate) local: LocalId,
+    pub(crate) projection: Option<ProjectionPathId>,
+}
+
+impl Place {
+    pub(crate) const fn local(local: LocalId) -> Self {
+        Self {
+            local,
+            projection: None,
+        }
+    }
+
+    #[allow(
+        dead_code,
+        reason = "aggregate route construction follows the projected-place validation checkpoint"
+    )]
+    pub(crate) const fn projected(local: LocalId, projection: ProjectionPathId) -> Self {
+        Self {
+            local,
+            projection: Some(projection),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
