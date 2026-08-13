@@ -71,6 +71,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   current source while selecting the MIR route
 - copy aggregate parameter forwarding uses MIR call arguments and the validated direct/indirect
   parameter classification; indirect stack-slot arguments prohibit tail-call frame reuse
+- nested field access retains one parent-linked projection segment per checked field and folds
+  relative offsets only at machine-storage projection
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
 - MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop

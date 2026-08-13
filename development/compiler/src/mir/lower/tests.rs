@@ -63,6 +63,59 @@ func first(pair: Pair): i32 {
 }
 
 #[test]
+fn builds_parent_linked_nested_field_projections() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    first: usize
+    second: usize
+}
+
+copy struct Envelope {
+    pair: Pair
+    code: i32
+}
+
+func read(value: Envelope): usize {
+    return value.pair.second
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "read" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::Usize,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("nested aggregate field return must select MIR")
+    .unwrap();
+
+    assert_eq!(body.projections.len(), 2);
+    assert_eq!(body.projections[0].parent, None);
+    assert_eq!(body.projections[1].parent, Some(body.projections[0].id));
+    assert_eq!(
+        body.projections[0].element,
+        ProjectionElement::Field { offset: 0 }
+    );
+    assert_eq!(
+        body.projections[1].element,
+        ProjectionElement::Field { offset: 8 }
+    );
+}
+
+#[test]
 fn builds_a_copy_aggregate_call_argument_from_a_parameter_place() {
     let (_sources, analysis) = analyze_text(
         r#"copy struct Pair {

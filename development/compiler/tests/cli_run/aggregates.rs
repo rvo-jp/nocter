@@ -216,7 +216,7 @@ fn run_command_reads_scalar_after_cross_source_aggregate_field() {
         "types/index.nct",
         r#"pub copy struct Pair {
     pub first: usize
-    pub second: usize
+    pub second: i32
 }
 "#,
     );
@@ -230,16 +230,16 @@ pub copy struct Envelope {
 }
 
 pub func make_value(): Envelope {
-    let pair = Pair { first: 1, second: 2 }
-    return Envelope { pair: pair, code: 42 }
+    let pair = Pair { first: 1, second: 42 }
+    return Envelope { pair: pair, code: 7 }
 }
 
-pub func read_code(value: Envelope): i32 {
-    return value.code
+pub func read_nested(value: Envelope): i32 {
+    return value.pair.second
 }
 
 pub func forward(value: Envelope): i32 {
-    return read_code(value)
+    return read_nested(value)
 }
 "#,
     );

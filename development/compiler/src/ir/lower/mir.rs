@@ -796,16 +796,7 @@ fn aggregate_field_source(
     let Some(projection) = place.projection else {
         return Ok(None);
     };
-    let projection = context
-        .body
-        .projections
-        .get(projection.index())
-        .ok_or_else(|| invalid_mir_diagnostics("aggregate field projection is missing"))?;
-    let crate::mir::ProjectionElement::Field { offset } = projection.element else {
-        return Err(invalid_mir_diagnostics(
-            "indexed aggregate projection has not been projected to machine IR",
-        ));
-    };
+    let offset = aggregate_field_offset(context.body, place.local, projection)?;
     let LocalStorage::Parameter { ordinal } = context.body.locals[place.local.index()].storage
     else {
         return Err(invalid_mir_diagnostics(
@@ -823,6 +814,40 @@ fn aggregate_field_source(
         crate::ir::AggregateLocation::Slot(slot_index),
         offset,
     )))
+}
+
+fn aggregate_field_offset(
+    body: &Body,
+    base: LocalId,
+    mut projection: crate::mir::ProjectionPathId,
+) -> Result<u32, Vec<Diagnostic>> {
+    let mut offset = 0u32;
+    loop {
+        let path = body
+            .projections
+            .get(projection.index())
+            .ok_or_else(|| invalid_mir_diagnostics("aggregate field projection is missing"))?;
+        if path.base != base {
+            return Err(invalid_mir_diagnostics(
+                "aggregate projection changed base local",
+            ));
+        }
+        let crate::mir::ProjectionElement::Field {
+            offset: field_offset,
+        } = path.element
+        else {
+            return Err(invalid_mir_diagnostics(
+                "indexed aggregate projection has not been projected to machine IR",
+            ));
+        };
+        offset = offset
+            .checked_add(field_offset)
+            .ok_or_else(|| invalid_mir_diagnostics("aggregate field offset overflowed"))?;
+        let Some(parent) = path.parent else {
+            return Ok(offset);
+        };
+        projection = parent;
+    }
 }
 
 fn lower_comparison(
