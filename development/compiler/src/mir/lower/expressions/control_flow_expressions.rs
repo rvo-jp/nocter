@@ -39,29 +39,35 @@ pub(in crate::mir::lower) fn lower_conditional_to_place(
     })?;
 
     context.control_flow.select_block(then_target)?;
-    super::super::statements::lower_value_block(
+    let then_returns = super::super::statements::lower_value_block(
         context,
         &conditional.then_block,
         destination,
         ty,
         scalar,
         then_scope,
+        false,
     )?;
-    context.control_flow.terminate(Terminator::Goto {
-        target: join_target,
-    })?;
+    if !then_returns {
+        context.control_flow.terminate(Terminator::Goto {
+            target: join_target,
+        })?;
+    }
 
     context.control_flow.select_block(else_target)?;
-    super::super::statements::lower_value_block(
+    let else_returns = super::super::statements::lower_value_block(
         context,
         else_block,
         destination,
         ty,
         scalar,
         else_scope,
+        false,
     )?;
-    context.control_flow.terminate(Terminator::Goto {
-        target: join_target,
-    })?;
+    if !else_returns {
+        context.control_flow.terminate(Terminator::Goto {
+            target: join_target,
+        })?;
+    }
     context.control_flow.select_block(join_target)
 }

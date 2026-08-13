@@ -176,11 +176,12 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   it into a temporary whole-value slot
 - the next checkpoint represents partially initialized aggregate construction, then migrates the
   remaining optional/catch value and advanced-expression families
-- outcome recovery distinguishes an implicit fallback result from an explicit `return`; the latter
-  cannot enter the value-join route until terminal recovery is represented in MIR
+- value blocks retain whether their tail is an implicit value or an explicit `return`; terminal
+  recovery branches write return storage and exit, while value fallbacks assign the call
+  destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,653 library tests pass at this checkpoint
+- all 2,654 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

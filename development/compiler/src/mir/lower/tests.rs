@@ -2009,6 +2009,60 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_optional_otherwise_with_a_terminal_failure_return() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32? {
+    return none
+}
+
+func main(): i32 {
+    let value = answer() otherwise { return 7 }
+    return value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("terminal otherwise recovery must select MIR")
+    .unwrap();
+
+    let failure = match body.blocks[0].terminator {
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Outcome { failure, .. },
+            ..
+        } => failure,
+        ref terminator => panic!("expected outcome call, got {terminator:?}"),
+    };
+    assert!(matches!(
+        body.blocks[failure.index()].statements.as_slice(),
+        [Statement::Assign {
+            destination,
+            value: Rvalue::Use(Operand::Constant(crate::mir::Constant { value: 7, .. })),
+            ..
+        }] if destination.local == body.return_local
+    ));
+    assert_eq!(body.blocks[failure.index()].terminator, Terminator::Return);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_value_blocks_inside_outcome_recovery() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32? {

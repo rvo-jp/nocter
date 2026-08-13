@@ -30,6 +30,10 @@ pub(super) struct LoweredBodyParts {
 }
 
 impl<'a> LoweringContext<'a> {
+    pub(super) fn return_local(&self) -> LocalId {
+        LocalId::from_index(0)
+    }
+
     pub(super) fn new(
         semantic: SemanticInputs<'a>,
         locals: Vec<Local>,

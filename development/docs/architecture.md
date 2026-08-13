@@ -177,6 +177,8 @@ buildability is MIR validation rather than a parallel AST model.
 - Value-producing branch and outcome-recovery blocks share one statement-plus-tail MIR builder.
   Machine-IR projection structures nested diamonds by their nearest common reachable MIR block,
   so bindings and nested conditionals inside recovery do not require a syntax-shaped backend path.
+  The tail retains whether its value is implicit or an explicit return, so a terminal recovery
+  writes function return storage and exits instead of being mistaken for a value-join edge.
 - Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
   their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
   inversion; lowering does not erase the authored operation before validation.

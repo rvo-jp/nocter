@@ -28,45 +28,56 @@ pub(super) enum ScalarStatement<'a> {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum ScalarTail<'a> {
     Expression(&'a Expr),
+    Return(&'a Expr),
     Conditional(&'a IfStmt),
 }
 
 impl<'a> ScalarTail<'a> {
     pub(super) fn expression(self) -> Option<&'a Expr> {
         match self {
-            Self::Expression(expression) => Some(expression),
+            Self::Expression(expression) | Self::Return(expression) => Some(expression),
             Self::Conditional(_) => None,
         }
     }
 
     pub(super) fn conditional(self) -> Option<&'a IfStmt> {
         match self {
-            Self::Expression(Expr::If(if_)) => Some(if_),
+            Self::Expression(Expr::If(if_)) | Self::Return(Expr::If(if_)) => Some(if_),
             Self::Conditional(if_) => Some(if_),
-            Self::Expression(_) => None,
+            Self::Expression(_) | Self::Return(_) => None,
         }
+    }
+
+    pub(super) fn is_explicit_return(self) -> bool {
+        matches!(self, Self::Return(_))
     }
 
     pub(super) fn is_supported(self, semantic: SemanticInputs<'_>) -> bool {
         match self {
-            Self::Expression(Expr::Call(call)) => scalar_tail_call_is_supported(
-                call,
-                semantic.resolved,
-                semantic.resolved_sources,
-                semantic.typed_hir,
-            ),
-            Self::Expression(Expr::If(if_)) => scalar_conditional_is_supported(
-                if_,
-                semantic.resolved,
-                semantic.resolved_sources,
-                semantic.typed_hir,
-            ),
-            Self::Expression(expression) => scalar_expression_is_supported(
-                expression,
-                semantic.resolved,
-                semantic.resolved_sources,
-                semantic.typed_hir,
-            ),
+            Self::Expression(Expr::Call(call)) | Self::Return(Expr::Call(call)) => {
+                scalar_tail_call_is_supported(
+                    call,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                )
+            }
+            Self::Expression(Expr::If(if_)) | Self::Return(Expr::If(if_)) => {
+                scalar_conditional_is_supported(
+                    if_,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                )
+            }
+            Self::Expression(expression) | Self::Return(expression) => {
+                scalar_expression_is_supported(
+                    expression,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                )
+            }
             Self::Conditional(if_) => scalar_conditional_is_supported(
                 if_,
                 semantic.resolved,
@@ -78,7 +89,9 @@ impl<'a> ScalarTail<'a> {
 
     pub(super) fn result_type(self, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {
         match self {
-            Self::Expression(expression) => known_expression_type(expression, typed_hir),
+            Self::Expression(expression) | Self::Return(expression) => {
+                known_expression_type(expression, typed_hir)
+            }
             Self::Conditional(if_) => scalar_value_block_result_type(&if_.then_block, typed_hir),
         }
     }
@@ -591,7 +604,7 @@ pub(super) fn scalar_body_parts(
     } else {
         let (last, leading) = runtime_statements.split_last()?;
         let tail = match last {
-            Stmt::Return(statement) => ScalarTail::Expression(statement.expression.as_ref()?),
+            Stmt::Return(statement) => ScalarTail::Return(statement.expression.as_ref()?),
             Stmt::If(if_) => ScalarTail::Conditional(if_),
             _ => return None,
         };
@@ -645,7 +658,6 @@ pub(super) fn scalar_expression_is_supported(
                 return false;
             };
             scalar_handled_call_is_supported(call, resolved, resolved_sources, typed_hir)
-                && otherwise.fallback.result.is_some()
                 && scalar_value_block_is_supported(
                     &otherwise.fallback,
                     resolved,
@@ -659,7 +671,6 @@ pub(super) fn scalar_expression_is_supported(
             };
             matches!(catch.binding, crate::ast::CatchBinding::Discard { .. })
                 && scalar_caught_call_is_supported(call, resolved, resolved_sources, typed_hir)
-                && catch.catch_block.result.is_some()
                 && scalar_value_block_is_supported(
                     &catch.catch_block,
                     resolved,

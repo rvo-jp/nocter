@@ -355,9 +355,9 @@ fn outcome_failure_mode(
         _ if control_flow::can_reach(body, failure, success) => Ok(OutcomeFailureMode::Recover {
             instructions: lower_branch_to_join(context, failure, success, visited)?,
         }),
-        _ => Err(invalid_mir_diagnostics(
-            "outcome call failure block has an invalid terminator",
-        )),
+        _ => Ok(OutcomeFailureMode::Handle {
+            instructions: lower_branch_to_join(context, failure, success, visited)?,
+        }),
     }
 }
 
@@ -515,6 +515,21 @@ fn lower_branch_to_join(
                     )?,
                 });
                 current = branch_join;
+            }
+            Terminator::Return => {
+                instructions.push(match body.return_mode {
+                    ReturnMode::Plain => Instruction::Return,
+                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
+                });
+                return Ok(instructions);
+            }
+            Terminator::Trap => {
+                instructions.push(Instruction::Trap);
+                return Ok(instructions);
+            }
+            Terminator::PropagateFailure if body.return_mode == ReturnMode::Fallible => {
+                instructions.push(Instruction::PropagateFailure);
+                return Ok(instructions);
             }
             _ => {
                 return Err(invalid_mir_diagnostics(

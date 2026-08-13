@@ -1871,7 +1871,7 @@ func maybe_text(flag: bool): &str? {
 }
 
 #[test]
-fn reports_terminal_if_inside_otherwise_binding_before_ir_lowering() {
+fn accepts_terminal_if_inside_otherwise_binding_through_mir() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
     let value = source() otherwise {
@@ -1892,12 +1892,7 @@ func source(): i32? {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert_eq!(
-        diagnostics[0].message,
-        "the native compiler cannot lower `otherwise` fallback blocks outside supported binding control flow yet"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

@@ -645,10 +645,17 @@ pub(super) fn lower_value_block(
     ty: crate::semantic::TyId,
     scalar: ScalarType,
     scope: ScopeId,
-) -> Result<(), BuildError> {
+    preserve_explicit_return: bool,
+) -> Result<bool, BuildError> {
     let (statements, tail) =
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
     StatementLowerer::new(context).lower(&statements, scope)?;
+    let returns = preserve_explicit_return && tail.is_explicit_return();
+    let destination = if returns {
+        context.return_local()
+    } else {
+        destination
+    };
     if let Some(conditional) = tail.conditional() {
         super::expressions::lower_conditional_to_place(
             context,
@@ -657,7 +664,7 @@ pub(super) fn lower_value_block(
             ty,
             scalar,
             scope,
-        )
+        )?;
     } else {
         context.lower_expression_to_place(
             destination,
@@ -666,6 +673,10 @@ pub(super) fn lower_value_block(
             ty,
             scalar,
             scope,
-        )
+        )?;
     }
+    if returns {
+        context.control_flow.terminate(Terminator::Return)?;
+    }
+    Ok(returns)
 }
