@@ -5,6 +5,7 @@ use super::locals::{Local, LocalOrigin, LocalStorage, ScalarType};
 use super::model::{Body, ReturnMode, Terminator};
 use super::validate;
 use super::validate::ValidationError;
+use super::{Scope, ScopeId};
 use crate::ast::{Block, Expr, Parameter};
 use crate::resolve::ResolveOutput;
 use crate::semantic::SemanticDb;
@@ -89,11 +90,14 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             .body_at(block.span)
             .ok_or(BuildError::MissingSourceBody)?;
         let return_local = LocalId::from_index(0);
+        let root_scope = ScopeId::from_index(0);
+        let mut scopes = vec![Scope::root(block.span)];
         let mut locals = vec![Local::scalar(
             return_ty,
             return_scalar,
             LocalStorage::Return,
             LocalOrigin::Return,
+            root_scope,
         )];
         let mut locals_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
@@ -111,10 +115,11 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 scalar,
                 LocalStorage::Parameter(index),
                 LocalOrigin::Parameter(symbol),
+                root_scope,
             ));
             locals_by_symbol.insert(symbol, local);
         }
-        let mut control_flow = ControlFlowBuilder::new();
+        let mut control_flow = ControlFlowBuilder::new(root_scope);
         let mut loop_regions = Vec::new();
         StatementLowerer::new(
             resolved,
@@ -123,8 +128,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             &mut locals_by_symbol,
             &mut control_flow,
             &mut loop_regions,
+            &mut scopes,
         )
-        .lower(&source_statements)?;
+        .lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
             let condition_ty = known_expression_type(&if_.condition, typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
@@ -137,6 +143,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 typed_hir,
                 &mut locals,
                 &mut control_flow,
+                root_scope,
             )?;
             let then_result = scalar_branch_result(&if_.then_block)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -145,9 +152,16 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 .as_ref()
                 .and_then(scalar_branch_result)
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            let then_target = control_flow.reserve_block();
-            let else_target = control_flow.reserve_block();
-            let join_target = control_flow.reserve_block();
+            let then_scope = ScopeId::from_index(scopes.len());
+            scopes.push(Scope::child(root_scope, if_.then_block.span));
+            let else_scope = ScopeId::from_index(scopes.len());
+            scopes.push(Scope::child(
+                root_scope,
+                if_.else_block.as_ref().map_or(if_.span, |block| block.span),
+            ));
+            let then_target = control_flow.reserve_block(then_scope);
+            let else_target = control_flow.reserve_block(else_scope);
+            let join_target = control_flow.reserve_block(root_scope);
             control_flow.terminate(Terminator::Switch {
                 condition,
                 then_target,
@@ -164,6 +178,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 typed_hir,
                 &mut locals,
                 &mut control_flow,
+                then_scope,
             )?;
             control_flow.terminate(Terminator::Goto {
                 target: join_target,
@@ -179,6 +194,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 typed_hir,
                 &mut locals,
                 &mut control_flow,
+                else_scope,
             )?;
             control_flow.terminate(Terminator::Goto {
                 target: join_target,
@@ -197,6 +213,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 typed_hir,
                 &mut locals,
                 &mut control_flow,
+                root_scope,
             )?;
             if returns_never {
                 control_flow.emit_never_call(source, callee, arguments)?;
@@ -218,6 +235,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                 typed_hir,
                 &mut locals,
                 &mut control_flow,
+                root_scope,
             )?;
             control_flow.terminate(Terminator::Return)?;
         }
@@ -227,6 +245,8 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             source_span: block.span,
             return_local,
             return_mode,
+            root_scope,
+            scopes,
             locals,
             entry: BasicBlockId::from_index(0),
             blocks,

@@ -469,6 +469,65 @@ func choose(condition: bool): i32 {
 }
 
 #[test]
+fn retains_lexical_scope_identity_for_branch_and_root_bindings() {
+    let (_sources, analysis) = analyze_text(
+        r#"func choose(condition: bool): i32 {
+    if condition {
+        let left = 1
+    } else {
+        let right = 2
+    }
+    let result = 3
+    return result
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "choose" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("branch-local scalar bindings must select MIR")
+    .unwrap();
+
+    assert_eq!(body.scopes.len(), 3);
+    assert_eq!(body.scopes[body.root_scope.index()].parent, None);
+    assert_eq!(body.scopes[1].parent, Some(body.root_scope));
+    assert_eq!(body.scopes[2].parent, Some(body.root_scope));
+    let binding_scope = |name: &str| {
+        body.locals
+            .iter()
+            .find_map(|local| match local.origin {
+                LocalOrigin::Binding(symbol)
+                    if file.resolved.local_symbol(symbol).unwrap().name == name =>
+                {
+                    Some(local.scope)
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+    assert_eq!(binding_scope("left"), ScopeId::from_index(1));
+    assert_eq!(binding_scope("right"), ScopeId::from_index(2));
+    assert_eq!(binding_scope("result"), body.root_scope);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_forced_fallible_calls_with_explicit_success_and_trap_edges() {
     let (_sources, analysis) = analyze_text(
         r#"func answer(): i32! {

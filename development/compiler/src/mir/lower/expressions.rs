@@ -7,7 +7,7 @@ use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
     BinaryOperator, CallArgument, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand,
-    Place, Rvalue, ScalarType, Statement,
+    Place, Rvalue, ScalarType, ScopeId, Statement,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
@@ -20,6 +20,7 @@ pub(super) fn lower_call(
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
+    scope: ScopeId,
 ) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
     let Expr::Identifier(callee) = call.callee.without_groups() else {
         return Err(BuildError::UnsupportedClaimedExpression);
@@ -48,6 +49,7 @@ pub(super) fn lower_call(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             )?;
             Ok(CallArgument {
                 operand,
@@ -69,6 +71,7 @@ pub(super) fn lower_expression_to_place(
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
+    scope: ScopeId,
 ) -> Result<(), BuildError> {
     let source = typed_hir
         .expression(expression.span())
@@ -88,6 +91,7 @@ pub(super) fn lower_expression_to_place(
                         typed_hir,
                         local_declarations,
                         control_flow,
+                        scope,
                     )?,
                     right: lower_operand(
                         &binary.right,
@@ -98,6 +102,7 @@ pub(super) fn lower_expression_to_place(
                         typed_hir,
                         local_declarations,
                         control_flow,
+                        scope,
                     )?,
                     ty,
                 }
@@ -119,6 +124,7 @@ pub(super) fn lower_expression_to_place(
                         typed_hir,
                         local_declarations,
                         control_flow,
+                        scope,
                     )?,
                     right: lower_operand(
                         &binary.right,
@@ -129,6 +135,7 @@ pub(super) fn lower_expression_to_place(
                         typed_hir,
                         local_declarations,
                         control_flow,
+                        scope,
                     )?,
                     operand_ty,
                     operand_scalar,
@@ -147,6 +154,7 @@ pub(super) fn lower_expression_to_place(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             );
         }
         Expr::Call(call) => {
@@ -157,6 +165,7 @@ pub(super) fn lower_expression_to_place(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             )?;
             if returns_never {
                 return Err(BuildError::UnsupportedClaimedExpression);
@@ -174,6 +183,7 @@ pub(super) fn lower_expression_to_place(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             )?;
             if returns_never {
                 return Err(BuildError::UnsupportedClaimedExpression);
@@ -191,6 +201,7 @@ pub(super) fn lower_expression_to_place(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             )?;
             if returns_never {
                 return Err(BuildError::UnsupportedClaimedExpression);
@@ -223,6 +234,7 @@ pub(super) fn lower_operand(
     typed_hir: &TypedHir,
     local_declarations: &mut Vec<crate::mir::Local>,
     control_flow: &mut ControlFlowBuilder,
+    scope: ScopeId,
 ) -> Result<Operand, BuildError> {
     if !matches!(
         expression,
@@ -238,6 +250,7 @@ pub(super) fn lower_operand(
                 typed_hir,
                 local_declarations,
                 control_flow,
+                scope,
             ),
             _ => lower_simple_operand(expression, ty, scalar, resolved, locals),
         };
@@ -252,6 +265,7 @@ pub(super) fn lower_operand(
         scalar,
         LocalStorage::Local,
         LocalOrigin::Temporary(typed_expression.id),
+        scope,
     ));
     lower_expression_to_place(
         temporary,
@@ -263,6 +277,7 @@ pub(super) fn lower_operand(
         typed_hir,
         local_declarations,
         control_flow,
+        scope,
     )?;
     Ok(Operand::Copy(Place { local: temporary }))
 }

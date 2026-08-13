@@ -62,7 +62,12 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   parameter storage before lowering
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
   MIR-to-IR storage projection omits only proven single-definition/single-use loop conditions
-- the next checkpoint introduces owned aggregate locals and explicit scope-exit cleanup edges
+- MIR retains a validated lexical `ScopeId` tree on locals and basic blocks; branch joins and loop
+  exits can derive inner-to-outer scope-exit order without revisiting AST block shape
+- range setup runs in an explicit loop-scope preheader, so a later failing aggregate initializer
+  cannot acquire a loop-owned value while its CFG block still belongs to the parent scope
+- the next checkpoint introduces owned aggregate locals and materializes explicit cleanup blocks
+  from these scope transitions
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

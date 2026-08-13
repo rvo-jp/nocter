@@ -19,3 +19,4 @@ macro_rules! mir_id {
 
 mir_id!(BasicBlockId);
 mir_id!(LocalId);
+mir_id!(ScopeId);

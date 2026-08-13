@@ -10,7 +10,7 @@ use super::expressions::{lower_expression_to_place, lower_operand};
 use crate::ast::Expr;
 use crate::mir::{
     BinaryOperator, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand, Origin, Place,
-    Rvalue, ScalarType, Statement, Terminator,
+    Rvalue, ScalarType, Scope, ScopeId, Statement, Terminator,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
@@ -29,6 +29,7 @@ pub(super) struct StatementLowerer<'a> {
     locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
     control_flow: &'a mut ControlFlowBuilder,
     loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
+    scopes: &'a mut Vec<Scope>,
 }
 
 impl<'a> StatementLowerer<'a> {
@@ -39,6 +40,7 @@ impl<'a> StatementLowerer<'a> {
         locals_by_symbol: &'a mut HashMap<LocalSymbolId, LocalId>,
         control_flow: &'a mut ControlFlowBuilder,
         loop_regions: &'a mut Vec<crate::mir::LoopRegion>,
+        scopes: &'a mut Vec<Scope>,
     ) -> Self {
         Self {
             resolved,
@@ -47,11 +49,16 @@ impl<'a> StatementLowerer<'a> {
             locals_by_symbol,
             control_flow,
             loop_regions,
+            scopes,
         }
     }
 
-    pub(super) fn lower(&mut self, statements: &[ScalarStatement<'_>]) -> Result<(), BuildError> {
-        if self.lower_in_context(statements, None)? {
+    pub(super) fn lower(
+        &mut self,
+        statements: &[ScalarStatement<'_>],
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        if self.lower_in_context(statements, None, scope)? {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
         Ok(())
@@ -61,6 +68,7 @@ impl<'a> StatementLowerer<'a> {
         &mut self,
         statements: &[ScalarStatement<'_>],
         loop_targets: Option<LoopTargets>,
+        scope: ScopeId,
     ) -> Result<bool, BuildError> {
         for statement in statements {
             let exits_block = match *statement {
@@ -82,9 +90,10 @@ impl<'a> StatementLowerer<'a> {
                         scalar,
                         LocalStorage::Local,
                         LocalOrigin::Binding(symbol),
+                        scope,
                     ));
                     self.locals_by_symbol.insert(symbol, local);
-                    self.lower_value(local, &binding.initializer, ty, scalar)?;
+                    self.lower_value(local, &binding.initializer, ty, scalar, scope)?;
                     false
                 }
                 ScalarStatement::Assignment(assignment) => {
@@ -105,20 +114,20 @@ impl<'a> StatementLowerer<'a> {
                     let scalar = declaration
                         .scalar_type()
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    self.lower_value(local, &assignment.value, ty, scalar)?;
+                    self.lower_value(local, &assignment.value, ty, scalar, scope)?;
                     false
                 }
                 ScalarStatement::While(statement) => {
-                    self.lower_while(statement)?;
+                    self.lower_while(statement, scope)?;
                     false
                 }
-                ScalarStatement::If(statement) => self.lower_if(statement, loop_targets)?,
+                ScalarStatement::If(statement) => self.lower_if(statement, loop_targets, scope)?,
                 ScalarStatement::ForRange(statement) => {
-                    self.lower_for_range(statement)?;
+                    self.lower_for_range(statement, scope)?;
                     false
                 }
                 ScalarStatement::Loop(statement) => {
-                    self.lower_loop(statement)?;
+                    self.lower_loop(statement, scope)?;
                     false
                 }
                 ScalarStatement::Break => {
@@ -149,6 +158,7 @@ impl<'a> StatementLowerer<'a> {
         expression: &Expr,
         ty: crate::semantic::TyId,
         scalar: ScalarType,
+        scope: ScopeId,
     ) -> Result<(), BuildError> {
         lower_expression_to_place(
             destination,
@@ -160,13 +170,19 @@ impl<'a> StatementLowerer<'a> {
             self.typed_hir,
             self.locals,
             self.control_flow,
+            scope,
         )
     }
 
-    fn lower_while(&mut self, statement: &crate::ast::WhileStmt) -> Result<(), BuildError> {
-        let condition_target = self.control_flow.reserve_block();
-        let body_target = self.control_flow.reserve_block();
-        let exit_target = self.control_flow.reserve_block();
+    fn lower_while(
+        &mut self,
+        statement: &crate::ast::WhileStmt,
+        parent_scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let body_scope = self.child_scope(parent_scope, statement.body.span);
+        let condition_target = self.control_flow.reserve_block(parent_scope);
+        let body_target = self.control_flow.reserve_block(body_scope);
+        let exit_target = self.control_flow.reserve_block(parent_scope);
         self.control_flow.terminate(Terminator::Goto {
             target: condition_target,
         })?;
@@ -183,6 +199,7 @@ impl<'a> StatementLowerer<'a> {
             self.typed_hir,
             self.locals,
             self.control_flow,
+            parent_scope,
         )?;
         let condition_block = self.control_flow.current_block()?;
         self.control_flow.terminate(Terminator::Switch {
@@ -208,6 +225,7 @@ impl<'a> StatementLowerer<'a> {
                 break_target: exit_target,
                 continue_target: condition_target,
             }),
+            body_scope,
         )?;
         if !exits_body {
             self.control_flow.terminate(Terminator::Goto {
@@ -221,6 +239,7 @@ impl<'a> StatementLowerer<'a> {
         &mut self,
         statement: &crate::ast::IfStmt,
         loop_targets: Option<LoopTargets>,
+        parent_scope: ScopeId,
     ) -> Result<bool, BuildError> {
         let condition_ty = known_expression_type(&statement.condition, self.typed_hir)
             .ok_or(BuildError::MissingTypedExpression)?;
@@ -233,10 +252,17 @@ impl<'a> StatementLowerer<'a> {
             self.typed_hir,
             self.locals,
             self.control_flow,
+            parent_scope,
         )?;
-        let then_target = self.control_flow.reserve_block();
-        let else_target = self.control_flow.reserve_block();
-        let join_target = self.control_flow.reserve_block();
+        let then_scope = self.child_scope(parent_scope, statement.then_block.span);
+        let else_span = statement
+            .else_block
+            .as_ref()
+            .map_or(statement.span, |block| block.span);
+        let else_scope = self.child_scope(parent_scope, else_span);
+        let then_target = self.control_flow.reserve_block(then_scope);
+        let else_target = self.control_flow.reserve_block(else_scope);
+        let join_target = self.control_flow.reserve_block(parent_scope);
         self.control_flow.terminate(Terminator::Switch {
             condition,
             then_target,
@@ -251,7 +277,7 @@ impl<'a> StatementLowerer<'a> {
             loop_targets.is_some(),
         )
         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-        let then_exits = self.lower_in_context(&then_statements, loop_targets)?;
+        let then_exits = self.lower_in_context(&then_statements, loop_targets, then_scope)?;
         if !then_exits {
             self.control_flow.terminate(Terminator::Goto {
                 target: join_target,
@@ -273,7 +299,7 @@ impl<'a> StatementLowerer<'a> {
             })
             .transpose()?
             .unwrap_or_default();
-        let else_exits = self.lower_in_context(&else_statements, loop_targets)?;
+        let else_exits = self.lower_in_context(&else_statements, loop_targets, else_scope)?;
         if !else_exits {
             self.control_flow.terminate(Terminator::Goto {
                 target: join_target,
@@ -287,7 +313,17 @@ impl<'a> StatementLowerer<'a> {
         Ok(false)
     }
 
-    fn lower_for_range(&mut self, statement: &crate::ast::ForRangeStmt) -> Result<(), BuildError> {
+    fn lower_for_range(
+        &mut self,
+        statement: &crate::ast::ForRangeStmt,
+        parent_scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let loop_scope = self.child_scope(parent_scope, statement.span);
+        let body_scope = self.child_scope(loop_scope, statement.body.span);
+        let preheader = self.control_flow.reserve_block(loop_scope);
+        self.control_flow
+            .terminate(Terminator::Goto { target: preheader })?;
+        self.control_flow.select_block(preheader)?;
         let symbol = self
             .resolved
             .local_symbol_id_at_name_span(statement.name_span)
@@ -305,9 +341,10 @@ impl<'a> StatementLowerer<'a> {
             scalar,
             LocalStorage::Local,
             LocalOrigin::Binding(symbol),
+            loop_scope,
         ));
         self.locals_by_symbol.insert(symbol, value);
-        self.lower_value(value, &statement.start, ty, scalar)?;
+        self.lower_value(value, &statement.start, ty, scalar, loop_scope)?;
 
         let end = LocalId::from_index(self.locals.len());
         self.locals.push(crate::mir::locals::Local::scalar(
@@ -315,8 +352,9 @@ impl<'a> StatementLowerer<'a> {
             scalar,
             LocalStorage::Local,
             LocalOrigin::Desugared(statement.range_span),
+            loop_scope,
         ));
-        self.lower_value(end, &statement.end, ty, scalar)?;
+        self.lower_value(end, &statement.end, ty, scalar, loop_scope)?;
 
         let bool_ty = self
             .typed_hir
@@ -333,12 +371,13 @@ impl<'a> StatementLowerer<'a> {
             ScalarType::Bool,
             LocalStorage::Local,
             LocalOrigin::Desugared(statement.range_span),
+            loop_scope,
         ));
 
-        let header = self.control_flow.reserve_block();
-        let body = self.control_flow.reserve_block();
-        let increment = self.control_flow.reserve_block();
-        let exit = self.control_flow.reserve_block();
+        let header = self.control_flow.reserve_block(loop_scope);
+        let body = self.control_flow.reserve_block(body_scope);
+        let increment = self.control_flow.reserve_block(loop_scope);
+        let exit = self.control_flow.reserve_block(parent_scope);
         self.control_flow
             .terminate(Terminator::Goto { target: header })?;
         self.control_flow.select_block(header)?;
@@ -381,6 +420,7 @@ impl<'a> StatementLowerer<'a> {
                 break_target: exit,
                 continue_target: increment,
             }),
+            body_scope,
         )?;
         if !exits_body {
             self.control_flow
@@ -407,7 +447,13 @@ impl<'a> StatementLowerer<'a> {
         self.control_flow.select_block(exit)
     }
 
-    fn lower_loop(&mut self, statement: &crate::ast::LoopStmt) -> Result<(), BuildError> {
+    fn lower_loop(
+        &mut self,
+        statement: &crate::ast::LoopStmt,
+        parent_scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let loop_scope = self.child_scope(parent_scope, statement.span);
+        let body_scope = self.child_scope(loop_scope, statement.body.span);
         let bool_ty = self
             .typed_hir
             .type_id(&crate::ast::TypeExpr::Reference(
@@ -417,9 +463,9 @@ impl<'a> StatementLowerer<'a> {
                 },
             ))
             .ok_or(BuildError::MissingTypedExpression)?;
-        let header = self.control_flow.reserve_block();
-        let body = self.control_flow.reserve_block();
-        let exit = self.control_flow.reserve_block();
+        let header = self.control_flow.reserve_block(loop_scope);
+        let body = self.control_flow.reserve_block(body_scope);
+        let exit = self.control_flow.reserve_block(parent_scope);
         self.control_flow
             .terminate(Terminator::Goto { target: header })?;
         self.control_flow.select_block(header)?;
@@ -449,11 +495,18 @@ impl<'a> StatementLowerer<'a> {
                 break_target: exit,
                 continue_target: header,
             }),
+            body_scope,
         )?;
         if !exits_body {
             self.control_flow
                 .terminate(Terminator::Goto { target: header })?;
         }
         self.control_flow.select_block(exit)
+    }
+
+    fn child_scope(&mut self, parent: ScopeId, span: crate::source::ByteSpan) -> ScopeId {
+        let scope = ScopeId::from_index(self.scopes.len());
+        self.scopes.push(Scope::child(parent, span));
+        scope
     }
 }

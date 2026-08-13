@@ -1,7 +1,7 @@
 //! Minimal executable MIR model. New execution forms extend this model before
 //! their AST-driven lowering path is removed.
 
-use super::ids::{BasicBlockId, LocalId};
+use super::ids::{BasicBlockId, LocalId, ScopeId};
 use super::locals::{Local, ScalarType};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
@@ -12,6 +12,8 @@ pub(crate) struct Body {
     pub(crate) source_span: ByteSpan,
     pub(crate) return_local: LocalId,
     pub(crate) return_mode: ReturnMode,
+    pub(crate) root_scope: ScopeId,
+    pub(crate) scopes: Vec<super::scopes::Scope>,
     pub(crate) locals: Vec<Local>,
     pub(crate) entry: BasicBlockId,
     pub(crate) blocks: Vec<BasicBlock>,
@@ -41,6 +43,7 @@ pub(crate) enum Origin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BasicBlock {
+    pub(crate) scope: ScopeId,
     pub(crate) statements: Vec<Statement>,
     pub(crate) terminator: Terminator,
 }

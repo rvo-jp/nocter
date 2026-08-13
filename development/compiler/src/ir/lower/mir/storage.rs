@@ -129,6 +129,7 @@ mod tests {
     fn body_with_condition(extra_use: bool) -> Body {
         let span = ByteSpan::new(SourceId::new(0), 0, 1);
         let ty = TyId::from_index(0);
+        let root_scope = crate::mir::ScopeId::from_index(0);
         let condition = LocalId::from_index(1);
         let mut statements = vec![Statement::Assign {
             destination: Place { local: condition },
@@ -167,23 +168,28 @@ mod tests {
             source_span: span,
             return_local: LocalId::from_index(0),
             return_mode: crate::mir::ReturnMode::Plain,
+            root_scope,
+            scopes: vec![crate::mir::Scope::root(span)],
             locals: vec![
                 Local::scalar(
                     ty,
                     ScalarType::Bool,
                     LocalStorage::Return,
                     LocalOrigin::Return,
+                    root_scope,
                 ),
                 Local::scalar(
                     ty,
                     ScalarType::Bool,
                     LocalStorage::Local,
                     LocalOrigin::Temporary(ExprId::from_index(0)),
+                    root_scope,
                 ),
             ],
             entry: BasicBlockId::from_index(0),
             blocks: vec![
                 BasicBlock {
+                    scope: root_scope,
                     statements,
                     terminator: Terminator::Switch {
                         condition: Operand::Copy(Place { local: condition }),
@@ -192,12 +198,14 @@ mod tests {
                     },
                 },
                 BasicBlock {
+                    scope: root_scope,
                     statements: Vec::new(),
                     terminator: Terminator::Goto {
                         target: BasicBlockId::from_index(0),
                     },
                 },
                 BasicBlock {
+                    scope: root_scope,
                     statements: Vec::new(),
                     terminator: Terminator::Return,
                 },

@@ -2,11 +2,14 @@
 
 use super::BuildError;
 use crate::mir::ids::BasicBlockId;
-use crate::mir::{CallArgument, CallContinuation, LocalId, Origin, Place, Statement, Terminator};
+use crate::mir::{
+    CallArgument, CallContinuation, LocalId, Origin, Place, ScopeId, Statement, Terminator,
+};
 use crate::semantic::{DefId, ExprId};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct PendingBlock {
+    scope: ScopeId,
     statements: Vec<Statement>,
     terminator: Option<Terminator>,
 }
@@ -22,9 +25,13 @@ pub(super) struct ControlFlowBuilder {
 }
 
 impl ControlFlowBuilder {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(root_scope: ScopeId) -> Self {
         Self {
-            blocks: vec![PendingBlock::default()],
+            blocks: vec![PendingBlock {
+                scope: root_scope,
+                statements: Vec::new(),
+                terminator: None,
+            }],
             current: Some(BasicBlockId::from_index(0)),
         }
     }
@@ -46,9 +53,13 @@ impl ControlFlowBuilder {
         Ok(())
     }
 
-    pub(super) fn reserve_block(&mut self) -> BasicBlockId {
+    pub(super) fn reserve_block(&mut self, scope: ScopeId) -> BasicBlockId {
         let block = BasicBlockId::from_index(self.blocks.len());
-        self.blocks.push(PendingBlock::default());
+        self.blocks.push(PendingBlock {
+            scope,
+            statements: Vec::new(),
+            terminator: None,
+        });
         block
     }
 
@@ -71,6 +82,14 @@ impl ControlFlowBuilder {
         self.current.ok_or(BuildError::MissingOpenBlock)
     }
 
+    fn current_scope(&self) -> Result<ScopeId, BuildError> {
+        let current = self.current_block()?;
+        self.blocks
+            .get(current.index())
+            .map(|block| block.scope)
+            .ok_or(BuildError::MissingOpenBlock)
+    }
+
     pub(super) fn emit_returning_call(
         &mut self,
         source: ExprId,
@@ -78,7 +97,7 @@ impl ControlFlowBuilder {
         arguments: Vec<CallArgument>,
         destination: LocalId,
     ) -> Result<(), BuildError> {
-        let target = self.reserve_block();
+        let target = self.reserve_block(self.current_scope()?);
         self.terminate(Terminator::Call {
             origin: Origin::Expression(source),
             callee,
@@ -143,8 +162,9 @@ impl ControlFlowBuilder {
             failure_terminator,
             Terminator::Trap | Terminator::PropagateFailure
         ));
-        let success = self.reserve_block();
-        let failure = self.reserve_block();
+        let scope = self.current_scope()?;
+        let success = self.reserve_block(scope);
+        let failure = self.reserve_block(scope);
         self.terminate(Terminator::Call {
             origin: Origin::Expression(source),
             callee,
@@ -168,6 +188,7 @@ impl ControlFlowBuilder {
             .into_iter()
             .map(|block| {
                 Ok(crate::mir::model::BasicBlock {
+                    scope: block.scope,
                     statements: block.statements,
                     terminator: block
                         .terminator

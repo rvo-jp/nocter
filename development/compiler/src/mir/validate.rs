@@ -9,6 +9,16 @@ use crate::semantic::TyId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ValidationError {
     MissingReturnLocal(LocalId),
+    MissingRootScope(super::ScopeId),
+    InvalidRootScope(super::ScopeId),
+    MissingLocalScope {
+        local: LocalId,
+        scope: super::ScopeId,
+    },
+    InvalidScopeParent {
+        scope: super::ScopeId,
+        parent: super::ScopeId,
+    },
     InvalidLocalContract(LocalId),
     DuplicateParameterStorage {
         first: LocalId,
@@ -16,6 +26,10 @@ pub(crate) enum ValidationError {
         index: usize,
     },
     MissingEntryBlock(BasicBlockId),
+    MissingBlockScope {
+        block: BasicBlockId,
+        scope: super::ScopeId,
+    },
     MissingAssignmentLocal {
         block: BasicBlockId,
         statement: usize,
@@ -65,6 +79,10 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         target: BasicBlockId,
     },
+    InvalidScopeTransition {
+        block: BasicBlockId,
+        target: BasicBlockId,
+    },
     MissingCallDestination {
         block: BasicBlockId,
         local: LocalId,
@@ -104,6 +122,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     if body.locals.get(body.return_local.index()).is_none() {
         errors.push(ValidationError::MissingReturnLocal(body.return_local));
     }
+    validate_scopes(body, &mut errors);
     validate_local_contracts(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
@@ -160,6 +179,12 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
 
     for (block_index, block) in body.blocks.iter().enumerate() {
         let block_id = BasicBlockId::from_index(block_index);
+        if body.scopes.get(block.scope.index()).is_none() {
+            errors.push(ValidationError::MissingBlockScope {
+                block: block_id,
+                scope: block.scope,
+            });
+        }
         for (statement_index, statement) in block.statements.iter().enumerate() {
             let Statement::Assign {
                 destination, value, ..
@@ -343,6 +368,35 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     }
 }
 
+fn validate_scopes(body: &Body, errors: &mut Vec<ValidationError>) {
+    let Some(root) = body.scopes.get(body.root_scope.index()) else {
+        errors.push(ValidationError::MissingRootScope(body.root_scope));
+        return;
+    };
+    if root.parent.is_some() {
+        errors.push(ValidationError::InvalidRootScope(body.root_scope));
+    }
+    for (index, scope) in body.scopes.iter().enumerate() {
+        let id = super::ScopeId::from_index(index);
+        if id != body.root_scope && scope.parent.is_none() {
+            errors.push(ValidationError::InvalidRootScope(id));
+        }
+        if let Some(parent) = scope.parent
+            && (parent.index() >= index || body.scopes.get(parent.index()).is_none())
+        {
+            errors.push(ValidationError::InvalidScopeParent { scope: id, parent });
+        }
+    }
+    for (index, local) in body.locals.iter().enumerate() {
+        if body.scopes.get(local.scope.index()).is_none() {
+            errors.push(ValidationError::MissingLocalScope {
+                local: LocalId::from_index(index),
+                scope: local.scope,
+            });
+        }
+    }
+}
+
 fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
     let mut parameter_storage = std::collections::HashMap::new();
     let return_local_exists = body.locals.get(body.return_local.index()).is_some();
@@ -499,8 +553,18 @@ fn validate_target(
     target: BasicBlockId,
     errors: &mut Vec<ValidationError>,
 ) {
-    if body.blocks.get(target.index()).is_none() {
+    let Some(source) = body.blocks.get(block.index()) else {
+        return;
+    };
+    let Some(target_block) = body.blocks.get(target.index()) else {
         errors.push(ValidationError::MissingTarget { block, target });
+        return;
+    };
+    if body.scopes.get(source.scope.index()).is_some()
+        && body.scopes.get(target_block.scope.index()).is_some()
+        && super::scopes::exited_scopes(&body.scopes, source.scope, target_block.scope).is_none()
+    {
+        errors.push(ValidationError::InvalidScopeTransition { block, target });
     }
 }
 
@@ -551,20 +615,25 @@ mod tests {
 
     fn valid_body() -> Body {
         let ty = TyId::from_index(0);
+        let root_scope = crate::mir::ScopeId::from_index(0);
         Body {
             source_body: BodyId::from_index(0),
             source_span: span(),
             return_local: LocalId::from_index(0),
             return_mode: crate::mir::ReturnMode::Plain,
+            root_scope,
+            scopes: vec![crate::mir::Scope::root(span())],
             locals: vec![Local::scalar(
                 ty,
                 ScalarType::I32,
                 LocalStorage::Return,
                 LocalOrigin::Return,
+                root_scope,
             )],
             entry: BasicBlockId::from_index(0),
             blocks: vec![
                 BasicBlock {
+                    scope: root_scope,
                     statements: vec![Statement::Assign {
                         destination: Place {
                             local: LocalId::from_index(0),
@@ -581,6 +650,7 @@ mod tests {
                     },
                 },
                 BasicBlock {
+                    scope: root_scope,
                     statements: Vec::new(),
                     terminator: Terminator::Return,
                 },
@@ -707,6 +777,7 @@ mod tests {
             ScalarType::I32,
             LocalStorage::Parameter(0),
             LocalOrigin::Desugared(span()),
+            body.root_scope,
         );
         invalid.ownership = OwnershipKind::Owned;
         body.locals.push(invalid);
@@ -729,6 +800,7 @@ mod tests {
                 ScalarType::I32,
                 LocalStorage::Parameter(0),
                 LocalOrigin::Desugared(span()),
+                body.root_scope,
             ));
         }
 
@@ -743,6 +815,37 @@ mod tests {
                     index: 0,
                 },
             ])
+        );
+    }
+
+    #[test]
+    fn rejects_missing_local_scope() {
+        let mut body = valid_body();
+        body.locals[0].scope = crate::mir::ScopeId::from_index(4);
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::MissingLocalScope {
+                local: LocalId::from_index(0),
+                scope: crate::mir::ScopeId::from_index(4),
+            }])
+        );
+    }
+
+    #[test]
+    fn rejects_a_scope_whose_parent_is_not_earlier() {
+        let mut body = valid_body();
+        body.scopes.push(crate::mir::Scope::child(
+            crate::mir::ScopeId::from_index(1),
+            span(),
+        ));
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::InvalidScopeParent {
+                scope: crate::mir::ScopeId::from_index(1),
+                parent: crate::mir::ScopeId::from_index(1),
+            }])
         );
     }
 }

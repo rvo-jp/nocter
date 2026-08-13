@@ -4,6 +4,7 @@
 //! determine where one body-local value is stored, and path-sensitive
 //! initialization is not a property of the type or its source declaration.
 
+use crate::mir::ScopeId;
 use crate::resolve::LocalSymbolId;
 use crate::semantic::{ExprId, TyId};
 use crate::source::ByteSpan;
@@ -15,6 +16,7 @@ pub(crate) struct Local {
     pub(crate) ownership: OwnershipKind,
     pub(crate) storage: LocalStorage,
     pub(crate) origin: LocalOrigin,
+    pub(crate) scope: ScopeId,
 }
 
 impl Local {
@@ -23,6 +25,7 @@ impl Local {
         scalar: ScalarType,
         storage: LocalStorage,
         origin: LocalOrigin,
+        scope: ScopeId,
     ) -> Self {
         Self {
             ty,
@@ -30,6 +33,7 @@ impl Local {
             ownership: OwnershipKind::Trivial,
             storage,
             origin,
+            scope,
         }
     }
 
