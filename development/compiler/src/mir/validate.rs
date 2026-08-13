@@ -55,6 +55,9 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         actual: ScalarType,
     },
+    PropagationFromPlainBody {
+        block: BasicBlockId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,7 +228,10 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                 }
             }
-            Terminator::Trap | Terminator::Return => {}
+            Terminator::PropagateFailure if body.return_mode == super::ReturnMode::Plain => {
+                errors.push(ValidationError::PropagationFromPlainBody { block: block_id });
+            }
+            Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }
     }
 
@@ -343,6 +349,7 @@ mod tests {
             source_body: BodyId::from_index(0),
             source_span: span(),
             return_local: LocalId::from_index(0),
+            return_mode: crate::mir::ReturnMode::Plain,
             locals: vec![Local {
                 ty,
                 scalar: crate::mir::model::ScalarType::I32,
@@ -377,6 +384,22 @@ mod tests {
     #[test]
     fn accepts_a_well_formed_body() {
         assert_eq!(validate(&valid_body()), Ok(()));
+    }
+
+    #[test]
+    fn rejects_failure_propagation_from_a_plain_body() {
+        let mut body = valid_body();
+        body.blocks[1].terminator = Terminator::PropagateFailure;
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::PropagationFromPlainBody {
+                block: BasicBlockId::from_index(1),
+            }])
+        );
+
+        body.return_mode = crate::mir::ReturnMode::Fallible;
+        assert_eq!(validate(&body), Ok(()));
     }
 
     #[test]

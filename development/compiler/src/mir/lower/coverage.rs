@@ -184,6 +184,12 @@ pub(super) fn scalar_expression_is_supported(
             };
             scalar_outcome_call_is_supported(call, resolved, typed_hir)
         }
+        Expr::Propagate(propagate) => {
+            let Expr::Call(call) = propagate.expression.without_groups() else {
+                return false;
+            };
+            scalar_outcome_call_is_supported(call, resolved, typed_hir)
+        }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir))
@@ -237,13 +243,30 @@ fn scalar_conditional_is_supported(
     typed_hir: &TypedHir,
 ) -> bool {
     scalar_expression_is_supported(&if_.condition, resolved, typed_hir)
-        && scalar_branch_result(&if_.then_block)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
+        && scalar_branch_result(&if_.then_block).is_some_and(|result| {
+            !contains_outcome_call(result)
+                && scalar_expression_is_supported(result, resolved, typed_hir)
+        })
         && if_
             .else_block
             .as_ref()
             .and_then(scalar_branch_result)
-            .is_some_and(|result| scalar_expression_is_supported(result, resolved, typed_hir))
+            .is_some_and(|result| {
+                !contains_outcome_call(result)
+                    && scalar_expression_is_supported(result, resolved, typed_hir)
+            })
+}
+
+fn contains_outcome_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Force(_) | Expr::Propagate(_) => true,
+        Expr::Group(group) => contains_outcome_call(&group.expression),
+        Expr::Binary(binary) => {
+            contains_outcome_call(&binary.left) || contains_outcome_call(&binary.right)
+        }
+        Expr::Call(call) => call.arguments.iter().any(contains_outcome_call),
+        _ => false,
+    }
 }
 
 fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {

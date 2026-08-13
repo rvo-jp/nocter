@@ -108,6 +108,37 @@ impl ControlFlowBuilder {
         arguments: Vec<CallArgument>,
         destination: LocalId,
     ) -> Result<(), BuildError> {
+        self.emit_outcome_call(source, callee, arguments, destination, Terminator::Trap)
+    }
+
+    pub(super) fn emit_propagating_outcome_call(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        destination: LocalId,
+    ) -> Result<(), BuildError> {
+        self.emit_outcome_call(
+            source,
+            callee,
+            arguments,
+            destination,
+            Terminator::PropagateFailure,
+        )
+    }
+
+    fn emit_outcome_call(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        destination: LocalId,
+        failure_terminator: Terminator,
+    ) -> Result<(), BuildError> {
+        debug_assert!(matches!(
+            failure_terminator,
+            Terminator::Trap | Terminator::PropagateFailure
+        ));
         let success = self.reserve_block();
         let failure = self.reserve_block();
         self.terminate(Terminator::Call {
@@ -121,7 +152,7 @@ impl ControlFlowBuilder {
             },
         })?;
         self.select_block(failure)?;
-        self.terminate(Terminator::Trap)?;
+        self.terminate(failure_terminator)?;
         self.select_block(success)
     }
 

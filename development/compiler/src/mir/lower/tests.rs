@@ -514,3 +514,57 @@ func main(): i32 {
     assert_eq!(body.blocks[2].terminator, Terminator::Trap);
     assert_eq!(validate(&body), Ok(()));
 }
+
+#[test]
+fn builds_propagated_fallible_calls_with_explicit_failure_edges() {
+    let (_sources, analysis) = analyze_text(
+        r#"func answer(): i32! {
+    return 42
+}
+
+func main(): i32! {
+    let value = answer()?
+    return value + 1
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        ReturnMode::Fallible,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("propagating scalar outcome calls must select MIR")
+    .unwrap();
+
+    assert_eq!(body.return_mode, ReturnMode::Fallible);
+    assert_eq!(body.blocks.len(), 3);
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Outcome {
+                success,
+                failure,
+                ..
+            },
+            ..
+        } if success == BasicBlockId::from_index(1) && failure == BasicBlockId::from_index(2)
+    ));
+    assert_eq!(body.blocks[2].terminator, Terminator::PropagateFailure);
+    assert_eq!(body.blocks[1].terminator, Terminator::Return);
+    assert_eq!(validate(&body), Ok(()));
+}

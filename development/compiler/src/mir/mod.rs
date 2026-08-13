@@ -8,9 +8,9 @@ mod validate;
 
 pub(crate) use ids::{BasicBlockId, LocalId};
 pub(crate) use index::BodyCache;
-pub(crate) use lower::{BuildError, try_build_scalar_body};
+pub(crate) use lower::{BuildError, try_build_scalar_body_with_return_mode};
 pub(crate) use model::{
     BinaryOperator, Body, CallArgument, CallContinuation, ComparisonOperator, LocalSource, Operand,
-    Place, Rvalue, ScalarType, Statement, Terminator,
+    Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator,
 };
 pub(crate) use validate::validate;

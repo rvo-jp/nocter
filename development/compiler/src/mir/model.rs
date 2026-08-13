@@ -11,9 +11,16 @@ pub(crate) struct Body {
     pub(crate) source_body: BodyId,
     pub(crate) source_span: ByteSpan,
     pub(crate) return_local: LocalId,
+    pub(crate) return_mode: ReturnMode,
     pub(crate) locals: Vec<Local>,
     pub(crate) entry: BasicBlockId,
     pub(crate) blocks: Vec<BasicBlock>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReturnMode {
+    Plain,
+    Fallible,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,5 +154,6 @@ pub(crate) enum Terminator {
         continuation: CallContinuation,
     },
     Trap,
+    PropagateFailure,
     Return,
 }

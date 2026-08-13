@@ -31,6 +31,9 @@ pub(super) fn linear_branch_join(
                 return Err("nested conditional branches require recursive structuring");
             }
             Terminator::Trap => return Err("conditional branch traps before its common join"),
+            Terminator::PropagateFailure => {
+                return Err("conditional branch propagates failure before its common join");
+            }
             Terminator::Return => return Err("conditional branch returns before its common join"),
         }
     }

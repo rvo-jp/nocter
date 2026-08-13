@@ -23,14 +23,16 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     enqueue_drop_targets_in_callable(callable, root_source, queue);
 
     if let Some(parameters) = callable.mir_parameters
-        && let Some(return_scalar) = callable_scalar_return_type(callable, resolved_sources)
+        && let Some((return_scalar, return_mode)) =
+            callable_scalar_return(callable, resolved_sources)
         && let Some(body_id) = callable.resolved.semantic_db.body_at(callable.body.span)
     {
         let body = mir_bodies.get_or_build(body_id, || {
-            crate::mir::try_build_scalar_body(
+            crate::mir::try_build_scalar_body_with_return_mode(
                 callable.body,
                 parameters,
                 return_scalar,
+                return_mode,
                 &callable.resolved.semantic_db,
                 callable.resolved,
                 callable.typed_hir,
@@ -103,21 +105,30 @@ fn enqueue_mir_call_targets(
     Ok(())
 }
 
-fn callable_scalar_return_type(
+fn callable_scalar_return(
     callable: &IndexedCallable<'_>,
     resolved_sources: &ResolvedSources<'_>,
-) -> Option<crate::mir::ScalarType> {
+) -> Option<(crate::mir::ScalarType, crate::mir::ReturnMode)> {
     let return_type = callable.return_type.as_ref()?;
+    let outcome_shape = outcome_shape_with_resolver(return_type, callable.resolved, |source| {
+        resolved_sources.get(&source).copied()
+    });
+    let return_mode = match outcome_shape.layers.as_slice() {
+        [] => crate::mir::ReturnMode::Plain,
+        [crate::outcomes::OutcomeLayer::Fallible] => crate::mir::ReturnMode::Fallible,
+        _ => return None,
+    };
     let value = abi_value_from_type_expr_with_resolver(return_type, callable.resolved, |source| {
         resolved_sources.get(&source).copied()
     })
     .ok()?;
-    match value.ty {
-        AbiType::I32 => Some(crate::mir::ScalarType::I32),
-        AbiType::Usize => Some(crate::mir::ScalarType::Usize),
-        AbiType::Bool => Some(crate::mir::ScalarType::Bool),
-        _ => None,
-    }
+    let scalar = match value.ty {
+        AbiType::I32 => crate::mir::ScalarType::I32,
+        AbiType::Usize => crate::mir::ScalarType::Usize,
+        AbiType::Bool => crate::mir::ScalarType::Bool,
+        _ => return None,
+    };
+    Some((scalar, return_mode))
 }
 
 pub(in crate::driver::buildability) fn enqueue_drop_targets_in_callable(

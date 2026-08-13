@@ -8,7 +8,7 @@ use crate::ir::{
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalSource, Operand,
-    Place, Rvalue, ScalarType, Statement, Terminator,
+    Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -30,18 +30,25 @@ pub(super) fn try_lower_scalar_body(
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    let return_scalar = match return_type {
-        Type::I32 => ScalarType::I32,
-        Type::Usize => ScalarType::Usize,
-        Type::Bool => ScalarType::Bool,
+    let (return_scalar, return_mode) = match return_type {
+        Type::I32 => (ScalarType::I32, ReturnMode::Plain),
+        Type::Usize => (ScalarType::Usize, ReturnMode::Plain),
+        Type::Bool => (ScalarType::Bool, ReturnMode::Plain),
+        Type::Fallible(success) => match success.as_ref() {
+            Type::I32 => (ScalarType::I32, ReturnMode::Fallible),
+            Type::Usize => (ScalarType::Usize, ReturnMode::Fallible),
+            Type::Bool => (ScalarType::Bool, ReturnMode::Fallible),
+            _ => return None,
+        },
         _ => return None,
     };
     let body_id = resolved.semantic_db.body_at(body.span)?;
     let mir_body = cache.get_or_build(body_id, || {
-        crate::mir::try_build_scalar_body(
+        crate::mir::try_build_scalar_body_with_return_mode(
             body,
             parameters,
             return_scalar,
+            return_mode,
             &resolved.semantic_db,
             resolved,
             typed_hir,
@@ -184,7 +191,9 @@ fn lower_scalar_body(
                         let returns_directly = destination.local == body.return_local
                             && target_block.statements.is_empty()
                             && target_block.terminator == Terminator::Return;
-                        if returns_directly {
+                        let can_tail_call =
+                            returns_directly && body.return_mode == ReturnMode::Plain;
+                        if can_tail_call {
                             validate_tail_call_return_type(
                                 &call_target,
                                 &callee_name,
@@ -193,7 +202,7 @@ fn lower_scalar_body(
                                 function_signatures,
                             )?;
                         }
-                        if returns_directly && fits_tail_call_abi {
+                        if can_tail_call && fits_tail_call_abi {
                             instructions.push(Instruction::TailCall {
                                 target: call_target,
                                 arguments,
@@ -215,13 +224,25 @@ fn lower_scalar_body(
                         failure,
                     } => {
                         let failure_block = &body.blocks[failure.index()];
-                        if !failure_block.statements.is_empty()
-                            || failure_block.terminator != Terminator::Trap
-                        {
+                        let failure_mode = if !failure_block.statements.is_empty() {
                             return Err(invalid_mir_diagnostics(
-                                "trapping outcome call must have a dedicated trap block",
+                                "outcome call must have a dedicated failure block",
                             ));
-                        }
+                        } else {
+                            match failure_block.terminator {
+                                Terminator::Trap => OutcomeFailureMode::Trap,
+                                Terminator::PropagateFailure
+                                    if body.return_mode == ReturnMode::Fallible =>
+                                {
+                                    OutcomeFailureMode::Propagate
+                                }
+                                _ => {
+                                    return Err(invalid_mir_diagnostics(
+                                        "outcome call failure block has an invalid terminator",
+                                    ));
+                                }
+                            }
+                        };
                         let destination_scalar = body.locals[destination.local.index()].scalar;
                         validate_outcome_call_return_type(
                             &call_target,
@@ -234,7 +255,7 @@ fn lower_scalar_body(
                             destination,
                             call_target,
                             arguments,
-                            OutcomeFailureMode::Trap,
+                            failure_mode,
                             body,
                         )?);
                         visited.insert(*failure);
@@ -246,8 +267,15 @@ fn lower_scalar_body(
                 instructions.push(Instruction::Trap);
                 return Ok(instructions);
             }
+            Terminator::PropagateFailure => {
+                instructions.push(Instruction::PropagateFailure);
+                return Ok(instructions);
+            }
             Terminator::Return => {
-                instructions.push(Instruction::Return);
+                instructions.push(match body.return_mode {
+                    ReturnMode::Plain => Instruction::Return,
+                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
+                });
                 return Ok(instructions);
             }
         }

@@ -1,7 +1,7 @@
 //! Scalar body selection and control-flow construction from typed HIR.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, Local, LocalSource, ScalarType, Terminator};
+use super::model::{Body, Local, LocalSource, ReturnMode, ScalarType, Terminator};
 use super::validate;
 use super::validate::ValidationError;
 use crate::ast::{Block, Expr, Parameter};
@@ -33,10 +33,31 @@ pub(crate) enum BuildError {
     InvalidMir(Vec<ValidationError>),
 }
 
-pub(crate) fn try_build_scalar_body(
+#[cfg(test)]
+fn try_build_scalar_body(
     block: &Block,
     parameters: &[Parameter],
     return_scalar: ScalarType,
+    semantic_db: &SemanticDb,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> Option<Result<Body, BuildError>> {
+    try_build_scalar_body_with_return_mode(
+        block,
+        parameters,
+        return_scalar,
+        ReturnMode::Plain,
+        semantic_db,
+        resolved,
+        typed_hir,
+    )
+}
+
+pub(crate) fn try_build_scalar_body_with_return_mode(
+    block: &Block,
+    parameters: &[Parameter],
+    return_scalar: ScalarType,
+    return_mode: ReturnMode,
     semantic_db: &SemanticDb,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
@@ -242,6 +263,7 @@ pub(crate) fn try_build_scalar_body(
             source_body,
             source_span: block.span,
             return_local,
+            return_mode,
             locals,
             entry: BasicBlockId::from_index(0),
             blocks,
