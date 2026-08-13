@@ -1792,10 +1792,7 @@ func choose(value: &i32, code: i32): i32 {
                 target: CallTarget::same_file("choose"),
                 arguments: vec![
                     ScalarArgument::Borrow(BorrowArgument {
-                        source: BorrowSource::AggregateSlotField {
-                            slot_index: 0,
-                            offset: 0,
-                        },
+                        source: BorrowSource::AggregateSlot(0),
                     }),
                     ScalarArgument::I32(I32Value::Const(42)),
                 ],
@@ -1940,10 +1937,7 @@ func choose(value: &+i32, code: i32): i32 {
                 target: CallTarget::same_file("choose"),
                 arguments: vec![
                     ScalarArgument::Borrow(BorrowArgument {
-                        source: BorrowSource::AggregateSlotField {
-                            slot_index: 0,
-                            offset: 0,
-                        },
+                        source: BorrowSource::AggregateSlot(0),
                     }),
                     ScalarArgument::I32(I32Value::Const(42)),
                 ],

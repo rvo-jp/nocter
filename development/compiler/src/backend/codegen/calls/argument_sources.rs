@@ -68,6 +68,13 @@ impl EntryEmitter {
                 self.emit_usize_value_to_x(&UsizeValue::Location(location), register)?;
                 return Ok(());
             }
+            BorrowSource::BorrowLocalField { pointer, offset } => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(pointer), register)?;
+                if offset != 0 {
+                    self.encoder.emit_add_x_imm(register, register, offset);
+                }
+                return Ok(());
+            }
             BorrowSource::AggregateParameterField {
                 parameter_index,
                 offset,

@@ -53,13 +53,50 @@ impl LoweringContext<'_> {
                         representation: crate::mir::ValueRepresentation::Scalar(scalar),
                     });
                 }
-                if super::coverage::borrow_identifier_is_supported(
-                    argument,
-                    self.semantic.resolved,
-                    self.semantic.typed_hir,
-                ) {
+                if super::coverage::borrow_argument_is_supported(argument, self.semantic) {
+                    let operand = if super::coverage::borrow_identifier_is_supported(
+                        argument,
+                        self.semantic.resolved,
+                        self.semantic.typed_hir,
+                    ) {
+                        self.lower_stored_identifier(argument)?
+                    } else {
+                        let typed_expression = self
+                            .semantic
+                            .typed_hir
+                            .expression(argument.span())
+                            .ok_or(BuildError::MissingTypedExpression)?;
+                        let crate::ast::TypeExpr::Borrow(borrow_ty) = self
+                            .semantic
+                            .typed_hir
+                            .type_expr_by_id(ty)
+                            .ok_or(BuildError::MissingTypedExpression)?
+                        else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        let local = LocalId::from_index(self.locals.len());
+                        self.locals.push(crate::mir::Local::borrow(
+                            ty,
+                            borrow_ty.is_readwrite,
+                            LocalStorage::Local,
+                            LocalOrigin::Temporary(typed_expression.id),
+                            scope,
+                        ));
+                        super::borrows::lower_to_local(
+                            self,
+                            local,
+                            argument,
+                            borrow_ty.is_readwrite,
+                            scope,
+                        )?;
+                        if borrow_ty.is_readwrite {
+                            Operand::Move(Place::local(local))
+                        } else {
+                            Operand::Copy(Place::local(local))
+                        }
+                    };
                     return Ok(CallArgument {
-                        operand: self.lower_stored_identifier(argument)?,
+                        operand,
                         ty,
                         representation: crate::mir::ValueRepresentation::Borrow,
                     });

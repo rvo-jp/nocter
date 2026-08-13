@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 mod aggregates;
 mod body_builder;
+mod borrows;
 mod context;
 mod coverage;
 mod expressions;

@@ -814,11 +814,16 @@ fn lower_borrow_argument_source(
     operand: &Operand,
     context: &BackendContext<'_>,
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
-    let Operand::Copy(place) = operand else {
+    let (Operand::Copy(place) | Operand::Move(place)) = operand else {
         return Err(invalid_mir_diagnostics(
-            "borrow call argument is not a copied stored place",
+            "borrow call argument is not a stored place",
         ));
     };
+    if place.projection.is_none()
+        && let Some(source) = storage::inlined_borrow_source(context.body, place.local)
+    {
+        return lower_borrow_source(source, context);
+    }
     if place.projection.is_some() {
         return Err(invalid_mir_diagnostics(
             "projected borrow call arguments require an explicit MIR loan",
@@ -944,6 +949,9 @@ fn lower_statements(
             let declaration = body.loans.get(loan.index()).ok_or_else(|| {
                 invalid_mir_diagnostics("borrow statement has no matching loan declaration")
             })?;
+            if storage::is_inlined_borrow_temporary(body, declaration.destination) {
+                continue;
+            }
             instructions.push(Instruction::SetUsizeFromBorrow {
                 destination: UsizeLocation::Local(machine_local_index(
                     body,
@@ -1384,6 +1392,29 @@ fn lower_borrow_source(
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
     if let Some(projection) = place.projection {
         let offset = aggregate_field_offset(context.body, place.local, projection)?;
+        let local = &context.body.locals[place.local.index()];
+        if local.representation == crate::mir::ValueRepresentation::Borrow {
+            return match local.storage {
+                LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+                    Some(parameters::ParameterStorage::Borrow { abi_index }) => {
+                        Ok(crate::ir::BorrowSource::AggregateParameterField {
+                            parameter_index: abi_index,
+                            offset,
+                        })
+                    }
+                    _ => Err(invalid_mir_diagnostics(
+                        "borrow MIR parameter has no matching ABI projection",
+                    )),
+                },
+                LocalStorage::Local => Ok(crate::ir::BorrowSource::BorrowLocalField {
+                    pointer: UsizeLocation::Local(machine_local_index(context.body, place.local)),
+                    offset,
+                }),
+                LocalStorage::Return => Err(invalid_mir_diagnostics(
+                    "return borrow storage cannot be projected",
+                )),
+            };
+        }
         let location = aggregate_location(&Place::local(place.local), context)?;
         let crate::ir::AggregateLocation::Slot(slot_index) = location else {
             return Err(invalid_mir_diagnostics(
@@ -1430,9 +1461,19 @@ fn lower_borrow_source(
                     ));
                 }
             },
-            LocalStorage::Local | LocalStorage::Return => {
+            LocalStorage::Local => {
+                let crate::ir::AggregateLocation::Slot(slot_index) =
+                    aggregate_location(&place, context)?
+                else {
+                    return Err(invalid_mir_diagnostics(
+                        "aggregate MIR loan source is not backed by a local slot",
+                    ));
+                };
+                crate::ir::BorrowSource::AggregateSlot(slot_index)
+            }
+            LocalStorage::Return => {
                 return Err(invalid_mir_diagnostics(
-                    "aggregate local MIR loans have not been projected to machine IR",
+                    "aggregate return storage cannot be borrowed",
                 ));
             }
         },

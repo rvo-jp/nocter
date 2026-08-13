@@ -878,6 +878,7 @@ fn validate_operand_ownership(
     let valid = match (operation, ownership) {
         (OperandOwnership::Copy, OwnershipKind::Copy)
         | (OperandOwnership::Copy, OwnershipKind::Borrowed { readwrite: false })
+        | (OperandOwnership::Move, OwnershipKind::Borrowed { readwrite: true })
         | (OperandOwnership::Move, OwnershipKind::Move) => true,
         (OperandOwnership::Copy | OperandOwnership::Move, _) => false,
     };

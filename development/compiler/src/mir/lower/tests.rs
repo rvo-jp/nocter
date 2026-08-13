@@ -551,6 +551,60 @@ func main(): i32 {
 }
 
 #[test]
+fn materializes_a_direct_borrow_argument_as_a_temporary_loan() {
+    let (_sources, analysis) = analyze_text(
+        r#"copy struct Pair {
+    tag: u8
+    value: i32
+}
+
+func consume(value: &i32): i32 {
+    return 42
+}
+
+func main(): i32 {
+    let pair = Pair { tag: 1, value: 7 }
+    return consume(&pair.value)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("direct aggregate field borrow must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.loans.as_slice(),
+        [crate::mir::Loan {
+            source: crate::mir::Place {
+                projection: Some(_),
+                ..
+            },
+            destination,
+            ..
+        }] if body.locals[destination.index()].representation == ValueRepresentation::Borrow
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn transfers_an_owned_aggregate_call_argument_with_a_move_operand() {
     let (_sources, analysis) = analyze_text(
         r#"struct File {

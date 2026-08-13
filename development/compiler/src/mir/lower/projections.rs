@@ -11,7 +11,7 @@ use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
 
 pub(super) fn scalar_field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
-    field_path_parts(member, semantic).is_some_and(|parts| {
+    field_path_parts(member, semantic, false).is_some_and(|parts| {
         parts
             .segments
             .last()
@@ -20,7 +20,7 @@ pub(super) fn scalar_field_is_supported(member: &MemberExpr, semantic: SemanticI
 }
 
 pub(super) fn field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
-    field_path_parts(member, semantic).is_some()
+    field_path_parts(member, semantic, true).is_some()
 }
 
 pub(super) fn lower_scalar_field_place(
@@ -45,8 +45,29 @@ pub(super) fn lower_field_place(
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ValueRepresentation), BuildError> {
-    let parts =
-        field_path_parts(member, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
+    lower_field_place_with_borrow_base(member, semantic, locals, projections, drop_plans, false)
+}
+
+pub(super) fn lower_borrow_field_place(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
+) -> Result<(Place, ValueRepresentation), BuildError> {
+    lower_field_place_with_borrow_base(member, semantic, locals, projections, drop_plans, true)
+}
+
+fn lower_field_place_with_borrow_base(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
+    allow_borrow_base: bool,
+) -> Result<(Place, ValueRepresentation), BuildError> {
+    let parts = field_path_parts(member, semantic, allow_borrow_base)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
     let representation = parts
         .segments
         .last()
@@ -118,17 +139,26 @@ struct FieldSegment {
     type_expr: crate::ast::TypeExpr,
 }
 
-fn field_path_parts(member: &MemberExpr, semantic: SemanticInputs<'_>) -> Option<FieldPathParts> {
+fn field_path_parts(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+    allow_borrow_base: bool,
+) -> Option<FieldPathParts> {
     let mut members = Vec::new();
     let base = collect_member_chain(member, &mut members)?;
     let base_symbol = semantic.resolved.local_symbol_for_identifier(base)?.id;
     let base_ty = semantic.typed_hir.binding_type_expr(base_symbol)?;
-    let mut current =
-        crate::abi::abi_value_from_type_expr_with_resolver(base_ty, semantic.resolved, |source| {
-            semantic.resolver_for(source)
-        })
-        .ok()?
-        .ty;
+    let layout_ty = match base_ty {
+        crate::ast::TypeExpr::Borrow(borrow) if allow_borrow_base => borrow.inner.as_ref(),
+        ty => ty,
+    };
+    let mut current = crate::abi::abi_value_from_type_expr_with_resolver(
+        layout_ty,
+        semantic.resolved,
+        |source| semantic.resolver_for(source),
+    )
+    .ok()?
+    .ty;
     let mut segments = Vec::with_capacity(members.len());
     for member in members {
         let AbiType::Struct(fields) = &current else {

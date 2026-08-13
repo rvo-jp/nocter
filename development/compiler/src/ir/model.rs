@@ -925,6 +925,10 @@ pub(crate) enum BorrowSource {
     Bool(BoolLocation),
     BorrowParameter(usize),
     BorrowLocal(UsizeLocation),
+    BorrowLocalField {
+        pointer: UsizeLocation,
+        offset: u32,
+    },
     SliceIndex {
         source: SliceLocation,
         index: SliceElementIndex,

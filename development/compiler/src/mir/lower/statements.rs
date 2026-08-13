@@ -269,63 +269,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         readwrite: bool,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        let Expr::Borrow(borrow) = expression.without_groups() else {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        };
-        if borrow.is_readwrite != readwrite {
-            return Err(BuildError::UnsupportedClaimedExpression);
-        }
-        let source = match borrow.expression.without_groups() {
-            Expr::Identifier(identifier) => {
-                let symbol = self
-                    .context
-                    .semantic
-                    .resolved
-                    .local_symbol_for_identifier(identifier)
-                    .map(|symbol| symbol.id)
-                    .ok_or(BuildError::MissingLocalSymbol)?;
-                Place::local(
-                    *self
-                        .context
-                        .locals_by_symbol
-                        .get(&symbol)
-                        .ok_or(BuildError::MissingLocalSymbol)?,
-                )
-            }
-            Expr::Member(member) => {
-                super::projections::lower_field_place(
-                    member,
-                    self.context.semantic,
-                    &self.context.locals_by_symbol,
-                    &mut self.context.projections,
-                    &mut self.context.drop_plans,
-                )?
-                .0
-            }
-            _ => return Err(BuildError::UnsupportedClaimedExpression),
-        };
-        let loan = crate::mir::LoanId::from_index(self.context.loans.len());
-        self.context.loans.push(crate::mir::Loan {
-            id: loan,
-            source,
-            destination,
-            kind: if readwrite {
-                crate::mir::BorrowKind::Readwrite
-            } else {
-                crate::mir::BorrowKind::Readonly
-            },
-            scope,
-        });
-        let origin = self
-            .context
-            .semantic
-            .typed_hir
-            .expression(expression.span())
-            .map(|expression| Origin::Expression(expression.id))
-            .ok_or(BuildError::MissingTypedExpression)?;
-        self.context
-            .control_flow
-            .push_statement(Statement::BeginLoan { loan, origin })
+        super::borrows::lower_to_local(self.context, destination, expression, readwrite, scope)
     }
 
     fn lower_while(

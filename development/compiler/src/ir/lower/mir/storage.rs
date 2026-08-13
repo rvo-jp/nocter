@@ -4,7 +4,10 @@
 //! a local only when the machine-IR conversion consumes its sole definition
 //! and use as one expression.
 
-use crate::mir::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Rvalue};
+use crate::mir::{
+    BasicBlockId, Body, CallContinuation, LocalId, LocalOrigin, LocalStorage, Operand, Rvalue,
+    ValueRepresentation,
+};
 
 pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
     body.locals[..local.index()]
@@ -13,8 +16,30 @@ pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
         .filter(|(index, local)| {
             local.storage == LocalStorage::Local
                 && !is_inlined_loop_condition(body, LocalId::from_index(*index))
+                && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
         })
         .count()
+}
+
+pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
+    let Some(declaration) = body.locals.get(local.index()) else {
+        return false;
+    };
+    declaration.storage == LocalStorage::Local
+        && declaration.representation == ValueRepresentation::Borrow
+        && matches!(declaration.origin, LocalOrigin::Temporary(_))
+        && local_definition_count(body, local) == 1
+        && local_use_count(body, local) == 1
+}
+
+pub(super) fn inlined_borrow_source(body: &Body, local: LocalId) -> Option<crate::mir::Place> {
+    if !is_inlined_borrow_temporary(body, local) {
+        return None;
+    }
+    body.loans
+        .iter()
+        .find(|loan| loan.destination == local)
+        .map(|loan| loan.source)
 }
 
 pub(super) fn inlined_loop_condition_local(

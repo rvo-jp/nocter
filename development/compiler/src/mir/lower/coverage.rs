@@ -164,8 +164,23 @@ fn scalar_call_shape_is_supported(
                     resolved_sources,
                     typed_hir,
                 )
-                || borrow_identifier_is_supported(argument, resolved, typed_hir)
+                || borrow_argument_is_supported(
+                    argument,
+                    SemanticInputs {
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                    },
+                )
         })
+}
+
+pub(super) fn borrow_argument_is_supported(
+    expression: &Expr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    borrow_identifier_is_supported(expression, semantic.resolved, semantic.typed_hir)
+        || super::borrows::expression_is_supported(expression, semantic)
 }
 
 pub(super) fn borrow_identifier_is_supported(
@@ -414,17 +429,7 @@ pub(super) fn borrow_expression_is_supported(
     expression: &Expr,
     semantic: SemanticInputs<'_>,
 ) -> bool {
-    let Expr::Borrow(borrow) = expression.without_groups() else {
-        return false;
-    };
-    match borrow.expression.without_groups() {
-        Expr::Identifier(identifier) => semantic
-            .resolved
-            .local_symbol_for_identifier(identifier)
-            .is_some(),
-        Expr::Member(member) => super::projections::field_is_supported(member, semantic),
-        _ => false,
-    }
+    super::borrows::expression_is_supported(expression, semantic)
 }
 
 fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
