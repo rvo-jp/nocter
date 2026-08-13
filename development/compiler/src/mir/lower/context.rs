@@ -3,7 +3,7 @@
 use super::body_builder::ControlFlowBuilder;
 use super::{BuildError, SemanticInputs};
 use crate::mir::model::BasicBlock;
-use crate::mir::{Loan, Local, LocalId, LoopRegion, ProjectionPath, Scope, ScopeId};
+use crate::mir::{DropPlan, Loan, Local, LocalId, LoopRegion, ProjectionPath, Scope, ScopeId};
 use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
 
@@ -12,6 +12,7 @@ pub(super) struct LoweringContext<'a> {
     pub(super) locals: Vec<Local>,
     pub(super) locals_by_symbol: HashMap<LocalSymbolId, LocalId>,
     pub(super) projections: Vec<ProjectionPath>,
+    pub(super) drop_plans: Vec<DropPlan>,
     pub(super) control_flow: ControlFlowBuilder,
     pub(super) loop_regions: Vec<LoopRegion>,
     pub(super) loans: Vec<Loan>,
@@ -21,6 +22,7 @@ pub(super) struct LoweringContext<'a> {
 pub(super) struct LoweredBodyParts {
     pub(super) locals: Vec<Local>,
     pub(super) projections: Vec<ProjectionPath>,
+    pub(super) drop_plans: Vec<DropPlan>,
     pub(super) blocks: Vec<BasicBlock>,
     pub(super) loop_regions: Vec<LoopRegion>,
     pub(super) loans: Vec<Loan>,
@@ -32,6 +34,7 @@ impl<'a> LoweringContext<'a> {
         semantic: SemanticInputs<'a>,
         locals: Vec<Local>,
         locals_by_symbol: HashMap<LocalSymbolId, LocalId>,
+        drop_plans: Vec<DropPlan>,
         root_scope: ScopeId,
         root: Scope,
     ) -> Self {
@@ -41,6 +44,7 @@ impl<'a> LoweringContext<'a> {
             locals,
             locals_by_symbol,
             projections: Vec::new(),
+            drop_plans,
             control_flow: ControlFlowBuilder::new(root_scope),
             loop_regions: Vec::new(),
             loans: Vec::new(),
@@ -62,6 +66,7 @@ impl<'a> LoweringContext<'a> {
         Ok(LoweredBodyParts {
             locals: self.locals,
             projections: self.projections,
+            drop_plans: self.drop_plans,
             blocks: self.control_flow.finish()?,
             loop_regions: self.loop_regions,
             loans: self.loans,

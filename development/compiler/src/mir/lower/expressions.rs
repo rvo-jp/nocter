@@ -271,6 +271,7 @@ impl LoweringContext<'_> {
                     self.semantic,
                     &self.locals_by_symbol,
                     &mut self.projections,
+                    &mut self.drop_plans,
                 )?;
                 if field_scalar != scalar {
                     return Err(BuildError::UnsupportedClaimedExpression);

@@ -189,7 +189,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     CallContinuation::Never => {}
                 }
             }
-            crate::mir::Terminator::Drop { place, target } => {
+            crate::mir::Terminator::Drop { place, target, .. } => {
                 validate_and_apply_operand(
                     &Operand::Move(*place),
                     &mut initialized,
@@ -372,6 +372,7 @@ mod tests {
             loop_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
+            drop_plans: Vec::new(),
         };
 
         assert_eq!(

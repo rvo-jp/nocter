@@ -18,6 +18,7 @@ use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
 mod control_flow;
+mod drops;
 mod loops;
 mod parameters;
 mod storage;
@@ -302,10 +303,13 @@ fn lower_scalar_body(
                     }
                 }
             }
-            Terminator::Drop { .. } => {
-                return Err(invalid_mir_diagnostics(
-                    "drop cleanup has not been projected to machine IR",
-                ));
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(drops::lower_drop(&context, *place, *plan)?);
+                current = *target;
             }
             Terminator::Trap => {
                 instructions.push(Instruction::Trap);

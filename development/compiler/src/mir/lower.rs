@@ -131,6 +131,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             LocalOrigin::Return,
             root_scope,
         )];
+        let mut drop_plans = Vec::new();
         let mut locals_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
             let ty = inputs
@@ -144,40 +145,50 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             let local = LocalId::from_index(locals.len());
             let storage = LocalStorage::Parameter { ordinal: index };
             let origin = LocalOrigin::Parameter(symbol);
-            locals.push(
-                match parameter_representation(parameter, semantic)
-                    .ok_or(BuildError::UnsupportedClaimedExpression)?
-                {
-                    super::ValueRepresentation::Scalar(scalar) => {
-                        Local::scalar(ty, scalar, storage, origin, root_scope)
-                    }
-                    super::ValueRepresentation::Aggregate => Local::aggregate(
-                        ty,
+            let mut local_contract = match parameter_representation(parameter, semantic)
+                .ok_or(BuildError::UnsupportedClaimedExpression)?
+            {
+                super::ValueRepresentation::Scalar(scalar) => {
+                    Local::scalar(ty, scalar, storage, origin, root_scope)
+                }
+                super::ValueRepresentation::Aggregate => {
+                    let ownership =
                         if crate::typecheck::type_expr_is_copy(&parameter.ty, inputs.resolved)
                             .unwrap_or(false)
                         {
                             OwnershipKind::Copy
                         } else {
                             OwnershipKind::Move
-                        },
-                        storage,
-                        origin,
-                        root_scope,
-                    ),
-                    super::ValueRepresentation::Borrow => {
-                        let crate::ast::TypeExpr::Borrow(borrow) = &parameter.ty else {
-                            return Err(BuildError::UnsupportedClaimedExpression);
                         };
-                        Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
-                    }
-                },
-            );
+                    Local::aggregate(ty, ownership, storage, origin, root_scope)
+                }
+                super::ValueRepresentation::Borrow => {
+                    let crate::ast::TypeExpr::Borrow(borrow) = &parameter.ty else {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    };
+                    Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
+                }
+            };
+            if local_contract.ownership == OwnershipKind::Move {
+                local_contract.drop_plan = Some(
+                    super::drop_plans::build(
+                        &parameter.ty,
+                        inputs.resolved,
+                        inputs.resolved_sources,
+                        inputs.typed_hir,
+                        &mut drop_plans,
+                    )
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                );
+            }
+            locals.push(local_contract);
             locals_by_symbol.insert(symbol, local);
         }
         let mut context = LoweringContext::new(
             semantic,
             locals,
             locals_by_symbol,
+            drop_plans,
             root_scope,
             Scope::root(block.span),
         );
@@ -239,6 +250,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             loop_regions: parts.loop_regions,
             loans: parts.loans,
             projections: parts.projections,
+            drop_plans: parts.drop_plans,
         };
         super::finalize(body).map_err(BuildError::InvalidMir)
     })())
@@ -268,7 +280,13 @@ fn parameter_representation(
             | crate::abi::AbiType::Enum(_)
     );
     (aggregate
-        && crate::typecheck::type_expr_is_copy(&parameter.ty, semantic.resolved) == Some(true))
+        && (crate::typecheck::type_expr_is_copy(&parameter.ty, semantic.resolved) == Some(true)
+            || super::drop_plans::is_supported(
+                &parameter.ty,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            )))
     .then_some(super::ValueRepresentation::Aggregate)
 }
 

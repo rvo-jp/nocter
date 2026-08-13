@@ -243,8 +243,10 @@ mod tests {
                     ty: TyId::from_index(0),
                     representation: ValueRepresentation::Scalar(crate::mir::ScalarType::I32),
                     ownership: OwnershipKind::Copy,
+                    drop_plan: None,
                 })
                 .collect(),
+            drop_plans: Vec::new(),
         }
     }
 

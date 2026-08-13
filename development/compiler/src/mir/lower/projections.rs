@@ -24,6 +24,7 @@ pub(super) fn lower_scalar_field_place(
     semantic: SemanticInputs<'_>,
     locals: &HashMap<LocalSymbolId, LocalId>,
     projections: &mut Vec<ProjectionPath>,
+    drop_plans: &mut Vec<crate::mir::DropPlan>,
 ) -> Result<(Place, ScalarType), BuildError> {
     let parts =
         field_path_parts(member, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -60,6 +61,20 @@ pub(super) fn lower_scalar_field_place(
                 ty: segment.ty,
                 representation: segment.representation,
                 ownership: segment.ownership,
+                drop_plan: if segment.ownership == OwnershipKind::Move {
+                    Some(
+                        super::super::drop_plans::build(
+                            &segment.type_expr,
+                            semantic.resolved,
+                            semantic.resolved_sources,
+                            semantic.typed_hir,
+                            drop_plans,
+                        )
+                        .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                    )
+                } else {
+                    None
+                },
             });
             id
         };
@@ -84,6 +99,7 @@ struct FieldSegment {
     ty: crate::semantic::TyId,
     representation: ValueRepresentation,
     ownership: OwnershipKind,
+    type_expr: crate::ast::TypeExpr,
 }
 
 fn field_path_parts(member: &MemberExpr, semantic: SemanticInputs<'_>) -> Option<FieldPathParts> {
@@ -132,6 +148,7 @@ fn field_path_parts(member: &MemberExpr, semantic: SemanticInputs<'_>) -> Option
             ty,
             representation,
             ownership,
+            type_expr: field_ty.clone(),
         });
     }
     Some(FieldPathParts {

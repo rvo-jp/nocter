@@ -3,6 +3,7 @@
 mod cleanup;
 mod dataflow;
 mod drop_obligations;
+mod drop_plans;
 mod ids;
 mod index;
 mod initialization;
@@ -14,7 +15,8 @@ mod places;
 mod scopes;
 mod validate;
 
-pub(crate) use ids::{BasicBlockId, LoanId, LocalId, ProjectionPathId, ScopeId};
+pub(crate) use drop_plans::DropPlan;
+pub(crate) use ids::{BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, ScopeId};
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,

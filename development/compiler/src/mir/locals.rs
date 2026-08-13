@@ -4,7 +4,7 @@
 //! determine where one body-local value is stored, and path-sensitive
 //! initialization is not a property of the type or its source declaration.
 
-use crate::mir::ScopeId;
+use crate::mir::{DropPlanId, ScopeId};
 use crate::resolve::LocalSymbolId;
 use crate::semantic::{ExprId, TyId};
 use crate::source::ByteSpan;
@@ -17,9 +17,16 @@ pub(crate) struct Local {
     pub(crate) storage: LocalStorage,
     pub(crate) origin: LocalOrigin,
     pub(crate) scope: ScopeId,
+    pub(crate) drop_plan: Option<DropPlanId>,
 }
 
 impl Local {
+    #[cfg(test)]
+    pub(crate) fn with_drop_plan(mut self, plan: DropPlanId) -> Self {
+        self.drop_plan = Some(plan);
+        self
+    }
+
     pub(crate) fn scalar(
         ty: TyId,
         scalar: ScalarType,
@@ -34,6 +41,7 @@ impl Local {
             storage,
             origin,
             scope,
+            drop_plan: None,
         }
     }
 
@@ -51,6 +59,7 @@ impl Local {
             storage,
             origin,
             scope,
+            drop_plan: None,
         }
     }
 
@@ -68,6 +77,7 @@ impl Local {
             storage,
             origin,
             scope,
+            drop_plan: None,
         }
     }
 

@@ -1400,7 +1400,7 @@ func consume(file: File): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Return,
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
@@ -1409,10 +1409,6 @@ func consume(file: File): i32 {
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
                 })],
-            },
-            Instruction::SetI32 {
-                destination: I32Location::Return,
-                value: i32_local(0),
             },
             Instruction::Return,
         ],

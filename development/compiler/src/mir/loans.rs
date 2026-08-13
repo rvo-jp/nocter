@@ -150,7 +150,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     }
                 }
             }
-            Terminator::Drop { place, target } => {
+            Terminator::Drop { place, target, .. } => {
                 reject_move(body, block_id, *place, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *target, state);
             }
@@ -444,6 +444,7 @@ mod tests {
             loop_regions: Vec::new(),
             loans,
             projections: Vec::new(),
+            drop_plans: Vec::new(),
         }
     }
 
@@ -506,6 +507,7 @@ mod tests {
                 ty: TyId::from_index(0),
                 representation: crate::mir::ValueRepresentation::Aggregate,
                 ownership: OwnershipKind::Move,
+                drop_plan: Some(crate::mir::DropPlanId::from_index(0)),
             })
             .collect();
         body.loans[0].source =

@@ -1,7 +1,7 @@
 //! Minimal executable MIR model. New execution forms extend this model before
 //! their AST-driven lowering path is removed.
 
-use super::ids::{BasicBlockId, LoanId, LocalId, ProjectionPathId, ScopeId};
+use super::ids::{BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, ScopeId};
 use super::locals::{Local, OwnershipKind, ScalarType, ValueRepresentation};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
@@ -20,6 +20,7 @@ pub(crate) struct Body {
     pub(crate) loop_regions: Vec<LoopRegion>,
     pub(crate) loans: Vec<Loan>,
     pub(crate) projections: Vec<ProjectionPath>,
+    pub(crate) drop_plans: Vec<super::drop_plans::DropPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +32,7 @@ pub(crate) struct ProjectionPath {
     pub(crate) ty: TyId,
     pub(crate) representation: ValueRepresentation,
     pub(crate) ownership: OwnershipKind,
+    pub(crate) drop_plan: Option<DropPlanId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,6 +250,7 @@ pub(crate) enum Terminator {
     /// the same path-sensitive ownership model.
     Drop {
         place: Place,
+        plan: DropPlanId,
         target: BasicBlockId,
     },
     Trap,

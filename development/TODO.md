@@ -145,12 +145,20 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - MIR construction has one `finalize` boundary that rejects invalid initialization, materializes
   cleanup, and validates the completed body; retained consumers cannot observe construction-only
   MIR or independently decide when cleanup insertion occurs
+- semantic MIR drop plans now carry destructor `DefId`s plus recursive struct/array structure;
+  backend symbol names and ABI offsets are projected only while lowering checked MIR
+- owned aggregate parameters use the production MIR route, including direct, nested-field, and
+  reverse-order fixed-array destruction; move-only values without runtime cleanup use an explicit
+  no-op ownership plan
+- payload enums and outcome storage remain excluded until their active-variant/tag structure is
+  represented in the same plan domain; never replace that boundary with a direct-destructor-only
+  shortcut
 - the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
 - outcome recovery distinguishes an implicit fallback result from an explicit `return`; the latter
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,627 library tests pass at this checkpoint
+- all 2,631 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

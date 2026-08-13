@@ -148,7 +148,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                     CallContinuation::Never => validate_exit(body, block_id, &state, &mut errors),
                 }
             }
-            Terminator::Drop { place, target } => {
+            Terminator::Drop { place, target, .. } => {
                 if !owned_local(body, place.local) {
                     errors.insert(DropObligationError {
                         block: block_id,
@@ -357,6 +357,7 @@ mod tests {
             loop_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
+            drop_plans: Vec::new(),
         }
     }
 
@@ -377,6 +378,7 @@ mod tests {
         let body = body_with_owned_parameter(vec![
             block(Terminator::Drop {
                 place: owned_place(),
+                plan: crate::mir::DropPlanId::from_index(0),
                 target: BasicBlockId::from_index(1),
             }),
             block(Terminator::Return),
@@ -405,10 +407,12 @@ mod tests {
         let body = body_with_owned_parameter(vec![
             block(Terminator::Drop {
                 place: owned_place(),
+                plan: crate::mir::DropPlanId::from_index(0),
                 target: BasicBlockId::from_index(1),
             }),
             block(Terminator::Drop {
                 place: owned_place(),
+                plan: crate::mir::DropPlanId::from_index(0),
                 target: BasicBlockId::from_index(2),
             }),
             block(Terminator::Return),
@@ -434,6 +438,7 @@ mod tests {
             }),
             block(Terminator::Drop {
                 place: owned_place(),
+                plan: crate::mir::DropPlanId::from_index(0),
                 target: BasicBlockId::from_index(3),
             }),
             block(Terminator::Goto {

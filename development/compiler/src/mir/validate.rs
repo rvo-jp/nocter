@@ -1,7 +1,7 @@
 //! Structural MIR verification. Validation errors are compiler invariant
 //! failures, not alternate source-language diagnostics.
 
-use super::ids::{BasicBlockId, LocalId, ProjectionPathId};
+use super::ids::{BasicBlockId, DropPlanId, LocalId, ProjectionPathId};
 use super::locals::{LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation};
 use super::model::{
     Body, CallContinuation, Operand, ProjectionElement, ProjectionPath, Statement, Terminator,
@@ -50,6 +50,12 @@ pub(crate) enum ValidationError {
         parent: super::ScopeId,
     },
     InvalidLocalContract(LocalId),
+    InvalidLocalDropPlan(LocalId),
+    InvalidProjectionDropPlan(ProjectionPathId),
+    InvalidDropPlanReference {
+        plan: DropPlanId,
+        referenced: DropPlanId,
+    },
     DuplicateParameterStorage {
         first: LocalId,
         duplicate: LocalId,
@@ -128,6 +134,10 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         target: BasicBlockId,
     },
+    InvalidDropPlan {
+        block: BasicBlockId,
+        plan: DropPlanId,
+    },
     InvalidScopeTransition {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -180,6 +190,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     }
     validate_scopes(body, &mut errors);
     validate_local_contracts(body, &mut errors);
+    validate_drop_plans(body, &mut errors);
     validate_projection_paths(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
@@ -527,8 +538,18 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     );
                 }
             }
-            Terminator::Drop { place, target } => {
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
                 validate_target(body, block_id, *target, &mut errors);
+                if plan.index() >= body.drop_plans.len() {
+                    errors.push(ValidationError::InvalidDropPlan {
+                        block: block_id,
+                        plan: *plan,
+                    });
+                }
                 operand_type(
                     body,
                     block_id,
@@ -621,6 +642,15 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         {
             errors.push(ValidationError::InvalidLocalContract(id));
         }
+        let requires_drop = local.representation == ValueRepresentation::Aggregate
+            && local.ownership == OwnershipKind::Move;
+        if requires_drop != local.drop_plan.is_some()
+            || local
+                .drop_plan
+                .is_some_and(|plan| plan.index() >= body.drop_plans.len())
+        {
+            errors.push(ValidationError::InvalidLocalDropPlan(id));
+        }
         if let LocalStorage::Parameter { ordinal } = local.storage
             && let Some(first) = parameter_storage.insert(ordinal, id)
         {
@@ -629,6 +659,27 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
                 duplicate: id,
                 index: ordinal,
             });
+        }
+    }
+}
+
+fn validate_drop_plans(body: &Body, errors: &mut Vec<ValidationError>) {
+    for (index, plan) in body.drop_plans.iter().enumerate() {
+        let id = DropPlanId::from_index(index);
+        let references = match plan {
+            crate::mir::DropPlan::Noop | crate::mir::DropPlan::Direct { .. } => Vec::new(),
+            crate::mir::DropPlan::Struct { fields, .. } => {
+                fields.iter().map(|field| field.plan).collect()
+            }
+            crate::mir::DropPlan::Array { element, .. } => vec![*element],
+        };
+        for referenced in references {
+            if referenced.index() >= index {
+                errors.push(ValidationError::InvalidDropPlanReference {
+                    plan: id,
+                    referenced,
+                });
+            }
         }
     }
 }
@@ -681,6 +732,15 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
                 != Some(ValueRepresentation::Scalar(ScalarType::Usize))
         {
             errors.push(ValidationError::InvalidProjectionIndex { projection: id });
+        }
+        let requires_drop = projection.representation == ValueRepresentation::Aggregate
+            && projection.ownership == OwnershipKind::Move;
+        if requires_drop != projection.drop_plan.is_some()
+            || projection
+                .drop_plan
+                .is_some_and(|plan| plan.index() >= body.drop_plans.len())
+        {
+            errors.push(ValidationError::InvalidProjectionDropPlan(id));
         }
     }
 }
@@ -993,6 +1053,7 @@ mod tests {
             loop_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
+            drop_plans: Vec::new(),
         }
     }
 
@@ -1231,6 +1292,7 @@ mod tests {
             ty,
             representation: ValueRepresentation::Scalar(ScalarType::I32),
             ownership: OwnershipKind::Copy,
+            drop_plan: None,
         });
 
         assert_eq!(validate(&body), Ok(()));
@@ -1247,6 +1309,7 @@ mod tests {
             ty: body.locals[0].ty,
             representation: ValueRepresentation::Scalar(ScalarType::I32),
             ownership: OwnershipKind::Copy,
+            drop_plan: None,
         });
 
         assert!(matches!(
@@ -1277,6 +1340,7 @@ mod tests {
             ty,
             representation: ValueRepresentation::Aggregate,
             ownership: OwnershipKind::Copy,
+            drop_plan: None,
         });
 
         assert!(matches!(

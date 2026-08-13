@@ -234,6 +234,7 @@ mod tests {
             }],
             loans: Vec::new(),
             projections: Vec::new(),
+            drop_plans: Vec::new(),
         }
     }
 

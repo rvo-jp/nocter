@@ -1,6 +1,142 @@
 use super::*;
 
 #[test]
+fn mir_projects_owned_parameter_cleanup_from_semantic_drop_identity() {
+    let function = lower_named_function(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read(resource: Resource): i32 {
+    return resource.fd
+}
+"#,
+        "read",
+    );
+
+    assert!(matches!(
+        &function.instructions[function.instructions.len() - 3..],
+        [
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 0,
+            },
+            Instruction::CallVoid { target, arguments },
+            Instruction::Return,
+        ] if target == &CallTarget::same_file("Resource.drop")
+            && matches!(
+                arguments.as_slice(),
+                [ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })]
+            )
+    ));
+}
+
+#[test]
+fn mir_semantic_drop_plan_recurses_through_owned_struct_fields() {
+    let function = lower_named_function(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+struct Wrapper {
+    resource: Resource
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read(wrapper: Wrapper): i32 {
+    return wrapper.resource.fd
+}
+"#,
+        "read",
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallVoid { target, arguments }
+            if target == &CallTarget::same_file("Resource.drop")
+                && matches!(
+                    arguments.as_slice(),
+                    [ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })]
+                )
+    )));
+}
+
+#[test]
+fn mir_semantic_drop_plan_destroys_array_elements_in_reverse_order() {
+    let function = lower_named_function(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+
+func ignore(resources: [Resource; 2]): i32 {
+    return 0
+}
+"#,
+        "ignore",
+    );
+    let drops = function
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction {
+            Instruction::CallVoid { target, arguments }
+                if target == &CallTarget::same_file("Resource.drop") =>
+            {
+                Some(arguments)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(drops.len(), 2);
+    assert!(matches!(
+        drops[0].as_slice(),
+        [ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 4,
+            },
+        })]
+    ));
+    assert!(matches!(
+        drops[1].as_slice(),
+        [ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 0,
+            },
+        })]
+    ));
+}
+
+#[test]
 fn does_not_drop_a_direct_owner_before_its_struct_initialization_completes() {
     let ir = lower_text(
         r#"struct Resource {

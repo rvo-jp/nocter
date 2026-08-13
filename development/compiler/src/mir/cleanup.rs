@@ -67,7 +67,15 @@ pub(super) fn materialize(body: &mut Body) {
                 source_scope,
                 Terminator::PropagateFailure,
             ),
-            Terminator::Drop { place, target } => Terminator::Drop { place, target },
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => Terminator::Drop {
+                place,
+                plan,
+                target,
+            },
             Terminator::Trap => Terminator::Trap,
         };
     }
@@ -180,7 +188,15 @@ fn prepend_cleanup_chain(
         body.blocks.push(BasicBlock {
             scope: body.locals[place.local.index()].scope,
             statements: Vec::new(),
-            terminator: Terminator::Drop { place, target },
+            terminator: Terminator::Drop {
+                place,
+                plan: place
+                    .projection
+                    .and_then(|projection| body.projections[projection.index()].drop_plan)
+                    .or(body.locals[place.local.index()].drop_plan)
+                    .expect("owned MIR local must carry a semantic drop plan"),
+                target,
+            },
         });
         target = block;
     }
@@ -250,7 +266,8 @@ mod tests {
                     LocalStorage::Local,
                     LocalOrigin::Desugared(span),
                     scope,
-                ),
+                )
+                .with_drop_plan(crate::mir::DropPlanId::from_index(0)),
             ],
             entry: BasicBlockId::from_index(0),
             blocks: vec![
@@ -284,6 +301,9 @@ mod tests {
             loop_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
+            drop_plans: vec![crate::mir::DropPlan::Direct {
+                destructor: DefId::from_index(0),
+            }],
         };
 
         assert!(crate::mir::validate(&body).is_err());
@@ -328,14 +348,16 @@ mod tests {
                     LocalStorage::Local,
                     LocalOrigin::Desugared(span),
                     scope,
-                ),
+                )
+                .with_drop_plan(crate::mir::DropPlanId::from_index(0)),
                 Local::aggregate(
                     aggregate_ty,
                     OwnershipKind::Move,
                     LocalStorage::Local,
                     LocalOrigin::Desugared(span),
                     scope,
-                ),
+                )
+                .with_drop_plan(crate::mir::DropPlanId::from_index(0)),
             ],
             entry: BasicBlockId::from_index(0),
             blocks: vec![
@@ -388,6 +410,7 @@ mod tests {
                     ty: aggregate_ty,
                     representation: ValueRepresentation::Aggregate,
                     ownership: OwnershipKind::Move,
+                    drop_plan: Some(crate::mir::DropPlanId::from_index(0)),
                 },
                 crate::mir::ProjectionPath {
                     id: second,
@@ -397,8 +420,12 @@ mod tests {
                     ty: aggregate_ty,
                     representation: ValueRepresentation::Aggregate,
                     ownership: OwnershipKind::Move,
+                    drop_plan: Some(crate::mir::DropPlanId::from_index(0)),
                 },
             ],
+            drop_plans: vec![crate::mir::DropPlan::Direct {
+                destructor: DefId::from_index(0),
+            }],
         };
 
         assert!(crate::mir::validate(&body).is_err());

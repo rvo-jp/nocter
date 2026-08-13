@@ -2,9 +2,62 @@ use super::*;
 use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
 use crate::mir::{
-    ComparisonOperator, LocalOrigin, Operand, OwnershipKind, ProjectionElement, Rvalue, Statement,
-    ValueRepresentation,
+    ComparisonOperator, DropPlan, LocalOrigin, Operand, OwnershipKind, ProjectionElement, Rvalue,
+    Statement, ValueRepresentation,
 };
+
+#[test]
+fn builds_owned_parameter_cleanup_from_semantic_drop_plans() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Resource {
+    fd: i32
+}
+
+destruct Resource(&+self) {
+    return
+}
+
+func read(resource: Resource): i32 {
+    return resource.fd
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "read" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("owned aggregate parameter must select MIR")
+    .unwrap();
+
+    assert_eq!(body.locals[1].ownership, OwnershipKind::Move);
+    assert!(matches!(
+        body.locals[1]
+            .drop_plan
+            .and_then(|plan| body.drop_plans.get(plan.index())),
+        Some(DropPlan::Direct { .. })
+    ));
+    assert!(body.blocks.iter().any(|block| matches!(
+        block.terminator,
+        Terminator::Drop { place, plan, .. }
+            if place == crate::mir::Place::local(crate::mir::LocalId::from_index(1))
+                && Some(plan) == body.locals[1].drop_plan
+    )));
+}
 
 #[test]
 fn builds_a_scalar_field_read_from_a_copy_aggregate_parameter() {

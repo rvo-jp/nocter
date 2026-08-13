@@ -20,6 +20,7 @@ macro_rules! mir_id {
 mir_id!(BasicBlockId);
 mir_id!(LocalId);
 mir_id!(LoanId);
+mir_id!(DropPlanId);
 #[allow(
     dead_code,
     reason = "aggregate route construction follows the projected-place validation checkpoint"
