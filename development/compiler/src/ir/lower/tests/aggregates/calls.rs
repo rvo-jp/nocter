@@ -58,7 +58,7 @@ func caller(): usize {
                     value: usize_const(3),
                 },
                 Instruction::CallUsize {
-                    destination: UsizeLocation::Local(1),
+                    destination: UsizeLocation::Local(0),
                     target: CallTarget::same_file("consume"),
                     arguments: vec![ScalarArgument::AggregateIndirect(AggregateArgument {
                         source: AggregateArgumentSource::Slot(0),
@@ -66,7 +66,7 @@ func caller(): usize {
                 },
                 Instruction::SetUsize {
                     destination: UsizeLocation::Return,
-                    value: usize_local(1),
+                    value: usize_local(0),
                 },
                 Instruction::Return,
             ],

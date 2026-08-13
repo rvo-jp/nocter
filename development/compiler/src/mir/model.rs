@@ -134,6 +134,10 @@ pub(crate) enum Rvalue {
     Aggregate {
         leaves: Vec<AggregateLeaf>,
     },
+    Variant {
+        variant: DefId,
+        leaves: Vec<AggregateLeaf>,
+    },
     Unary {
         operator: UnaryOperator,
         operand: Operand,
@@ -174,6 +178,7 @@ pub(crate) struct AggregateLeaf {
 pub(crate) enum AggregateElement {
     Field(usize),
     Index(usize),
+    VariantPayload(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

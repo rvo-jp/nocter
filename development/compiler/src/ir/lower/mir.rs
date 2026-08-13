@@ -992,11 +992,54 @@ fn lower_statements(
             }
             continue;
         }
+        if let Rvalue::Variant { variant, leaves } = value {
+            reserve_aggregate_destination(context, destination, &mut instructions)?;
+            let location = aggregate_location(destination, context)?;
+            let abi =
+                aggregate_local_abi_value(body.locals[destination.local.index()].ty, context)?;
+            let crate::abi::AbiType::Enum(enum_) = &abi.ty else {
+                return Err(invalid_mir_diagnostics(
+                    "variant MIR rvalue destination is not enum storage",
+                ));
+            };
+            let signature = enum_variant_signature(context, *variant)?;
+            let abi_variant = enum_
+                .variants
+                .iter()
+                .find(|candidate| candidate.name == signature.name)
+                .ok_or_else(|| {
+                    invalid_mir_diagnostics("MIR variant has no matching ABI variant")
+                })?;
+            instructions.push(Instruction::StoreAggregateU8 {
+                destination: location,
+                offset: 0,
+                value: U8Value::Const(abi_variant.tag),
+            });
+            for leaf in leaves {
+                let (offset, leaf_abi) =
+                    enum_variant_leaf_projection(enum_, abi_variant, &leaf.path)?;
+                if !abi_type_matches_scalar(leaf_abi, leaf.scalar) {
+                    return Err(invalid_mir_diagnostics(
+                        "variant MIR leaf scalar does not match its ABI projection",
+                    ));
+                }
+                instructions.push(store_aggregate_scalar(
+                    location,
+                    offset,
+                    leaf.scalar,
+                    &leaf.operand,
+                    context,
+                )?);
+            }
+            continue;
+        }
         match local_scalar(body, destination.local)? {
             ScalarType::I32 => {
                 let destination = i32_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
+                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                        unreachable!("aggregate rvalue handled above")
+                    }
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateI32 {
@@ -1054,7 +1097,9 @@ fn lower_statements(
             ScalarType::U8 => {
                 let destination = u8_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
+                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                        unreachable!("aggregate rvalue handled above")
+                    }
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateU8 {
@@ -1103,7 +1148,9 @@ fn lower_statements(
             ScalarType::Usize => {
                 let destination = usize_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
+                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                        unreachable!("aggregate rvalue handled above")
+                    }
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateUsize {
@@ -1152,7 +1199,9 @@ fn lower_statements(
             ScalarType::Integer(kind) => {
                 let destination = integer_location(destination, kind, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
+                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                        unreachable!("aggregate rvalue handled above")
+                    }
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateInteger {
@@ -1214,7 +1263,9 @@ fn lower_statements(
             ScalarType::Bool => {
                 let destination = bool_location(destination, context)?;
                 match value {
-                    Rvalue::Aggregate { .. } => unreachable!("aggregate rvalue handled above"),
+                    Rvalue::Aggregate { .. } | Rvalue::Variant { .. } => {
+                        unreachable!("aggregate rvalue handled above")
+                    }
                     Rvalue::Use(operand) => {
                         if let Some((source, offset)) = aggregate_field_source(operand, context)? {
                             instructions.push(Instruction::LoadAggregateBool {
@@ -1337,6 +1388,75 @@ fn aggregate_leaf_projection<'a>(
     let offset = u32::try_from(offset)
         .map_err(|_| invalid_mir_diagnostics("aggregate MIR leaf offset is not representable"))?;
     Ok((offset, ty))
+}
+
+fn enum_variant_signature<'a>(
+    context: &'a BackendContext<'_>,
+    definition: crate::semantic::DefId,
+) -> Result<&'a crate::resolve::EnumVariantSignature, Vec<Diagnostic>> {
+    let anchor = context
+        .resolved
+        .semantic_db
+        .definition_anchor(definition)
+        .ok_or_else(|| invalid_mir_diagnostics("enum variant has no semantic anchor"))?;
+    let owner = context
+        .resolved
+        .enum_variant_owner(definition)
+        .ok_or_else(|| invalid_mir_diagnostics("enum variant has no semantic owner"))?;
+    owner
+        .variants
+        .iter()
+        .find(|variant| variant.name_span == anchor)
+        .ok_or_else(|| invalid_mir_diagnostics("enum variant signature is missing"))
+}
+
+fn enum_variant_leaf_projection<'a>(
+    enum_: &'a crate::abi::AbiEnum,
+    variant: &'a crate::abi::AbiEnumVariant,
+    path: &[crate::mir::AggregateElement],
+) -> Result<(u32, &'a crate::abi::AbiType), Vec<Diagnostic>> {
+    let Some(crate::mir::AggregateElement::VariantPayload(payload_index)) = path.first() else {
+        return Err(invalid_mir_diagnostics(
+            "variant MIR leaf has no payload projection",
+        ));
+    };
+    let payload = variant
+        .payload
+        .as_ref()
+        .ok_or_else(|| invalid_mir_diagnostics("payloadless MIR variant has payload leaves"))?;
+    let (payload_offset, payload_ty) = match payload {
+        crate::abi::AbiType::Struct(fields) if fields.len() > 1 => {
+            let layout = crate::abi::layout_struct(fields)
+                .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+            let field = fields.get(*payload_index).ok_or_else(|| {
+                invalid_mir_diagnostics("variant MIR payload field is outside its variant")
+            })?;
+            let offset = layout
+                .fields
+                .get(*payload_index)
+                .map(|field| field.offset)
+                .ok_or_else(|| invalid_mir_diagnostics("variant MIR payload layout is missing"))?;
+            (offset, &field.ty)
+        }
+        payload if *payload_index == 0 => (0, payload),
+        _ => {
+            return Err(invalid_mir_diagnostics(
+                "variant MIR payload index does not match its ABI",
+            ));
+        }
+    };
+    let (nested_offset, leaf) = if path.len() == 1 {
+        (0, payload_ty)
+    } else {
+        aggregate_leaf_projection(payload_ty, &path[1..])?
+    };
+    let offset = enum_
+        .payload_offset
+        .checked_add(payload_offset)
+        .and_then(|offset| offset.checked_add(u64::from(nested_offset)))
+        .and_then(|offset| u32::try_from(offset).ok())
+        .ok_or_else(|| invalid_mir_diagnostics("variant MIR leaf offset is invalid"))?;
+    Ok((offset, leaf))
 }
 
 fn abi_type_matches_scalar(abi: &crate::abi::AbiType, scalar: ScalarType) -> bool {

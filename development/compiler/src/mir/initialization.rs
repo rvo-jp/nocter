@@ -259,7 +259,9 @@ fn merge_entry(
 fn rvalue_operands(value: &Rvalue) -> Box<dyn Iterator<Item = &Operand> + '_> {
     match value {
         Rvalue::Use(operand) => Box::new(std::iter::once(operand)),
-        Rvalue::Aggregate { leaves } => Box::new(leaves.iter().map(|leaf| &leaf.operand)),
+        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => {
+            Box::new(leaves.iter().map(|leaf| &leaf.operand))
+        }
         Rvalue::Unary { operand, .. } | Rvalue::Cast { operand, .. } => {
             Box::new(std::iter::once(operand))
         }

@@ -65,7 +65,7 @@ func main(): i32 {
         function
             .instructions
             .contains(&Instruction::SetUsizeFromBorrow {
-                destination: UsizeLocation::Local(1),
+                destination: UsizeLocation::Local(0),
                 source: BorrowSource::AggregateSlotField {
                     slot_index: 0,
                     offset: 4,
@@ -76,7 +76,7 @@ func main(): i32 {
         destination: I32Location::Return,
         target: CallTarget::same_file("consume"),
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::BorrowLocal(UsizeLocation::Local(1)),
+            source: BorrowSource::BorrowLocal(UsizeLocation::Local(0)),
         })],
     }));
 }
@@ -783,13 +783,13 @@ func read_next_code(): i32 {
                     value: usize_const(11),
                 },
                 Instruction::LoadAggregateI32 {
-                    destination: I32Location::Local(1),
+                    destination: I32Location::Local(0),
                     source: AggregateLocation::Slot(0),
                     offset: 4,
                 },
                 Instruction::AddI32 {
                     destination: I32Location::Return,
-                    left: i32_local(1),
+                    left: i32_local(0),
                     right: i32_const(1),
                 },
                 Instruction::Return,
@@ -1619,7 +1619,7 @@ func ok_is_true(): bool {
 
     assert!(
         code.instructions.contains(&Instruction::LoadAggregateI32 {
-            destination: I32Location::Local(1),
+            destination: I32Location::Local(0),
             source: AggregateLocation::Slot(0),
             offset: 4,
         }),
@@ -1630,7 +1630,7 @@ func ok_is_true(): bool {
             destination: BoolLocation::Return,
             value: BoolValue::I32Comparison {
                 operator: I32ComparisonOperator::Equal,
-                left: i32_local(1),
+                left: i32_local(0),
                 right: i32_const(42),
             },
         }),
@@ -1638,7 +1638,7 @@ func ok_is_true(): bool {
     );
     assert!(
         ok.instructions.contains(&Instruction::LoadAggregateBool {
-            destination: BoolLocation::Local(1),
+            destination: BoolLocation::Local(0),
             source: AggregateLocation::Slot(0),
             offset: 1,
         }),
@@ -1649,7 +1649,7 @@ func ok_is_true(): bool {
             destination: BoolLocation::Return,
             value: BoolValue::BoolComparison {
                 operator: BoolComparisonOperator::Equal,
-                left: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
                 right: Box::new(BoolValue::Const(true)),
             },
         }),

@@ -113,6 +113,73 @@ func consume(result: Result): i32 {
 }
 
 #[test]
+fn builds_payload_variant_construction_as_a_semantic_rvalue() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Payload {
+    code: i32
+}
+
+destruct Payload(&+self) {
+    return
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload { code: 42 })
+    return 0
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("payload variant construction must select MIR")
+    .unwrap();
+
+    assert!(
+        body.blocks
+            .iter()
+            .any(|block| block.statements.iter().any(|statement| {
+                matches!(
+                    statement,
+                    Statement::Assign {
+                        value: Rvalue::Variant { leaves, .. },
+                        ..
+                    } if matches!(
+                        leaves.as_slice(),
+                        [crate::mir::AggregateLeaf { path, .. }]
+                            if path == &[
+                                crate::mir::AggregateElement::VariantPayload(0),
+                                crate::mir::AggregateElement::Field(0),
+                            ]
+                    )
+                )
+            }))
+    );
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_owned_struct_literals_as_aggregate_rvalues() {
     let (_sources, analysis) = analyze_text(
         r#"struct Resource {

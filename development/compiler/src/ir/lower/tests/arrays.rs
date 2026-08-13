@@ -1224,7 +1224,7 @@ func consume(left: [u8; 0], right: [u8; 0]): i32 {
     );
     assert!(
         main.instructions.contains(&Instruction::CallI32 {
-            destination: I32Location::Local(3),
+            destination: I32Location::Local(0),
             target: CallTarget::same_file("consume"),
             arguments: vec![
                 ScalarArgument::AggregateDirect(DirectAggregateArgument {

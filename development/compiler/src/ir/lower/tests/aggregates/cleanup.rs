@@ -1141,7 +1141,7 @@ func main(): i32 {
                 value: i32_const(1),
             },
             call_bool(
-                BoolLocation::Local(1),
+                BoolLocation::Local(0),
                 "consume",
                 vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
                     source: AggregateArgumentSource::Slot(0),
@@ -1150,7 +1150,7 @@ func main(): i32 {
                 })],
             ),
             Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Local(1)),
+                condition: BoolValue::Location(BoolLocation::Local(0)),
                 then_instructions: vec![Instruction::SetI32 {
                     destination: I32Location::Return,
                     value: i32_const(0),
@@ -1217,7 +1217,7 @@ func main(): i32 {
                 value: i32_const(1),
             },
             call_bool(
-                BoolLocation::Local(1),
+                BoolLocation::Local(0),
                 "consume",
                 vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
                     source: AggregateArgumentSource::Slot(0),
@@ -1226,7 +1226,7 @@ func main(): i32 {
                 })],
             ),
             Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Local(1)),
+                condition: BoolValue::Location(BoolLocation::Local(0)),
                 then_instructions: vec![Instruction::SetBool {
                     destination: BoolLocation::Return,
                     value: BoolValue::Const(true),

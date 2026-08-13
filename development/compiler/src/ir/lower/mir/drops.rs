@@ -120,7 +120,7 @@ fn lower_plan(
                 offset: base_offset,
             }];
             for variant in variants.iter().rev() {
-                let signature = enum_variant_signature(context, variant.definition)?;
+                let signature = super::enum_variant_signature(context, variant.definition)?;
                 let abi_variant = enum_
                     .variants
                     .iter()
@@ -149,26 +149,6 @@ fn lower_plan(
             Ok(instructions)
         }
     }
-}
-
-fn enum_variant_signature<'a>(
-    context: &'a BackendContext<'_>,
-    definition: crate::semantic::DefId,
-) -> Result<&'a crate::resolve::EnumVariantSignature, Vec<Diagnostic>> {
-    let anchor = context
-        .resolved
-        .semantic_db
-        .definition_anchor(definition)
-        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant has no semantic anchor"))?;
-    let owner = context
-        .resolved
-        .enum_variant_owner(definition)
-        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant has no semantic owner"))?;
-    owner
-        .variants
-        .iter()
-        .find(|variant| variant.name_span == anchor)
-        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant signature is missing"))
 }
 
 fn lower_enum_variant_fields(

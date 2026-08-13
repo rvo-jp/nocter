@@ -17,6 +17,7 @@ pub(super) fn literal_is_supported(expression: &Expr, semantic: SemanticInputs<'
         return false;
     };
     literal_matches_abi(expression.without_groups(), &abi, semantic)
+        || variant_matches_abi(expression.without_groups(), &abi, semantic)
 }
 
 fn literal_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
@@ -65,6 +66,19 @@ fn requires_unrepresented_partial_cleanup(
             .iter()
             .map(|value| (value, element.as_ref()))
             .collect::<Vec<_>>(),
+        (expression, AbiType::Enum(enum_)) => {
+            let Some((member, arguments)) = variant_member_and_arguments(expression) else {
+                return false;
+            };
+            let Some(variant) = enum_
+                .variants
+                .iter()
+                .find(|variant| variant.name == member.member)
+            else {
+                return false;
+            };
+            variant_payload_values(arguments, variant.payload.as_ref()).unwrap_or_default()
+        }
         _ => return false,
     };
 
@@ -110,6 +124,66 @@ fn expression_propagates_failure(expression: &Expr) -> bool {
     }
 }
 
+fn variant_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
+    if requires_unrepresented_partial_cleanup(expression, abi, semantic) {
+        return false;
+    }
+    let AbiType::Enum(enum_) = abi else {
+        return false;
+    };
+    let Some((member, arguments)) = variant_member_and_arguments(expression) else {
+        return false;
+    };
+    if semantic
+        .typed_hir
+        .enum_variant_target(member.member_span)
+        .is_none()
+    {
+        return false;
+    }
+    let Some(variant) = enum_
+        .variants
+        .iter()
+        .find(|variant| variant.name == member.member)
+    else {
+        return false;
+    };
+    variant_payload_values(arguments, variant.payload.as_ref()).is_some_and(|values| {
+        values
+            .into_iter()
+            .all(|(value, abi)| value_matches_abi(value, abi, semantic))
+    })
+}
+
+fn variant_member_and_arguments(expression: &Expr) -> Option<(&crate::ast::MemberExpr, &[Expr])> {
+    match expression.without_groups() {
+        Expr::Call(call) => match call.callee.without_groups() {
+            Expr::Member(member) => Some((member, call.arguments.as_slice())),
+            _ => None,
+        },
+        Expr::Member(member) => Some((member, &[])),
+        _ => None,
+    }
+}
+
+fn variant_payload_values<'a>(
+    arguments: &'a [Expr],
+    payload: Option<&'a AbiType>,
+) -> Option<Vec<(&'a Expr, &'a AbiType)>> {
+    match (arguments, payload) {
+        ([], None) => Some(Vec::new()),
+        ([argument], Some(payload)) => Some(vec![(argument, payload)]),
+        (arguments, Some(AbiType::Struct(fields))) if arguments.len() == fields.len() => Some(
+            arguments
+                .iter()
+                .zip(fields.iter())
+                .map(|(argument, field)| (argument, &field.ty))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
 fn value_matches_abi(expression: &Expr, abi: &AbiType, semantic: SemanticInputs<'_>) -> bool {
     if let Some(ty) = known_expression_type(expression, semantic.typed_hir)
         && scalar_type(ty, semantic.typed_hir).is_some()
@@ -134,14 +208,44 @@ pub(super) fn lower_literal(
     let abi =
         aggregate_abi_type(expression, semantic).ok_or(BuildError::UnsupportedClaimedExpression)?;
     let mut leaves = Vec::new();
-    lower_literal_leaves(
-        context,
-        expression.without_groups(),
-        &abi,
-        scope,
-        &mut Vec::new(),
-        &mut leaves,
-    )?;
+    let value = if let AbiType::Enum(enum_) = &abi {
+        let (member, arguments) = variant_member_and_arguments(expression)
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let variant = context
+            .semantic
+            .typed_hir
+            .enum_variant_target(member.member_span)
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let abi_variant = enum_
+            .variants
+            .iter()
+            .find(|variant| variant.name == member.member)
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        let values = variant_payload_values(arguments, abi_variant.payload.as_ref())
+            .ok_or(BuildError::UnsupportedClaimedExpression)?;
+        for (index, (argument, payload_abi)) in values.into_iter().enumerate() {
+            let mut path = vec![AggregateElement::VariantPayload(index)];
+            lower_literal_leaves(
+                context,
+                argument,
+                payload_abi,
+                scope,
+                &mut path,
+                &mut leaves,
+            )?;
+        }
+        Rvalue::Variant { variant, leaves }
+    } else {
+        lower_literal_leaves(
+            context,
+            expression.without_groups(),
+            &abi,
+            scope,
+            &mut Vec::new(),
+            &mut leaves,
+        )?;
+        Rvalue::Aggregate { leaves }
+    };
     let origin = context
         .semantic
         .typed_hir
@@ -150,7 +254,7 @@ pub(super) fn lower_literal(
         .ok_or(BuildError::MissingTypedExpression)?;
     context.control_flow.push_statement(Statement::Assign {
         destination: Place::local(destination),
-        value: Rvalue::Aggregate { leaves },
+        value,
         origin,
     })
 }

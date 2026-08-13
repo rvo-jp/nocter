@@ -141,6 +141,19 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         self.context.locals.push(aggregate);
                         self.context.locals_by_symbol.insert(symbol, local);
                         match binding.initializer.without_groups() {
+                            Expr::Call(_)
+                                if super::aggregates::literal_is_supported(
+                                    &binding.initializer,
+                                    self.context.semantic,
+                                ) =>
+                            {
+                                super::aggregates::lower_literal(
+                                    self.context,
+                                    local,
+                                    &binding.initializer,
+                                    scope,
+                                )?;
+                            }
                             Expr::Call(call) => {
                                 let source = self
                                     .context
@@ -158,7 +171,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     .control_flow
                                     .emit_returning_call(source, callee, arguments, local)?;
                             }
-                            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) => {
+                            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
                                 super::aggregates::lower_literal(
                                     self.context,
                                     local,

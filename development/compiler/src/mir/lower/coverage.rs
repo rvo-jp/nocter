@@ -304,13 +304,7 @@ impl<'a> ScalarStatement<'a> {
                             )
                     })
                     && match binding.initializer.without_groups() {
-                        Expr::Call(call) => aggregate_value_call_is_supported(
-                            call,
-                            resolved,
-                            resolved_sources,
-                            typed_hir,
-                        ),
-                        Expr::StructLiteral(_) | Expr::ArrayLiteral(_) => {
+                        Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
                             super::aggregates::literal_is_supported(
                                 &binding.initializer,
                                 SemanticInputs {
@@ -318,6 +312,21 @@ impl<'a> ScalarStatement<'a> {
                                     resolved_sources,
                                     typed_hir,
                                 },
+                            )
+                        }
+                        Expr::Call(call) => {
+                            super::aggregates::literal_is_supported(
+                                &binding.initializer,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
+                            ) || aggregate_value_call_is_supported(
+                                call,
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
                             )
                         }
                         _ => false,

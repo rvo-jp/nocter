@@ -227,7 +227,7 @@ fn reject_rvalue_moves(
 ) {
     match value {
         Rvalue::Use(operand) => reject_operand_move(body, block, operand, state, errors),
-        Rvalue::Aggregate { leaves } => {
+        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => {
             for leaf in leaves {
                 reject_operand_move(body, block, &leaf.operand, state, errors);
             }

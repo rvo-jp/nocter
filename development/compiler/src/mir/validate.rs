@@ -346,6 +346,49 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     }
                     Some(destination_local.ty)
                 }
+                super::model::Rvalue::Variant { leaves, .. } => {
+                    if destination_local.representation != ValueRepresentation::Aggregate {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_local.representation,
+                        });
+                    }
+                    let mut paths = std::collections::HashSet::new();
+                    for leaf in leaves {
+                        if !matches!(
+                            leaf.path.first(),
+                            Some(super::AggregateElement::VariantPayload(_))
+                        ) {
+                            errors.push(ValidationError::EmptyAggregateLeafPath {
+                                block: block_id,
+                                statement: statement_index,
+                            });
+                        } else if !paths.insert(&leaf.path) {
+                            errors.push(ValidationError::DuplicateAggregateLeafPath {
+                                block: block_id,
+                                statement: statement_index,
+                            });
+                        }
+                        validate_operand(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            &leaf.operand,
+                            leaf.ty,
+                            leaf.scalar,
+                            &mut errors,
+                        );
+                        validate_operand_ownership(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            &leaf.operand,
+                            &mut errors,
+                        );
+                    }
+                    Some(destination_local.ty)
+                }
                 super::model::Rvalue::Unary {
                     operator,
                     operand,

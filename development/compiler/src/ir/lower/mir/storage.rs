@@ -15,6 +15,7 @@ pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
         .enumerate()
         .filter(|(index, local)| {
             local.storage == LocalStorage::Local
+                && local.representation != ValueRepresentation::Aggregate
                 && !is_inlined_loop_condition(body, LocalId::from_index(*index))
                 && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
         })
@@ -27,6 +28,7 @@ pub(super) fn machine_local_count(body: &Body) -> usize {
         .enumerate()
         .filter(|(index, local)| {
             local.storage == LocalStorage::Local
+                && local.representation != ValueRepresentation::Aggregate
                 && !is_inlined_loop_condition(body, LocalId::from_index(*index))
                 && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
         })
@@ -155,7 +157,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
-        Rvalue::Aggregate { leaves } => leaves
+        Rvalue::Aggregate { leaves } | Rvalue::Variant { leaves, .. } => leaves
             .iter()
             .map(|leaf| operand_use_count(&leaf.operand, local))
             .sum(),

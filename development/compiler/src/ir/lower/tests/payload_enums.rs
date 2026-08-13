@@ -1090,10 +1090,6 @@ func main(): i32 {
                         slot_index: 0,
                         layout: ValueLayout::new(8, 4),
                     },
-                    Instruction::SetBool {
-                        destination: BoolLocation::Local(0),
-                        value: BoolValue::Const(false),
-                    },
                     Instruction::StoreAggregateU8 {
                         destination: AggregateLocation::Slot(0),
                         offset: 0,
@@ -1104,16 +1100,12 @@ func main(): i32 {
                         offset: 4,
                         value: i32_const(42),
                     },
-                    Instruction::SetBool {
-                        destination: BoolLocation::Local(0),
-                        value: BoolValue::Const(true),
-                    },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(1),
+                        destination: I32Location::Return,
                         value: i32_const(0),
                     },
                     Instruction::LoadAggregateU8 {
-                        destination: U8Location::Local(2),
+                        destination: U8Location::Local(0),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
@@ -1121,7 +1113,7 @@ func main(): i32 {
                         condition: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                                U8Location::Local(2),
+                                U8Location::Local(0),
                             ))),
                             right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
                         },
@@ -1135,10 +1127,6 @@ func main(): i32 {
                             })],
                         }],
                         else_instructions: Vec::new(),
-                    },
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(1),
                     },
                     Instruction::Return,
                 ],
@@ -1319,11 +1307,11 @@ func main(): i32 {
                         value: u8_const(1),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Return,
                         value: i32_const(42),
                     },
                     Instruction::LoadAggregateU8 {
-                        destination: U8Location::Local(1),
+                        destination: U8Location::Local(0),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
@@ -1331,7 +1319,7 @@ func main(): i32 {
                         condition: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                                U8Location::Local(1),
+                                U8Location::Local(0),
                             ))),
                             right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
                         },
@@ -1345,10 +1333,6 @@ func main(): i32 {
                             })],
                         }],
                         else_instructions: Vec::new(),
-                    },
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
