@@ -41,10 +41,24 @@ impl DeclarationIndex {
             by_definition: HashMap::new(),
         };
         for symbol in output.symbols.symbols() {
-            index
-                .by_definition
-                .entry(symbol.def_id)
-                .or_insert(DeclarationLocator::Symbol(symbol.id));
+            let canonical = output
+                .semantic_db
+                .definition_anchor(symbol.def_id)
+                .is_some_and(|anchor| anchor == symbol.name_span)
+                || output
+                    .semantic_db
+                    .definition_span(symbol.def_id)
+                    .is_some_and(|span| span == symbol.declaration_span);
+            if canonical {
+                index
+                    .by_definition
+                    .insert(symbol.def_id, DeclarationLocator::Symbol(symbol.id));
+            } else {
+                index
+                    .by_definition
+                    .entry(symbol.def_id)
+                    .or_insert(DeclarationLocator::Symbol(symbol.id));
+            }
             if let SymbolKind::Type(owner) = &symbol.kind {
                 index.collect_owner(output, OwnerLocator::Symbol(symbol.id), owner);
             }

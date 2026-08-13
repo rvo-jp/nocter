@@ -65,15 +65,15 @@ pub(crate) fn collect_literal_specializations(
 
 pub(crate) fn literal_specialization_for_expression_span(
     analysis: &CompileUnitAnalysis,
-    _file: &FileAnalysis,
+    file: &FileAnalysis,
     expression_span: ByteSpan,
 ) -> Option<LiteralSpecialization> {
-    super::call_specializations::collect_call_specializations(analysis)
-        .literals
-        .values()
-        .flatten()
-        .find(|specialization| specialization.expression_span == expression_span)
-        .cloned()
+    let declarations = literal_declarations(analysis);
+    let expression = file
+        .syntax
+        .literal_expressions()
+        .find(|expression| expression.span() == expression_span)?;
+    specialization_for_expression(file, expression, &declarations, &HashMap::new(), false)
 }
 
 pub(crate) fn literal_target_name(

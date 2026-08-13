@@ -42,7 +42,7 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
         SymbolKind::Imported(_) => return None,
     };
 
-    let construction = match &symbol.kind {
+    let construction = match &declaration.kind {
         SymbolKind::Type(type_symbol) => {
             crate::analysis::constructions::construction_surface_markdown(
                 type_symbol,
