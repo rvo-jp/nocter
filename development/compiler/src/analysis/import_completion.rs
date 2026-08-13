@@ -9,7 +9,7 @@ pub(super) fn import_symbol_items_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
-    let import = file.syntax.from_import_selector_at(offset)?;
+    let import = file.syntax.import_selector_at(offset)?;
     let import_source = analysis.import_sources.get(&import.path.span)?;
     let imported = analysis.file_by_source(import_source.source)?;
     let visible = imported

@@ -30,7 +30,7 @@ enum DeclarationLocator {
     Coercion(OwnerLocator, usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct DeclarationIndex {
     by_definition: HashMap<DefId, DeclarationLocator>,
 }
@@ -87,7 +87,7 @@ impl DeclarationIndex {
             output,
             locator,
             &owner.associated_functions,
-            |owner, index| DeclarationLocator::AssociatedFunction(owner, index),
+            DeclarationLocator::AssociatedFunction,
         );
         self.collect_members(output, locator, &owner.methods, |owner, index| {
             DeclarationLocator::Method(owner, index)
@@ -190,14 +190,6 @@ impl DeclarationIndex {
                 ResolvedDeclaration::Coercion(owner.coercions.get(index)?)
             }
         })
-    }
-}
-
-impl Default for DeclarationIndex {
-    fn default() -> Self {
-        Self {
-            by_definition: HashMap::new(),
-        }
     }
 }
 

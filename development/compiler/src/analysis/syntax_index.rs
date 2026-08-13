@@ -261,10 +261,7 @@ impl EditorSyntaxIndex {
             .min_by_key(|interpolation| (interpolation.span.len(), interpolation.span.start))
     }
 
-    pub(crate) fn from_import_selector_at(
-        &self,
-        offset: usize,
-    ) -> Option<&crate::ast::FromImportItem> {
+    pub(crate) fn import_selector_at(&self, offset: usize) -> Option<&crate::ast::FromImportItem> {
         self.from_imports
             .iter()
             .filter(|import| import.path.span.end < offset && offset <= import.span.end)
