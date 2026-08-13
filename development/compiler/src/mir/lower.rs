@@ -8,7 +8,9 @@ use super::model::{
 };
 use super::validate;
 use super::validate::ValidationError;
-use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, Parameter, Stmt};
+use crate::ast::{
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Parameter, Stmt,
+};
 use crate::literals::decode_integer_literal_value;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::semantic::SemanticDb;
@@ -34,16 +36,16 @@ pub(crate) fn try_build_scalar_body(
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
 ) -> Option<Result<Body, BuildError>> {
-    let (source_statements, expression) = scalar_body_parts(block)?;
+    let (source_statements, tail) = scalar_body_parts(block)?;
     if !source_statements
         .iter()
         .all(|statement| statement.is_supported(resolved))
-        || !scalar_expression_is_supported(expression, resolved)
+        || !tail.is_supported(resolved)
     {
         return None;
     }
 
-    let return_ty = known_expression_type(expression, typed_hir)?;
+    let return_ty = tail.result_type(typed_hir)?;
     Some((|| {
         let source_body = semantic_db
             .body_at(block.span)
@@ -123,7 +125,7 @@ pub(crate) fn try_build_scalar_body(
                 &mut mir_statements,
             )?;
         }
-        let blocks = if let Expr::If(if_) = expression {
+        let blocks = if let Some(if_) = tail.conditional() {
             let condition_ty = known_expression_type(&if_.condition, typed_hir)
                 .ok_or(BuildError::MissingTypedExpression)?;
             let condition = lower_operand(
@@ -194,6 +196,9 @@ pub(crate) fn try_build_scalar_body(
                 },
             ]
         } else {
+            let expression = tail
+                .expression()
+                .ok_or(BuildError::UnsupportedClaimedExpression)?;
             lower_expression_to_place(
                 return_local,
                 expression,
@@ -237,6 +242,45 @@ enum ScalarStatement<'a> {
     Assignment(&'a AssignmentStmt),
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ScalarTail<'a> {
+    Expression(&'a Expr),
+    Conditional(&'a IfStmt),
+}
+
+impl<'a> ScalarTail<'a> {
+    fn expression(self) -> Option<&'a Expr> {
+        match self {
+            Self::Expression(expression) => Some(expression),
+            Self::Conditional(_) => None,
+        }
+    }
+
+    fn conditional(self) -> Option<&'a IfStmt> {
+        match self {
+            Self::Expression(Expr::If(if_)) => Some(if_),
+            Self::Conditional(if_) => Some(if_),
+            Self::Expression(_) => None,
+        }
+    }
+
+    fn is_supported(self, resolved: &ResolveOutput) -> bool {
+        match self {
+            Self::Expression(expression) => scalar_expression_is_supported(expression, resolved),
+            Self::Conditional(if_) => scalar_conditional_is_supported(if_, resolved),
+        }
+    }
+
+    fn result_type(self, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {
+        match self {
+            Self::Expression(expression) => known_expression_type(expression, typed_hir),
+            Self::Conditional(if_) => {
+                known_expression_type(scalar_branch_result(&if_.then_block)?, typed_hir)
+            }
+        }
+    }
+}
+
 impl<'a> ScalarStatement<'a> {
     fn is_supported(self, resolved: &ResolveOutput) -> bool {
         match self {
@@ -252,20 +296,25 @@ impl<'a> ScalarStatement<'a> {
     }
 }
 
-fn scalar_body_parts(block: &Block) -> Option<(Vec<ScalarStatement<'_>>, &Expr)> {
+fn scalar_body_parts(block: &Block) -> Option<(Vec<ScalarStatement<'_>>, ScalarTail<'_>)> {
     let runtime_statements = block
         .statements
         .iter()
         .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
         .collect::<Vec<_>>();
     let (binding_statements, result) = if let Some(result) = block.result.as_deref() {
-        (runtime_statements.as_slice(), result)
+        (
+            runtime_statements.as_slice(),
+            ScalarTail::Expression(result),
+        )
     } else {
         let (last, leading) = runtime_statements.split_last()?;
-        let Stmt::Return(statement) = last else {
-            return None;
+        let result = match last {
+            Stmt::Return(statement) => ScalarTail::Expression(statement.expression.as_ref()?),
+            Stmt::If(if_) => ScalarTail::Conditional(if_),
+            _ => return None,
         };
-        (leading, statement.expression.as_ref()?)
+        (leading, result)
     };
     let bindings = binding_statements
         .iter()
@@ -289,23 +338,25 @@ fn scalar_expression_is_supported(expression: &Expr, resolved: &ResolveOutput) -
                 && scalar_expression_is_supported(&binary.left, resolved)
                 && scalar_expression_is_supported(&binary.right, resolved)
         }
-        Expr::If(if_) => {
-            scalar_expression_is_supported(&if_.condition, resolved)
-                && scalar_branch_result(&if_.then_block)
-                    .is_some_and(|result| scalar_expression_is_supported(result, resolved))
-                && if_
-                    .else_block
-                    .as_ref()
-                    .and_then(scalar_branch_result)
-                    .is_some_and(|result| scalar_expression_is_supported(result, resolved))
-        }
+        Expr::If(if_) => scalar_conditional_is_supported(if_, resolved),
         _ => false,
     }
 }
 
 fn scalar_branch_result(block: &Block) -> Option<&Expr> {
-    let (statements, result) = scalar_body_parts(block)?;
-    statements.is_empty().then_some(result)
+    let (statements, tail) = scalar_body_parts(block)?;
+    statements.is_empty().then(|| tail.expression()).flatten()
+}
+
+fn scalar_conditional_is_supported(if_: &IfStmt, resolved: &ResolveOutput) -> bool {
+    scalar_expression_is_supported(&if_.condition, resolved)
+        && scalar_branch_result(&if_.then_block)
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved))
+        && if_
+            .else_block
+            .as_ref()
+            .and_then(scalar_branch_result)
+            .is_some_and(|result| scalar_expression_is_supported(result, resolved))
 }
 
 fn known_expression_type(expression: &Expr, typed_hir: &TypedHir) -> Option<crate::semantic::TyId> {

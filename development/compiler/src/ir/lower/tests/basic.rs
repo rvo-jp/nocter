@@ -227,6 +227,47 @@ func main(): i32 {
 }
 
 #[test]
+fn normalizes_terminal_if_returns_to_the_same_mir_join() {
+    let ir = lower_text(
+        r#"func choose(condition: bool): i32 {
+    if condition {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func main(): i32 {
+    return choose(true)
+}
+"#,
+    );
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(42),
+                }],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(7),
+                }],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit
