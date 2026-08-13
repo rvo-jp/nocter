@@ -8,6 +8,7 @@ use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ValidationError {
+    Initialization(super::initialization::InitializationError),
     MissingReturnLocal(LocalId),
     MissingRootScope(super::ScopeId),
     InvalidRootScope(super::ScopeId),
@@ -360,6 +361,12 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }
     }
+
+    errors.extend(
+        super::initialization::validate(body)
+            .into_iter()
+            .map(ValidationError::Initialization),
+    );
 
     if errors.is_empty() {
         Ok(())
@@ -846,6 +853,112 @@ mod tests {
                 scope: crate::mir::ScopeId::from_index(1),
                 parent: crate::mir::ScopeId::from_index(1),
             }])
+        );
+    }
+
+    #[test]
+    fn rejects_a_copy_from_an_uninitialized_local() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        body.locals.push(Local::scalar(
+            ty,
+            ScalarType::I32,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(span()),
+            body.root_scope,
+        ));
+        body.blocks[0].statements[0] = Statement::Assign {
+            destination: Place {
+                local: body.return_local,
+            },
+            value: Rvalue::Use(Operand::Copy(Place {
+                local: LocalId::from_index(1),
+            })),
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+        };
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::Initialization(
+                super::super::initialization::InitializationError {
+                    block: BasicBlockId::from_index(0),
+                    location: super::super::initialization::InitializationLocation::Statement(0),
+                    local: LocalId::from_index(1),
+                }
+            )])
+        );
+    }
+
+    #[test]
+    fn rejects_a_return_local_not_initialized_on_every_join_path() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        let value = LocalId::from_index(1);
+        body.locals.push(Local::scalar(
+            ty,
+            ScalarType::I32,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(span()),
+            body.root_scope,
+        ));
+        body.blocks = vec![
+            BasicBlock {
+                scope: body.root_scope,
+                statements: Vec::new(),
+                terminator: Terminator::Switch {
+                    condition: Operand::Constant(Constant {
+                        ty,
+                        scalar: ScalarType::Bool,
+                        value: 1,
+                    }),
+                    then_target: BasicBlockId::from_index(1),
+                    else_target: BasicBlockId::from_index(2),
+                },
+            },
+            BasicBlock {
+                scope: body.root_scope,
+                statements: vec![Statement::Assign {
+                    destination: Place { local: value },
+                    value: Rvalue::Use(Operand::Constant(Constant {
+                        ty,
+                        scalar: ScalarType::I32,
+                        value: 7,
+                    })),
+                    origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+                }],
+                terminator: Terminator::Goto {
+                    target: BasicBlockId::from_index(3),
+                },
+            },
+            BasicBlock {
+                scope: body.root_scope,
+                statements: Vec::new(),
+                terminator: Terminator::Goto {
+                    target: BasicBlockId::from_index(3),
+                },
+            },
+            BasicBlock {
+                scope: body.root_scope,
+                statements: vec![Statement::Assign {
+                    destination: Place {
+                        local: body.return_local,
+                    },
+                    value: Rvalue::Use(Operand::Copy(Place { local: value })),
+                    origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+                }],
+                terminator: Terminator::Return,
+            },
+        ];
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::Initialization(
+                super::super::initialization::InitializationError {
+                    block: BasicBlockId::from_index(3),
+                    location: super::super::initialization::InitializationLocation::Statement(0),
+                    local: value,
+                }
+            )])
         );
     }
 }

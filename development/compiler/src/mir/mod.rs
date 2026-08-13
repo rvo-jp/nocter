@@ -2,6 +2,7 @@
 
 mod ids;
 mod index;
+mod initialization;
 mod locals;
 mod lower;
 mod model;

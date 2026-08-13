@@ -103,6 +103,10 @@ buildability is MIR validation rather than a parallel AST model.
   `ScopeId` tree, so cleanup construction can derive every exited scope from CFG edges.
   Machine-local slot projection is a later conversion and may omit only proven
   single-definition/single-use values.
+- Definite initialization is a MIR fixed point over CFG edges. Joins intersect initialized-local
+  sets, ordinary calls initialize their destination on the return edge, and fallible calls do so
+  only on the success edge. Machine IR therefore never guesses whether a reachable operand or
+  return place contains a value.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain
