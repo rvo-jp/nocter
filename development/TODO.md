@@ -2,16 +2,18 @@
 
 ## Current Task
 
-v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The first production MIR route now
-owns nongeneric scalar parameters, bindings, assignments, arithmetic, comparisons, explicit
-temporaries, value conditionals, terminal conditionals, return joins, and direct nongeneric scalar
-calls in straight-line, conditional, and natural-loop expression evaluation, plus trapping and
-propagating scalar fallible calls. MIR construction and validation are authoritative
-after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
-buildability follows its identity-backed call edges without revisiting the AST body. The next
-boundary is owned aggregate construction, borrow loans, and cleanup materialization. Do not leave a
-permanent dual pipeline, add language features, or add standard-library APIs during the architecture
-migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
+v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The production MIR route now owns
+the scalar control-flow subset described below, nested value/recovery blocks, scalar borrow
+bindings and lexical loan endings, borrow-parameter forwarding, and copy aggregate call-result
+locals, fields, and forwarding. One construction context owns mutable MIR state and one backend
+context projects the checked body. MIR construction and validation are authoritative after route
+selection; buildability and machine-IR lowering consume the same retained body and identity-backed
+call edges. The next boundary is owned aggregate construction and an explicit semantic drop plan on
+MIR `Drop` terminators. Do not merely teach the backend to rediscover drop glue from an AST/type
+name. After that, expand aggregate literals/variants/indexes, borrow projections, regions, closures,
+typed literals, interpolation, expansion, and iteration until the AST lowering/buildability routes
+can be deleted. Do not add language features or standard-library APIs during the migration. The
+v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
 ## Active v0.14.0 Phase 3 MIR Checkpoint
 
