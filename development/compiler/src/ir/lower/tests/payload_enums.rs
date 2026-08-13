@@ -1154,6 +1154,59 @@ func main(): i32 {
 }
 
 #[test]
+fn mir_lowers_active_variant_cleanup_for_owned_parameters() {
+    let function = lower_named_function(
+        r#"struct Payload {
+    code: i32
+}
+
+destruct Payload(&+self) {
+    return
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func consume(result: Result): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        "consume",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::LoadAggregateU8 {
+                destination: U8Location::Local(0),
+                source: AggregateLocation::Slot(0),
+                offset: 0,
+            })
+    );
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::If {
+            then_instructions,
+            ..
+        } if then_instructions == &vec![Instruction::CallVoid {
+            target: CallTarget::same_file("Payload.drop"),
+            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField {
+                    slot_index: 0,
+                    offset: 4,
+                },
+            })],
+        }]
+    )));
+}
+
+#[test]
 fn lowers_scope_end_drop_for_multi_field_active_payload_enum_payload() {
     let ir = lower_text(
         r#"struct Payload {

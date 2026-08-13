@@ -26,6 +26,9 @@ pub(crate) enum DropPlan {
         element_ty: TyId,
         element: DropPlanId,
     },
+    Enum {
+        variants: Vec<DropPlanVariant>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +36,12 @@ pub(crate) struct DropPlanField {
     pub(crate) index: usize,
     pub(crate) ty: TyId,
     pub(crate) plan: DropPlanId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DropPlanVariant {
+    pub(crate) definition: DefId,
+    pub(crate) fields: Vec<DropPlanField>,
 }
 
 pub(super) fn build(
@@ -170,10 +179,7 @@ fn build_nominal(
         resolving.remove(&symbol.canonical_name);
         return result;
     }
-    if matches!(
-        symbol.kind,
-        TypeSymbolKind::Enum | TypeSymbolKind::Interface
-    ) {
+    if symbol.kind == TypeSymbolKind::Interface {
         resolving.remove(&symbol.canonical_name);
         return None;
     }
@@ -196,15 +202,47 @@ fn build_nominal(
             });
         }
     }
+    let mut variants = Vec::new();
+    if symbol.kind == TypeSymbolKind::Enum {
+        for variant in &symbol.variants {
+            let definition = resolved.semantic_db.definition_at(variant.name_span)?;
+            let mut payload_fields = Vec::new();
+            for (index, payload) in variant.payload.iter().enumerate() {
+                let payload_ty = substitute_type_expr_parameters(&payload.ty, &substitutions);
+                let Some(plan) =
+                    build_inner(&payload_ty, fallback, sources, typed_hir, plans, resolving)
+                else {
+                    continue;
+                };
+                payload_fields.push(DropPlanField {
+                    index,
+                    ty: typed_hir.type_id(&payload_ty)?,
+                    plan,
+                });
+            }
+            if !payload_fields.is_empty() {
+                variants.push(DropPlanVariant {
+                    definition,
+                    fields: payload_fields,
+                });
+            }
+        }
+    }
     resolving.remove(&symbol.canonical_name);
-    match (symbol.kind, destructor, fields.is_empty()) {
-        (TypeSymbolKind::Struct, destructor, false) => {
+    match (
+        symbol.kind,
+        destructor,
+        fields.is_empty(),
+        variants.is_empty(),
+    ) {
+        (TypeSymbolKind::Struct, destructor, false, _) => {
             push(plans, DropPlan::Struct { destructor, fields })
         }
-        (_, Some(destructor), true) => push(plans, DropPlan::Direct { destructor }),
+        (TypeSymbolKind::Enum, None, _, false) => push(plans, DropPlan::Enum { variants }),
+        (_, Some(destructor), true, _) => push(plans, DropPlan::Direct { destructor }),
         // Move semantics still require an ownership-consuming cleanup edge
         // even when no runtime destructor instruction is necessary.
-        (_, None, true) => push(plans, DropPlan::Noop),
+        (_, None, true, true) => push(plans, DropPlan::Noop),
         _ => {
             let _ = definition;
             None

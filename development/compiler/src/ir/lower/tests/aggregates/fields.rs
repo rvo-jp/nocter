@@ -88,12 +88,16 @@ fn mir_projects_dynamic_fixed_array_index_loans_with_bounds_metadata() {
     return 42
 }
 
-func main(index: usize): i32 {
+func read_at(index: usize): i32 {
     let values: [i32; 2] = [7, 9]
     return consume(&values[index])
 }
+
+func main(): i32 {
+    return read_at(0)
+}
 "#,
-        "main",
+        "read_at",
     );
 
     assert!(function.instructions.contains(&Instruction::CallI32 {

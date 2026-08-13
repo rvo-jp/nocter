@@ -128,10 +128,7 @@ func ignore(resources: [Resource; 2]): i32 {
     assert!(matches!(
         drops[1].as_slice(),
         [ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlotField {
-                slot_index: 0,
-                offset: 0,
-            },
+            source: BorrowSource::AggregateSlot(0),
         })]
     ));
 }

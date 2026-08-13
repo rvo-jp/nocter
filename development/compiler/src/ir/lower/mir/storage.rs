@@ -21,6 +21,18 @@ pub(super) fn machine_local_index(body: &Body, local: LocalId) -> usize {
         .count()
 }
 
+pub(super) fn machine_local_count(body: &Body) -> usize {
+    body.locals
+        .iter()
+        .enumerate()
+        .filter(|(index, local)| {
+            local.storage == LocalStorage::Local
+                && !is_inlined_loop_condition(body, LocalId::from_index(*index))
+                && !is_inlined_borrow_temporary(body, LocalId::from_index(*index))
+        })
+        .count()
+}
+
 pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
     let Some(declaration) = body.locals.get(local.index()) else {
         return false;

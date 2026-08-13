@@ -5,7 +5,10 @@ use super::{
 };
 use crate::abi::{AbiType, layout_struct};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, BorrowArgument, BorrowSource, Instruction, ScalarArgument};
+use crate::ir::{
+    AggregateLocation, BorrowArgument, BorrowSource, I32ComparisonOperator, I32Value, Instruction,
+    ScalarArgument, U8Location, U8Value,
+};
 use crate::mir::{DropPlan, DropPlanId, Place};
 
 pub(super) fn lower_drop(
@@ -103,7 +106,103 @@ fn lower_plan(
             }
             Ok(instructions)
         }
+        DropPlan::Enum { variants } => {
+            let value = aggregate_local_abi_value(ty, context)?;
+            let AbiType::Enum(enum_) = value.ty else {
+                return Err(invalid_mir_diagnostics(
+                    "enum drop plan does not describe enum storage",
+                ));
+            };
+            let tag = U8Location::Local(super::storage::machine_local_count(context.body));
+            let mut instructions = vec![Instruction::LoadAggregateU8 {
+                destination: tag,
+                source: location,
+                offset: base_offset,
+            }];
+            for variant in variants.iter().rev() {
+                let signature = enum_variant_signature(context, variant.definition)?;
+                let abi_variant = enum_
+                    .variants
+                    .iter()
+                    .find(|candidate| candidate.name == signature.name)
+                    .ok_or_else(|| {
+                        invalid_mir_diagnostics("enum drop variant has no matching ABI variant")
+                    })?;
+                let then_instructions = lower_enum_variant_fields(
+                    context,
+                    location,
+                    base_offset,
+                    &enum_,
+                    abi_variant,
+                    variant,
+                )?;
+                instructions.push(Instruction::If {
+                    condition: crate::ir::BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(tag))),
+                        right: I32Value::U8ZeroExtend(Box::new(U8Value::Const(abi_variant.tag))),
+                    },
+                    then_instructions,
+                    else_instructions: Vec::new(),
+                });
+            }
+            Ok(instructions)
+        }
     }
+}
+
+fn enum_variant_signature<'a>(
+    context: &'a BackendContext<'_>,
+    definition: crate::semantic::DefId,
+) -> Result<&'a crate::resolve::EnumVariantSignature, Vec<Diagnostic>> {
+    let anchor = context
+        .resolved
+        .semantic_db
+        .definition_anchor(definition)
+        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant has no semantic anchor"))?;
+    let owner = context
+        .resolved
+        .enum_variant_owner(definition)
+        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant has no semantic owner"))?;
+    owner
+        .variants
+        .iter()
+        .find(|variant| variant.name_span == anchor)
+        .ok_or_else(|| invalid_mir_diagnostics("enum drop variant signature is missing"))
+}
+
+fn lower_enum_variant_fields(
+    context: &BackendContext<'_>,
+    location: AggregateLocation,
+    base_offset: u32,
+    enum_: &crate::abi::AbiEnum,
+    abi_variant: &crate::abi::AbiEnumVariant,
+    variant: &crate::mir::DropPlanVariant,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let payload_base = u32::try_from(enum_.payload_offset)
+        .ok()
+        .and_then(|offset| base_offset.checked_add(offset))
+        .ok_or_else(|| invalid_mir_diagnostics("enum payload offset is invalid"))?;
+    let field_offsets = match abi_variant.payload.as_ref() {
+        Some(AbiType::Struct(fields)) if fields.len() > 1 => layout_struct(fields)
+            .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?
+            .fields
+            .into_iter()
+            .map(|field| u32::try_from(field.offset).ok())
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| invalid_mir_diagnostics("enum payload field offset is invalid"))?,
+        Some(_) => vec![0],
+        None => Vec::new(),
+    };
+    let mut instructions = Vec::new();
+    for field in variant.fields.iter().rev() {
+        let offset = field_offsets
+            .get(field.index)
+            .and_then(|offset| payload_base.checked_add(*offset))
+            .ok_or_else(|| invalid_mir_diagnostics("enum drop payload field is invalid"))?;
+        instructions.extend(lower_plan(context, location, offset, field.ty, field.plan)?);
+    }
+    Ok(instructions)
 }
 
 fn direct_drop(

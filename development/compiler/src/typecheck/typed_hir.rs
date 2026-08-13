@@ -125,7 +125,7 @@ impl TypedExpressionArena {
         expression.contextual_ty = Some(ty);
     }
 
-    fn intern_type(&mut self, ty: TypeExpr, scalar: Option<CheckedScalarType>) -> TyId {
+    pub(super) fn intern_type(&mut self, ty: TypeExpr, scalar: Option<CheckedScalarType>) -> TyId {
         let key = crate::ast::canonical_type_expr(&ty);
         if let Some(id) = self.type_ids.get(&key) {
             let recorded = &mut self.scalar_types[id.index()];

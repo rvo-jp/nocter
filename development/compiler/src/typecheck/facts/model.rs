@@ -99,6 +99,14 @@ impl TypedHir {
             .record_contextual_type(expression_span, ty, scalar);
     }
 
+    pub(super) fn intern_type_identity(
+        &mut self,
+        ty: TypeExpr,
+        scalar: Option<CheckedScalarType>,
+    ) -> crate::semantic::TyId {
+        self.expressions.intern_type(ty, scalar)
+    }
+
     pub(crate) fn expression(&self, expression_span: ByteSpan) -> Option<&TypedExpression> {
         let expression = self.expressions.expression_id_at(expression_span)?;
         self.expression_by_id(expression)

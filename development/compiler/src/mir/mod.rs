@@ -15,7 +15,7 @@ mod places;
 mod scopes;
 mod validate;
 
-pub(crate) use drop_plans::DropPlan;
+pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
 pub(crate) use ids::{BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, ScopeId};
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{

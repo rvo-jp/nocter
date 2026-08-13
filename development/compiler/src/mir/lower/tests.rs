@@ -60,6 +60,59 @@ func read(resource: Resource): i32 {
 }
 
 #[test]
+fn builds_active_variant_cleanup_from_semantic_drop_plans() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Payload {
+    code: i32
+}
+
+destruct Payload(&+self) {
+    return
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func consume(result: Result): i32 {
+    return 0
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "consume" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("owned payload enum parameter must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.locals[1]
+            .drop_plan
+            .and_then(|plan| body.drop_plans.get(plan.index())),
+        Some(DropPlan::Enum { variants })
+            if matches!(variants.as_slice(), [crate::mir::DropPlanVariant { fields, .. }] if fields.len() == 1)
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_owned_struct_literals_as_aggregate_rvalues() {
     let (_sources, analysis) = analyze_text(
         r#"struct Resource {
@@ -1311,7 +1364,7 @@ fn builds_nested_value_control_flow_as_a_scalar_operand() {
 }
 
 #[test]
-fn does_not_collapse_other_integer_parameters_into_usize_mir() {
+fn interns_wide_integer_parameter_identity_for_mir() {
     let (_sources, analysis) = analyze_text(
         r#"func constant(value: u16): i32 {
     return 42
@@ -1330,17 +1383,21 @@ fn does_not_collapse_other_integer_parameters_into_usize_mir() {
         })
         .unwrap();
 
-    assert!(
-        try_build_scalar_body(
-            function.body.as_ref().unwrap(),
-            &function.parameters.parameters,
-            ScalarType::I32,
-            &analysis.semantic_db,
-            &file.resolved,
-            &file.typed_hir,
-        )
-        .is_none()
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("wide integer parameter identity must select MIR")
+    .unwrap();
+    assert_eq!(
+        body.locals[1].representation,
+        ValueRepresentation::Scalar(ScalarType::Integer(crate::integer::IntegerType::U16))
     );
+    assert_eq!(validate(&body), Ok(()));
 }
 
 #[test]

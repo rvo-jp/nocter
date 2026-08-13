@@ -56,6 +56,7 @@ pub(crate) enum ValidationError {
         plan: DropPlanId,
         referenced: DropPlanId,
     },
+    InvalidDropPlanShape(DropPlanId),
     DuplicateParameterStorage {
         first: LocalId,
         duplicate: LocalId,
@@ -720,7 +721,31 @@ fn validate_drop_plans(body: &Body, errors: &mut Vec<ValidationError>) {
                 fields.iter().map(|field| field.plan).collect()
             }
             crate::mir::DropPlan::Array { element, .. } => vec![*element],
+            crate::mir::DropPlan::Enum { variants } => variants
+                .iter()
+                .flat_map(|variant| variant.fields.iter().map(|field| field.plan))
+                .collect(),
         };
+        let shape_is_valid = match plan {
+            crate::mir::DropPlan::Noop | crate::mir::DropPlan::Direct { .. } => true,
+            crate::mir::DropPlan::Struct { fields, .. } => unique_drop_field_indices(fields),
+            crate::mir::DropPlan::Array { length, .. } => *length > 0,
+            crate::mir::DropPlan::Enum { variants } => {
+                !variants.is_empty()
+                    && variants.iter().all(|variant| {
+                        !variant.fields.is_empty() && unique_drop_field_indices(&variant.fields)
+                    })
+                    && variants
+                        .iter()
+                        .map(|variant| variant.definition)
+                        .collect::<std::collections::HashSet<_>>()
+                        .len()
+                        == variants.len()
+            }
+        };
+        if !shape_is_valid {
+            errors.push(ValidationError::InvalidDropPlanShape(id));
+        }
         for referenced in references {
             if referenced.index() >= index {
                 errors.push(ValidationError::InvalidDropPlanReference {
@@ -730,6 +755,15 @@ fn validate_drop_plans(body: &Body, errors: &mut Vec<ValidationError>) {
             }
         }
     }
+}
+
+fn unique_drop_field_indices(fields: &[crate::mir::drop_plans::DropPlanField]) -> bool {
+    fields
+        .iter()
+        .map(|field| field.index)
+        .collect::<std::collections::HashSet<_>>()
+        .len()
+        == fields.len()
 }
 
 fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
