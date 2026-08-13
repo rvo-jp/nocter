@@ -8,10 +8,6 @@ use super::locals::{OwnershipKind, ValueRepresentation};
 use super::model::BasicBlock;
 use super::{BasicBlockId, Body, LocalId, Place, ScopeId, Terminator};
 
-#[allow(
-    dead_code,
-    reason = "owned aggregate route invokes cleanup materialization after its construction checkpoint"
-)]
 pub(super) fn materialize(body: &mut Body) {
     let analysis = super::initialization::analyze(body);
     let original_block_count = body.blocks.len();

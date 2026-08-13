@@ -94,6 +94,9 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - primitive source names are recognized once as a closed `IntrinsicId` domain; pointer, view,
   process, allocation, I/O, and syscall lowering no longer dispatches backend semantics by string
   comparison
+- MIR construction has one `finalize` boundary that rejects invalid initialization, materializes
+  cleanup, and validates the completed body; retained consumers cannot observe construction-only
+  MIR or independently decide when cleanup insertion occurs
 - the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint

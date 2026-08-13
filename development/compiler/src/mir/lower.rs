@@ -3,8 +3,9 @@
 use super::ids::{BasicBlockId, LocalId};
 use super::locals::{Local, LocalOrigin, LocalStorage, ScalarType};
 use super::model::{Body, ReturnMode, Terminator};
-use super::validate;
 use super::validate::ValidationError;
+#[cfg(test)]
+use super::validate;
 use super::{Scope, ScopeId};
 use crate::ast::{Block, Expr, Parameter};
 use crate::resolve::ResolveOutput;
@@ -254,8 +255,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             loans: Vec::new(),
             projections: Vec::new(),
         };
-        validate(&body).map_err(BuildError::InvalidMir)?;
-        Ok(body)
+        super::finalize(body).map_err(BuildError::InvalidMir)
     })())
 }
 

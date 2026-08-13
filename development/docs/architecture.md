@@ -124,6 +124,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.
+- MIR builders produce a construction-only body and pass it through one `finalize` boundary.
+  Finalization validates definite initialization, materializes cleanup edges, and validates the
+  completed representation before it can enter the compile-unit cache.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain
