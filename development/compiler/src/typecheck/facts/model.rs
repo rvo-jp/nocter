@@ -1,6 +1,6 @@
 use super::*;
 use crate::semantic::{ExprId, SemanticDb};
-use crate::typecheck::{PartialSemantic, TypedExpression};
+use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedExpression};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -79,8 +79,9 @@ impl TypedHir {
         &mut self,
         expression_span: ByteSpan,
         ty: Option<TypeExpr>,
+        scalar: Option<CheckedScalarType>,
     ) {
-        self.expressions.record_type(expression_span, ty);
+        self.expressions.record_type(expression_span, ty, scalar);
     }
 
     pub(crate) fn expression(&self, expression_span: ByteSpan) -> Option<&TypedExpression> {
@@ -126,6 +127,10 @@ impl TypedHir {
 
     pub(crate) fn type_id(&self, ty: &TypeExpr) -> Option<crate::semantic::TyId> {
         self.expressions.type_id(ty)
+    }
+
+    pub(crate) fn scalar_type(&self, ty: crate::semantic::TyId) -> Option<CheckedScalarType> {
+        self.expressions.scalar_type(ty)
     }
 
     pub(crate) fn interpolation_plan(

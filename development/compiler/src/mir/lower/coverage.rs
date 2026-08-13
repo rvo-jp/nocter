@@ -6,7 +6,7 @@ use super::mir_binary_operator;
 use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, IfStmt, Stmt};
 use crate::literals::decode_integer_literal_value;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
-use crate::typecheck::{PartialSemantic, TypecheckScalarViewKind, TypedHir};
+use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedHir};
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum ScalarStatement<'a> {
@@ -162,12 +162,22 @@ pub(super) fn binding_scalar_type(
     symbol: LocalSymbolId,
     typed_hir: &TypedHir,
 ) -> Option<super::ScalarType> {
-    match typed_hir.binding_scalar_view_kind(symbol)? {
-        TypecheckScalarViewKind::I32 => Some(super::ScalarType::I32),
-        TypecheckScalarViewKind::Usize => Some(super::ScalarType::Usize),
-        TypecheckScalarViewKind::Bool => Some(super::ScalarType::Bool),
-        TypecheckScalarViewKind::U8
-        | TypecheckScalarViewKind::Str
-        | TypecheckScalarViewKind::Slice(_) => None,
+    let ty = typed_hir.binding_type_expr(symbol)?;
+    scalar_type(typed_hir.type_id(ty)?, typed_hir)
+}
+
+pub(super) fn scalar_type(
+    ty: crate::semantic::TyId,
+    typed_hir: &TypedHir,
+) -> Option<super::ScalarType> {
+    match typed_hir.scalar_type(ty)? {
+        CheckedScalarType::Integer(crate::integer::IntegerType::I32) => {
+            Some(super::ScalarType::I32)
+        }
+        CheckedScalarType::Integer(crate::integer::IntegerType::Usize) => {
+            Some(super::ScalarType::Usize)
+        }
+        CheckedScalarType::Bool => Some(super::ScalarType::Bool),
+        CheckedScalarType::Integer(_) => None,
     }
 }

@@ -229,6 +229,18 @@ pub(super) fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
     }
 }
 
+pub(super) fn checked_scalar_type(ty: &Type) -> Option<crate::typecheck::CheckedScalarType> {
+    match ty {
+        Type::I32 => Some(crate::typecheck::CheckedScalarType::Integer(
+            IntegerType::I32,
+        )),
+        Type::Primitive(name) => IntegerType::from_name(name)
+            .map(crate::typecheck::CheckedScalarType::Integer)
+            .or_else(|| (name == "bool").then_some(crate::typecheck::CheckedScalarType::Bool)),
+        _ => None,
+    }
+}
+
 pub(super) fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
     match element {
         Type::I32 => TypecheckSliceElementKind::I32,

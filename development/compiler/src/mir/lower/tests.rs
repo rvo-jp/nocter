@@ -207,3 +207,36 @@ fn does_not_claim_nested_control_flow_as_a_scalar_operand() {
         .is_none()
     );
 }
+
+#[test]
+fn does_not_collapse_other_integer_parameters_into_usize_mir() {
+    let (_sources, analysis) = analyze_text(
+        r#"func constant(value: u16): i32 {
+    return 42
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "constant" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+
+    assert!(
+        try_build_scalar_body(
+            function.body.as_ref().unwrap(),
+            &function.parameters.parameters,
+            ScalarType::I32,
+            &analysis.semantic_db,
+            &file.resolved,
+            &file.typed_hir,
+        )
+        .is_none()
+    );
+}

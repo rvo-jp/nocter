@@ -1,6 +1,7 @@
 //! Identity-keyed, error-tolerant expression semantics.
 
 use crate::ast::TypeExpr;
+use crate::integer::IntegerType;
 use crate::semantic::{BodyId, ExprId, SemanticDb, TyId};
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -19,6 +20,12 @@ pub(crate) struct TypedExpression {
     pub(crate) ty: PartialSemantic<TyId>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CheckedScalarType {
+    Integer(IntegerType),
+    Bool,
+}
+
 /// Type arena and expression table for one immutable semantic generation.
 ///
 /// Source spans are accepted only at the syntax-to-semantics boundary. Stored
@@ -28,6 +35,7 @@ pub(crate) struct TypedExpression {
 pub(super) struct TypedExpressionArena {
     semantic_db: Arc<SemanticDb>,
     types: Vec<TypeExpr>,
+    scalar_types: Vec<Option<CheckedScalarType>>,
     type_ids: HashMap<String, TyId>,
     expressions: HashMap<ExprId, TypedExpression>,
 }
@@ -37,12 +45,18 @@ impl TypedExpressionArena {
         Self {
             semantic_db,
             types: Vec::new(),
+            scalar_types: Vec::new(),
             type_ids: HashMap::new(),
             expressions: HashMap::new(),
         }
     }
 
-    pub(super) fn record_type(&mut self, expression_span: ByteSpan, ty: Option<TypeExpr>) {
+    pub(super) fn record_type(
+        &mut self,
+        expression_span: ByteSpan,
+        ty: Option<TypeExpr>,
+        scalar: Option<CheckedScalarType>,
+    ) {
         let Some(expression) = self.semantic_db.expression_at(expression_span) else {
             return;
         };
@@ -53,7 +67,7 @@ impl TypedExpressionArena {
         debug_assert_eq!(definition.span, expression_span);
         let body = definition.body;
         let ty = match ty {
-            Some(ty) => PartialSemantic::Known(self.intern_type(ty)),
+            Some(ty) => PartialSemantic::Known(self.intern_type(ty, scalar)),
             None => PartialSemantic::Error,
         };
         self.expressions.insert(
@@ -66,13 +80,19 @@ impl TypedExpressionArena {
         );
     }
 
-    fn intern_type(&mut self, ty: TypeExpr) -> TyId {
+    fn intern_type(&mut self, ty: TypeExpr, scalar: Option<CheckedScalarType>) -> TyId {
         let key = crate::ast::canonical_type_expr(&ty);
         if let Some(id) = self.type_ids.get(&key) {
+            let recorded = &mut self.scalar_types[id.index()];
+            debug_assert!(recorded.is_none() || scalar.is_none() || *recorded == scalar);
+            if recorded.is_none() {
+                *recorded = scalar;
+            }
             return *id;
         }
         let id = TyId::from_index(self.types.len());
         self.types.push(ty);
+        self.scalar_types.push(scalar);
         self.type_ids.insert(key, id);
         id
     }
@@ -93,5 +113,9 @@ impl TypedExpressionArena {
         self.type_ids
             .get(&crate::ast::canonical_type_expr(ty))
             .copied()
+    }
+
+    pub(super) fn scalar_type(&self, ty: TyId) -> Option<CheckedScalarType> {
+        self.scalar_types.get(ty.index()).copied().flatten()
     }
 }
