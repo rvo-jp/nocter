@@ -13,7 +13,7 @@ use std::collections::HashMap;
 mod coverage;
 mod expressions;
 use coverage::*;
-use expressions::{lower_expression_to_place, lower_operand};
+use expressions::{lower_expression_to_place, lower_operand, lower_tail_call};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildError {
@@ -22,6 +22,7 @@ pub(crate) enum BuildError {
     InvalidScalarConstant,
     MissingLocalSymbol,
     MissingParameterType,
+    MissingCallTarget,
     UnsupportedClaimedExpression,
     InvalidMir(Vec<ValidationError>),
 }
@@ -50,6 +51,9 @@ pub(crate) fn try_build_scalar_body(
     }
 
     let return_ty = tail.result_type(typed_hir)?;
+    if scalar_type(return_ty, typed_hir) != Some(return_scalar) {
+        return None;
+    }
     Some((|| {
         let source_body = semantic_db
             .body_at(block.span)
@@ -201,6 +205,40 @@ pub(crate) fn try_build_scalar_body(
                     terminator: Terminator::Return,
                 },
             ]
+        } else if let Some(Expr::Call(call)) = tail.expression() {
+            let (callee, arguments, returns_never) = lower_tail_call(
+                call,
+                resolved,
+                &locals_by_symbol,
+                typed_hir,
+                &mut locals,
+                &mut mir_statements,
+            )?;
+            let continuation = if returns_never {
+                crate::mir::CallContinuation::Never
+            } else {
+                crate::mir::CallContinuation::Return {
+                    destination: crate::mir::Place {
+                        local: return_local,
+                    },
+                    target: BasicBlockId::from_index(1),
+                }
+            };
+            let mut blocks = vec![BasicBlock {
+                statements: mir_statements,
+                terminator: Terminator::Call {
+                    callee,
+                    arguments,
+                    continuation,
+                },
+            }];
+            if !returns_never {
+                blocks.push(BasicBlock {
+                    statements: Vec::new(),
+                    terminator: Terminator::Return,
+                });
+            }
+            blocks
         } else {
             let expression = tail
                 .expression()

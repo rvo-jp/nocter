@@ -19,6 +19,7 @@ impl TypedHirBuilder<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
+        self.record_contextual_expression_type(expression.span(), expected);
         if !expression_propagates_expected_type(expression)
             && let Ok(selected) = crate::typecheck::conversions::select_expression_conversion(
                 crate::typecheck::conversions::ConversionMode::Contextual,

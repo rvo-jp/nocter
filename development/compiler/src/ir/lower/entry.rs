@@ -164,6 +164,10 @@ fn lower_entry_parts(
         &return_type,
         resolved,
         typed_hir,
+        name,
+        &function_signatures,
+        &function_names,
+        root_source,
         sources,
     ) {
         return Ok(Function {

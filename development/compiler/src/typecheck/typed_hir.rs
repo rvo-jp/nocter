@@ -18,6 +18,7 @@ pub(crate) struct TypedExpression {
     pub(crate) id: ExprId,
     pub(crate) body: BodyId,
     pub(crate) ty: PartialSemantic<TyId>,
+    pub(crate) contextual_ty: Option<TyId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,8 +77,30 @@ impl TypedExpressionArena {
                 id: expression,
                 body,
                 ty,
+                contextual_ty: None,
             },
         );
+    }
+
+    pub(super) fn record_contextual_type(
+        &mut self,
+        expression_span: ByteSpan,
+        ty: TypeExpr,
+        scalar: Option<CheckedScalarType>,
+    ) {
+        let Some(expression) = self.semantic_db.expression_at(expression_span) else {
+            return;
+        };
+        let ty = self.intern_type(ty, scalar);
+        let Some(expression) = self.expressions.get_mut(&expression) else {
+            return;
+        };
+        debug_assert!(
+            expression
+                .contextual_ty
+                .is_none_or(|existing| existing == ty)
+        );
+        expression.contextual_ty = Some(ty);
     }
 
     fn intern_type(&mut self, ty: TypeExpr, scalar: Option<CheckedScalarType>) -> TyId {

@@ -499,7 +499,7 @@ fn validate_call_success_return_passing(
     )])
 }
 
-pub(super) fn describe_type(ty: &Type) -> &'static str {
+pub(in crate::ir::lower) fn describe_type(ty: &Type) -> &'static str {
     match ty {
         Type::I32 => "i32",
         Type::U8 => "u8",

@@ -37,7 +37,17 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
             )
         });
         match body {
-            Some(Ok(_)) => return,
+            Some(Ok(body)) => {
+                if let Err(message) =
+                    enqueue_mir_call_targets(&body, callable, root_source, names, queue)
+                {
+                    diagnostics.push(
+                        Diagnostic::error("E8000", message)
+                            .with_primary_span_if_absent(sources, callable.body.span),
+                    );
+                }
+                return;
+            }
             Some(Err(error)) => {
                 diagnostics.push(
                     Diagnostic::error(
@@ -66,6 +76,31 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
         queue,
         diagnostics,
     );
+}
+
+fn enqueue_mir_call_targets(
+    body: &crate::mir::Body,
+    callable: &IndexedCallable<'_>,
+    root_source: SourceId,
+    names: &CallableNames,
+    queue: &mut VecDeque<CallTarget>,
+) -> Result<(), String> {
+    for block in &body.blocks {
+        let crate::mir::Terminator::Call { callee, .. } = block.terminator else {
+            continue;
+        };
+        let name = names
+            .get(&callee)
+            .ok_or_else(|| "MIR call target has no indexed runtime name".to_string())?;
+        let source = callable
+            .resolved
+            .semantic_db
+            .definition_anchor(callee)
+            .ok_or_else(|| "MIR call target has no source anchor".to_string())?
+            .source;
+        queue.push_back(call_target_for_source(source, root_source, name.clone()));
+    }
+    Ok(())
 }
 
 fn callable_scalar_return_type(

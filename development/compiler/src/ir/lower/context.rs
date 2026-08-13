@@ -351,7 +351,7 @@ impl FunctionNames {
         }
     }
 
-    fn name_for_definition(&self, definition: DefId) -> Option<&String> {
+    pub(in crate::ir::lower) fn name_for_definition(&self, definition: DefId) -> Option<&String> {
         self.by_definition.get(&definition)
     }
 

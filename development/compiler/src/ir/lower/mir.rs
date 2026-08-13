@@ -4,14 +4,14 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value,
-    Instruction, Type, UsizeLocation, UsizeValue,
+    Instruction, ScalarArgument, Type, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
-    BinaryOperator, Body, ComparisonOperator, LocalId, LocalSource, Operand, Place, Rvalue,
-    ScalarType, Statement, Terminator,
+    BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalSource, Operand,
+    Place, Rvalue, ScalarType, Statement, Terminator,
 };
 use crate::resolve::ResolveOutput;
-use crate::source::{ByteSpan, SourceMap};
+use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypedHir;
 use std::collections::HashSet;
 
@@ -22,6 +22,10 @@ pub(super) fn try_lower_scalar_body(
     return_type: &Type,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
+    function_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
     let return_scalar = match return_type {
@@ -42,8 +46,16 @@ pub(super) fn try_lower_scalar_body(
         )
     })?;
     Some(match mir_body {
-        Ok(mir_body) => lower_scalar_body(&mir_body)
-            .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
+        Ok(mir_body) => lower_scalar_body(
+            &mir_body,
+            return_type,
+            resolved,
+            function_name,
+            function_signatures,
+            function_names,
+            root_source,
+        )
+        .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
         Err(error) => Err(attach_primary_span(
             vec![Diagnostic::error(
                 "E8000",
@@ -55,7 +67,15 @@ pub(super) fn try_lower_scalar_body(
     })
 }
 
-fn lower_scalar_body(body: &Body) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+fn lower_scalar_body(
+    body: &Body,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    function_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+    function_names: &super::context::FunctionNames,
+    root_source: SourceId,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
     let mut instructions = Vec::new();
     let mut current = body.entry;
@@ -103,12 +123,167 @@ fn lower_scalar_body(body: &Body) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
                 });
                 current = *then_join;
             }
+            Terminator::Call {
+                callee,
+                arguments,
+                continuation,
+            } => {
+                let (call_target, callee_name) =
+                    lower_call_target(*callee, resolved, function_names, root_source)?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, body))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let fits_tail_call_abi = arguments
+                    .iter()
+                    .map(ScalarArgument::abi_word_count)
+                    .sum::<usize>()
+                    <= crate::abi::ARGUMENT_REGISTER_COUNT;
+
+                match continuation {
+                    CallContinuation::Never => {
+                        validate_never_call_return_type(
+                            &call_target,
+                            &callee_name,
+                            function_signatures,
+                        )?;
+                        if fits_tail_call_abi {
+                            instructions.push(Instruction::TailCall {
+                                target: call_target,
+                                arguments,
+                            });
+                        } else {
+                            instructions.push(Instruction::CallVoid {
+                                target: call_target,
+                                arguments,
+                            });
+                            instructions.push(Instruction::Trap);
+                        }
+                        return Ok(instructions);
+                    }
+                    CallContinuation::Return {
+                        destination,
+                        target,
+                    } => {
+                        let target_block = &body.blocks[target.index()];
+                        let returns_directly = destination.local == body.return_local
+                            && target_block.statements.is_empty()
+                            && target_block.terminator == Terminator::Return;
+                        if returns_directly {
+                            validate_tail_call_return_type(
+                                &call_target,
+                                &callee_name,
+                                function_name,
+                                return_type,
+                                function_signatures,
+                            )?;
+                        }
+                        if returns_directly && fits_tail_call_abi {
+                            instructions.push(Instruction::TailCall {
+                                target: call_target,
+                                arguments,
+                            });
+                            return Ok(instructions);
+                        }
+                        instructions.push(match body.locals[destination.local.index()].scalar {
+                            ScalarType::I32 => Instruction::CallI32 {
+                                destination: i32_location(destination, body)?,
+                                target: call_target,
+                                arguments,
+                            },
+                            ScalarType::Usize => Instruction::CallUsize {
+                                destination: usize_location(destination, body)?,
+                                target: call_target,
+                                arguments,
+                            },
+                            ScalarType::Bool => Instruction::CallBool {
+                                destination: bool_location(destination, body)?,
+                                target: call_target,
+                                arguments,
+                            },
+                        });
+                        current = *target;
+                    }
+                }
+            }
             Terminator::Return => {
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
         }
     }
+}
+
+fn validate_never_call_return_type(
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = function_signatures.return_type(target) else {
+        return Ok(());
+    };
+    if callee_return_type == &Type::Never {
+        return Ok(());
+    }
+    Err(invalid_mir_diagnostics(format!(
+        "call to `{callee_name}` has a non-returning continuation but returns `{}`",
+        super::expressions::describe_type(callee_return_type),
+    )))
+}
+
+fn lower_call_target(
+    callee: crate::semantic::DefId,
+    resolved: &ResolveOutput,
+    function_names: &super::context::FunctionNames,
+    root_source: SourceId,
+) -> Result<(crate::ir::CallTarget, String), Vec<Diagnostic>> {
+    let name = function_names
+        .name_for_definition(callee)
+        .ok_or_else(|| invalid_mir_diagnostics("call target has no indexed runtime name"))?
+        .clone();
+    let source = resolved
+        .semantic_db
+        .definition_anchor(callee)
+        .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
+        .source;
+    Ok((
+        super::call_target_for_source(source, root_source, name.clone()),
+        name,
+    ))
+}
+
+fn validate_tail_call_return_type(
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    function_name: &str,
+    return_type: &Type,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = function_signatures.return_type(target) else {
+        return Ok(());
+    };
+    if callee_return_type == &Type::Never || callee_return_type == return_type {
+        return Ok(());
+    }
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "native lowering cannot lower tail call from function `{function_name}` returning `{}` to function `{callee_name}` returning `{}`",
+            super::expressions::describe_type(return_type),
+            super::expressions::describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn lower_call_argument(
+    argument: &crate::mir::CallArgument,
+    body: &Body,
+) -> Result<ScalarArgument, Vec<Diagnostic>> {
+    Ok(match argument.scalar {
+        ScalarType::I32 => ScalarArgument::I32(lower_i32_operand(&argument.operand, body)?),
+        ScalarType::Usize => ScalarArgument::Usize(lower_usize_operand(&argument.operand, body)?),
+        ScalarType::Bool => ScalarArgument::Bool(lower_bool_operand(&argument.operand, body)?),
+    })
 }
 
 fn lower_statements(

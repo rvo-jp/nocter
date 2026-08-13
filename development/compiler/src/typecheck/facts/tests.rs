@@ -6,6 +6,44 @@ use crate::source::SourceMap;
 use crate::typecheck::PartialSemantic;
 
 #[test]
+fn retains_intrinsic_and_contextual_integer_literal_types_separately() {
+    let text = r#"func consume(value: usize): usize {
+    return value
+}
+
+func main(): usize {
+    return consume(1)
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let hir = lower_typed_hir(&ast, &resolved);
+    let literal_start = text.find("1)").unwrap();
+    let literal = hir
+        .expression(ByteSpan::new(
+            ast.span.source,
+            literal_start,
+            literal_start + 1,
+        ))
+        .expect("argument literal must have typed HIR");
+    let PartialSemantic::Known(intrinsic) = literal.ty else {
+        panic!("argument literal must have an intrinsic type");
+    };
+
+    assert_eq!(
+        hir.scalar_type(intrinsic),
+        Some(crate::typecheck::CheckedScalarType::Integer(
+            crate::integer::IntegerType::I32,
+        ))
+    );
+    assert_eq!(
+        literal.contextual_ty.and_then(|ty| hir.scalar_type(ty)),
+        Some(crate::typecheck::CheckedScalarType::Integer(
+            crate::integer::IntegerType::Usize,
+        ))
+    );
+}
+
+#[test]
 fn typed_hir_retains_known_and_error_expressions_in_one_body() {
     let text = r#"func main(): i32 {
     let first = 1

@@ -39,6 +39,9 @@ impl<'a> ScalarTail<'a> {
 
     pub(super) fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
         match self {
+            Self::Expression(Expr::Call(call)) => {
+                scalar_tail_call_is_supported(call, resolved, typed_hir)
+            }
             Self::Expression(Expr::If(if_)) => {
                 scalar_conditional_is_supported(if_, resolved, typed_hir)
             }
@@ -57,6 +60,41 @@ impl<'a> ScalarTail<'a> {
             }
         }
     }
+}
+
+fn scalar_tail_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    let Expr::Identifier(callee) = call.callee.without_groups() else {
+        return false;
+    };
+    typed_hir
+        .function_call_target(callee.span)
+        .and_then(|target| resolved.semantic_db.definition(target))
+        .is_some_and(|definition| definition.kind == crate::semantic::DefinitionKind::Function)
+        && typed_hir.generic_function_call_target(call.span).is_none()
+        && typed_hir.function_call_specialization(call.span).is_none()
+        && typed_hir
+            .expression(call.span)
+            .and_then(|expression| {
+                expression
+                    .contextual_ty
+                    .or(match expression.ty {
+                        PartialSemantic::Known(ty) => Some(ty),
+                        PartialSemantic::Error => None,
+                    })
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+            })
+            .is_some()
+        && call.arguments.iter().all(|argument| {
+            !matches!(argument.without_groups(), Expr::Call(_) | Expr::If(_))
+                && known_expression_type(argument, typed_hir)
+                    .and_then(|ty| scalar_type(ty, typed_hir))
+                    .is_some()
+                && scalar_expression_is_supported(argument, resolved, typed_hir)
+        })
 }
 
 impl<'a> ScalarStatement<'a> {
@@ -201,6 +239,9 @@ pub(super) fn known_expression_type(
     typed_hir: &TypedHir,
 ) -> Option<crate::semantic::TyId> {
     let expression = typed_hir.expression(expression.span())?;
+    if let Some(ty) = expression.contextual_ty {
+        return Some(ty);
+    }
     let PartialSemantic::Known(ty) = expression.ty else {
         return None;
     };

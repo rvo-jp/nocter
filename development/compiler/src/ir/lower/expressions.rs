@@ -38,6 +38,7 @@ mod byte_collections;
 mod byte_view_values;
 mod call_arguments;
 mod calls;
+pub(in crate::ir::lower) use calls::describe_type;
 mod closure_captures;
 mod coercions;
 mod control_flow_values;

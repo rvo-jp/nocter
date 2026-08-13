@@ -124,8 +124,9 @@ use primitives::{
     lower_open_read_raw_primitive_call, lower_read_bytes_raw_primitive_call,
     lower_write_bytes_raw_primitive_call, lower_write_text_raw_primitive_call,
 };
+pub(in crate::ir::lower) use return_validation::describe_type;
 use return_validation::{
-    describe_type, validate_bool_normal_call_return_type, validate_borrow_normal_call_return_type,
+    validate_bool_normal_call_return_type, validate_borrow_normal_call_return_type,
     validate_normal_call_return_type, validate_outcome_bool_normal_call_return_type,
     validate_outcome_borrow_normal_call_return_type, validate_outcome_i32_normal_call_return_type,
     validate_outcome_slice_normal_call_return_type, validate_outcome_str_normal_call_return_type,

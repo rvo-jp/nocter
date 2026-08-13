@@ -442,6 +442,22 @@ impl TypedHirBuilder<'_> {
             .record_expression_type(expression_span, ty, scalar);
     }
 
+    pub(in crate::typecheck::facts::collector) fn record_contextual_expression_type(
+        &mut self,
+        expression_span: ByteSpan,
+        ty: &Type,
+    ) {
+        let scalar = checked_scalar_type(ty);
+        let mut free_type_parameters = HashSet::new();
+        let Some(ty) =
+            type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters)
+        else {
+            return;
+        };
+        self.facts
+            .record_contextual_expression_type(expression_span, ty, scalar);
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_drop_type_specialization(
         &mut self,
         span: ByteSpan,

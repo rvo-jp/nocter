@@ -5,12 +5,60 @@ use super::coverage::{known_expression_type, scalar_type};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
-    BinaryOperator, ComparisonOperator, LocalId, LocalSource, Operand, Place, Rvalue, ScalarType,
-    Statement,
+    BinaryOperator, CallArgument, ComparisonOperator, LocalId, LocalSource, Operand, Place, Rvalue,
+    ScalarType, Statement,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::typecheck::TypedHir;
 use std::collections::HashMap;
+
+pub(super) fn lower_tail_call(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    typed_hir: &TypedHir,
+    local_declarations: &mut Vec<crate::mir::model::Local>,
+    statements: &mut Vec<Statement>,
+) -> Result<(crate::semantic::DefId, Vec<CallArgument>, bool), BuildError> {
+    let Expr::Identifier(callee) = call.callee.without_groups() else {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    };
+    let returns_never = resolved
+        .function_signature_for_call(call)
+        .is_some_and(|signature| {
+            matches!(&signature.return_type, crate::ast::TypeExpr::Reference(reference) if reference.name == "never")
+        });
+    let callee = typed_hir
+        .function_call_target(callee.span)
+        .map(|definition| resolved.callable_bodies.canonical_definition(definition))
+        .ok_or(BuildError::MissingCallTarget)?;
+    let arguments = call
+        .arguments
+        .iter()
+        .map(|argument| {
+            let ty = known_expression_type(argument, typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let scalar =
+                scalar_type(ty, typed_hir).ok_or(BuildError::UnsupportedClaimedExpression)?;
+            let operand = lower_operand(
+                argument,
+                ty,
+                scalar,
+                resolved,
+                locals,
+                typed_hir,
+                local_declarations,
+                statements,
+            )?;
+            Ok(CallArgument {
+                operand,
+                ty,
+                scalar,
+            })
+        })
+        .collect::<Result<Vec<_>, BuildError>>()?;
+    Ok((callee, arguments, returns_never))
+}
 
 pub(super) fn lower_expression_to_place(
     destination: LocalId,

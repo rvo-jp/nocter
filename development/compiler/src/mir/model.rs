@@ -3,7 +3,7 @@
 
 use super::ids::{BasicBlockId, LocalId};
 use crate::resolve::LocalSymbolId;
-use crate::semantic::{BodyId, ExprId, TyId};
+use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +90,22 @@ pub(crate) struct Constant {
     pub(crate) value: u128,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CallArgument {
+    pub(crate) operand: Operand,
+    pub(crate) ty: TyId,
+    pub(crate) scalar: ScalarType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CallContinuation {
+    Return {
+        destination: Place,
+        target: BasicBlockId,
+    },
+    Never,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BinaryOperator {
     Add,
@@ -118,6 +134,11 @@ pub(crate) enum Terminator {
         condition: Operand,
         then_target: BasicBlockId,
         else_target: BasicBlockId,
+    },
+    Call {
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        continuation: CallContinuation,
     },
     Return,
 }

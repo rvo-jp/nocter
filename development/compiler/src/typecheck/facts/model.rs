@@ -84,6 +84,16 @@ impl TypedHir {
         self.expressions.record_type(expression_span, ty, scalar);
     }
 
+    pub(super) fn record_contextual_expression_type(
+        &mut self,
+        expression_span: ByteSpan,
+        ty: TypeExpr,
+        scalar: Option<CheckedScalarType>,
+    ) {
+        self.expressions
+            .record_contextual_type(expression_span, ty, scalar);
+    }
+
     pub(crate) fn expression(&self, expression_span: ByteSpan) -> Option<&TypedExpression> {
         let expression = self.expressions.expression_id_at(expression_span)?;
         self.expression_by_id(expression)

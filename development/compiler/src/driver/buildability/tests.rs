@@ -24,6 +24,27 @@ fn retains_checked_mir_for_machine_ir_lowering() {
 }
 
 #[test]
+fn follows_retained_mir_call_edges_without_ast_body_traversal() {
+    let (sources, analysis) = analyze_text(
+        r#"func add_two(value: i32): i32 {
+    return value + 2
+}
+
+func main(): i32 {
+    return add_two(40)
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(analysis.mir_bodies.len(), 2);
+
+    crate::ir::lower_executable(&analysis, &sources).unwrap();
+    assert_eq!(analysis.mir_bodies.len(), 2);
+}
+
+#[test]
 fn accepts_region_statements_at_the_buildability_boundary() {
     let (sources, analysis) = analyze_text(
         r#"struct Allocator {

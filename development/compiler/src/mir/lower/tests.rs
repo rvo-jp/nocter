@@ -289,3 +289,60 @@ fn builds_primitive_comparison_as_a_typed_mir_rvalue() {
     ));
     assert_eq!(validate(&body), Ok(()));
 }
+
+#[test]
+fn builds_scalar_tail_calls_as_identity_backed_cfg_edges() {
+    let (_sources, analysis) = analyze_text(
+        r#"func add_two(value: i32): i32 {
+    return value + 2
+}
+
+func main(): i32 {
+    return add_two(40)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("scalar tail calls must select MIR")
+    .unwrap();
+
+    let Terminator::Call {
+        callee,
+        arguments,
+        continuation:
+            crate::mir::CallContinuation::Return {
+                destination,
+                target,
+            },
+    } = &body.blocks[0].terminator
+    else {
+        panic!("expected MIR call edge");
+    };
+    assert_eq!(
+        analysis.semantic_db.definition(*callee).unwrap().kind,
+        crate::semantic::DefinitionKind::Function
+    );
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(arguments[0].scalar, ScalarType::I32);
+    assert_eq!(destination.local, body.return_local);
+    assert_eq!(*target, BasicBlockId::from_index(1));
+    assert_eq!(validate(&body), Ok(()));
+}

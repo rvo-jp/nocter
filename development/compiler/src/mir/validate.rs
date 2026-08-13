@@ -2,7 +2,7 @@
 //! failures, not alternate source-language diagnostics.
 
 use super::ids::{BasicBlockId, LocalId};
-use super::model::{Body, Operand, ScalarType, Statement, Terminator};
+use super::model::{Body, CallContinuation, Operand, ScalarType, Statement, Terminator};
 use crate::semantic::TyId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,18 +22,18 @@ pub(crate) enum ValidationError {
     },
     MissingOperandLocal {
         block: BasicBlockId,
-        statement: usize,
+        location: OperandLocation,
         local: LocalId,
     },
     OperandTypeMismatch {
         block: BasicBlockId,
-        statement: usize,
+        location: OperandLocation,
         expected: TyId,
         actual: TyId,
     },
     OperandScalarMismatch {
         block: BasicBlockId,
-        statement: usize,
+        location: OperandLocation,
         expected: ScalarType,
         actual: ScalarType,
     },
@@ -47,10 +47,20 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         target: BasicBlockId,
     },
+    MissingCallDestination {
+        block: BasicBlockId,
+        local: LocalId,
+    },
     NonBooleanCondition {
         block: BasicBlockId,
         actual: ScalarType,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OperandLocation {
+    Statement(usize),
+    CallArgument(usize),
 }
 
 pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
@@ -78,11 +88,17 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             };
             let value_ty = match value {
                 super::model::Rvalue::Use(operand) => {
-                    let ty = operand_type(body, block_id, statement_index, operand, &mut errors);
+                    let ty = operand_type(
+                        body,
+                        block_id,
+                        OperandLocation::Statement(statement_index),
+                        operand,
+                        &mut errors,
+                    );
                     validate_operand_scalar(
                         body,
                         block_id,
-                        statement_index,
+                        OperandLocation::Statement(statement_index),
                         operand,
                         destination_local.scalar,
                         &mut errors,
@@ -96,7 +112,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         validate_operand(
                             body,
                             block_id,
-                            statement_index,
+                            OperandLocation::Statement(statement_index),
                             operand,
                             *ty,
                             destination_local.scalar,
@@ -117,7 +133,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         validate_operand(
                             body,
                             block_id,
-                            statement_index,
+                            OperandLocation::Statement(statement_index),
                             operand,
                             *operand_ty,
                             *operand_scalar,
@@ -165,6 +181,36 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     });
                 }
             }
+            Terminator::Call {
+                arguments,
+                continuation,
+                ..
+            } => {
+                if let CallContinuation::Return {
+                    destination,
+                    target,
+                } = continuation
+                {
+                    validate_target(body, block_id, *target, &mut errors);
+                    if body.locals.get(destination.local.index()).is_none() {
+                        errors.push(ValidationError::MissingCallDestination {
+                            block: block_id,
+                            local: destination.local,
+                        });
+                    }
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    validate_operand(
+                        body,
+                        block_id,
+                        OperandLocation::CallArgument(index),
+                        &argument.operand,
+                        argument.ty,
+                        argument.scalar,
+                        &mut errors,
+                    );
+                }
+            }
             Terminator::Return => {}
         }
     }
@@ -179,31 +225,31 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
 fn validate_operand(
     body: &Body,
     block: BasicBlockId,
-    statement: usize,
+    location: OperandLocation,
     operand: &Operand,
     expected_ty: TyId,
     expected_scalar: ScalarType,
     errors: &mut Vec<ValidationError>,
 ) -> Option<TyId> {
-    let actual_ty = operand_type(body, block, statement, operand, errors);
+    let actual_ty = operand_type(body, block, location, operand, errors);
     if let Some(actual) = actual_ty
         && actual != expected_ty
     {
         errors.push(ValidationError::OperandTypeMismatch {
             block,
-            statement,
+            location,
             expected: expected_ty,
             actual,
         });
     }
-    validate_operand_scalar(body, block, statement, operand, expected_scalar, errors);
+    validate_operand_scalar(body, block, location, operand, expected_scalar, errors);
     actual_ty
 }
 
 fn validate_operand_scalar(
     body: &Body,
     block: BasicBlockId,
-    statement: usize,
+    location: OperandLocation,
     operand: &Operand,
     expected: ScalarType,
     errors: &mut Vec<ValidationError>,
@@ -213,7 +259,7 @@ fn validate_operand_scalar(
     {
         errors.push(ValidationError::OperandScalarMismatch {
             block,
-            statement,
+            location,
             expected,
             actual,
         });
@@ -244,7 +290,7 @@ fn operand_scalar(body: &Body, operand: &Operand) -> Option<ScalarType> {
 fn operand_type(
     body: &Body,
     block: BasicBlockId,
-    statement: usize,
+    location: OperandLocation,
     operand: &Operand,
     errors: &mut Vec<ValidationError>,
 ) -> Option<TyId> {
@@ -255,7 +301,7 @@ fn operand_type(
             None => {
                 errors.push(ValidationError::MissingOperandLocal {
                     block,
-                    statement,
+                    location,
                     local: place.local,
                 });
                 None
@@ -267,8 +313,10 @@ fn operand_type(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::model::{BasicBlock, Constant, Local, LocalSource, Operand, Place, Rvalue};
-    use crate::semantic::{BodyId, ExprId};
+    use crate::mir::model::{
+        BasicBlock, CallArgument, Constant, Local, LocalSource, Operand, Place, Rvalue,
+    };
+    use crate::semantic::{BodyId, DefId, ExprId};
     use crate::source::{ByteSpan, SourceId};
 
     fn span() -> ByteSpan {
@@ -349,6 +397,56 @@ mod tests {
                 ValidationError::MissingTarget {
                     block: BasicBlockId::from_index(0),
                     target: BasicBlockId::from_index(8),
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn reports_call_edge_and_argument_invariants_together() {
+        let mut body = valid_body();
+        body.blocks[0].statements.clear();
+        body.blocks[0].terminator = Terminator::Call {
+            callee: DefId::from_index(0),
+            arguments: vec![CallArgument {
+                operand: Operand::Constant(Constant {
+                    ty: TyId::from_index(1),
+                    scalar: ScalarType::Usize,
+                    value: 7,
+                }),
+                ty: TyId::from_index(0),
+                scalar: ScalarType::I32,
+            }],
+            continuation: CallContinuation::Return {
+                destination: Place {
+                    local: LocalId::from_index(4),
+                },
+                target: BasicBlockId::from_index(8),
+            },
+        };
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![
+                ValidationError::MissingTarget {
+                    block: BasicBlockId::from_index(0),
+                    target: BasicBlockId::from_index(8),
+                },
+                ValidationError::MissingCallDestination {
+                    block: BasicBlockId::from_index(0),
+                    local: LocalId::from_index(4),
+                },
+                ValidationError::OperandTypeMismatch {
+                    block: BasicBlockId::from_index(0),
+                    location: OperandLocation::CallArgument(0),
+                    expected: TyId::from_index(0),
+                    actual: TyId::from_index(1),
+                },
+                ValidationError::OperandScalarMismatch {
+                    block: BasicBlockId::from_index(0),
+                    location: OperandLocation::CallArgument(0),
+                    expected: ScalarType::I32,
+                    actual: ScalarType::Usize,
                 },
             ])
         );
