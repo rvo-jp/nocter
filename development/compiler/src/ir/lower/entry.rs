@@ -152,7 +152,7 @@ fn lower_entry_parts(
             attach_primary_span_if_absent(diagnostics, sources, return_type_expr.span())
         })?;
     if let Some(instructions) =
-        super::mir::try_lower_scalar_body(body, &return_type, resolved, typed_hir, sources)
+        super::mir::try_lower_scalar_body(body, &[], &return_type, resolved, typed_hir, sources)
     {
         return Ok(Function {
             name: name.to_string(),

@@ -37,6 +37,37 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_scalar_parameters_as_identity_backed_mir_places() {
+    let ir = lower_text(
+        r#"func helper(value: i32): i32 {
+    return value + 2
+}
+
+func main(): i32 {
+    return helper(40)
+}
+"#,
+    );
+    let helper = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "helper")
+        .unwrap();
+
+    assert_eq!(
+        helper.instructions,
+        vec![
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: I32Value::Location(I32Location::Parameter(0)),
+                right: I32Value::Const(2),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit

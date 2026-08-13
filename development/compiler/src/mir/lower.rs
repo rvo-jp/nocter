@@ -8,7 +8,7 @@ use super::model::{
 };
 use super::validate;
 use super::validate::ValidationError;
-use crate::ast::{BindingStmt, Block, Expr, Stmt};
+use crate::ast::{BindingStmt, Block, Expr, Parameter, Stmt};
 use crate::literals::decode_integer_literal_value;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::semantic::SemanticDb;
@@ -21,12 +21,14 @@ pub(crate) enum BuildError {
     MissingTypedExpression,
     InvalidIntegerConstant,
     MissingLocalSymbol,
+    MissingParameterType,
     UnsupportedClaimedExpression,
     InvalidMir(Vec<ValidationError>),
 }
 
 pub(crate) fn try_build_scalar_body(
     block: &Block,
+    parameters: &[Parameter],
     semantic_db: &SemanticDb,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
@@ -58,6 +60,23 @@ pub(crate) fn try_build_scalar_body(
             source: LocalSource::Return,
         }];
         let mut locals_by_symbol = HashMap::new();
+        for (index, parameter) in parameters.iter().enumerate() {
+            let ty = typed_hir
+                .type_id(&parameter.ty)
+                .ok_or(BuildError::MissingParameterType)?;
+            if ty != return_ty {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            let symbol = resolved
+                .local_symbol_id_at_name_span(parameter.name_span)
+                .ok_or(BuildError::MissingLocalSymbol)?;
+            let local = LocalId::from_index(locals.len());
+            locals.push(Local {
+                ty,
+                source: LocalSource::Parameter { symbol, index },
+            });
+            locals_by_symbol.insert(symbol, local);
+        }
         let mut statements = Vec::new();
         for binding in bindings {
             let symbol = resolved
@@ -330,6 +349,7 @@ mod tests {
         let block = function.body.as_ref().unwrap();
         let body = try_build_scalar_body(
             block,
+            &[],
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,
@@ -375,6 +395,7 @@ mod tests {
         assert!(
             try_build_scalar_body(
                 block,
+                &[],
                 &analysis.semantic_db,
                 &file.resolved,
                 &file.typed_hir,
@@ -406,6 +427,7 @@ mod tests {
         let block = function.body.as_ref().unwrap();
         let body = try_build_scalar_body(
             block,
+            &[],
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,
@@ -453,6 +475,7 @@ mod tests {
             .unwrap();
         let body = try_build_scalar_body(
             block,
+            &[],
             &analysis.semantic_db,
             &file.resolved,
             &file.typed_hir,

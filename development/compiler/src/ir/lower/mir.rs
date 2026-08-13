@@ -3,7 +3,9 @@
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::{I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue};
-use crate::mir::{BinaryOperator, Body, Operand, Place, Rvalue, Statement, Terminator};
+use crate::mir::{
+    BinaryOperator, Body, LocalId, LocalSource, Operand, Place, Rvalue, Statement, Terminator,
+};
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::TypedHir;
@@ -11,6 +13,7 @@ use std::collections::HashSet;
 
 pub(super) fn try_lower_scalar_body(
     body: &crate::ast::Block,
+    parameters: &[crate::ast::Parameter],
     return_type: &Type,
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
@@ -19,8 +22,13 @@ pub(super) fn try_lower_scalar_body(
     if !matches!(return_type, Type::I32 | Type::Usize) {
         return None;
     }
-    let mir_body =
-        crate::mir::try_build_scalar_body(body, &resolved.semantic_db, resolved, typed_hir)?;
+    let mir_body = crate::mir::try_build_scalar_body(
+        body,
+        parameters,
+        &resolved.semantic_db,
+        resolved,
+        typed_hir,
+    )?;
     Some(match mir_body {
         Ok(mir_body) => lower_scalar_body(&mir_body, return_type)
             .map_err(|diagnostics| attach_primary_span(diagnostics, sources, body.span)),
@@ -191,19 +199,35 @@ fn usize_binary_instruction(
 }
 
 fn i32_location(place: &Place, body: &Body) -> Result<I32Location, Vec<Diagnostic>> {
-    if place.local == body.return_local {
-        Ok(I32Location::Return)
-    } else {
-        Ok(I32Location::Local(place.local.index() - 1))
+    match &body.locals[place.local.index()].source {
+        LocalSource::Return => Ok(I32Location::Return),
+        LocalSource::Parameter { index, .. } => Ok(I32Location::Parameter(*index)),
+        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
+            Ok(I32Location::Local(machine_local_index(body, place.local)))
+        }
     }
 }
 
 fn usize_location(place: &Place, body: &Body) -> Result<UsizeLocation, Vec<Diagnostic>> {
-    if place.local == body.return_local {
-        Ok(UsizeLocation::Return)
-    } else {
-        Ok(UsizeLocation::Local(place.local.index() - 1))
+    match &body.locals[place.local.index()].source {
+        LocalSource::Return => Ok(UsizeLocation::Return),
+        LocalSource::Parameter { index, .. } => Ok(UsizeLocation::Parameter(*index)),
+        LocalSource::Binding(_) | LocalSource::Temporary(_) => {
+            Ok(UsizeLocation::Local(machine_local_index(body, place.local)))
+        }
     }
+}
+
+fn machine_local_index(body: &Body, local: LocalId) -> usize {
+    body.locals[..local.index()]
+        .iter()
+        .filter(|local| {
+            matches!(
+                local.source,
+                LocalSource::Binding(_) | LocalSource::Temporary(_)
+            )
+        })
+        .count()
 }
 
 fn lower_i32_operand(operand: &Operand, body: &Body) -> Result<I32Value, Vec<Diagnostic>> {

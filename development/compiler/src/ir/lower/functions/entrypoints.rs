@@ -251,9 +251,9 @@ pub(in crate::ir::lower) fn lower_function<'a>(
         .as_ref()
         .expect("function index contains only body-bearing declarations");
     if function.generics.parameters.is_empty()
-        && parameters.is_empty()
         && let Some(instructions) = super::super::mir::try_lower_scalar_body(
             body,
+            &parameters,
             &return_type,
             resolved,
             typed_hir,

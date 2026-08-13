@@ -124,6 +124,10 @@ impl TypedHir {
         self.expressions.type_expr(ty)
     }
 
+    pub(crate) fn type_id(&self, ty: &TypeExpr) -> Option<crate::semantic::TyId> {
+        self.expressions.type_id(ty)
+    }
+
     pub(crate) fn interpolation_plan(
         &self,
         expression_span: ByteSpan,

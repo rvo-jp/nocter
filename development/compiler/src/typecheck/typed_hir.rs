@@ -88,4 +88,10 @@ impl TypedExpressionArena {
     pub(super) fn type_expr(&self, ty: TyId) -> Option<&TypeExpr> {
         self.types.get(ty.index())
     }
+
+    pub(super) fn type_id(&self, ty: &TypeExpr) -> Option<TyId> {
+        self.type_ids
+            .get(&crate::ast::canonical_type_expr(ty))
+            .copied()
+    }
 }

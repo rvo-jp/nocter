@@ -25,6 +25,7 @@ pub(crate) struct Local {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LocalSource {
     Return,
+    Parameter { symbol: LocalSymbolId, index: usize },
     Binding(LocalSymbolId),
     Temporary(ExprId),
 }
