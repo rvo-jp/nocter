@@ -1,7 +1,7 @@
 //! Editor-facing interpolation facts and incomplete-source recovery.
 
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{Expr, InterpolatedStringPart, visit_file_expressions};
+use crate::ast::InterpolatedStringPart;
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,84 +17,62 @@ pub(crate) fn interpolation_editor_info_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<InterpolationEditorInfo> {
-    let mut candidates = Vec::new();
-    visit_file_expressions(&file.ast, &mut |expression| {
-        let Expr::InterpolatedString(interpolated) = expression else {
-            return;
+    let interpolated = file.syntax.interpolation_at(offset)?;
+    let plan = file.typed_hir.interpolation_plan(interpolated.span)?;
+    let mut focus = interpolated.span;
+    let mut accepted = None;
+    for (part, planned) in interpolated.parts.iter().zip(&plan.parts) {
+        let part_span = match part {
+            InterpolatedStringPart::Text(text) => text.span,
+            InterpolatedStringPart::Expression(part) => part.span,
         };
-        if !span_contains(interpolated.span, offset) {
-            return;
+        if !span_contains(part_span, offset) {
+            continue;
         }
-        let Some(plan) = file.typed_hir.interpolation_plan(interpolated.span) else {
-            return;
-        };
-        let mut focus = interpolated.span;
-        let mut accepted = None;
-        for (part, planned) in interpolated.parts.iter().zip(&plan.parts) {
-            let part_span = match part {
-                InterpolatedStringPart::Text(text) => text.span,
-                InterpolatedStringPart::Expression(part) => part.span,
-            };
-            if !span_contains(part_span, offset) {
-                continue;
-            }
-            if let InterpolatedStringPart::Expression(part) = part
-                && span_contains(part.expression_span, offset)
-            {
-                return;
-            }
-            focus = part_span;
-            accepted = Some(&planned.accepted_type);
-            break;
+        if let InterpolatedStringPart::Expression(part) = part
+            && span_contains(part.expression_span, offset)
+        {
+            return None;
         }
-        let Some(result_name) = resolved_type_label(analysis, plan.string_type_definition) else {
-            return;
-        };
-        let mut documentation = Vec::new();
-        if let Some(input) = accepted {
-            documentation.push(format!(
-                "**Accepted interpolation input:** `{}`.",
-                crate::typecheck::type_expr_presentation_label(input, &file.resolved)
-            ));
-            let Some(contract) = resolved_type_label(analysis, plan.format_interface_definition)
-            else {
-                return;
-            };
-            documentation.push(format!("**Formatting contract:** `{contract}`."));
-        }
-        candidates.push(InterpolationEditorInfo {
-            expression_span: interpolated.span,
-            focus_span: focus,
-            label: format!("interpolated string: {result_name}"),
-            documentation: documentation.join("\n\n"),
-        });
-    });
-    candidates
-        .into_iter()
-        .min_by_key(|candidate| candidate.expression_span.end - candidate.expression_span.start)
+        focus = part_span;
+        accepted = Some(&planned.accepted_type);
+        break;
+    }
+    let result_name = resolved_type_label(analysis, plan.string_type_definition)?;
+    let mut documentation = Vec::new();
+    if let Some(input) = accepted {
+        documentation.push(format!(
+            "**Accepted interpolation input:** `{}`.",
+            crate::typecheck::type_expr_presentation_label(input, &file.resolved)
+        ));
+        let contract = resolved_type_label(analysis, plan.format_interface_definition)?;
+        documentation.push(format!("**Formatting contract:** `{contract}`."));
+    }
+    Some(InterpolationEditorInfo {
+        expression_span: interpolated.span,
+        focus_span: focus,
+        label: format!("interpolated string: {result_name}"),
+        documentation: documentation.join("\n\n"),
+    })
 }
 
 fn resolved_type_label(
     analysis: &CompileUnitAnalysis,
     definition: crate::semantic::DefId,
 ) -> Option<String> {
-    analysis.files.iter().find_map(|candidate_file| {
-        candidate_file
-            .resolved
-            .symbols
-            .symbols()
-            .find_map(|symbol| {
-                let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
-                    return None;
-                };
-                (symbol.def_id == definition).then(|| {
-                    crate::typecheck::type_symbol_presentation_label(
-                        type_symbol,
-                        &candidate_file.resolved,
-                    )
-                })
-            })
-    })
+    let crate::resolve::ResolvedDeclaration::Symbol(symbol) =
+        analysis.resolved_declaration(definition)?
+    else {
+        return None;
+    };
+    let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
+        return None;
+    };
+    let file = analysis.file_by_source(symbol.declaration_span.source)?;
+    Some(crate::typecheck::type_symbol_presentation_label(
+        type_symbol,
+        &file.resolved,
+    ))
 }
 
 pub(crate) fn interpolation_recovery_text(text: &str, offset: usize) -> Option<String> {

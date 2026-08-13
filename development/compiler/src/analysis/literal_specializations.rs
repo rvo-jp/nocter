@@ -2,8 +2,7 @@
 
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    Expr, Item, LiteralDecl, LiteralShape, TypeExpr, canonical_type_expr,
-    substitute_type_expr_parameters, visit_file_expressions,
+    Expr, LiteralDecl, LiteralShape, TypeExpr, canonical_type_expr, substitute_type_expr_parameters,
 };
 use crate::semantic::DefId;
 use crate::source::ByteSpan;
@@ -41,7 +40,7 @@ pub(crate) fn collect_literal_specializations(
     let mut by_declaration = HashMap::<DefId, Vec<LiteralSpecialization>>::new();
 
     for file in &analysis.files {
-        visit_file_expressions(&file.ast, &mut |expression| {
+        for expression in file.syntax.literal_expressions() {
             let Some(specialization) = specialization_for_expression(
                 file,
                 expression,
@@ -49,7 +48,7 @@ pub(crate) fn collect_literal_specializations(
                 &HashMap::new(),
                 true,
             ) else {
-                return;
+                continue;
             };
             let entries = by_declaration.entry(specialization.def_id).or_default();
             if !entries.iter().any(|entry| {
@@ -58,7 +57,7 @@ pub(crate) fn collect_literal_specializations(
             }) {
                 entries.push(specialization);
             }
-        });
+        }
     }
 
     by_declaration
@@ -66,19 +65,15 @@ pub(crate) fn collect_literal_specializations(
 
 pub(crate) fn literal_specialization_for_expression_span(
     analysis: &CompileUnitAnalysis,
-    file: &FileAnalysis,
+    _file: &FileAnalysis,
     expression_span: ByteSpan,
 ) -> Option<LiteralSpecialization> {
-    let declarations = literal_declarations(analysis);
-    let mut result = None;
-    visit_file_expressions(&file.ast, &mut |expression| {
-        if result.is_some() || expression.span() != expression_span {
-            return;
-        }
-        result =
-            specialization_for_expression(file, expression, &declarations, &HashMap::new(), false);
-    });
-    result
+    super::call_specializations::collect_call_specializations(analysis)
+        .literals
+        .values()
+        .flatten()
+        .find(|specialization| specialization.expression_span == expression_span)
+        .cloned()
 }
 
 pub(crate) fn literal_target_name(
@@ -136,7 +131,7 @@ pub(crate) fn literal_element_parameter_name(index: usize) -> String {
 fn specialization_for_expression(
     file: &FileAnalysis,
     expression: &Expr,
-    declarations: &HashMap<ByteSpan, &LiteralDecl>,
+    declarations: &HashMap<DefId, &LiteralDecl>,
     context_substitutions: &HashMap<String, TypeExpr>,
     require_concrete: bool,
 ) -> Option<LiteralSpecialization> {
@@ -146,7 +141,7 @@ fn specialization_for_expression(
         _ => return None,
     };
     let resolution = file.resolved.literal_resolution(span)?;
-    let declaration = declarations.get(&resolution.literal_declaration_span)?;
+    let declaration = declarations.get(&resolution.literal_definition)?;
     let result_type = substitute_type_expr_parameters(
         file.typed_hir.expression_type_expr(span)?,
         context_substitutions,
@@ -245,7 +240,7 @@ fn infer_literal_target_substitutions(
     parameters: &HashSet<String>,
     substitutions: &mut HashMap<String, TypeExpr>,
 ) -> bool {
-    // `literal_resolution` has already established nominal identity by declaration span.
+    // `literal_resolution` has already established nominal identity by `DefId`.
     // Imported type facts use canonical qualified names while declarations use their local
     // spelling, so repeating a textual constructor-name comparison here would reject the same
     // nominal type across a module boundary. Only the type arguments remain to be inferred.
@@ -265,18 +260,10 @@ fn infer_literal_target_substitutions(
     }
 }
 
-fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<ByteSpan, &LiteralDecl> {
+fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<DefId, &LiteralDecl> {
     let mut declarations = HashMap::new();
     for file in &analysis.files {
-        for item in &file.ast.items {
-            if let Item::Construct(construct) = item {
-                declarations.extend(
-                    construct
-                        .literals()
-                        .map(|(_, literal)| (literal.span, literal)),
-                );
-            }
-        }
+        declarations.extend(file.syntax.literals());
     }
     declarations
 }

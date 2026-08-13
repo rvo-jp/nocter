@@ -227,10 +227,6 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
     span.start <= offset && offset < span.end
 }
 
-fn span_touches(span: ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset <= span.end
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

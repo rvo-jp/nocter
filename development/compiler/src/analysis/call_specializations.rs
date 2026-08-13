@@ -1,7 +1,7 @@
 use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DestructDecl, Item, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
+    DestructDecl, MethodDecl, MethodOwnerDecl, TypeExpr, canonical_type_expr,
     substitute_type_expr_parameters,
 };
 use crate::semantic::{BodyId, DefId};
@@ -12,6 +12,7 @@ use crate::typecheck::{
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 
+#[derive(Debug, Clone)]
 pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<DefId, Vec<FunctionCallSpecialization>>,
     pub(crate) callables: HashMap<BodyId, Vec<CallableCallSpecialization>>,
@@ -38,7 +39,13 @@ pub(crate) struct DropSpecialization {
     pub(crate) substitutions: HashMap<String, TypeExpr>,
 }
 
-pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
+pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> &CallSpecializations {
+    analysis
+        .call_specializations
+        .get_or_init(|| compute_call_specializations(analysis))
+}
+
+fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
     let mut functions: HashMap<DefId, Vec<FunctionCallSpecialization>> = HashMap::new();
     let mut callables: HashMap<BodyId, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<DefId, Vec<MethodCallSpecialization>> = HashMap::new();
@@ -271,8 +278,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
                     continue;
                 }
-                let Some((file, drop_)) =
-                    destruct_declaration_for_span(analysis, specialization.declaration_span)
+                let Some((file, drop_)) = destruct_declaration(analysis, specialization.def_id)
                 else {
                     continue;
                 };
@@ -303,7 +309,7 @@ fn redirect_interface_method_specialization(
     mut specialization: MethodCallSpecialization,
 ) -> MethodCallSpecialization {
     let Some((interface_name, method_name)) =
-        interface_method_identity_for_span(analysis, specialization.declaration_span)
+        interface_method_identity(analysis, specialization.def_id)
     else {
         return specialization;
     };
@@ -324,22 +330,23 @@ fn redirect_interface_method_specialization(
     ) else {
         return specialization;
     };
-    let Some((_file, Some(owner), _method)) =
-        method_declaration_for_span(analysis, actual_method.name_span)
+    let Some(actual_definition) = analysis.semantic_db.definition_at(actual_method.name_span)
     else {
         return specialization;
     };
-    let Some(owner_substitutions) =
-        method_owner_substitutions_for_self_ty(owner, &specialization.self_ty)
-    else {
+    let Some((_, owner, _)) = method_syntax(analysis, actual_definition) else {
+        return specialization;
+    };
+    let Some(owner_substitutions) = method_owner_substitutions_for_declaration(
+        &owner.generics,
+        &owner.target_ty,
+        &specialization.self_ty,
+    ) else {
         return specialization;
     };
     specialization.declaration_span = actual_method.name_span;
-    specialization.def_id = analysis
-        .semantic_db
-        .definition_at(actual_method.name_span)
-        .expect("resolved conformance method must have a semantic definition");
-    let runtime_self_ty = substitute_type_expr_parameters(owner.target_ty(), &owner_substitutions);
+    specialization.def_id = actual_definition;
+    let runtime_self_ty = substitute_type_expr_parameters(&owner.target_ty, &owner_substitutions);
     specialization.target_name = format!(
         "{}.{}",
         canonical_type_expr(&runtime_self_ty),
@@ -349,24 +356,18 @@ fn redirect_interface_method_specialization(
     specialization
 }
 
-fn interface_method_identity_for_span(
+fn interface_method_identity(
     analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
+    definition: DefId,
 ) -> Option<(&str, &str)> {
     analysis.files.iter().find_map(|file| {
-        file.resolved.symbols.symbols().find_map(|symbol| {
-            let crate::resolve::SymbolKind::Type(interface) = &symbol.kind else {
-                return None;
-            };
-            if interface.kind != crate::resolve::TypeSymbolKind::Interface {
-                return None;
-            }
-            interface
-                .methods
-                .iter()
-                .find(|method| method.name_span == declaration_span)
-                .map(|method| (interface.canonical_name.as_str(), method.name.as_str()))
-        })
+        let crate::resolve::ResolvedDeclaration::Method(owner, method) =
+            file.resolved.declaration(definition)?
+        else {
+            return None;
+        };
+        (owner.kind == crate::resolve::TypeSymbolKind::Interface)
+            .then_some((owner.canonical_name.as_str(), method.name.as_str()))
     })
 }
 
@@ -642,21 +643,20 @@ fn protocol_method_call_specialization(
 ) -> Option<MethodCallSpecialization> {
     let definition = analysis.semantic_db.definition(method.def_id)?;
     let owner_id = definition.owner?;
-    let Some(owner) = analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let owner = item.method_owner()?;
-            (analysis.semantic_db.definition_at(item.span()) == Some(owner_id)).then_some(owner)
-        })
-    }) else {
+    let Some((_, owner, _)) = method_syntax(analysis, method.def_id) else {
         return matches!(
             analysis.semantic_db.definition(owner_id)?.kind,
             crate::semantic::DefinitionKind::Interface
         )
         .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
     };
-    let substitutions = method_owner_substitutions_for_self_ty(owner, &method.self_ty)?;
+    let substitutions = method_owner_substitutions_for_declaration(
+        &owner.generics,
+        &owner.target_ty,
+        &method.self_ty,
+    )?;
     let generic_parameters = owner
-        .generics()
+        .generics
         .parameters
         .iter()
         .map(|parameter| parameter.name.clone())
@@ -664,29 +664,32 @@ fn protocol_method_call_specialization(
     Some(method.as_method_call_specialization(generic_parameters, substitutions))
 }
 
-fn method_declaration_for_span(
+fn method_syntax(
     analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, &MethodDecl)> {
+    definition: DefId,
+) -> Option<(
+    &FileAnalysis,
+    &super::syntax_index::MethodOwnerSyntax,
+    &MethodDecl,
+)> {
     analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| match item {
-            Item::Instance(_) | Item::Conformance(_) => item.method_owner().and_then(|owner| {
-                owner.methods().find_map(|method| {
-                    (method.name_span == declaration_span).then_some((file, Some(owner), method))
-                })
-            }),
-            Item::Interface(interface) => interface.methods.iter().find_map(|method| {
-                (method.name_span == declaration_span).then_some((file, None, method))
-            }),
-            _ => None,
-        })
+        let super::syntax_index::CallableSyntax::Method { owner, method } =
+            file.syntax.callable(definition)?
+        else {
+            return None;
+        };
+        Some((file, owner, method))
     })
 }
 
 fn callable_body_for_definition(
     analysis: &CompileUnitAnalysis,
     authored: DefId,
-) -> Option<(&FileAnalysis, Option<&dyn MethodOwnerDecl>, ByteSpan)> {
+) -> Option<(
+    &FileAnalysis,
+    Option<&super::syntax_index::MethodOwnerSyntax>,
+    ByteSpan,
+)> {
     let declaration = analysis.callable_bodies.canonical_definition(authored);
     let body = analysis
         .callable_bodies
@@ -694,29 +697,18 @@ fn callable_body_for_definition(
         .unwrap_or(declaration);
     let body_span = analysis.semantic_db.declaration_body_for_owner(body)?.span;
     let file = analysis.file_by_source(body_span.source)?;
-    let owner_id = analysis.semantic_db.definition(body)?.owner;
-    let owner = owner_id.and_then(|owner_id| {
-        analysis.files.iter().find_map(|file| {
-            file.ast.items.iter().find_map(|item| {
-                let owner = item.method_owner()?;
-                (analysis.semantic_db.definition_at(item.span()) == Some(owner_id)).then_some(owner)
-            })
-        })
-    });
+    let owner = method_syntax(analysis, declaration).map(|(_, owner, _)| owner);
     Some((file, owner, body_span))
 }
 
-fn destruct_declaration_for_span(
+fn destruct_declaration(
     analysis: &CompileUnitAnalysis,
-    declaration_span: ByteSpan,
+    definition: DefId,
 ) -> Option<(&FileAnalysis, &DestructDecl)> {
     analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let Item::Destruct(destruct) = item else {
-                return None;
-            };
-            (destruct.keyword_span == declaration_span).then_some((file, destruct))
-        })
+        file.syntax
+            .destructor(definition)
+            .map(|destruct| (file, destruct))
     })
 }
 
@@ -724,8 +716,7 @@ fn drop_specialization_from_typecheck_fact(
     analysis: &CompileUnitAnalysis,
     specialization: DropTypeSpecialization,
 ) -> Option<DropSpecialization> {
-    let (_file, destruct) =
-        destruct_declaration_for_span(analysis, specialization.declaration_span)?;
+    let (_file, destruct) = destruct_declaration(analysis, specialization.def_id)?;
     let substitutions = method_owner_substitutions_for_declaration(
         &destruct.generics,
         &destruct.target_ty,
@@ -742,13 +733,17 @@ fn drop_specialization_from_typecheck_fact(
 }
 
 fn method_specialization_context_substitutions(
-    owner: &(impl MethodOwnerDecl + ?Sized),
+    owner: &super::syntax_index::MethodOwnerSyntax,
     specialization: &MethodCallSpecialization,
     resolved: &crate::resolve::ResolveOutput,
     analysis: &CompileUnitAnalysis,
 ) -> HashMap<String, TypeExpr> {
-    let mut substitutions =
-        method_owner_substitutions_for_self_ty(owner, &specialization.self_ty).unwrap_or_default();
+    let mut substitutions = method_owner_substitutions_for_declaration(
+        &owner.generics,
+        &owner.target_ty,
+        &specialization.self_ty,
+    )
+    .unwrap_or_default();
     substitutions.extend(specialization.substitutions.clone());
     crate::typecheck::extend_associated_type_substitutions_with_resolver(
         &mut substitutions,

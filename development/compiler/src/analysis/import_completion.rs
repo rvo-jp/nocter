@@ -2,9 +2,6 @@
 
 use super::completion::{CompletionItemInfo, completion_item_for_symbol};
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{AstFile, Item, Visibility};
-use crate::resolve::ImportAccess;
-use crate::source::ByteSpan;
 use std::collections::HashSet;
 
 pub(super) fn import_symbol_items_at_offset(
@@ -12,15 +9,13 @@ pub(super) fn import_symbol_items_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
-    let path = file.ast.items.iter().find_map(|item| match item {
-        Item::FromImport(import) if import.path.span.end < offset && offset <= import.span.end => {
-            Some(import.path.span)
-        }
-        _ => None,
-    })?;
-    let import_source = analysis.import_sources.get(&path)?;
+    let import = file.syntax.from_import_selector_at(offset)?;
+    let import_source = analysis.import_sources.get(&import.path.span)?;
     let imported = analysis.file_by_source(import_source.source)?;
-    let visible = visible_export_spans(&imported.ast, import_source.access);
+    let visible = imported
+        .syntax
+        .visible_export_anchors(import_source.access)
+        .collect::<HashSet<_>>();
 
     let mut items = imported
         .resolved
@@ -31,48 +26,4 @@ pub(super) fn import_symbol_items_at_offset(
         .collect::<Vec<_>>();
     items.sort_by(|left, right| left.label.cmp(&right.label));
     Some(items)
-}
-
-fn visible_export_spans(ast: &AstFile, access: ImportAccess) -> HashSet<ByteSpan> {
-    let visible = |visibility| visibility == Visibility::Public || access.allows(visibility);
-    let mut spans = HashSet::new();
-    for item in &ast.items {
-        match item {
-            Item::Function(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::Primitive(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::TypeAlias(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::Struct(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::Enum(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::Interface(item) if visible(item.visibility) => {
-                spans.insert(item.name_span);
-            }
-            Item::FromImport(item) if visible(item.visibility) => {
-                spans.extend(item.names.iter().map(|name| name.local_span()));
-            }
-            Item::Import(_)
-            | Item::Instance(_)
-            | Item::Conformance(_)
-            | Item::FromImport(_)
-            | Item::Construct(_)
-            | Item::Destruct(_)
-            | Item::Test(_) => {}
-            Item::Function(_)
-            | Item::Primitive(_)
-            | Item::TypeAlias(_)
-            | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
-        }
-    }
-    spans
 }

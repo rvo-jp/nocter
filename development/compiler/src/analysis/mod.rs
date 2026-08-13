@@ -150,6 +150,7 @@ pub(crate) struct CompileUnitAnalysis {
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
     pub(crate) callable_bodies: CallableBodyIndex,
+    call_specializations: std::sync::OnceLock<call_specializations::CallSpecializations>,
 }
 
 impl CompileUnitAnalysis {
@@ -161,6 +162,15 @@ impl CompileUnitAnalysis {
         self.files
             .iter()
             .find(|file| file.ast.span.source == source)
+    }
+
+    pub(crate) fn resolved_declaration(
+        &self,
+        definition: crate::semantic::DefId,
+    ) -> Option<crate::resolve::ResolvedDeclaration<'_>> {
+        self.files
+            .iter()
+            .find_map(|file| file.resolved.declaration(definition))
     }
 
     pub(crate) fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -198,6 +208,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) syntax: syntax_index::EditorSyntaxIndex,
     pub(crate) semantic_identifiers: Vec<semantic::ClassifiedIdentifier>,
+    pub(crate) regions: Vec<regions::RegionAnalysisFact>,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -376,6 +387,7 @@ fn analyze_compile_unit_with_root_policy(
                     &occurrences,
                     &syntax,
                 );
+                let regions = regions::collect_region_facts(file, &typed_hir);
                 FileAnalysis {
                     ast: file.clone(),
                     resolved: resolved.clone(),
@@ -383,6 +395,7 @@ fn analyze_compile_unit_with_root_policy(
                     occurrences,
                     syntax,
                     semantic_identifiers,
+                    regions,
                     diagnostics,
                     is_root,
                 }
@@ -396,6 +409,7 @@ fn analyze_compile_unit_with_root_policy(
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
         callable_bodies: unit.callable_bodies.clone(),
+        call_specializations: std::sync::OnceLock::new(),
     }
 }
 

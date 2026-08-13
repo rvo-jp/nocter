@@ -1,6 +1,6 @@
 //! Lexical-region facts derived from resolved AST and typecheck facts.
 
-use super::FileAnalysis;
+use super::{FileAnalysis, TypedHir};
 use crate::ast::{Block, Expr, InterpolatedStringPart, Item, Stmt};
 use crate::source::{ByteSpan, SourceMap};
 
@@ -23,48 +23,55 @@ pub(crate) fn region_fact_for_declaration(
 }
 
 pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
+    file.regions.clone()
+}
+
+pub(crate) fn collect_region_facts(
+    ast: &crate::ast::AstFile,
+    typed_hir: &TypedHir,
+) -> Vec<RegionAnalysisFact> {
     let mut facts = Vec::new();
-    for item in &file.ast.items {
+    for item in &ast.items {
         match item {
             Item::Function(function) => {
                 if let Some(body) = &function.body {
-                    collect_block(file, body, None, &mut facts);
+                    collect_block(typed_hir, body, None, &mut facts);
                 }
             }
-            Item::Test(test) => collect_block(file, &test.body, None, &mut facts),
+            Item::Test(test) => collect_block(typed_hir, &test.body, None, &mut facts),
             Item::Instance(instance) => {
                 for method in instance.callables() {
                     if let Some(body) = &method.body {
-                        collect_block(file, body, None, &mut facts);
+                        collect_block(typed_hir, body, None, &mut facts);
                     }
                 }
             }
-            Item::Destruct(destruct) => collect_block(file, &destruct.body, None, &mut facts),
+            Item::Destruct(destruct) => collect_block(typed_hir, &destruct.body, None, &mut facts),
             Item::Conformance(conformance) => {
                 for member in &conformance.members {
                     if let crate::ast::ConformanceMember::Method(method) = member
                         && let Some(body) = &method.body
                     {
-                        collect_block(file, body, None, &mut facts);
+                        collect_block(typed_hir, body, None, &mut facts);
                     }
                 }
             }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     if let Some(body) = &method.body {
-                        collect_block(file, body, None, &mut facts);
+                        collect_block(typed_hir, body, None, &mut facts);
                     }
                 }
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     if let Some(body) = &function.body {
-                        collect_block(file, body, None, &mut facts);
+                        collect_block(typed_hir, body, None, &mut facts);
                     }
                 }
                 for (_, literal) in construct.literals() {
                     if let Some(body) = &literal.body {
-                        collect_block(file, body, None, &mut facts);
+                        collect_block(typed_hir, body, None, &mut facts);
                     }
                 }
             }
@@ -109,93 +116,94 @@ pub(crate) fn region_markdown(
 }
 
 fn collect_block(
-    file: &FileAnalysis,
+    typed_hir: &TypedHir,
     block: &Block,
     parent: Option<ByteSpan>,
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     for statement in &block.statements {
-        collect_statement(file, statement, parent, facts);
+        collect_statement(typed_hir, statement, parent, facts);
     }
     if let Some(result) = &block.result {
-        collect_expression(file, result, parent, facts);
+        collect_expression(typed_hir, result, parent, facts);
     }
 }
 
 fn collect_statement(
-    file: &FileAnalysis,
+    typed_hir: &TypedHir,
     statement: &Stmt,
     parent: Option<ByteSpan>,
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     match statement {
         Stmt::Region(statement) => {
-            collect_expression(file, &statement.allocator, parent, facts);
+            collect_expression(typed_hir, &statement.allocator, parent, facts);
             let declaration = statement.name_span;
             facts.push(RegionAnalysisFact {
                 declaration,
                 name: statement.name.clone(),
                 parent,
                 allocator: statement.allocator.span(),
-                allocator_type: file
-                    .typed_hir
+                allocator_type: typed_hir
                     .binding_type_label(declaration)
                     .map(str::to_string),
             });
-            collect_block(file, &statement.body, Some(declaration), facts);
+            collect_block(typed_hir, &statement.body, Some(declaration), facts);
         }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
-                collect_expression(file, expression, parent, facts);
+                collect_expression(typed_hir, expression, parent, facts);
             }
         }
-        Stmt::Binding(statement) => collect_expression(file, &statement.initializer, parent, facts),
+        Stmt::Binding(statement) => {
+            collect_expression(typed_hir, &statement.initializer, parent, facts)
+        }
         Stmt::Assignment(statement) => {
-            collect_expression(file, &statement.target, parent, facts);
-            collect_expression(file, &statement.value, parent, facts);
+            collect_expression(typed_hir, &statement.target, parent, facts);
+            collect_expression(typed_hir, &statement.value, parent, facts);
         }
         Stmt::If(statement) => {
-            collect_expression(file, &statement.condition, parent, facts);
-            collect_block(file, &statement.then_block, parent, facts);
+            collect_expression(typed_hir, &statement.condition, parent, facts);
+            collect_block(typed_hir, &statement.then_block, parent, facts);
             if let Some(block) = &statement.else_block {
-                collect_block(file, block, parent, facts);
+                collect_block(typed_hir, block, parent, facts);
             }
         }
         Stmt::IfIs(statement) => {
-            collect_expression(file, &statement.expression, parent, facts);
-            collect_block(file, &statement.then_block, parent, facts);
+            collect_expression(typed_hir, &statement.expression, parent, facts);
+            collect_block(typed_hir, &statement.then_block, parent, facts);
             if let Some(block) = &statement.else_block {
-                collect_block(file, block, parent, facts);
+                collect_block(typed_hir, block, parent, facts);
             }
         }
         Stmt::Switch(statement) => {
-            collect_expression(file, &statement.expression, parent, facts);
+            collect_expression(typed_hir, &statement.expression, parent, facts);
             for arm in &statement.arms {
-                collect_block(file, &arm.body, parent, facts);
+                collect_block(typed_hir, &arm.body, parent, facts);
             }
             if let Some(arm) = &statement.wildcard_arm {
-                collect_block(file, &arm.body, parent, facts);
+                collect_block(typed_hir, &arm.body, parent, facts);
             }
         }
         Stmt::ForRange(statement) => {
-            collect_expression(file, &statement.start, parent, facts);
-            collect_expression(file, &statement.end, parent, facts);
-            collect_block(file, &statement.body, parent, facts);
+            collect_expression(typed_hir, &statement.start, parent, facts);
+            collect_expression(typed_hir, &statement.end, parent, facts);
+            collect_block(typed_hir, &statement.body, parent, facts);
         }
         Stmt::CollectionFor(statement) => {
-            collect_expression(file, &statement.source, parent, facts);
-            collect_block(file, &statement.body, parent, facts);
+            collect_expression(typed_hir, &statement.source, parent, facts);
+            collect_block(typed_hir, &statement.body, parent, facts);
         }
         Stmt::LiteralPackFor(statement) => {
-            collect_block(file, &statement.body, parent, facts);
+            collect_block(typed_hir, &statement.body, parent, facts);
         }
         Stmt::While(statement) => {
-            collect_expression(file, &statement.condition, parent, facts);
-            collect_block(file, &statement.body, parent, facts);
+            collect_expression(typed_hir, &statement.condition, parent, facts);
+            collect_block(typed_hir, &statement.body, parent, facts);
         }
-        Stmt::Loop(statement) => collect_block(file, &statement.body, parent, facts),
+        Stmt::Loop(statement) => collect_block(typed_hir, &statement.body, parent, facts),
         Stmt::Expression(statement) => {
-            collect_expression(file, &statement.expression, parent, facts)
+            collect_expression(typed_hir, &statement.expression, parent, facts)
         }
         Stmt::Import(_)
         | Stmt::FromImport(_)
@@ -206,99 +214,109 @@ fn collect_statement(
 }
 
 fn collect_expression(
-    file: &FileAnalysis,
+    typed_hir: &TypedHir,
     expression: &Expr,
     parent: Option<ByteSpan>,
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     match expression {
-        Expr::Closure(expression) => collect_block(file, &expression.body, parent, facts),
+        Expr::Closure(expression) => collect_block(typed_hir, &expression.body, parent, facts),
         Expr::Catch(expression) => {
-            collect_expression(file, &expression.expression, parent, facts);
-            collect_block(file, &expression.catch_block, parent, facts);
+            collect_expression(typed_hir, &expression.expression, parent, facts);
+            collect_block(typed_hir, &expression.catch_block, parent, facts);
         }
         Expr::Otherwise(expression) => {
-            collect_expression(file, &expression.value, parent, facts);
-            collect_block(file, &expression.fallback, parent, facts);
+            collect_expression(typed_hir, &expression.value, parent, facts);
+            collect_block(typed_hir, &expression.fallback, parent, facts);
         }
         Expr::If(expression) => {
-            collect_expression(file, &expression.condition, parent, facts);
-            collect_block(file, &expression.then_block, parent, facts);
+            collect_expression(typed_hir, &expression.condition, parent, facts);
+            collect_block(typed_hir, &expression.then_block, parent, facts);
             if let Some(block) = &expression.else_block {
-                collect_block(file, block, parent, facts);
+                collect_block(typed_hir, block, parent, facts);
             }
         }
         Expr::IfIs(expression) => {
-            collect_expression(file, &expression.expression, parent, facts);
-            collect_block(file, &expression.then_block, parent, facts);
+            collect_expression(typed_hir, &expression.expression, parent, facts);
+            collect_block(typed_hir, &expression.then_block, parent, facts);
             if let Some(block) = &expression.else_block {
-                collect_block(file, block, parent, facts);
+                collect_block(typed_hir, block, parent, facts);
             }
         }
         Expr::Match(expression) => {
-            collect_expression(file, &expression.expression, parent, facts);
+            collect_expression(typed_hir, &expression.expression, parent, facts);
             for arm in &expression.arms {
-                collect_block(file, &arm.body, parent, facts);
+                collect_block(typed_hir, &arm.body, parent, facts);
             }
             if let Some(arm) = &expression.wildcard_arm {
-                collect_block(file, &arm.body, parent, facts);
+                collect_block(typed_hir, &arm.body, parent, facts);
             }
         }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 if let InterpolatedStringPart::Expression(part) = part {
-                    collect_expression(file, &part.expression, parent, facts);
+                    collect_expression(typed_hir, &part.expression, parent, facts);
                 }
             }
         }
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
-                collect_expression(file, element, parent, facts);
+                collect_expression(typed_hir, element, parent, facts);
             }
         }
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
-                collect_expression(file, element, parent, facts);
+                collect_expression(typed_hir, element, parent, facts);
             }
             if let Some(using) = &expression.using {
-                collect_expression(file, &using.allocator, parent, facts);
+                collect_expression(typed_hir, &using.allocator, parent, facts);
             }
         }
         Expr::TypedStringLiteral(expression) => {
             if let Some(using) = &expression.using {
-                collect_expression(file, &using.allocator, parent, facts);
+                collect_expression(typed_hir, &using.allocator, parent, facts);
             }
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                collect_expression(file, &field.value, parent, facts);
+                collect_expression(typed_hir, &field.value, parent, facts);
             }
         }
         Expr::Propagate(expression) => {
-            collect_expression(file, &expression.expression, parent, facts)
+            collect_expression(typed_hir, &expression.expression, parent, facts)
         }
-        Expr::Force(expression) => collect_expression(file, &expression.expression, parent, facts),
-        Expr::Borrow(expression) => collect_expression(file, &expression.expression, parent, facts),
-        Expr::Unary(expression) => collect_expression(file, &expression.operand, parent, facts),
+        Expr::Force(expression) => {
+            collect_expression(typed_hir, &expression.expression, parent, facts)
+        }
+        Expr::Borrow(expression) => {
+            collect_expression(typed_hir, &expression.expression, parent, facts)
+        }
+        Expr::Unary(expression) => {
+            collect_expression(typed_hir, &expression.operand, parent, facts)
+        }
         Expr::Binary(expression) => {
-            collect_expression(file, &expression.left, parent, facts);
-            collect_expression(file, &expression.right, parent, facts);
+            collect_expression(typed_hir, &expression.left, parent, facts);
+            collect_expression(typed_hir, &expression.right, parent, facts);
         }
         Expr::TypeConversion(expression) => {
-            collect_expression(file, &expression.expression, parent, facts)
+            collect_expression(typed_hir, &expression.expression, parent, facts)
         }
         Expr::Call(expression) => {
-            collect_expression(file, &expression.callee, parent, facts);
+            collect_expression(typed_hir, &expression.callee, parent, facts);
             for argument in &expression.arguments {
-                collect_expression(file, argument, parent, facts);
+                collect_expression(typed_hir, argument, parent, facts);
             }
         }
-        Expr::Member(expression) => collect_expression(file, &expression.object, parent, facts),
-        Expr::Index(expression) => {
-            collect_expression(file, &expression.object, parent, facts);
-            collect_expression(file, &expression.index, parent, facts);
+        Expr::Member(expression) => {
+            collect_expression(typed_hir, &expression.object, parent, facts)
         }
-        Expr::Group(expression) => collect_expression(file, &expression.expression, parent, facts),
+        Expr::Index(expression) => {
+            collect_expression(typed_hir, &expression.object, parent, facts);
+            collect_expression(typed_hir, &expression.index, parent, facts);
+        }
+        Expr::Group(expression) => {
+            collect_expression(typed_hir, &expression.expression, parent, facts)
+        }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)

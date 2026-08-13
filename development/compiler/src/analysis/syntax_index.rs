@@ -15,6 +15,12 @@ use crate::semantic::DefId;
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) struct ExportSyntax {
+    pub(crate) anchor: ByteSpan,
+    pub(crate) visibility: crate::ast::Visibility,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct LiteralSyntaxSite {
     pub(crate) expression_span: ByteSpan,
     pub(crate) target_span: ByteSpan,
@@ -62,7 +68,12 @@ pub(crate) struct EditorSyntaxIndex {
     editor_targets: Vec<EditorTarget>,
     calls: Vec<CallExpr>,
     literals: Vec<LiteralSyntaxSite>,
+    literal_expressions: Vec<Expr>,
+    interpolations: Vec<crate::ast::InterpolatedStringExpr>,
+    from_imports: Vec<crate::ast::FromImportItem>,
+    exports: Vec<ExportSyntax>,
     callables: std::collections::HashMap<DefId, CallableSyntax>,
+    destructors: std::collections::HashMap<DefId, crate::ast::DestructDecl>,
     conformances: Vec<ConformanceDecl>,
     documentation: AttachedDocumentation,
     documentation_owners: Vec<(ByteSpan, ByteSpan)>,
@@ -95,26 +106,48 @@ impl EditorSyntaxIndex {
         module_paths.sort_by_key(|path| (path.span.start, path.span.end));
         let mut calls = Vec::new();
         let mut literals = Vec::new();
+        let mut literal_expressions = Vec::new();
+        let mut interpolations = Vec::new();
         crate::ast::visit_file_expressions(ast, &mut |expression| {
             if let Expr::Call(call) = expression {
                 calls.push(call.clone());
             }
             if let Some(literal) = literal_syntax_site(expression) {
                 literals.push(literal);
+                literal_expressions.push(expression.clone());
+            }
+            if let Expr::InterpolatedString(interpolation) = expression {
+                interpolations.push(interpolation.clone());
             }
         });
         calls.sort_by_key(|call| (call.span.start, call.span.end));
         literals
             .sort_by_key(|literal| (literal.expression_span.start, literal.expression_span.end));
+        interpolations
+            .sort_by_key(|interpolation| (interpolation.span.start, interpolation.span.end));
         let mut callables = std::collections::HashMap::new();
+        let mut destructors = std::collections::HashMap::new();
         let mut conformances = Vec::new();
+        let mut from_imports = Vec::new();
+        let mut exports = Vec::new();
         for item in &ast.items {
             collect_callable_syntax(item, resolved, &mut callables);
+            collect_export_syntax(item, &mut exports);
+            if let Item::FromImport(import) = item {
+                from_imports.push(import.clone());
+            }
+            if let Item::Destruct(destruct) = item
+                && let Some(definition) = resolved.semantic_db.definition_at(destruct.keyword_span)
+            {
+                destructors.insert(definition, destruct.clone());
+            }
             if let Item::Conformance(conformance) = item {
                 conformances.push(conformance.clone());
             }
         }
         conformances.sort_by_key(|conformance| (conformance.span.start, conformance.span.end));
+        from_imports.sort_by_key(|import| (import.span.start, import.span.end));
+        exports.sort_by_key(|export| (export.anchor.start, export.anchor.end));
         let mut documentation_owners = resolved
             .semantic_db
             .definitions()
@@ -150,7 +183,12 @@ impl EditorSyntaxIndex {
             editor_targets,
             calls,
             literals,
+            literal_expressions,
+            interpolations,
+            from_imports,
+            exports,
             callables,
+            destructors,
             conformances,
             documentation: attach_documentation(ast.span.source, text, &targets),
             documentation_owners,
@@ -192,6 +230,52 @@ impl EditorSyntaxIndex {
         self.callables.get(&definition)
     }
 
+    pub(crate) fn literals(&self) -> impl Iterator<Item = (DefId, &LiteralDecl)> {
+        self.callables.iter().filter_map(|(definition, callable)| {
+            let CallableSyntax::Literal(literal) = callable else {
+                return None;
+            };
+            Some((*definition, literal))
+        })
+    }
+
+    pub(crate) fn interpolation_at(
+        &self,
+        offset: usize,
+    ) -> Option<&crate::ast::InterpolatedStringExpr> {
+        self.interpolations
+            .iter()
+            .filter(|interpolation| contains(interpolation.span, offset))
+            .min_by_key(|interpolation| (interpolation.span.len(), interpolation.span.start))
+    }
+
+    pub(crate) fn from_import_selector_at(
+        &self,
+        offset: usize,
+    ) -> Option<&crate::ast::FromImportItem> {
+        self.from_imports
+            .iter()
+            .filter(|import| import.path.span.end < offset && offset <= import.span.end)
+            .min_by_key(|import| (import.span.len(), import.span.start))
+    }
+
+    pub(crate) fn visible_export_anchors(
+        &self,
+        access: crate::resolve::ImportAccess,
+    ) -> impl Iterator<Item = ByteSpan> + '_ {
+        self.exports
+            .iter()
+            .filter(move |export| {
+                export.visibility == crate::ast::Visibility::Public
+                    || access.allows(export.visibility)
+            })
+            .map(|export| export.anchor)
+    }
+
+    pub(crate) fn destructor(&self, definition: DefId) -> Option<&crate::ast::DestructDecl> {
+        self.destructors.get(&definition)
+    }
+
     pub(crate) fn literal_at(
         &self,
         offset: usize,
@@ -210,6 +294,10 @@ impl EditorSyntaxIndex {
                 }
             })
             .min_by_key(|literal| (literal.expression_span.len(), literal.expression_span.start))
+    }
+
+    pub(crate) fn literal_expressions(&self) -> impl Iterator<Item = &Expr> {
+        self.literal_expressions.iter()
     }
 
     pub(crate) fn conformance_at(&self, offset: usize) -> Option<&ConformanceDecl> {
@@ -237,6 +325,29 @@ impl EditorSyntaxIndex {
                 .min_by_key(|(span, _)| (span.len(), span.start))
                 .and_then(|(_, anchor)| self.documentation.get(anchor.start))
         })
+    }
+}
+
+fn collect_export_syntax(item: &Item, exports: &mut Vec<ExportSyntax>) {
+    let mut push = |anchor, visibility| exports.push(ExportSyntax { anchor, visibility });
+    match item {
+        Item::Function(item) => push(item.name_span, item.visibility),
+        Item::Primitive(item) => push(item.name_span, item.visibility),
+        Item::TypeAlias(item) => push(item.name_span, item.visibility),
+        Item::Struct(item) => push(item.name_span, item.visibility),
+        Item::Enum(item) => push(item.name_span, item.visibility),
+        Item::Interface(item) => push(item.name_span, item.visibility),
+        Item::FromImport(item) => {
+            for name in &item.names {
+                push(name.local_span(), item.visibility);
+            }
+        }
+        Item::Import(_)
+        | Item::Test(_)
+        | Item::Instance(_)
+        | Item::Conformance(_)
+        | Item::Destruct(_)
+        | Item::Construct(_) => {}
     }
 }
 
