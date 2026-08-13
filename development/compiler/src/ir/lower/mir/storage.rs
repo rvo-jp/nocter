@@ -118,6 +118,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
 fn rvalue_use_count(value: &Rvalue, local: LocalId) -> usize {
     match value {
         Rvalue::Use(operand) => operand_use_count(operand, local),
+        Rvalue::Unary { operand, .. } => operand_use_count(operand, local),
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
             operand_use_count(left, local) + operand_use_count(right, local)
         }

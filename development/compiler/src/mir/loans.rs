@@ -227,6 +227,9 @@ fn reject_rvalue_moves(
 ) {
     match value {
         Rvalue::Use(operand) => reject_operand_move(body, block, operand, state, errors),
+        Rvalue::Unary { operand, .. } => {
+            reject_operand_move(body, block, operand, state, errors);
+        }
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
             reject_operand_move(body, block, left, state, errors);
             reject_operand_move(body, block, right, state, errors);

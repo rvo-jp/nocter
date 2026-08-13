@@ -27,7 +27,7 @@ pub(crate) use model::Loan;
 pub(crate) use model::{
     BinaryOperator, Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator, Constant,
     LoopRegion, Operand, Origin, Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue,
-    Statement, Terminator,
+    Statement, Terminator, UnaryOperator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

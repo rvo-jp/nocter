@@ -140,6 +140,11 @@ impl Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Rvalue {
     Use(Operand),
+    Unary {
+        operator: UnaryOperator,
+        operand: Operand,
+        ty: TyId,
+    },
     Binary {
         operator: BinaryOperator,
         left: Operand,
@@ -154,6 +159,12 @@ pub(crate) enum Rvalue {
         operand_scalar: ScalarType,
         result_ty: TyId,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnaryOperator {
+    Negate,
+    LogicalNot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

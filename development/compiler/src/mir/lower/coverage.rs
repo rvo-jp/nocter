@@ -492,6 +492,30 @@ pub(super) fn scalar_expression_is_supported(
             };
             scalar_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
         }
+        Expr::Unary(unary) => {
+            let Some(operand_ty) = known_expression_type(&unary.operand, typed_hir) else {
+                return false;
+            };
+            let Some(operand_scalar) = scalar_type(operand_ty, typed_hir) else {
+                return false;
+            };
+            let operator_is_supported = match unary.operator {
+                crate::ast::UnaryOperator::LogicalNot => operand_scalar == super::ScalarType::Bool,
+                crate::ast::UnaryOperator::Negate => match operand_scalar {
+                    super::ScalarType::I32 => true,
+                    super::ScalarType::Integer(kind) => kind.is_signed(),
+                    super::ScalarType::Usize | super::ScalarType::Bool => false,
+                },
+                crate::ast::UnaryOperator::Move | crate::ast::UnaryOperator::Spread => false,
+            };
+            operator_is_supported
+                && scalar_expression_is_supported(
+                    &unary.operand,
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                )
+        }
         Expr::Binary(binary) => {
             (mir_binary_operator(binary.operator).is_some()
                 || scalar_comparison_is_supported(binary, typed_hir)

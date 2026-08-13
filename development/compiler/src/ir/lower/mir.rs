@@ -9,7 +9,7 @@ use crate::ir::{
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
-    Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator,
+    Place, ReturnMode, Rvalue, ScalarType, Statement, Terminator, UnaryOperator,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -710,6 +710,20 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Unary {
+                        operator: UnaryOperator::Negate,
+                        operand,
+                        ..
+                    } => instructions.push(Instruction::SubtractI32 {
+                        destination,
+                        left: I32Value::Const(0),
+                        right: lower_i32_operand(operand, context)?,
+                    }),
+                    Rvalue::Unary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "i32 scalar route received a non-numeric unary operation",
+                        ));
+                    }
                     Rvalue::Binary {
                         operator,
                         left,
@@ -744,6 +758,11 @@ fn lower_statements(
                                 value: lower_usize_operand(operand, context)?,
                             });
                         }
+                    }
+                    Rvalue::Unary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "usize scalar route received an invalid unary operation",
+                        ));
                     }
                     Rvalue::Binary {
                         operator,
@@ -781,6 +800,22 @@ fn lower_statements(
                             });
                         }
                     }
+                    Rvalue::Unary {
+                        operator: UnaryOperator::Negate,
+                        operand,
+                        ..
+                    } if kind.is_signed() => instructions.push(Instruction::IntegerBinary {
+                        kind,
+                        operator: IntegerBinaryOperator::Subtract,
+                        destination,
+                        left: UsizeValue::Const(0),
+                        right: lower_integer_operand(operand, kind, context)?,
+                    }),
+                    Rvalue::Unary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "integer scalar route received an invalid unary operation",
+                        ));
+                    }
                     Rvalue::Binary {
                         operator,
                         left,
@@ -816,6 +851,19 @@ fn lower_statements(
                                 value: lower_bool_operand(operand, context)?,
                             });
                         }
+                    }
+                    Rvalue::Unary {
+                        operator: UnaryOperator::LogicalNot,
+                        operand,
+                        ..
+                    } => instructions.push(Instruction::SetBool {
+                        destination,
+                        value: BoolValue::Not(Box::new(lower_bool_operand(operand, context)?)),
+                    }),
+                    Rvalue::Unary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "boolean scalar route received a numeric unary operation",
+                        ));
                     }
                     Rvalue::Binary { .. } => {
                         return Err(invalid_mir_diagnostics(

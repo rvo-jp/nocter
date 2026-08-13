@@ -112,6 +112,12 @@ pub(crate) enum ValidationError {
         statement: usize,
         actual: ValueRepresentation,
     },
+    InvalidUnaryOperation {
+        block: BasicBlockId,
+        statement: usize,
+        operator: super::UnaryOperator,
+        scalar: ScalarType,
+    },
     MissingTarget {
         block: BasicBlockId,
         target: BasicBlockId,
@@ -273,6 +279,48 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                         &mut errors,
                     );
                     ty
+                }
+                super::model::Rvalue::Unary {
+                    operator,
+                    operand,
+                    ty,
+                } => {
+                    if let Some(destination_scalar) = destination_local.scalar_type() {
+                        validate_operand(
+                            body,
+                            block_id,
+                            OperandLocation::Statement(statement_index),
+                            operand,
+                            *ty,
+                            destination_scalar,
+                            &mut errors,
+                        );
+                        let valid = match operator {
+                            super::UnaryOperator::Negate => match destination_scalar {
+                                ScalarType::I32 => true,
+                                ScalarType::Integer(kind) => kind.is_signed(),
+                                ScalarType::Usize | ScalarType::Bool => false,
+                            },
+                            super::UnaryOperator::LogicalNot => {
+                                destination_scalar == ScalarType::Bool
+                            }
+                        };
+                        if !valid {
+                            errors.push(ValidationError::InvalidUnaryOperation {
+                                block: block_id,
+                                statement: statement_index,
+                                operator: *operator,
+                                scalar: destination_scalar,
+                            });
+                        }
+                    } else {
+                        errors.push(ValidationError::AssignmentRequiresScalar {
+                            block: block_id,
+                            statement: statement_index,
+                            actual: destination_local.representation,
+                        });
+                    }
+                    Some(*ty)
                 }
                 super::model::Rvalue::Binary {
                     left, right, ty, ..
@@ -874,6 +922,35 @@ mod tests {
     #[test]
     fn accepts_a_well_formed_body() {
         assert_eq!(validate(&valid_body()), Ok(()));
+    }
+
+    #[test]
+    fn rejects_unary_operator_and_scalar_drift() {
+        let mut body = valid_body();
+        let ty = body.locals[0].ty;
+        body.blocks[0].statements[0] = Statement::Assign {
+            destination: Place::local(LocalId::from_index(0)),
+            value: Rvalue::Unary {
+                operator: crate::mir::UnaryOperator::LogicalNot,
+                operand: Operand::Constant(Constant {
+                    ty,
+                    scalar: ScalarType::I32,
+                    value: 0,
+                }),
+                ty,
+            },
+            origin: crate::mir::Origin::Expression(ExprId::from_index(0)),
+        };
+
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::InvalidUnaryOperation {
+                block: BasicBlockId::from_index(0),
+                statement: 0,
+                operator: crate::mir::UnaryOperator::LogicalNot,
+                scalar: ScalarType::I32,
+            }])
+        );
     }
 
     #[test]

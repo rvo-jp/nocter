@@ -147,6 +147,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.
+- Numeric negation and boolean inversion are distinct MIR unary operations. The verifier checks
+  their scalar domain, while machine-IR projection alone chooses subtraction-from-zero or boolean
+  inversion; lowering does not erase the authored operation before validation.
 - Primitive declarations are recognized as a closed `IntrinsicId` at the resolution-to-lowering
   boundary. Machine-IR selection dispatches on that identity; the source spelling is retained only
   for diagnostics and source-boundary recognition.

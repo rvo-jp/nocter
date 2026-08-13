@@ -271,6 +271,71 @@ fn builds_integer_shifts_with_canonical_operators() {
 }
 
 #[test]
+fn builds_unary_scalar_operations() {
+    let (_sources, analysis) = analyze_text(
+        r#"func negative(value: i64): i64 {
+    return -value
+}
+
+func inverted(value: bool): bool {
+    return !value
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+
+    let build = |name: &str, scalar| {
+        let function = file
+            .ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == name => Some(function),
+                _ => None,
+            })
+            .unwrap();
+        try_build_scalar_body(
+            function.body.as_ref().unwrap(),
+            &function.parameters.parameters,
+            scalar,
+            &analysis.semantic_db,
+            &file.resolved,
+            &file.typed_hir,
+        )
+        .expect("unary scalar operation must select MIR")
+        .unwrap()
+    };
+
+    let negative = build(
+        "negative",
+        ScalarType::Integer(crate::integer::IntegerType::I64),
+    );
+    assert!(matches!(
+        negative.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Unary {
+                operator: crate::mir::UnaryOperator::Negate,
+                ..
+            },
+            ..
+        }]
+    ));
+
+    let inverted = build("inverted", ScalarType::Bool);
+    assert!(matches!(
+        inverted.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Unary {
+                operator: crate::mir::UnaryOperator::LogicalNot,
+                ..
+            },
+            ..
+        }]
+    ));
+}
+
+#[test]
 fn builds_short_circuit_boolean_control_flow() {
     let (_sources, analysis) = analyze_text(
         r#"func both(left: bool, right: bool): bool {

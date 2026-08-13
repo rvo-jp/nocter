@@ -259,6 +259,7 @@ fn merge_entry(
 fn rvalue_operands(value: &Rvalue) -> impl Iterator<Item = &Operand> {
     let operands = match value {
         Rvalue::Use(operand) => [Some(operand), None],
+        Rvalue::Unary { operand, .. } => [Some(operand), None],
         Rvalue::Binary { left, right, .. } | Rvalue::Compare { left, right, .. } => {
             [Some(left), Some(right)]
         }

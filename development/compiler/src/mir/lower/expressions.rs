@@ -7,7 +7,7 @@ use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
     BinaryOperator, CallArgument, ComparisonOperator, LocalId, LocalOrigin, LocalStorage, Operand,
-    Place, Rvalue, ScalarType, ScopeId, Statement,
+    Place, Rvalue, ScalarType, ScopeId, Statement, UnaryOperator,
 };
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use std::collections::HashMap;
@@ -136,6 +136,27 @@ pub(super) fn lower_expression_to_place(
         );
     }
     let value = match expression {
+        Expr::Unary(unary) => Rvalue::Unary {
+            operator: match unary.operator {
+                crate::ast::UnaryOperator::Negate => UnaryOperator::Negate,
+                crate::ast::UnaryOperator::LogicalNot => UnaryOperator::LogicalNot,
+                crate::ast::UnaryOperator::Move | crate::ast::UnaryOperator::Spread => {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
+            },
+            operand: lower_operand(
+                &unary.operand,
+                ty,
+                scalar,
+                semantic,
+                locals,
+                local_declarations,
+                projections,
+                control_flow,
+                scope,
+            )?,
+            ty,
+        },
         Expr::Binary(binary) => {
             if let Some(operator) = mir_binary_operator(binary.operator) {
                 Rvalue::Binary {
