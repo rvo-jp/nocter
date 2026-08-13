@@ -6,7 +6,7 @@ use super::SemanticInputs;
 use super::expressions::{mir_assignment_operator, mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    Stmt, WhileStmt,
+    RegionStmt, Stmt, WhileStmt,
 };
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
@@ -21,6 +21,7 @@ pub(super) enum ScalarStatement<'a> {
     ForRange(&'a ForRangeStmt),
     Loop(&'a LoopStmt),
     While(&'a WhileStmt),
+    Region(&'a RegionStmt),
     Break,
     Continue,
 }
@@ -410,6 +411,17 @@ impl<'a> ScalarStatement<'a> {
                     )
                     .is_some()
             }
+            Self::Region(statement) => {
+                region_allocator_is_supported(statement, resolved, resolved_sources, typed_hir)
+                    && scalar_linear_block_statements(
+                        &statement.body,
+                        resolved,
+                        resolved_sources,
+                        typed_hir,
+                        in_loop,
+                    )
+                    .is_some()
+            }
             Self::If(statement) => {
                 scalar_expression_is_supported(
                     &statement.condition,
@@ -488,10 +500,44 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::ForRange(statement) => Some(ScalarStatement::ForRange(statement)),
         Stmt::Loop(statement) => Some(ScalarStatement::Loop(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
+        Stmt::Region(statement) => Some(ScalarStatement::Region(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
         _ => None,
     }
+}
+
+fn region_allocator_is_supported(
+    statement: &RegionStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    let Expr::Identifier(identifier) = statement.allocator.without_groups() else {
+        return false;
+    };
+    if resolved.local_symbol_for_identifier(identifier).is_none() {
+        return false;
+    }
+    let Some(symbol) = resolved.local_symbol_id_at_name_span(statement.name_span) else {
+        return false;
+    };
+    let Some(ty) = typed_hir.binding_type_expr(symbol) else {
+        return false;
+    };
+    let Ok(value) = crate::abi::abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    }) else {
+        return false;
+    };
+    let crate::abi::AbiType::Struct(fields) = value.ty else {
+        return false;
+    };
+    ["state", "kind"].into_iter().all(|name| {
+        fields
+            .iter()
+            .any(|field| field.name == name && field.ty == crate::abi::AbiType::Usize)
+    })
 }
 
 pub(super) fn scalar_linear_block_statements<'a>(

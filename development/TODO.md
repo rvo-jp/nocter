@@ -165,6 +165,9 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - fixed-array scalar reads, assignments, and compound assignments use the same index place;
   assignment validation reads the projected type and representation, while one backend scalar
   projection emits field or bounds-checked index loads and stores
+- lexical allocation regions have body-local identities, scope ownership, explicit entry/exit
+  statements, and cleanup-generated exits on every CFG edge; routed bodies no longer depend on
+  the AST lowerer's parallel region-cleanup stack
 - generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
   the monomorphized runtime symbol
 - payload variant rvalues retain the selected variant `DefId` and semantic payload paths; enum drop
@@ -184,7 +187,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,656 library tests pass at this checkpoint
+- all 2,657 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

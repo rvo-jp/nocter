@@ -102,6 +102,19 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                         .get(loan.index())
                         .is_some_and(|loan| loan.destination == local),
                     crate::mir::Statement::EndLoan { .. } => false,
+                    crate::mir::Statement::EnterRegion { region, .. } => body
+                        .allocation_regions
+                        .get(region.index())
+                        .is_some_and(|region| {
+                            [
+                                region.allocator,
+                                region.state,
+                                region.parent_state,
+                                region.parent_kind,
+                            ]
+                            .contains(&local)
+                        }),
+                    crate::mir::Statement::ExitRegion { .. } => false,
                 })
                 .count();
             let terminator = match &block.terminator {
@@ -133,6 +146,21 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                         .is_some_and(|loan| loan.source.local == local)
                         as usize,
                     crate::mir::Statement::EndLoan { .. } => 0,
+                    crate::mir::Statement::EnterRegion { region, .. } => body
+                        .allocation_regions
+                        .get(region.index())
+                        .is_some_and(|region| region.parent.local == local)
+                        as usize,
+                    crate::mir::Statement::ExitRegion { region } => body
+                        .allocation_regions
+                        .get(region.index())
+                        .map(|region| {
+                            [region.state, region.parent_state, region.parent_kind]
+                                .into_iter()
+                                .filter(|candidate| *candidate == local)
+                                .count()
+                        })
+                        .unwrap_or(0),
                 })
                 .sum::<usize>();
             let terminator = match &block.terminator {
@@ -275,6 +303,7 @@ mod tests {
                 continue_target: BasicBlockId::from_index(0),
                 exit: BasicBlockId::from_index(2),
             }],
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

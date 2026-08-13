@@ -118,6 +118,27 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                         initialized.move_out(body, Place::local(loan.destination));
                     }
                 }
+                crate::mir::Statement::EnterRegion { region, .. } => {
+                    if let Some(region) = body.allocation_regions.get(region.index()) {
+                        validate_and_apply_operand(
+                            &Operand::Copy(region.parent),
+                            &mut initialized,
+                            block_id,
+                            InitializationLocation::Statement(statement_index),
+                            body,
+                            &mut errors,
+                        );
+                        for local in [
+                            region.allocator,
+                            region.state,
+                            region.parent_state,
+                            region.parent_kind,
+                        ] {
+                            initialized.initialize(body, Place::local(local));
+                        }
+                    }
+                }
+                crate::mir::Statement::ExitRegion { .. } => {}
             }
         }
 
@@ -374,6 +395,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             loop_regions: Vec::new(),
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

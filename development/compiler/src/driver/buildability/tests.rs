@@ -68,6 +68,25 @@ func main(): i32 {
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(analysis.mir_bodies.len(), 2);
+    let ir = crate::ir::lower_executable(&analysis, &sources).unwrap();
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "use_region")
+        .unwrap();
+    assert!(
+        function
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, crate::ir::Instruction::RegionEnter { .. }))
+    );
+    assert!(
+        function
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, crate::ir::Instruction::RegionRelease { .. }))
+    );
 }
 
 #[test]

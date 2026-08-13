@@ -167,6 +167,11 @@ buildability is MIR validation rather than a parallel AST model.
   not its aggregate root; backend projection alone chooses an offset load/store or a
   bounds-checked indexed load/store. Compound assignment materializes its read and result as
   ordinary scalar MIR locals before writing the projected place.
+- Lexical allocation regions are MIR scope resources with body-local identity. Their record owns
+  the region allocator local and the saved ambient allocation-state locals; cleanup
+  materialization inserts explicit exits after owned-value cleanup on every edge leaving the
+  region scope. Machine lowering projects entry and release instructions without revisiting the
+  source region block or keeping a second cleanup stack.
 - Built-in integers use canonical `IntegerType` in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
   shifts, comparison, call, field-load, and return projection.

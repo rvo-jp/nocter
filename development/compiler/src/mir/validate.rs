@@ -1,7 +1,7 @@
 //! Structural MIR verification. Validation errors are compiler invariant
 //! failures, not alternate source-language diagnostics.
 
-use super::ids::{BasicBlockId, DropPlanId, LocalId, ProjectionPathId};
+use super::ids::{BasicBlockId, DropPlanId, LocalId, ProjectionPathId, RegionId};
 use super::locals::{LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation};
 use super::model::{
     Body, CallContinuation, Operand, ProjectionElement, ProjectionPath, Statement, Terminator,
@@ -177,6 +177,11 @@ pub(crate) enum ValidationError {
         header: BasicBlockId,
         continue_target: BasicBlockId,
     },
+    InvalidAllocationRegion(RegionId),
+    MissingAllocationRegion {
+        block: BasicBlockId,
+        region: RegionId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +206,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     validate_local_contracts(body, &mut errors);
     validate_drop_plans(body, &mut errors);
     validate_projection_paths(body, &mut errors);
+    validate_allocation_regions(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
     }
@@ -263,6 +269,15 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             });
         }
         for (statement_index, statement) in block.statements.iter().enumerate() {
+            if let Statement::EnterRegion { region, .. } | Statement::ExitRegion { region } =
+                statement
+                && body.allocation_regions.get(region.index()).is_none()
+            {
+                errors.push(ValidationError::MissingAllocationRegion {
+                    block: block_id,
+                    region: *region,
+                });
+            }
             if !matches!(statement, Statement::Assign { .. }) {
                 continue;
             }
@@ -698,6 +713,40 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn validate_allocation_regions(body: &Body, errors: &mut Vec<ValidationError>) {
+    for (index, region) in body.allocation_regions.iter().enumerate() {
+        let id = RegionId::from_index(index);
+        let allocator_is_aggregate =
+            body.locals
+                .get(region.allocator.index())
+                .is_some_and(|local| {
+                    local.scope == region.scope
+                        && local.representation == ValueRepresentation::Aggregate
+                });
+        let parent_is_aggregate = body
+            .locals
+            .get(region.parent.local.index())
+            .is_some_and(|local| local.representation == ValueRepresentation::Aggregate)
+            && region.parent.projection.is_none();
+        let state_is_usize = [region.state, region.parent_state, region.parent_kind]
+            .into_iter()
+            .all(|local| {
+                body.locals.get(local.index()).is_some_and(|local| {
+                    local.scope == region.scope
+                        && local.representation == ValueRepresentation::Scalar(ScalarType::Usize)
+                })
+            });
+        if region.id != id
+            || body.scopes.get(region.scope.index()).is_none()
+            || !allocator_is_aggregate
+            || !parent_is_aggregate
+            || !state_is_usize
+        {
+            errors.push(ValidationError::InvalidAllocationRegion(id));
+        }
     }
 }
 
@@ -1212,6 +1261,7 @@ mod tests {
                 },
             ],
             loop_regions: Vec::new(),
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

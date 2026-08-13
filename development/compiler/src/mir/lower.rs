@@ -21,6 +21,7 @@ mod coverage;
 mod expressions;
 mod indexes;
 mod projections;
+mod regions;
 mod statements;
 use context::LoweringContext;
 use coverage::*;
@@ -251,6 +252,7 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             entry: BasicBlockId::from_index(0),
             blocks: parts.blocks,
             loop_regions: parts.loop_regions,
+            allocation_regions: parts.allocation_regions,
             loans: parts.loans,
             projections: parts.projections,
             drop_plans: parts.drop_plans,

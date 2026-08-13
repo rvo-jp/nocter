@@ -994,6 +994,72 @@ fn builds_dynamic_fixed_array_scalar_reads_and_writes() {
 }
 
 #[test]
+fn builds_lexical_allocation_region_cleanup() {
+    let (_sources, analysis) =
+        crate::analysis::test_support::analyze_text_with_trusted_allocator_capabilities(
+            r#"struct Allocator {
+    state: usize
+    kind: usize
+}
+
+func use_region(arena: Allocator): i32 {
+    region temp using arena {
+        let value = 1
+    }
+    return 42
+}
+"#,
+        );
+    assert!(
+        analysis.diagnostics().is_empty(),
+        "{:?}",
+        analysis.diagnostics()
+    );
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "use_region" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("lexical region must select MIR")
+    .unwrap();
+
+    assert_eq!(body.allocation_regions.len(), 1);
+    let region = body.allocation_regions[0];
+    assert_eq!(
+        region.parent,
+        crate::mir::Place::local(LocalId::from_index(1))
+    );
+    assert!(body.blocks.iter().any(|block| {
+        block.statements.iter().any(|statement| {
+            matches!(
+                statement,
+                Statement::EnterRegion { region: entered, .. } if *entered == region.id
+            )
+        })
+    }));
+    assert!(body.blocks.iter().any(|block| {
+        matches!(
+            block.statements.as_slice(),
+            [Statement::ExitRegion { region: exited }] if *exited == region.id
+        )
+    }));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn transfers_an_owned_aggregate_call_argument_with_a_move_operand() {
     let (_sources, analysis) = analyze_text(
         r#"struct File {

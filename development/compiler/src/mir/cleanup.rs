@@ -6,7 +6,7 @@
 use super::initialization::InitializationAnalysis;
 use super::locals::{OwnershipKind, ValueRepresentation};
 use super::model::BasicBlock;
-use super::{BasicBlockId, Body, LoanId, LocalId, Place, ScopeId, Statement, Terminator};
+use super::{BasicBlockId, Body, LoanId, LocalId, Place, RegionId, ScopeId, Statement, Terminator};
 
 pub(super) fn materialize(body: &mut Body) {
     let analysis = super::initialization::analyze(body);
@@ -99,7 +99,8 @@ fn cleanup_edge(
         analysis.initialized_on_edge(body, from, target, place)
     });
     let loans = cleanup_loans(body, &exited);
-    prepend_cleanup_chain(body, loans, places, target)
+    let regions = cleanup_regions(body, &exited);
+    prepend_cleanup_chain(body, loans, places, regions, target)
 }
 
 fn cleanup_exit(
@@ -114,7 +115,8 @@ fn cleanup_exit(
         analysis.initialized_at_exit(body, block, place)
     });
     let loans = cleanup_loans(body, &exited);
-    if places.is_empty() && loans.is_empty() {
+    let regions = cleanup_regions(body, &exited);
+    if places.is_empty() && loans.is_empty() && regions.is_empty() {
         return terminal;
     }
     let terminal_block = BasicBlockId::from_index(body.blocks.len());
@@ -124,7 +126,7 @@ fn cleanup_exit(
         terminator: terminal,
     });
     Terminator::Goto {
-        target: prepend_cleanup_chain(body, loans, places, terminal_block),
+        target: prepend_cleanup_chain(body, loans, places, regions, terminal_block),
     }
 }
 
@@ -134,6 +136,15 @@ fn cleanup_loans(body: &Body, exited: &[ScopeId]) -> Vec<LoanId> {
         .rev()
         .filter(|loan| exited.contains(&loan.scope))
         .map(|loan| loan.id)
+        .collect()
+}
+
+fn cleanup_regions(body: &Body, exited: &[ScopeId]) -> Vec<RegionId> {
+    body.allocation_regions
+        .iter()
+        .rev()
+        .filter(|region| exited.contains(&region.scope))
+        .map(|region| region.id)
         .collect()
 }
 
@@ -180,9 +191,19 @@ fn prepend_cleanup_chain(
     body: &mut Body,
     loans: Vec<LoanId>,
     places: Vec<Place>,
+    regions: Vec<RegionId>,
     final_target: BasicBlockId,
 ) -> BasicBlockId {
     let mut target = final_target;
+    for region in regions.into_iter().rev() {
+        let block = BasicBlockId::from_index(body.blocks.len());
+        body.blocks.push(BasicBlock {
+            scope: body.root_scope,
+            statements: vec![Statement::ExitRegion { region }],
+            terminator: Terminator::Goto { target },
+        });
+        target = block;
+    }
     for place in places.into_iter().rev() {
         let block = BasicBlockId::from_index(body.blocks.len());
         body.blocks.push(BasicBlock {
@@ -299,6 +320,7 @@ mod tests {
                 },
             ],
             loop_regions: Vec::new(),
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: vec![crate::mir::DropPlan::Direct {
@@ -400,6 +422,7 @@ mod tests {
                 },
             ],
             loop_regions: Vec::new(),
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: vec![
                 crate::mir::ProjectionPath {

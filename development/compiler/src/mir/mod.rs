@@ -16,7 +16,9 @@ mod scopes;
 mod validate;
 
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
-pub(crate) use ids::{BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, ScopeId};
+pub(crate) use ids::{
+    BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId, ScopeId,
+};
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{
     Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,
@@ -26,9 +28,10 @@ pub(crate) use lower::{BuildError, BuildInputs, try_build_scalar_body_with_retur
 pub(crate) use model::BasicBlock;
 pub(crate) use model::Loan;
 pub(crate) use model::{
-    AggregateElement, AggregateLeaf, BinaryOperator, Body, BorrowKind, CallArgument,
-    CallContinuation, ComparisonOperator, Constant, LoopRegion, Operand, Origin, Place,
-    ProjectionElement, ProjectionPath, ReturnMode, Rvalue, Statement, Terminator, UnaryOperator,
+    AggregateElement, AggregateLeaf, AllocationRegion, BinaryOperator, Body, BorrowKind,
+    CallArgument, CallContinuation, ComparisonOperator, Constant, LoopRegion, Operand, Origin,
+    Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue, Statement, Terminator,
+    UnaryOperator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

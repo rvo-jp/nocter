@@ -977,6 +977,14 @@ fn lower_statements(
     let body = context.body;
     let mut instructions = Vec::new();
     for statement in statements {
+        if let Statement::EnterRegion { region, .. } = statement {
+            instructions.extend(lower_region_enter(*region, context)?);
+            continue;
+        }
+        if let Statement::ExitRegion { region } = statement {
+            instructions.push(lower_region_exit(*region, context)?);
+            continue;
+        }
         if let Statement::BeginLoan { loan, .. } = statement {
             let declaration = body.loans.get(loan.index()).ok_or_else(|| {
                 invalid_mir_diagnostics("borrow statement has no matching loan declaration")
@@ -1366,6 +1374,100 @@ fn lower_statements(
         }
     }
     Ok(instructions)
+}
+
+fn lower_region_enter(
+    region: crate::mir::RegionId,
+    context: &BackendContext<'_>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    const REGION_ALLOCATOR_KIND: u64 = 1;
+    let region = context
+        .body
+        .allocation_regions
+        .get(region.index())
+        .ok_or_else(|| invalid_mir_diagnostics("MIR region declaration is missing"))?;
+    let (state_offset, kind_offset) =
+        allocator_field_offsets(context.body.locals[region.allocator.index()].ty, context)?;
+    let allocator = Place::local(region.allocator);
+    let allocator_location = aggregate_location(&allocator, context)?;
+    let parent_state = usize_location(&Place::local(region.parent_state), context)?;
+    let parent_kind = usize_location(&Place::local(region.parent_kind), context)?;
+    let state = usize_location(&Place::local(region.state), context)?;
+    let mut instructions = Vec::new();
+    reserve_aggregate_destination(context, &allocator, &mut instructions)?;
+    instructions.extend([
+        Instruction::SetUsize {
+            destination: parent_state,
+            value: UsizeValue::CurrentAllocationState,
+        },
+        Instruction::SetUsize {
+            destination: parent_kind,
+            value: UsizeValue::CurrentAllocationKind,
+        },
+        Instruction::RegionEnter { destination: state },
+        Instruction::StoreAggregateUsize {
+            destination: allocator_location,
+            offset: state_offset,
+            value: UsizeValue::Location(state),
+        },
+        Instruction::StoreAggregateUsize {
+            destination: allocator_location,
+            offset: kind_offset,
+            value: UsizeValue::Const(REGION_ALLOCATOR_KIND),
+        },
+        Instruction::SetCurrentAllocationContext {
+            state: UsizeValue::Location(state),
+            kind: UsizeValue::Const(REGION_ALLOCATOR_KIND),
+        },
+    ]);
+    Ok(instructions)
+}
+
+fn lower_region_exit(
+    region: crate::mir::RegionId,
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let region = context
+        .body
+        .allocation_regions
+        .get(region.index())
+        .ok_or_else(|| invalid_mir_diagnostics("MIR region declaration is missing"))?;
+    Ok(Instruction::RegionRelease {
+        state: UsizeValue::Location(usize_location(&Place::local(region.state), context)?),
+        parent_state: UsizeValue::Location(usize_location(
+            &Place::local(region.parent_state),
+            context,
+        )?),
+        parent_kind: UsizeValue::Location(usize_location(
+            &Place::local(region.parent_kind),
+            context,
+        )?),
+    })
+}
+
+fn allocator_field_offsets(
+    ty: crate::semantic::TyId,
+    context: &BackendContext<'_>,
+) -> Result<(u32, u32), Vec<Diagnostic>> {
+    let value = aggregate_local_abi_value(ty, context)?;
+    let crate::abi::AbiType::Struct(fields) = value.ty else {
+        return Err(invalid_mir_diagnostics(
+            "MIR region allocator is not struct storage",
+        ));
+    };
+    let layout = crate::abi::layout_struct(&fields)
+        .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))?;
+    let offset = |name: &str| {
+        fields
+            .iter()
+            .position(|field| field.name == name && field.ty == crate::abi::AbiType::Usize)
+            .and_then(|index| layout.fields.get(index))
+            .and_then(|field| u32::try_from(field.offset).ok())
+            .ok_or_else(|| {
+                invalid_mir_diagnostics(format!("MIR region allocator is missing `{name}: usize`"))
+            })
+    };
+    Ok((offset("state")?, offset("kind")?))
 }
 
 fn aggregate_leaf_projection<'a>(

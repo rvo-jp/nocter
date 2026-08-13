@@ -290,6 +290,25 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     self.lower_loop(statement, scope)?;
                     false
                 }
+                ScalarStatement::Region(statement) => {
+                    let entered = super::regions::enter(self.context, statement, scope)?;
+                    let body = scalar_linear_block_statements(
+                        &statement.body,
+                        self.context.semantic.resolved,
+                        self.context.semantic.resolved_sources,
+                        self.context.semantic.typed_hir,
+                        loop_targets.is_some(),
+                    )
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    let exits = self.lower_in_context(&body, loop_targets, entered.scope)?;
+                    if !exits {
+                        self.context.control_flow.terminate(Terminator::Goto {
+                            target: entered.exit,
+                        })?;
+                    }
+                    self.context.control_flow.select_block(entered.exit)?;
+                    exits
+                }
                 ScalarStatement::Break => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
                     self.context.control_flow.terminate(Terminator::Goto {

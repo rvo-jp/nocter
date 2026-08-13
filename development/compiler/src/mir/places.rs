@@ -231,6 +231,7 @@ mod tests {
                 terminator: Terminator::Trap,
             }],
             loop_regions: Vec::new(),
+            allocation_regions: Vec::new(),
             loans: Vec::new(),
             projections: [0, 8]
                 .into_iter()
