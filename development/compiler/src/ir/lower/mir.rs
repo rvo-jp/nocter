@@ -1391,8 +1391,41 @@ fn lower_borrow_source(
     context: &BackendContext<'_>,
 ) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
     if let Some(projection) = place.projection {
-        let offset = aggregate_field_offset(context.body, place.local, projection)?;
+        let projection = aggregate_borrow_projection(context.body, place.local, projection)?;
         let local = &context.body.locals[place.local.index()];
+        if let AggregateBorrowProjection::Index {
+            base_offset,
+            index,
+            length,
+            stride,
+        } = projection
+        {
+            if local.representation != crate::mir::ValueRepresentation::Aggregate {
+                return Err(invalid_mir_diagnostics(
+                    "indexed MIR loan base is not aggregate storage",
+                ));
+            }
+            return Ok(crate::ir::BorrowSource::AggregateIndex {
+                source: aggregate_location(&Place::local(place.local), context)?,
+                base_offset,
+                index: match lower_usize_operand(&index, context)? {
+                    UsizeValue::Const(value) => crate::ir::SliceElementIndex::Const(value),
+                    UsizeValue::Location(location) => {
+                        crate::ir::SliceElementIndex::Location(location)
+                    }
+                    _ => {
+                        return Err(invalid_mir_diagnostics(
+                            "MIR index operand did not lower to a direct usize value",
+                        ));
+                    }
+                },
+                length,
+                stride,
+            });
+        }
+        let AggregateBorrowProjection::Field { offset } = projection else {
+            unreachable!("indexed projection returned above")
+        };
         if local.representation == crate::mir::ValueRepresentation::Borrow {
             return match local.storage {
                 LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
@@ -1477,6 +1510,79 @@ fn lower_borrow_source(
                 ));
             }
         },
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AggregateBorrowProjection {
+    Field {
+        offset: u32,
+    },
+    Index {
+        base_offset: u32,
+        index: Operand,
+        length: u64,
+        stride: u32,
+    },
+}
+
+fn aggregate_borrow_projection(
+    body: &Body,
+    base: LocalId,
+    mut projection: crate::mir::ProjectionPathId,
+) -> Result<AggregateBorrowProjection, Vec<Diagnostic>> {
+    let mut elements = Vec::new();
+    loop {
+        let path = body
+            .projections
+            .get(projection.index())
+            .ok_or_else(|| invalid_mir_diagnostics("aggregate projection is missing"))?;
+        if path.base != base {
+            return Err(invalid_mir_diagnostics(
+                "aggregate projection changed base local",
+            ));
+        }
+        elements.push(path.element.clone());
+        let Some(parent) = path.parent else {
+            break;
+        };
+        projection = parent;
+    }
+    elements.reverse();
+
+    let mut offset = 0u32;
+    let mut index = None;
+    for element in elements {
+        match element {
+            crate::mir::ProjectionElement::Field {
+                offset: field_offset,
+            } => {
+                offset = offset
+                    .checked_add(field_offset)
+                    .ok_or_else(|| invalid_mir_diagnostics("aggregate field offset overflowed"))?;
+            }
+            crate::mir::ProjectionElement::Index {
+                index: operand,
+                length,
+                stride,
+            } => {
+                if index.is_some() {
+                    return Err(invalid_mir_diagnostics(
+                        "nested MIR indexes require a multidimensional machine projection",
+                    ));
+                }
+                index = Some((operand, length, stride));
+            }
+        }
+    }
+    Ok(match index {
+        Some((index, length, stride)) => AggregateBorrowProjection::Index {
+            base_offset: offset,
+            index,
+            length,
+            stride,
+        },
+        None => AggregateBorrowProjection::Field { offset },
     })
 }
 

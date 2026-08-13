@@ -40,10 +40,6 @@ pub(crate) enum ProjectionElement {
     Field {
         offset: u32,
     },
-    #[allow(
-        dead_code,
-        reason = "aggregate route construction follows the projected-place validation checkpoint"
-    )]
     Index {
         index: Operand,
         length: u64,

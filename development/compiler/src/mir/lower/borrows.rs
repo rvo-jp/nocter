@@ -23,6 +23,7 @@ fn source_place_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) ->
             .local_symbol_for_identifier(identifier)
             .is_some(),
         Expr::Member(member) => super::projections::field_is_supported(member, semantic),
+        Expr::Index(index) => super::indexes::is_supported(index, semantic),
         _ => false,
     }
 }
@@ -40,7 +41,7 @@ pub(super) fn lower_to_local(
     if borrow.is_readwrite != readwrite {
         return Err(BuildError::UnsupportedClaimedExpression);
     }
-    let source = lower_source_place(context, &borrow.expression)?;
+    let source = lower_source_place(context, &borrow.expression, scope)?;
     let loan = LoanId::from_index(context.loans.len());
     context.loans.push(Loan {
         id: loan,
@@ -67,6 +68,7 @@ pub(super) fn lower_to_local(
 fn lower_source_place(
     context: &mut LoweringContext<'_>,
     expression: &Expr,
+    scope: ScopeId,
 ) -> Result<Place, BuildError> {
     match expression.without_groups() {
         Expr::Identifier(identifier) => {
@@ -91,6 +93,9 @@ fn lower_source_place(
             &mut context.drop_plans,
         )
         .map(|(place, _)| place),
+        Expr::Index(index) => {
+            super::indexes::lower_place(context, index, scope).map(|(place, _)| place)
+        }
         _ => Err(BuildError::UnsupportedClaimedExpression),
     }
 }

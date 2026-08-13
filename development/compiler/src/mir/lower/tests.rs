@@ -605,6 +605,61 @@ func main(): i32 {
 }
 
 #[test]
+fn builds_a_dynamic_fixed_array_index_loan() {
+    let (_sources, analysis) = analyze_text(
+        r#"func consume(value: &i32): i32 {
+    return 42
+}
+
+func main(index: usize): i32 {
+    let values: [i32; 2] = [7, 9]
+    return consume(&values[index])
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("fixed-array index borrow must select MIR")
+    .unwrap();
+
+    assert!(matches!(
+        body.loans.as_slice(),
+        [crate::mir::Loan {
+            source: crate::mir::Place {
+                projection: Some(projection),
+                ..
+            },
+            ..
+        }] if matches!(
+            body.projections[projection.index()].element,
+            ProjectionElement::Index {
+                index: Operand::Copy(crate::mir::Place { local, projection: None }),
+                length: 2,
+                stride: 4,
+            } if local == LocalId::from_index(1)
+        )
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn transfers_an_owned_aggregate_call_argument_with_a_move_operand() {
     let (_sources, analysis) = analyze_text(
         r#"struct File {

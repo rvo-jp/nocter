@@ -82,6 +82,36 @@ func main(): i32 {
 }
 
 #[test]
+fn mir_projects_dynamic_fixed_array_index_loans_with_bounds_metadata() {
+    let function = lower_named_function(
+        r#"func consume(value: &i32): i32 {
+    return 42
+}
+
+func main(index: usize): i32 {
+    let values: [i32; 2] = [7, 9]
+    return consume(&values[index])
+}
+"#,
+        "main",
+    );
+
+    assert!(function.instructions.contains(&Instruction::CallI32 {
+        destination: I32Location::Return,
+        target: CallTarget::same_file("consume"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateIndex {
+                source: AggregateLocation::Slot(0),
+                base_offset: 0,
+                index: SliceElementIndex::Location(UsizeLocation::Parameter(0)),
+                length: 2,
+                stride: 4,
+            },
+        })],
+    }));
+}
+
+#[test]
 fn lowers_method_call_aggregate_field_receiver_as_implicit_readonly_borrow() {
     let ir = lower_text(
         r#"copy struct File {

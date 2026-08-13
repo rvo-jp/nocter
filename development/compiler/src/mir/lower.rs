@@ -19,6 +19,7 @@ mod borrows;
 mod context;
 mod coverage;
 mod expressions;
+mod indexes;
 mod projections;
 mod statements;
 use context::LoweringContext;

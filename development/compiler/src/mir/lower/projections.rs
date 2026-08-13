@@ -23,6 +23,10 @@ pub(super) fn field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'
     field_path_parts(member, semantic, true).is_some()
 }
 
+pub(super) fn owned_field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
+    field_path_parts(member, semantic, false).is_some()
+}
+
 pub(super) fn lower_scalar_field_place(
     member: &MemberExpr,
     semantic: SemanticInputs<'_>,
