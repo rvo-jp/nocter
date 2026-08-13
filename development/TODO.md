@@ -69,6 +69,8 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - a fixed-point definite-initialization pass validates every reachable MIR operand and return;
   branch joins intersect initialized sets, and fallible calls initialize their destination only on
   the success edge
+- one dense body-local dataflow set backs initialization and is the shared state domain for the
+  upcoming move, loan, and drop-obligation analyses; CFG joins do not allocate hash sets
 - the next checkpoint introduces owned aggregate locals and materializes explicit cleanup blocks
   from these scope transitions
 

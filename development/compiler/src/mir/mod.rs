@@ -1,5 +1,6 @@
 //! Checked control-flow representation between typed HIR and machine IR.
 
+mod dataflow;
 mod ids;
 mod index;
 mod initialization;

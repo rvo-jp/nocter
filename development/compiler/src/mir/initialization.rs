@@ -1,5 +1,6 @@
 //! Path-sensitive definite-initialization validation for MIR locals.
 
+use super::dataflow::LocalSet;
 use super::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Rvalue};
 use std::collections::{HashSet, VecDeque};
 
@@ -22,15 +23,12 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
     if body.blocks.get(body.entry.index()).is_none() {
         return Vec::new();
     }
-    let initial = body
-        .locals
-        .iter()
-        .enumerate()
-        .filter_map(|(index, local)| {
-            matches!(local.storage, LocalStorage::Parameter(_))
-                .then_some(LocalId::from_index(index))
-        })
-        .collect::<HashSet<_>>();
+    let mut initial = LocalSet::new(body.locals.len());
+    for (index, local) in body.locals.iter().enumerate() {
+        if matches!(local.storage, LocalStorage::Parameter(_)) {
+            initial.insert(LocalId::from_index(index));
+        }
+    }
     let mut entries = vec![None; body.blocks.len()];
     entries[body.entry.index()] = Some(initial);
     let mut queue = VecDeque::from([body.entry]);
@@ -118,7 +116,7 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
             }
             crate::mir::Terminator::Return => {
                 if body.locals.get(body.return_local.index()).is_some()
-                    && !initialized.contains(&body.return_local)
+                    && !initialized.contains(body.return_local)
                 {
                     errors.insert(InitializationError {
                         block: block_id,
@@ -143,10 +141,10 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
 }
 
 fn merge_entry(
-    entries: &mut [Option<HashSet<LocalId>>],
+    entries: &mut [Option<LocalSet>],
     queue: &mut VecDeque<BasicBlockId>,
     target: BasicBlockId,
-    incoming: HashSet<LocalId>,
+    incoming: LocalSet,
 ) {
     let Some(entry) = entries.get_mut(target.index()) else {
         return;
@@ -156,18 +154,7 @@ fn merge_entry(
             *entry = Some(incoming);
             true
         }
-        Some(existing) => {
-            let intersection = existing
-                .intersection(&incoming)
-                .copied()
-                .collect::<HashSet<_>>();
-            if *existing == intersection {
-                false
-            } else {
-                *existing = intersection;
-                true
-            }
-        }
+        Some(existing) => existing.intersect_with(&incoming),
     };
     if changed {
         queue.push_back(target);
@@ -186,7 +173,7 @@ fn rvalue_operands(value: &Rvalue) -> impl Iterator<Item = &Operand> {
 
 fn validate_operand(
     operand: &Operand,
-    initialized: &HashSet<LocalId>,
+    initialized: &LocalSet,
     block: BasicBlockId,
     location: InitializationLocation,
     local_count: usize,
@@ -194,7 +181,7 @@ fn validate_operand(
 ) {
     if let Operand::Copy(place) = operand
         && place.local.index() < local_count
-        && !initialized.contains(&place.local)
+        && !initialized.contains(place.local)
     {
         errors.insert(InitializationError {
             block,
