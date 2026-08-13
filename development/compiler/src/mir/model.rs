@@ -239,13 +239,6 @@ pub(crate) enum Terminator {
     /// Destroy one initialized owned place, then continue along `target`.
     /// Cleanup is explicit control flow so every kind of scope exit shares
     /// the same path-sensitive ownership model.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "owned aggregate route constructs cleanup after its validation checkpoint"
-        )
-    )]
     Drop {
         place: Place,
         target: BasicBlockId,

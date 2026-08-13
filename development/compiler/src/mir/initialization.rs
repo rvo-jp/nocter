@@ -2,7 +2,7 @@
 
 use super::dataflow::LocalSet;
 use super::{BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, Rvalue};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum InitializationLocation {
@@ -20,9 +20,42 @@ pub(crate) struct InitializationError {
     pub(crate) local: LocalId,
 }
 
+pub(super) struct InitializationAnalysis {
+    errors: Vec<InitializationError>,
+    edge_states: HashMap<(BasicBlockId, BasicBlockId), LocalSet>,
+    exit_states: HashMap<BasicBlockId, LocalSet>,
+}
+
+impl InitializationAnalysis {
+    pub(super) fn initialized_on_edge(
+        &self,
+        from: BasicBlockId,
+        to: BasicBlockId,
+        local: LocalId,
+    ) -> bool {
+        self.edge_states
+            .get(&(from, to))
+            .is_some_and(|state| state.contains(local))
+    }
+
+    pub(super) fn initialized_at_exit(&self, block: BasicBlockId, local: LocalId) -> bool {
+        self.exit_states
+            .get(&block)
+            .is_some_and(|state| state.contains(local))
+    }
+}
+
 pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
+    analyze(body).errors
+}
+
+pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
     if body.blocks.get(body.entry.index()).is_none() {
-        return Vec::new();
+        return InitializationAnalysis {
+            errors: Vec::new(),
+            edge_states: HashMap::new(),
+            exit_states: HashMap::new(),
+        };
     }
     let mut initial = LocalSet::new(body.locals.len());
     for (index, local) in body.locals.iter().enumerate() {
@@ -34,6 +67,8 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
     entries[body.entry.index()] = Some(initial);
     let mut queue = VecDeque::from([body.entry]);
     let mut errors = HashSet::new();
+    let mut edge_states = HashMap::new();
+    let mut exit_states = HashMap::new();
 
     while let Some(block_id) = queue.pop_front() {
         let Some(block) = body.blocks.get(block_id.index()) else {
@@ -82,6 +117,7 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
 
         match &block.terminator {
             crate::mir::Terminator::Goto { target } => {
+                edge_states.insert((block_id, *target), initialized.clone());
                 merge_entry(&mut entries, &mut queue, *target, initialized);
             }
             crate::mir::Terminator::Switch {
@@ -97,6 +133,8 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                     body.locals.len(),
                     &mut errors,
                 );
+                edge_states.insert((block_id, *then_target), initialized.clone());
+                edge_states.insert((block_id, *else_target), initialized.clone());
                 merge_entry(&mut entries, &mut queue, *then_target, initialized.clone());
                 merge_entry(&mut entries, &mut queue, *else_target, initialized);
             }
@@ -121,6 +159,7 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                         target,
                     } => {
                         initialized.insert(destination.local);
+                        edge_states.insert((block_id, *target), initialized.clone());
                         merge_entry(&mut entries, &mut queue, *target, initialized);
                     }
                     CallContinuation::Outcome {
@@ -130,6 +169,8 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                     } => {
                         let failure_state = initialized.clone();
                         initialized.insert(destination.local);
+                        edge_states.insert((block_id, *success), initialized.clone());
+                        edge_states.insert((block_id, *failure), failure_state.clone());
                         merge_entry(&mut entries, &mut queue, *success, initialized);
                         merge_entry(&mut entries, &mut queue, *failure, failure_state);
                     }
@@ -145,6 +186,7 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                     body.locals.len(),
                     &mut errors,
                 );
+                edge_states.insert((block_id, *target), initialized.clone());
                 merge_entry(&mut entries, &mut queue, *target, initialized);
             }
             crate::mir::Terminator::Return => {
@@ -157,8 +199,11 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
                         local: body.return_local,
                     });
                 }
+                exit_states.insert(block_id, initialized);
             }
-            crate::mir::Terminator::Trap | crate::mir::Terminator::PropagateFailure => {}
+            crate::mir::Terminator::Trap | crate::mir::Terminator::PropagateFailure => {
+                exit_states.insert(block_id, initialized);
+            }
         }
     }
 
@@ -170,7 +215,11 @@ pub(super) fn validate(body: &Body) -> Vec<InitializationError> {
             error.local.index(),
         )
     });
-    errors
+    InitializationAnalysis {
+        errors,
+        edge_states,
+        exit_states,
+    }
 }
 
 fn merge_entry(

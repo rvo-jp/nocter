@@ -85,8 +85,10 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - aggregate fields and indexes use body-local `ProjectionPathId` records rooted at a `LocalId`;
   each path retains its checked type, representation, ownership, parent path, and layout operation,
   so later analyses do not recover field or index meaning from AST member expressions
-- the next checkpoint routes owned aggregate locals through MIR and materializes explicit cleanup
-  blocks from validated scope transitions
+- definite-initialization analysis retains edge and exit states; cleanup materialization combines
+  those states with `ScopeId` transitions to insert reverse-declaration-order `Drop` chains on
+  ordinary, branch, call-success, call-failure, return, and propagation paths
+- the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 
