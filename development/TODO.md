@@ -5,11 +5,12 @@
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The first production MIR route now
 owns nongeneric scalar parameters, bindings, assignments, arithmetic, comparisons, explicit
 temporaries, value conditionals, terminal conditionals, return joins, and direct nongeneric scalar
-calls in straight-line expression evaluation. MIR construction and validation are authoritative
+calls in straight-line and conditional expression evaluation, plus trapping scalar fallible calls.
+MIR construction and validation are authoritative
 after route selection. Buildability and machine-IR lowering consume the same retained MIR body, and
 buildability follows its identity-backed call edges without revisiting the AST body. The next
-boundary is structured conversion of call-containing branch paths, followed by explicit outcome
-edges, loops, aggregates, borrows, and drops. Do not leave a
+boundary is propagated outcome failure and cleanup, followed by loops, aggregates, borrows, and
+drops. Do not leave a
 permanent dual pipeline, add language features, or add standard-library APIs during the architecture
 migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
@@ -33,8 +34,10 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   nested arguments, and operands into ordered CFG edges
 - checked expression facts retain divergence independently from contextual result type, so
   non-returning calls do not depend on matching the authored spelling `never`
-- the next checkpoint generalizes structured MIR-to-IR branch conversion before outcome
-  success/failure edges move into MIR
+- MIR-to-IR structuring follows each linear branch path to its common join, so branch-local calls do
+  not require AST-shaped lowering or a one-block branch restriction
+- forced scalar fallible calls have explicit success and trap blocks in MIR; the next checkpoint
+  generalizes that outcome continuation to propagated failures and cleanup
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

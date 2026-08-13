@@ -94,8 +94,10 @@ buildability is MIR validation rather than a parallel AST model.
   continuations. Buildability and machine-IR lowering consume the same checked body from one
   compile-unit cache. A construction-only control-flow builder may own open blocks, but checked MIR
   never contains placeholder terminators. Straight-line calls split expression evaluation into
-  ordered blocks and explicit result places. Unsupported body families are selected before MIR
-  construction and remain on the named migration route; a selected MIR body never falls back.
+  ordered blocks and explicit result places. Structural MIR-to-IR conversion follows linear branch
+  paths to a common join. Trapping fallible calls use separate success and trap successors rather
+  than an AST-only failure flag. Unsupported body families are selected before MIR construction and
+  remain on the named migration route; a selected MIR body never falls back.
 - IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
 - Optional and fallible layers retain distinct IR type identities even when they share a callable
   ABI shape. Shared operations use outcome terminology; error payload operations remain

@@ -135,7 +135,9 @@ does not inspect a type alias or compare an authored type name with the string `
 Phase 3 constructs checked MIR once per `BodyId` and retains it in the compile-unit analysis.
 Buildability follows `DefId` call edges in that body, while machine-IR lowering consumes the same
 validated object. Returning calls identify their result place and successor block; non-returning
-calls have no fabricated destination or successor. Retained occurrence spans locate syntax-only
+calls have no fabricated destination or successor. A trapping fallible call identifies distinct
+success and trap successors, establishing the same representation boundary that propagated and
+handled failure paths will extend. Retained occurrence spans locate syntax-only
 operations and diagnostics; path-sensitive execution facts belong in MIR rather than treating
 those locations as identity. Invalid or incomplete source therefore remains partial rather than
 becoming an alternate successful model. Later phases may render or lower this result; they may not
