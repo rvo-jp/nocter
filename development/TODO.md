@@ -3,24 +3,32 @@
 ## Current Task
 
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The first production MIR route now
-owns nongeneric scalar parameters, bindings, assignments, arithmetic, explicit temporaries, value
-conditionals, terminal conditionals, and their return joins. MIR construction and validation are
-authoritative after route selection. The next boundary is to let MIR-routed bodies bypass the old
-AST buildability traversal, then add explicit call and outcome edges before loops, aggregates,
-borrows, and drops. Do not leave a permanent dual pipeline, add language features, or add
-standard-library APIs during the architecture migration. The v0.13.0 tag, archive, release notes,
-and qualification record are immutable.
+owns nongeneric scalar parameters, bindings, assignments, arithmetic, comparisons, explicit
+temporaries, value conditionals, terminal conditionals, return joins, and direct nongeneric scalar
+calls. MIR construction and validation are authoritative after route selection. Buildability and
+machine-IR lowering consume the same retained MIR body, and buildability follows its identity-backed
+call edges without revisiting the AST body. The next boundary is general call continuation inside a
+body, followed by explicit outcome edges, loops, aggregates, borrows, and drops. Do not leave a
+permanent dual pipeline, add language features, or add standard-library APIs during the architecture
+migration. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
 
 ## Active v0.14.0 Phase 3 MIR Checkpoint
 
-- MIR body-local identities, places, checked scalar locals, operands, arithmetic rvalues, basic
-  blocks, `Goto`, `Switch`, and `Return` are implemented and structurally verified
+- MIR body-local identities, places, checked scalar locals, operands, arithmetic and comparison
+  rvalues, basic blocks, `Goto`, `Switch`, direct `Call`, and `Return` are implemented and
+  structurally verified
 - parameters and bindings retain `LocalSymbolId`; temporaries retain `ExprId`; every local retains
   `TyId` and its checked scalar representation
+- typed expressions retain intrinsic and contextual `TyId` separately, so lowering consumes the
+  checked effective type without rewriting the expression's authored type
 - entry and ordinary functions share one route selector; selected MIR failures never fall back to
   AST lowering
 - scalar `if` expressions and terminal `if` statements produce the same diamond and return join
-- the remaining AST buildability traversal is the next authority to remove for MIR-routed bodies
+- one compile-unit cache retains checked MIR for buildability and lowering; MIR-routed bodies bypass
+  AST buildability traversal, and calls carry canonical `DefId` targets plus explicit returning or
+  non-returning continuations
+- the next checkpoint generalizes call continuations beyond a terminal expression before outcome
+  success/failure edges move into MIR
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

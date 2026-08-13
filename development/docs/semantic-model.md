@@ -107,21 +107,34 @@ Phase 1 changed checking from an externally recollected fact bundle into one typ
 TypecheckOutput {
   diagnostics,
   typed_hir: {
-    expressions: ExprId -> { body: BodyId, ty: Known(TyId) | Error },
+    expressions: ExprId -> {
+      body: BodyId,
+      intrinsic_ty: Known(TyId) | Error,
+      contextual_ty: Option<TyId>,
+    },
     types: TyId -> normalized TypeExpr,
     compatibility facts,
   },
 }
 ```
 
-Every authored expression has an `ExprId` and owning `BodyId`. Its type is either a known `TyId` or
-an explicit error. Value-category, ownership, provenance, call, operator, coercion, and adjustment
-facts remain in the same checker-owned `TypedHir`. Expression semantics use `ExprId`, declaration
-targets use `DefId`, and binding facts use `LocalSymbolId`. Retained occurrence spans locate
-syntax-only operations and diagnostics; Phase 3 moves path-sensitive execution facts into MIR
-rather than treating those locations as identity. Invalid or incomplete source therefore remains
-partial rather than becoming an alternate successful model. Later phases may render or lower this
-result; they may not invoke selectors again.
+Every authored expression has an `ExprId` and owning `BodyId`. Its intrinsic type is either a known
+`TyId` or an explicit error. A separate contextual `TyId` records the checked effective type when
+the surrounding return, argument, assignment, or other expectation changes representation. The
+compiler does not overwrite an integer literal's intrinsic type merely because an argument expects
+`usize`, and lowering does not repeat that conversion decision. Value-category, ownership,
+provenance, call, operator, coercion, and adjustment facts remain in the same checker-owned
+`TypedHir`. Expression semantics use `ExprId`, declaration targets use `DefId`, and binding facts
+use `LocalSymbolId`.
+
+Phase 3 constructs checked MIR once per `BodyId` and retains it in the compile-unit analysis.
+Buildability follows `DefId` call edges in that body, while machine-IR lowering consumes the same
+validated object. Returning calls identify their result place and successor block; non-returning
+calls have no fabricated destination or successor. Retained occurrence spans locate syntax-only
+operations and diagnostics; path-sensitive execution facts belong in MIR rather than treating
+those locations as identity. Invalid or incomplete source therefore remains partial rather than
+becoming an alternate successful model. Later phases may render or lower this result; they may not
+invoke selectors again.
 
 ## Migration Enforcement
 
