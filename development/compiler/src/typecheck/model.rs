@@ -1,4 +1,5 @@
 use crate::ast::{BindingKind, CallableCapability, ClosureTypeExpr, ResultProvenanceClause};
+use crate::semantic::OpaqueTypeId;
 use crate::source::ByteSpan;
 use crate::type_notation::{PostfixOperator, PrefixOperator, TypeNotation, TypeNotationParameter};
 use std::collections::{HashMap, HashSet};
@@ -53,7 +54,10 @@ pub(super) enum Type {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OpaqueType {
-    pub(super) identity: ByteSpan,
+    pub(super) identity: OpaqueTypeId,
+    /// Authored location retained only when projecting this semantic type back
+    /// into the legacy `TypeExpr` fact representation.
+    pub(super) source_anchor: ByteSpan,
     pub(super) interface: Box<Type>,
     pub(super) associated_bindings: Vec<(String, Type)>,
     pub(super) witness: Option<Box<Type>>,
@@ -113,6 +117,7 @@ impl Type {
             }),
             Type::Opaque(opaque) => Type::Opaque(OpaqueType {
                 identity: opaque.identity,
+                source_anchor: opaque.source_anchor,
                 interface: Box::new(opaque.interface.substitute_parameters(substitutions)),
                 associated_bindings: opaque
                     .associated_bindings

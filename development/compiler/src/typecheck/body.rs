@@ -603,6 +603,7 @@ fn check_assignment_statement(
     if !is_expression_assignable(&target_type, &statement.value, resolved, environment) {
         diagnostics.push(assignment_type_mismatch_diagnostic(
             sources,
+            &resolved.semantic_db,
             statement,
             &target_type,
             &value_type,

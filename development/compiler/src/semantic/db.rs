@@ -1,11 +1,11 @@
 //! Compile-unit definition and body identity.
 
 use super::body_declarations::{BodyDeclaration, visit_body_declarations};
-use super::{BodyId, DefId, ExprId};
+use super::{BodyId, DefId, ExprId, OpaqueTypeId};
 use crate::ast::{
     AstFile, Block, ConformanceMember, ConstructMemberDecl, Expr, FromImportItem, GenericParamList,
     ImportItem, InstanceMember, Item, LiteralDecl, OperatorDecl, ParameterList,
-    visit_block_expressions_without_nested_closures,
+    visit_block_expressions_without_nested_closures, visit_type_exprs,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -73,6 +73,13 @@ pub(crate) struct ExpressionDefinition {
     pub(crate) span: ByteSpan,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OpaqueTypeDefinition {
+    pub(crate) id: OpaqueTypeId,
+    pub(crate) owner: DefId,
+    pub(crate) anchor: ByteSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SemanticDb {
     definitions: Vec<Definition>,
@@ -82,6 +89,8 @@ pub(crate) struct SemanticDb {
     declaration_bodies_by_owner: HashMap<DefId, BodyId>,
     expressions: Vec<ExpressionDefinition>,
     expressions_by_location: HashMap<ByteSpan, ExprId>,
+    opaque_types: Vec<OpaqueTypeDefinition>,
+    opaque_types_by_location: HashMap<ByteSpan, OpaqueTypeId>,
 }
 
 impl SemanticDb {
@@ -146,6 +155,14 @@ impl SemanticDb {
 
     pub(crate) fn expression(&self, id: ExprId) -> Option<&ExpressionDefinition> {
         self.expressions.get(id.index())
+    }
+
+    pub(crate) fn opaque_type_at(&self, location: ByteSpan) -> Option<OpaqueTypeId> {
+        self.opaque_types_by_location.get(&location).copied()
+    }
+
+    pub(crate) fn opaque_type_anchor(&self, id: OpaqueTypeId) -> Option<ByteSpan> {
+        self.opaque_types.get(id.index()).map(|ty| ty.anchor)
     }
 
     pub(crate) fn definitions(&self) -> &[Definition] {
@@ -236,6 +253,30 @@ impl SemanticDbBuilder {
             .push(ExpressionDefinition { id, body, span });
         self.db.expressions_by_location.insert(span, id);
         id
+    }
+
+    fn collect_type_expr(&mut self, owner: DefId, ty: &crate::ast::TypeExpr) {
+        visit_type_exprs(ty, &mut |ty| {
+            let crate::ast::TypeExpr::Opaque(opaque) = ty else {
+                return;
+            };
+            if self
+                .db
+                .opaque_types_by_location
+                .contains_key(&opaque.some_span)
+            {
+                return;
+            }
+            let id = OpaqueTypeId::from_index(self.db.opaque_types.len());
+            self.db.opaque_types.push(OpaqueTypeDefinition {
+                id,
+                owner,
+                anchor: opaque.some_span,
+            });
+            self.db
+                .opaque_types_by_location
+                .insert(opaque.some_span, id);
+        });
     }
 
     fn collect_file(&mut self, file: &AstFile) {
@@ -330,6 +371,7 @@ impl SemanticDbBuilder {
                 self.define_location(id, function.member_name_span);
                 self.collect_generics(id, &function.generics);
                 self.collect_parameters(id, &function.parameters);
+                self.collect_type_expr(id, &function.return_type);
                 if let Some(body) = &function.body {
                     self.collect_body(id, body);
                 }
@@ -347,11 +389,13 @@ impl SemanticDbBuilder {
                 );
                 self.collect_generics(id, &primitive.generics);
                 self.collect_parameters(id, &primitive.parameters);
+                self.collect_type_expr(id, &primitive.return_type);
             }
             Item::TypeAlias(alias) => {
                 let owner =
                     self.define(DefinitionKind::TypeAlias, None, alias.name_span, alias.span);
                 self.collect_generics(owner, &alias.generics);
+                self.collect_type_expr(owner, &alias.target);
             }
             Item::Struct(struct_) => {
                 let owner = self.define(
@@ -362,24 +406,28 @@ impl SemanticDbBuilder {
                 );
                 self.collect_generics(owner, &struct_.generics);
                 for field in &struct_.fields {
-                    self.define(
+                    let id = self.define(
                         DefinitionKind::StructField,
                         Some(owner),
                         field.name_span,
                         field.span,
                     );
+                    self.collect_type_expr(id, &field.ty);
                 }
             }
             Item::Enum(enum_) => {
                 let owner = self.define(DefinitionKind::Enum, None, enum_.name_span, enum_.span);
                 self.collect_generics(owner, &enum_.generics);
                 for variant in &enum_.variants {
-                    self.define(
+                    let id = self.define(
                         DefinitionKind::EnumVariant,
                         Some(owner),
                         variant.name_span,
                         variant.span,
                     );
+                    for parameter in &variant.payload {
+                        self.collect_type_expr(id, &parameter.ty);
+                    }
                 }
             }
             Item::Interface(interface) => {
@@ -391,12 +439,15 @@ impl SemanticDbBuilder {
                 );
                 self.collect_generics(owner, &interface.generics);
                 for associated in &interface.associated_types {
-                    self.define(
+                    let id = self.define(
                         DefinitionKind::AssociatedType,
                         Some(owner),
                         associated.name_span,
                         associated.span,
                     );
+                    for bound in &associated.bounds {
+                        self.collect_type_expr(id, bound);
+                    }
                 }
                 for method in &interface.methods {
                     let id = self.define(
@@ -419,6 +470,7 @@ impl SemanticDbBuilder {
                     instance.span,
                 );
                 self.collect_generics(owner, &instance.generics);
+                self.collect_type_expr(owner, &instance.target_ty);
                 for member in &instance.members {
                     self.collect_instance_member(owner, member);
                 }
@@ -431,15 +483,18 @@ impl SemanticDbBuilder {
                     conformance.span,
                 );
                 self.collect_generics(owner, &conformance.generics);
+                self.collect_type_expr(owner, &conformance.interface_ty);
+                self.collect_type_expr(owner, &conformance.target_ty);
                 for member in &conformance.members {
                     match member {
                         ConformanceMember::AssociatedType(binding) => {
-                            self.define(
+                            let id = self.define(
                                 DefinitionKind::AssociatedTypeBinding,
                                 Some(owner),
                                 binding.name_span,
                                 binding.span,
                             );
+                            self.collect_type_expr(id, &binding.value);
                         }
                         ConformanceMember::Method(method) => {
                             let id = self.define(
@@ -464,12 +519,14 @@ impl SemanticDbBuilder {
                     destruct.span,
                 );
                 self.collect_generics(id, &destruct.generics);
-                self.define(
+                self.collect_type_expr(id, &destruct.target_ty);
+                let parameter = self.define(
                     DefinitionKind::Parameter,
                     Some(id),
                     destruct.binding.name_span,
                     destruct.binding.span,
                 );
+                self.collect_type_expr(parameter, &destruct.binding.ty);
                 self.collect_body(id, &destruct.body);
             }
             Item::Construct(construct) => {
@@ -479,6 +536,7 @@ impl SemanticDbBuilder {
                     construct.target.span(),
                     construct.span,
                 );
+                self.collect_type_expr(owner, &construct.target);
                 for member in &construct.members {
                     match &member.declaration {
                         ConstructMemberDecl::Function(function) => {
@@ -492,6 +550,7 @@ impl SemanticDbBuilder {
                             self.define_location(id, function.member_name_span);
                             self.collect_generics(id, &function.generics);
                             self.collect_parameters(id, &function.parameters);
+                            self.collect_type_expr(id, &function.return_type);
                             if let Some(body) = &function.body {
                                 self.collect_body(id, body);
                             }
@@ -505,6 +564,8 @@ impl SemanticDbBuilder {
                             );
                             self.define_location(id, literal.span);
                             self.collect_literal_inputs(id, literal);
+                            self.collect_type_expr(id, &literal.target);
+                            self.collect_type_expr(id, &literal.return_type);
                             if let Some(body) = &literal.body {
                                 self.collect_body(id, body);
                             }
@@ -550,6 +611,7 @@ impl SemanticDbBuilder {
             method.receiver.span,
         );
         self.collect_parameters(owner, &method.parameters);
+        self.collect_type_expr(owner, &method.return_type);
     }
 
     fn collect_generics(&mut self, owner: DefId, generics: &GenericParamList) {
@@ -566,23 +628,25 @@ impl SemanticDbBuilder {
     fn collect_literal_inputs(&mut self, owner: DefId, literal: &LiteralDecl) {
         self.collect_parameters(owner, &literal.parameters);
         if let Some(capture) = &literal.capture {
-            self.define(
+            let id = self.define(
                 DefinitionKind::LiteralCapture,
                 Some(owner),
                 capture.name_span,
                 capture.span,
             );
+            self.collect_type_expr(id, &capture.element_type);
         }
     }
 
     fn collect_parameters(&mut self, owner: DefId, parameters: &ParameterList) {
         for parameter in &parameters.parameters {
-            self.define(
+            let id = self.define(
                 DefinitionKind::Parameter,
                 Some(owner),
                 parameter.name_span,
                 parameter.span,
             );
+            self.collect_type_expr(id, &parameter.ty);
         }
     }
 }
@@ -590,6 +654,7 @@ impl SemanticDbBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::TypeExpr;
     use crate::lexer::lex;
     use crate::parser::parse;
     use crate::source::SourceMap;
@@ -704,6 +769,34 @@ func File.open(): Self { return File { fd: 1 } }
             db.definition_anchor(definition),
             Some(function.member_name_span)
         );
+    }
+
+    #[test]
+    fn assigns_opaque_results_ids_independent_of_their_source_spans() {
+        let file = parse_file(
+            r#"interface Source { pub type Item }
+func first(): some Source<Item = i32> { loop {} }
+func second(): some Source<Item = i32> { loop {} }
+"#,
+        );
+        let (first, second) = match (&file.items[1], &file.items[2]) {
+            (Item::Function(first), Item::Function(second)) => {
+                (&first.return_type, &second.return_type)
+            }
+            _ => panic!("expected functions"),
+        };
+        let TypeExpr::Opaque(first) = first else {
+            panic!("expected opaque result");
+        };
+        let TypeExpr::Opaque(second) = second else {
+            panic!("expected opaque result");
+        };
+        let db = SemanticDb::from_files(std::slice::from_ref(&file));
+        let first_id = db.opaque_type_at(first.some_span).unwrap();
+        let second_id = db.opaque_type_at(second.some_span).unwrap();
+        assert_ne!(first_id, second_id);
+        assert_eq!(db.opaque_type_anchor(first_id), Some(first.some_span));
+        assert_eq!(db.opaque_type_anchor(second_id), Some(second.some_span));
     }
 
     #[test]

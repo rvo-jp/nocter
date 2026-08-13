@@ -18,6 +18,7 @@ mod tests;
 mod type_notation;
 mod types;
 mod visit;
+mod visit_types;
 
 pub use callables::*;
 pub use closures::*;
@@ -41,6 +42,7 @@ pub(crate) use visit::{
     closure_expression_by_span, visit_block_expressions_without_nested_closures, visit_expression,
     visit_file_expressions,
 };
+pub(crate) use visit_types::visit_type_exprs;
 
 use crate::source::ByteSpan;
 use std::ops::{Deref, DerefMut};

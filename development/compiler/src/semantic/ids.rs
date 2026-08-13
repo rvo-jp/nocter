@@ -20,6 +20,7 @@ macro_rules! semantic_id {
 semantic_id!(DefId);
 semantic_id!(BodyId);
 semantic_id!(ExprId);
+semantic_id!(OpaqueTypeId);
 semantic_id!(TyId);
 
 #[cfg(test)]

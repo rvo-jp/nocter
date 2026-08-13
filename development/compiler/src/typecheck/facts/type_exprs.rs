@@ -50,7 +50,7 @@ pub(super) fn type_to_type_expr_inner(
         Type::Closure(closure) => Some(TypeExpr::Closure(closure.clone())),
         Type::Opaque(opaque) => Some(TypeExpr::Opaque(crate::ast::OpaqueType {
             span,
-            some_span: opaque.identity,
+            some_span: opaque.source_anchor,
             interface: Box::new(type_to_type_expr_inner(
                 &opaque.interface,
                 span,

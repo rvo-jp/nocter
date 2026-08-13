@@ -5,7 +5,7 @@ use super::environments::{
 };
 use super::model::TypeEnvironment;
 use super::type_expr::type_expr_to_type_in_environment;
-use crate::ast::{AstFile, ConformanceMember, Item, MethodOwnerDecl, TypeExpr};
+use crate::ast::{AstFile, ConformanceMember, Item, MethodOwnerDecl, TypeExpr, visit_type_exprs};
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
@@ -341,46 +341,11 @@ fn reject_opaque_types<'a>(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for ty in types {
-        visit_opaque_types(ty, &mut |opaque| {
-            diagnostics.push(unsupported_position_diagnostic(sources, opaque.some_span));
+        visit_type_exprs(ty, &mut |ty| {
+            if let TypeExpr::Opaque(opaque) = ty {
+                diagnostics.push(unsupported_position_diagnostic(sources, opaque.some_span));
+            }
         });
-    }
-}
-
-fn visit_opaque_types(ty: &TypeExpr, visit: &mut impl FnMut(&crate::ast::OpaqueType)) {
-    match ty {
-        TypeExpr::Opaque(opaque) => visit(opaque),
-        TypeExpr::Callable(callable) => {
-            for parameter in &callable.parameters {
-                visit_opaque_types(&parameter.ty, visit);
-            }
-            visit_opaque_types(&callable.return_type, visit);
-        }
-        TypeExpr::Closure(closure) => {
-            for capture in &closure.captures {
-                visit_opaque_types(&capture.ty, visit);
-            }
-            for parameter in &closure.parameters {
-                visit_opaque_types(parameter, visit);
-            }
-            visit_opaque_types(&closure.return_type, visit);
-        }
-        TypeExpr::Generic(generic) => {
-            for argument in &generic.arguments {
-                visit_opaque_types(argument, visit);
-            }
-        }
-        TypeExpr::Projection(projection) => visit_opaque_types(&projection.base, visit),
-        TypeExpr::Pointer(pointer) => visit_opaque_types(&pointer.inner, visit),
-        TypeExpr::Borrow(borrow) => visit_opaque_types(&borrow.inner, visit),
-        TypeExpr::View(view) => visit_opaque_types(&view.element, visit),
-        TypeExpr::Array(array) => visit_opaque_types(&array.element, visit),
-        TypeExpr::Optional(optional) => visit_opaque_types(&optional.inner, visit),
-        TypeExpr::Fallible(fallible) => {
-            visit_opaque_types(&fallible.success, visit);
-            visit_opaque_types(&fallible.error, visit);
-        }
-        TypeExpr::Reference(_) => {}
     }
 }
 

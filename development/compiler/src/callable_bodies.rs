@@ -38,14 +38,15 @@ impl CallableBodyIndex {
                 sources,
                 file,
                 modules.module(file.span.source).unwrap_or(file.span.source),
+                &semantic_db,
                 &mut contracts,
                 &mut implementations,
                 &mut diagnostics,
             );
         }
 
-        contracts.sort_by_key(|callable| span_order(callable.identity));
-        implementations.sort_by_key(|callable| span_order(callable.identity));
+        contracts.sort_by_key(|callable| span_order(callable.declaration_span));
+        implementations.sort_by_key(|callable| span_order(callable.declaration_span));
         let mut index = Self {
             semantic_db,
             ..Self::default()
@@ -56,14 +57,15 @@ impl CallableBodyIndex {
                 .filter(|implementation| {
                     implementation.module == contract.module
                         && implementation.key == contract.key
-                        && implementation.identity.source != contract.identity.source
+                        && implementation.declaration_span.source
+                            != contract.declaration_span.source
                 })
                 .collect::<Vec<_>>();
             match candidates.as_slice() {
                 [] => diagnostics.push(missing_body_diagnostic(sources, &contract)),
                 [implementation] if implementation.signature == contract.signature => {
-                    let contract_id = index.definition_id(&contract);
-                    let implementation_id = index.definition_id(implementation);
+                    let contract_id = contract.definition;
+                    let implementation_id = implementation.definition;
                     index
                         .declaration_to_implementation
                         .insert(contract_id, implementation_id);
@@ -73,11 +75,9 @@ impl CallableBodyIndex {
                     for (declaration, implementation) in
                         contract.inputs.iter().zip(&implementation.inputs)
                     {
-                        let declaration = index.input_definition_id(*declaration);
-                        let implementation = index.input_definition_id(*implementation);
                         index
                             .implementation_input_to_declaration
-                            .insert(implementation, declaration);
+                            .insert(*implementation, *declaration);
                     }
                 }
                 [implementation] => diagnostics.push(signature_mismatch_diagnostic(
@@ -123,24 +123,6 @@ impl CallableBodyIndex {
         self.semantic_db
             .definition_at(span)
             .is_some_and(|definition| self.implementation_to_declaration.contains_key(&definition))
-    }
-
-    fn definition_id(&self, callable: &CallableRecord) -> DefId {
-        self.semantic_db
-            .definition_at(callable.identity)
-            .or_else(|| self.semantic_db.definition_at(callable.declaration_span))
-            .unwrap_or_else(|| {
-                panic!(
-                    "semantic database omitted callable at {:?}",
-                    callable.declaration_span
-                )
-            })
-    }
-
-    fn input_definition_id(&self, location: ByteSpan) -> DefId {
-        self.semantic_db
-            .definition_at(location)
-            .unwrap_or_else(|| panic!("semantic database omitted callable input at {:?}", location))
     }
 
     /// Removes paired private implementation declarations from a module's symbol surface while
@@ -283,17 +265,18 @@ struct CallableSignature {
 #[derive(Debug, Clone)]
 struct CallableRecord {
     module: SourceId,
-    identity: ByteSpan,
+    definition: DefId,
     declaration_span: ByteSpan,
     key: CallableKey,
     signature: CallableSignature,
-    inputs: Vec<ByteSpan>,
+    inputs: Vec<DefId>,
 }
 
 fn collect_file_callables(
     sources: &SourceMap,
     file: &AstFile,
     module: SourceId,
+    semantic_db: &SemanticDb,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -307,7 +290,7 @@ fn collect_file_callables(
         match item {
             Item::Function(function) => classify(
                 sources,
-                record_for_function(module, function),
+                record_for_function(module, function, semantic_db),
                 function.visibility,
                 function.body.is_some(),
                 is_root,
@@ -320,6 +303,7 @@ fn collect_file_callables(
                     sources,
                     module,
                     instance,
+                    semantic_db,
                     is_root,
                     contracts,
                     implementations,
@@ -329,6 +313,7 @@ fn collect_file_callables(
                     sources,
                     module,
                     instance,
+                    semantic_db,
                     is_root,
                     contracts,
                     implementations,
@@ -352,6 +337,7 @@ fn collect_file_callables(
                 sources,
                 module,
                 construct,
+                semantic_db,
                 is_root,
                 contracts,
                 implementations,
@@ -403,6 +389,7 @@ fn collect_inherent_methods(
     sources: &SourceMap,
     module: SourceId,
     instance: &InstanceDecl,
+    semantic_db: &SemanticDb,
     is_root: bool,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
@@ -411,7 +398,7 @@ fn collect_inherent_methods(
     for method in instance.named_methods() {
         classify(
             sources,
-            record_for_method(module, instance, method),
+            record_for_method(module, instance, method, semantic_db),
             method.visibility,
             method.body.is_some(),
             is_root,
@@ -424,7 +411,7 @@ fn collect_inherent_methods(
         let callable = operator.callable();
         classify(
             sources,
-            record_for_operator(module, instance, operator),
+            record_for_operator(module, instance, operator, semantic_db),
             callable.visibility,
             callable.body.is_some(),
             is_root,
@@ -440,6 +427,7 @@ fn collect_construct_callables(
     sources: &SourceMap,
     module: SourceId,
     construct: &ConstructDecl,
+    semantic_db: &SemanticDb,
     is_root: bool,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
@@ -448,12 +436,12 @@ fn collect_construct_callables(
     for member in &construct.members {
         let (record, visibility, has_body) = match &member.declaration {
             ConstructMemberDecl::Function(function) => (
-                record_for_function(module, function),
+                record_for_function(module, function, semantic_db),
                 function.visibility,
                 function.body.is_some(),
             ),
             ConstructMemberDecl::Literal(literal) => (
-                record_for_literal(module, literal),
+                record_for_literal(module, literal, semantic_db),
                 literal.visibility,
                 literal.body.is_some(),
             ),
@@ -483,6 +471,7 @@ fn collect_coercions(
     sources: &SourceMap,
     module: SourceId,
     instance: &InstanceDecl,
+    semantic_db: &SemanticDb,
     is_root: bool,
     contracts: &mut Vec<CallableRecord>,
     implementations: &mut Vec<CallableRecord>,
@@ -494,7 +483,7 @@ fn collect_coercions(
             sources,
             CallableRecord {
                 module,
-                identity: entry.as_span,
+                definition: required_definition_id(semantic_db, entry.as_span, "coercion"),
                 declaration_span: entry.span,
                 key: CallableKey::Coercion {
                     owner: canonical_type_expr(&instance.target_ty),
@@ -509,7 +498,11 @@ fn collect_coercions(
                     return_type: canonical_type_expr(entry.target()),
                     provenance: provenance_signature(callable.result_provenance.as_ref()),
                 },
-                inputs: vec![callable.receiver.name_span],
+                inputs: vec![required_definition_id(
+                    semantic_db,
+                    callable.receiver.name_span,
+                    "coercion receiver",
+                )],
             },
             callable.visibility,
             callable.body.is_some(),
@@ -521,10 +514,14 @@ fn collect_coercions(
     }
 }
 
-fn record_for_function(module: SourceId, function: &FunctionDecl) -> CallableRecord {
+fn record_for_function(
+    module: SourceId,
+    function: &FunctionDecl,
+    semantic_db: &SemanticDb,
+) -> CallableRecord {
     CallableRecord {
         module,
-        identity: function_identity(function),
+        definition: required_definition_id(semantic_db, function_identity(function), "function"),
         declaration_span: function.span,
         key: CallableKey::Function {
             owner: function.owner.as_ref().map(|owner| owner.name.clone()),
@@ -542,7 +539,9 @@ fn record_for_function(module: SourceId, function: &FunctionDecl) -> CallableRec
             .parameters
             .parameters
             .iter()
-            .map(|parameter| parameter.name_span)
+            .map(|parameter| {
+                required_definition_id(semantic_db, parameter.name_span, "function parameter")
+            })
             .collect(),
     }
 }
@@ -551,11 +550,12 @@ fn record_for_method(
     module: SourceId,
     owner_decl: &(impl MethodOwnerDecl + ?Sized),
     method: &MethodDecl,
+    semantic_db: &SemanticDb,
 ) -> CallableRecord {
     let owner = canonical_type_expr(owner_decl.target_ty());
     CallableRecord {
         module,
-        identity: method.name_span,
+        definition: required_definition_id(semantic_db, method.name_span, "method"),
         declaration_span: method.span,
         key: CallableKey::Method {
             owner,
@@ -569,15 +569,15 @@ fn record_for_method(
             return_type: canonical_type_expr(&method.return_type),
             provenance: provenance_signature(method.result_provenance.as_ref()),
         },
-        inputs: std::iter::once(method.receiver.name_span)
-            .chain(
-                method
-                    .parameters
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.name_span),
-            )
-            .collect(),
+        inputs: std::iter::once(required_definition_id(
+            semantic_db,
+            method.receiver.name_span,
+            "method receiver",
+        ))
+        .chain(method.parameters.parameters.iter().map(|parameter| {
+            required_definition_id(semantic_db, parameter.name_span, "method parameter")
+        }))
+        .collect(),
     }
 }
 
@@ -585,6 +585,7 @@ fn record_for_operator(
     module: SourceId,
     owner_decl: &InstanceDecl,
     operator: &crate::ast::OperatorDecl,
+    semantic_db: &SemanticDb,
 ) -> CallableRecord {
     let callable = operator.callable();
     let shape = match operator {
@@ -597,7 +598,7 @@ fn record_for_operator(
     };
     CallableRecord {
         module,
-        identity: operator.anchor_span(),
+        definition: required_definition_id(semantic_db, operator.anchor_span(), "operator"),
         declaration_span: callable.span,
         key: CallableKey::Operator {
             owner: canonical_type_expr(&owner_decl.target_ty),
@@ -612,19 +613,23 @@ fn record_for_operator(
             return_type: canonical_type_expr(&callable.return_type),
             provenance: provenance_signature(callable.result_provenance.as_ref()),
         },
-        inputs: std::iter::once(callable.receiver.name_span)
-            .chain(
-                callable
-                    .parameters
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.name_span),
-            )
-            .collect(),
+        inputs: std::iter::once(required_definition_id(
+            semantic_db,
+            callable.receiver.name_span,
+            "operator receiver",
+        ))
+        .chain(callable.parameters.parameters.iter().map(|parameter| {
+            required_definition_id(semantic_db, parameter.name_span, "operator parameter")
+        }))
+        .collect(),
     }
 }
 
-fn record_for_literal(module: SourceId, literal: &LiteralDecl) -> CallableRecord {
+fn record_for_literal(
+    module: SourceId,
+    literal: &LiteralDecl,
+    semantic_db: &SemanticDb,
+) -> CallableRecord {
     let mut parameters = parameter_signature(&literal.parameters);
     if let Some(capture) = &literal.capture {
         parameters.push(format!(
@@ -637,12 +642,16 @@ fn record_for_literal(module: SourceId, literal: &LiteralDecl) -> CallableRecord
         .parameters
         .parameters
         .iter()
-        .map(|parameter| parameter.name_span)
-        .chain(literal.capture.iter().map(|capture| capture.name_span))
+        .map(|parameter| {
+            required_definition_id(semantic_db, parameter.name_span, "literal parameter")
+        })
+        .chain(literal.capture.iter().map(|capture| {
+            required_definition_id(semantic_db, capture.name_span, "literal capture")
+        }))
         .collect();
     CallableRecord {
         module,
-        identity: literal.shape_span,
+        definition: required_definition_id(semantic_db, literal.shape_span, "literal"),
         declaration_span: literal.span,
         key: CallableKey::Literal {
             owner: canonical_type_expr(&literal.target),
@@ -658,6 +667,16 @@ fn record_for_literal(module: SourceId, literal: &LiteralDecl) -> CallableRecord
         },
         inputs,
     }
+}
+
+fn required_definition_id(
+    semantic_db: &SemanticDb,
+    location: ByteSpan,
+    description: &str,
+) -> DefId {
+    semantic_db
+        .definition_at(location)
+        .unwrap_or_else(|| panic!("semantic database omitted {description} at {location:?}"))
 }
 
 fn function_identity(function: &FunctionDecl) -> ByteSpan {

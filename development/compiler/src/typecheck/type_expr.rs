@@ -266,7 +266,11 @@ fn type_expr_to_type_inner(
         }),
         TypeExpr::Closure(closure) => Type::Closure(closure.clone()),
         TypeExpr::Opaque(opaque) => Type::Opaque(OpaqueType {
-            identity: opaque.some_span,
+            identity: resolved
+                .semantic_db
+                .opaque_type_at(opaque.some_span)
+                .expect("opaque type syntax must have a semantic identity"),
+            source_anchor: opaque.some_span,
             interface: Box::new(type_expr_to_type_inner(
                 &opaque.interface,
                 resolved,

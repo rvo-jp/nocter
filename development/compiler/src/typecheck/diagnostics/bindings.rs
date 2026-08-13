@@ -2,6 +2,7 @@ use super::{
     AssignmentStmt, BindingStmt, BorrowExpr, Diagnostic, DiagnosticNote, NonCopyOwnedValueKind,
     SourceMap, Type, binding_keyword,
 };
+use crate::semantic::SemanticDb;
 
 pub(in crate::typecheck) fn binding_type_mismatch_diagnostic(
     sources: &SourceMap,
@@ -72,6 +73,7 @@ pub(in crate::typecheck) fn non_writable_assignment_target_diagnostic(
 
 pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
     sources: &SourceMap,
+    semantic_db: &SemanticDb,
     statement: &AssignmentStmt,
     expected: &Type,
     actual: &Type,
@@ -89,11 +91,15 @@ pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
             .map(Box::new);
         diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
             message: "the target's opaque identity is declared here".to_string(),
-            span: sources.span_to_json(expected_opaque.identity).ok(),
+            span: semantic_db
+                .opaque_type_anchor(expected_opaque.identity)
+                .and_then(|span| sources.span_to_json(span).ok()),
         });
         diagnostic.notes.push(crate::diagnostics::DiagnosticNote {
             message: "the assigned value has this distinct opaque identity".to_string(),
-            span: sources.span_to_json(actual_opaque.identity).ok(),
+            span: semantic_db
+                .opaque_type_anchor(actual_opaque.identity)
+                .and_then(|span| sources.span_to_json(span).ok()),
         });
         diagnostic.help = Some(
             "keep values from different `some Interface` declarations in separate bindings"
