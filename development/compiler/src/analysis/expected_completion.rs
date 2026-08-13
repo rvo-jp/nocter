@@ -1,7 +1,6 @@
 //! Expected-argument compatibility for completion ranking.
 
 use super::signature_help::signature_help_for_file_analysis;
-use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::canonical_type_expr;
 use crate::source::{ByteSpan, SourceMap};
@@ -32,7 +31,8 @@ pub(super) fn compatible_local_spans_at_offset(
         return HashSet::new();
     };
 
-    visible_local_bindings_at_offset(&file.ast, offset)
+    file.lexical_scopes
+        .visible_locals(&file.resolved.semantic_db, file.ast.span.source, offset)
         .into_iter()
         .filter_map(|binding| {
             let actual = file.typed_hir.binding_type_expr(binding.name_span)?;

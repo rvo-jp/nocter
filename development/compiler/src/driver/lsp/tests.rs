@@ -2157,7 +2157,7 @@ fn returns_documented_hover_for_imported_type_reference() {
     );
     let config = project.write_source(
         "config/index.nct",
-        "/// Runtime configuration.\npub struct Config {\n    value: i32\n}\n",
+        "/// Runtime configuration.\npub struct Config {\n    pub value: i32\n}\n",
     );
     let app_uri = file_uri(&app);
     let config_uri = file_uri(&config);
@@ -2177,7 +2177,7 @@ fn returns_documented_hover_for_imported_type_reference() {
                 open_document(
                     file_uri(&config),
                     Some(1),
-                    "/// Runtime configuration.\npub struct Config {\n    value: i32\n}\n"
+                    "/// Runtime configuration.\npub struct Config {\n    pub value: i32\n}\n"
                         .to_string(),
                 ),
             ),

@@ -73,11 +73,23 @@ pub(crate) struct SemanticOccurrenceIndex {
 
 impl SemanticOccurrenceIndex {
     pub(crate) fn new(ast: &AstFile, resolved: &ResolveOutput, facts: &TypedHir) -> Self {
+        let lexical_scopes =
+            super::lexical_scopes::LexicalScopeIndex::new(ast, &resolved.semantic_db);
+        Self::new_with_lexical_scopes(ast, resolved, facts, &lexical_scopes)
+    }
+
+    pub(crate) fn new_with_lexical_scopes(
+        ast: &AstFile,
+        resolved: &ResolveOutput,
+        facts: &TypedHir,
+        lexical_scopes: &super::lexical_scopes::LexicalScopeIndex,
+    ) -> Self {
         let mut builder = OccurrenceBuilder {
             ast,
             source: ast.span.source,
             resolved,
             facts,
+            scoped_imports: lexical_scopes.import_name_spans(),
             occurrences: Vec::new(),
         };
         builder.collect();
@@ -107,6 +119,7 @@ struct OccurrenceBuilder<'a> {
     source: SourceId,
     resolved: &'a ResolveOutput,
     facts: &'a TypedHir,
+    scoped_imports: &'a std::collections::HashSet<ByteSpan>,
     occurrences: Vec<SemanticOccurrence>,
 }
 
@@ -256,12 +269,11 @@ impl OccurrenceBuilder<'_> {
     }
 
     fn collect_symbol_declarations(&mut self) {
-        let scoped_imports = super::scoped_imports::scoped_import_name_spans(self.ast);
         for symbol in self.resolved.symbols.symbols() {
             if symbol.name_span.source != self.source {
                 continue;
             }
-            if symbol.is_hidden && !scoped_imports.contains(&symbol.name_span) {
+            if symbol.is_hidden && !self.scoped_imports.contains(&symbol.name_span) {
                 continue;
             }
             let role = if symbol.declaration_span.source == self.source {

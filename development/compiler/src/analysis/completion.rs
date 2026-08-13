@@ -4,9 +4,9 @@ mod context;
 mod members;
 
 use super::completion_recovery::completion_recovery_text;
-use super::scoped_imports::visible_scoped_import_spans_at_offset;
+use super::scoped_imports::recovery_visible_scoped_import_spans_at_offset;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
-use super::visible_locals::visible_local_bindings_at_offset;
+use super::visible_locals::recovery_visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AstFile, Block, Expr, IfIsStmt, Item, LiteralShape, MemberExpr, MethodReceiverMode, Stmt,
@@ -102,14 +102,14 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         return items;
     }
 
-    let mut items = local_completion_items(&file.ast, &file.typed_hir, offset);
+    let mut items = local_completion_items_for_file(file, offset);
     let local_names = items
         .iter()
         .map(|item| item.label.clone())
         .collect::<HashSet<_>>();
     items.extend(completion_items_for_resolved_symbols_excluding(
         &file.resolved,
-        visible_scoped_import_spans_at_offset(&file.ast, offset),
+        file.lexical_scopes.visible_imports(offset),
         &local_names,
     ));
     if !copy_requirement_completion_is_allowed(&file.ast, offset) {
@@ -284,7 +284,7 @@ pub(crate) fn completion_items_for_text_at_offset(
         .collect::<HashSet<_>>();
     items.extend(completion_items_for_resolved_symbols_excluding(
         &resolved,
-        visible_scoped_import_spans_at_offset(&parsed.ast, offset),
+        recovery_visible_scoped_import_spans_at_offset(&parsed.ast, offset),
         &local_names,
     ));
     if !copy_requirement_completion_is_allowed(&parsed.ast, offset) {
@@ -779,25 +779,47 @@ fn local_completion_items(
     facts: &TypedHir,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    visible_local_bindings_at_offset(ast, offset)
+    recovery_visible_local_bindings_at_offset(ast, offset)
         .into_iter()
         .map(|binding| {
-            let name = binding.name;
-            let detail = facts
-                .binding_type_label(binding.name_span)
-                .map(|ty| format!("{} {name}: {ty}", binding.kind))
-                .unwrap_or_else(|| format!("{} {name}", binding.kind));
-            CompletionItemInfo {
-                label: name.clone(),
-                kind: CompletionItemKind::Variable,
-                detail: Some(detail),
-                documentation: None,
-                insert_text: Some(name),
-                sort_text: None,
-                declaration_span: Some(binding.name_span),
-            }
+            completion_item_for_local(
+                super::lexical_scopes::VisibleLocalBinding {
+                    name: binding.name,
+                    name_span: binding.name_span,
+                    kind: binding.kind,
+                },
+                facts,
+            )
         })
         .collect()
+}
+
+fn local_completion_items_for_file(file: &FileAnalysis, offset: usize) -> Vec<CompletionItemInfo> {
+    file.lexical_scopes
+        .visible_locals(&file.resolved.semantic_db, file.ast.span.source, offset)
+        .into_iter()
+        .map(|binding| completion_item_for_local(binding, &file.typed_hir))
+        .collect()
+}
+
+fn completion_item_for_local(
+    binding: super::lexical_scopes::VisibleLocalBinding,
+    facts: &TypedHir,
+) -> CompletionItemInfo {
+    let name = binding.name;
+    let detail = facts
+        .binding_type_label(binding.name_span)
+        .map(|ty| format!("{} {name}: {ty}", binding.kind))
+        .unwrap_or_else(|| format!("{} {name}", binding.kind));
+    CompletionItemInfo {
+        label: name.clone(),
+        kind: CompletionItemKind::Variable,
+        detail: Some(detail),
+        documentation: None,
+        insert_text: Some(name),
+        sort_text: None,
+        declaration_span: Some(binding.name_span),
+    }
 }
 
 fn completion_kind_for_symbol(symbol: &Symbol) -> CompletionItemKind {

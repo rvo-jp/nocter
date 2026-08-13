@@ -19,13 +19,16 @@ pub(crate) fn hover_for_file_analysis(
             &target.kind
     {
         let symbol = file.resolved.symbols.get(*symbol)?;
-        let (label, documentation) = resolved_symbol_hover_contents(sources, analysis, symbol)
-            .unwrap_or_else(|| {
-                (
-                    crate::analysis::presentation::symbol_presentation_without_resolution(symbol),
-                    None,
-                )
-            });
+        let (label, documentation) =
+            resolved_symbol_hover_contents(sources, analysis, &file.resolved, symbol)
+                .unwrap_or_else(|| {
+                    (
+                        crate::analysis::presentation::symbol_presentation_without_resolution(
+                            symbol,
+                        ),
+                        None,
+                    )
+                });
         return Some(HoverInfo {
             span: target.focus_span,
             label,

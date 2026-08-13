@@ -1,4 +1,7 @@
-//! Lexically visible local declarations at an editor cursor.
+//! Incomplete-source fallback for lexically visible local declarations.
+//!
+//! Complete files use `LexicalScopeIndex`; this syntax walk is retained only
+//! for completion recovery before a normal `FileAnalysis` can be built.
 
 use crate::ast::{AstFile, Block, ConformanceMember, Expr, Item, Stmt};
 use crate::source::ByteSpan;
@@ -10,7 +13,7 @@ pub(super) struct VisibleLocalBinding {
     pub(super) kind: &'static str,
 }
 
-pub(super) fn visible_local_bindings_at_offset(
+pub(super) fn recovery_visible_local_bindings_at_offset(
     ast: &AstFile,
     offset: usize,
 ) -> Vec<VisibleLocalBinding> {

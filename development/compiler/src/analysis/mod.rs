@@ -19,6 +19,7 @@ pub(crate) mod inlay_hints;
 pub(crate) mod interpolation;
 mod invalidation;
 pub(crate) mod iteration;
+mod lexical_scopes;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
@@ -207,6 +208,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) typed_hir: TypedHir,
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) syntax: syntax_index::EditorSyntaxIndex,
+    pub(crate) lexical_scopes: lexical_scopes::LexicalScopeIndex,
     pub(crate) semantic_identifiers: Vec<semantic::ClassifiedIdentifier>,
     pub(crate) regions: Vec<regions::RegionAnalysisFact>,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -372,8 +374,14 @@ fn analyze_compile_unit_with_root_policy(
                 };
                 diagnostics.extend(checked.diagnostics);
                 let typed_hir = checked.typed_hir;
-                let occurrences =
-                    occurrences::SemanticOccurrenceIndex::new(file, resolved, &typed_hir);
+                let lexical_scopes =
+                    lexical_scopes::LexicalScopeIndex::new(file, &resolved.semantic_db);
+                let occurrences = occurrences::SemanticOccurrenceIndex::new_with_lexical_scopes(
+                    file,
+                    resolved,
+                    &typed_hir,
+                    &lexical_scopes,
+                );
                 let syntax = syntax_index::EditorSyntaxIndex::new(
                     sources
                         .get(file.span.source)
@@ -394,6 +402,7 @@ fn analyze_compile_unit_with_root_policy(
                     typed_hir,
                     occurrences,
                     syntax,
+                    lexical_scopes,
                     semantic_identifiers,
                     regions,
                     diagnostics,
