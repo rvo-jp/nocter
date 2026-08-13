@@ -46,8 +46,11 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
 - loop conditions and linear bodies may contain ordinary, trapping, and propagating scalar calls;
   dedicated MIR-to-IR loop structuring discovers the complete condition path rather than assuming
   that the condition occupies one block
-- the next checkpoint extends loop bodies to conditional exits and range iteration before owned
-  aggregate locals introduce scope-exit cleanup edges
+- conditional loop-body branches classify each terminal edge as a local join, back-edge, or loop
+  exit; conditional `continue` and `break` therefore remain ordinary checked CFG edges until
+  machine-IR structuring
+- the next checkpoint adds range iteration and then introduces owned aggregate locals with explicit
+  scope-exit cleanup edges
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

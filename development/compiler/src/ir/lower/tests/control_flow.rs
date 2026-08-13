@@ -2576,3 +2576,82 @@ func done(): bool {
         ]
     );
 }
+
+#[test]
+fn lowers_conditional_break_and_continue_edges_inside_mir_while() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var value = 0
+    while value < 4 {
+        value = value + 1
+        if value == 2 {
+            continue
+        }
+        if value == 3 {
+            break
+        }
+    }
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::While {
+                condition_instructions: vec![Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Less,
+                        left: i32_local(0),
+                        right: i32_const(4),
+                    },
+                }],
+                condition: BoolValue::Location(BoolLocation::Local(1)),
+                body_instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(2),
+                        value: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: i32_local(0),
+                            right: i32_const(2),
+                        },
+                    },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(2)),
+                        then_instructions: vec![Instruction::Continue],
+                        else_instructions: vec![],
+                    },
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(3),
+                        value: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: i32_local(0),
+                            right: i32_const(3),
+                        },
+                    },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(3)),
+                        then_instructions: vec![Instruction::Break],
+                        else_instructions: vec![],
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}

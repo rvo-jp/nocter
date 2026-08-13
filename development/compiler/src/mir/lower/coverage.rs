@@ -15,6 +15,7 @@ use crate::typecheck::{CheckedScalarType, PartialSemantic, TypedHir};
 pub(super) enum ScalarStatement<'a> {
     Binding(&'a BindingStmt),
     Assignment(&'a AssignmentStmt),
+    If(&'a IfStmt),
     While(&'a WhileStmt),
     Break,
     Continue,
@@ -149,6 +150,15 @@ impl<'a> ScalarStatement<'a> {
                         == Some(crate::mir::ScalarType::Bool)
                     && scalar_loop_block_statements(&statement.body, resolved, typed_hir).is_some()
             }
+            Self::If(statement) => {
+                scalar_expression_is_supported(&statement.condition, resolved, typed_hir)
+                    && known_expression_type(&statement.condition, typed_hir)
+                        .and_then(|ty| scalar_type(ty, typed_hir))
+                        == Some(crate::mir::ScalarType::Bool)
+                    && scalar_conditional_statement_is_supported(
+                        statement, resolved, typed_hir, in_loop,
+                    )
+            }
             Self::Break | Self::Continue => in_loop,
         }
     }
@@ -158,11 +168,80 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
     match statement {
         Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
         Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
+        Stmt::If(statement) => Some(ScalarStatement::If(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
         _ => None,
     }
+}
+
+pub(super) fn scalar_linear_block_statements<'a>(
+    block: &'a Block,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+    in_loop: bool,
+) -> Option<Vec<ScalarStatement<'a>>> {
+    if block.result.is_some() {
+        return None;
+    }
+    let statements = block
+        .statements
+        .iter()
+        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)))
+        .map(scalar_statement)
+        .collect::<Option<Vec<_>>>()?;
+    let mut exited = false;
+    for statement in &statements {
+        if exited
+            || matches!(
+                statement,
+                ScalarStatement::If(_) | ScalarStatement::While(_)
+            )
+            || !statement.is_supported_in_context(resolved, typed_hir, in_loop)
+        {
+            return None;
+        }
+        exited = matches!(
+            statement,
+            ScalarStatement::Break | ScalarStatement::Continue
+        );
+    }
+    Some(statements)
+}
+
+fn scalar_conditional_statement_is_supported(
+    statement: &IfStmt,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+    in_loop: bool,
+) -> bool {
+    let Some(then_statements) =
+        scalar_linear_block_statements(&statement.then_block, resolved, typed_hir, in_loop)
+    else {
+        return false;
+    };
+    let else_statements = statement
+        .else_block
+        .as_ref()
+        .map(|block| scalar_linear_block_statements(block, resolved, typed_hir, in_loop))
+        .unwrap_or_else(|| Some(Vec::new()));
+    let Some(else_statements) = else_statements else {
+        return false;
+    };
+    let then_exits = then_statements.last().is_some_and(|statement| {
+        matches!(
+            statement,
+            ScalarStatement::Break | ScalarStatement::Continue
+        )
+    });
+    let else_exits = else_statements.last().is_some_and(|statement| {
+        matches!(
+            statement,
+            ScalarStatement::Break | ScalarStatement::Continue
+        )
+    });
+    !(then_exits && else_exits)
 }
 
 pub(super) fn scalar_loop_block_statements<'a>(

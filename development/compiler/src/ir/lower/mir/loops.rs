@@ -107,9 +107,116 @@ pub(super) fn lower_linear_loop_body(
                     &mut instructions,
                 )?;
             }
+            Terminator::Switch {
+                condition,
+                then_target,
+                else_target,
+            } => {
+                let then_end =
+                    control_flow::linear_path_target(body, *then_target).ok_or_else(|| {
+                        super::invalid_mir_diagnostics(
+                            "loop conditional then-branch is not a linear path",
+                        )
+                    })?;
+                let else_end =
+                    control_flow::linear_path_target(body, *else_target).ok_or_else(|| {
+                        super::invalid_mir_diagnostics(
+                            "loop conditional else-branch is not a linear path",
+                        )
+                    })?;
+                let join = control_flow::conditional_join(then_end, else_end, header, exit)
+                    .ok_or_else(|| {
+                        super::invalid_mir_diagnostics(
+                            "loop conditional does not have one continuation path",
+                        )
+                    })?;
+                let then_instructions = lower_loop_branch_path(
+                    body,
+                    *then_target,
+                    then_end,
+                    header,
+                    exit,
+                    resolved,
+                    function_signatures,
+                    function_names,
+                    root_source,
+                    visited,
+                )?;
+                let else_instructions = lower_loop_branch_path(
+                    body,
+                    *else_target,
+                    else_end,
+                    header,
+                    exit,
+                    resolved,
+                    function_signatures,
+                    function_names,
+                    root_source,
+                    visited,
+                )?;
+                instructions.push(Instruction::If {
+                    condition: lower_bool_operand(condition, body)?,
+                    then_instructions,
+                    else_instructions,
+                });
+                current = join;
+            }
             _ => {
                 return Err(super::invalid_mir_diagnostics(
                     "loop body does not follow a linear path to its backedge or exit",
+                ));
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_loop_branch_path(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+    endpoint: crate::mir::BasicBlockId,
+    header: crate::mir::BasicBlockId,
+    exit: crate::mir::BasicBlockId,
+    resolved: &ResolveOutput,
+    function_signatures: &super::super::context::FunctionSignatures,
+    function_names: &super::super::context::FunctionNames,
+    root_source: SourceId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    let mut current = start;
+    loop {
+        if !visited.insert(current) {
+            return Err(super::invalid_mir_diagnostics(
+                "loop conditional branch reuses an already lowered block",
+            ));
+        }
+        let block = &body.blocks[current.index()];
+        instructions.extend(lower_statements(body, &block.statements)?);
+        match &block.terminator {
+            Terminator::Goto { target } if *target == endpoint => {
+                if endpoint == header {
+                    instructions.push(Instruction::Continue);
+                } else if endpoint == exit {
+                    instructions.push(Instruction::Break);
+                }
+                return Ok(instructions);
+            }
+            Terminator::Call { .. } => {
+                current = lower_linear_call_terminator(
+                    body,
+                    &block.terminator,
+                    resolved,
+                    function_signatures,
+                    function_names,
+                    root_source,
+                    visited,
+                    &mut instructions,
+                )?;
+            }
+            _ => {
+                return Err(super::invalid_mir_diagnostics(
+                    "loop conditional branch does not reach its classified target",
                 ));
             }
         }

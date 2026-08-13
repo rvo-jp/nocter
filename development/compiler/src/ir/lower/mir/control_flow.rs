@@ -83,8 +83,63 @@ pub(super) fn linear_loop_body_exit(
                     },
                 ..
             } if dedicated_outcome_failure(body, *failure) => current = *success,
+            Terminator::Switch {
+                then_target,
+                else_target,
+                ..
+            } => {
+                let then_end = linear_path_target(body, *then_target)?;
+                let else_end = linear_path_target(body, *else_target)?;
+                current = conditional_join(then_end, else_end, header, exit)?;
+            }
             _ => return None,
         }
+    }
+}
+
+pub(super) fn linear_path_target(
+    body: &Body,
+    start: crate::mir::BasicBlockId,
+) -> Option<crate::mir::BasicBlockId> {
+    let mut current = start;
+    let mut visited = std::collections::HashSet::new();
+    loop {
+        if !visited.insert(current) {
+            return None;
+        }
+        let block = body.blocks.get(current.index())?;
+        match &block.terminator {
+            Terminator::Goto { target } => return Some(*target),
+            Terminator::Call {
+                continuation: CallContinuation::Return { target, .. },
+                ..
+            } => current = *target,
+            Terminator::Call {
+                continuation:
+                    CallContinuation::Outcome {
+                        success, failure, ..
+                    },
+                ..
+            } if dedicated_outcome_failure(body, *failure) => current = *success,
+            _ => return None,
+        }
+    }
+}
+
+pub(super) fn conditional_join(
+    then_end: crate::mir::BasicBlockId,
+    else_end: crate::mir::BasicBlockId,
+    loop_header: crate::mir::BasicBlockId,
+    loop_exit: crate::mir::BasicBlockId,
+) -> Option<crate::mir::BasicBlockId> {
+    if then_end == else_end {
+        return Some(then_end);
+    }
+    let is_loop_exit = |target| target == loop_header || target == loop_exit;
+    match (is_loop_exit(then_end), is_loop_exit(else_end)) {
+        (true, false) => Some(else_end),
+        (false, true) => Some(then_end),
+        _ => None,
     }
 }
 
