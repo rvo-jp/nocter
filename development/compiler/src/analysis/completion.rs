@@ -222,12 +222,7 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
         let Some(target) = item.declaration_span else {
             continue;
         };
-        let Some(target_file) = analysis.file_by_source(target.source) else {
-            continue;
-        };
-        item.documentation =
-            super::hover::hover_for_file_analysis(sources, analysis, target_file, target.start)
-                .and_then(|hover| hover.documentation);
+        item.documentation = super::hover::target_documentation(sources, analysis, target);
     }
     items
 }

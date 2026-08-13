@@ -3,12 +3,12 @@
 //! A target keeps the source range an editor should react to separate from the
 //! declaration range that gives the target its semantic identity.
 
-use super::{CompileUnitAnalysis, FileAnalysis};
+use super::CompileUnitAnalysis;
 use crate::ast::{
     AstFile, Block, Expr, FromImportItem, ImportItem, InterpolatedStringPart, Item, ModulePath,
     Stmt,
 };
-use crate::resolve::{ImportedSymbolKind, ResolveOutput, Symbol, SymbolKind};
+use crate::resolve::{ImportedSymbolKind, ResolveOutput, SymbolId, SymbolKind};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,27 +26,31 @@ impl SourceTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum EditorTargetKind<'a> {
-    Module(&'a ModulePath),
-    ImportBinding(&'a Symbol),
+#[derive(Debug, Clone)]
+pub(crate) enum EditorTargetKind {
+    Module(ModulePath),
+    ImportBinding(SymbolId),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct EditorTarget<'a> {
+#[derive(Debug, Clone)]
+pub(crate) struct EditorTarget {
     pub(crate) focus_span: ByteSpan,
-    pub(crate) kind: EditorTargetKind<'a>,
+    pub(crate) kind: EditorTargetKind,
 }
 
-impl EditorTarget<'_> {
-    pub(crate) fn source_target(self, analysis: &CompileUnitAnalysis) -> Option<SourceTarget> {
-        let declaration_span = match self.kind {
+impl EditorTarget {
+    pub(crate) fn source_target(
+        &self,
+        analysis: &CompileUnitAnalysis,
+        resolved: &ResolveOutput,
+    ) -> Option<SourceTarget> {
+        let declaration_span = match &self.kind {
             EditorTargetKind::Module(path) => {
                 let source = analysis.import_sources.get(&path.span)?.source;
                 let imported_file = analysis.file_by_source(source)?;
                 ByteSpan::new(imported_file.ast.span.source, 0, 0)
             }
-            EditorTargetKind::ImportBinding(symbol) => match &symbol.kind {
+            EditorTargetKind::ImportBinding(symbol) => match &resolved.symbols.get(*symbol)?.kind {
                 SymbolKind::Imported(imported)
                     if imported.kind == ImportedSymbolKind::Namespace =>
                 {
@@ -59,8 +63,8 @@ impl EditorTarget<'_> {
                 | SymbolKind::Type(_)
                 | SymbolKind::Imported(_) => analysis
                     .semantic_db
-                    .definition_anchor(symbol.def_id)
-                    .unwrap_or(symbol.declaration_span),
+                    .definition_anchor(resolved.symbols.get(*symbol)?.def_id)
+                    .unwrap_or(resolved.symbols.get(*symbol)?.declaration_span),
             },
         };
 
@@ -68,14 +72,7 @@ impl EditorTarget<'_> {
     }
 }
 
-pub(crate) fn editor_targets(file: &FileAnalysis) -> Vec<EditorTarget<'_>> {
-    editor_targets_for_ast(&file.ast, &file.resolved)
-}
-
-pub(crate) fn editor_targets_for_ast<'a>(
-    ast: &'a AstFile,
-    resolved: &'a ResolveOutput,
-) -> Vec<EditorTarget<'a>> {
+pub(crate) fn editor_targets_for_ast(ast: &AstFile, resolved: &ResolveOutput) -> Vec<EditorTarget> {
     let mut sites = Vec::new();
     collect_import_sites(ast, &mut sites);
 
@@ -85,10 +82,10 @@ pub(crate) fn editor_targets_for_ast<'a>(
             ImportSite::Namespace(import) => {
                 targets.push(EditorTarget {
                     focus_span: import.path.span,
-                    kind: EditorTargetKind::Module(&import.path),
+                    kind: EditorTargetKind::Module(import.path.clone()),
                 });
                 if !import.alias_is_default
-                    && let Some(symbol) = symbol_at_binding_span(resolved, import.alias.span)
+                    && let Some(symbol) = resolved.symbols.id_at_name_span(import.alias.span)
                 {
                     targets.push(EditorTarget {
                         focus_span: import.alias.span,
@@ -99,10 +96,10 @@ pub(crate) fn editor_targets_for_ast<'a>(
             ImportSite::Names(import) => {
                 targets.push(EditorTarget {
                     focus_span: import.path.span,
-                    kind: EditorTargetKind::Module(&import.path),
+                    kind: EditorTargetKind::Module(import.path.clone()),
                 });
                 for name in &import.names {
-                    let Some(symbol) = symbol_at_binding_span(resolved, name.local_span()) else {
+                    let Some(symbol) = resolved.symbols.id_at_name_span(name.local_span()) else {
                         continue;
                     };
                     targets.push(EditorTarget {
@@ -120,23 +117,6 @@ pub(crate) fn editor_targets_for_ast<'a>(
         }
     }
     targets
-}
-
-pub(crate) fn editor_target_at_offset(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<EditorTarget<'_>> {
-    editor_targets(file)
-        .into_iter()
-        .filter(|target| span_contains(target.focus_span, offset))
-        .min_by_key(|target| (target.focus_span.len(), target.focus_span.start))
-}
-
-fn symbol_at_binding_span(resolved: &ResolveOutput, span: ByteSpan) -> Option<&Symbol> {
-    resolved
-        .symbols
-        .symbols()
-        .find(|symbol| symbol.name_span == span)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -366,8 +346,4 @@ fn collect_expression_import_sites<'a>(expression: &'a Expr, sites: &mut Vec<Imp
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
     }
-}
-
-fn span_contains(span: ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset < span.end
 }

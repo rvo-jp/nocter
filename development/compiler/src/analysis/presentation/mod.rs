@@ -1,18 +1,10 @@
 //! Structured semantic presentation shared by editor features.
 
-mod ast_declarations;
 mod callables;
 mod locals;
 mod symbols;
 mod types;
 
-pub(crate) use ast_declarations::{
-    ast_coercion_presentation, ast_comparison_operator_presentation, ast_drop_presentation,
-    ast_enum_presentation, ast_expansion_operator_presentation, ast_function_presentation,
-    ast_index_operator_presentation, ast_interface_presentation, ast_literal_presentation,
-    ast_method_presentation, ast_parameter_labels, ast_primitive_presentation,
-    ast_struct_presentation, ast_type_alias_presentation,
-};
 pub(crate) use callables::{
     CallablePresentation, LiteralPresentation, associated_function_presentation,
     callable_signature_presentation, canonical_where_predicate_labels, drop_presentation,

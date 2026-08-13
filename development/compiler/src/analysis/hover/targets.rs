@@ -1,6 +1,90 @@
 use super::*;
 use crate::ast::TypeExpr;
 
+pub(in crate::analysis::hover) fn syntax_site_hover_for_file_analysis(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let requirement = file.syntax.coercion_requirement_at(offset)?;
+    Some(HoverInfo {
+        span: requirement.focus_span,
+        label: format!(
+            "where {} as {}",
+            crate::typecheck::type_expr_presentation_label(&requirement.source, &file.resolved),
+            crate::typecheck::type_expr_presentation_label(&requirement.target, &file.resolved),
+        ),
+        documentation: None,
+    })
+}
+
+pub(in crate::analysis::hover) fn semantic_declaration_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    let crate::analysis::occurrences::SemanticIdentity::Definition(definition) =
+        occurrence.identity?
+    else {
+        return None;
+    };
+    let record = analysis.semantic_db.definition(definition)?;
+    match record.kind {
+        crate::semantic::DefinitionKind::Test => {
+            let source = sources.get(record.anchor.source)?;
+            Some(HoverInfo {
+                span: occurrence.focus_span,
+                label: format!(
+                    "test {}: void!",
+                    source.text().get(record.anchor.start..record.anchor.end)?
+                ),
+                documentation: target_documentation(sources, analysis, record.anchor),
+            })
+        }
+        crate::semantic::DefinitionKind::Coercion => {
+            for target_file in &analysis.files {
+                for symbol in target_file.resolved.symbols.symbols() {
+                    let SymbolKind::Type(owner) = &symbol.kind else {
+                        continue;
+                    };
+                    let Some(coercion) = owner
+                        .coercions
+                        .iter()
+                        .find(|coercion| coercion.def_id == definition)
+                    else {
+                        continue;
+                    };
+                    let visibility = if coercion.visibility.is_private() {
+                        String::new()
+                    } else {
+                        format!("{} ", coercion.visibility.source_notation())
+                    };
+                    let provenance = coercion
+                        .result_provenance
+                        .as_ref()
+                        .map(|_| " from self")
+                        .unwrap_or_default();
+                    return Some(HoverInfo {
+                        span: occurrence.focus_span,
+                        label: format!(
+                            "{visibility}coerce {}self as {}{provenance}",
+                            coercion.receiver.mode.source_prefix(),
+                            crate::typecheck::type_expr_presentation_label(
+                                &coercion.target,
+                                &file.resolved,
+                            ),
+                        ),
+                        documentation: target_documentation(sources, analysis, record.anchor),
+                    });
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
@@ -391,17 +475,15 @@ pub(in crate::analysis::hover) fn combine_documentation(
 }
 
 pub(crate) fn target_documentation(
-    sources: &SourceMap,
+    _sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     target_span: ByteSpan,
 ) -> Option<String> {
     let target_file = analysis.file_by_source(target_span.source)?;
-    let target_source = sources.get(target_file.ast.span.source)?;
-    let text = target_source.text();
-    let symbols = hover_symbols_for_file_analysis(text, target_file);
-    let documentation =
-        documentation_for_hover_symbols(target_file.ast.span.source, text, &symbols);
-    documentation_for_target_span(&documentation, &symbols, target_span)
+    target_file
+        .syntax
+        .documentation_at(target_span)
+        .map(str::to_string)
 }
 
 pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
@@ -571,52 +653,4 @@ pub(in crate::analysis::hover) fn is_type_symbol_at_declaration_span(
     declaration_span: ByteSpan,
 ) -> bool {
     matches!(symbol.kind, SymbolKind::Type(_)) && symbol.declaration_span == declaration_span
-}
-
-pub(in crate::analysis::hover) fn documentation_for_hover_symbols(
-    source: SourceId,
-    text: &str,
-    symbols: &[HoverSymbol],
-) -> crate::comments::AttachedDocumentation {
-    let targets = symbols
-        .iter()
-        .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.target.focus_span.start))
-        .collect::<Vec<_>>();
-    attach_documentation(source, text, &targets)
-}
-
-pub(in crate::analysis::hover) fn documentation_for_target_span(
-    documentation: &crate::comments::AttachedDocumentation,
-    symbols: &[HoverSymbol],
-    target_span: ByteSpan,
-) -> Option<String> {
-    documentation
-        .get(target_span.start)
-        .map(str::to_string)
-        .or_else(|| {
-            symbols
-                .iter()
-                .find(|symbol| span_contains(symbol.target.declaration_span, target_span.start))
-                .and_then(|symbol| documentation.get(symbol.target.focus_span.start))
-                .map(str::to_string)
-        })
-}
-
-pub(in crate::analysis::hover) fn resolved_reference_at_offset(
-    resolved: &ResolveOutput,
-    offset: usize,
-) -> Option<(ByteSpan, ResolvedReference)> {
-    let mut candidates = Vec::new();
-    if let Some((span, symbol)) = resolved.local_symbol_reference_at_offset(offset) {
-        candidates.push((span, ResolvedReference::Local(symbol.clone())));
-    }
-    if let Some((span, symbol)) = resolved.symbol_reference_at_offset(offset) {
-        candidates.push((span, ResolvedReference::TopLevel(Box::new(symbol.clone()))));
-    }
-    candidates.sort_by_key(|(span, _)| (span.len(), span.start));
-    candidates.into_iter().next()
-}
-
-pub(in crate::analysis::hover) fn span_contains(span: ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset < span.end
 }

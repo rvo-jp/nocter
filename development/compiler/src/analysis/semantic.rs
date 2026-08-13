@@ -34,7 +34,7 @@ pub(crate) fn classified_identifiers_for_file_analysis(
     _text: &str,
     file: &FileAnalysis,
 ) -> Vec<ClassifiedIdentifier> {
-    classified_identifiers_for_analysis(&file.ast, &file.resolved, &file.occurrences)
+    classified_identifiers_for_analysis(&file.ast, &file.resolved, &file.occurrences, &file.syntax)
 }
 
 pub(crate) fn classified_identifiers_for_single_file_text(
@@ -79,11 +79,13 @@ fn classify_single_file_text(text: &str) -> Option<Vec<ClassifiedIdentifier>> {
         &resolved,
     );
     let occurrences = SemanticOccurrenceIndex::new(&parsed.ast, &resolved, &facts);
+    let syntax = super::syntax_index::EditorSyntaxIndex::new(text, &parsed.ast, &resolved);
 
     Some(classified_identifiers_for_analysis(
         &parsed.ast,
         &resolved,
         &occurrences,
+        &syntax,
     ))
 }
 
@@ -91,12 +93,14 @@ fn classified_identifiers_for_analysis(
     ast: &crate::ast::AstFile,
     resolved: &ResolveOutput,
     occurrences: &SemanticOccurrenceIndex,
+    syntax: &super::syntax_index::EditorSyntaxIndex,
 ) -> Vec<ClassifiedIdentifier> {
     let mut collector = SemanticIdentifierCollector {
         ast,
         source: ast.span.source,
         resolved,
         occurrences,
+        syntax,
         identifiers: Vec::new(),
     };
     collector.collect();
@@ -108,6 +112,7 @@ struct SemanticIdentifierCollector<'a> {
     source: SourceId,
     resolved: &'a ResolveOutput,
     occurrences: &'a SemanticOccurrenceIndex,
+    syntax: &'a super::syntax_index::EditorSyntaxIndex,
     identifiers: Vec<ClassifiedIdentifier>,
 }
 
@@ -211,14 +216,15 @@ impl SemanticIdentifierCollector<'_> {
     }
 
     fn collect_editor_targets(&mut self) {
-        for target in
-            crate::analysis::editor_targets::editor_targets_for_ast(self.ast, self.resolved)
-        {
-            let kind = match target.kind {
+        for target in self.syntax.editor_targets() {
+            let kind = match &target.kind {
                 crate::analysis::editor_targets::EditorTargetKind::Module(_) => {
                     Some(SemanticTokenKind::Namespace)
                 }
                 crate::analysis::editor_targets::EditorTargetKind::ImportBinding(symbol) => {
+                    let Some(symbol) = self.resolved.symbols.get(*symbol) else {
+                        continue;
+                    };
                     semantic_kind_for_symbol_kind(&symbol.kind).or_else(|| {
                         matches!(
                             &symbol.kind,

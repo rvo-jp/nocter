@@ -1,7 +1,7 @@
 //! Resolved callable presentation for hover and LSP signature help.
 
-use super::call_sites::{CallCursorRegion, call_at_offset};
 use super::call_specializations::method_owner_substitutions_for_self_ty;
+use super::syntax_index::CallCursorRegion;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     CallExpr, ConstructMemberDecl, Expr, FunctionDecl, Item, MethodDecl, MethodOwnerDecl,
@@ -62,7 +62,7 @@ pub(crate) fn signature_help_for_file_analysis(
             is_specialized: literal.is_specialized,
         });
     }
-    let call = call_at_offset(&file.ast, offset, CallCursorRegion::Arguments)?;
+    let call = file.syntax.call_at(offset, CallCursorRegion::Arguments)?;
     signature_info_for_call(sources, analysis, file, call, offset)
 }
 
@@ -72,7 +72,7 @@ pub(crate) fn call_signature_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<SignatureHelpInfo> {
-    let call = call_at_offset(&file.ast, offset, CallCursorRegion::FullCall)?;
+    let call = file.syntax.call_at(offset, CallCursorRegion::FullCall)?;
     signature_info_for_call(sources, analysis, file, call, offset)
 }
 

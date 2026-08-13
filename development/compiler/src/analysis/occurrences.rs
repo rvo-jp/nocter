@@ -370,6 +370,13 @@ impl OccurrenceBuilder<'_> {
                     crate::semantic::DefinitionKind::LiteralCapture => {
                         (SemanticOccurrenceKind::Variable, true)
                     }
+                    crate::semantic::DefinitionKind::ComparisonOperator
+                    | crate::semantic::DefinitionKind::IndexOperator
+                    | crate::semantic::DefinitionKind::ExpansionOperator
+                    | crate::semantic::DefinitionKind::Coercion
+                    | crate::semantic::DefinitionKind::Destruct => {
+                        (SemanticOccurrenceKind::Method, true)
+                    }
                     _ => return None,
                 };
                 let identity = self
@@ -377,7 +384,14 @@ impl OccurrenceBuilder<'_> {
                     .local_symbols()
                     .find(|symbol| symbol.name_span == definition.anchor)
                     .map(|symbol| SemanticIdentity::Local(symbol.id))
-                    .unwrap_or(SemanticIdentity::Definition(definition.id));
+                    .unwrap_or_else(|| {
+                        SemanticIdentity::Definition(
+                            self.resolved
+                                .callable_bodies
+                                .declaration_id(definition.id)
+                                .unwrap_or(definition.id),
+                        )
+                    });
                 Some((identity, definition.anchor, kind, is_readonly))
             })
             .collect::<Vec<_>>();

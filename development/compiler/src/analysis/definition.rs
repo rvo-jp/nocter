@@ -26,8 +26,9 @@ pub(crate) fn definition_target_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<SourceTarget> {
-    crate::analysis::editor_targets::editor_target_at_offset(file, offset)
-        .and_then(|target| target.source_target(analysis))
+    file.syntax
+        .editor_target_at(offset)
+        .and_then(|target| target.source_target(analysis, &file.resolved))
         .or_else(|| {
             file.occurrences
                 .at_offset(offset)

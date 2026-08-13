@@ -1,6 +1,5 @@
 //! Whole-compile-unit semantic analysis.
 
-mod call_sites;
 pub(crate) mod call_specializations;
 pub(crate) mod coercions;
 mod collection_for_recovery;
@@ -36,6 +35,7 @@ pub(crate) mod signature_help;
 mod single_file;
 pub(crate) mod source_edits;
 pub(crate) mod symbols;
+mod syntax_index;
 #[cfg(test)]
 pub(crate) mod test_support;
 
@@ -196,6 +196,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) resolved: ResolveOutput,
     pub(crate) typed_hir: TypedHir,
     pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
+    pub(crate) syntax: syntax_index::EditorSyntaxIndex,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -361,11 +362,19 @@ fn analyze_compile_unit_with_root_policy(
                 let typed_hir = checked.typed_hir;
                 let occurrences =
                     occurrences::SemanticOccurrenceIndex::new(file, resolved, &typed_hir);
+                let syntax = syntax_index::EditorSyntaxIndex::new(
+                    sources
+                        .get(file.span.source)
+                        .map_or("", |source| source.text()),
+                    file,
+                    resolved,
+                );
                 FileAnalysis {
                     ast: file.clone(),
                     resolved: resolved.clone(),
                     typed_hir,
                     occurrences,
+                    syntax,
                     diagnostics,
                     is_root,
                 }

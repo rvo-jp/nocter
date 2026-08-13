@@ -7,14 +7,6 @@ pub(crate) fn qualified_member_name(owner: &str, member: &str) -> String {
     format!("{owner}.{member}")
 }
 
-pub(crate) fn generic_type_owner_name(owner: &str, parameters: &[String]) -> String {
-    if parameters.is_empty() {
-        owner.to_string()
-    } else {
-        format!("{owner}<{}>", parameters.join(", "))
-    }
-}
-
 pub(crate) fn field_member_label(owner: &str, member: &str, ty: &str) -> String {
     format!("field {}: {ty}", qualified_member_name(owner, member))
 }
@@ -34,7 +26,6 @@ mod tests {
 
     #[test]
     fn member_labels_always_include_the_owner() {
-        assert_eq!(generic_type_owner_name("Box", &["T".to_string()]), "Box<T>");
         assert_eq!(
             field_member_label("Box<T>", "value", "T"),
             "field Box<T>.value: T"

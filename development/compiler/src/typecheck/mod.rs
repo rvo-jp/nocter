@@ -89,9 +89,7 @@ pub(crate) use indexing::specialize_index_plan_across_resolvers;
 pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
 pub(crate) use interface_methods::conformance_method_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
-pub(crate) use member_presentation::{
-    enum_variant_member_label, field_member_label, generic_type_owner_name,
-};
+pub(crate) use member_presentation::{enum_variant_member_label, field_member_label};
 pub(crate) use operators::{
     comparison_semantics, specialize_comparison_plan, synthetic_comparison_runtime_call,
 };

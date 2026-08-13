@@ -539,6 +539,13 @@ impl SymbolTable {
         self.symbols.iter()
     }
 
+    pub(crate) fn id_at_name_span(&self, span: ByteSpan) -> Option<SymbolId> {
+        self.symbols
+            .iter()
+            .position(|symbol| symbol.name_span == span)
+            .map(|index| SymbolId(index as u32))
+    }
+
     pub(super) fn get_mut(&mut self, id: SymbolId) -> Option<&mut Symbol> {
         self.symbols.get_mut(id.raw() as usize)
     }
