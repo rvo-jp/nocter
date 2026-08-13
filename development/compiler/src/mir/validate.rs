@@ -299,7 +299,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             super::UnaryOperator::Negate => match destination_scalar {
                                 ScalarType::I32 => true,
                                 ScalarType::Integer(kind) => kind.is_signed(),
-                                ScalarType::Usize | ScalarType::Bool => false,
+                                ScalarType::U8 | ScalarType::Usize | ScalarType::Bool => false,
                             },
                             super::UnaryOperator::LogicalNot => {
                                 destination_scalar == ScalarType::Bool

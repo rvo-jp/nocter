@@ -144,6 +144,9 @@ buildability is MIR validation rather than a parallel AST model.
 - Built-in integers use canonical `IntegerType` in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
   shifts, comparison, call, field-load, and return projection.
+- `u8` is intentionally a dedicated MIR scalar while machine IR and ABI retain specialized byte
+  locations. Its source parameter ordinal maps to a validated `U8` ABI slot; it is not mislabeled
+  as a generic integer and recovered by a backend exception.
 - Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.

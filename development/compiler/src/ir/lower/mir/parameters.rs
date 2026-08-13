@@ -12,6 +12,9 @@ pub(super) enum ParameterStorage {
     I32 {
         abi_index: usize,
     },
+    U8 {
+        abi_index: usize,
+    },
     Usize {
         abi_index: usize,
     },
@@ -57,6 +60,9 @@ fn storage_for_name(
 ) -> Option<ParameterStorage> {
     if let Some(abi_index) = named_word(&slots.i32, name) {
         return Some(ParameterStorage::I32 { abi_index });
+    }
+    if let Some(abi_index) = named_word(&slots.u8, name) {
+        return Some(ParameterStorage::U8 { abi_index });
     }
     if let Some(abi_index) = named_word(&slots.usize, name) {
         return Some(ParameterStorage::Usize { abi_index });
@@ -126,6 +132,19 @@ mod tests {
         assert_eq!(
             projection.get(0),
             Some(ParameterStorage::I32 { abi_index: 1 })
+        );
+    }
+
+    #[test]
+    fn u8_parameter_uses_its_dedicated_abi_slot() {
+        let mut slots = super::super::super::context::LoweringParameterSlots::default();
+        slots.push_u8_parameter("value".to_string());
+
+        let projection = ParameterProjection::from_slots(&[parameter("value")], &slots).unwrap();
+
+        assert_eq!(
+            projection.get(0),
+            Some(ParameterStorage::U8 { abi_index: 0 })
         );
     }
 }

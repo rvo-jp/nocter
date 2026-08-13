@@ -97,6 +97,7 @@ pub(crate) enum ValueRepresentation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScalarType {
     I32,
+    U8,
     Usize,
     Integer(crate::integer::IntegerType),
     Bool,

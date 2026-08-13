@@ -218,7 +218,9 @@
   type, representation, ownership, and relative layout offset; machine-IR lowering folds those
   offsets only after selecting the aggregate's physical storage.</li><li>Built-in integers use canonical <code>IntegerType</code> in MIR. Non-legacy widths share the word-based
   machine-IR integer operations while preserving width and signedness through arithmetic,
-  shifts, comparison, call, field-load, and return projection.</li><li>Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
+  shifts, comparison, call, field-load, and return projection.</li><li><code>u8</code> is intentionally a dedicated MIR scalar while machine IR and ABI retain specialized byte
+  locations. Its source parameter ordinal maps to a validated <code>U8</code> ABI slot; it is not mislabeled
+  as a generic integer and recovered by a backend exception.</li><li>Boolean short-circuit operations are CFG, not binary rvalues. MIR selects either the right-hand
   evaluation block or a constant-result block and joins at the destination place, so calls,
   traps, and future cleanup on the skipped edge remain unreachable by construction.</li><li>Expression-valued conditionals use the same MIR builder at function tails and nested operand
   positions. Both branch blocks carry child <code>ScopeId</code>s, assign one destination, and join in the

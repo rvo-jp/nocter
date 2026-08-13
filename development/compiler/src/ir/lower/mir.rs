@@ -5,7 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
     DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, Type, UsizeLocation, UsizeValue,
+    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, Type, U8Location, U8Value,
+    UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -51,11 +52,13 @@ pub(super) fn try_lower_scalar_body(
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
     let (return_scalar, return_mode) = match return_type {
         Type::I32 => (ScalarType::I32, ReturnMode::Plain),
+        Type::U8 => (ScalarType::U8, ReturnMode::Plain),
         Type::Usize => (ScalarType::Usize, ReturnMode::Plain),
         Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Plain),
         Type::Bool => (ScalarType::Bool, ReturnMode::Plain),
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => (ScalarType::I32, ReturnMode::Fallible),
+            Type::U8 => (ScalarType::U8, ReturnMode::Fallible),
             Type::Usize => (ScalarType::Usize, ReturnMode::Fallible),
             Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Fallible),
             Type::Bool => (ScalarType::Bool, ReturnMode::Fallible),
@@ -445,6 +448,11 @@ fn call_instruction(
             target,
             arguments,
         },
+        ScalarType::U8 => Instruction::CallU8 {
+            destination: u8_location(destination, context)?,
+            target,
+            arguments,
+        },
         ScalarType::Usize => Instruction::CallUsize {
             destination: usize_location(destination, context)?,
             target,
@@ -515,6 +523,12 @@ fn outcome_call_instruction(
             arguments,
             failure_mode,
         },
+        ScalarType::U8 => Instruction::CallOutcomeU8 {
+            destination: u8_location(destination, context)?,
+            target,
+            arguments,
+            failure_mode,
+        },
         ScalarType::Usize => Instruction::CallOutcomeUsize {
             destination: usize_location(destination, context)?,
             target,
@@ -539,6 +553,7 @@ fn outcome_call_instruction(
 fn scalar_ir_type(scalar: ScalarType) -> Type {
     match scalar {
         ScalarType::I32 => Type::I32,
+        ScalarType::U8 => Type::U8,
         ScalarType::Usize => Type::Usize,
         ScalarType::Integer(kind) => Type::Integer(kind),
         ScalarType::Bool => Type::Bool,
@@ -613,6 +628,9 @@ fn lower_call_argument(
     Ok(match argument.representation {
         crate::mir::ValueRepresentation::Scalar(ScalarType::I32) => {
             ScalarArgument::I32(lower_i32_operand(&argument.operand, context)?)
+        }
+        crate::mir::ValueRepresentation::Scalar(ScalarType::U8) => {
+            ScalarArgument::U8(lower_u8_operand(&argument.operand, context)?)
         }
         crate::mir::ValueRepresentation::Scalar(ScalarType::Usize) => {
             ScalarArgument::Usize(lower_usize_operand(&argument.operand, context)?)
@@ -738,6 +756,46 @@ fn lower_statements(
                     Rvalue::Compare { .. } => {
                         return Err(invalid_mir_diagnostics(
                             "i32 scalar route received a comparison result",
+                        ));
+                    }
+                }
+            }
+            ScalarType::U8 => {
+                let destination = u8_location(destination, context)?;
+                match value {
+                    Rvalue::Use(operand) => {
+                        if let Some((source, offset)) = aggregate_field_source(operand, context)? {
+                            instructions.push(Instruction::LoadAggregateU8 {
+                                destination,
+                                source,
+                                offset,
+                            });
+                        } else {
+                            instructions.push(Instruction::SetU8 {
+                                destination,
+                                value: lower_u8_operand(operand, context)?,
+                            });
+                        }
+                    }
+                    Rvalue::Unary { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "u8 scalar route received an invalid unary operation",
+                        ));
+                    }
+                    Rvalue::Binary {
+                        operator,
+                        left,
+                        right,
+                        ..
+                    } => instructions.push(u8_binary_instruction(
+                        *operator,
+                        destination,
+                        lower_u8_operand(left, context)?,
+                        lower_u8_operand(right, context)?,
+                    )),
+                    Rvalue::Compare { .. } => {
+                        return Err(invalid_mir_diagnostics(
+                            "u8 scalar route received a comparison result",
                         ));
                     }
                 }
@@ -965,6 +1023,12 @@ fn lower_comparison(
             left: lower_i32_operand(left, context)?,
             right: lower_i32_operand(right, context)?,
         },
+        ScalarType::U8 => BoolValue::IntegerComparison {
+            kind: crate::integer::IntegerType::U8,
+            operator: integer_comparison_operator(operator),
+            left: UsizeValue::U8ZeroExtend(Box::new(lower_u8_operand(left, context)?)),
+            right: UsizeValue::U8ZeroExtend(Box::new(lower_u8_operand(right, context)?)),
+        },
         ScalarType::Usize => BoolValue::UsizeComparison {
             operator: integer_comparison_operator(operator),
             left: lower_usize_operand(left, context)?,
@@ -1066,6 +1130,51 @@ fn i32_binary_instruction(
     }
 }
 
+fn u8_binary_instruction(
+    operator: BinaryOperator,
+    destination: U8Location,
+    left: U8Value,
+    right: U8Value,
+) -> Instruction {
+    match operator {
+        BinaryOperator::Add => Instruction::AddU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Subtract => Instruction::SubtractU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Multiply => Instruction::MultiplyU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Divide => Instruction::DivideU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::Remainder => Instruction::RemainderU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::ShiftLeft => Instruction::ShiftLeftU8 {
+            destination,
+            left,
+            right,
+        },
+        BinaryOperator::ShiftRight => Instruction::ShiftRightU8 {
+            destination,
+            left,
+            right,
+        },
+    }
+}
+
 fn usize_binary_instruction(
     operator: BinaryOperator,
     destination: UsizeLocation,
@@ -1138,6 +1247,24 @@ fn i32_location(
             )),
         },
         LocalStorage::Local => Ok(I32Location::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
+    }
+}
+
+fn u8_location(place: &Place, context: &BackendContext<'_>) -> Result<U8Location, Vec<Diagnostic>> {
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(U8Location::Return),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::U8 { abi_index }) => {
+                Ok(U8Location::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "u8 MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(U8Location::Local(machine_local_index(
             context.body,
             place.local,
         ))),
@@ -1233,6 +1360,24 @@ fn lower_i32_operand(
         }
         Operand::Copy(place) | Operand::Move(place) => {
             i32_location(place, context).map(I32Value::Location)
+        }
+    }
+}
+
+fn lower_u8_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<U8Value, Vec<Diagnostic>> {
+    match operand {
+        Operand::Constant(constant) => {
+            u8::try_from(constant.value)
+                .map(U8Value::Const)
+                .map_err(|_| {
+                    invalid_mir_diagnostics("u8 constant is outside its runtime representation")
+                })
+        }
+        Operand::Copy(place) | Operand::Move(place) => {
+            u8_location(place, context).map(U8Value::Location)
         }
     }
 }

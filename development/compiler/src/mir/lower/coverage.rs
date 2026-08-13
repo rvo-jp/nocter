@@ -504,7 +504,9 @@ pub(super) fn scalar_expression_is_supported(
                 crate::ast::UnaryOperator::Negate => match operand_scalar {
                     super::ScalarType::I32 => true,
                     super::ScalarType::Integer(kind) => kind.is_signed(),
-                    super::ScalarType::Usize | super::ScalarType::Bool => false,
+                    super::ScalarType::U8 | super::ScalarType::Usize | super::ScalarType::Bool => {
+                        false
+                    }
                 },
                 crate::ast::UnaryOperator::Move | crate::ast::UnaryOperator::Spread => false,
             };
@@ -696,6 +698,7 @@ pub(super) fn scalar_type(
         CheckedScalarType::Integer(crate::integer::IntegerType::I32) => {
             Some(super::ScalarType::I32)
         }
+        CheckedScalarType::Integer(crate::integer::IntegerType::U8) => Some(super::ScalarType::U8),
         CheckedScalarType::Integer(crate::integer::IntegerType::Usize) => {
             Some(super::ScalarType::Usize)
         }

@@ -428,3 +428,33 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_executes_u8_calls_through_scalar_storage() {
+    let project = TempProject::new("cli-run-u8-scalar-storage");
+    let source = project.write_source(
+        "u8_scalar_storage.nct",
+        r#"func increment(value: u8): u8 {
+    return value + 1
+}
+
+func main(): i32 {
+    if increment(40) == 41 {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

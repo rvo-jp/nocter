@@ -219,6 +219,50 @@ fn builds_wide_integer_arithmetic_with_canonical_kind() {
 }
 
 #[test]
+fn builds_u8_arithmetic_with_dedicated_scalar_storage() {
+    let (_sources, analysis) = analyze_text(
+        r#"func increment(value: u8): u8 {
+    return value + 1
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "increment" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::U8,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("u8 arithmetic must select MIR")
+    .unwrap();
+
+    assert_eq!(body.locals[0].scalar_type(), Some(ScalarType::U8));
+    assert_eq!(body.locals[1].scalar_type(), Some(ScalarType::U8));
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Binary {
+                operator: crate::mir::BinaryOperator::Add,
+                ..
+            },
+            ..
+        }]
+    ));
+}
+
+#[test]
 fn builds_integer_shifts_with_canonical_operators() {
     let (_sources, analysis) = analyze_text(
         r#"func shift(value: i64, count: i64): i64 {

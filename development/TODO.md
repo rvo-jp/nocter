@@ -79,8 +79,11 @@ migration. The v0.13.0 tag, archive, release notes, and qualification record are
   parameter classification; indirect stack-slot arguments prohibit tail-call frame reuse
 - nested field access retains one parent-linked projection segment per checked field and folds
   relative offsets only at machine-storage projection
-- canonical `IntegerType` extends MIR scalar construction and machine projection to all built-in
-  integer widths for parameters, arithmetic, shifts, comparisons, calls, fields, and returns
+- canonical integer identity extends MIR scalar construction and machine projection to all
+  built-in widths for parameters, arithmetic, shifts, comparisons, calls, fields, and returns
+- legacy-specialized `u8` has its own MIR scalar identity and projects to the existing `U8`
+  parameter, local, call, field-load, arithmetic, comparison, outcome, and return storage; it no
+  longer falls out of the integer route because generic word slots cannot describe its ABI
 - authored numeric negation and boolean inversion retain dedicated checked MIR unary operations;
   structural validation rejects operator/scalar drift before backend instruction selection
 - logical locals no longer become storage-less `Virtual` places for loop optimization; a dedicated
