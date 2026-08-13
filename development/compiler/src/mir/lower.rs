@@ -39,8 +39,14 @@ pub(crate) fn try_build_scalar_body(
     let (source_statements, tail) = scalar_body_parts(block)?;
     if !source_statements
         .iter()
-        .all(|statement| statement.is_supported(resolved))
+        .all(|statement| statement.is_supported(resolved, typed_hir))
         || !tail.is_supported(resolved)
+        || !parameters.iter().all(|parameter| {
+            resolved
+                .local_symbol_id_at_name_span(parameter.name_span)
+                .is_some_and(|symbol| binding_scalar_type(symbol, typed_hir).is_some())
+                && typed_hir.type_id(&parameter.ty).is_some()
+        })
     {
         return None;
     }
@@ -81,7 +87,9 @@ pub(crate) fn try_build_scalar_body(
                     let symbol = resolved
                         .local_symbol_id_at_name_span(binding.name_span)
                         .ok_or(BuildError::MissingLocalSymbol)?;
-                    let ty = known_expression_type(&binding.initializer, typed_hir)
+                    let ty = typed_hir
+                        .binding_type_expr(symbol)
+                        .and_then(|ty| typed_hir.type_id(ty))
                         .ok_or(BuildError::MissingTypedExpression)?;
                     let scalar = binding_scalar_type(symbol, typed_hir)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
@@ -282,14 +290,25 @@ impl<'a> ScalarTail<'a> {
 }
 
 impl<'a> ScalarStatement<'a> {
-    fn is_supported(self, resolved: &ResolveOutput) -> bool {
+    fn is_supported(self, resolved: &ResolveOutput, typed_hir: &TypedHir) -> bool {
         match self {
             Self::Binding(binding) => {
-                scalar_expression_is_supported(&binding.initializer, resolved)
+                resolved
+                    .local_symbol_id_at_name_span(binding.name_span)
+                    .is_some_and(|symbol| {
+                        binding_scalar_type(symbol, typed_hir).is_some()
+                            && typed_hir
+                                .binding_type_expr(symbol)
+                                .and_then(|ty| typed_hir.type_id(ty))
+                                .is_some()
+                    })
+                    && known_expression_type(&binding.initializer, typed_hir).is_some()
+                    && scalar_expression_is_supported(&binding.initializer, resolved)
             }
             Self::Assignment(assignment) => {
                 assignment.operator == AssignmentOperator::Assign
-                    && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some())
+                    && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some_and(|symbol| binding_scalar_type(symbol.id, typed_hir).is_some()))
+                    && known_expression_type(&assignment.value, typed_hir).is_some()
                     && scalar_expression_is_supported(&assignment.value, resolved)
             }
         }

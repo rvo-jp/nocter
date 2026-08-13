@@ -19,11 +19,14 @@ fn lowers_entry_usize_terminal_if_return() {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Usize,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Const(true),
-                then_instructions: vec![set_return_usize(7), Instruction::Return],
-                else_instructions: vec![set_return_usize(9), Instruction::Return],
-            }],
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![set_return_usize(7)],
+                    else_instructions: vec![set_return_usize(9)],
+                },
+                Instruction::Return,
+            ],
         }])
     );
 }
@@ -741,11 +744,14 @@ fn lowers_entry_terminal_if_with_bool_literal_condition() {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Const(false),
-                then_instructions: vec![set_return_i32(1), Instruction::Return],
-                else_instructions: vec![set_return_i32(2), Instruction::Return],
-            }],
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Const(false),
+                    then_instructions: vec![set_return_i32(1)],
+                    else_instructions: vec![set_return_i32(2)],
+                },
+                Instruction::Return,
+            ],
         }])
     );
 }
@@ -777,9 +783,10 @@ fn lowers_entry_terminal_if_with_bool_local_condition() {
                 },
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Local(0)),
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
                 },
+                Instruction::Return,
             ],
         }])
     );
@@ -817,15 +824,13 @@ fn lowers_entry_terminal_if_with_mixed_i32_and_bool_locals() {
                 },
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Local(1)),
-                    then_instructions: vec![
-                        Instruction::SetI32 {
-                            destination: I32Location::Return,
-                            value: i32_local(0),
-                        },
-                        Instruction::Return,
-                    ],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    then_instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },],
+                    else_instructions: vec![set_return_i32(1)],
                 },
+                Instruction::Return,
             ],
         }])
     );
@@ -1115,15 +1120,13 @@ fn lowers_entry_terminal_if_returning_outer_local() {
                 },
                 Instruction::If {
                     condition: BoolValue::Const(true),
-                    then_instructions: vec![
-                        Instruction::SetI32 {
-                            destination: I32Location::Return,
-                            value: i32_local(0),
-                        },
-                        Instruction::Return,
-                    ],
-                    else_instructions: vec![set_return_i32(0), Instruction::Return],
+                    then_instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },],
+                    else_instructions: vec![set_return_i32(0)],
                 },
+                Instruction::Return,
             ],
         }])
     );
@@ -1313,11 +1316,14 @@ func answer(): i32 {
                 name: "answer".to_string(),
                 target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
-                instructions: vec![Instruction::If {
-                    condition: BoolValue::Const(true),
-                    then_instructions: vec![set_return_i32(7), Instruction::Return],
-                    else_instructions: vec![set_return_i32(9), Instruction::Return],
-                }],
+                instructions: vec![
+                    Instruction::If {
+                        condition: BoolValue::Const(true),
+                        then_instructions: vec![set_return_i32(7)],
+                        else_instructions: vec![set_return_i32(9)],
+                    },
+                    Instruction::Return,
+                ],
             },
         ])
     );
@@ -1490,21 +1496,16 @@ func enabled(): bool {
                 },
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Local(0)),
-                    then_instructions: vec![
-                        Instruction::SetBool {
-                            destination: BoolLocation::Return,
-                            value: BoolValue::Const(true),
-                        },
-                        Instruction::Return,
-                    ],
-                    else_instructions: vec![
-                        Instruction::SetBool {
-                            destination: BoolLocation::Return,
-                            value: BoolValue::Const(false),
-                        },
-                        Instruction::Return,
-                    ],
+                    then_instructions: vec![Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    },],
+                    else_instructions: vec![Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(false),
+                    },],
                 },
+                Instruction::Return,
             ],
         }
     );
