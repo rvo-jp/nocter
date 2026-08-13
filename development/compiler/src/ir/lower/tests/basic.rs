@@ -68,6 +68,47 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_scalar_assignment_as_a_mir_place_update() {
+    let ir = lower_text(
+        r#"func helper(): i32 {
+    var value = 40
+    value = value + 2
+    return value
+}
+
+func main(): i32 {
+    return helper()
+}
+"#,
+    );
+    let helper = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "helper")
+        .unwrap();
+
+    assert_eq!(
+        helper.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: I32Value::Const(40),
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Local(0),
+                left: I32Value::Location(I32Location::Local(0)),
+                right: I32Value::Const(2),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: I32Value::Location(I32Location::Local(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit

@@ -8,7 +8,7 @@ use super::model::{
 };
 use super::validate;
 use super::validate::ValidationError;
-use crate::ast::{BindingStmt, Block, Expr, Parameter, Stmt};
+use crate::ast::{AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, Parameter, Stmt};
 use crate::literals::decode_integer_literal_value;
 use crate::resolve::{LocalSymbolId, ResolveOutput};
 use crate::semantic::SemanticDb;
@@ -33,19 +33,19 @@ pub(crate) fn try_build_scalar_body(
     resolved: &ResolveOutput,
     typed_hir: &TypedHir,
 ) -> Option<Result<Body, BuildError>> {
-    let (bindings, expression) = scalar_body_parts(block)?;
-    if !bindings
+    let (source_statements, expression) = scalar_body_parts(block)?;
+    if !source_statements
         .iter()
-        .all(|binding| scalar_expression_is_supported(&binding.initializer, resolved))
+        .all(|statement| statement.is_supported(resolved))
         || !scalar_expression_is_supported(expression, resolved)
     {
         return None;
     }
 
     let return_ty = known_expression_type(expression, typed_hir)?;
-    if bindings
+    if source_statements
         .iter()
-        .any(|binding| known_expression_type(&binding.initializer, typed_hir) != Some(return_ty))
+        .any(|statement| known_expression_type(statement.value(), typed_hir) != Some(return_ty))
     {
         return None;
     }
@@ -77,26 +77,46 @@ pub(crate) fn try_build_scalar_body(
             });
             locals_by_symbol.insert(symbol, local);
         }
-        let mut statements = Vec::new();
-        for binding in bindings {
-            let symbol = resolved
-                .local_symbol_id_at_name_span(binding.name_span)
-                .ok_or(BuildError::MissingLocalSymbol)?;
-            let local = LocalId::from_index(locals.len());
-            locals.push(Local {
-                ty: return_ty,
-                source: LocalSource::Binding(symbol),
-            });
-            locals_by_symbol.insert(symbol, local);
+        let mut mir_statements = Vec::new();
+        for source_statement in source_statements {
+            let (local, value) = match source_statement {
+                ScalarStatement::Binding(binding) => {
+                    let symbol = resolved
+                        .local_symbol_id_at_name_span(binding.name_span)
+                        .ok_or(BuildError::MissingLocalSymbol)?;
+                    let local = LocalId::from_index(locals.len());
+                    locals.push(Local {
+                        ty: return_ty,
+                        source: LocalSource::Binding(symbol),
+                    });
+                    locals_by_symbol.insert(symbol, local);
+                    (local, &binding.initializer)
+                }
+                ScalarStatement::Assignment(assignment) => {
+                    let Expr::Identifier(identifier) = &assignment.target else {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    };
+                    let symbol = resolved
+                        .local_symbol_for_identifier(identifier)
+                        .map(|symbol| symbol.id)
+                        .ok_or(BuildError::MissingLocalSymbol)?;
+                    (
+                        *locals_by_symbol
+                            .get(&symbol)
+                            .ok_or(BuildError::MissingLocalSymbol)?,
+                        &assignment.value,
+                    )
+                }
+            };
             lower_expression_to_place(
                 local,
-                &binding.initializer,
+                value,
                 return_ty,
                 resolved,
                 &locals_by_symbol,
                 typed_hir,
                 &mut locals,
-                &mut statements,
+                &mut mir_statements,
             )?;
         }
         lower_expression_to_place(
@@ -107,7 +127,7 @@ pub(crate) fn try_build_scalar_body(
             &locals_by_symbol,
             typed_hir,
             &mut locals,
-            &mut statements,
+            &mut mir_statements,
         )?;
         let body = Body {
             source_body,
@@ -117,7 +137,7 @@ pub(crate) fn try_build_scalar_body(
             entry: BasicBlockId::from_index(0),
             blocks: vec![
                 BasicBlock {
-                    statements,
+                    statements: mir_statements,
                     terminator: Terminator::Goto {
                         target: BasicBlockId::from_index(1),
                     },
@@ -133,7 +153,35 @@ pub(crate) fn try_build_scalar_body(
     })())
 }
 
-fn scalar_body_parts(block: &Block) -> Option<(Vec<&BindingStmt>, &Expr)> {
+#[derive(Debug, Clone, Copy)]
+enum ScalarStatement<'a> {
+    Binding(&'a BindingStmt),
+    Assignment(&'a AssignmentStmt),
+}
+
+impl<'a> ScalarStatement<'a> {
+    fn value(self) -> &'a Expr {
+        match self {
+            Self::Binding(binding) => &binding.initializer,
+            Self::Assignment(assignment) => &assignment.value,
+        }
+    }
+
+    fn is_supported(self, resolved: &ResolveOutput) -> bool {
+        match self {
+            Self::Binding(binding) => {
+                scalar_expression_is_supported(&binding.initializer, resolved)
+            }
+            Self::Assignment(assignment) => {
+                assignment.operator == AssignmentOperator::Assign
+                    && matches!(&assignment.target, Expr::Identifier(identifier) if resolved.local_symbol_for_identifier(identifier).is_some())
+                    && scalar_expression_is_supported(&assignment.value, resolved)
+            }
+        }
+    }
+}
+
+fn scalar_body_parts(block: &Block) -> Option<(Vec<ScalarStatement<'_>>, &Expr)> {
     let runtime_statements = block
         .statements
         .iter()
@@ -151,7 +199,8 @@ fn scalar_body_parts(block: &Block) -> Option<(Vec<&BindingStmt>, &Expr)> {
     let bindings = binding_statements
         .iter()
         .map(|statement| match statement {
-            Stmt::Binding(binding) => Some(binding),
+            Stmt::Binding(binding) => Some(ScalarStatement::Binding(binding)),
+            Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
@@ -375,7 +424,7 @@ mod tests {
         let (_sources, analysis) = analyze_text(
             r#"func main(): i32 {
     var value = 42
-    value = 7
+    value += 7
     return value
 }
 "#,
