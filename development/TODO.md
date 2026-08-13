@@ -2,14 +2,26 @@
 
 ## Current Task
 
-v0.14.0 Phase 0 and Phase 1 are complete. Phase 2 is in progress. Navigation, hover, signature
-help, semantic tokens, literal/interpolation/region queries, resolver member projection, and
-compile-unit specialization now use retained semantic or syntax indexes. The next boundary is a
-dedicated completion syntax/scope index: migrate member gaps, enum patterns, struct fields, result
-provenance clauses, `where` predicates, instance operator slots, visible locals, and scoped imports,
-then delete their successful-source AST walkers. Incomplete-source recovery remains explicitly
-separate. Do not start MIR, language features, or standard-library APIs before the Phase 2 matrix
-passes. The v0.13.0 tag, archive, release notes, and qualification record are immutable.
+v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. Introduce a typed control-flow MIR
+and verifier, then migrate executable families vertically from typed HIR through MIR to the current
+machine IR. Start with local/block identity and straight-line scalar control flow. Do not leave a
+permanent dual pipeline: after a construct is routed to MIR, MIR failure is authoritative and the
+old construct-specific buildability/lowering route must be removed in the same checkpoint. Do not
+add language features or standard-library APIs during the architecture migration. The v0.13.0 tag,
+archive, release notes, and qualification record are immutable.
+
+## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
+
+- successful hover, completion, navigation, references, rename, semantic tokens, signature help,
+  and edits consume retained semantic, syntax, and lexical-scope indexes
+- incomplete-source AST walkers are isolated under recovery entry points and cannot override a
+  successful semantic result
+- type and generic-parameter occurrences select declarations by `DefId`; binding type, scalar
+  view, mutability, and payload facts use `LocalSymbolId`
+- instance callable syntax indexes methods, operators, and coercions with their generic owner; a
+  regression covers sequence-expansion specialization through an instance operator
+- the complete repository and distributed installed-home matrix, formatting, warnings-denied
+  Clippy, documentation generation, and diff gates pass
 
 ## Completed v0.14.0 Phase 1 Typed HIR Checkpoint
 

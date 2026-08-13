@@ -36,8 +36,9 @@ external runtime library. The released and active-development native target is `
 | `resolve` | imports, visibility, scopes, symbols, declaration identity |
 | `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, execution allocation requirements, drop semantics |
 | `analysis` | owned editor/query results derived from compiler facts |
-| `driver/buildability` | preflight rejection of checked forms not supported by the runtime |
-| `ir` | conversion from typed facts to explicit lower-level operations |
+| `mir` | checked control flow, places, operands, loans, initialization, and explicit drops |
+| `driver/buildability` | temporary pre-MIR rejection while Phase 3 migrates runtime coverage |
+| `ir` | conversion from MIR to explicit machine-independent operations |
 | `abi` | data layout and argument/return classification |
 | `backend` | IR validation, ARM64 emission, Mach-O output |
 | `target` | machine encoding and target-specific output details |
@@ -45,9 +46,9 @@ external runtime library. The released and active-development native target is `
 | `driver` | CLI, pipeline, and LSP protocol orchestration |
 
 The pipeline above is the v0.14.0 target architecture. Phase 0 established definition and body
-identity; Phase 1 established checker-owned partial typed HIR. During Phase 2 and Phase 3, remaining
-span-keyed compatibility facts, buildability preflight, and AST-driven IR lowering remain only
-until their named replacement completes. See
+identity; Phase 1 established checker-owned partial typed HIR; Phase 2 completed indexed editor
+projection and semantic identity for type occurrences and bindings. Phase 3 removes buildability
+preflight and AST-driven IR lowering as their MIR replacements become authoritative. See
 [Semantic Identity and Typed Model](semantic-model.md).
 
 Later phases consume facts from earlier phases; they do not reimplement earlier decisions. When a
@@ -80,8 +81,10 @@ forms that are valid in the frontend but cannot be executed safely by IR and the
 they become machine-code errors.
 
 Promoting a feature to buildable requires checking the complete parser → resolver → typecheck →
-ownership → IR → ABI → backend → CLI/std/LSP path. Pure AST shape classification may be shared, but
-phase-specific facts such as symbol identity and type compatibility remain separate.
+ownership → MIR → IR → ABI → backend → CLI/std/LSP path. During Phase 3, an explicitly routed
+construct may use either its old preflight/lowering family or MIR, never both and never fallback
+after a MIR error. The old family is deleted when that construct migrates. At Phase 3 completion,
+buildability is MIR validation rather than a parallel AST model.
 
 ## IR, ABI, and Backend
 

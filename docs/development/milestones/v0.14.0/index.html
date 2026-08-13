@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter v0.14.0 Semantic Architecture Migration - Nocter</title>
-    <meta name="description" content="Status: Phase 0 and Phase 1 complete. Phase 2 is in progress.">
+    <meta name="description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.14.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta property="og:description" content="Status: Phase 0 and Phase 1 complete. Phase 2 is in progress.">
+    <meta property="og:description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.14.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter v0.14.0 Semantic Architecture Migration - Nocter">
-    <meta name="twitter:description" content="Status: Phase 0 and Phase 1 complete. Phase 2 is in progress.">
+    <meta name="twitter:description" content="Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phase 0 and Phase 1 complete. Phase 2 is in progress.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-13","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.14.0 Semantic Architecture Migration - Nocter","description":"Status: Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.","url":"https://nocter.dev/development/milestones/v0.14.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.14.0/","dateModified":"2026-08-13","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.14.0","item":"https://nocter.dev/development/milestones/v0.14.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -138,7 +138,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.14.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phase 0 and Phase 1 complete. Phase 2 is in progress.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
+                <h1 id="nocter-v0-14-0-semantic-architecture-migration">Nocter v0.14.0 Semantic Architecture Migration</h1><p><strong>Status:</strong> Phase 0, Phase 1, and Phase 2 complete. Phase 3 is in progress.</p><p>v0.14.0 replaces the compiler's span-, string-, and AST-shape-driven semantic spine with explicit compiler identities and typed intermediate representations. It is an incremental migration under the complete v0.13.0 regression suite, not a rewrite and not a language-feature milestone.</p><p>The published v0.13.0 language, tag, archive, release notes, and qualification record are immutable. A migration phase may preserve public behavior or improve diagnostics, but it must not add compatibility syntax or silently retain two semantic authorities.</p><h2 id="migration-invariants">Migration Invariants</h2><ul><li>Source syntax remains authored AST. Resolver, type checking, analysis, and lowering do not add
   semantic identities by inventing source names or treating byte ranges as identifiers.</li><li>Each compile-unit definition, body, expression, type, requirement, intrinsic, and monomorphized
   item receives a typed ID from one semantic database.</li><li>A span is location metadata owned by the database. It may diagnose or navigate an ID, but map
   equality on spans must not decide whether two semantic entities are identical.</li><li>The checker produces the semantic result consumed by ownership, provenance, LSP, specialization,
@@ -203,13 +203,22 @@ InstanceMember::Coercion(CoercionDecl)
   interpolation, region, signature-help, hover, and import-completion queries consume retained
   projections.</li><li>Opaque results use <code>OpaqueTypeId</code>; callable contract/body records carry <code>DefId</code> directly rather
   than resolving an identity span after matching.</li><li>Call specializations are lazily computed once per compile unit and shared by buildability, IR
-  lowering, and literal editor facts.</li></ul><h3 id="remaining-work">Remaining Work</h3><ol><li>1. Build a completion syntax/scope index for member gaps, enum patterns, struct fields, result
-   provenance clauses, <code>where</code> predicates, instance operator slots, visible locals, and scoped
-   imports. Remove the successful-source walkers in <code>analysis/completion</code>, <code>visible_locals</code>, and
-   <code>scoped_imports</code>; retain parsing walkers only inside explicitly named incomplete-source recovery.</li><li>Move the remaining type-occurrence and binding compatibility facts from span-keyed lookup to
-   <code>ExprId</code>, <code>DefId</code>, and local-symbol records, then remove their span adapters.</li><li>Run the complete repository and distributed-home verification matrix, update the completion
-   record, and only then mark Phase 2 complete.</li></ol><h3 id="completion-definition-3">Completion Definition</h3><p>Phase 2 is complete when successful-source editor requests perform indexed lookup rather than AST or resolver-surface discovery; every declaration target is selected by semantic identity; all retained syntax-only sites are built once per file; incomplete-source recovery is isolated and cannot override successful semantics; and the complete repository, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 3 — Control-Flow MIR:</strong> lower typed HIR into places, operands, rvalues, blocks,
-  terminators, loans, and explicit drops independent of source AST shape.</li><li><strong>Phase 4 — Backend Convergence:</strong> lower MIR to machine IR, replace string primitive dispatch
+  lowering, and literal editor facts.</li><li><code>EditorSyntaxIndex</code> also owns member gaps, enum patterns, struct fields, literal shapes, region
+  allocators, result-provenance clauses, <code>where</code> requirements, and instance operator slots.
+  <code>LexicalScopeIndex</code> owns visible local bindings and scoped imports. Successful completion queries
+  therefore perform indexed lookup; AST scope walkers exist only in explicitly named recovery
+  paths for incomplete source.</li><li>Type occurrences identify their selected declarations by <code>DefId</code>. Generic-parameter occurrences
+  carry the parameter's <code>DefId</code>, and binding type, scalar-view, mutability, and payload facts are
+  keyed by <code>LocalSymbolId</code>. Declaration and reference spans are resolved to that local identity
+  once rather than serving as fact identity.</li><li>Every instance callable syntax record covers methods, operators, and coercions together with its
+  generic owner. Specialization no longer loses owner substitutions for an operator or coercion.</li></ul><h3 id="completion-definition-3">Completion Definition</h3><p>Phase 2 is complete when successful-source editor requests perform indexed lookup rather than AST or resolver-surface discovery; every declaration target is selected by semantic identity; all retained syntax-only sites are built once per file; incomplete-source recovery is isolated and cannot override successful semantics; and the complete repository, documentation, formatting, Clippy, and diff gates pass.</p><h3 id="completion-record-3">Completion Record</h3><p>Phase 2 satisfies the definition above. The complete repository matrix passes, including 2,557 library tests, 223 distributed installed-home tests, public examples, source-corpus tests, formatting, and warnings-denied Clippy. The matrix caught and permanently covered one missing instance-operator syntax identity that had removed generic owner substitutions from sequence expansion lowering.</p><h2 id="phase-3-control-flow-mir">Phase 3: Control-Flow MIR</h2><h3 id="goal-4">Goal</h3><p>Replace AST-shaped buildability and backend lowering with one checked control-flow representation. MIR owns places, operands, rvalues, basic blocks, terminators, loans, initialization state, and explicit drops. Source AST remains an input to typed-HIR-to-MIR construction and source spans remain diagnostic metadata; neither may determine backend semantics after MIR construction.</p><h3 id="migration-order">Migration Order</h3><ol><li>1. Introduce typed local and basic-block identities, the MIR body model, and a structural verifier.
+   Cover deterministic construction, valid control flow, invalid targets, terminator completeness,
+   and local/projection validity before routing production code through it.</li><li>Migrate straight-line scalar evaluation and native control flow: local initialization,
+   assignment, return, <code>if</code>, loops, <code>break</code>, <code>continue</code>, and short-circuit operations.</li><li>Represent calls and outcome edges explicitly, then migrate optional/fallible propagation,
+   <code>catch</code>, and <code>otherwise</code> without terminal/nonterminal lowering variants.</li><li>Add aggregate places and projections, moves, borrows, loans, initialization/drop flags, and
+   explicit cleanup edges. Migrate records, variants, arrays, fields, indexing, and destructors.</li><li>Migrate regions, closures, typed literals, interpolation, collection expansion, and iteration.
+   Lower MIR to the existing machine IR and delete each AST-driven lowering family when its MIR
+   route becomes authoritative.</li></ol><p>The migration may use an explicit feature router while coverage is incomplete. A construct routed to MIR must never fall back after a MIR error, and its old construct-specific route is removed in the same checkpoint. Differential tests may compare routes during a checkpoint; two production authorities may not remain afterward.</p><h3 id="completion-definition-4">Completion Definition</h3><p>Phase 3 is complete when buildability is MIR construction and validation, machine-IR lowering does not inspect source <code>Expr</code>, <code>Stmt</code>, or <code>Block</code> nodes, control-flow joins and cleanup are represented once, drops and loans are explicit and path-sensitive, spans are metadata rather than equality, all temporary routers and migrated AST lowerers are deleted, and the complete verification, documentation, formatting, Clippy, and diff gates pass.</p><h2 id="later-phases-2">Later Phases</h2><ul><li><strong>Phase 4 — Backend Convergence:</strong> lower MIR to machine IR, replace string primitive dispatch
   with <code>IntrinsicId</code>, unify integer execution paths, and retire AST-shape buildability checks.</li><li><strong>Phase 5 — Stabilization:</strong> remove migration adapters, narrow lint exceptions, consolidate tests
   around the new boundaries, qualify, and publish v0.14.0.</li></ul>
             </div>

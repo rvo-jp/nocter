@@ -11,8 +11,9 @@ The published v0.13.0 compiler had strong feature-specific plans, but no single 
 graph. Definitions were variously identified by a `ByteSpan`, canonical type string, private
 synthetic method name, resolver-local `SymbolId`, or stable editor span. Phase 0 replaced source
 declaration and body equality with a compile-unit identity domain. Phase 1 made type checking own
-an error-tolerant typed result. Phase 2 and Phase 3 remove the remaining compatibility span tables
-and AST-shaped control-flow lowering.
+an error-tolerant typed result. Phase 2 moved editor projection and the remaining type-occurrence
+and binding identity to semantic indexes. Phase 3 replaces AST-shaped control-flow lowering with
+MIR.
 
 The migration makes identity and semantic ownership explicit. It does not hide the existing split
 behind more helper functions.
@@ -53,7 +54,9 @@ SemanticDb
 TypedHir
   typed expressions: ExprId -> PartialSemantic<TyId>
   types:             TyId -> normalized TypeExpr
-  compatibility facts keyed by source location (Phase 2/3 removal boundary)
+  type occurrences: source occurrence -> DefId
+  binding facts:    LocalSymbolId -> checked binding semantics
+  syntax facts:     source occurrence -> checked expression plan
 ```
 
 ## Editor Projection
@@ -71,9 +74,10 @@ that index. Editor code does not scan every type and compare member spans. Call-
 closure is a lazy compile-unit fact shared by buildability and lowering rather than recomputed by
 each consumer.
 
-Phase 2 is not complete while successful-source completion still walks AST scopes at request time.
-Those contexts move into a dedicated completion syntax/scope index before control-flow MIR work
-begins.
+`EditorSyntaxIndex` includes completion sites and `LexicalScopeIndex` includes visible locals and
+scoped imports. Successful-source completion uses those retained indexes. AST scope walking is
+confined to explicitly named recovery paths used only after incomplete-source parsing; recovery
+cannot replace a successful semantic result.
 
 The database is passed as one immutable semantic context after construction. Phase-specific mutable
 builders may allocate records, but completed passes do not receive writable access to earlier
@@ -111,11 +115,13 @@ TypecheckOutput {
 ```
 
 Every authored expression has an `ExprId` and owning `BodyId`. Its type is either a known `TyId` or
-an explicit error. Existing value-category, ownership, provenance, call, operator, coercion, and
-adjustment facts remain in the same checker-owned `TypedHir` while Phase 2 and Phase 3 move them
-from compatibility span maps into identity-keyed expression and control-flow records. Invalid or
-incomplete source therefore remains partial rather than becoming an alternate successful model.
-Later phases may render or lower this result; they may not invoke selectors again.
+an explicit error. Value-category, ownership, provenance, call, operator, coercion, and adjustment
+facts remain in the same checker-owned `TypedHir`. Expression semantics use `ExprId`, declaration
+targets use `DefId`, and binding facts use `LocalSymbolId`. Retained occurrence spans locate
+syntax-only operations and diagnostics; Phase 3 moves path-sensitive execution facts into MIR
+rather than treating those locations as identity. Invalid or incomplete source therefore remains
+partial rather than becoming an alternate successful model. Later phases may render or lower this
+result; they may not invoke selectors again.
 
 ## Migration Enforcement
 
