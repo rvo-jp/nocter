@@ -165,7 +165,10 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                         root_scope,
                     ),
                     super::ValueRepresentation::Borrow => {
-                        return Err(BuildError::UnsupportedClaimedExpression);
+                        let crate::ast::TypeExpr::Borrow(borrow) = &parameter.ty else {
+                            return Err(BuildError::UnsupportedClaimedExpression);
+                        };
+                        Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
                     }
                 },
             );
@@ -248,6 +251,9 @@ fn parameter_representation(
     let ty = semantic.typed_hir.type_id(&parameter.ty)?;
     if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
         return Some(super::ValueRepresentation::Scalar(scalar));
+    }
+    if matches!(parameter.ty, crate::ast::TypeExpr::Borrow(_)) {
+        return Some(super::ValueRepresentation::Borrow);
     }
     let aggregate = matches!(
         crate::abi::abi_value_from_type_expr_with_resolver(

@@ -208,7 +208,10 @@
   projections produce separate drops, so cleanup neither destroys moved storage nor leaks sibling
   fields.</li><li>MIR calls carry each argument's checked semantic type and value representation. Scalar, borrow,
   and aggregate arguments therefore share call identity and continuation semantics; conversion to
-  ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.</li><li>Recoverable scalar outcome calls represent <code>otherwise</code> as an explicit failure block that writes
+  ABI-specific machine-IR argument forms is a backend projection rather than a separate call model.
+  Borrow parameter forwarding projects to its ABI pointer word without inventing a scalar local.
+  Borrow and indirect aggregate arguments share one IR-owned predicate that prohibits tail-call
+  frame teardown while an argument still depends on the caller frame.</li><li>Recoverable scalar outcome calls represent <code>otherwise</code> as an explicit failure block that writes
   the call destination and rejoins success. Backend <code>Recover</code> mode is a projection of that CFG;
   <code>Trap</code> and <code>Propagate</code> remain distinct terminal failure edges.</li><li>A discarded scalar catch uses the same failure branch without an error-payload local. The CFG
   rejoin determines recovery semantics, while a named catch will require an explicit failure

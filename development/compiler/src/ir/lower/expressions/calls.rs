@@ -137,5 +137,5 @@ use return_validation::{
     validate_u8_normal_call_return_type, validate_usize_normal_call_return_type,
     validate_void_normal_call_return_type,
 };
-pub(super) use tail_calls::{is_tail_call_stack_pointer_argument, lower_direct_tail_call};
+pub(super) use tail_calls::lower_direct_tail_call;
 use utility::unwrap_group;

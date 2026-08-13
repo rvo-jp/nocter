@@ -889,6 +889,10 @@ impl ScalarArgument {
             Self::AggregateDirect(argument) => argument.words,
         }
     }
+
+    pub(crate) fn requires_current_frame_for_tail_call(&self) -> bool {
+        matches!(self, Self::Borrow(_) | Self::AggregateIndirect(_))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

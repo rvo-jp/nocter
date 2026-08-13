@@ -53,6 +53,17 @@ impl LoweringContext<'_> {
                         representation: crate::mir::ValueRepresentation::Scalar(scalar),
                     });
                 }
+                if super::coverage::borrow_identifier_is_supported(
+                    argument,
+                    self.semantic.resolved,
+                    self.semantic.typed_hir,
+                ) {
+                    return Ok(CallArgument {
+                        operand: self.lower_stored_identifier(argument)?,
+                        ty,
+                        representation: crate::mir::ValueRepresentation::Borrow,
+                    });
+                }
                 let operand = self.lower_copy_aggregate_identifier(argument)?;
                 Ok(CallArgument {
                     operand,
@@ -73,6 +84,10 @@ impl LoweringContext<'_> {
         ) {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
+        self.lower_stored_identifier(expression)
+    }
+
+    fn lower_stored_identifier(&self, expression: &Expr) -> Result<Operand, BuildError> {
         let Expr::Identifier(identifier) = expression.without_groups() else {
             return Err(BuildError::UnsupportedClaimedExpression);
         };

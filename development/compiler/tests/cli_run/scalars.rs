@@ -390,6 +390,37 @@ func right_count(): usize {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_forwards_borrow_parameters_through_mir() {
+    let project = TempProject::new("cli-run-mir-borrow-parameter-forwarding");
+    let source = project.write_source(
+        "borrow_parameter_forwarding.nct",
+        r#"func consume(value: &i32): i32 {
+    return 42
+}
+
+func relay(value: &i32): i32 {
+    return consume(value)
+}
+
+func main(): i32 {
+    let value = 1
+    return relay(&value)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_short_circuits_boolean_rhs() {
     let project = TempProject::new("cli-run-short-circuit-boolean-rhs");
     let source = project.write_source(

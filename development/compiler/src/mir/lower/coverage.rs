@@ -142,7 +142,22 @@ fn scalar_call_shape_is_supported(
                     resolved_sources,
                     typed_hir,
                 )
+                || borrow_identifier_is_supported(argument, resolved, typed_hir)
         })
+}
+
+pub(super) fn borrow_identifier_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typed_hir: &TypedHir,
+) -> bool {
+    let Expr::Identifier(identifier) = expression.without_groups() else {
+        return false;
+    };
+    resolved
+        .local_symbol_for_identifier(identifier)
+        .and_then(|symbol| typed_hir.binding_type_expr(symbol.id))
+        .is_some_and(|ty| matches!(ty, crate::ast::TypeExpr::Borrow(_)))
 }
 
 pub(super) fn copy_aggregate_identifier_is_supported(

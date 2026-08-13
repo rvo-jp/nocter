@@ -28,7 +28,7 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
             .any(|argument| context.expression_contains_borrow(argument.span()))
         || arguments
             .iter()
-            .any(tail_call_argument_requires_current_frame)
+            .any(ScalarArgument::requires_current_frame_for_tail_call)
         || call_arguments_require_stack(&arguments, &callee_name)?
     {
         let Some(return_type) = context.call_return_type(&target).cloned() else {
@@ -46,10 +46,6 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
 
     instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
-}
-
-fn tail_call_argument_requires_current_frame(argument: &ScalarArgument) -> bool {
-    matches!(argument, ScalarArgument::Borrow(_)) || is_tail_call_stack_pointer_argument(argument)
 }
 
 fn fallible_success_tail_call_requires_normal_call(
@@ -138,10 +134,4 @@ fn unsupported_non_tail_return_call_diagnostic(callee_name: &str) -> Vec<Diagnos
             "native lowering cannot lower return call to function `{callee_name}` without tail-call support for this return type"
         ),
     )]
-}
-
-pub(in crate::ir::lower::expressions) fn is_tail_call_stack_pointer_argument(
-    argument: &ScalarArgument,
-) -> bool {
-    matches!(argument, ScalarArgument::AggregateIndirect(_))
 }

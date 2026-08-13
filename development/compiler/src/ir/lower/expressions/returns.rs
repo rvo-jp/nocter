@@ -20,7 +20,7 @@ pub(super) fn replace_success_returns(instructions: Vec<Instruction>) -> Vec<Ins
 }
 
 pub(super) fn never_tail_call_argument_requires_current_frame(argument: &ScalarArgument) -> bool {
-    matches!(argument, ScalarArgument::Borrow(_)) || is_tail_call_stack_pointer_argument(argument)
+    argument.requires_current_frame_for_tail_call()
 }
 
 pub(in crate::ir::lower) fn lower_i32_return_expression(

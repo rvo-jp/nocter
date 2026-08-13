@@ -172,6 +172,56 @@ func forward(pair: Pair): i32 {
 }
 
 #[test]
+fn builds_a_borrow_call_argument_from_a_parameter_place() {
+    let (_sources, analysis) = analyze_text(
+        r#"func consume(value: &i32): i32 {
+    return 42
+}
+
+func relay(value: &i32): i32 {
+    return consume(value)
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "relay" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &function.parameters.parameters,
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("borrow parameter forwarding must select MIR")
+    .unwrap();
+
+    assert_eq!(body.locals[1].representation, ValueRepresentation::Borrow);
+    assert!(matches!(
+        &body.blocks[0].terminator,
+        Terminator::Call { arguments, .. }
+            if matches!(
+                arguments.as_slice(),
+                [crate::mir::CallArgument {
+                    operand: Operand::Copy(place),
+                    representation: ValueRepresentation::Borrow,
+                    ..
+                }] if *place == crate::mir::Place::local(LocalId::from_index(1))
+            )
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_wide_integer_arithmetic_with_canonical_kind() {
     let (_sources, analysis) = analyze_text(
         r#"func add(left: i64, right: i64): i64 {

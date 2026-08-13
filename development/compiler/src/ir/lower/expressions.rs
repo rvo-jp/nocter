@@ -113,11 +113,10 @@ pub(in crate::ir::lower) use calls::{
     primitive_take_value_at_ptr_call,
 };
 use calls::{
-    call_arguments_require_stack, is_tail_call_stack_pointer_argument,
-    lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,
-    lower_arg_count_raw_primitive_call_to_word, lower_arg_raw_primitive_call_to_value,
-    lower_bool_normal_call, lower_borrow_normal_call, lower_call_arguments,
-    lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
+    call_arguments_require_stack, lower_addr_primitive_call_to_location,
+    lower_addr_primitive_call_to_word, lower_arg_count_raw_primitive_call_to_word,
+    lower_arg_raw_primitive_call_to_value, lower_bool_normal_call, lower_borrow_normal_call,
+    lower_call_arguments, lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
     lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call,
     lower_drop_value_at_ptr_primitive_call, lower_env_count_raw_primitive_call_to_word,
     lower_env_entry_raw_primitive_call_to_value, lower_exit_raw_primitive_call,

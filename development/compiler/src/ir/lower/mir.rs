@@ -213,7 +213,7 @@ fn lower_scalar_body(
                     <= crate::abi::ARGUMENT_REGISTER_COUNT
                     && !arguments
                         .iter()
-                        .any(|argument| matches!(argument, ScalarArgument::AggregateIndirect(_)));
+                        .any(ScalarArgument::requires_current_frame_for_tail_call);
 
                 match continuation {
                     CallContinuation::Never => {
@@ -720,11 +720,43 @@ fn lower_call_argument(
             lower_aggregate_call_argument(&argument.operand, context)?
         }
         crate::mir::ValueRepresentation::Borrow => {
-            return Err(invalid_mir_diagnostics(
-                "borrow MIR call arguments have not been projected to machine IR",
-            ));
+            ScalarArgument::Borrow(crate::ir::BorrowArgument {
+                source: lower_borrow_argument_source(&argument.operand, context)?,
+            })
         }
     })
+}
+
+fn lower_borrow_argument_source(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<crate::ir::BorrowSource, Vec<Diagnostic>> {
+    let Operand::Copy(place) = operand else {
+        return Err(invalid_mir_diagnostics(
+            "borrow call argument is not a copied stored place",
+        ));
+    };
+    if place.projection.is_some() {
+        return Err(invalid_mir_diagnostics(
+            "projected borrow call arguments require an explicit MIR loan",
+        ));
+    }
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Borrow { abi_index }) => {
+                Ok(crate::ir::BorrowSource::BorrowParameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "borrow MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(crate::ir::BorrowSource::BorrowLocal(UsizeLocation::Local(
+            machine_local_index(context.body, place.local),
+        ))),
+        LocalStorage::Return => Err(invalid_mir_diagnostics(
+            "return storage cannot be used as a borrow call argument",
+        )),
+    }
 }
 
 fn lower_aggregate_call_argument(
