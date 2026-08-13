@@ -517,9 +517,7 @@ impl OccurrenceBuilder<'_> {
         for occurrence in self.facts.type_occurrences() {
             self.push(
                 occurrence.focus_span,
-                occurrence
-                    .target
-                    .and_then(|target| self.definition_identity(target.span())),
+                occurrence.target.map(SemanticIdentity::Definition),
                 SemanticOccurrenceRole::Reference,
                 SemanticOccurrenceKind::Type,
                 false,

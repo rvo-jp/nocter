@@ -417,8 +417,7 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         .owner
         .map_or(semantic_definition.span, |_| semantic_definition.anchor);
     if semantic_definition.kind == crate::semantic::DefinitionKind::GenericParameter {
-        let span = declaration_span;
-        let parameter = file.typed_hir.generic_parameter(span)?;
+        let parameter = file.typed_hir.generic_parameter(definition)?;
         return Some(HoverInfo {
             span: occurrence.focus_span,
             label: crate::analysis::presentation::generic_parameter_presentation(

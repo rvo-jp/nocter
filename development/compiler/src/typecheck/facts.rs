@@ -60,13 +60,13 @@ use collector::build_typed_hir as lower_typed_hir;
 pub(crate) use conversions::typecheck_conversion_plan;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
-    MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
-    TypecheckCoercionPlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
-    TypecheckComparisonPlan, TypecheckConversionKind, TypecheckConversionPlan,
-    TypecheckIndexAccess, TypecheckIndexPlan, TypecheckIndexProjection, TypecheckInterpolationPart,
-    TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckProtocolMethod, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
-    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, TypedHir,
+    MethodCallSpecialization, TypeOccurrenceFact, TypecheckClosurePlan, TypecheckCoercionPlan,
+    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckComparisonPlan,
+    TypecheckConversionKind, TypecheckConversionPlan, TypecheckIndexAccess, TypecheckIndexPlan,
+    TypecheckIndexProjection, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckProtocolMethod,
+    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind, TypedHir,
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 

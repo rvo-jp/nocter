@@ -250,10 +250,13 @@ impl TypedHir {
         self.generic_parameter_declarations.iter()
     }
 
-    pub(crate) fn generic_parameter(&self, span: ByteSpan) -> Option<&GenericParameterFact> {
+    pub(crate) fn generic_parameter(
+        &self,
+        definition: crate::semantic::DefId,
+    ) -> Option<&GenericParameterFact> {
         self.generic_parameter_declarations
             .iter()
-            .find(|parameter| parameter.span == span)
+            .find(|parameter| parameter.definition == definition)
     }
 
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -881,26 +884,12 @@ impl TypecheckCoercionPlan {
 pub(crate) struct TypeOccurrenceFact {
     pub(crate) focus_span: ByteSpan,
     pub(crate) contextual_type: TypeExpr,
-    pub(crate) target: Option<TypeOccurrenceTarget>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TypeOccurrenceTarget {
-    Declaration(ByteSpan),
-    Member(ByteSpan),
-    GenericParameter(ByteSpan),
-}
-
-impl TypeOccurrenceTarget {
-    pub(crate) const fn span(self) -> ByteSpan {
-        match self {
-            Self::Declaration(span) | Self::Member(span) | Self::GenericParameter(span) => span,
-        }
-    }
+    pub(crate) target: Option<crate::semantic::DefId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GenericParameterFact {
+    pub(crate) definition: crate::semantic::DefId,
     pub(crate) name: String,
     pub(crate) span: ByteSpan,
     pub(crate) is_copy: bool,

@@ -172,16 +172,13 @@ impl TypedHirBuilder<'_> {
         span: ByteSpan,
         contextual_type: TypeExpr,
     ) {
-        let target = self
-            .generic_parameter_declaration(name)
-            .map(TypeOccurrenceTarget::GenericParameter)
-            .or_else(|| {
-                self.resolved
-                    .symbols
-                    .symbol_by_name(name)
-                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
-                    .map(|symbol| TypeOccurrenceTarget::Declaration(symbol.declaration_span))
-            });
+        let target = self.generic_parameter_declaration(name).or_else(|| {
+            self.resolved
+                .symbols
+                .symbol_by_name(name)
+                .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
+                .map(|symbol| symbol.def_id)
+        });
 
         self.facts.type_occurrences.push(TypeOccurrenceFact {
             focus_span: span,
@@ -199,7 +196,7 @@ impl TypedHirBuilder<'_> {
                 self.associated_type_declaration(&projection.name)
             } else {
                 self.generic_parameter_declaration(&reference.name)
-                    .and_then(|span| self.facts.generic_parameter(span))
+                    .and_then(|definition| self.facts.generic_parameter(definition))
                     .and_then(|parameter| {
                         let mut candidates = parameter.bounds.iter().filter_map(|bound| {
                             let name = match bound {
@@ -212,7 +209,11 @@ impl TypedHirBuilder<'_> {
                                 .associated_types
                                 .iter()
                                 .find(|associated| associated.name == projection.name)
-                                .map(|associated| associated.name_span)
+                                .and_then(|associated| {
+                                    self.resolved
+                                        .semantic_db
+                                        .definition_at(associated.name_span)
+                                })
                         });
                         let candidate = candidates.next()?;
                         candidates.next().is_none().then_some(candidate)
@@ -226,12 +227,16 @@ impl TypedHirBuilder<'_> {
                 &projection.name,
                 self.resolved,
             )
-            .map(|(_, associated)| associated.name_span)
+            .and_then(|(_, associated)| {
+                self.resolved
+                    .semantic_db
+                    .definition_at(associated.name_span)
+            })
         };
         self.facts.type_occurrences.push(TypeOccurrenceFact {
             focus_span: projection.name_span,
             contextual_type: TypeExpr::Projection(projection.clone()),
-            target: target.map(TypeOccurrenceTarget::Member),
+            target,
         });
     }
 
@@ -254,7 +259,11 @@ impl TypedHirBuilder<'_> {
                     .iter()
                     .find(|associated| associated.name == binding.name)
             })
-            .map(|associated| TypeOccurrenceTarget::Member(associated.name_span));
+            .and_then(|associated| {
+                self.resolved
+                    .semantic_db
+                    .definition_at(associated.name_span)
+            });
         self.facts.type_occurrences.push(TypeOccurrenceFact {
             focus_span: binding.name_span,
             contextual_type: binding.value.clone(),

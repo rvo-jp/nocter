@@ -79,10 +79,13 @@ impl TypedHirBuilder<'_> {
                     }
                 }
                 self.with_associated_type_scope(
-                    interface
-                        .associated_types
-                        .iter()
-                        .map(|associated| (associated.name.clone(), associated.name_span)),
+                    interface.associated_types.iter().filter_map(|associated| {
+                        let definition = self
+                            .resolved
+                            .semantic_db
+                            .definition_at(associated.name_span)?;
+                        Some((associated.name.clone(), definition))
+                    }),
                     |collector| {
                         for method in &interface.methods {
                             collector.with_generic_scope(&method.generics, |collector| {
@@ -127,7 +130,13 @@ impl TypedHirBuilder<'_> {
                     interface
                         .associated_types
                         .iter()
-                        .map(|associated| (associated.name.clone(), associated.name_span))
+                        .filter_map(|associated| {
+                            let definition = self
+                                .resolved
+                                .semantic_db
+                                .definition_at(associated.name_span)?;
+                            Some((associated.name.clone(), definition))
+                        })
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
@@ -135,9 +144,8 @@ impl TypedHirBuilder<'_> {
                     for member in &conformance.members {
                         match member {
                             ConformanceMember::AssociatedType(binding) => {
-                                if let Some(target) = collector
-                                    .associated_type_declaration(&binding.name)
-                                    .map(TypeOccurrenceTarget::Member)
+                                if let Some(target) =
+                                    collector.associated_type_declaration(&binding.name)
                                 {
                                     collector.facts.type_occurrences.push(TypeOccurrenceFact {
                                         focus_span: binding.name_span,
@@ -200,7 +208,7 @@ impl TypedHirBuilder<'_> {
                     .facts
                     .generic_parameter_declarations
                     .iter_mut()
-                    .find(|parameter| parameter.span == declaration)
+                    .find(|parameter| parameter.definition == declaration)
             {
                 parameter.is_copy = true;
             }
@@ -219,7 +227,7 @@ impl TypedHirBuilder<'_> {
                     .facts
                     .generic_parameter_declarations
                     .iter_mut()
-                    .find(|parameter| parameter.span == declaration)
+                    .find(|parameter| parameter.definition == declaration)
             {
                 for bound in &requirement.bounds {
                     if !parameter.bounds.contains(bound) {

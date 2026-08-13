@@ -427,8 +427,7 @@ fn active_generic_parameters(
         let Some(parameter_owner) = file
             .resolved
             .semantic_db
-            .definition_at(parameter.span)
-            .and_then(|definition| file.resolved.semantic_db.definition(definition))
+            .definition(parameter.definition)
             .and_then(|definition| definition.owner)
         else {
             continue;

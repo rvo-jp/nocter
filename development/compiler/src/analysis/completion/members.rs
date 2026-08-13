@@ -369,8 +369,10 @@ fn generic_bounds_at_offset<'a>(
         .generic_parameter_declarations()
         .filter(|parameter| parameter.name == parameter_name)
         .filter_map(|parameter| {
-            let definition = resolved.semantic_db.definition_at(parameter.span)?;
-            let owner = resolved.semantic_db.definition(definition)?.owner?;
+            let owner = resolved
+                .semantic_db
+                .definition(parameter.definition)?
+                .owner?;
             let distance = resolved
                 .semantic_db
                 .definition_ancestor_distance(owner, body_owner)?;
