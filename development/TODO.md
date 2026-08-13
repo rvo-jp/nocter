@@ -5,12 +5,12 @@
 v0.14.0 Phases 0 through 2 are complete. Phase 3 is in progress. The production MIR route now owns
 the scalar control-flow subset described below, nested value/recovery blocks, scalar borrow
 bindings and lexical loan endings, borrow-parameter forwarding, and copy aggregate call-result
-locals, fields, and forwarding. One construction context owns mutable MIR state and one backend
+locals, fields, forwarding, and fixed-array index loans. One construction context owns mutable MIR state and one backend
 context projects the checked body. MIR construction and validation are authoritative after route
 selection; buildability and machine-IR lowering consume the same retained body and identity-backed
 call edges. The next boundary is owned aggregate construction and an explicit semantic drop plan on
 MIR `Drop` terminators. Do not merely teach the backend to rediscover drop glue from an AST/type
-name. After that, expand aggregate literals/variants/indexes, borrow projections, regions, closures,
+name. After that, expand aggregate variants and projected moves, regions, closures,
 typed literals, interpolation, expansion, and iteration until the AST lowering/buildability routes
 can be deleted. Do not add language features or standard-library APIs during the migration. The
 v0.13.0 tag, archive, release notes, and qualification record are immutable.
@@ -158,17 +158,21 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   transfer their initialization/drop obligation through an explicit move operand
 - direct borrow arguments also use temporary MIR loans; a late single-use projection elides their
   machine slot without erasing the semantic loan or weakening conflict validation
+- checked fixed-array element borrows now append an index segment to the same MIR projection arena;
+  the segment retains its `usize` operand, length, and stride, while backend projection supplies
+  the existing bounds-checked aggregate address operation for both constant and dynamic indexes
 - generic destruction stays keyed by `DefId` and concrete `TyId` until backend projection selects
   the monomorphized runtime symbol
 - payload enums and outcome storage remain excluded until their active-variant/tag structure is
   represented in the same plan domain; never replace that boundary with a direct-destructor-only
   shortcut
-- the next checkpoint routes owned aggregate construction and calls through this MIR cleanup model
+- the next checkpoint represents active variants and partially initialized owned aggregates in the
+  MIR cleanup model, then routes projected aggregate moves without flattening their obligations
 - outcome recovery distinguishes an implicit fallback result from an explicit `return`; the latter
   cannot enter the value-join route until terminal recovery is represented in MIR
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,642 library tests pass at this checkpoint
+- all 2,644 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 
