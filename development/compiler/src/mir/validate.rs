@@ -62,6 +62,17 @@ pub(crate) enum ValidationError {
         header: BasicBlockId,
         condition: BasicBlockId,
     },
+    DuplicateLoopHeader {
+        header: BasicBlockId,
+    },
+    InvalidLoopHeaderPath {
+        header: BasicBlockId,
+        condition: BasicBlockId,
+    },
+    InvalidLoopContinuePath {
+        header: BasicBlockId,
+        continue_target: BasicBlockId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +89,13 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
     }
+    let mut loop_headers = std::collections::HashSet::new();
     for region in &body.loop_regions {
+        if !loop_headers.insert(region.header) {
+            errors.push(ValidationError::DuplicateLoopHeader {
+                header: region.header,
+            });
+        }
         for target in [
             region.header,
             region.condition,
@@ -104,6 +121,20 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             errors.push(ValidationError::InvalidLoopCondition {
                 header: region.header,
                 condition: region.condition,
+            });
+        }
+        if !linear_path_reaches(body, region.header, region.condition) {
+            errors.push(ValidationError::InvalidLoopHeaderPath {
+                header: region.header,
+                condition: region.condition,
+            });
+        }
+        if region.continue_target != region.header
+            && !linear_path_reaches(body, region.continue_target, region.header)
+        {
+            errors.push(ValidationError::InvalidLoopContinuePath {
+                header: region.header,
+                continue_target: region.continue_target,
             });
         }
     }
@@ -272,6 +303,46 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
         Ok(())
     } else {
         Err(errors)
+    }
+}
+
+fn linear_path_reaches(body: &Body, start: BasicBlockId, destination: BasicBlockId) -> bool {
+    let mut current = start;
+    let mut visited = std::collections::HashSet::new();
+    loop {
+        if current == destination {
+            return true;
+        }
+        if !visited.insert(current) {
+            return false;
+        }
+        let Some(block) = body.blocks.get(current.index()) else {
+            return false;
+        };
+        current = match &block.terminator {
+            Terminator::Goto { target } => *target,
+            Terminator::Call {
+                continuation: CallContinuation::Return { target, .. },
+                ..
+            } => *target,
+            Terminator::Call {
+                continuation:
+                    CallContinuation::Outcome {
+                        success, failure, ..
+                    },
+                ..
+            } if body.blocks.get(failure.index()).is_some_and(|failure| {
+                failure.statements.is_empty()
+                    && matches!(
+                        failure.terminator,
+                        Terminator::Trap | Terminator::PropagateFailure
+                    )
+            }) =>
+            {
+                *success
+            }
+            _ => return false,
+        };
     }
 }
 

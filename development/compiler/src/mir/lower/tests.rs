@@ -641,6 +641,17 @@ fn builds_scalar_while_as_a_backedge_cfg() {
     );
     assert_eq!(body.blocks[3].terminator, Terminator::Return);
     assert_eq!(validate(&body), Ok(()));
+
+    let mut duplicate_region = body.clone();
+    duplicate_region.loop_regions.push(body.loop_regions[0]);
+    assert_eq!(
+        validate(&duplicate_region),
+        Err(vec![
+            crate::mir::validate::ValidationError::DuplicateLoopHeader {
+                header: BasicBlockId::from_index(1),
+            }
+        ])
+    );
 }
 
 #[test]
