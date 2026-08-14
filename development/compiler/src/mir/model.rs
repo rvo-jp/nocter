@@ -153,6 +153,12 @@ pub(crate) enum Statement {
         value: Rvalue,
         origin: Origin,
     },
+    Intrinsic {
+        intrinsic: crate::intrinsics::IntrinsicId,
+        arguments: Vec<CallArgument>,
+        type_arguments: Vec<TyId>,
+        origin: Origin,
+    },
     BeginLoan {
         loan: LoanId,
         origin: Origin,
@@ -249,6 +255,7 @@ pub(crate) enum Rvalue {
     Intrinsic {
         intrinsic: crate::intrinsics::IntrinsicId,
         arguments: Vec<CallArgument>,
+        type_arguments: Vec<TyId>,
         result_ty: TyId,
         representation: super::ValueRepresentation,
     },

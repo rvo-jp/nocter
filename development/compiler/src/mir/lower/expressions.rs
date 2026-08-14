@@ -24,6 +24,62 @@ enum PlannedReceiver<'a> {
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
+    pub(super) fn lower_intrinsic_effect(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        origin: crate::mir::Origin,
+        scope: ScopeId,
+    ) -> Result<bool, BuildError> {
+        let Some(intrinsic) = super::coverage::intrinsic_for_call(call, self.semantic) else {
+            return Ok(false);
+        };
+        if !super::coverage::effect_intrinsic_is_supported(intrinsic) {
+            return Ok(false);
+        }
+        let first_new_loan = self.loans.len();
+        let arguments = call
+            .arguments
+            .iter()
+            .map(|argument| self.lower_call_argument(argument, scope))
+            .collect::<Result<Vec<_>, _>>()?;
+        let type_arguments = if intrinsic == crate::intrinsics::IntrinsicId::StoreValueToPtr {
+            self.semantic
+                .typed_hir
+                .function_call_specialization(call.span)
+                .and_then(|specialization| specialization.ordered_type_arguments())
+                .map(|arguments| self.call_type_arguments(Some(arguments)))
+                .transpose()?
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let call_loans = self.loans[first_new_loan..]
+            .iter()
+            .filter(|loan| {
+                loan.lifetime == crate::mir::LoanLifetime::Call
+                    && arguments.iter().any(|argument| {
+                        matches!(
+                            argument.operand,
+                            Operand::Copy(place) | Operand::Move(place)
+                                if place == Place::local(loan.destination)
+                        )
+                    })
+            })
+            .map(|loan| loan.id)
+            .collect::<Vec<_>>();
+        self.control_flow.push_statement(Statement::Intrinsic {
+            intrinsic,
+            arguments,
+            type_arguments,
+            origin,
+        })?;
+        for loan in call_loans {
+            self.control_flow
+                .push_statement(Statement::EndLoan { loan })?;
+        }
+        Ok(true)
+    }
+
     fn lower_intrinsic_rvalue(
         &mut self,
         call: &crate::ast::CallExpr,
@@ -42,9 +98,25 @@ impl LoweringContext<'_> {
             .iter()
             .map(|argument| self.lower_call_argument(argument, scope))
             .collect::<Result<Vec<_>, _>>()?;
+        let type_arguments = if matches!(
+            intrinsic,
+            crate::intrinsics::IntrinsicId::PointeeAlign
+                | crate::intrinsics::IntrinsicId::PointeeSize
+        ) {
+            self.semantic
+                .typed_hir
+                .function_call_specialization(call.span)
+                .and_then(|specialization| specialization.ordered_type_arguments())
+                .map(|arguments| self.call_type_arguments(Some(arguments)))
+                .transpose()?
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         Ok(Some(Rvalue::Intrinsic {
             intrinsic,
             arguments,
+            type_arguments,
             result_ty,
             representation,
         }))
@@ -197,20 +269,45 @@ impl LoweringContext<'_> {
         representation: crate::mir::ValueRepresentation,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        if let Expr::Call(call) = expression.without_groups()
-            && let Some(value) = self.lower_intrinsic_rvalue(call, ty, representation, scope)?
-        {
-            let source = self
-                .semantic
-                .typed_hir
-                .expression(expression.span())
-                .ok_or(BuildError::MissingTypedExpression)?
-                .id;
-            return self.control_flow.push_statement(Statement::Assign {
-                destination: Place::local(destination),
-                value,
-                origin: crate::mir::Origin::Expression(source),
-            });
+        if let Expr::Call(call) = expression.without_groups() {
+            let first_new_loan = self.loans.len();
+            if let Some(value) = self.lower_intrinsic_rvalue(call, ty, representation, scope)? {
+                let origin = self
+                    .semantic
+                    .typed_hir
+                    .expression(expression.span())
+                    .map_or(
+                        crate::mir::Origin::Desugared(expression.span()),
+                        |expression| crate::mir::Origin::Expression(expression.id),
+                    );
+                let call_loans = match &value {
+                    Rvalue::Intrinsic { arguments, .. } => self.loans[first_new_loan..]
+                        .iter()
+                        .filter(|loan| {
+                            loan.lifetime == crate::mir::LoanLifetime::Call
+                                && arguments.iter().any(|argument| {
+                                    matches!(
+                                        argument.operand,
+                                        Operand::Copy(place) | Operand::Move(place)
+                                            if place == Place::local(loan.destination)
+                                    )
+                                })
+                        })
+                        .map(|loan| loan.id)
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                };
+                self.control_flow.push_statement(Statement::Assign {
+                    destination: Place::local(destination),
+                    value,
+                    origin,
+                })?;
+                for loan in call_loans {
+                    self.control_flow
+                        .push_statement(Statement::EndLoan { loan })?;
+                }
+                return Ok(());
+            }
         }
         match representation {
             crate::mir::ValueRepresentation::Unit => Err(BuildError::UnsupportedClaimedExpression),
@@ -534,8 +631,11 @@ impl LoweringContext<'_> {
         argument: &Expr,
         scope: ScopeId,
     ) -> Result<CallArgument, BuildError> {
-        let ty = known_expression_type(argument, self.semantic.typed_hir)
-            .ok_or(BuildError::MissingTypedExpression)?;
+        let ty = match argument.without_groups() {
+            Expr::Call(call) => super::coverage::call_result_type(call, self.semantic),
+            _ => known_expression_type(argument, self.semantic.typed_hir),
+        }
+        .ok_or(BuildError::MissingTypedExpression)?;
         if let Some(scalar) = scalar_type(ty, self.semantic.typed_hir) {
             let operand = self.lower_operand(argument, ty, scalar, scope)?;
             return Ok(CallArgument {
@@ -1472,17 +1572,19 @@ impl LoweringContext<'_> {
             };
         }
 
-        let typed_expression = self
+        let origin = self
             .semantic
             .typed_hir
             .expression(expression.span())
-            .ok_or(BuildError::MissingTypedExpression)?;
+            .map_or(LocalOrigin::Desugared(expression.span()), |expression| {
+                LocalOrigin::Temporary(expression.id)
+            });
         let temporary = LocalId::from_index(self.locals.len());
         self.locals.push(crate::mir::locals::Local::scalar(
             ty,
             scalar,
             LocalStorage::Local,
-            LocalOrigin::Temporary(typed_expression.id),
+            origin,
             scope,
         ));
         self.lower_value_to_place(

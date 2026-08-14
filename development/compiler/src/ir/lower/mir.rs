@@ -1843,6 +1843,21 @@ fn lower_statements(
         if matches!(statement, Statement::EndLoan { .. }) {
             continue;
         }
+        if let Statement::Intrinsic {
+            intrinsic,
+            arguments,
+            type_arguments,
+            ..
+        } = statement
+        {
+            instructions.extend(lower_intrinsic_effect(
+                *intrinsic,
+                arguments,
+                type_arguments,
+                context,
+            )?);
+            continue;
+        }
         let Statement::Assign {
             destination, value, ..
         } = statement
@@ -1850,7 +1865,8 @@ fn lower_statements(
             unreachable!("all MIR statement kinds handled above");
         };
         if destination.projection.is_none()
-            && storage::is_inlined_view_cast(body, destination.local)
+            && (storage::is_inlined_view_cast(body, destination.local)
+                || storage::is_inlined_identity_intrinsic(body, destination.local))
         {
             continue;
         }
@@ -1905,6 +1921,7 @@ fn lower_statements(
         if let Rvalue::Intrinsic {
             intrinsic,
             arguments,
+            type_arguments,
             ..
         } = value
         {
@@ -1912,6 +1929,7 @@ fn lower_statements(
                 destination,
                 *intrinsic,
                 arguments,
+                type_arguments,
                 context,
             )?);
             continue;
@@ -4041,7 +4059,14 @@ fn lower_usize_operand(
             "string literal used as a usize operand",
         )),
         Operand::Copy(place) | Operand::Move(place) => {
-            usize_location(place, context).map(UsizeValue::Location)
+            if place.projection.is_none()
+                && let Some(source) =
+                    storage::inlined_identity_intrinsic_source(context.body, place.local)
+            {
+                lower_usize_operand(source, context)
+            } else {
+                usize_location(place, context).map(UsizeValue::Location)
+            }
         }
     }
 }
@@ -4160,6 +4185,7 @@ fn lower_intrinsic_assignment(
     destination: &Place,
     intrinsic: crate::intrinsics::IntrinsicId,
     arguments: &[crate::mir::CallArgument],
+    type_arguments: &[crate::semantic::TyId],
     context: &BackendContext<'_>,
 ) -> Result<Instruction, Vec<Diagnostic>> {
     let arguments = arguments
@@ -4168,6 +4194,34 @@ fn lower_intrinsic_assignment(
         .collect::<Result<Vec<_>, _>>()?;
     let invalid = || invalid_mir_diagnostics("intrinsic MIR argument contract is invalid");
     Ok(match (intrinsic, arguments.as_slice()) {
+        (
+            crate::intrinsics::IntrinsicId::Addr | crate::intrinsics::IntrinsicId::FromAddr,
+            [ScalarArgument::Usize(value)],
+        ) => Instruction::SetUsize {
+            destination: usize_location(destination, context)?,
+            value: value.clone(),
+        },
+        (
+            crate::intrinsics::IntrinsicId::FromRef | crate::intrinsics::IntrinsicId::FromRefMut,
+            [ScalarArgument::Borrow(value)],
+        ) => Instruction::SetUsizeFromBorrow {
+            destination: usize_location(destination, context)?,
+            source: value.source,
+        },
+        (crate::intrinsics::IntrinsicId::PointeeSize, [ScalarArgument::Usize(_)]) => {
+            let ty = *type_arguments.first().ok_or_else(invalid)?;
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::Const(aggregate_local_abi_value(ty, context)?.layout.size),
+            }
+        }
+        (crate::intrinsics::IntrinsicId::PointeeAlign, [ScalarArgument::Usize(_)]) => {
+            let ty = *type_arguments.first().ok_or_else(invalid)?;
+            Instruction::SetUsize {
+                destination: usize_location(destination, context)?,
+                value: UsizeValue::Const(aggregate_local_abi_value(ty, context)?.layout.align),
+            }
+        }
         (crate::intrinsics::IntrinsicId::BytesFromStr, [ScalarArgument::Str(value)]) => {
             Instruction::SetSlice {
                 destination: slice_location(destination, context)?,
@@ -4282,6 +4336,125 @@ fn lower_intrinsic_assignment(
             pointer: pointer.clone(),
             len: len.clone(),
         },
+        _ => return Err(invalid()),
+    })
+}
+
+fn lower_intrinsic_effect(
+    intrinsic: crate::intrinsics::IntrinsicId,
+    arguments: &[crate::mir::CallArgument],
+    type_arguments: &[crate::semantic::TyId],
+    context: &BackendContext<'_>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| lower_call_argument(argument, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    let invalid = || invalid_mir_diagnostics("intrinsic MIR effect contract is invalid");
+    Ok(match (intrinsic, arguments.as_slice()) {
+        (crate::intrinsics::IntrinsicId::CloseFdRaw, [ScalarArgument::I32(fd)]) => {
+            vec![Instruction::CloseFd { fd: fd.clone() }]
+        }
+        (
+            crate::intrinsics::IntrinsicId::CopyPtrToPtr,
+            [
+                ScalarArgument::Usize(destination),
+                ScalarArgument::Usize(source),
+                ScalarArgument::Usize(byte_count),
+            ],
+        ) => vec![Instruction::CopyPointerBytes {
+            destination: destination.clone(),
+            source: source.clone(),
+            byte_count: byte_count.clone(),
+        }],
+        (
+            crate::intrinsics::IntrinsicId::StoreU8ToPtr,
+            [
+                ScalarArgument::Usize(pointer),
+                ScalarArgument::Usize(offset),
+                ScalarArgument::U8(value),
+            ],
+        ) => vec![Instruction::StoreU8ToPointer {
+            pointer: pointer.clone(),
+            offset: offset.clone(),
+            value: value.clone(),
+        }],
+        (
+            crate::intrinsics::IntrinsicId::StoreValueToPtr,
+            [
+                ScalarArgument::Usize(pointer),
+                ScalarArgument::Usize(offset),
+                value,
+            ],
+        ) => {
+            let store = match value {
+                ScalarArgument::I32(value) => Instruction::StoreI32ToPointer {
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
+                ScalarArgument::U8(value) => Instruction::StoreU8ToPointer {
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
+                ScalarArgument::Usize(value) => Instruction::StoreUsizeToPointer {
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
+                ScalarArgument::Bool(value) => Instruction::StoreBoolToPointer {
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
+                ScalarArgument::Str(value) => Instruction::StoreStrToPointer {
+                    pointer: pointer.clone(),
+                    offset: offset.clone(),
+                    value: value.clone(),
+                },
+                ScalarArgument::AggregateDirect(value) => {
+                    let AggregateArgumentSource::Slot(source) = value.source else {
+                        return Err(invalid());
+                    };
+                    Instruction::CopyAggregateToPointer {
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                        source: crate::ir::AggregateLocation::Slot(source),
+                        layout: value.layout,
+                    }
+                }
+                ScalarArgument::AggregateIndirect(value) => {
+                    let AggregateArgumentSource::Slot(source) = value.source else {
+                        return Err(invalid());
+                    };
+                    let ty = *type_arguments.first().ok_or_else(invalid)?;
+                    Instruction::CopyAggregateToPointer {
+                        pointer: pointer.clone(),
+                        offset: offset.clone(),
+                        source: crate::ir::AggregateLocation::Slot(source),
+                        layout: aggregate_local_abi_value(ty, context)?.layout,
+                    }
+                }
+                ScalarArgument::Borrow(value) => {
+                    let temporary =
+                        UsizeLocation::Local(storage::machine_local_count(context.body));
+                    return Ok(vec![
+                        Instruction::SetUsizeFromBorrow {
+                            destination: temporary,
+                            source: value.source,
+                        },
+                        Instruction::StoreUsizeToPointer {
+                            pointer: pointer.clone(),
+                            offset: offset.clone(),
+                            value: UsizeValue::Location(temporary),
+                        },
+                    ]);
+                }
+                ScalarArgument::Slice(_) => return Err(invalid()),
+            };
+            vec![store]
+        }
         _ => return Err(invalid()),
     })
 }

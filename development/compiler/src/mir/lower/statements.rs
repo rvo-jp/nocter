@@ -401,6 +401,21 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                         }
                         _ => return Err(BuildError::UnsupportedClaimedExpression),
                     };
+                    if matches!(kind, EffectKind::Plain)
+                        && self.context.lower_intrinsic_effect(
+                            call,
+                            self.context
+                                .semantic
+                                .typed_hir
+                                .expression(expression.span())
+                                .map_or(Origin::Desugared(expression.span()), |expression| {
+                                    Origin::Expression(expression.id)
+                                }),
+                            scope,
+                        )?
+                    {
+                        continue;
+                    }
                     let source = self
                         .context
                         .semantic
@@ -562,8 +577,13 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         scalar: ScalarType,
         scope: ScopeId,
     ) -> Result<(), BuildError> {
-        self.context
-            .lower_expression_to_place(destination, expression, ty, scalar, scope)
+        self.context.lower_value_to_place(
+            destination,
+            expression,
+            ty,
+            crate::mir::ValueRepresentation::Scalar(scalar),
+            scope,
+        )
     }
 
     fn lower_assignment_target(

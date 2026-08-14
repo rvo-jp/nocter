@@ -179,7 +179,9 @@ fn scalar_call_shape_is_supported(
         resolved_sources,
         typed_hir,
     };
-    if intrinsic_for_call(call, semantic).is_some_and(value_intrinsic_is_supported) {
+    if intrinsic_for_call(call, semantic).is_some_and(|intrinsic| {
+        value_intrinsic_is_supported(intrinsic) || effect_intrinsic_is_supported(intrinsic)
+    }) {
         return call
             .arguments
             .iter()
@@ -312,7 +314,13 @@ pub(super) fn intrinsic_for_call(
 pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
     matches!(
         intrinsic,
-        crate::intrinsics::IntrinsicId::BytesFromStr
+        crate::intrinsics::IntrinsicId::Addr
+            | crate::intrinsics::IntrinsicId::BytesFromStr
+            | crate::intrinsics::IntrinsicId::FromAddr
+            | crate::intrinsics::IntrinsicId::FromRef
+            | crate::intrinsics::IntrinsicId::FromRefMut
+            | crate::intrinsics::IntrinsicId::PointeeAlign
+            | crate::intrinsics::IntrinsicId::PointeeSize
             | crate::intrinsics::IntrinsicId::StrLenRaw
             | crate::intrinsics::IntrinsicId::SliceLenRaw
             | crate::intrinsics::IntrinsicId::StrPtrAddrRaw
@@ -333,7 +341,25 @@ pub(super) fn value_intrinsic_is_supported(intrinsic: crate::intrinsics::Intrins
     )
 }
 
+pub(super) fn effect_intrinsic_is_supported(intrinsic: crate::intrinsics::IntrinsicId) -> bool {
+    matches!(
+        intrinsic,
+        crate::intrinsics::IntrinsicId::CloseFdRaw
+            | crate::intrinsics::IntrinsicId::CopyPtrToPtr
+            | crate::intrinsics::IntrinsicId::StoreU8ToPtr
+            | crate::intrinsics::IntrinsicId::StoreValueToPtr
+    )
+}
+
 fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    if let Expr::Call(call) = expression.without_groups()
+        && intrinsic_for_call(call, semantic).is_some_and(value_intrinsic_is_supported)
+    {
+        return call
+            .arguments
+            .iter()
+            .all(|argument| call_argument_is_supported(argument, semantic));
+    }
     let Some(ty) = known_expression_type(expression, semantic.typed_hir) else {
         return false;
     };
@@ -2158,6 +2184,27 @@ pub(super) fn known_expression_type(
     effective_expression_type(expression.span(), typed_hir)
 }
 
+pub(super) fn call_result_type(
+    call: &crate::ast::CallExpr,
+    semantic: SemanticInputs<'_>,
+) -> Option<crate::semantic::TyId> {
+    if let Some(ty) = effective_expression_type(call.span, semantic.typed_hir) {
+        return Some(ty);
+    }
+    let signature = semantic.resolved.call_signature_for_call(call)?;
+    let mut return_ty = signature.return_type.clone();
+    if let Some(specialization) = semantic.typed_hir.function_call_specialization(call.span) {
+        let mut substitutions = specialization.substitutions.clone();
+        crate::typecheck::extend_associated_type_substitutions_with_resolver(
+            &mut substitutions,
+            semantic.resolved,
+            |source| semantic.resolver_for(source),
+        );
+        return_ty = crate::ast::substitute_type_expr_parameters(&return_ty, &substitutions);
+    }
+    semantic.typed_hir.type_id(&return_ty)
+}
+
 pub(super) fn value_representation(
     ty: crate::semantic::TyId,
     semantic: SemanticInputs<'_>,
@@ -2488,6 +2535,12 @@ pub(super) fn scalar_type(
     ty: crate::semantic::TyId,
     typed_hir: &TypedHir,
 ) -> Option<super::ScalarType> {
+    if matches!(
+        typed_hir.type_expr_by_id(ty),
+        Some(crate::ast::TypeExpr::Pointer(_))
+    ) {
+        return Some(super::ScalarType::Usize);
+    }
     match typed_hir.scalar_type(ty)? {
         CheckedScalarType::Integer(crate::integer::IntegerType::I32) => {
             Some(super::ScalarType::I32)

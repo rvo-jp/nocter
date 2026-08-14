@@ -136,6 +136,11 @@ pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
                         &mut errors,
                     );
                 }
+                super::Statement::Intrinsic { arguments, .. } => {
+                    for argument in arguments {
+                        consume_operand_move(body, &argument.operand, &mut state);
+                    }
+                }
                 super::Statement::EnterRegion { .. }
                 | super::Statement::ExitRegion { .. }
                 | super::Statement::EnterAllocationContext { .. }

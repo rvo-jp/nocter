@@ -159,6 +159,11 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     reject_mutation(body, block_id, *destination, &state, &mut errors);
                     reject_rvalue_moves(body, block_id, value, &state, &mut errors);
                 }
+                Statement::Intrinsic { arguments, .. } => {
+                    for argument in arguments {
+                        reject_operand_move(body, block_id, &argument.operand, &state, &mut errors);
+                    }
+                }
                 Statement::BeginLoan { loan, .. } => {
                     let Some(declaration) = body.loans.get(loan.index()) else {
                         errors.insert(LoanError {

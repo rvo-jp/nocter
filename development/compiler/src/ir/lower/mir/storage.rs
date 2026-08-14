@@ -30,6 +30,7 @@ fn machine_word_width(body: &Body, id: LocalId, local: &crate::mir::Local) -> us
         || is_inlined_loop_condition(body, id)
         || is_inlined_borrow_temporary(body, id)
         || is_inlined_view_cast(body, id)
+        || is_inlined_identity_intrinsic(body, id)
     {
         return 0;
     }
@@ -39,6 +40,62 @@ fn machine_word_width(body: &Body, id: LocalId, local: &crate::mir::Local) -> us
         ValueRepresentation::View(_) => 2,
         ValueRepresentation::Scalar(_) | ValueRepresentation::Borrow => 1,
     }
+}
+
+pub(super) fn is_inlined_identity_intrinsic(body: &Body, local: LocalId) -> bool {
+    let Some(declaration) = body.locals.get(local.index()) else {
+        return false;
+    };
+    declaration.storage == LocalStorage::Local
+        && declaration.representation == ValueRepresentation::Scalar(crate::mir::ScalarType::Usize)
+        && matches!(declaration.origin, LocalOrigin::Temporary(_))
+        && identity_intrinsic_source(body, local).is_some()
+        && local_definition_count(body, local) == 1
+        && local_use_count(body, local) == 1
+}
+
+pub(super) fn inlined_identity_intrinsic_source(body: &Body, local: LocalId) -> Option<&Operand> {
+    if !is_inlined_identity_intrinsic_shape(body, local) {
+        return None;
+    }
+    identity_intrinsic_source(body, local)
+}
+
+fn is_inlined_identity_intrinsic_shape(body: &Body, local: LocalId) -> bool {
+    let Some(declaration) = body.locals.get(local.index()) else {
+        return false;
+    };
+    declaration.storage == LocalStorage::Local
+        && declaration.representation == ValueRepresentation::Scalar(crate::mir::ScalarType::Usize)
+        && matches!(declaration.origin, LocalOrigin::Temporary(_))
+        && local_definition_count(body, local) == 1
+        && local_use_count(body, local) == 1
+}
+
+fn identity_intrinsic_source(body: &Body, local: LocalId) -> Option<&Operand> {
+    body.blocks.iter().find_map(|block| {
+        block
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::mir::Statement::Assign {
+                    destination,
+                    value:
+                        Rvalue::Intrinsic {
+                            intrinsic:
+                                crate::intrinsics::IntrinsicId::Addr
+                                | crate::intrinsics::IntrinsicId::FromAddr,
+                            arguments,
+                            ..
+                        },
+                    ..
+                } if *destination == crate::mir::Place::local(local) => arguments
+                    .first()
+                    .filter(|_| arguments.len() == 1)
+                    .map(|argument| &argument.operand),
+                _ => None,
+            })
+    })
 }
 
 pub(super) fn is_inlined_view_cast(body: &Body, local: LocalId) -> bool {
@@ -102,10 +159,10 @@ pub(super) fn is_inlined_borrow_temporary(body: &Body, local: LocalId) -> bool {
         && matches!(declaration.origin, LocalOrigin::Temporary(_))
         && local_definition_count(body, local) == 1
         && local_use_count(body, local) == 1
-        && borrow_temporary_is_call_argument(body, local)
+        && borrow_temporary_is_argument(body, local)
 }
 
-fn borrow_temporary_is_call_argument(body: &Body, local: LocalId) -> bool {
+fn borrow_temporary_is_argument(body: &Body, local: LocalId) -> bool {
     body.blocks.iter().any(|block| {
         matches!(
             &block.terminator,
@@ -115,7 +172,19 @@ fn borrow_temporary_is_call_argument(body: &Body, local: LocalId) -> bool {
                     Operand::Copy(place) | Operand::Move(place)
                         if place == crate::mir::Place::local(local)
                 ))
-        )
+        ) || block.statements.iter().any(|statement| {
+            matches!(
+                statement,
+                crate::mir::Statement::Assign {
+                    value: Rvalue::Intrinsic { arguments, .. },
+                    ..
+                } if arguments.iter().any(|argument| matches!(
+                    argument.operand,
+                    Operand::Copy(place) | Operand::Move(place)
+                        if place == crate::mir::Place::local(local)
+                ))
+            )
+        })
     })
 }
 
@@ -172,6 +241,7 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                     crate::mir::Statement::BeginAggregate { .. }
                     | crate::mir::Statement::FinishAggregate { .. } => false,
                     crate::mir::Statement::Assign { destination, .. } => destination.local == local,
+                    crate::mir::Statement::Intrinsic { .. } => false,
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
                         .get(loan.index())
@@ -230,6 +300,10 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                     crate::mir::Statement::BeginAggregate { .. }
                     | crate::mir::Statement::FinishAggregate { .. } => 0,
                     crate::mir::Statement::Assign { value, .. } => rvalue_use_count(value, local),
+                    crate::mir::Statement::Intrinsic { arguments, .. } => arguments
+                        .iter()
+                        .map(|argument| operand_use_count(&argument.operand, local))
+                        .sum(),
                     crate::mir::Statement::BeginLoan { loan, .. } => body
                         .loans
                         .get(loan.index())

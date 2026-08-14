@@ -373,6 +373,37 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 }
                 continue;
             }
+            if let Statement::Intrinsic { arguments, .. } = statement {
+                let location = OperandLocation::Statement(statement_index);
+                for argument in arguments {
+                    let actual =
+                        operand_type(body, block_id, location, &argument.operand, &mut errors);
+                    if actual.is_some_and(|actual| actual != argument.ty) {
+                        errors.push(ValidationError::OperandTypeMismatch {
+                            block: block_id,
+                            location,
+                            expected: argument.ty,
+                            actual: actual.unwrap(),
+                        });
+                    }
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        &argument.operand,
+                        argument.representation,
+                        &mut errors,
+                    );
+                    validate_operand_ownership(
+                        body,
+                        block_id,
+                        location,
+                        &argument.operand,
+                        &mut errors,
+                    );
+                }
+                continue;
+            }
             if !matches!(statement, Statement::Assign { .. }) {
                 continue;
             }

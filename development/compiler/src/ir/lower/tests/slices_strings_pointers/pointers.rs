@@ -315,8 +315,12 @@ pub primitive from_ref<T>(value: &T): *T
                     value: u8_const(1),
                 },
                 Instruction::SetUsizeFromBorrow {
-                    destination: UsizeLocation::Local(1),
+                    destination: UsizeLocation::Local(2),
                     source: BorrowSource::U8(U8Location::Local(0)),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(1),
+                    value: UsizeValue::Location(UsizeLocation::Local(2)),
                 },
                 set_return_i32(0),
                 Instruction::Return,
