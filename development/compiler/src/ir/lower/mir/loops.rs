@@ -432,6 +432,14 @@ fn lower_terminal_terminator(
     terminator: &Terminator,
     instructions: &mut Vec<Instruction>,
 ) -> Result<bool, Vec<Diagnostic>> {
+    if let Terminator::ReturnValue { source } = terminator {
+        instructions.extend(super::lower_value_return(context, source)?);
+        instructions.push(match context.body.return_mode {
+            ReturnMode::Plain => Instruction::Return,
+            ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
+        });
+        return Ok(true);
+    }
     let instruction = match terminator {
         Terminator::Return => match context.body.return_mode {
             ReturnMode::Plain => Instruction::Return,

@@ -23,14 +23,18 @@ func read(resource: Resource): i32 {
     );
 
     assert!(matches!(
-        &function.instructions[function.instructions.len() - 3..],
+        &function.instructions[function.instructions.len() - 4..],
         [
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
             Instruction::CallVoid { target, arguments },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: I32Value::Location(I32Location::Local(0)),
+            },
             Instruction::Return,
         ] if target == &CallTarget::same_file("Resource.drop")
             && matches!(
@@ -936,7 +940,7 @@ func main(): i32 {
                         value: i32_const(3),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(0),
                     },
                     Instruction::CallVoid {
@@ -944,6 +948,10 @@ func main(): i32 {
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -994,7 +1002,7 @@ func main(): i32 {
                         value: i32_const(3),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(0),
                     },
                     Instruction::CallVoid {
@@ -1002,6 +1010,10 @@ func main(): i32 {
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -1287,8 +1299,12 @@ func main(): i32 {
                 then_instructions: vec![
                     drop_file.clone(),
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -1454,8 +1470,12 @@ func touch(): void {
                         arguments: vec![],
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -1720,19 +1740,27 @@ func ready(): bool {
                 condition: BoolValue::Location(BoolLocation::Local(0)),
                 then_instructions: vec![
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(1),
                         value: i32_const(7),
                     },
                     drop_file.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(1),
+                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(1),
                 value: i32_const(0),
             },
             drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(1),
+            },
             Instruction::Return,
         ],
     );
@@ -1983,16 +2011,24 @@ func ready(): bool {
                         value: i32_const(1),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(1),
                         value: i32_const(7),
                     },
                     drop_file,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(1),
+                    },
                     Instruction::Return,
                 ],
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(1),
                 value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(1),
             },
             Instruction::Return,
         ],
@@ -2167,7 +2203,7 @@ func answer(): i32 {
                 value: i32_const(3),
             },
             Instruction::CallI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 target: CallTarget::same_file("answer"),
                 arguments: vec![],
             },
@@ -2176,6 +2212,10 @@ func answer(): i32 {
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
                 })],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
             },
             Instruction::Return,
         ],
@@ -2229,10 +2269,20 @@ func main(): i32 {
             },
             Instruction::If {
                 condition: BoolValue::Const(true),
-                then_instructions: vec![set_return_i32(0)],
-                else_instructions: vec![set_return_i32(1)],
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(0),
+                }],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(1),
+                }],
             },
             drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -2286,20 +2336,26 @@ func main(): i32 {
             },
             Instruction::If {
                 condition: BoolValue::Const(true),
-                then_instructions: vec![drop_call.clone(), set_return_i32(0), Instruction::Return],
+                then_instructions: vec![
+                    drop_call.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    },
+                ],
                 else_instructions: vec![
                     Instruction::SetI32 {
                         destination: I32Location::Local(0),
                         value: i32_const(1),
                     },
                     drop_call,
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
-                    Instruction::Return,
                 ],
             },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
         ],
     );
 }
@@ -2361,15 +2417,19 @@ func choose(flag: bool): usize {
             Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Parameter(0)),
                 then_instructions: vec![Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
+                    destination: UsizeLocation::Local(0),
                     value: usize_const(7),
                 }],
                 else_instructions: vec![Instruction::SetUsize {
-                    destination: UsizeLocation::Return,
+                    destination: UsizeLocation::Local(0),
                     value: usize_const(9),
                 }],
             },
             drop_call,
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::Location(UsizeLocation::Local(0)),
+            },
             Instruction::Return,
         ],
     );
@@ -2482,12 +2542,25 @@ func main(): i32 {
                 condition: BoolValue::Const(true),
                 then_instructions: vec![Instruction::If {
                     condition: BoolValue::Const(false),
-                    then_instructions: vec![set_return_i32(0)],
-                    else_instructions: vec![set_return_i32(1)],
+                    then_instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    }],
+                    else_instructions: vec![Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(1),
+                    }],
                 }],
-                else_instructions: vec![set_return_i32(2)],
+                else_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(2),
+                }],
             },
             drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -2549,8 +2622,14 @@ func main(): i32 {
                     drop_call.clone(),
                     Instruction::If {
                         condition: BoolValue::Const(false),
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                        then_instructions: vec![Instruction::SetI32 {
+                            destination: I32Location::Local(0),
+                            value: i32_const(0),
+                        }],
+                        else_instructions: vec![Instruction::SetI32 {
+                            destination: I32Location::Local(0),
+                            value: i32_const(1),
+                        }],
                     },
                 ],
                 else_instructions: vec![
@@ -2559,13 +2638,13 @@ func main(): i32 {
                         value: i32_const(2),
                     },
                     drop_call,
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: i32_local(0),
-                    },
-                    Instruction::Return,
                 ],
             },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
         ],
     );
 }

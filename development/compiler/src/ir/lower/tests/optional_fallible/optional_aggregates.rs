@@ -220,14 +220,23 @@ func make(): Header? {
             offset: 0,
             value: I32Value::Const(3),
         },
+        Instruction::ReserveAggregateSlot {
+            slot_index: 1,
+            layout: ValueLayout { size: 16, align: 8 },
+        },
         Instruction::CallOutcomeDirectAggregate {
-            destination: AggregateLocation::DirectReturn,
+            destination: AggregateLocation::Slot(1),
             target,
             arguments,
             layout,
             failure_mode: OutcomeFailureMode::Recover { instructions },
         },
         top_drop,
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::DirectReturn,
+            source: AggregateLocation::Slot(1),
+            layout: ValueLayout { size: 16, align: 8 },
+        },
         Instruction::Return,
     ] = function.instructions.as_slice()
     else {
@@ -238,7 +247,7 @@ func make(): Header? {
     assert_eq!(*layout, ValueLayout::new(16, 8));
     assert_eq!(top_drop, &drop_call);
     assert!(instructions.contains(&Instruction::StoreAggregateI32 {
-        destination: AggregateLocation::DirectReturn,
+        destination: AggregateLocation::Slot(1),
         offset: 4,
         value: i32_const(7),
     }));
@@ -406,13 +415,22 @@ func make(): Triple? {
             offset: 0,
             value: I32Value::Const(3),
         },
+        Instruction::ReserveAggregateSlot {
+            slot_index: 1,
+            layout: ValueLayout { size: 24, align: 8 },
+        },
         Instruction::CallOutcomeAggregate {
-            destination: AggregateLocation::Return,
+            destination: AggregateLocation::Slot(1),
             target,
             arguments,
             failure_mode: OutcomeFailureMode::Recover { instructions },
         },
         top_drop,
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::Return,
+            source: AggregateLocation::Slot(1),
+            layout: ValueLayout { size: 24, align: 8 },
+        },
         Instruction::Return,
     ] = function.instructions.as_slice()
     else {
@@ -422,7 +440,7 @@ func make(): Triple? {
     assert!(arguments.is_empty());
     assert_eq!(top_drop, &drop_call);
     assert!(instructions.contains(&Instruction::StoreAggregateUsize {
-        destination: AggregateLocation::Return,
+        destination: AggregateLocation::Slot(1),
         offset: 8,
         value: usize_const(7),
     }));

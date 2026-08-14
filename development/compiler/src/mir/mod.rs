@@ -13,6 +13,8 @@ mod locals;
 mod lower;
 mod model;
 mod places;
+mod replacements;
+mod return_preservation;
 mod scopes;
 mod validate;
 
@@ -52,7 +54,9 @@ pub(crate) fn finalize(mut body: Body) -> Result<Body, Vec<validate::ValidationE
             .map(validate::ValidationError::Initialization)
             .collect());
     }
+    replacements::materialize(&mut body);
     cleanup::materialize(&mut body);
+    return_preservation::materialize(&mut body);
     validate(&body)?;
     Ok(body)
 }

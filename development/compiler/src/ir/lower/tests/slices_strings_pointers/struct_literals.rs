@@ -527,10 +527,14 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 value: i32_const(0),
             },
             drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -825,17 +829,26 @@ func choose(): Pair {
                 offset: 0,
                 value: i32_const(3),
             },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(16, 8),
+            },
             Instruction::StoreAggregateUsize {
-                destination: AggregateLocation::DirectReturn,
+                destination: AggregateLocation::Slot(1),
                 offset: 0,
                 value: usize_const(1),
             },
             Instruction::StoreAggregateUsize {
-                destination: AggregateLocation::DirectReturn,
+                destination: AggregateLocation::Slot(1),
                 offset: 8,
                 value: usize_const(2),
             },
             drop_call,
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::DirectReturn,
+                source: AggregateLocation::Slot(1),
+                layout: ValueLayout::new(16, 8),
+            },
             Instruction::Return,
         ],
     );
@@ -907,31 +920,44 @@ func choose(flag: bool): Pair {
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Parameter(0)),
                     then_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 0,
                             value: usize_const(1),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 8,
                             value: usize_const(2),
                         },
                     ],
                     else_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 0,
                             value: usize_const(3),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 8,
                             value: usize_const(4),
                         },
                     ],
                 },
                 drop_call,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(1),
+                    layout: pair_layout,
+                },
                 Instruction::Return,
             ],
         }

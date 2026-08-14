@@ -767,16 +767,20 @@ func touch(file: &+File): void {
                 then_instructions: vec![
                     touch_call,
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(0),
                     },
                 ],
                 else_instructions: vec![Instruction::SetI32 {
-                    destination: I32Location::Return,
+                    destination: I32Location::Local(0),
                     value: i32_const(1),
                 }],
             },
             drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );

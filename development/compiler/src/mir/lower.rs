@@ -128,11 +128,7 @@ pub(crate) fn try_build_body_with_return_mode(
         typed_hir: inputs.typed_hir,
     };
     let (mut source_statements, mut tail) = scalar_body_parts(block)?;
-    if (return_representation == super::ValueRepresentation::Aggregate
-        && coverage::block_contains_explicit_drop(block))
-        || coverage::block_contains_nested_explicit_drop(block)
-        || coverage::reinitializes_explicitly_dropped_local(&source_statements, inputs.resolved)
-    {
+    if coverage::block_contains_repeating_explicit_drop(block) {
         return None;
     }
     if return_representation == super::ValueRepresentation::Unit
@@ -206,7 +202,8 @@ pub(crate) fn try_build_body_with_return_mode(
             .body_at(block.span)
             .ok_or(BuildError::MissingSourceBody)?;
         let root_scope = ScopeId::from_index(0);
-        let return_local_contract = match return_representation {
+        let mut drop_plans = Vec::new();
+        let mut return_local_contract = match return_representation {
             super::ValueRepresentation::Unit => Local::unit(
                 return_ty,
                 LocalStorage::Return,
@@ -252,8 +249,23 @@ pub(crate) fn try_build_body_with_return_mode(
                 return Err(BuildError::UnsupportedClaimedExpression);
             }
         };
+        if return_local_contract.ownership == OwnershipKind::Move {
+            let return_type_expr = inputs
+                .typed_hir
+                .type_expr_by_id(return_ty)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            return_local_contract.drop_plan = Some(
+                super::drop_plans::build(
+                    return_type_expr,
+                    inputs.resolved,
+                    inputs.resolved_sources,
+                    inputs.typed_hir,
+                    &mut drop_plans,
+                )
+                .ok_or(BuildError::UnsupportedClaimedExpression)?,
+            );
+        }
         let mut locals = vec![return_local_contract];
-        let mut drop_plans = Vec::new();
         let mut places_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
             let symbol = inputs

@@ -213,20 +213,28 @@ func touch(): void {
                         arguments: vec![],
                     },
                     Instruction::LoadAggregateI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
                     drop_file.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 value: i32_const(0),
             },
             drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -298,10 +306,14 @@ func main(): i32 {
                 ],
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 value: i32_const(0),
             },
             drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -365,7 +377,7 @@ func main(): i32 {
     );
     assert!(
         main.instructions.contains(&Instruction::LoadAggregateI32 {
-            destination: I32Location::Return,
+            destination: I32Location::Local(0),
             source: AggregateLocation::Slot(0),
             offset: 0,
         }),

@@ -619,10 +619,6 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         if representation != crate::mir::ValueRepresentation::Aggregate {
             return Err(BuildError::UnsupportedClaimedExpression);
         }
-        let drop_plan = destination
-            .projection
-            .and_then(|projection| self.context.projections[projection.index()].drop_plan)
-            .or(self.context.locals[destination.local.index()].drop_plan);
         if let Expr::Member(member) = assignment.value.without_groups()
             && super::projections::aggregate_value_field_is_supported(member, self.context.semantic)
             && !super::coverage::aggregate_operand_is_supported(
@@ -638,9 +634,6 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 crate::mir::ValueRepresentation::Aggregate,
                 scope,
             )?;
-            if let Some(plan) = drop_plan {
-                self.context.control_flow.emit_drop(destination, plan)?;
-            }
             let origin = self
                 .context
                 .semantic
@@ -661,9 +654,6 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             self.context.semantic.typed_hir,
         ) {
             let operand = self.context.lower_aggregate_operand(&assignment.value)?;
-            if let Some(plan) = drop_plan {
-                self.context.control_flow.emit_drop(destination, plan)?;
-            }
             return self.context.control_flow.push_statement(Statement::Assign {
                 destination,
                 value: Rvalue::Use(operand),
@@ -687,9 +677,6 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
             representation,
             scope,
         )?;
-        if let Some(plan) = drop_plan {
-            self.context.control_flow.emit_drop(destination, plan)?;
-        }
         let operand = match self.context.locals[temporary.index()].ownership {
             crate::mir::OwnershipKind::Move => Operand::Move(Place::local(temporary)),
             crate::mir::OwnershipKind::Copy => Operand::Copy(Place::local(temporary)),

@@ -369,5 +369,10 @@ pub(crate) enum Terminator {
         code: Operand,
         message: Operand,
     },
+    /// Return an ordinary semantic value. ABI return storage is written only
+    /// when this terminal edge is projected to machine IR.
+    ReturnValue {
+        source: Operand,
+    },
     Return,
 }

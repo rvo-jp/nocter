@@ -1101,11 +1101,11 @@ func main(): i32 {
                         value: i32_const(42),
                     },
                     Instruction::SetI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         value: i32_const(0),
                     },
                     Instruction::LoadAggregateU8 {
-                        destination: U8Location::Local(0),
+                        destination: U8Location::Local(1),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
@@ -1113,7 +1113,7 @@ func main(): i32 {
                         condition: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                                U8Location::Local(0),
+                                U8Location::Local(1),
                             ))),
                             right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
                         },
@@ -1127,6 +1127,10 @@ func main(): i32 {
                             })],
                         }],
                         else_instructions: Vec::new(),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -1172,7 +1176,7 @@ func main(): i32 {
         function
             .instructions
             .contains(&Instruction::LoadAggregateU8 {
-                destination: U8Location::Local(0),
+                destination: U8Location::Local(1),
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             })

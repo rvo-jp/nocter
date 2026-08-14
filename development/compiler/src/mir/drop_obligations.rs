@@ -10,12 +10,45 @@ use super::{
     BasicBlockId, Body, CallContinuation, LocalId, LocalStorage, Operand, OwnershipKind, Place,
     Rvalue, Terminator,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, Clone)]
 struct ObligationState {
     may_live: PlaceState,
     must_live: PlaceState,
+}
+
+pub(super) struct ObligationAnalysis {
+    errors: Vec<DropObligationError>,
+    statement_states: HashMap<(BasicBlockId, usize), ObligationState>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReplacementState {
+    Inactive,
+    Live,
+    Conditional,
+}
+
+impl ObligationAnalysis {
+    pub(super) fn replacement_state(
+        &self,
+        body: &Body,
+        block: BasicBlockId,
+        statement: usize,
+        place: Place,
+    ) -> ReplacementState {
+        let Some(state) = self.statement_states.get(&(block, statement)) else {
+            return ReplacementState::Conditional;
+        };
+        if state.must_live.is_available(body, place) {
+            ReplacementState::Live
+        } else if state.may_live.any_available_within(body, place) {
+            ReplacementState::Conditional
+        } else {
+            ReplacementState::Inactive
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,8 +75,15 @@ pub(crate) struct DropObligationError {
 }
 
 pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
+    analyze(body).errors
+}
+
+pub(super) fn analyze(body: &Body) -> ObligationAnalysis {
     if body.blocks.get(body.entry.index()).is_none() {
-        return Vec::new();
+        return ObligationAnalysis {
+            errors: Vec::new(),
+            statement_states: HashMap::new(),
+        };
     }
 
     let mut initial = PlaceState::new(body);
@@ -66,6 +106,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
     });
     let mut queue = VecDeque::from([body.entry]);
     let mut errors = HashSet::new();
+    let mut statement_states = HashMap::new();
 
     while let Some(block_id) = queue.pop_front() {
         let Some(block) = body.blocks.get(block_id.index()) else {
@@ -76,6 +117,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
         };
 
         for (statement_index, statement) in block.statements.iter().enumerate() {
+            statement_states.insert((block_id, statement_index), state.clone());
             match statement {
                 super::Statement::BeginAggregate { .. } => {}
                 super::Statement::FinishAggregate { destination, .. } => {
@@ -229,6 +271,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 consume_operand_move(body, message, &mut state);
                 validate_exit(body, block_id, &state, &mut errors);
             }
+            Terminator::ReturnValue { source } => {
+                consume_operand_move(body, source, &mut state);
+                validate_exit(body, block_id, &state, &mut errors);
+            }
             Terminator::Trap => {}
             Terminator::Return | Terminator::PropagateFailure => {
                 validate_exit(body, block_id, &state, &mut errors);
@@ -245,7 +291,10 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
             error_kind_order(error.kind),
         )
     });
-    errors
+    ObligationAnalysis {
+        errors,
+        statement_states,
+    }
 }
 
 fn finish_destination(body: &Body, place: Place, state: &mut ObligationState) {

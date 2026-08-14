@@ -429,9 +429,15 @@ fn lower_scalar_body(
                         target,
                     } => {
                         let target_block = &body.blocks[target.index()];
-                        let returns_directly = destination.local == body.return_local
-                            && target_block.statements.is_empty()
-                            && target_block.terminator == Terminator::Return;
+                        let returns_directly = target_block.statements.is_empty()
+                            && (destination.local == body.return_local
+                                && target_block.terminator == Terminator::Return
+                                || matches!(
+                                    &target_block.terminator,
+                                    Terminator::ReturnValue {
+                                        source: Operand::Copy(place) | Operand::Move(place),
+                                    } if place == destination
+                                ));
                         let can_tail_call =
                             returns_directly && body.return_mode == ReturnMode::Plain;
                         if can_tail_call {
@@ -555,6 +561,14 @@ fn lower_scalar_body(
                 instructions.push(Instruction::ReturnFallibleFailure {
                     code: lower_str_operand(code, &context)?,
                     message: lower_str_operand(message, &context)?,
+                });
+                return Ok(instructions);
+            }
+            Terminator::ReturnValue { source } => {
+                instructions.extend(lower_value_return(&context, source)?);
+                instructions.push(match body.return_mode {
+                    ReturnMode::Plain => Instruction::Return,
+                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
                 });
                 return Ok(instructions);
             }
@@ -1017,6 +1031,14 @@ fn lower_branch(
                 });
                 return Ok(instructions);
             }
+            Terminator::ReturnValue { source } => {
+                instructions.extend(lower_value_return(context, source)?);
+                instructions.push(match body.return_mode {
+                    ReturnMode::Plain => Instruction::Return,
+                    ReturnMode::Fallible => Instruction::ReturnOutcomeSuccess,
+                });
+                return Ok(instructions);
+            }
             _ => {
                 return Err(invalid_mir_diagnostics(
                     "scalar conditional branch does not reach its join",
@@ -1024,6 +1046,20 @@ fn lower_branch(
             }
         }
     }
+}
+
+fn lower_value_return(
+    context: &BackendContext<'_>,
+    source: &Operand,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_statements(
+        context,
+        &[Statement::Assign {
+            destination: Place::local(context.body.return_local),
+            value: Rvalue::Use(source.clone()),
+            origin: crate::mir::Origin::Desugared(context.body.source_span),
+        }],
+    )
 }
 
 fn call_instruction(

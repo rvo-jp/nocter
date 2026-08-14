@@ -210,6 +210,7 @@ pub(crate) enum OperandLocation {
     CallArgument(usize),
     OutcomeInspection,
     OutcomeReturn,
+    ValueReturn,
     FailureCode,
     FailureMessage,
     Drop,
@@ -872,6 +873,44 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     validate_operand_ownership(body, block_id, location, operand, &mut errors);
                 }
             }
+            Terminator::ReturnValue { source } => {
+                let return_contract = body.locals.get(body.return_local.index());
+                let actual = operand_type(
+                    body,
+                    block_id,
+                    OperandLocation::ValueReturn,
+                    source,
+                    &mut errors,
+                );
+                if let (Some(expected), Some(actual)) =
+                    (return_contract.map(|local| local.ty), actual)
+                    && expected != actual
+                {
+                    errors.push(ValidationError::OperandTypeMismatch {
+                        block: block_id,
+                        location: OperandLocation::ValueReturn,
+                        expected,
+                        actual,
+                    });
+                }
+                if let Some(expected) = return_contract.map(|local| local.representation) {
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        OperandLocation::ValueReturn,
+                        source,
+                        expected,
+                        &mut errors,
+                    );
+                }
+                validate_operand_ownership(
+                    body,
+                    block_id,
+                    OperandLocation::ValueReturn,
+                    source,
+                    &mut errors,
+                );
+            }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }
     }
@@ -1027,7 +1066,11 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         let requires_drop = local.representation == ValueRepresentation::Aggregate
             && local.ownership == OwnershipKind::Move
             && id != body.return_local;
-        if requires_drop != local.drop_plan.is_some()
+        let valid_return_plan = id == body.return_local
+            && local.representation == ValueRepresentation::Aggregate
+            && local.ownership == OwnershipKind::Move
+            && local.drop_plan.is_some();
+        if (!valid_return_plan && requires_drop != local.drop_plan.is_some())
             || local
                 .drop_plan
                 .is_some_and(|plan| plan.index() >= body.drop_plans.len())

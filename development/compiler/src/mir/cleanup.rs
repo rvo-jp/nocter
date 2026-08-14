@@ -201,6 +201,14 @@ pub(super) fn materialize(body: &mut Body) {
                 source_scope,
                 Terminator::ReturnFailure { code, message },
             ),
+            Terminator::ReturnValue { source } => cleanup_exit(
+                body,
+                &analysis,
+                &loans,
+                block_id,
+                source_scope,
+                Terminator::ReturnValue { source },
+            ),
             Terminator::Drop {
                 place,
                 plan,
@@ -256,6 +264,7 @@ fn is_terminal_exit(terminator: &Terminator) -> bool {
         Terminator::Return
             | Terminator::ReturnOutcome { .. }
             | Terminator::ReturnFailure { .. }
+            | Terminator::ReturnValue { .. }
             | Terminator::PropagateFailure
             | Terminator::Trap
     )

@@ -473,21 +473,29 @@ func touch(): void {
                         arguments: vec![],
                     },
                     Instruction::LoadAggregateI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
                     drop_target.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 value: i32_const(0),
             },
             drop_source,
             drop_target,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -887,21 +895,29 @@ func touch(): void {
                         arguments: vec![],
                     },
                     Instruction::LoadAggregateI32 {
-                        destination: I32Location::Return,
+                        destination: I32Location::Local(0),
                         source: AggregateLocation::Slot(1),
                         offset: 0,
                     },
                     drop_target,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
                     Instruction::Return,
                 ],
                 else_instructions: vec![],
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
             drop_source,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -1348,7 +1364,7 @@ func consume(file: File): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
@@ -1357,6 +1373,10 @@ func consume(file: File): i32 {
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
                 })],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
             },
             Instruction::Return,
         ],
@@ -1407,10 +1427,19 @@ func main(): i32 {
                 value: i32_const(1),
             },
             drop_call.clone(),
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            },
             Instruction::StoreAggregateI32 {
-                destination: AggregateLocation::Slot(0),
+                destination: AggregateLocation::Slot(1),
                 offset: 0,
                 value: i32_const(42),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(0),
+                source: AggregateLocation::Slot(1),
+                layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
                 destination: I32Location::Local(0),
@@ -1486,10 +1515,14 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::SetI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 value: i32_const(0),
             },
             drop_target,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::Return,
         ],
     );
@@ -1553,11 +1586,15 @@ func main(): i32! {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Return,
+                destination: I32Location::Local(0),
                 source: AggregateLocation::Slot(0),
                 offset: 0,
             },
             drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
             Instruction::ReturnOutcomeSuccess,
         ],
     );
@@ -1632,26 +1669,43 @@ func choose(flag: bool): Pair {
                 },
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                    then_instructions: vec![Instruction::CallDirectAggregate {
-                        destination: AggregateLocation::DirectReturn,
-                        target: CallTarget::same_file("make_pair"),
-                        arguments: vec![
-                            ScalarArgument::Usize(usize_const(1)),
-                            ScalarArgument::Usize(usize_const(2)),
-                        ],
-                        layout: pair_layout,
-                    }],
-                    else_instructions: vec![Instruction::CallDirectAggregate {
-                        destination: AggregateLocation::DirectReturn,
-                        target: CallTarget::same_file("make_pair"),
-                        arguments: vec![
-                            ScalarArgument::Usize(usize_const(3)),
-                            ScalarArgument::Usize(usize_const(4)),
-                        ],
-                        layout: pair_layout,
-                    }],
+                    then_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
+                        Instruction::CallDirectAggregate {
+                            destination: AggregateLocation::Slot(1),
+                            target: CallTarget::same_file("make_pair"),
+                            arguments: vec![
+                                ScalarArgument::Usize(usize_const(1)),
+                                ScalarArgument::Usize(usize_const(2)),
+                            ],
+                            layout: pair_layout,
+                        },
+                    ],
+                    else_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
+                        Instruction::CallDirectAggregate {
+                            destination: AggregateLocation::Slot(1),
+                            target: CallTarget::same_file("make_pair"),
+                            arguments: vec![
+                                ScalarArgument::Usize(usize_const(3)),
+                                ScalarArgument::Usize(usize_const(4)),
+                            ],
+                            layout: pair_layout,
+                        },
+                    ],
                 },
                 drop_call,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(1),
+                    layout: pair_layout,
+                },
                 Instruction::Return,
             ],
         }
@@ -1754,17 +1808,22 @@ func choose(flag: bool): Pair {
                 Instruction::If {
                     condition: BoolValue::Location(BoolLocation::Parameter(0)),
                     then_instructions: vec![Instruction::CopyAggregate {
-                        destination: AggregateLocation::DirectReturn,
+                        destination: AggregateLocation::Slot(3),
                         source: AggregateLocation::Slot(1),
                         layout: pair_layout,
                     }],
                     else_instructions: vec![Instruction::CopyAggregate {
-                        destination: AggregateLocation::DirectReturn,
+                        destination: AggregateLocation::Slot(3),
                         source: AggregateLocation::Slot(2),
                         layout: pair_layout,
                     }],
                 },
                 drop_call,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(3),
+                    layout: pair_layout,
+                },
                 Instruction::Return,
             ],
         }
@@ -1850,17 +1909,20 @@ func touch(file: &+File): void {
                     condition: BoolValue::Location(BoolLocation::Parameter(0)),
                     then_instructions: vec![
                         drop_call.clone(),
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 0,
                             value: usize_const(1),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(1),
                             offset: 8,
                             value: usize_const(2),
                         },
-                        Instruction::Return,
                     ],
                     else_instructions: vec![
                         touch_call,
@@ -1879,14 +1941,14 @@ func touch(file: &+File): void {
                             value: usize_const(4),
                         },
                         drop_call,
-                        Instruction::CopyAggregate {
-                            destination: AggregateLocation::DirectReturn,
-                            source: AggregateLocation::Slot(1),
-                            layout: pair_layout,
-                        },
-                        Instruction::Return,
                     ],
                 },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(1),
+                    layout: pair_layout,
+                },
+                Instruction::Return,
             ],
         }
     );
@@ -1965,13 +2027,17 @@ func choose(flag: bool): Pair {
                             offset: 0,
                             value: i32_const(1),
                         },
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 2,
+                            layout: pair_layout,
+                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(2),
                             offset: 0,
                             value: usize_const(1),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(2),
                             offset: 8,
                             value: usize_const(2),
                         },
@@ -1987,18 +2053,27 @@ func choose(flag: bool): Pair {
                             offset: 0,
                             value: i32_const(2),
                         },
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 2,
+                            layout: pair_layout,
+                        },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(2),
                             offset: 0,
                             value: usize_const(3),
                         },
                         Instruction::StoreAggregateUsize {
-                            destination: AggregateLocation::DirectReturn,
+                            destination: AggregateLocation::Slot(2),
                             offset: 8,
                             value: usize_const(4),
                         },
                         else_drop_call,
                     ],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(2),
+                    layout: pair_layout,
                 },
                 Instruction::Return
             ],
