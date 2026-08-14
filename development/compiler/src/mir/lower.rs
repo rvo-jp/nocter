@@ -125,9 +125,11 @@ pub(crate) fn try_build_body_with_return_mode(
         || !(tail.expression().is_some_and(|expression| {
             value_expression_is_supported(expression, return_representation, semantic)
         }) || tail.conditional().is_some_and(|conditional| {
-            (matches!(return_representation, super::ValueRepresentation::Scalar(_))
-                || return_representation == super::ValueRepresentation::Aggregate
-                    && source_statements.is_empty())
+            (matches!(
+                return_representation,
+                super::ValueRepresentation::Scalar(_) | super::ValueRepresentation::View(_)
+            ) || return_representation == super::ValueRepresentation::Aggregate
+                && source_statements.is_empty())
                 && value_conditional_is_supported(conditional, return_representation, semantic)
         }))
         || !parameters.iter().all(|parameter| {

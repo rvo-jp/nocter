@@ -1066,23 +1066,20 @@ func choose(flag: bool): &str {
             name: "choose".to_string(),
             target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: Type::Str,
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![
-                    Instruction::SetStr {
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![Instruction::SetStr {
                         destination: StrLocation::Return,
                         value: str_static_value(b"yes"),
-                    },
-                    Instruction::Return,
-                ],
-                else_instructions: vec![
-                    Instruction::SetStr {
+                    }],
+                    else_instructions: vec![Instruction::SetStr {
                         destination: StrLocation::Return,
                         value: str_static_value(b"no"),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+                    }],
+                },
+                Instruction::Return,
+            ],
         }
     );
 }
