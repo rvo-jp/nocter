@@ -252,7 +252,7 @@ impl LoweringContext<'_> {
                 if let Some(definition) = self
                     .semantic
                     .typed_hir
-                    .function_call_target(member.member_span)
+                    .associated_function_target(member.member_span)
                 {
                     let definition = self
                         .semantic
@@ -799,10 +799,9 @@ impl LoweringContext<'_> {
                 } else {
                     let operator = mir_comparison_operator(binary.operator)
                         .ok_or(BuildError::UnsupportedClaimedExpression)?;
-                    let operand_ty = known_expression_type(&binary.left, self.semantic.typed_hir)
-                        .ok_or(BuildError::MissingTypedExpression)?;
-                    let operand_scalar = scalar_type(operand_ty, self.semantic.typed_hir)
-                        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+                    let (operand_ty, operand_scalar) =
+                        super::coverage::comparison_operand_type(binary, self.semantic.typed_hir)
+                            .ok_or(BuildError::UnsupportedClaimedExpression)?;
                     Rvalue::Compare {
                         operator,
                         left: self.lower_operand(

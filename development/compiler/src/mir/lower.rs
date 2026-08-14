@@ -141,6 +141,12 @@ pub(crate) fn try_build_body_with_return_mode(
                 ScalarTail::Conditional(_) => false,
             }
             || tail.expression().is_some_and(|expression| {
+                inputs
+                    .typed_hir
+                    .expression(expression.span())
+                    .is_some_and(|expression| expression.diverges)
+            })
+            || tail.expression().is_some_and(|expression| {
                 value_expression_is_supported(expression, return_representation, semantic)
                     || return_mode == ReturnMode::Fallible
                         && coverage::failure_value_is_supported(expression, semantic)

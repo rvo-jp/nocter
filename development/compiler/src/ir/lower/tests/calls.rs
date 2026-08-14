@@ -147,15 +147,20 @@ func size(): usize {
                 return_type: Type::I32,
                 instructions: vec![
                     call_usize(UsizeLocation::Local(0), "size", vec![]),
-                    Instruction::If {
-                        condition: BoolValue::UsizeComparison {
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(1),
+                        value: BoolValue::UsizeComparison {
                             operator: I32ComparisonOperator::GreaterEqual,
                             left: usize_local(0),
                             right: usize_const(42),
                         },
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
                     },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(1)),
+                        then_instructions: vec![set_return_i32(0)],
+                        else_instructions: vec![set_return_i32(1)],
+                    },
+                    Instruction::Return,
                 ],
             },
             Function {
@@ -202,15 +207,20 @@ func choose(code: i32, value: usize): usize {
                             ScalarArgument::Usize(usize_const(42)),
                         ],
                     ),
-                    Instruction::If {
-                        condition: BoolValue::UsizeComparison {
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(1),
+                        value: BoolValue::UsizeComparison {
                             operator: I32ComparisonOperator::Equal,
                             left: usize_local(0),
                             right: usize_const(42),
                         },
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
                     },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(1)),
+                        then_instructions: vec![set_return_i32(0)],
+                        else_instructions: vec![set_return_i32(1)],
+                    },
+                    Instruction::Return,
                 ],
             },
             Function {
@@ -264,15 +274,20 @@ func identity(value: usize): usize {
                         "forward",
                         vec![ScalarArgument::Usize(usize_const(42))],
                     ),
-                    Instruction::If {
-                        condition: BoolValue::UsizeComparison {
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(1),
+                        value: BoolValue::UsizeComparison {
                             operator: I32ComparisonOperator::Equal,
                             left: usize_local(0),
                             right: usize_const(42),
                         },
-                        then_instructions: vec![set_return_i32(0), Instruction::Return],
-                        else_instructions: vec![set_return_i32(1), Instruction::Return],
                     },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(1)),
+                        then_instructions: vec![set_return_i32(0)],
+                        else_instructions: vec![set_return_i32(1)],
+                    },
+                    Instruction::Return,
                 ],
             },
             Function {

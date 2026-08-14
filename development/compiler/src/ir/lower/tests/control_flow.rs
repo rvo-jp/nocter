@@ -56,15 +56,20 @@ fn lowers_entry_usize_let_binding_then_usize_condition() {
                     destination: UsizeLocation::Local(0),
                     value: usize_const(42),
                 },
-                Instruction::If {
-                    condition: BoolValue::UsizeComparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::Equal,
                         left: usize_local(0),
                         right: usize_const(42),
                     },
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
+                },
+                Instruction::Return,
             ],
         }])
     );
@@ -101,24 +106,29 @@ fn lowers_entry_usize_arithmetic_condition() {
                     value: usize_const(6),
                 },
                 Instruction::MultiplyUsize {
-                    destination: UsizeLocation::Local(3),
+                    destination: UsizeLocation::Local(4),
                     left: usize_local(1),
                     right: usize_const(2),
                 },
                 Instruction::AddUsize {
-                    destination: UsizeLocation::Local(2),
+                    destination: UsizeLocation::Local(3),
                     left: usize_local(0),
-                    right: usize_local(3),
+                    right: usize_local(4),
                 },
-                Instruction::If {
-                    condition: BoolValue::UsizeComparison {
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(2),
+                    value: BoolValue::UsizeComparison {
                         operator: I32ComparisonOperator::Equal,
-                        left: usize_local(2),
+                        left: usize_local(3),
                         right: usize_const(32),
                     },
-                    then_instructions: vec![set_return_i32(0), Instruction::Return],
-                    else_instructions: vec![set_return_i32(1), Instruction::Return],
                 },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(2)),
+                    then_instructions: vec![set_return_i32(0)],
+                    else_instructions: vec![set_return_i32(1)],
+                },
+                Instruction::Return,
             ],
         }])
     );

@@ -166,7 +166,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         merge_entry(&mut entries, &mut queue, *success, state.clone(), body);
                         merge_entry(&mut entries, &mut queue, *failure, state, body);
                     }
-                    CallContinuation::Never => validate_exit(body, block_id, &state, &mut errors),
+                    CallContinuation::Never => {}
                 }
             }
             Terminator::InspectOutcome {
@@ -219,7 +219,8 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 consume_operand_move(body, message, &mut state);
                 validate_exit(body, block_id, &state, &mut errors);
             }
-            Terminator::Return | Terminator::Trap | Terminator::PropagateFailure => {
+            Terminator::Trap => {}
+            Terminator::Return | Terminator::PropagateFailure => {
                 validate_exit(body, block_id, &state, &mut errors);
             }
         }

@@ -908,6 +908,31 @@ pub(super) fn lower_value_block(
     let (statements, tail) =
         scalar_body_parts(block).ok_or(BuildError::UnsupportedClaimedExpression)?;
     StatementLowerer::new(context).lower(&statements, scope)?;
+    if let Some(expression) = tail.expression()
+        && context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .is_some_and(|expression| expression.diverges)
+    {
+        let Expr::Call(call) = expression.without_groups() else {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        };
+        let source = context
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        let (callee, arguments, returns_never) = context.lower_call(call, scope)?;
+        if !returns_never {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        context
+            .control_flow
+            .emit_never_call(source, callee, arguments)?;
+        return Ok(true);
+    }
     let returns = preserve_explicit_return && tail.is_explicit_return();
     if returns
         && tail.expression().is_some_and(|expression| {

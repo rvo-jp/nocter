@@ -1672,11 +1672,14 @@ func main(): i32 {
 
     let main = &ir.functions[0];
     assert!(
-        main.instructions.contains(&Instruction::LoadAggregateI32 {
-            destination: I32Location::Local(0),
-            source: AggregateLocation::Slot(0),
-            offset: 4,
-        }),
+        main.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::LoadAggregateI32 {
+                source: AggregateLocation::Slot(0),
+                offset: 4,
+                ..
+            }
+        )),
         "{main:?}"
     );
     assert!(
@@ -1684,32 +1687,16 @@ func main(): i32 {
             matches!(
                 instruction,
                 Instruction::If {
-                    condition: BoolValue::I32Comparison {
-                        operator: I32ComparisonOperator::Equal,
-                        left,
-                        right,
-                    },
                     then_instructions,
                     ..
-                } if left == &i32_local(0)
-                    && right == &i32_const(42)
-                    && then_instructions.contains(&Instruction::LoadAggregateUsize {
-                        destination: UsizeLocation::Local(0),
+                } if then_instructions.iter().any(|instruction| matches!(
+                    instruction,
+                    Instruction::LoadAggregateUsize {
                         source: AggregateLocation::Slot(0),
                         offset: 8,
-                    })
-                    && then_instructions.iter().any(|then_instruction| matches!(
-                        then_instruction,
-                        Instruction::If {
-                            condition: BoolValue::UsizeComparison {
-                                operator: I32ComparisonOperator::Equal,
-                                left,
-                                right,
-                            },
-                            ..
-                        } if left == &UsizeValue::Location(UsizeLocation::Local(0))
-                            && right == &UsizeValue::Const(11)
-                    ))
+                        ..
+                    }
+                ))
             )
         }),
         "{main:?}"

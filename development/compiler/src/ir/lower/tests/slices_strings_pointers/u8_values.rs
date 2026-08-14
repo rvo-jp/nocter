@@ -482,10 +482,11 @@ func identity(byte: u8): u8 {
                 ),
                 Instruction::SetBool {
                     destination: BoolLocation::Return,
-                    value: BoolValue::I32Comparison {
+                    value: BoolValue::IntegerComparison {
+                        kind: crate::integer::IntegerType::U8,
                         operator: I32ComparisonOperator::NotEqual,
-                        left: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
-                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
+                        left: UsizeValue::U8ZeroExtend(Box::new(u8_local(0))),
+                        right: UsizeValue::U8ZeroExtend(Box::new(u8_const(0))),
                     },
                 },
                 Instruction::Return,

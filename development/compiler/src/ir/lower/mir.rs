@@ -728,6 +728,50 @@ fn lower_branch_to_join(
             Terminator::Call {
                 callee,
                 arguments,
+                continuation: CallContinuation::Never,
+                ..
+            } => {
+                let (call_target, callee_name) = lower_call_target(
+                    callee,
+                    context.resolved,
+                    context.typed_hir,
+                    context.function_names,
+                    context.root_source,
+                )?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                validate_never_call_return_type(
+                    &call_target,
+                    &callee_name,
+                    context.function_signatures,
+                )?;
+                let fits_tail_call_abi = arguments
+                    .iter()
+                    .map(ScalarArgument::abi_word_count)
+                    .sum::<usize>()
+                    <= crate::abi::ARGUMENT_REGISTER_COUNT
+                    && !arguments
+                        .iter()
+                        .any(ScalarArgument::requires_current_frame_for_tail_call);
+                if fits_tail_call_abi {
+                    instructions.push(Instruction::TailCall {
+                        target: call_target,
+                        arguments,
+                    });
+                } else {
+                    instructions.push(Instruction::CallVoid {
+                        target: call_target,
+                        arguments,
+                    });
+                    instructions.push(Instruction::Trap);
+                }
+                return Ok(instructions);
+            }
+            Terminator::Call {
+                callee,
+                arguments,
                 continuation: CallContinuation::Continue { target },
                 ..
             } => {

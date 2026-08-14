@@ -1556,10 +1556,15 @@ impl<'a> IndexedCallable<'a> {
     fn name_declaration(&self) -> Option<(crate::source::ByteSpan, String)> {
         match &self.declaration {
             IndexedDeclaration::Function {
-                declaration,
-                substitutions,
-                name,
-            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
+                declaration, name, ..
+            } if declaration.generics.parameters.is_empty() => Some((
+                if declaration.owner.is_some() {
+                    declaration.member_name_span
+                } else {
+                    declaration.name_span
+                },
+                name.clone(),
+            )),
             IndexedDeclaration::Function { .. } => None,
             IndexedDeclaration::Drop {
                 declaration,

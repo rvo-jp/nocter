@@ -794,41 +794,32 @@ func abort(): never {
                 layout: ValueLayout::new(4, 4),
                 words: 1,
             },
-            instructions: vec![Instruction::If {
-                condition: BoolValue::Const(true),
-                then_instructions: vec![
-                    Instruction::ReserveAggregateSlot {
-                        slot_index: 0,
-                        layout: ValueLayout::new(4, 4),
-                    },
-                    Instruction::StoreAggregateI32 {
-                        destination: AggregateLocation::Slot(0),
-                        offset: 0,
-                        value: i32_const(2),
-                    },
-                    Instruction::TailCall {
-                        target: CallTarget::same_file("abort"),
-                        arguments: vec![],
-                    },
-                ],
-                else_instructions: vec![
-                    Instruction::ReserveAggregateSlot {
-                        slot_index: 1,
-                        layout: ValueLayout::new(4, 4),
-                    },
-                    Instruction::StoreAggregateI32 {
-                        destination: AggregateLocation::Slot(1),
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 0,
+                            layout: ValueLayout::new(4, 4),
+                        },
+                        Instruction::StoreAggregateI32 {
+                            destination: AggregateLocation::Slot(0),
+                            offset: 0,
+                            value: i32_const(2),
+                        },
+                        Instruction::TailCall {
+                            target: CallTarget::same_file("abort"),
+                            arguments: vec![],
+                        },
+                    ],
+                    else_instructions: vec![Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::DirectReturn,
                         offset: 0,
                         value: i32_const(1),
-                    },
-                    Instruction::CopyAggregate {
-                        destination: AggregateLocation::DirectReturn,
-                        source: AggregateLocation::Slot(1),
-                        layout: ValueLayout::new(4, 4),
-                    },
-                    Instruction::Return,
-                ],
-            }],
+                    },],
+                },
+                Instruction::Return
+            ],
         }
     );
 }

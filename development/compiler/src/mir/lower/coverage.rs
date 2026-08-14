@@ -219,7 +219,7 @@ fn scalar_call_shape_is_supported(
                         })
             }
             Expr::Member(member) => {
-                if let Some(definition) = typed_hir.function_call_target(member.member_span) {
+                if let Some(definition) = typed_hir.associated_function_target(member.member_span) {
                     return resolved.semantic_db.definition(definition).is_some()
                         && typed_hir
                             .function_call_specialization(call.span)
@@ -1633,14 +1633,6 @@ fn value_block_is_supported(
     let Some((statements, tail)) = scalar_body_parts(block) else {
         return false;
     };
-    if tail.expression().is_some_and(|expression| {
-        semantic
-            .typed_hir
-            .expression(expression.span())
-            .is_some_and(|typed| typed.diverges)
-    }) {
-        return false;
-    }
     let statements_supported = statements.iter().all(|statement| {
         statement.is_supported_in_context(
             semantic.resolved,
@@ -1679,25 +1671,55 @@ fn scalar_comparison_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &T
     {
         return false;
     }
-    let Some(left_ty) = known_expression_type(&binary.left, typed_hir) else {
+    let Some((_, operand)) = comparison_operand_type(binary, typed_hir) else {
         return false;
     };
-    let Some(right_ty) = known_expression_type(&binary.right, typed_hir) else {
+    !matches!(operand, super::ScalarType::Bool)
+        || matches!(
+            operator,
+            ComparisonOperator::Equal | ComparisonOperator::NotEqual
+        )
+}
+
+pub(super) fn comparison_operand_type(
+    binary: &crate::ast::BinaryExpr,
+    typed_hir: &TypedHir,
+) -> Option<(crate::semantic::TyId, super::ScalarType)> {
+    let left_ty = known_expression_type(&binary.left, typed_hir)?;
+    let right_ty = known_expression_type(&binary.right, typed_hir)?;
+    let left = scalar_type(left_ty, typed_hir)?;
+    let right = scalar_type(right_ty, typed_hir)?;
+    if left_ty == right_ty && left == right {
+        return Some((left_ty, left));
+    }
+    if integer_literal_fits(&binary.right, left) {
+        return Some((left_ty, left));
+    }
+    if integer_literal_fits(&binary.left, right) {
+        return Some((right_ty, right));
+    }
+    None
+}
+
+fn integer_literal_fits(expression: &Expr, scalar: super::ScalarType) -> bool {
+    let Expr::IntegerLiteral(literal) = expression.without_groups() else {
         return false;
     };
-    let Some(left) = scalar_type(left_ty, typed_hir) else {
+    let Some(value) = decode_integer_literal_value(&literal.value) else {
         return false;
     };
-    let Some(right) = scalar_type(right_ty, typed_hir) else {
-        return false;
+    let kind = match scalar {
+        super::ScalarType::I32 => crate::integer::IntegerType::I32,
+        super::ScalarType::U8 => crate::integer::IntegerType::U8,
+        super::ScalarType::Usize => crate::integer::IntegerType::Usize,
+        super::ScalarType::Integer(kind) => kind,
+        super::ScalarType::Bool => return false,
     };
-    left_ty == right_ty
-        && left == right
-        && (!matches!(left, super::ScalarType::Bool)
-            || matches!(
-                operator,
-                ComparisonOperator::Equal | ComparisonOperator::NotEqual
-            ))
+    if kind.is_signed() {
+        value <= u128::from(kind.mask() >> 1)
+    } else {
+        value <= u128::from(kind.mask())
+    }
 }
 
 pub(super) fn known_expression_type(
