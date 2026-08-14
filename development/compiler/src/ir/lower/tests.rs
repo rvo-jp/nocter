@@ -32,6 +32,7 @@ mod drops;
 mod generics;
 mod imports;
 mod interpolation;
+mod iteration;
 mod optional_fallible;
 mod payload_enum_fields;
 mod payload_enums;

@@ -256,7 +256,7 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                 failure,
                 ..
             } => {
-                reject_operand_move(body, block_id, &Operand::Copy(*source), &state, &mut errors);
+                reject_operand_move(body, block_id, source, &state, &mut errors);
                 merge_entry(&mut entries, &mut queue, *success, state.clone());
                 merge_entry(&mut entries, &mut queue, *failure, state);
             }

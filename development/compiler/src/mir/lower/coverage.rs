@@ -5,8 +5,8 @@
 use super::SemanticInputs;
 use super::expressions::{mir_assignment_operator, mir_binary_operator, mir_comparison_operator};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BindingStmt, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    RegionStmt, Stmt, WhileStmt,
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, CollectionForStmt, Expr, ForRangeStmt,
+    IfStmt, LoopStmt, RegionStmt, Stmt, WhileStmt,
 };
 use crate::literals::decode_integer_literal_value;
 use crate::mir::ComparisonOperator;
@@ -19,6 +19,7 @@ pub(super) enum ScalarStatement<'a> {
     Assignment(&'a AssignmentStmt),
     If(&'a IfStmt),
     ForRange(&'a ForRangeStmt),
+    CollectionFor(&'a CollectionForStmt),
     Loop(&'a LoopStmt),
     While(&'a WhileStmt),
     Region(&'a RegionStmt),
@@ -780,6 +781,14 @@ impl<'a> ScalarStatement<'a> {
                     )
                     .is_some()
             }
+            Self::CollectionFor(statement) => collection_for_is_supported(
+                statement,
+                SemanticInputs {
+                    resolved,
+                    resolved_sources,
+                    typed_hir,
+                },
+            ),
             Self::Loop(statement) => {
                 scalar_loop_block_statements(&statement.body, resolved, resolved_sources, typed_hir)
                     .is_some()
@@ -787,6 +796,104 @@ impl<'a> ScalarStatement<'a> {
             Self::Break | Self::Continue => in_loop,
         }
     }
+}
+
+fn collection_for_is_supported(
+    statement: &CollectionForStmt,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(plan) = semantic.typed_hir.collection_for_plan(statement.span) else {
+        return false;
+    };
+    let Some(iterator_ty) = semantic.typed_hir.type_id(&plan.iterator_type) else {
+        return false;
+    };
+    if value_representation(iterator_ty, semantic)
+        != Some(crate::mir::ValueRepresentation::Aggregate)
+        || crate::typecheck::type_expr_is_copy(&plan.iterator_type, semantic.resolved) != Some(true)
+            && !super::super::drop_plans::is_supported(
+                &plan.iterator_type,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            )
+    {
+        return false;
+    }
+    let Some(item_ty) = semantic.typed_hir.type_id(&plan.item_type) else {
+        return false;
+    };
+    let Some(item_representation) = value_representation(item_ty, semantic) else {
+        return false;
+    };
+    if item_representation == crate::mir::ValueRepresentation::Error
+        || crate::typecheck::type_expr_is_copy(&plan.item_type, semantic.resolved) != Some(true)
+            && !super::super::drop_plans::is_supported(
+                &plan.item_type,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            )
+    {
+        return false;
+    }
+    let optional = crate::ast::TypeExpr::Optional(crate::ast::OptionalType {
+        span: statement.span,
+        inner: Box::new(plan.item_type.clone()),
+    });
+    if semantic.typed_hir.type_id(&optional).is_none()
+        || semantic
+            .resolved
+            .semantic_db
+            .definition(plan.step.def_id)
+            .is_none()
+        || semantic.typed_hir.type_id(&plan.step.self_ty).is_none()
+        || plan.step.receiver_mode == crate::ast::MethodReceiverMode::Owned
+    {
+        return false;
+    }
+    let source_supported = match plan.source_mode {
+        crate::typecheck::TypecheckCollectionForSourceMode::Direct => {
+            call_argument_is_supported(&statement.source, semantic)
+        }
+        crate::typecheck::TypecheckCollectionForSourceMode::ReadonlyConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::ReadwriteConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::OwnedConversion => {
+            plan.conversion.as_ref().is_some_and(|method| {
+                semantic
+                    .resolved
+                    .semantic_db
+                    .definition(method.def_id)
+                    .is_some()
+                    && semantic.typed_hir.type_id(&method.self_ty).is_some()
+                    && match method.receiver_mode {
+                        crate::ast::MethodReceiverMode::Owned => {
+                            call_argument_is_supported(&statement.source, semantic)
+                        }
+                        crate::ast::MethodReceiverMode::ReadonlyBorrow
+                        | crate::ast::MethodReceiverMode::ReadwriteBorrow => {
+                            super::borrows::source_place_is_supported(&statement.source, semantic)
+                                || matches!(
+                                    statement.source.without_groups(),
+                                    Expr::Borrow(borrow)
+                                        if super::borrows::source_place_is_supported(
+                                            &borrow.expression,
+                                            semantic,
+                                        )
+                                )
+                        }
+                    }
+            })
+        }
+    };
+    source_supported
+        && scalar_loop_block_statements(
+            &statement.body,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+        .is_some()
 }
 
 pub(super) fn borrow_expression_is_supported(
@@ -802,6 +909,7 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::Assignment(assignment) => Some(ScalarStatement::Assignment(assignment)),
         Stmt::If(statement) => Some(ScalarStatement::If(statement)),
         Stmt::ForRange(statement) => Some(ScalarStatement::ForRange(statement)),
+        Stmt::CollectionFor(statement) => Some(ScalarStatement::CollectionFor(statement)),
         Stmt::Loop(statement) => Some(ScalarStatement::Loop(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Region(statement) => Some(ScalarStatement::Region(statement)),
@@ -904,6 +1012,7 @@ pub(super) fn scalar_linear_block_statements<'a>(
                 ScalarStatement::If(_)
                     | ScalarStatement::While(_)
                     | ScalarStatement::ForRange(_)
+                    | ScalarStatement::CollectionFor(_)
                     | ScalarStatement::Loop(_)
             )
             || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, in_loop)
@@ -976,12 +1085,7 @@ pub(super) fn scalar_loop_block_statements<'a>(
         .collect::<Option<Vec<_>>>()?;
     let mut exited = false;
     for statement in &statements {
-        if exited
-            || matches!(
-                statement,
-                ScalarStatement::While(_) | ScalarStatement::ForRange(_) | ScalarStatement::Loop(_)
-            )
-            || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true)
+        if exited || !statement.is_supported_in_context(resolved, resolved_sources, typed_hir, true)
         {
             return None;
         }

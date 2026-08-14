@@ -208,6 +208,7 @@ pub(crate) enum ValidationError {
 pub(crate) enum OperandLocation {
     Statement(usize),
     CallArgument(usize),
+    OutcomeInspection,
     OutcomeReturn,
     FailureCode,
     FailureMessage,
@@ -255,14 +256,31 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 });
             }
         }
-        if !matches!(
-            body.blocks.get(region.condition.index()).map(|block| &block.terminator),
-            Some(Terminator::Switch {
-                then_target,
-                else_target,
-                ..
-            }) if *then_target == region.body && *else_target == region.exit
-        ) {
+        let valid_condition = body
+            .blocks
+            .get(region.condition.index())
+            .is_some_and(|block| match &block.terminator {
+                Terminator::Switch {
+                    then_target,
+                    else_target,
+                    ..
+                } => {
+                    linear_path_reaches(body, *then_target, region.body)
+                        && linear_path_reaches(body, *else_target, region.exit)
+                }
+                Terminator::InspectOutcome {
+                    layer: crate::outcomes::OutcomeLayer::Optional,
+                    success,
+                    failure,
+                    failure_payload: None,
+                    ..
+                } => {
+                    linear_path_reaches(body, *success, region.body)
+                        && linear_path_reaches(body, *failure, region.exit)
+                }
+                _ => false,
+            });
+        if !valid_condition {
             errors.push(ValidationError::InvalidLoopCondition {
                 header: region.header,
                 condition: region.condition,
@@ -753,10 +771,11 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             } => {
                 validate_target(body, block_id, *success, &mut errors);
                 validate_target(body, block_id, *failure, &mut errors);
-                let valid_source = source.projection.is_none()
-                    && body.locals.get(source.local.index()).is_some_and(|local| {
+                let valid_source = matches!(source, Operand::Copy(place) | Operand::Move(place)
+                if place.projection.is_none()
+                    && body.locals.get(place.local.index()).is_some_and(|local| {
                         local.representation == ValueRepresentation::Aggregate
-                    });
+                    }));
                 let valid_destination = destination.projection.is_none()
                     && body.locals.get(destination.local.index()).is_some();
                 let valid_failure_payload = match (layer, failure_payload) {
@@ -771,6 +790,13 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 if !valid_source || !valid_destination || !valid_failure_payload {
                     errors.push(ValidationError::InvalidOutcomeInspection { block: block_id });
                 }
+                validate_operand_ownership(
+                    body,
+                    block_id,
+                    OperandLocation::OutcomeInspection,
+                    source,
+                    &mut errors,
+                );
             }
             Terminator::Drop {
                 place,

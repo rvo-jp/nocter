@@ -176,7 +176,7 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 failure,
                 ..
             } => {
-                consume_operand_move(body, &Operand::Copy(*source), &mut state);
+                consume_operand_move(body, source, &mut state);
                 let failure_state = state.clone();
                 activate_destination(
                     body,

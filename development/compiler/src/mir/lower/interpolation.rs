@@ -227,7 +227,7 @@ fn lower_receiver(
             return Err(BuildError::UnsupportedClaimedExpression);
         }
     };
-    borrow_place(
+    super::borrows::place_argument(
         context,
         Place::local(temporary),
         &method.self_ty,
@@ -249,7 +249,7 @@ fn borrow_output(
         .typed_hir
         .type_expr_by_id(result_ty)
         .ok_or(BuildError::MissingTypedExpression)?;
-    borrow_place(
+    super::borrows::place_argument(
         context,
         Place::local(destination),
         result_type,
@@ -257,44 +257,6 @@ fn borrow_output(
         scope,
         crate::mir::Origin::Desugared(span),
     )
-}
-
-fn borrow_place(
-    context: &mut LoweringContext<'_>,
-    source: Place,
-    inner: &crate::ast::TypeExpr,
-    readwrite: bool,
-    scope: ScopeId,
-    origin: crate::mir::Origin,
-) -> Result<CallArgument, BuildError> {
-    let borrow_type = crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
-        span: context.scopes[scope.index()].span,
-        is_readwrite: readwrite,
-        inner: Box::new(inner.clone()),
-    });
-    let ty = context
-        .semantic
-        .typed_hir
-        .type_id(&borrow_type)
-        .ok_or(BuildError::MissingMethodReceiverType)?;
-    let local = LocalId::from_index(context.locals.len());
-    context.locals.push(crate::mir::Local::borrow(
-        ty,
-        readwrite,
-        LocalStorage::Local,
-        LocalOrigin::Desugared(context.scopes[scope.index()].span),
-        scope,
-    ));
-    super::borrows::lower_place_to_local(context, local, source, readwrite, scope, origin)?;
-    Ok(CallArgument {
-        operand: if readwrite {
-            Operand::Move(Place::local(local))
-        } else {
-            Operand::Copy(Place::local(local))
-        },
-        ty,
-        representation: crate::mir::ValueRepresentation::Borrow,
-    })
 }
 
 fn planned_origin(origin: crate::semantic::ExprId) -> crate::mir::Origin {

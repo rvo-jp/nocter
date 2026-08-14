@@ -292,6 +292,8 @@ fn lower_scalar_body(
                 &context,
                 current,
                 loop_.condition,
+                loop_.body,
+                loop_.exit,
                 &mut visited,
             )?;
             let body_instructions = loops::lower_linear_loop_body(
@@ -505,7 +507,7 @@ fn lower_scalar_body(
                 instructions.push(outcomes::lower(
                     &context,
                     outcomes::Inspection {
-                        source: *source,
+                        source,
                         layer: *layer,
                         destination: *destination,
                         success: *success,
@@ -834,7 +836,7 @@ fn lower_branch_to_join(
                 instructions.push(outcomes::lower(
                     context,
                     outcomes::Inspection {
-                        source: *source,
+                        source,
                         layer: *layer,
                         destination: *destination,
                         success: *success,

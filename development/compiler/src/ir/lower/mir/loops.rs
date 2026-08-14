@@ -14,6 +14,8 @@ pub(super) fn lower_linear_loop_condition(
     context: &super::BackendContext<'_>,
     start: crate::mir::BasicBlockId,
     condition_block: crate::mir::BasicBlockId,
+    body_block: crate::mir::BasicBlockId,
+    exit_block: crate::mir::BasicBlockId,
     visited: &mut HashSet<crate::mir::BasicBlockId>,
 ) -> Result<(Vec<Instruction>, BoolValue), Vec<Diagnostic>> {
     let body = context.body;
@@ -28,22 +30,89 @@ pub(super) fn lower_linear_loop_condition(
         let block = &body.blocks[current.index()];
         instructions.extend(lower_statements(context, &block.statements)?);
         if current == condition_block {
-            let Terminator::Switch { condition, .. } = &block.terminator else {
-                return Err(super::invalid_mir_diagnostics(
-                    "loop condition path does not end in a switch",
-                ));
-            };
-            if let Some(value) =
-                inline_condition_value(context, condition_block, &block.statements, condition)?
-            {
-                instructions.pop();
-                return Ok((instructions, value));
+            match &block.terminator {
+                Terminator::Switch { condition, .. } => {
+                    if let Some(value) = inline_condition_value(
+                        context,
+                        condition_block,
+                        &block.statements,
+                        condition,
+                    )? {
+                        instructions.pop();
+                        return Ok((instructions, value));
+                    }
+                    return Ok((instructions, lower_bool_operand(condition, context)?));
+                }
+                Terminator::InspectOutcome {
+                    source,
+                    layer: crate::outcomes::OutcomeLayer::Optional,
+                    destination,
+                    success,
+                    failure,
+                    failure_payload: None,
+                    ..
+                } => {
+                    super::reserve_aggregate_destination(context, destination, &mut instructions)?;
+                    let success_cleanup =
+                        lower_condition_edge(context, *success, body_block, visited)?;
+                    let failure_cleanup =
+                        lower_condition_edge(context, *failure, exit_block, visited)?;
+                    let (inspection, condition) = super::outcomes::lower_optional_loop_condition(
+                        context,
+                        source,
+                        *destination,
+                        success_cleanup,
+                        failure_cleanup,
+                    )?;
+                    instructions.push(inspection);
+                    return Ok((instructions, condition));
+                }
+                _ => {
+                    return Err(super::invalid_mir_diagnostics(
+                        "loop condition path does not end in a switch or optional inspection",
+                    ));
+                }
             }
-            return Ok((instructions, lower_bool_operand(condition, context)?));
         }
         current =
             lower_linear_call_terminator(context, &block.terminator, visited, &mut instructions)?;
     }
+}
+
+fn lower_condition_edge(
+    context: &super::BackendContext<'_>,
+    start: crate::mir::BasicBlockId,
+    endpoint: crate::mir::BasicBlockId,
+    visited: &mut HashSet<crate::mir::BasicBlockId>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    let mut current = start;
+    while current != endpoint {
+        if !visited.insert(current) {
+            return Err(super::invalid_mir_diagnostics(
+                "optional loop condition cleanup reuses a lowered block",
+            ));
+        }
+        let block = &context.body.blocks[current.index()];
+        instructions.extend(lower_statements(context, &block.statements)?);
+        current = match &block.terminator {
+            Terminator::Goto { target } => *target,
+            Terminator::Drop {
+                place,
+                plan,
+                target,
+            } => {
+                instructions.extend(super::drops::lower_drop(context, *place, *plan)?);
+                *target
+            }
+            _ => {
+                return Err(super::invalid_mir_diagnostics(
+                    "optional loop condition cleanup is not linear",
+                ));
+            }
+        };
+    }
+    Ok(instructions)
 }
 
 fn inline_condition_value(
@@ -99,6 +168,40 @@ pub(super) fn lower_linear_loop_body(
         if current == exit {
             instructions.push(Instruction::Break);
             return Ok(instructions);
+        }
+        if let Some(nested) = body
+            .loop_regions
+            .iter()
+            .find(|loop_| loop_.header == current)
+        {
+            if !visited.insert(current) {
+                return Err(super::invalid_mir_diagnostics(
+                    "nested loop header reuses an already lowered block",
+                ));
+            }
+            let (condition_instructions, condition) = lower_linear_loop_condition(
+                context,
+                nested.header,
+                nested.condition,
+                nested.body,
+                nested.exit,
+                visited,
+            )?;
+            let body_instructions = lower_linear_loop_body(
+                context,
+                nested.body,
+                nested.header,
+                nested.exit,
+                nested.continue_target,
+                visited,
+            )?;
+            instructions.push(Instruction::While {
+                condition_instructions,
+                condition,
+                body_instructions,
+            });
+            current = nested.exit;
+            continue;
         }
         if !visited.insert(current) {
             return Err(super::invalid_mir_diagnostics(

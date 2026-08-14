@@ -118,6 +118,52 @@ impl<'a> LoweringContext<'a> {
         Ok(id)
     }
 
+    pub(super) fn local_for_type(
+        &mut self,
+        ty: crate::semantic::TyId,
+        origin: crate::mir::LocalOrigin,
+        scope: ScopeId,
+    ) -> Result<LocalId, BuildError> {
+        let representation = super::coverage::value_representation(ty, self.semantic)
+            .ok_or(BuildError::MissingTypedExpression)?;
+        if representation == crate::mir::ValueRepresentation::Aggregate {
+            return self.aggregate_temporary(ty, origin, scope);
+        }
+        let local = match representation {
+            crate::mir::ValueRepresentation::Scalar(scalar) => {
+                Local::scalar(ty, scalar, crate::mir::LocalStorage::Local, origin, scope)
+            }
+            crate::mir::ValueRepresentation::View(kind) => {
+                Local::view(ty, kind, crate::mir::LocalStorage::Local, origin, scope)
+            }
+            crate::mir::ValueRepresentation::Borrow => {
+                let readwrite = self
+                    .semantic
+                    .typed_hir
+                    .type_expr_by_id(ty)
+                    .and_then(|ty| match ty {
+                        crate::ast::TypeExpr::Borrow(borrow) => Some(borrow.is_readwrite),
+                        _ => None,
+                    })
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                Local::borrow(
+                    ty,
+                    readwrite,
+                    crate::mir::LocalStorage::Local,
+                    origin,
+                    scope,
+                )
+            }
+            crate::mir::ValueRepresentation::Error => {
+                Local::error(ty, crate::mir::LocalStorage::Local, origin, scope)
+            }
+            crate::mir::ValueRepresentation::Aggregate => unreachable!(),
+        };
+        let id = LocalId::from_index(self.locals.len());
+        self.locals.push(local);
+        Ok(id)
+    }
+
     pub(super) fn finish(self) -> Result<LoweredBodyParts, BuildError> {
         Ok(LoweredBodyParts {
             locals: self.locals,

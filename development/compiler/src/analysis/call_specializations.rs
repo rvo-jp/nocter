@@ -103,6 +103,13 @@ fn compute_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializ
             else {
                 continue;
             };
+            enqueue_drop_dependencies_for_type(analysis, file, &plan.iterator_type, &mut queue);
+            enqueue_drop_dependencies_for_type(analysis, file, &plan.item_type, &mut queue);
+            let optional_item = TypeExpr::Optional(crate::ast::OptionalType {
+                span: plan.item_type.span(),
+                inner: Box::new(plan.item_type.clone()),
+            });
+            enqueue_drop_dependencies_for_type(analysis, file, &optional_item, &mut queue);
             for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
                 let Some(specialization) = protocol_method_call_specialization(analysis, method)
                 else {

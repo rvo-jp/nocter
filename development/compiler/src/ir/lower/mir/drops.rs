@@ -228,7 +228,12 @@ fn direct_drop(
     let name = context
         .function_names
         .name_for_drop(destructor, ty)
-        .ok_or_else(|| invalid_mir_diagnostics("drop target has no indexed runtime name"))?
+        .ok_or_else(|| {
+            invalid_mir_diagnostics(format!(
+                "drop target {destructor:?} for `{}` has no indexed runtime name",
+                crate::ast::canonical_type_expr(ty)
+            ))
+        })?
         .clone();
     let source = context
         .resolved

@@ -346,7 +346,7 @@ impl FunctionNames {
     pub(super) fn from_index(
         functions: Vec<(DefId, String)>,
         instances: Vec<(crate::mir::CallInstanceKey, String)>,
-        drops: Vec<(DefId, String, String)>,
+        drops: Vec<(DefId, TypeExpr, String)>,
         targets: Vec<(String, CallTarget)>,
     ) -> Self {
         Self {
@@ -354,7 +354,7 @@ impl FunctionNames {
             by_instance: instances.into_iter().collect(),
             drops_by_definition_and_type: drops
                 .into_iter()
-                .map(|(definition, ty, name)| ((definition, ty), name))
+                .map(|(definition, ty, name)| ((definition, drop_type_key(&ty)), name))
                 .collect(),
             unique_targets: UniqueCallTargets::new(targets),
         }
@@ -387,13 +387,34 @@ impl FunctionNames {
         ty: &crate::ast::TypeExpr,
     ) -> Option<&String> {
         self.drops_by_definition_and_type
-            .get(&(definition, crate::ast::canonical_type_expr(ty)))
+            .get(&(definition, drop_type_key(ty)))
             .or_else(|| self.name_for_definition(definition))
     }
 
     fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {
         self.unique_targets.get(name)
     }
+}
+
+fn drop_type_key(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => short_runtime_type_name(&reference.name).to_string(),
+        TypeExpr::Generic(generic) => format!(
+            "{}<{}>",
+            short_runtime_type_name(&generic.name),
+            generic
+                .arguments
+                .iter()
+                .map(crate::ast::canonical_type_expr)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        _ => crate::ast::canonical_type_expr(ty),
+    }
+}
+
+fn short_runtime_type_name(name: &str) -> &str {
+    name.rsplit(['.', '/']).next().unwrap_or(name)
 }
 
 #[derive(Debug, Clone, Default)]

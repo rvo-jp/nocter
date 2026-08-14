@@ -280,7 +280,7 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                 ..
             } => {
                 validate_and_apply_operand(
-                    &Operand::Copy(*source),
+                    source,
                     &mut initialized,
                     block_id,
                     InitializationLocation::Switch,

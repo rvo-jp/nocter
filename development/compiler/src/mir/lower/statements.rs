@@ -14,9 +14,9 @@ use crate::mir::{
 };
 
 #[derive(Debug, Clone, Copy)]
-struct LoopTargets {
-    break_target: crate::mir::BasicBlockId,
-    continue_target: crate::mir::BasicBlockId,
+pub(super) struct LoopTargets {
+    pub(super) break_target: crate::mir::BasicBlockId,
+    pub(super) continue_target: crate::mir::BasicBlockId,
 }
 
 pub(super) struct StatementLowerer<'context, 'semantic> {
@@ -39,7 +39,7 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
         Ok(())
     }
 
-    fn lower_in_context(
+    pub(super) fn lower_in_context(
         &mut self,
         statements: &[ScalarStatement<'_>],
         loop_targets: Option<LoopTargets>,
@@ -316,6 +316,10 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                 ScalarStatement::If(statement) => self.lower_if(statement, loop_targets, scope)?,
                 ScalarStatement::ForRange(statement) => {
                     self.lower_for_range(statement, scope)?;
+                    false
+                }
+                ScalarStatement::CollectionFor(statement) => {
+                    super::iteration::lower(self.context, statement, scope)?;
                     false
                 }
                 ScalarStatement::Loop(statement) => {

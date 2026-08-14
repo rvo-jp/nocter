@@ -966,6 +966,24 @@ impl<'a> FunctionIndex<'a> {
                             )
                         })
                 }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    function
+                        .typed_hir
+                        .collection_for_plans()
+                        .flat_map(|(_, plan)| {
+                            plan.conversion.iter().chain(std::iter::once(&plan.step))
+                        })
+                        .map(|method| {
+                            (
+                                crate::mir::CallInstanceKey::from_types(
+                                    self.callable_bodies.canonical_definition(method.def_id),
+                                    Some(&method.self_ty),
+                                    std::iter::empty(),
+                                ),
+                                method.target_name.clone(),
+                            )
+                        })
+                }))
                 .collect(),
             self.definitions
                 .values()
@@ -973,7 +991,7 @@ impl<'a> FunctionIndex<'a> {
                 .filter_map(|(span, ty, name)| {
                     let authored = self.semantic_db.definition_at(span)?;
                     let definition = self.callable_bodies.canonical_definition(authored);
-                    Some((definition, canonical_type_expr(ty), name))
+                    Some((definition, ty.clone(), name))
                 })
                 .collect(),
             self.definitions

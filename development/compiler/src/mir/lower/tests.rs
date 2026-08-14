@@ -320,7 +320,7 @@ func main(): i32 {
                 failure_payload,
                 ..
             } => Some((
-                *source,
+                source.clone(),
                 *layer,
                 *destination,
                 *success,
@@ -330,6 +330,9 @@ func main(): i32 {
             _ => None,
         });
     let (source, layer, destination, success, failure, failure_payload) = inspection.unwrap();
+    let (Operand::Copy(source) | Operand::Move(source)) = source else {
+        panic!("stored outcome inspection source must be a place")
+    };
     assert_eq!(
         body.locals[source.local.index()].representation,
         ValueRepresentation::Aggregate

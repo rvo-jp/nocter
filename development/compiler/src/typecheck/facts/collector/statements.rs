@@ -158,6 +158,28 @@ impl TypedHirBuilder<'_> {
                     return;
                 };
                 if let Some(plan) = collection_for_fact(statement, &resolution, self.resolved) {
+                    self.intern_compiler_type_tree(&plan.source_type);
+                    self.intern_compiler_type_tree(&plan.iterator_type);
+                    self.intern_compiler_type_tree(&plan.item_type);
+                    self.intern_compiler_type_tree(&crate::ast::TypeExpr::Optional(
+                        crate::ast::OptionalType {
+                            span: statement.span,
+                            inner: Box::new(plan.item_type.clone()),
+                        },
+                    ));
+                    for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+                        self.intern_compiler_type_tree(&method.self_ty);
+                        if method.receiver_mode != crate::ast::MethodReceiverMode::Owned {
+                            self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(
+                                crate::ast::BorrowType {
+                                    span: statement.span,
+                                    is_readwrite: method.receiver_mode
+                                        == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+                                    inner: Box::new(method.self_ty.clone()),
+                                },
+                            ));
+                        }
+                    }
                     self.facts.collection_for_plans.insert(statement.span, plan);
                 }
                 self.record_drop_type_specialization(

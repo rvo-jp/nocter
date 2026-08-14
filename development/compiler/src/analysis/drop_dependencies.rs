@@ -33,12 +33,21 @@ fn collect_drop_dependencies(
         return;
     }
 
-    let file = analysis
+    let source_file = analysis
         .file_by_source(ty.span().source)
         .unwrap_or(fallback_file);
+    let file = resolver_file_for_type(analysis, source_file, ty).unwrap_or(source_file);
     let resolved = &file.resolved;
-    if let Some(specialization) =
-        drop_type_specialization_from_self_ty(ty, resolved, HashSet::new())
+    if let Some(specialization) = std::iter::once(file)
+        .chain(
+            analysis
+                .files
+                .iter()
+                .filter(|candidate| candidate.ast.span.source != file.ast.span.source),
+        )
+        .find_map(|candidate| {
+            drop_type_specialization_from_self_ty(ty, &candidate.resolved, HashSet::new())
+        })
     {
         dependencies.push(specialization);
     }
@@ -116,4 +125,24 @@ fn collect_drop_dependencies(
     }
 
     visiting.remove(&key);
+}
+
+fn resolver_file_for_type<'a>(
+    analysis: &'a CompileUnitAnalysis,
+    preferred: &'a FileAnalysis,
+    ty: &TypeExpr,
+) -> Option<&'a FileAnalysis> {
+    let name = match ty {
+        TypeExpr::Reference(reference) => &reference.name,
+        TypeExpr::Generic(generic) => &generic.name,
+        _ => return Some(preferred),
+    };
+    std::iter::once(preferred)
+        .chain(
+            analysis
+                .files
+                .iter()
+                .filter(|candidate| candidate.ast.span.source != preferred.ast.span.source),
+        )
+        .find(|file| file.resolved.type_symbol_by_reference_name(name).is_some())
 }

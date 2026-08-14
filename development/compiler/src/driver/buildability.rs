@@ -585,6 +585,18 @@ impl<'a> CallableIndex<'a> {
                     );
                 }
             }
+            for (_, plan) in file.typed_hir.collection_for_plans() {
+                for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+                    names.insert_instance(
+                        crate::mir::CallInstanceKey::from_types(
+                            analysis.callable_bodies.canonical_definition(method.def_id),
+                            Some(&method.self_ty),
+                            std::iter::empty(),
+                        ),
+                        method.target_name.clone(),
+                    );
+                }
+            }
         }
         for callable in definitions.values() {
             if callable.substitutions.is_empty() {

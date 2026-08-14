@@ -200,7 +200,7 @@ fn lower_recovery_to_place_with_scope(
             let (stored, layer) = stored_outcome_source(context, source_expression)?;
             context.control_flow.begin_stored_outcome_inspection(
                 crate::mir::Origin::Expression(source),
-                stored,
+                stored_outcome_operand(context, stored),
                 layer,
                 destination.local,
                 fallback_scope,
@@ -226,7 +226,7 @@ fn lower_recovery_to_place_with_scope(
                 .ok_or(super::super::BuildError::UnsupportedClaimedExpression)?;
             context.control_flow.begin_stored_outcome_inspection(
                 crate::mir::Origin::Expression(source),
-                crate::mir::Place::local(stored),
+                stored_outcome_operand(context, crate::mir::Place::local(stored)),
                 layer,
                 destination.local,
                 fallback_scope,
@@ -309,11 +309,22 @@ pub(super) fn lower_terminal_stored_outcome_to_place(
     };
     context.control_flow.emit_stored_outcome_inspection(
         crate::mir::Origin::Expression(source),
-        stored,
+        stored_outcome_operand(context, stored),
         layer,
         destination,
         failure,
     )
+}
+
+fn stored_outcome_operand(
+    context: &LoweringContext<'_>,
+    source: crate::mir::Place,
+) -> crate::mir::Operand {
+    if context.locals[source.local.index()].ownership == crate::mir::OwnershipKind::Move {
+        crate::mir::Operand::Move(source)
+    } else {
+        crate::mir::Operand::Copy(source)
+    }
 }
 
 pub(super) fn stored_outcome_source(

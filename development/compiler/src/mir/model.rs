@@ -330,7 +330,7 @@ pub(crate) enum Terminator {
     /// backend concern derived from the source local's checked `TyId`.
     InspectOutcome {
         origin: Origin,
-        source: Place,
+        source: Operand,
         layer: crate::outcomes::OutcomeLayer,
         destination: Place,
         success: BasicBlockId,

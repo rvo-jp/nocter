@@ -3,7 +3,7 @@
 use super::BuildError;
 use crate::mir::ids::BasicBlockId;
 use crate::mir::{
-    CallArgument, CallContinuation, LocalId, Origin, Place, ScopeId, Statement, Terminator,
+    CallArgument, CallContinuation, LocalId, Operand, Origin, Place, ScopeId, Statement, Terminator,
 };
 use crate::semantic::ExprId;
 
@@ -213,7 +213,7 @@ impl ControlFlowBuilder {
     pub(super) fn begin_stored_outcome_inspection(
         &mut self,
         origin: Origin,
-        source: Place,
+        source: Operand,
         layer: crate::outcomes::OutcomeLayer,
         destination: LocalId,
         failure_scope: ScopeId,
@@ -237,7 +237,7 @@ impl ControlFlowBuilder {
     pub(super) fn emit_stored_outcome_inspection(
         &mut self,
         origin: Origin,
-        source: Place,
+        source: Operand,
         layer: crate::outcomes::OutcomeLayer,
         destination: LocalId,
         failure_terminator: Terminator,

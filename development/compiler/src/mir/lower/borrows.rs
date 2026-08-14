@@ -5,6 +5,44 @@ use super::{BuildError, SemanticInputs};
 use crate::ast::Expr;
 use crate::mir::{BorrowKind, Loan, LoanId, Origin, Place, ScopeId, Statement};
 
+pub(super) fn place_argument(
+    context: &mut LoweringContext<'_>,
+    source: Place,
+    inner: &crate::ast::TypeExpr,
+    readwrite: bool,
+    scope: ScopeId,
+    origin: Origin,
+) -> Result<crate::mir::CallArgument, BuildError> {
+    let borrow_type = crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+        span: context.scopes[scope.index()].span,
+        is_readwrite: readwrite,
+        inner: Box::new(inner.clone()),
+    });
+    let ty = context
+        .semantic
+        .typed_hir
+        .type_id(&borrow_type)
+        .ok_or(BuildError::MissingMethodReceiverType)?;
+    let local = crate::mir::LocalId::from_index(context.locals.len());
+    context.locals.push(crate::mir::Local::borrow(
+        ty,
+        readwrite,
+        crate::mir::LocalStorage::Local,
+        crate::mir::LocalOrigin::Desugared(context.scopes[scope.index()].span),
+        scope,
+    ));
+    lower_place_to_local(context, local, source, readwrite, scope, origin)?;
+    Ok(crate::mir::CallArgument {
+        operand: if readwrite {
+            crate::mir::Operand::Move(Place::local(local))
+        } else {
+            crate::mir::Operand::Copy(Place::local(local))
+        },
+        ty,
+        representation: crate::mir::ValueRepresentation::Borrow,
+    })
+}
+
 pub(super) fn expression_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
     let Expr::Borrow(borrow) = expression.without_groups() else {
         return false;
