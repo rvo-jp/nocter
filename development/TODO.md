@@ -192,14 +192,17 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - aggregate construction has explicit begin, projected-field initialization, and finish statements;
   failure during a later field drops only completed owned children through ordinary place-state
   cleanup, without runtime live flags or an atomic aggregate rvalue
-- the next checkpoint migrates stored optional/fallible values, useful named-error views, and the
+- plain `void` and fallible `void!` expression statements use destination-free MIR call
+  continuations; fallible effects preserve trapping and propagation edges without manufacturing a
+  value local
+- the next checkpoint migrates stored optional/fallible values, failure-value returns, and the
   remaining advanced-expression families
 - value blocks retain whether their tail is an implicit value or an explicit `return`; terminal
   recovery branches write return storage and exit, while value fallbacks assign the call
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,663 library tests pass at this checkpoint
+- all 2,665 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

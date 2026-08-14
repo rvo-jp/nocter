@@ -244,12 +244,20 @@ pub(crate) struct CallArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CallContinuation {
+    Continue {
+        target: BasicBlockId,
+    },
     Return {
         destination: Place,
         target: BasicBlockId,
     },
     Outcome {
         destination: Place,
+        success: BasicBlockId,
+        failure: BasicBlockId,
+        failure_payload: Option<LocalId>,
+    },
+    OutcomeEffect {
         success: BasicBlockId,
         failure: BasicBlockId,
         failure_payload: Option<LocalId>,

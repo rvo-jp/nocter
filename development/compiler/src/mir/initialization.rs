@@ -205,6 +205,10 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     );
                 }
                 match continuation {
+                    CallContinuation::Continue { target } => {
+                        edge_states.insert((block_id, *target), initialized.clone());
+                        merge_entry(&mut entries, &mut queue, *target, initialized, body);
+                    }
                     CallContinuation::Return {
                         destination,
                         target,
@@ -224,6 +228,20 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                             failure_state.initialize(body, Place::local(*payload));
                         }
                         initialized.initialize(body, *destination);
+                        edge_states.insert((block_id, *success), initialized.clone());
+                        edge_states.insert((block_id, *failure), failure_state.clone());
+                        merge_entry(&mut entries, &mut queue, *success, initialized, body);
+                        merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
+                    }
+                    CallContinuation::OutcomeEffect {
+                        success,
+                        failure,
+                        failure_payload,
+                    } => {
+                        let mut failure_state = initialized.clone();
+                        if let Some(payload) = failure_payload {
+                            failure_state.initialize(body, Place::local(*payload));
+                        }
                         edge_states.insert((block_id, *success), initialized.clone());
                         edge_states.insert((block_id, *failure), failure_state.clone());
                         merge_entry(&mut entries, &mut queue, *success, initialized, body);

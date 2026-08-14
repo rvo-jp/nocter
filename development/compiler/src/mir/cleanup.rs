@@ -38,6 +38,11 @@ pub(super) fn materialize(body: &mut Body) {
                 callee,
                 arguments,
                 continuation: match continuation {
+                    super::CallContinuation::Continue { target } => {
+                        super::CallContinuation::Continue {
+                            target: cleanup_edge(body, &analysis, block_id, source_scope, target),
+                        }
+                    }
                     super::CallContinuation::Return {
                         destination,
                         target,
@@ -52,6 +57,15 @@ pub(super) fn materialize(body: &mut Body) {
                         failure_payload,
                     } => super::CallContinuation::Outcome {
                         destination,
+                        success: cleanup_edge(body, &analysis, block_id, source_scope, success),
+                        failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                        failure_payload,
+                    },
+                    super::CallContinuation::OutcomeEffect {
+                        success,
+                        failure,
+                        failure_payload,
+                    } => super::CallContinuation::OutcomeEffect {
                         success: cleanup_edge(body, &analysis, block_id, source_scope, success),
                         failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
                         failure_payload,

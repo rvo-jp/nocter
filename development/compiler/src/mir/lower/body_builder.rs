@@ -110,6 +110,22 @@ impl ControlFlowBuilder {
         self.select_block(target)
     }
 
+    pub(super) fn emit_effect_call(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+    ) -> Result<(), BuildError> {
+        let target = self.reserve_block(self.current_scope()?);
+        self.terminate(Terminator::Call {
+            origin: Origin::Expression(source),
+            callee,
+            arguments,
+            continuation: CallContinuation::Continue { target },
+        })?;
+        self.select_block(target)
+    }
+
     pub(super) fn emit_never_call(
         &mut self,
         source: ExprId,
@@ -148,6 +164,24 @@ impl ControlFlowBuilder {
             destination,
             Terminator::PropagateFailure,
         )
+    }
+
+    pub(super) fn emit_trapping_outcome_effect(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+    ) -> Result<(), BuildError> {
+        self.emit_outcome_effect(source, callee, arguments, Terminator::Trap)
+    }
+
+    pub(super) fn emit_propagating_outcome_effect(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+    ) -> Result<(), BuildError> {
+        self.emit_outcome_effect(source, callee, arguments, Terminator::PropagateFailure)
     }
 
     pub(super) fn begin_handled_outcome_call(
@@ -197,6 +231,35 @@ impl ControlFlowBuilder {
             arguments,
             continuation: CallContinuation::Outcome {
                 destination: Place::local(destination),
+                success,
+                failure,
+                failure_payload: None,
+            },
+        })?;
+        self.select_block(failure)?;
+        self.terminate(failure_terminator)?;
+        self.select_block(success)
+    }
+
+    fn emit_outcome_effect(
+        &mut self,
+        source: ExprId,
+        callee: DefId,
+        arguments: Vec<CallArgument>,
+        failure_terminator: Terminator,
+    ) -> Result<(), BuildError> {
+        debug_assert!(matches!(
+            failure_terminator,
+            Terminator::Trap | Terminator::PropagateFailure
+        ));
+        let scope = self.current_scope()?;
+        let success = self.reserve_block(scope);
+        let failure = self.reserve_block(scope);
+        self.terminate(Terminator::Call {
+            origin: Origin::Expression(source),
+            callee,
+            arguments,
+            continuation: CallContinuation::OutcomeEffect {
                 success,
                 failure,
                 failure_payload: None,

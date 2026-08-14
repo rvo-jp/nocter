@@ -123,6 +123,9 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                     consume_operand_move(body, &argument.operand, &mut state);
                 }
                 match continuation {
+                    CallContinuation::Continue { target } => {
+                        merge_entry(&mut entries, &mut queue, *target, state, body);
+                    }
                     CallContinuation::Return {
                         destination,
                         target,
@@ -154,6 +157,12 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                         );
                         merge_entry(&mut entries, &mut queue, *success, state, body);
                         merge_entry(&mut entries, &mut queue, *failure, failure_state, body);
+                    }
+                    CallContinuation::OutcomeEffect {
+                        success, failure, ..
+                    } => {
+                        merge_entry(&mut entries, &mut queue, *success, state.clone(), body);
+                        merge_entry(&mut entries, &mut queue, *failure, state, body);
                     }
                     CallContinuation::Never => validate_exit(body, block_id, &state, &mut errors),
                 }

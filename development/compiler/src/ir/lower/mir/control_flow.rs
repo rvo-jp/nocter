@@ -56,8 +56,13 @@ fn reachable_distances(
             }
             Terminator::Call { continuation, .. } => match continuation {
                 CallContinuation::Never => {}
-                CallContinuation::Return { target, .. } => enqueue(*target),
+                CallContinuation::Continue { target } | CallContinuation::Return { target, .. } => {
+                    enqueue(*target)
+                }
                 CallContinuation::Outcome {
+                    success, failure, ..
+                }
+                | CallContinuation::OutcomeEffect {
                     success, failure, ..
                 } => {
                     enqueue(*success);
@@ -85,12 +90,16 @@ pub(super) fn linear_path_target(
             Terminator::Goto { target } => return Some(*target),
             Terminator::Drop { target, .. } => current = *target,
             Terminator::Call {
-                continuation: CallContinuation::Return { target, .. },
+                continuation:
+                    CallContinuation::Continue { target } | CallContinuation::Return { target, .. },
                 ..
             } => current = *target,
             Terminator::Call {
                 continuation:
                     CallContinuation::Outcome {
+                        success, failure, ..
+                    }
+                    | CallContinuation::OutcomeEffect {
                         success, failure, ..
                     },
                 ..

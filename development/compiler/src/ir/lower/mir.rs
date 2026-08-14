@@ -291,6 +291,18 @@ fn lower_scalar_body(
                         }
                         return Ok(instructions);
                     }
+                    CallContinuation::Continue { target } => {
+                        validate_effect_call_return_type(
+                            &call_target,
+                            &callee_name,
+                            function_signatures,
+                        )?;
+                        instructions.push(Instruction::CallVoid {
+                            target: call_target,
+                            arguments,
+                        });
+                        current = *target;
+                    }
                     CallContinuation::Return {
                         destination,
                         target,
@@ -351,6 +363,29 @@ fn lower_scalar_body(
                             failure_mode,
                             &callee_name,
                         )?);
+                        current = *success;
+                    }
+                    CallContinuation::OutcomeEffect {
+                        success,
+                        failure,
+                        failure_payload,
+                    } => {
+                        validate_outcome_effect_call_return_type(
+                            &call_target,
+                            &callee_name,
+                            function_signatures,
+                        )?;
+                        instructions.push(Instruction::CallOutcomeVoid {
+                            target: call_target,
+                            arguments,
+                            failure_mode: outcome_failure_mode(
+                                &context,
+                                *failure,
+                                *success,
+                                *failure_payload,
+                                &mut visited,
+                            )?,
+                        });
                         current = *success;
                     }
                 }
@@ -447,6 +482,23 @@ fn validate_outcome_call_return_type(
     )
 }
 
+fn validate_outcome_effect_call_return_type(
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(return_type) = function_signatures.return_type(target) else {
+        return Ok(());
+    };
+    if return_type == &Type::Fallible(Box::new(Type::Void)) {
+        return Ok(());
+    }
+    Err(invalid_mir_diagnostics(format!(
+        "outcome effect call to `{callee_name}` returns `{}` instead of `void!`",
+        super::expressions::describe_type(return_type),
+    )))
+}
+
 fn lower_branch_to_join(
     context: &BackendContext<'_>,
     start: crate::mir::BasicBlockId,
@@ -480,6 +532,33 @@ fn lower_branch_to_join(
             Terminator::Call {
                 callee,
                 arguments,
+                continuation: CallContinuation::Continue { target },
+                ..
+            } => {
+                let (call_target, callee_name) = lower_call_target(
+                    *callee,
+                    context.resolved,
+                    context.function_names,
+                    context.root_source,
+                )?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                validate_effect_call_return_type(
+                    &call_target,
+                    &callee_name,
+                    context.function_signatures,
+                )?;
+                instructions.push(Instruction::CallVoid {
+                    target: call_target,
+                    arguments,
+                });
+                current = *target;
+            }
+            Terminator::Call {
+                callee,
+                arguments,
                 continuation:
                     CallContinuation::Return {
                         destination,
@@ -507,6 +586,45 @@ fn lower_branch_to_join(
                     context.function_signatures,
                 )?);
                 current = *target;
+            }
+            Terminator::Call {
+                callee,
+                arguments,
+                continuation:
+                    CallContinuation::OutcomeEffect {
+                        success,
+                        failure,
+                        failure_payload,
+                    },
+                ..
+            } => {
+                let (call_target, callee_name) = lower_call_target(
+                    *callee,
+                    context.resolved,
+                    context.function_names,
+                    context.root_source,
+                )?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| lower_call_argument(argument, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                validate_outcome_effect_call_return_type(
+                    &call_target,
+                    &callee_name,
+                    context.function_signatures,
+                )?;
+                instructions.push(Instruction::CallOutcomeVoid {
+                    target: call_target,
+                    arguments,
+                    failure_mode: outcome_failure_mode(
+                        context,
+                        *failure,
+                        *success,
+                        *failure_payload,
+                        visited,
+                    )?,
+                });
+                current = *success;
             }
             Terminator::Call {
                 callee,
@@ -859,6 +977,23 @@ fn validate_tail_call_return_type(
             super::expressions::describe_type(callee_return_type),
         ),
     )])
+}
+
+fn validate_effect_call_return_type(
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    function_signatures: &super::context::FunctionSignatures,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = function_signatures.return_type(target) else {
+        return Ok(());
+    };
+    if callee_return_type == &Type::Void {
+        return Ok(());
+    }
+    Err(invalid_mir_diagnostics(format!(
+        "effect call to `{callee_name}` returns `{}` instead of `void`",
+        super::expressions::describe_type(callee_return_type),
+    )))
 }
 
 fn lower_call_argument(

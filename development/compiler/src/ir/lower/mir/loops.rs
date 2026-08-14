@@ -322,6 +322,18 @@ fn lower_linear_call_terminator(
         .map(|argument| lower_call_argument(argument, context))
         .collect::<Result<Vec<_>, _>>()?;
     match continuation {
+        CallContinuation::Continue { target } => {
+            super::validate_effect_call_return_type(
+                &call_target,
+                &callee_name,
+                context.function_signatures,
+            )?;
+            instructions.push(Instruction::CallVoid {
+                target: call_target,
+                arguments,
+            });
+            Ok(*target)
+        }
         CallContinuation::Return {
             destination,
             target,
@@ -353,6 +365,29 @@ fn lower_linear_call_terminator(
                 outcome_failure_mode(context, *failure, *success, *failure_payload, visited)?,
                 &callee_name,
             )?);
+            Ok(*success)
+        }
+        CallContinuation::OutcomeEffect {
+            success,
+            failure,
+            failure_payload,
+        } => {
+            super::validate_outcome_effect_call_return_type(
+                &call_target,
+                &callee_name,
+                context.function_signatures,
+            )?;
+            instructions.push(Instruction::CallOutcomeVoid {
+                target: call_target,
+                arguments,
+                failure_mode: outcome_failure_mode(
+                    context,
+                    *failure,
+                    *success,
+                    *failure_payload,
+                    visited,
+                )?,
+            });
             Ok(*success)
         }
         CallContinuation::Never => Err(super::invalid_mir_diagnostics(

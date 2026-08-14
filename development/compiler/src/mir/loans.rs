@@ -138,10 +138,19 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     reject_operand_move(body, block_id, &argument.operand, &state, &mut errors);
                 }
                 match continuation {
+                    CallContinuation::Continue { target } => {
+                        merge_entry(&mut entries, &mut queue, *target, state)
+                    }
                     CallContinuation::Return { target, .. } => {
                         merge_entry(&mut entries, &mut queue, *target, state)
                     }
                     CallContinuation::Outcome {
+                        success, failure, ..
+                    } => {
+                        merge_entry(&mut entries, &mut queue, *success, state.clone());
+                        merge_entry(&mut entries, &mut queue, *failure, state);
+                    }
+                    CallContinuation::OutcomeEffect {
                         success, failure, ..
                     } => {
                         merge_entry(&mut entries, &mut queue, *success, state.clone());

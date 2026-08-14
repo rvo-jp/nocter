@@ -22,6 +22,7 @@ pub(super) enum ScalarStatement<'a> {
     Loop(&'a LoopStmt),
     While(&'a WhileStmt),
     Region(&'a RegionStmt),
+    Expression(&'a Expr),
     Break,
     Continue,
 }
@@ -425,6 +426,24 @@ impl<'a> ScalarStatement<'a> {
                     )
                     .is_some()
             }
+            Self::Expression(expression) => match expression.without_groups() {
+                Expr::Call(call) => {
+                    effect_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                }
+                Expr::Force(force) => {
+                    let Expr::Call(call) = force.expression.without_groups() else {
+                        return false;
+                    };
+                    effect_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                }
+                Expr::Propagate(propagate) => {
+                    let Expr::Call(call) = propagate.expression.without_groups() else {
+                        return false;
+                    };
+                    effect_outcome_call_is_supported(call, resolved, resolved_sources, typed_hir)
+                }
+                _ => false,
+            },
             Self::If(statement) => {
                 scalar_expression_is_supported(
                     &statement.condition,
@@ -504,10 +523,46 @@ fn scalar_statement(statement: &Stmt) -> Option<ScalarStatement<'_>> {
         Stmt::Loop(statement) => Some(ScalarStatement::Loop(statement)),
         Stmt::While(statement) => Some(ScalarStatement::While(statement)),
         Stmt::Region(statement) => Some(ScalarStatement::Region(statement)),
+        Stmt::Expression(statement) => Some(ScalarStatement::Expression(&statement.expression)),
         Stmt::Break(_) => Some(ScalarStatement::Break),
         Stmt::Continue(_) => Some(ScalarStatement::Continue),
         _ => None,
     }
+}
+
+fn effect_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .is_some_and(|ty| {
+                matches!(ty, crate::ast::TypeExpr::Reference(reference) if reference.name == "void")
+            })
+}
+
+fn effect_outcome_call_is_supported(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &crate::resolve::ResolvedSources<'_>,
+    typed_hir: &TypedHir,
+) -> bool {
+    scalar_call_shape_is_supported(call, resolved, resolved_sources, typed_hir)
+        && intrinsic_expression_type(call.span, typed_hir)
+            .and_then(|ty| typed_hir.type_expr_by_id(ty))
+            .is_some_and(|ty| {
+                let shape = crate::outcomes::outcome_shape_with_resolver(ty, resolved, |source| {
+                    resolved_sources.get(&source).copied()
+                });
+                shape.layers == [crate::outcomes::OutcomeLayer::Fallible]
+                    && matches!(
+                        shape.payload,
+                        crate::ast::TypeExpr::Reference(reference) if reference.name == "void"
+                    )
+            })
 }
 
 fn region_allocator_is_supported(

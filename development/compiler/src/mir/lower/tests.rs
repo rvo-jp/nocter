@@ -57,6 +57,115 @@ fn builds_string_view_literal_return_without_abi_shaped_locals() {
 }
 
 #[test]
+fn builds_effect_calls_with_destination_free_continuations() {
+    let (_sources, analysis) = analyze_text(
+        r#"func record(value: i32): void {
+    return
+}
+
+func main(): i32 {
+    record(1)
+    return 2
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("effect call statements must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.locals.len(),
+        1,
+        "void calls must not create a value local"
+    );
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::Continue { target },
+            ..
+        } if target == BasicBlockId::from_index(1)
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn builds_fallible_effect_calls_with_explicit_failure_edges() {
+    let (_sources, analysis) = analyze_text(
+        r#"func effect(): void! {
+    return
+}
+
+func main(): i32! {
+    effect()?
+    return 7
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        ReturnMode::Fallible,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("fallible effect statements must select MIR")
+    .unwrap();
+
+    assert_eq!(
+        body.locals.len(),
+        1,
+        "void! calls must not create a value local"
+    );
+    assert!(matches!(
+        body.blocks[0].terminator,
+        Terminator::Call {
+            continuation: crate::mir::CallContinuation::OutcomeEffect {
+                success,
+                failure,
+                failure_payload: None,
+            },
+            ..
+        } if success == BasicBlockId::from_index(1) && failure == BasicBlockId::from_index(2)
+    ));
+    assert_eq!(body.blocks[2].terminator, Terminator::PropagateFailure);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
 fn builds_owned_parameter_cleanup_from_semantic_drop_plans() {
     let (_sources, analysis) = analyze_text(
         r#"struct Resource {

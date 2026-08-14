@@ -309,6 +309,56 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                     self.context.control_flow.select_block(entered.exit)?;
                     exits
                 }
+                ScalarStatement::Expression(expression) => {
+                    enum EffectKind {
+                        Plain,
+                        Trap,
+                        Propagate,
+                    }
+                    let (call, kind) = match expression.without_groups() {
+                        Expr::Call(call) => (call, EffectKind::Plain),
+                        Expr::Force(force) => {
+                            let Expr::Call(call) = force.expression.without_groups() else {
+                                return Err(BuildError::UnsupportedClaimedExpression);
+                            };
+                            (call, EffectKind::Trap)
+                        }
+                        Expr::Propagate(propagate) => {
+                            let Expr::Call(call) = propagate.expression.without_groups() else {
+                                return Err(BuildError::UnsupportedClaimedExpression);
+                            };
+                            (call, EffectKind::Propagate)
+                        }
+                        _ => return Err(BuildError::UnsupportedClaimedExpression),
+                    };
+                    let source = self
+                        .context
+                        .semantic
+                        .typed_hir
+                        .expression(expression.span())
+                        .ok_or(BuildError::MissingTypedExpression)?
+                        .id;
+                    let (callee, arguments, returns_never) =
+                        self.context.lower_call(call, scope)?;
+                    if returns_never {
+                        return Err(BuildError::UnsupportedClaimedExpression);
+                    }
+                    match kind {
+                        EffectKind::Plain => self
+                            .context
+                            .control_flow
+                            .emit_effect_call(source, callee, arguments)?,
+                        EffectKind::Trap => self
+                            .context
+                            .control_flow
+                            .emit_trapping_outcome_effect(source, callee, arguments)?,
+                        EffectKind::Propagate => self
+                            .context
+                            .control_flow
+                            .emit_propagating_outcome_effect(source, callee, arguments)?,
+                    }
+                    false
+                }
                 ScalarStatement::Break => {
                     let targets = loop_targets.ok_or(BuildError::UnsupportedClaimedExpression)?;
                     self.context.control_flow.terminate(Terminator::Goto {

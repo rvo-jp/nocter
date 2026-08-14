@@ -627,6 +627,10 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 ..
             } => {
                 let destination = match continuation {
+                    CallContinuation::Continue { target } => {
+                        validate_target(body, block_id, *target, &mut errors);
+                        None
+                    }
                     CallContinuation::Return {
                         destination,
                         target,
@@ -653,6 +657,25 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             });
                         }
                         Some(destination)
+                    }
+                    CallContinuation::OutcomeEffect {
+                        success,
+                        failure,
+                        failure_payload,
+                    } => {
+                        validate_target(body, block_id, *success, &mut errors);
+                        validate_target(body, block_id, *failure, &mut errors);
+                        if let Some(payload) = failure_payload
+                            && !body.locals.get(payload.index()).is_some_and(|local| {
+                                local.representation == ValueRepresentation::Error
+                            })
+                        {
+                            errors.push(ValidationError::MissingCallDestination {
+                                block: block_id,
+                                local: *payload,
+                            });
+                        }
+                        None
                     }
                     CallContinuation::Never => None,
                 };
