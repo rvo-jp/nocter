@@ -30,6 +30,9 @@ pub(crate) enum ValidationError {
     ProjectionOfScalar {
         projection: ProjectionPathId,
     },
+    InvalidProjectionElement {
+        projection: ProjectionPathId,
+    },
     InvalidProjectionIndex {
         projection: ProjectionPathId,
     },
@@ -359,6 +362,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
             let destination_scalar = match destination_representation {
                 ValueRepresentation::Scalar(scalar) => Some(scalar),
                 ValueRepresentation::Borrow
+                | ValueRepresentation::View(_)
                 | ValueRepresentation::Aggregate
                 | ValueRepresentation::Error => None,
             };
@@ -499,6 +503,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             });
                         }
                         ValueRepresentation::Borrow
+                        | ValueRepresentation::View(_)
                         | ValueRepresentation::Aggregate
                         | ValueRepresentation::Error => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
@@ -572,6 +577,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                             });
                         }
                         ValueRepresentation::Borrow
+                        | ValueRepresentation::View(_)
                         | ValueRepresentation::Aggregate
                         | ValueRepresentation::Error => {
                             errors.push(ValidationError::AssignmentRequiresScalar {
@@ -816,13 +822,13 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
         );
         let return_storage_matches_identity = !return_local_exists
             || (id == body.return_local) == (local.storage == LocalStorage::Return);
-        let scalar_ownership_is_trivial = !matches!(
+        let trivial_ownership_is_copy = !matches!(
             local.representation,
-            ValueRepresentation::Scalar(_) | ValueRepresentation::Error
+            ValueRepresentation::Scalar(_)
+                | ValueRepresentation::View(_)
+                | ValueRepresentation::Error
         ) || local.ownership == OwnershipKind::Copy;
-        if !storage_matches_origin
-            || !return_storage_matches_identity
-            || !scalar_ownership_is_trivial
+        if !storage_matches_origin || !return_storage_matches_identity || !trivial_ownership_is_copy
         {
             errors.push(ValidationError::InvalidLocalContract(id));
         }
@@ -955,11 +961,28 @@ fn validate_projection_paths(body: &Body, errors: &mut Vec<ValidationError>) {
             }
             None => base.representation,
         };
-        if matches!(
-            parent_representation,
-            ValueRepresentation::Scalar(_) | ValueRepresentation::Error
-        ) {
-            errors.push(ValidationError::ProjectionOfScalar { projection: id });
+        match &projection.element {
+            ProjectionElement::ErrorField(_)
+                if projection.parent.is_none()
+                    && parent_representation == ValueRepresentation::Error
+                    && projection.representation
+                        == ValueRepresentation::View(crate::mir::ViewKind::Str)
+                    && projection.ownership == OwnershipKind::Copy
+                    && projection.drop_plan.is_none() => {}
+            ProjectionElement::ErrorField(_) => {
+                errors.push(ValidationError::InvalidProjectionElement { projection: id });
+            }
+            ProjectionElement::Field { .. } | ProjectionElement::Index { .. }
+                if matches!(
+                    parent_representation,
+                    ValueRepresentation::Scalar(_)
+                        | ValueRepresentation::View(_)
+                        | ValueRepresentation::Error
+                ) =>
+            {
+                errors.push(ValidationError::ProjectionOfScalar { projection: id });
+            }
+            ProjectionElement::Field { .. } | ProjectionElement::Index { .. } => {}
         }
         if let ProjectionElement::Index { index, .. } = &projection.element
             && operand_representation(body, index)
@@ -1053,7 +1076,7 @@ fn validate_operand_ownership(
     errors: &mut Vec<ValidationError>,
 ) {
     let (place, operation) = match operand {
-        Operand::Constant(_) => return,
+        Operand::Constant(_) | Operand::StaticStr { .. } => return,
         Operand::Copy(place) => (place, OperandOwnership::Copy),
         Operand::Move(place) => (place, OperandOwnership::Move),
     };
@@ -1098,6 +1121,7 @@ fn validate_operand_scalar(
         }
         Some(
             actual @ (ValueRepresentation::Borrow
+            | ValueRepresentation::View(_)
             | ValueRepresentation::Aggregate
             | ValueRepresentation::Error),
         ) => {
@@ -1156,6 +1180,7 @@ fn validate_target(
 fn operand_representation(body: &Body, operand: &Operand) -> Option<ValueRepresentation> {
     match operand {
         Operand::Constant(constant) => Some(ValueRepresentation::Scalar(constant.scalar)),
+        Operand::StaticStr { .. } => Some(ValueRepresentation::View(crate::mir::ViewKind::Str)),
         Operand::Copy(place) | Operand::Move(place) => place_projection(body, *place)
             .map(|projection| projection.representation)
             .or_else(|| {
@@ -1175,6 +1200,7 @@ fn operand_type(
 ) -> Option<TyId> {
     match operand {
         Operand::Constant(constant) => Some(constant.ty),
+        Operand::StaticStr { ty, .. } => Some(*ty),
         Operand::Copy(place) | Operand::Move(place) => match body.locals.get(place.local.index()) {
             Some(local) => {
                 if let Some(projection) = place.projection {

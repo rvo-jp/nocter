@@ -25,6 +25,9 @@ pub(super) enum ParameterStorage {
     Bool {
         abi_index: usize,
     },
+    Str {
+        abi_index: usize,
+    },
     Borrow {
         abi_index: usize,
     },
@@ -100,6 +103,9 @@ fn storage_for_name(
     }
     if let Some(abi_index) = named_word(&slots.bool, name) {
         return Some(ParameterStorage::Bool { abi_index });
+    }
+    if let Some(abi_index) = named_word(&slots.str, name) {
+        return Some(ParameterStorage::Str { abi_index });
     }
     if let Some(parameter) = slots
         .borrow_parameters

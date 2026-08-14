@@ -170,17 +170,20 @@ fn scalar_call_shape_is_supported(
             let Some(ty) = known_expression_type(argument, typed_hir) else {
                 return false;
             };
+            let semantic = SemanticInputs {
+                resolved,
+                resolved_sources,
+                typed_hir,
+            };
             scalar_type(ty, typed_hir).is_some()
                 && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || borrow_argument_is_supported(
-                    argument,
-                    SemanticInputs {
-                        resolved,
-                        resolved_sources,
-                        typed_hir,
-                    },
+                || matches!(
+                    value_representation(ty, semantic),
+                    Some(representation @ crate::mir::ValueRepresentation::View(_))
+                        if value_expression_is_supported(argument, representation, semantic)
                 )
+                || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
+                || borrow_argument_is_supported(argument, semantic)
         })
 }
 
@@ -849,7 +852,27 @@ fn catch_binding_is_supported(
     ) {
         return false;
     }
-    let mut used = false;
+    let mut allowed_field_bases = std::collections::HashSet::new();
+    crate::ast::visit_block_expressions_without_nested_closures(
+        &catch.catch_block,
+        &mut |expression| {
+            let Expr::Member(member) = expression else {
+                return;
+            };
+            let Expr::Identifier(base) = member.object.without_groups() else {
+                return;
+            };
+            if resolved
+                .local_symbol_for_identifier(base)
+                .is_some_and(|candidate| candidate.id == symbol)
+                && crate::builtin_types::BuiltinErrorField::from_source_name(&member.member)
+                    .is_some()
+            {
+                allowed_field_bases.insert(base.span);
+            }
+        },
+    );
+    let mut used_outside_field = false;
     crate::ast::visit_block_expressions_without_nested_closures(
         &catch.catch_block,
         &mut |expression| {
@@ -857,12 +880,13 @@ fn catch_binding_is_supported(
                 && resolved
                     .local_symbol_for_identifier(identifier)
                     .is_some_and(|candidate| candidate.id == symbol)
+                && !allowed_field_bases.contains(&identifier.span)
             {
-                used = true;
+                used_outside_field = true;
             }
         },
     );
-    !used
+    !used_outside_field
 }
 
 fn scalar_logical_is_supported(binary: &crate::ast::BinaryExpr, typed_hir: &TypedHir) -> bool {
@@ -935,7 +959,7 @@ fn scalar_caught_call_is_supported(
             })
 }
 
-fn intrinsic_expression_type(
+pub(super) fn intrinsic_expression_type(
     span: crate::source::ByteSpan,
     typed_hir: &TypedHir,
 ) -> Option<crate::semantic::TyId> {
@@ -1020,6 +1044,74 @@ pub(super) fn known_expression_type(
     typed_hir: &TypedHir,
 ) -> Option<crate::semantic::TyId> {
     effective_expression_type(expression.span(), typed_hir)
+}
+
+pub(super) fn value_representation(
+    ty: crate::semantic::TyId,
+    semantic: SemanticInputs<'_>,
+) -> Option<crate::mir::ValueRepresentation> {
+    if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
+        return Some(crate::mir::ValueRepresentation::Scalar(scalar));
+    }
+    let ty = semantic.typed_hir.type_expr_by_id(ty)?;
+    match crate::abi::abi_value_from_type_expr_with_resolver(ty, semantic.resolved, |source| {
+        semantic.resolver_for(source)
+    })
+    .ok()?
+    .ty
+    {
+        crate::abi::AbiType::StrView => Some(crate::mir::ValueRepresentation::View(
+            crate::mir::ViewKind::Str,
+        )),
+        _ => None,
+    }
+}
+
+pub(super) fn value_expression_is_supported(
+    expression: &Expr,
+    representation: crate::mir::ValueRepresentation,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    match representation {
+        crate::mir::ValueRepresentation::Scalar(_) => scalar_expression_is_supported(
+            expression,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        ),
+        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => match expression {
+            Expr::StringLiteral(literal) => {
+                crate::literals::decode_string_literal_bytes(&literal.value).is_ok()
+            }
+            Expr::Identifier(identifier) => {
+                semantic
+                    .resolved
+                    .local_symbol_for_identifier(identifier)
+                    .and_then(|symbol| semantic.typed_hir.binding_type_expr(symbol.id))
+                    .and_then(|ty| semantic.typed_hir.type_id(ty))
+                    .and_then(|ty| value_representation(ty, semantic))
+                    == Some(representation)
+            }
+            Expr::Group(group) => {
+                value_expression_is_supported(&group.expression, representation, semantic)
+            }
+            Expr::Member(member) => super::projections::error_field_is_supported(member, semantic),
+            Expr::Call(call) => {
+                scalar_call_shape_is_supported(
+                    call,
+                    semantic.resolved,
+                    semantic.resolved_sources,
+                    semantic.typed_hir,
+                ) && intrinsic_expression_type(call.span, semantic.typed_hir)
+                    .and_then(|ty| value_representation(ty, semantic))
+                    == Some(representation)
+            }
+            _ => false,
+        },
+        crate::mir::ValueRepresentation::Borrow
+        | crate::mir::ValueRepresentation::Error
+        | crate::mir::ValueRepresentation::Aggregate => false,
+    }
 }
 
 fn effective_expression_type(

@@ -19,6 +19,86 @@ pub(super) fn scalar_field_is_supported(member: &MemberExpr, semantic: SemanticI
     })
 }
 
+pub(super) fn error_field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
+    let Expr::Identifier(base) = member.object.without_groups() else {
+        return false;
+    };
+    let Some(symbol) = semantic.resolved.local_symbol_for_identifier(base) else {
+        return false;
+    };
+    matches!(
+        semantic.typed_hir.binding_type_expr(symbol.id),
+        Some(crate::ast::TypeExpr::Reference(reference))
+            if crate::builtin_types::BuiltinTypeOwner::from_reference_name(&reference.name)
+                == Some(crate::builtin_types::BuiltinTypeOwner::Error)
+    ) && crate::builtin_types::BuiltinErrorField::from_source_name(&member.member).is_some()
+        && semantic
+            .typed_hir
+            .expression(member.span)
+            .and_then(|expression| match expression.ty {
+                crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+                crate::typecheck::PartialSemantic::Error => None,
+            })
+            .and_then(|ty| super::coverage::value_representation(ty, semantic))
+            == Some(ValueRepresentation::View(crate::mir::ViewKind::Str))
+}
+
+pub(super) fn lower_error_field_place(
+    member: &MemberExpr,
+    semantic: SemanticInputs<'_>,
+    locals: &HashMap<LocalSymbolId, LocalId>,
+    projections: &mut Vec<ProjectionPath>,
+) -> Result<Place, BuildError> {
+    if !error_field_is_supported(member, semantic) {
+        return Err(BuildError::UnsupportedClaimedExpression);
+    }
+    let Expr::Identifier(base) = member.object.without_groups() else {
+        unreachable!("supported error fields have identifier bases")
+    };
+    let symbol = semantic
+        .resolved
+        .local_symbol_for_identifier(base)
+        .ok_or(BuildError::MissingLocalSymbol)?;
+    let base = *locals
+        .get(&symbol.id)
+        .ok_or(BuildError::MissingLocalSymbol)?;
+    let field = crate::builtin_types::BuiltinErrorField::from_source_name(&member.member)
+        .ok_or(BuildError::UnsupportedClaimedExpression)?;
+    let ty = semantic
+        .typed_hir
+        .expression(member.span)
+        .and_then(|expression| match expression.ty {
+            crate::typecheck::PartialSemantic::Known(ty) => Some(ty),
+            crate::typecheck::PartialSemantic::Error => None,
+        })
+        .ok_or(BuildError::MissingTypedExpression)?;
+    let element = ProjectionElement::ErrorField(field);
+    let projection = projections
+        .iter()
+        .find(|projection| {
+            projection.base == base
+                && projection.parent.is_none()
+                && projection.element == element
+                && projection.ty == ty
+        })
+        .map(|projection| projection.id)
+        .unwrap_or_else(|| {
+            let id = ProjectionPathId::from_index(projections.len());
+            projections.push(ProjectionPath {
+                id,
+                base,
+                parent: None,
+                element,
+                ty,
+                representation: ValueRepresentation::View(crate::mir::ViewKind::Str),
+                ownership: OwnershipKind::Copy,
+                drop_plan: None,
+            });
+            id
+        });
+    Ok(Place::projected(base, projection))
+}
+
 pub(super) fn field_is_supported(member: &MemberExpr, semantic: SemanticInputs<'_>) -> bool {
     field_path_parts(member, semantic, true).is_some()
 }

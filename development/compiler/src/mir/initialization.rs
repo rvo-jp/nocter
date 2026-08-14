@@ -321,7 +321,7 @@ fn validate_and_apply_operand(
     errors: &mut HashSet<InitializationError>,
 ) {
     let place = match operand {
-        Operand::Constant(_) => return,
+        Operand::Constant(_) | Operand::StaticStr { .. } => return,
         Operand::Copy(place) | Operand::Move(place) => place,
     };
     if place.local.index() >= body.locals.len() {

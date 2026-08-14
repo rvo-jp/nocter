@@ -2,7 +2,7 @@
 
 use super::BuildError;
 use super::context::LoweringContext;
-use super::coverage::{known_expression_type, scalar_type};
+use super::coverage::{known_expression_type, scalar_type, value_representation};
 use crate::ast::Expr;
 use crate::literals::decode_integer_literal_value;
 use crate::mir::{
@@ -51,6 +51,21 @@ impl LoweringContext<'_> {
                         operand,
                         ty,
                         representation: crate::mir::ValueRepresentation::Scalar(scalar),
+                    });
+                }
+                if let Some(representation @ crate::mir::ValueRepresentation::View(kind)) =
+                    value_representation(ty, self.semantic)
+                {
+                    let ty = super::coverage::intrinsic_expression_type(
+                        argument.span(),
+                        self.semantic.typed_hir,
+                    )
+                    .filter(|ty| value_representation(*ty, self.semantic) == Some(representation))
+                    .unwrap_or(ty);
+                    return Ok(CallArgument {
+                        operand: self.lower_view_operand(argument, ty, kind, scope)?,
+                        ty,
+                        representation,
                     });
                 }
                 if super::coverage::borrow_argument_is_supported(argument, self.semantic) {
@@ -366,6 +381,82 @@ impl LoweringContext<'_> {
             origin: crate::mir::Origin::Expression(source),
         })?;
         Ok(())
+    }
+
+    pub(super) fn lower_view_expression_to_place(
+        &mut self,
+        destination: LocalId,
+        expression: &Expr,
+        ty: crate::semantic::TyId,
+        kind: crate::mir::ViewKind,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        let source = self
+            .semantic
+            .typed_hir
+            .expression(expression.span())
+            .ok_or(BuildError::MissingTypedExpression)?
+            .id;
+        if let Expr::Call(call) = expression.without_groups() {
+            let (callee, arguments, returns_never) = self.lower_call(call, scope)?;
+            if returns_never {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
+            return self
+                .control_flow
+                .emit_returning_call(source, callee, arguments, destination);
+        }
+        let operand = self.lower_view_operand(expression, ty, kind, scope)?;
+        self.control_flow.push_statement(Statement::Assign {
+            destination: Place::local(destination),
+            value: Rvalue::Use(operand),
+            origin: crate::mir::Origin::Expression(source),
+        })
+    }
+
+    fn lower_view_operand(
+        &mut self,
+        expression: &Expr,
+        ty: crate::semantic::TyId,
+        kind: crate::mir::ViewKind,
+        scope: ScopeId,
+    ) -> Result<Operand, BuildError> {
+        match expression {
+            Expr::StringLiteral(literal) if kind == crate::mir::ViewKind::Str => {
+                let bytes = crate::literals::decode_string_literal_bytes(&literal.value)
+                    .map_err(|_| BuildError::InvalidScalarConstant)?;
+                Ok(Operand::StaticStr { ty, bytes })
+            }
+            Expr::Identifier(_) => self.lower_stored_identifier(expression),
+            Expr::Member(member) if kind == crate::mir::ViewKind::Str => {
+                super::projections::lower_error_field_place(
+                    member,
+                    self.semantic,
+                    &self.locals_by_symbol,
+                    &mut self.projections,
+                )
+                .map(Operand::Copy)
+            }
+            Expr::Group(group) => self.lower_view_operand(&group.expression, ty, kind, scope),
+            Expr::Call(_) => {
+                let typed_expression = self
+                    .semantic
+                    .typed_hir
+                    .expression(expression.span())
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let temporary = LocalId::from_index(self.locals.len());
+                self.locals.push(crate::mir::Local::view(
+                    ty,
+                    kind,
+                    LocalStorage::Local,
+                    LocalOrigin::Temporary(typed_expression.id),
+                    scope,
+                ));
+                self.lower_view_expression_to_place(temporary, expression, ty, kind, scope)?;
+                Ok(Operand::Copy(Place::local(temporary)))
+            }
+            _ => Err(BuildError::UnsupportedClaimedExpression),
+        }
     }
 
     fn lower_short_circuit_to_place(

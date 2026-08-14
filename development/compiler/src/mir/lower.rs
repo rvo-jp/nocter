@@ -95,16 +95,38 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
     return_mode: ReturnMode,
     inputs: BuildInputs<'_>,
 ) -> Option<Result<Body, BuildError>> {
+    try_build_body_with_return_mode(
+        block,
+        parameters,
+        super::ValueRepresentation::Scalar(return_scalar),
+        return_mode,
+        inputs,
+    )
+}
+
+pub(crate) fn try_build_body_with_return_mode(
+    block: &Block,
+    parameters: &[Parameter],
+    return_representation: super::ValueRepresentation,
+    return_mode: ReturnMode,
+    inputs: BuildInputs<'_>,
+) -> Option<Result<Body, BuildError>> {
     let semantic = SemanticInputs {
         resolved: inputs.resolved,
         resolved_sources: inputs.resolved_sources,
         typed_hir: inputs.typed_hir,
     };
     let (source_statements, tail) = scalar_body_parts(block)?;
-    if !source_statements
-        .iter()
-        .all(|statement| statement.is_supported(semantic))
-        || !tail.is_supported(semantic)
+    let contextual_return_ty = tail.result_type(inputs.typed_hir)?;
+    if value_representation(contextual_return_ty, semantic) != Some(return_representation)
+        || !source_statements
+            .iter()
+            .all(|statement| statement.is_supported(semantic))
+        || !(tail.expression().is_some_and(|expression| {
+            value_expression_is_supported(expression, return_representation, semantic)
+        }) || matches!(return_representation, super::ValueRepresentation::Scalar(_))
+            && tail.conditional().is_some()
+            && tail.is_supported(semantic))
         || !parameters.iter().all(|parameter| {
             inputs
                 .resolved
@@ -116,11 +138,12 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
     {
         return None;
     }
+    let return_ty = tail
+        .expression()
+        .and_then(|expression| intrinsic_expression_type(expression.span(), inputs.typed_hir))
+        .filter(|ty| value_representation(*ty, semantic) == Some(return_representation))
+        .unwrap_or(contextual_return_ty);
 
-    let return_ty = tail.result_type(inputs.typed_hir)?;
-    if scalar_type(return_ty, inputs.typed_hir) != Some(return_scalar) {
-        return None;
-    }
     Some((|| {
         let source_body = inputs
             .semantic_db
@@ -128,24 +151,36 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             .ok_or(BuildError::MissingSourceBody)?;
         let return_local = LocalId::from_index(0);
         let root_scope = ScopeId::from_index(0);
-        let mut locals = vec![Local::scalar(
-            return_ty,
-            return_scalar,
-            LocalStorage::Return,
-            LocalOrigin::Return,
-            root_scope,
-        )];
+        let return_local_contract = match return_representation {
+            super::ValueRepresentation::Scalar(scalar) => Local::scalar(
+                return_ty,
+                scalar,
+                LocalStorage::Return,
+                LocalOrigin::Return,
+                root_scope,
+            ),
+            super::ValueRepresentation::View(kind) => Local::view(
+                return_ty,
+                kind,
+                LocalStorage::Return,
+                LocalOrigin::Return,
+                root_scope,
+            ),
+            _ => return Err(BuildError::UnsupportedClaimedExpression),
+        };
+        let mut locals = vec![return_local_contract];
         let mut drop_plans = Vec::new();
         let mut locals_by_symbol = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
-            let ty = inputs
-                .typed_hir
-                .type_id(&parameter.ty)
-                .ok_or(BuildError::MissingParameterType)?;
             let symbol = inputs
                 .resolved
                 .local_symbol_id_at_name_span(parameter.name_span)
                 .ok_or(BuildError::MissingLocalSymbol)?;
+            let ty = inputs
+                .typed_hir
+                .binding_type_expr(symbol)
+                .and_then(|ty| inputs.typed_hir.type_id(ty))
+                .ok_or(BuildError::MissingParameterType)?;
             let local = LocalId::from_index(locals.len());
             let storage = LocalStorage::Parameter { ordinal: index };
             let origin = LocalOrigin::Parameter(symbol);
@@ -173,6 +208,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
                     Local::borrow(ty, borrow.is_readwrite, storage, origin, root_scope)
                 }
                 super::ValueRepresentation::Error => Local::error(ty, storage, origin, root_scope),
+                super::ValueRepresentation::View(kind) => {
+                    Local::view(ty, kind, storage, origin, root_scope)
+                }
             };
             if local_contract.ownership == OwnershipKind::Move {
                 local_contract.drop_plan = Some(
@@ -199,6 +237,9 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
         );
         StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
         if let Some(if_) = tail.conditional() {
+            let super::ValueRepresentation::Scalar(return_scalar) = return_representation else {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            };
             expressions::lower_conditional_to_place(
                 &mut context,
                 return_local,
@@ -232,13 +273,24 @@ pub(crate) fn try_build_scalar_body_with_return_mode(
             let expression = tail
                 .expression()
                 .ok_or(BuildError::UnsupportedClaimedExpression)?;
-            context.lower_expression_to_place(
-                return_local,
-                expression,
-                return_ty,
-                return_scalar,
-                root_scope,
-            )?;
+            match return_representation {
+                super::ValueRepresentation::Scalar(return_scalar) => context
+                    .lower_expression_to_place(
+                        return_local,
+                        expression,
+                        return_ty,
+                        return_scalar,
+                        root_scope,
+                    )?,
+                super::ValueRepresentation::View(kind) => context.lower_view_expression_to_place(
+                    return_local,
+                    expression,
+                    return_ty,
+                    kind,
+                    root_scope,
+                )?,
+                _ => return Err(BuildError::UnsupportedClaimedExpression),
+            }
             context.control_flow.terminate(Terminator::Return)?;
         }
         let parts = context.finish()?;
@@ -269,6 +321,11 @@ fn parameter_representation(
     let ty = semantic.typed_hir.type_id(&parameter.ty)?;
     if let Some(scalar) = scalar_type(ty, semantic.typed_hir) {
         return Some(super::ValueRepresentation::Scalar(scalar));
+    }
+    if let Some(representation @ super::ValueRepresentation::View(_)) =
+        value_representation(ty, semantic)
+    {
+        return Some(representation);
     }
     if matches!(parameter.ty, crate::ast::TypeExpr::Borrow(_)) {
         return Some(super::ValueRepresentation::Borrow);

@@ -48,7 +48,13 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   success payload write after executing the failure branch
 - unused named scalar catches retain one logical `error` local that is initialized only on the
   failure edge; machine-storage projection alone expands that value into its code and message
-  views, while catches that inspect the payload remain on the legacy route
+  views
+- MIR value representation now distinguishes logical `str` views from pointer borrows and numeric
+  scalars; string literals, parameters, direct calls, and returns retain one two-word-independent
+  local identity until machine projection
+- named catches project `error.code` and `error.message` through `BuiltinErrorField` identities;
+  the type checker, MIR coverage, place validation, and backend no longer repeat raw field-name
+  dispatch, and payload views can flow through ordinary call arguments on the MIR route
 - buildability classifies plain and fallible scalar returns before constructing the shared MIR body;
   MIR validation rejects propagation from plain bodies, and MIR-to-IR derives its outcome failure
   mode from the checked failure edge
@@ -193,7 +199,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,660 library tests pass at this checkpoint
+- all 2,663 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

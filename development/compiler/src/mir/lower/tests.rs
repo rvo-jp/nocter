@@ -3,8 +3,58 @@ use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
 use crate::mir::{
     ComparisonOperator, DropPlan, LocalOrigin, Operand, OwnershipKind, ProjectionElement, Rvalue,
-    Statement, ValueRepresentation,
+    Statement, ValueRepresentation, ViewKind,
 };
+
+#[test]
+fn builds_string_view_literal_return_without_abi_shaped_locals() {
+    let (_sources, analysis) = analyze_text(
+        r#"func title(): &str {
+    return "Nocter"
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "title" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let resolved_sources = crate::resolve::ResolvedSources::new();
+    let body = try_build_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &[],
+        ValueRepresentation::View(ViewKind::Str),
+        ReturnMode::Plain,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &resolved_sources,
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("string-view literal return must select MIR")
+    .unwrap();
+
+    assert_eq!(body.locals.len(), 1);
+    assert_eq!(
+        body.locals[0].representation,
+        ValueRepresentation::View(ViewKind::Str)
+    );
+    assert!(matches!(
+        body.blocks[0].statements.as_slice(),
+        [Statement::Assign {
+            value: Rvalue::Use(Operand::StaticStr { bytes, .. }),
+            ..
+        }] if bytes == b"Nocter"
+    ));
+    assert_eq!(validate(&body), Ok(()));
+}
 
 #[test]
 fn builds_owned_parameter_cleanup_from_semantic_drop_plans() {
@@ -2441,6 +2491,62 @@ func main(): i32 {
         } if actual == payload
     ));
     assert_eq!(body.locals[payload.index()].scope, ScopeId::from_index(1));
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn builds_named_catch_error_views_as_typed_payload_projections() {
+    let (_sources, analysis) = analyze_text(
+        r#"func message_len(text: &str): i32 {
+    return 7
+}
+
+func answer(): i32! {
+    return 42
+}
+
+func main(): i32 {
+    return answer() catch failure {
+        message_len(failure.message)
+    }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "main" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_scalar_body(
+        function.body.as_ref().unwrap(),
+        &[],
+        ScalarType::I32,
+        &analysis.semantic_db,
+        &file.resolved,
+        &file.typed_hir,
+    )
+    .expect("named error-field catch must select MIR")
+    .unwrap();
+
+    let payload = body
+        .locals
+        .iter()
+        .position(|local| local.representation == ValueRepresentation::Error)
+        .map(crate::mir::LocalId::from_index)
+        .unwrap();
+    assert!(body.projections.iter().any(|projection| {
+        projection.base == payload
+            && projection.parent.is_none()
+            && projection.element
+                == ProjectionElement::ErrorField(crate::builtin_types::BuiltinErrorField::Message)
+            && projection.representation == ValueRepresentation::View(ViewKind::Str)
+    }));
     assert_eq!(validate(&body), Ok(()));
 }
 

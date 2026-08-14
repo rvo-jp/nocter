@@ -158,7 +158,7 @@ fn lower_entry_parts(
             attach_primary_span_if_absent(diagnostics, sources, return_type_expr.span())
         })?;
     let parameter_slots = super::context::LoweringParameterSlots::default();
-    if let Some(instructions) = super::mir::try_lower_scalar_body(
+    if let Some(instructions) = super::mir::try_lower_body(
         mir_bodies,
         body,
         &[],

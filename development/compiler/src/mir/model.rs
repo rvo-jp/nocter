@@ -57,6 +57,7 @@ pub(crate) enum ProjectionElement {
         length: u64,
         stride: u32,
     },
+    ErrorField(crate::builtin_types::BuiltinErrorField),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -215,6 +216,10 @@ pub(crate) enum UnaryOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Operand {
     Constant(Constant),
+    StaticStr {
+        ty: TyId,
+        bytes: Vec<u8>,
+    },
     Copy(Place),
     #[allow(
         dead_code,

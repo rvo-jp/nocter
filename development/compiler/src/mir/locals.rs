@@ -98,10 +98,29 @@ impl Local {
         }
     }
 
+    pub(crate) fn view(
+        ty: TyId,
+        kind: ViewKind,
+        storage: LocalStorage,
+        origin: LocalOrigin,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            ty,
+            representation: ValueRepresentation::View(kind),
+            ownership: OwnershipKind::Copy,
+            storage,
+            origin,
+            scope,
+            drop_plan: None,
+        }
+    }
+
     pub(crate) fn scalar_type(&self) -> Option<ScalarType> {
         match self.representation {
             ValueRepresentation::Scalar(scalar) => Some(scalar),
             ValueRepresentation::Borrow
+            | ValueRepresentation::View(_)
             | ValueRepresentation::Aggregate
             | ValueRepresentation::Error => None,
         }
@@ -112,8 +131,14 @@ impl Local {
 pub(crate) enum ValueRepresentation {
     Scalar(ScalarType),
     Borrow,
+    View(ViewKind),
     Error,
     Aggregate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ViewKind {
+    Str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -21,9 +21,12 @@ pub(crate) use ids::{
 };
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{
-    Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation,
+    Local, LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation, ViewKind,
 };
-pub(crate) use lower::{BuildError, BuildInputs, try_build_scalar_body_with_return_mode};
+pub(crate) use lower::{
+    BuildError, BuildInputs, try_build_body_with_return_mode,
+    try_build_scalar_body_with_return_mode,
+};
 #[cfg(test)]
 pub(crate) use model::BasicBlock;
 pub(crate) use model::Loan;

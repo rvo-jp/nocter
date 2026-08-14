@@ -36,6 +36,55 @@ func answer(): i32! {
 }
 
 #[test]
+fn lowers_named_catch_error_view_from_its_logical_payload() {
+    let ir = lower_text(
+        r#"func message_len(text: &str): i32 {
+    return 7
+}
+
+func answer(): i32! {
+    return 42
+}
+
+func main(): i32 {
+    return answer() catch failure {
+        message_len(failure.message)
+    }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let Instruction::CallOutcomeI32 {
+        failure_mode:
+            OutcomeFailureMode::Catch {
+                code,
+                message,
+                instructions,
+                recovers: true,
+            },
+        ..
+    } = &main.instructions[0]
+    else {
+        panic!("named catch did not lower through an outcome payload: {main:?}")
+    };
+    assert_eq!(*code, StrLocation::Local(0));
+    assert_eq!(*message, StrLocation::Local(2));
+    assert!(matches!(
+        instructions.as_slice(),
+        [Instruction::CallI32 {
+            destination: I32Location::Return,
+            arguments,
+            ..
+        }] if matches!(arguments.as_slice(), [ScalarArgument::Str(StrValue::Location(StrLocation::Local(2)))])
+    ));
+}
+
+#[test]
 fn lowers_ignored_fallible_str_catch_statement_with_reserved_error_locals() {
     let ir = lower_text(
         r#"func main(): i32 {

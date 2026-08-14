@@ -24,10 +24,13 @@ fn error_member_type(
         return None;
     }
 
-    match member.member.as_str() {
-        "code" | "message" => Some(Type::Str),
-        _ => Some(Type::Unknown),
-    }
+    Some(
+        if crate::builtin_types::BuiltinErrorField::from_source_name(&member.member).is_some() {
+            Type::Str
+        } else {
+            Type::Unknown
+        },
+    )
 }
 
 pub(super) fn check_error_member_expression(
@@ -41,7 +44,7 @@ pub(super) fn check_error_member_expression(
         return;
     }
 
-    if matches!(member.member.as_str(), "code" | "message") {
+    if crate::builtin_types::BuiltinErrorField::from_source_name(&member.member).is_some() {
         return;
     }
 

@@ -30,6 +30,22 @@ pub(crate) enum BuiltinTypeOwner {
     Integer(IntegerType),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum BuiltinErrorField {
+    Code,
+    Message,
+}
+
+impl BuiltinErrorField {
+    pub(crate) fn from_source_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "code" => Self::Code,
+            "message" => Self::Message,
+            _ => return None,
+        })
+    }
+}
+
 impl BuiltinTypeOwner {
     pub(crate) const ALL: [Self; 14] = [
         Self::Str,

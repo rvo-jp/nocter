@@ -5,8 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BoolLocation, BoolValue,
     DirectAggregateArgument, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, StrLocation, Type, U8Location,
-    U8Value, UsizeLocation, UsizeValue,
+    IntegerBinaryOperator, OutcomeFailureMode, ScalarArgument, StrLocation, StrValue, Type,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::mir::{
     BinaryOperator, Body, CallContinuation, ComparisonOperator, LocalId, LocalStorage, Operand,
@@ -38,7 +38,7 @@ pub(super) struct BackendContext<'a> {
     root_source: SourceId,
 }
 
-pub(super) fn try_lower_scalar_body(
+pub(super) fn try_lower_body(
     cache: &crate::mir::BodyCache,
     body: &crate::ast::Block,
     parameters: &[crate::ast::Parameter],
@@ -53,18 +53,56 @@ pub(super) fn try_lower_scalar_body(
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Option<Result<Vec<Instruction>, Vec<Diagnostic>>> {
-    let (return_scalar, return_mode) = match return_type {
-        Type::I32 => (ScalarType::I32, ReturnMode::Plain),
-        Type::U8 => (ScalarType::U8, ReturnMode::Plain),
-        Type::Usize => (ScalarType::Usize, ReturnMode::Plain),
-        Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Plain),
-        Type::Bool => (ScalarType::Bool, ReturnMode::Plain),
+    let (return_representation, return_mode) = match return_type {
+        Type::I32 => (
+            crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
+            ReturnMode::Plain,
+        ),
+        Type::U8 => (
+            crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
+            ReturnMode::Plain,
+        ),
+        Type::Usize => (
+            crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
+            ReturnMode::Plain,
+        ),
+        Type::Integer(kind) => (
+            crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
+            ReturnMode::Plain,
+        ),
+        Type::Bool => (
+            crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
+            ReturnMode::Plain,
+        ),
+        Type::Str => (
+            crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+            ReturnMode::Plain,
+        ),
         Type::Fallible(success) => match success.as_ref() {
-            Type::I32 => (ScalarType::I32, ReturnMode::Fallible),
-            Type::U8 => (ScalarType::U8, ReturnMode::Fallible),
-            Type::Usize => (ScalarType::Usize, ReturnMode::Fallible),
-            Type::Integer(kind) => (ScalarType::Integer(*kind), ReturnMode::Fallible),
-            Type::Bool => (ScalarType::Bool, ReturnMode::Fallible),
+            Type::I32 => (
+                crate::mir::ValueRepresentation::Scalar(ScalarType::I32),
+                ReturnMode::Fallible,
+            ),
+            Type::U8 => (
+                crate::mir::ValueRepresentation::Scalar(ScalarType::U8),
+                ReturnMode::Fallible,
+            ),
+            Type::Usize => (
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Usize),
+                ReturnMode::Fallible,
+            ),
+            Type::Integer(kind) => (
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Integer(*kind)),
+                ReturnMode::Fallible,
+            ),
+            Type::Bool => (
+                crate::mir::ValueRepresentation::Scalar(ScalarType::Bool),
+                ReturnMode::Fallible,
+            ),
+            Type::Str => (
+                crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+                ReturnMode::Fallible,
+            ),
             _ => return None,
         },
         _ => return None,
@@ -73,10 +111,10 @@ pub(super) fn try_lower_scalar_body(
     let parameter_projection =
         parameters::ParameterProjection::from_slots(parameters, parameter_slots)?;
     let mir_body = cache.get_or_build(body_id, || {
-        crate::mir::try_build_scalar_body_with_return_mode(
+        crate::mir::try_build_body_with_return_mode(
             body,
             parameters,
-            return_scalar,
+            return_representation,
             return_mode,
             crate::mir::BuildInputs {
                 semantic_db: &resolved.semantic_db,
@@ -630,6 +668,18 @@ fn lower_returning_call(
             layout,
         ));
     }
+    if representation == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) {
+        super::expressions::validate_known_call_success_return_passing(
+            context.function_signatures.success_return_passing(&target),
+            callee_name,
+            &Type::Str,
+        )?;
+        return Ok(Instruction::CallStr {
+            destination: str_location(destination, context)?,
+            target,
+            arguments,
+        });
+    }
     let scalar = local_scalar(context.body, destination.local)?;
     super::expressions::validate_known_call_success_return_passing(
         function_signatures.success_return_passing(&target),
@@ -839,6 +889,9 @@ fn lower_call_argument(
                 source: lower_borrow_argument_source(&argument.operand, context)?,
             })
         }
+        crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str) => {
+            ScalarArgument::Str(lower_str_operand(&argument.operand, context)?)
+        }
         crate::mir::ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
                 "logical error values cannot be passed as scalar call arguments",
@@ -890,7 +943,7 @@ fn lower_aggregate_call_argument(
 ) -> Result<ScalarArgument, Vec<Diagnostic>> {
     let place = match operand {
         Operand::Copy(place) | Operand::Move(place) => place,
-        Operand::Constant(_) => {
+        Operand::Constant(_) | Operand::StaticStr { .. } => {
             return Err(invalid_mir_diagnostics(
                 "aggregate call argument is not a stored place",
             ));
@@ -1078,6 +1131,27 @@ fn lower_statements(
                     context,
                 )?);
             }
+            continue;
+        }
+        let destination_representation = destination
+            .projection
+            .and_then(|projection| body.projections.get(projection.index()))
+            .map_or(
+                body.locals[destination.local.index()].representation,
+                |path| path.representation,
+            );
+        if destination_representation
+            == crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str)
+        {
+            let Rvalue::Use(operand) = value else {
+                return Err(invalid_mir_diagnostics(
+                    "string-view assignment requires a direct MIR operand",
+                ));
+            };
+            instructions.push(Instruction::SetStr {
+                destination: str_location(destination, context)?,
+                value: lower_str_operand(operand, context)?,
+            });
             continue;
         }
         if destination.projection.is_some() {
@@ -1748,6 +1822,11 @@ fn lower_borrow_source(
         crate::mir::ValueRepresentation::Borrow => {
             return lower_borrow_argument_source(&Operand::Copy(place), context);
         }
+        crate::mir::ValueRepresentation::View(_) => {
+            return Err(invalid_mir_diagnostics(
+                "view values cannot be borrowed as scalar places",
+            ));
+        }
         crate::mir::ValueRepresentation::Error => {
             return Err(invalid_mir_diagnostics(
                 "logical error values cannot be borrowed as scalar places",
@@ -1881,6 +1960,11 @@ fn aggregate_borrow_projection(
                 }
                 index = Some((operand, length, stride));
             }
+            crate::mir::ProjectionElement::ErrorField(_) => {
+                return Err(invalid_mir_diagnostics(
+                    "error field cannot participate in an aggregate projection",
+                ));
+            }
         }
     }
     Ok(match index {
@@ -1987,7 +2071,7 @@ fn aggregate_scalar_load(
     context: &BackendContext<'_>,
 ) -> Result<Option<Instruction>, Vec<Diagnostic>> {
     let place = match operand {
-        Operand::Constant(_) => return Ok(None),
+        Operand::Constant(_) | Operand::StaticStr { .. } => return Ok(None),
         Operand::Copy(place) | Operand::Move(place) => place,
     };
     let Some(projection) = place.projection else {
@@ -2459,7 +2543,7 @@ fn machine_local_index(body: &Body, local: LocalId) -> usize {
 fn local_scalar(body: &Body, local: LocalId) -> Result<ScalarType, Vec<Diagnostic>> {
     body.locals[local.index()]
         .scalar_type()
-        .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received an aggregate local"))
+        .ok_or_else(|| invalid_mir_diagnostics("scalar MIR lowering received a non-scalar local"))
 }
 
 fn lower_cast_to_i32(
@@ -2526,6 +2610,9 @@ fn lower_i32_operand(
                     invalid_mir_diagnostics("i32 constant is outside its runtime representation")
                 })
         }
+        Operand::StaticStr { .. } => Err(invalid_mir_diagnostics(
+            "string literal used as an i32 operand",
+        )),
         Operand::Copy(place) | Operand::Move(place) => {
             i32_location(place, context).map(I32Value::Location)
         }
@@ -2544,6 +2631,9 @@ fn lower_u8_operand(
                     invalid_mir_diagnostics("u8 constant is outside its runtime representation")
                 })
         }
+        Operand::StaticStr { .. } => Err(invalid_mir_diagnostics(
+            "string literal used as a u8 operand",
+        )),
         Operand::Copy(place) | Operand::Move(place) => {
             u8_location(place, context).map(U8Value::Location)
         }
@@ -2560,6 +2650,9 @@ fn lower_usize_operand(
             .map_err(|_| {
                 invalid_mir_diagnostics("usize constant is outside its runtime representation")
             }),
+        Operand::StaticStr { .. } => Err(invalid_mir_diagnostics(
+            "string literal used as a usize operand",
+        )),
         Operand::Copy(place) | Operand::Move(place) => {
             usize_location(place, context).map(UsizeValue::Location)
         }
@@ -2577,6 +2670,9 @@ fn lower_integer_operand(
             .map_err(|_| {
                 invalid_mir_diagnostics("integer constant is outside its runtime representation")
             }),
+        Operand::StaticStr { .. } => Err(invalid_mir_diagnostics(
+            "string literal used as an integer operand",
+        )),
         Operand::Copy(place) | Operand::Move(place) => {
             integer_location(place, kind, context).map(UsizeValue::Location)
         }
@@ -2595,9 +2691,75 @@ fn lower_bool_operand(
                 "bool constant is outside its runtime representation",
             )),
         },
+        Operand::StaticStr { .. } => Err(invalid_mir_diagnostics(
+            "string literal used as a bool operand",
+        )),
         Operand::Copy(place) | Operand::Move(place) => {
             bool_location(place, context).map(BoolValue::Location)
         }
+    }
+}
+
+fn lower_str_operand(
+    operand: &Operand,
+    context: &BackendContext<'_>,
+) -> Result<StrValue, Vec<Diagnostic>> {
+    match operand {
+        Operand::StaticStr { bytes, .. } => Ok(StrValue::StaticBytes(bytes.clone())),
+        Operand::Copy(place) | Operand::Move(place) => {
+            str_location(place, context).map(StrValue::Location)
+        }
+        Operand::Constant(_) => Err(invalid_mir_diagnostics(
+            "scalar constant used as a string-view operand",
+        )),
+    }
+}
+
+fn str_location(
+    place: &Place,
+    context: &BackendContext<'_>,
+) -> Result<StrLocation, Vec<Diagnostic>> {
+    if let Some(projection) = place.projection {
+        let path = context
+            .body
+            .projections
+            .get(projection.index())
+            .ok_or_else(|| invalid_mir_diagnostics("string view projection is missing"))?;
+        let crate::mir::ProjectionElement::ErrorField(field) = path.element else {
+            return Err(invalid_mir_diagnostics(
+                "string view projection is not an error field",
+            ));
+        };
+        let declaration = &context.body.locals[place.local.index()];
+        if declaration.representation != crate::mir::ValueRepresentation::Error
+            || declaration.storage != LocalStorage::Local
+        {
+            return Err(invalid_mir_diagnostics(
+                "error field projection is not backed by a logical error local",
+            ));
+        }
+        let base = machine_local_index(context.body, place.local);
+        return Ok(StrLocation::Local(
+            base + match field {
+                crate::builtin_types::BuiltinErrorField::Code => 0,
+                crate::builtin_types::BuiltinErrorField::Message => 2,
+            },
+        ));
+    }
+    match context.body.locals[place.local.index()].storage {
+        LocalStorage::Return => Ok(StrLocation::Return),
+        LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
+            Some(parameters::ParameterStorage::Str { abi_index }) => {
+                Ok(StrLocation::Parameter(abi_index))
+            }
+            _ => Err(invalid_mir_diagnostics(
+                "string-view MIR parameter has no matching ABI projection",
+            )),
+        },
+        LocalStorage::Local => Ok(StrLocation::Local(machine_local_index(
+            context.body,
+            place.local,
+        ))),
     }
 }
 
