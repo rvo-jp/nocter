@@ -186,6 +186,7 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                 | crate::mir::Terminator::Trap
                 | crate::mir::Terminator::PropagateFailure
                 | crate::mir::Terminator::ReturnOutcome { .. }
+                | crate::mir::Terminator::ReturnFailure { .. }
                 | crate::mir::Terminator::Return => 0,
             };
             statements + terminator

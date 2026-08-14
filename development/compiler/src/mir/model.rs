@@ -330,5 +330,11 @@ pub(crate) enum Terminator {
     ReturnOutcome {
         source: Operand,
     },
+    /// Return a recoverable failure value. Code and message remain logical
+    /// string-view operands until machine-storage projection.
+    ReturnFailure {
+        code: Operand,
+        message: Operand,
+    },
     Return,
 }

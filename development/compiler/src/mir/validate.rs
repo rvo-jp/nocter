@@ -168,6 +168,9 @@ pub(crate) enum ValidationError {
     PropagationFromPlainBody {
         block: BasicBlockId,
     },
+    FailureReturnFromPlainBody {
+        block: BasicBlockId,
+    },
     InvalidLoopCondition {
         header: BasicBlockId,
         condition: BasicBlockId,
@@ -199,6 +202,8 @@ pub(crate) enum OperandLocation {
     Statement(usize),
     CallArgument(usize),
     OutcomeReturn,
+    FailureCode,
+    FailureMessage,
     Drop,
 }
 
@@ -796,6 +801,26 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                     source,
                     &mut errors,
                 );
+            }
+            Terminator::ReturnFailure { code, message } => {
+                if body.return_mode == super::ReturnMode::Plain {
+                    errors.push(ValidationError::FailureReturnFromPlainBody { block: block_id });
+                }
+                for (operand, location) in [
+                    (code, OperandLocation::FailureCode),
+                    (message, OperandLocation::FailureMessage),
+                ] {
+                    operand_type(body, block_id, location, operand, &mut errors);
+                    validate_operand_representation(
+                        body,
+                        block_id,
+                        location,
+                        operand,
+                        ValueRepresentation::View(crate::mir::ViewKind::Str),
+                        &mut errors,
+                    );
+                    validate_operand_ownership(body, block_id, location, operand, &mut errors);
+                }
             }
             Terminator::Trap | Terminator::PropagateFailure | Terminator::Return => {}
         }

@@ -78,6 +78,7 @@ fn reachable_distances(
             Terminator::Trap
             | Terminator::PropagateFailure
             | Terminator::ReturnOutcome { .. }
+            | Terminator::ReturnFailure { .. }
             | Terminator::Return => {}
         }
     }

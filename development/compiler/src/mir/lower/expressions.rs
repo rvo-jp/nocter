@@ -15,6 +15,35 @@ mod outcomes;
 pub(super) use control_flow_expressions::lower_conditional_to_place;
 
 impl LoweringContext<'_> {
+    pub(super) fn lower_failure_return(
+        &mut self,
+        expression: &Expr,
+        scope: ScopeId,
+    ) -> Result<(), BuildError> {
+        if !super::coverage::failure_value_is_supported(expression, self.semantic) {
+            return Err(BuildError::UnsupportedClaimedExpression);
+        }
+        let Expr::Call(call) = expression.without_groups() else {
+            unreachable!("supported failure values are constructor calls")
+        };
+        let mut operands = Vec::with_capacity(2);
+        for argument in &call.arguments {
+            let ty = known_expression_type(argument, self.semantic.typed_hir)
+                .ok_or(BuildError::MissingTypedExpression)?;
+            operands.push(self.lower_view_operand(
+                argument,
+                ty,
+                crate::mir::ViewKind::Str,
+                scope,
+            )?);
+        }
+        let [code, message] = operands
+            .try_into()
+            .map_err(|_| BuildError::UnsupportedClaimedExpression)?;
+        self.control_flow
+            .terminate(crate::mir::Terminator::ReturnFailure { code, message })
+    }
+
     pub(super) fn lower_value_to_place(
         &mut self,
         destination: LocalId,

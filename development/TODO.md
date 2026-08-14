@@ -12,9 +12,10 @@ selection; buildability and machine-IR lowering consume the same retained body a
 call edges. Stored outcome call results now use checked aggregate MIR locals and single-layer
 inspection uses one semantic MIR terminator shared by initialization, ownership, loan, cleanup, and
 backend projection. Recursive machine layout remains backend-only. Optional and composed stored
-values also forward through an ownership-aware MIR return edge. The next boundary is composed and
-aggregate payload inspection plus fallible stored forwarding and failure-value returns; do not put
-tag or payload offsets in MIR. After that, expand closures, typed literals, interpolation,
+values also forward through an ownership-aware MIR return edge, and `error.new` failure returns use
+logical string-view operands. The next boundary is composed and aggregate payload inspection plus
+fallible stored forwarding and forwarded or nested failure-value returns; do not put tag or
+payload offsets in MIR. After that, expand closures, typed literals, interpolation,
 expansion, and iteration until the AST lowering/buildability routes can be deleted. Do not add
 language features or standard-library APIs during the migration. The
 v0.13.0 tag, archive, release notes, and qualification record are immutable.

@@ -124,6 +124,8 @@ pub(crate) fn try_build_body_with_return_mode(
             .all(|statement| statement.is_supported(semantic))
         || !(tail.expression().is_some_and(|expression| {
             value_expression_is_supported(expression, return_representation, semantic)
+                || return_mode == ReturnMode::Fallible
+                    && coverage::failure_value_is_supported(expression, semantic)
         }) || tail.conditional().is_some_and(|conditional| {
             (matches!(
                 return_representation,
@@ -263,7 +265,17 @@ pub(crate) fn try_build_body_with_return_mode(
             Scope::root(block.span),
         );
         StatementLowerer::new(&mut context).lower(&source_statements, root_scope)?;
-        if let Some(if_) = tail.conditional() {
+        if return_mode == ReturnMode::Fallible
+            && tail.expression().is_some_and(|expression| {
+                coverage::failure_value_is_supported(expression, semantic)
+            })
+        {
+            context.lower_failure_return(
+                tail.expression()
+                    .ok_or(BuildError::UnsupportedClaimedExpression)?,
+                root_scope,
+            )?;
+        } else if let Some(if_) = tail.conditional() {
             expressions::lower_conditional_to_place(
                 &mut context,
                 return_local,

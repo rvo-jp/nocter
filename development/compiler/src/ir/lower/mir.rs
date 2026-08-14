@@ -436,6 +436,18 @@ fn lower_scalar_body(
                 instructions.push(outcomes::lower_return(&context, source)?);
                 return Ok(instructions);
             }
+            Terminator::ReturnFailure { code, message } => {
+                if body.return_mode != ReturnMode::Fallible {
+                    return Err(invalid_mir_diagnostics(
+                        "plain MIR body contains a recoverable failure return",
+                    ));
+                }
+                instructions.push(Instruction::ReturnFallibleFailure {
+                    code: lower_str_operand(code, &context)?,
+                    message: lower_str_operand(message, &context)?,
+                });
+                return Ok(instructions);
+            }
             Terminator::Return => {
                 instructions.push(match body.return_mode {
                     ReturnMode::Plain => Instruction::Return,
@@ -767,6 +779,18 @@ fn lower_branch_to_join(
             }
             Terminator::ReturnOutcome { source } => {
                 instructions.push(outcomes::lower_return(context, source)?);
+                return Ok(instructions);
+            }
+            Terminator::ReturnFailure { code, message } => {
+                if body.return_mode != ReturnMode::Fallible {
+                    return Err(invalid_mir_diagnostics(
+                        "plain MIR branch contains a recoverable failure return",
+                    ));
+                }
+                instructions.push(Instruction::ReturnFallibleFailure {
+                    code: lower_str_operand(code, context)?,
+                    message: lower_str_operand(message, context)?,
+                });
                 return Ok(instructions);
             }
             _ => {

@@ -900,6 +900,37 @@ pub(super) fn scalar_expression_is_supported(
     }
 }
 
+pub(super) fn failure_value_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    let Expr::Call(call) = expression.without_groups() else {
+        return false;
+    };
+    let Some((owner, function)) = semantic.resolved.associated_function_for_call(call) else {
+        return false;
+    };
+    if semantic.resolved.builtin_owner_for_symbol(owner)
+        != Some(crate::builtin_types::BuiltinTypeOwner::Error)
+        || semantic
+            .typed_hir
+            .associated_function_target(match call.callee.without_groups() {
+                Expr::Member(member) => member.member_span,
+                _ => return false,
+            })
+            .is_none()
+        || function.signature.parameters.len() != 2
+        || call.arguments.len() != 2
+    {
+        return false;
+    }
+    call.arguments.iter().all(|argument| {
+        let Some(ty) = known_expression_type(argument, semantic.typed_hir) else {
+            return false;
+        };
+        let representation = crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str);
+        value_representation(ty, semantic) == Some(representation)
+            && value_expression_is_supported(argument, representation, semantic)
+    })
+}
+
 fn scalar_outcome_source_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,

@@ -212,6 +212,11 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 consume_operand_move(body, source, &mut state);
                 validate_exit(body, block_id, &state, &mut errors);
             }
+            Terminator::ReturnFailure { code, message } => {
+                consume_operand_move(body, code, &mut state);
+                consume_operand_move(body, message, &mut state);
+                validate_exit(body, block_id, &state, &mut errors);
+            }
             Terminator::Return | Terminator::Trap | Terminator::PropagateFailure => {
                 validate_exit(body, block_id, &state, &mut errors);
             }
