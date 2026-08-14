@@ -135,6 +135,9 @@ impl LoweringContext<'_> {
                 Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
                     super::literals::lower_to_place(self, destination, expression, ty, scope)
                 }
+                Expr::InterpolatedString(interpolated) => {
+                    super::interpolation::lower_to_place(self, destination, interpolated, ty, scope)
+                }
                 Expr::Identifier(_) | Expr::Unary(_) => {
                     let source = self
                         .semantic

@@ -88,3 +88,34 @@ func main(): i32! {
         1
     );
 }
+
+#[test]
+fn interpolation_caller_uses_the_retained_mir_body() {
+    let fixture = analyze_text_fixture_with_development_home(
+        r#"func main(): i32 {
+    let text = "value ${42}"
+    return 0
+}
+"#,
+    );
+    lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+
+    let root = fixture.analysis.root_file().unwrap();
+    let body = root
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            crate::ast::Item::Function(function) if function.name == "main" => {
+                function.body.as_ref()
+            }
+            _ => None,
+        })
+        .and_then(|body| fixture.analysis.semantic_db.body_at(body.span))
+        .unwrap();
+    let cached = fixture
+        .analysis
+        .mir_bodies
+        .cached_specialized(body, &HashMap::new());
+    assert!(matches!(cached, Some(Ok(_))), "{cached:?}");
+}

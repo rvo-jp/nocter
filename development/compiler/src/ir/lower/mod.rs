@@ -838,6 +838,15 @@ impl<'a> FunctionIndex<'a> {
                     let definition = self.callable_bodies.canonical_definition(authored);
                     Some((definition, name))
                 })
+                .chain(self.definitions.values().flat_map(|function| {
+                    function.typed_hir.interpolation_plans().map(|(_, plan)| {
+                        (
+                            self.callable_bodies
+                                .canonical_definition(plan.constructor.definition),
+                            plan.constructor.target_name.clone(),
+                        )
+                    })
+                }))
                 .collect(),
             self.definitions
                 .values()
@@ -939,6 +948,23 @@ impl<'a> FunctionIndex<'a> {
                             fact.specialization.target_name.clone(),
                         )
                     })
+                }))
+                .chain(self.definitions.values().flat_map(|function| {
+                    function
+                        .typed_hir
+                        .interpolation_plans()
+                        .flat_map(|(_, plan)| plan.parts.iter())
+                        .map(|part| {
+                            (
+                                crate::mir::CallInstanceKey::from_types(
+                                    self.callable_bodies
+                                        .canonical_definition(part.formatter.def_id),
+                                    Some(&part.formatter.self_ty),
+                                    std::iter::empty(),
+                                ),
+                                part.formatter.target_name.clone(),
+                            )
+                        })
                 }))
                 .collect(),
             self.definitions

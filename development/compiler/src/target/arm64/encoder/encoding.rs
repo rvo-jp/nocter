@@ -29,6 +29,7 @@ pub(in crate::target::arm64::encoder) const LSLV_X_BASE: u32 = 0x9ac0_2000;
 pub(in crate::target::arm64::encoder) const LSRV_W_BASE: u32 = 0x1ac0_2400;
 pub(in crate::target::arm64::encoder) const LSRV_X_BASE: u32 = 0x9ac0_2400;
 pub(in crate::target::arm64::encoder) const UBFM_X_BASE: u32 = 0xd340_0000;
+pub(in crate::target::arm64::encoder) const BFM_X_BASE: u32 = 0xb340_0000;
 pub(in crate::target::arm64::encoder) const ASRV_W_BASE: u32 = 0x1ac0_2800;
 pub(in crate::target::arm64::encoder) const ASRV_X_BASE: u32 = 0x9ac0_2800;
 pub(in crate::target::arm64::encoder) const SBFM_X_BASE: u32 = 0x9340_0000;

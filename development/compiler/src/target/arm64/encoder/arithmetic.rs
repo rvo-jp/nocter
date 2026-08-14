@@ -84,6 +84,13 @@ impl Encoder {
         self.emit_word(lsr_x_imm_word(rd, rn, shift));
     }
 
+    pub(crate) fn emit_bfi_x(&mut self, rd: XReg, rn: XReg, lsb: u32, width: u32) {
+        debug_assert!(lsb < 64 && width > 0 && lsb + width <= 64);
+        let immr = (64 - lsb) % 64;
+        let imms = width - 1;
+        self.emit_word(BFM_X_BASE | (immr << 16) | (imms << 10) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_asrv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(ASRV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }

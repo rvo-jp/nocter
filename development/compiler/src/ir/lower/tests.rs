@@ -55,6 +55,11 @@ fn lower_text_with_std_error(text: &str) -> IrModule {
 }
 
 fn lower_text_with_development_home(text: &str) -> IrModule {
+    let fixture = analyze_text_fixture_with_development_home(text);
+    lower_executable(&fixture.analysis, &fixture.sources).unwrap()
+}
+
+fn analyze_text_fixture_with_development_home(text: &str) -> LoweringFixture {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let nocter_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -74,7 +79,7 @@ fn lower_text_with_development_home(text: &str) -> IrModule {
     let analysis = analyze_executable_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    lower_executable(&analysis, &sources).unwrap()
+    LoweringFixture { sources, analysis }
 }
 
 fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {

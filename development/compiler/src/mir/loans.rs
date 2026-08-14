@@ -38,6 +38,92 @@ struct LoanState {
     must_active: LoanSet,
 }
 
+pub(super) struct LoanAnalysis {
+    exits: Vec<Option<LoanSet>>,
+}
+
+impl LoanAnalysis {
+    pub(super) fn definitely_active_at_exit(&self, block: BasicBlockId, loan: LoanId) -> bool {
+        self.exits
+            .get(block.index())
+            .and_then(Option::as_ref)
+            .is_some_and(|active| active.contains(loan))
+    }
+}
+
+pub(super) fn analyze(body: &Body) -> LoanAnalysis {
+    let mut entries = vec![None; body.blocks.len()];
+    let mut exits = vec![None; body.blocks.len()];
+    if body.blocks.get(body.entry.index()).is_none() {
+        return LoanAnalysis { exits };
+    }
+    entries[body.entry.index()] = Some(LoanSet::new(body.loans.len()));
+    let mut queue = VecDeque::from([body.entry]);
+    while let Some(block_id) = queue.pop_front() {
+        let Some(block) = body.blocks.get(block_id.index()) else {
+            continue;
+        };
+        let Some(mut active) = entries[block_id.index()].clone() else {
+            continue;
+        };
+        for statement in &block.statements {
+            match statement {
+                Statement::BeginLoan { loan, .. } => active.insert(*loan),
+                Statement::EndLoan { loan } => active.remove(*loan),
+                _ => {}
+            };
+        }
+        exits[block_id.index()] = Some(active.clone());
+        for target in successors(&block.terminator) {
+            let Some(entry) = entries.get_mut(target.index()) else {
+                continue;
+            };
+            let changed = match entry {
+                None => {
+                    *entry = Some(active.clone());
+                    true
+                }
+                Some(existing) => existing.intersect_with(&active),
+            };
+            if changed {
+                queue.push_back(target);
+            }
+        }
+    }
+    LoanAnalysis { exits }
+}
+
+fn successors(terminator: &Terminator) -> Vec<BasicBlockId> {
+    match terminator {
+        Terminator::Goto { target } | Terminator::Drop { target, .. } => vec![*target],
+        Terminator::Switch {
+            then_target,
+            else_target,
+            ..
+        } => vec![*then_target, *else_target],
+        Terminator::Call { continuation, .. } => match continuation {
+            CallContinuation::Continue { target } | CallContinuation::Return { target, .. } => {
+                vec![*target]
+            }
+            CallContinuation::Outcome {
+                success, failure, ..
+            }
+            | CallContinuation::OutcomeEffect {
+                success, failure, ..
+            } => vec![*success, *failure],
+            CallContinuation::Never => Vec::new(),
+        },
+        Terminator::InspectOutcome {
+            success, failure, ..
+        } => vec![*success, *failure],
+        Terminator::Trap
+        | Terminator::PropagateFailure
+        | Terminator::ReturnOutcome { .. }
+        | Terminator::ReturnFailure { .. }
+        | Terminator::Return => Vec::new(),
+    }
+}
+
 pub(super) fn validate(body: &Body) -> Vec<LoanError> {
     let mut errors = HashSet::new();
     validate_declarations(body, &mut errors);

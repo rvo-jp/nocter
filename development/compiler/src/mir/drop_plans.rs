@@ -8,7 +8,7 @@ use super::DropPlanId;
 use crate::ast::{TypeExpr, substitute_type_expr_parameters};
 use crate::outcomes::OutcomeLayer;
 use crate::resolve::{ResolveOutput, ResolvedSources, TypeSymbolKind};
-use crate::semantic::{DefId, TyId};
+use crate::semantic::DefId;
 use crate::typecheck::TypedHir;
 use std::collections::{HashMap, HashSet};
 
@@ -24,7 +24,7 @@ pub(crate) enum DropPlan {
     },
     Array {
         length: u64,
-        element_ty: TyId,
+        element_ty: TypeExpr,
         element: DropPlanId,
     },
     Enum {
@@ -32,15 +32,15 @@ pub(crate) enum DropPlan {
     },
     Outcome {
         layers: Vec<OutcomeLayer>,
-        payload_ty: TyId,
+        payload_ty: TypeExpr,
         payload: DropPlanId,
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DropPlanField {
     pub(crate) index: usize,
-    pub(crate) ty: TyId,
+    pub(crate) ty: TypeExpr,
     pub(crate) plan: DropPlanId,
 }
 
@@ -103,7 +103,7 @@ fn build_inner(
                 plans,
                 resolving,
             )?;
-            let element_ty = typed_hir.type_id(&array.element)?;
+            let element_ty = (*array.element).clone();
             let length = crate::literals::decode_integer_literal_value(&array.length.value)
                 .and_then(|value| u64::try_from(value).ok())?;
             push(
@@ -167,7 +167,7 @@ fn build_inner(
                 plans,
                 DropPlan::Outcome {
                     layers: shape.layers,
-                    payload_ty: typed_hir.type_id(&shape.payload)?,
+                    payload_ty: shape.payload,
                     payload,
                 },
             )
@@ -187,7 +187,7 @@ fn build_inner(
                     build_inner(&capture.ty, fallback, sources, typed_hir, plans, resolving)?;
                 fields.push(DropPlanField {
                     index,
-                    ty: typed_hir.type_id(&capture.ty)?,
+                    ty: capture.ty.clone(),
                     plan,
                 });
             }
@@ -254,7 +254,7 @@ fn build_nominal(
             };
             fields.push(DropPlanField {
                 index,
-                ty: typed_hir.type_id(&field_ty)?,
+                ty: field_ty,
                 plan,
             });
         }
@@ -273,7 +273,7 @@ fn build_nominal(
                 };
                 payload_fields.push(DropPlanField {
                     index,
-                    ty: typed_hir.type_id(&payload_ty)?,
+                    ty: payload_ty,
                     plan,
                 });
             }

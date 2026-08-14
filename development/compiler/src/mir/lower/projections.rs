@@ -174,7 +174,15 @@ pub(super) fn ensure_owned_drop_projections(
     })
     .map_err(|_| BuildError::UnsupportedClaimedExpression)?
     .ty;
-    ensure_owned_drop_projections_inner(base, None, &abi, root_plan, projections, drop_plans)
+    ensure_owned_drop_projections_inner(
+        base,
+        None,
+        &abi,
+        root_plan,
+        semantic,
+        projections,
+        drop_plans,
+    )
 }
 
 fn ensure_owned_drop_projections_inner(
@@ -182,6 +190,7 @@ fn ensure_owned_drop_projections_inner(
     parent: Option<ProjectionPathId>,
     abi: &AbiType,
     plan: crate::mir::DropPlanId,
+    semantic: SemanticInputs<'_>,
     projections: &mut Vec<ProjectionPath>,
     drop_plans: &[crate::mir::DropPlan],
 ) -> Result<(), BuildError> {
@@ -192,7 +201,11 @@ fn ensure_owned_drop_projections_inner(
         return Err(BuildError::UnsupportedClaimedExpression);
     };
     let layout = layout_struct(abi_fields).map_err(|_| BuildError::UnsupportedClaimedExpression)?;
-    for field in fields.clone() {
+    for field in fields {
+        let field_ty = semantic
+            .typed_hir
+            .type_id(&field.ty)
+            .ok_or(BuildError::MissingTypedExpression)?;
         let offset = layout
             .fields
             .get(field.index)
@@ -205,7 +218,7 @@ fn ensure_owned_drop_projections_inner(
                 projection.base == base
                     && projection.parent == parent
                     && projection.element == element
-                    && projection.ty == field.ty
+                    && projection.ty == field_ty
             })
             .map(|projection| projection.id)
             .unwrap_or_else(|| {
@@ -215,7 +228,7 @@ fn ensure_owned_drop_projections_inner(
                     base,
                     parent,
                     element,
-                    ty: field.ty,
+                    ty: field_ty,
                     representation: ValueRepresentation::Aggregate,
                     ownership: OwnershipKind::Move,
                     drop_plan: Some(field.plan),
@@ -227,6 +240,7 @@ fn ensure_owned_drop_projections_inner(
             Some(id),
             &abi_fields[field.index].ty,
             field.plan,
+            semantic,
             projections,
             drop_plans,
         )?;

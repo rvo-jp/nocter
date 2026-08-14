@@ -19,12 +19,9 @@ impl EntryEmitter {
                 emit_integer_store_to_base(&mut self.encoder, byte_count, XReg::X8, offset);
                 Ok(())
             }
-            AggregateLocation::DirectReturn if byte_count == AGGREGATE_USIZE_STORE_BYTES => {
-                self.emit_x_to_direct_aggregate_return(offset)
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, byte_count)
             }
-            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
-                "direct aggregate return integer field must occupy an 8-byte word",
-            )),
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 emit_integer_store_to_base(&mut self.encoder, byte_count, base, offset);
@@ -231,9 +228,9 @@ impl EntryEmitter {
                 self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
-            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
-                "direct aggregate return field store must be an 8-byte word",
-            )),
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, AGGREGATE_I32_STORE_BYTES)
+            }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_str_w_imm(WReg::W16, base, offset);
@@ -276,9 +273,9 @@ impl EntryEmitter {
                 self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
-            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
-                "direct aggregate return field store must be an 8-byte word",
-            )),
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, AGGREGATE_I32_STORE_BYTES)
+            }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_str_w_imm(WReg::W16, base, offset);
@@ -321,9 +318,9 @@ impl EntryEmitter {
                 self.encoder.emit_strh_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
-            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
-                "direct aggregate return field store must be an 8-byte word",
-            )),
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, AGGREGATE_U16_STORE_BYTES)
+            }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_strh_w_imm(WReg::W16, base, offset);
@@ -486,9 +483,9 @@ impl EntryEmitter {
                 self.encoder.emit_strb_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
-            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
-                "direct aggregate return field store must be an 8-byte word",
-            )),
+            AggregateLocation::DirectReturn => {
+                self.emit_x_to_direct_aggregate_return_chunk(offset, AGGREGATE_U8_STORE_BYTES)
+            }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_strb_w_imm(WReg::W16, base, offset);

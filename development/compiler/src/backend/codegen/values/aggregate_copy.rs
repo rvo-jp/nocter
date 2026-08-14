@@ -459,6 +459,38 @@ impl EntryEmitter {
         }
     }
 
+    pub(in crate::backend::codegen::values) fn emit_x_to_direct_aggregate_return_chunk(
+        &mut self,
+        offset: u32,
+        byte_count: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let word_offset = offset - (offset % AGGREGATE_USIZE_STORE_BYTES);
+        let byte_offset = offset % AGGREGATE_USIZE_STORE_BYTES;
+        if byte_count == 0
+            || byte_count > AGGREGATE_USIZE_STORE_BYTES
+            || byte_offset + byte_count > AGGREGATE_USIZE_STORE_BYTES
+        {
+            return Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return field crosses an ABI word",
+            ));
+        }
+        if byte_count == AGGREGATE_USIZE_STORE_BYTES {
+            return self.emit_x_to_direct_aggregate_return(word_offset);
+        }
+        let destination = match word_offset {
+            0 => XReg::X0,
+            8 => XReg::X1,
+            _ => {
+                return Err(aggregate_store_offset_diagnostic(
+                    "direct aggregate return field exceeds two ABI words",
+                ));
+            }
+        };
+        self.encoder
+            .emit_bfi_x(destination, XReg::X16, byte_offset * 8, byte_count * 8);
+        Ok(())
+    }
+
     pub(in crate::backend::codegen::values) fn aggregate_parameter_base_register(
         &mut self,
         index: usize,

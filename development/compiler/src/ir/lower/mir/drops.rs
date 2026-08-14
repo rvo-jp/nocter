@@ -1,8 +1,6 @@
 //! Projection of semantic MIR destruction plans into machine IR.
 
-use super::{
-    BackendContext, aggregate_local_abi_value, aggregate_location, invalid_mir_diagnostics,
-};
+use super::{BackendContext, aggregate_location, invalid_mir_diagnostics};
 use crate::abi::{AbiType, layout_struct};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -24,6 +22,10 @@ pub(super) fn lower_drop(
         ),
         None => (0, context.body.locals[place.local.index()].ty),
     };
+    let ty = context
+        .typed_hir
+        .type_expr_by_id(ty)
+        .ok_or_else(|| invalid_mir_diagnostics("drop root type is missing"))?;
     lower_plan(context, location, offset, ty, plan)
 }
 
@@ -31,7 +33,7 @@ fn lower_plan(
     context: &BackendContext<'_>,
     location: AggregateLocation,
     base_offset: u32,
-    ty: crate::semantic::TyId,
+    ty: &crate::ast::TypeExpr,
     plan: DropPlanId,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let plan = context
@@ -49,7 +51,7 @@ fn lower_plan(
             *destructor,
         )?]),
         DropPlan::Struct { destructor, fields } => {
-            let value = aggregate_local_abi_value(ty, context)?;
+            let value = aggregate_abi_value(ty, context)?;
             let AbiType::Struct(abi_fields) = value.ty else {
                 return Err(invalid_mir_diagnostics(
                     "struct drop plan does not describe struct storage",
@@ -74,7 +76,9 @@ fn lower_plan(
                     .and_then(|field| u32::try_from(field.offset).ok())
                     .and_then(|offset| base_offset.checked_add(offset))
                     .ok_or_else(|| invalid_mir_diagnostics("drop field offset is invalid"))?;
-                instructions.extend(lower_plan(context, location, offset, field.ty, field.plan)?);
+                instructions.extend(lower_plan(
+                    context, location, offset, &field.ty, field.plan,
+                )?);
             }
             Ok(instructions)
         }
@@ -83,7 +87,7 @@ fn lower_plan(
             element_ty,
             element,
         } => {
-            let value = aggregate_local_abi_value(ty, context)?;
+            let value = aggregate_abi_value(ty, context)?;
             let AbiType::Array {
                 element: abi_element,
                 ..
@@ -102,18 +106,12 @@ fn lower_plan(
                     .and_then(|offset| u64::from(base_offset).checked_add(offset))
                     .and_then(|offset| u32::try_from(offset).ok())
                     .ok_or_else(|| invalid_mir_diagnostics("drop array offset is invalid"))?;
-                instructions.extend(lower_plan(
-                    context,
-                    location,
-                    offset,
-                    *element_ty,
-                    *element,
-                )?);
+                instructions.extend(lower_plan(context, location, offset, element_ty, *element)?);
             }
             Ok(instructions)
         }
         DropPlan::Enum { variants } => {
-            let value = aggregate_local_abi_value(ty, context)?;
+            let value = aggregate_abi_value(ty, context)?;
             let AbiType::Enum(enum_) = value.ty else {
                 return Err(invalid_mir_diagnostics(
                     "enum drop plan does not describe enum storage",
@@ -159,14 +157,14 @@ fn lower_plan(
             payload_ty,
             payload,
         } => {
-            let payload_value = aggregate_local_abi_value(*payload_ty, context)?;
+            let payload_value = aggregate_abi_value(payload_ty, context)?;
             let storage =
                 crate::outcomes::storage::outcome_storage_layout(layers, payload_value.layout);
             let payload_offset = u32::try_from(storage.payload_offset)
                 .ok()
                 .and_then(|offset| base_offset.checked_add(offset))
                 .ok_or_else(|| invalid_mir_diagnostics("outcome payload offset is invalid"))?;
-            let mut active = lower_plan(context, location, payload_offset, *payload_ty, *payload)?;
+            let mut active = lower_plan(context, location, payload_offset, payload_ty, *payload)?;
             for layer in storage.layers.iter().rev() {
                 let tag_offset = u32::try_from(layer.tag_offset)
                     .ok()
@@ -213,7 +211,9 @@ fn lower_enum_variant_fields(
             .get(field.index)
             .and_then(|offset| payload_base.checked_add(*offset))
             .ok_or_else(|| invalid_mir_diagnostics("enum drop payload field is invalid"))?;
-        instructions.extend(lower_plan(context, location, offset, field.ty, field.plan)?);
+        instructions.extend(lower_plan(
+            context, location, offset, &field.ty, field.plan,
+        )?);
     }
     Ok(instructions)
 }
@@ -222,16 +222,12 @@ fn direct_drop(
     context: &BackendContext<'_>,
     location: AggregateLocation,
     offset: u32,
-    ty: crate::semantic::TyId,
+    ty: &crate::ast::TypeExpr,
     destructor: crate::semantic::DefId,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let type_expr = context
-        .typed_hir
-        .type_expr_by_id(ty)
-        .ok_or_else(|| invalid_mir_diagnostics("drop plan type is missing"))?;
     let name = context
         .function_names
-        .name_for_drop(destructor, type_expr)
+        .name_for_drop(destructor, ty)
         .ok_or_else(|| invalid_mir_diagnostics("drop target has no indexed runtime name"))?
         .clone();
     let source = context
@@ -265,4 +261,14 @@ fn direct_drop(
         target,
         arguments: vec![ScalarArgument::Borrow(BorrowArgument { source })],
     })
+}
+
+fn aggregate_abi_value(
+    ty: &crate::ast::TypeExpr,
+    context: &BackendContext<'_>,
+) -> Result<crate::abi::AbiValue, Vec<Diagnostic>> {
+    crate::abi::abi_value_from_type_expr_with_resolver(ty, context.resolved, |source| {
+        context.resolved_sources.get(&source).copied()
+    })
+    .map_err(|error| invalid_mir_diagnostics(format!("{error:?}")))
 }

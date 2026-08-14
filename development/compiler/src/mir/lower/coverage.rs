@@ -619,6 +619,14 @@ impl<'a> ScalarStatement<'a> {
                                 },
                             )
                         }
+                        Expr::InterpolatedString(interpolated) => interpolation_is_supported(
+                            interpolated,
+                            SemanticInputs {
+                                resolved,
+                                resolved_sources,
+                                typed_hir,
+                            },
+                        ),
                         Expr::Force(_) | Expr::Propagate(_) => value_expression_is_supported(
                             &binding.initializer,
                             crate::mir::ValueRepresentation::Aggregate,
@@ -1605,6 +1613,9 @@ pub(super) fn value_expression_is_supported(
             _ => false,
         },
         crate::mir::ValueRepresentation::Aggregate => match expression.without_groups() {
+            Expr::InterpolatedString(interpolated) => {
+                interpolation_is_supported(interpolated, semantic)
+            }
             Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
                 typed_literal_is_supported(expression, semantic)
             }
@@ -1652,6 +1663,65 @@ pub(super) fn value_expression_is_supported(
         },
         crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => false,
     }
+}
+
+fn interpolation_is_supported(
+    interpolated: &crate::ast::InterpolatedStringExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(plan) = semantic.typed_hir.interpolation_plan(interpolated.span) else {
+        return false;
+    };
+    if plan.parts.len() != interpolated.parts.len()
+        || semantic
+            .resolved
+            .semantic_db
+            .definition(plan.constructor.definition)
+            .is_none()
+    {
+        return false;
+    }
+    interpolated
+        .parts
+        .iter()
+        .zip(&plan.parts)
+        .all(|(part, planned)| {
+            if semantic
+                .resolved
+                .semantic_db
+                .definition(planned.formatter.def_id)
+                .is_none()
+                || semantic
+                    .typed_hir
+                    .type_id(&planned.formatter.self_ty)
+                    .is_none()
+            {
+                return false;
+            }
+            match part {
+                crate::ast::InterpolatedStringPart::Text(_) => matches!(
+                    semantic
+                        .typed_hir
+                        .type_id(&planned.accepted_type)
+                        .and_then(|ty| value_representation(ty, semantic)),
+                    Some(crate::mir::ValueRepresentation::View(
+                        crate::mir::ViewKind::Str
+                    ))
+                ),
+                crate::ast::InterpolatedStringPart::Expression(part) => {
+                    let Some(ty) = semantic.typed_hir.type_id(&planned.accepted_type) else {
+                        return false;
+                    };
+                    let Some(representation) = value_representation(ty, semantic) else {
+                        return false;
+                    };
+                    value_expression_is_supported(&part.expression, representation, semantic)
+                        || matches!(representation, crate::mir::ValueRepresentation::Aggregate)
+                            && (super::aggregates::literal_is_supported(&part.expression, semantic)
+                                || typed_literal_is_supported(&part.expression, semantic))
+                }
+            }
+        })
 }
 
 fn aggregate_outcome_source_is_supported(

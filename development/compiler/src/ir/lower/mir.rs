@@ -1284,7 +1284,11 @@ fn lower_call_target(
 ) -> Result<(crate::ir::CallTarget, String), Vec<Diagnostic>> {
     let name = function_names
         .name_for_instance(callee, typed_hir)
-        .ok_or_else(|| invalid_mir_diagnostics("call target has no indexed runtime name"))?
+        .ok_or_else(|| {
+            invalid_mir_diagnostics(format!(
+                "call target has no indexed runtime name: {callee:?}"
+            ))
+        })?
         .clone();
     let source = match &callee.callable {
         crate::mir::CallableIdentity::Definition(definition)

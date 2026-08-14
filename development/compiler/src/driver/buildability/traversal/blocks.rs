@@ -165,7 +165,7 @@ fn enqueue_mir_call_targets(
         };
         let name = names
             .get_instance(callee, typed_hir)
-            .ok_or_else(|| "MIR call target has no indexed runtime name".to_string())?;
+            .ok_or_else(|| format!("MIR call target has no indexed runtime name: {callee:?}"))?;
         let source = match &callee.callable {
             crate::mir::CallableIdentity::Definition(definition)
             | crate::mir::CallableIdentity::Literal { definition, .. } => {

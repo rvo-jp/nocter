@@ -119,6 +119,20 @@ impl TypedHirBuilder<'_> {
         let Some(runtime) = self.resolved.trusted_declarations.interpolation_runtime() else {
             return;
         };
+        let mut string_parameters = std::collections::HashSet::new();
+        let Some(string_type) = crate::typecheck::facts::type_to_type_expr_allowing_parameters(
+            &crate::typecheck::strings::interpolated_string_type(self.resolved),
+            expression.span,
+            &mut string_parameters,
+        ) else {
+            return;
+        };
+        self.intern_compiler_type_tree(&string_type);
+        self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+            span: expression.span,
+            is_readwrite: true,
+            inner: Box::new(string_type),
+        }));
         let mut parts = Vec::with_capacity(expression.parts.len());
         for part in &expression.parts {
             let (span, expression_span, ty) = match part {
@@ -148,6 +162,18 @@ impl TypedHirBuilder<'_> {
             else {
                 return;
             };
+            self.intern_compiler_type_tree(&accepted_type);
+            self.intern_compiler_type_tree(&formatter.self_ty);
+            if formatter.receiver_mode != crate::ast::MethodReceiverMode::Owned {
+                self.intern_compiler_type_tree(&crate::ast::TypeExpr::Borrow(
+                    crate::ast::BorrowType {
+                        span,
+                        is_readwrite: formatter.receiver_mode
+                            == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+                        inner: Box::new(formatter.self_ty.clone()),
+                    },
+                ));
+            }
             parts.push(TypecheckInterpolationPart {
                 span,
                 expression_span,

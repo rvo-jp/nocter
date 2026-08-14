@@ -59,6 +59,20 @@ impl BodyCache {
             .expect("MIR body cache lock must not be poisoned")
             .len()
     }
+
+    #[cfg(test)]
+    pub(crate) fn cached_specialized(
+        &self,
+        id: BodyId,
+        substitutions: &HashMap<String, crate::ast::TypeExpr>,
+    ) -> Option<Result<Body, BuildError>> {
+        self.entries
+            .lock()
+            .expect("MIR body cache lock must not be poisoned")
+            .get(&BodyInstanceKey::new(id, substitutions))
+            .cloned()
+            .flatten()
+    }
 }
 
 #[cfg(test)]

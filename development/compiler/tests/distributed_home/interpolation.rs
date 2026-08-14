@@ -202,7 +202,13 @@ fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
         .env("NOCTER_HOME", home)
         .output()
         .unwrap();
-    assert_eq!(output.status.code(), Some(70));
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
 }

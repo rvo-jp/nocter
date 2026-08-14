@@ -55,6 +55,15 @@ fn encodes_orr_x16_x16_x17() {
 }
 
 #[test]
+fn encodes_bfi_x0_x16_lsb32_width32() {
+    let mut encoder = Encoder::new();
+
+    encoder.emit_bfi_x(XReg::X0, XReg::X16, 32, 32);
+
+    assert_eq!(encoder.finish(), vec![0x00, 0x7e, 0x60, 0xb3]);
+}
+
+#[test]
 fn encodes_add_w0_w0_w1() {
     let mut encoder = Encoder::new();
 

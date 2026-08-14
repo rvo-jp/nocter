@@ -21,6 +21,7 @@ enum CleanupAction {
 
 pub(super) fn materialize(body: &mut Body) {
     let analysis = super::initialization::analyze(body);
+    let loans = super::loans::analyze(body);
     let original_block_count = body.blocks.len();
     for index in 0..original_block_count {
         let block_id = BasicBlockId::from_index(index);
@@ -28,7 +29,7 @@ pub(super) fn materialize(body: &mut Body) {
         let terminator = body.blocks[index].terminator.clone();
         body.blocks[index].terminator = match terminator {
             Terminator::Goto { target } => Terminator::Goto {
-                target: cleanup_edge(body, &analysis, block_id, source_scope, target),
+                target: cleanup_edge(body, &analysis, &loans, block_id, source_scope, target),
             },
             Terminator::Switch {
                 condition,
@@ -36,8 +37,22 @@ pub(super) fn materialize(body: &mut Body) {
                 else_target,
             } => Terminator::Switch {
                 condition,
-                then_target: cleanup_edge(body, &analysis, block_id, source_scope, then_target),
-                else_target: cleanup_edge(body, &analysis, block_id, source_scope, else_target),
+                then_target: cleanup_edge(
+                    body,
+                    &analysis,
+                    &loans,
+                    block_id,
+                    source_scope,
+                    then_target,
+                ),
+                else_target: cleanup_edge(
+                    body,
+                    &analysis,
+                    &loans,
+                    block_id,
+                    source_scope,
+                    else_target,
+                ),
             },
             Terminator::Call {
                 origin,
@@ -51,7 +66,14 @@ pub(super) fn materialize(body: &mut Body) {
                 continuation: match continuation {
                     super::CallContinuation::Continue { target } => {
                         super::CallContinuation::Continue {
-                            target: cleanup_edge(body, &analysis, block_id, source_scope, target),
+                            target: cleanup_edge(
+                                body,
+                                &analysis,
+                                &loans,
+                                block_id,
+                                source_scope,
+                                target,
+                            ),
                         }
                     }
                     super::CallContinuation::Return {
@@ -59,7 +81,14 @@ pub(super) fn materialize(body: &mut Body) {
                         target,
                     } => super::CallContinuation::Return {
                         destination,
-                        target: cleanup_edge(body, &analysis, block_id, source_scope, target),
+                        target: cleanup_edge(
+                            body,
+                            &analysis,
+                            &loans,
+                            block_id,
+                            source_scope,
+                            target,
+                        ),
                     },
                     super::CallContinuation::Outcome {
                         destination,
@@ -68,8 +97,22 @@ pub(super) fn materialize(body: &mut Body) {
                         failure_payload,
                     } => super::CallContinuation::Outcome {
                         destination,
-                        success: cleanup_edge(body, &analysis, block_id, source_scope, success),
-                        failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                        success: cleanup_edge(
+                            body,
+                            &analysis,
+                            &loans,
+                            block_id,
+                            source_scope,
+                            success,
+                        ),
+                        failure: cleanup_edge(
+                            body,
+                            &analysis,
+                            &loans,
+                            block_id,
+                            source_scope,
+                            failure,
+                        ),
                         failure_payload,
                     },
                     super::CallContinuation::OutcomeEffect {
@@ -77,8 +120,22 @@ pub(super) fn materialize(body: &mut Body) {
                         failure,
                         failure_payload,
                     } => super::CallContinuation::OutcomeEffect {
-                        success: cleanup_edge(body, &analysis, block_id, source_scope, success),
-                        failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                        success: cleanup_edge(
+                            body,
+                            &analysis,
+                            &loans,
+                            block_id,
+                            source_scope,
+                            success,
+                        ),
+                        failure: cleanup_edge(
+                            body,
+                            &analysis,
+                            &loans,
+                            block_id,
+                            source_scope,
+                            failure,
+                        ),
                         failure_payload,
                     },
                     super::CallContinuation::Never => super::CallContinuation::Never,
@@ -97,16 +154,22 @@ pub(super) fn materialize(body: &mut Body) {
                 source,
                 layer,
                 destination,
-                success: cleanup_edge(body, &analysis, block_id, source_scope, success),
-                failure: cleanup_edge(body, &analysis, block_id, source_scope, failure),
+                success: cleanup_edge(body, &analysis, &loans, block_id, source_scope, success),
+                failure: cleanup_edge(body, &analysis, &loans, block_id, source_scope, failure),
                 failure_payload,
             },
-            Terminator::Return => {
-                cleanup_exit(body, &analysis, block_id, source_scope, Terminator::Return)
-            }
+            Terminator::Return => cleanup_exit(
+                body,
+                &analysis,
+                &loans,
+                block_id,
+                source_scope,
+                Terminator::Return,
+            ),
             Terminator::PropagateFailure => cleanup_exit(
                 body,
                 &analysis,
+                &loans,
                 block_id,
                 source_scope,
                 Terminator::PropagateFailure,
@@ -114,6 +177,7 @@ pub(super) fn materialize(body: &mut Body) {
             Terminator::ReturnOutcome { source } => cleanup_exit(
                 body,
                 &analysis,
+                &loans,
                 block_id,
                 source_scope,
                 Terminator::ReturnOutcome { source },
@@ -121,6 +185,7 @@ pub(super) fn materialize(body: &mut Body) {
             Terminator::ReturnFailure { code, message } => cleanup_exit(
                 body,
                 &analysis,
+                &loans,
                 block_id,
                 source_scope,
                 Terminator::ReturnFailure { code, message },
@@ -142,6 +207,7 @@ pub(super) fn materialize(body: &mut Body) {
 fn cleanup_edge(
     body: &mut Body,
     analysis: &InitializationAnalysis,
+    loans: &super::loans::LoanAnalysis,
     from: BasicBlockId,
     source_scope: ScopeId,
     target: BasicBlockId,
@@ -153,23 +219,30 @@ fn cleanup_edge(
     else {
         return target;
     };
-    let actions = cleanup_actions(body, &exited, |place| {
-        analysis.initialized_on_edge(body, from, target, place)
-    });
+    let actions = cleanup_actions(
+        body,
+        &exited,
+        |place| analysis.initialized_on_edge(body, from, target, place),
+        |loan| loans.definitely_active_at_exit(from, loan),
+    );
     prepend_cleanup_chain(body, actions, target)
 }
 
 fn cleanup_exit(
     body: &mut Body,
     analysis: &InitializationAnalysis,
+    loans: &super::loans::LoanAnalysis,
     block: BasicBlockId,
     source_scope: ScopeId,
     terminal: Terminator,
 ) -> Terminator {
     let exited = scope_ancestors(body, source_scope);
-    let actions = cleanup_actions(body, &exited, |place| {
-        analysis.initialized_at_exit(body, block, place)
-    });
+    let actions = cleanup_actions(
+        body,
+        &exited,
+        |place| analysis.initialized_at_exit(body, block, place),
+        |loan| loans.definitely_active_at_exit(block, loan),
+    );
     if actions.is_empty() {
         return terminal;
     }
@@ -188,6 +261,7 @@ fn cleanup_actions(
     body: &Body,
     exited: &[ScopeId],
     initialized: impl Fn(Place) -> bool,
+    active: impl Fn(LoanId) -> bool,
 ) -> Vec<CleanupAction> {
     let mut actions = Vec::new();
     for scope in exited {
@@ -195,7 +269,7 @@ fn cleanup_actions(
             body.loans
                 .iter()
                 .rev()
-                .filter(|loan| loan.scope == *scope)
+                .filter(|loan| loan.scope == *scope && active(loan.id))
                 .map(|loan| CleanupAction::EndLoan(loan.id)),
         );
         actions.extend(

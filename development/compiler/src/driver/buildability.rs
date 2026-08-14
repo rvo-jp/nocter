@@ -565,6 +565,26 @@ impl<'a> CallableIndex<'a> {
                     fact.specialization.target_name.clone(),
                 );
             }
+            for (_, plan) in file.typed_hir.interpolation_plans() {
+                names.insert(
+                    analysis
+                        .callable_bodies
+                        .canonical_definition(plan.constructor.definition),
+                    plan.constructor.target_name.clone(),
+                );
+                for part in &plan.parts {
+                    names.insert_instance(
+                        crate::mir::CallInstanceKey::from_types(
+                            analysis
+                                .callable_bodies
+                                .canonical_definition(part.formatter.def_id),
+                            Some(&part.formatter.self_ty),
+                            std::iter::empty(),
+                        ),
+                        part.formatter.target_name.clone(),
+                    );
+                }
+            }
         }
         for callable in definitions.values() {
             if callable.substitutions.is_empty() {

@@ -21,6 +21,7 @@ mod context;
 mod coverage;
 mod expressions;
 mod indexes;
+mod interpolation;
 mod literals;
 mod projections;
 mod regions;
