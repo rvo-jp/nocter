@@ -132,6 +132,9 @@ impl LoweringContext<'_> {
                     self.control_flow
                         .emit_returning_call(source, callee, arguments, destination)
                 }
+                Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                    super::literals::lower_to_place(self, destination, expression, ty, scope)
+                }
                 Expr::Identifier(_) | Expr::Unary(_) => {
                     let source = self
                         .semantic
@@ -312,7 +315,7 @@ impl LoweringContext<'_> {
             .collect()
     }
 
-    fn lower_call_argument(
+    pub(super) fn lower_call_argument(
         &mut self,
         argument: &Expr,
         scope: ScopeId,
@@ -410,6 +413,36 @@ impl LoweringContext<'_> {
                 representation: crate::mir::ValueRepresentation::Aggregate,
             });
         }
+        if matches!(
+            argument.without_groups(),
+            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+        ) {
+            let expression = self
+                .semantic
+                .typed_hir
+                .expression(argument.span())
+                .ok_or(BuildError::MissingTypedExpression)?;
+            let local =
+                self.aggregate_temporary(ty, LocalOrigin::Temporary(expression.id), scope)?;
+            self.lower_value_to_place(
+                local,
+                argument,
+                ty,
+                crate::mir::ValueRepresentation::Aggregate,
+                scope,
+            )?;
+            let operand = if self.locals[local.index()].ownership == crate::mir::OwnershipKind::Move
+            {
+                Operand::Move(Place::local(local))
+            } else {
+                Operand::Copy(Place::local(local))
+            };
+            return Ok(CallArgument {
+                operand,
+                ty,
+                representation: crate::mir::ValueRepresentation::Aggregate,
+            });
+        }
         let operand = self.lower_aggregate_operand(argument)?;
         Ok(CallArgument {
             operand,
@@ -469,6 +502,53 @@ impl LoweringContext<'_> {
             scope,
             crate::mir::Origin::Expression(source),
         )?;
+        Ok(CallArgument {
+            operand: if readwrite {
+                Operand::Move(Place::local(local))
+            } else {
+                Operand::Copy(Place::local(local))
+            },
+            ty,
+            representation: crate::mir::ValueRepresentation::Borrow,
+        })
+    }
+
+    pub(super) fn lower_protocol_receiver(
+        &mut self,
+        method: &crate::typecheck::TypecheckProtocolMethod,
+        expression: &Expr,
+        scope: ScopeId,
+        origin: crate::mir::Origin,
+    ) -> Result<CallArgument, BuildError> {
+        if method.receiver_mode == crate::ast::MethodReceiverMode::Owned {
+            return self.lower_call_argument(expression, scope);
+        }
+        let readwrite = method.receiver_mode == crate::ast::MethodReceiverMode::ReadwriteBorrow;
+        let receiver_type = crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+            span: expression.span(),
+            is_readwrite: readwrite,
+            inner: Box::new(method.self_ty.clone()),
+        });
+        let ty = self
+            .semantic
+            .typed_hir
+            .type_id(&receiver_type)
+            .ok_or(BuildError::MissingMethodReceiverType)?;
+        let local = LocalId::from_index(self.locals.len());
+        self.locals.push(crate::mir::Local::borrow(
+            ty,
+            readwrite,
+            LocalStorage::Local,
+            LocalOrigin::Desugared(expression.span()),
+            scope,
+        ));
+        if matches!(expression.without_groups(), Expr::Borrow(_)) {
+            super::borrows::lower_to_local(self, local, expression, readwrite, scope)?;
+        } else {
+            super::borrows::lower_implicit_to_local(
+                self, local, expression, readwrite, scope, origin,
+            )?;
+        }
         Ok(CallArgument {
             operand: if readwrite {
                 Operand::Move(Place::local(local))

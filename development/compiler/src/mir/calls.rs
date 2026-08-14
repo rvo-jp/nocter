@@ -7,12 +7,27 @@
 
 use crate::semantic::{DefId, TyId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum CallableIdentity {
     Definition(DefId),
     Value {
         ty: TyId,
         capability: crate::ast::CallableCapability,
+    },
+    Literal {
+        definition: DefId,
+        shape: crate::ast::LiteralShape,
+        result: TyId,
+        segments: Vec<LiteralSegment>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum LiteralSegment {
+    Value,
+    Spread {
+        mode: crate::typecheck::TypecheckSequenceSpreadMode,
+        iterator: TyId,
     },
 }
 
@@ -51,6 +66,24 @@ impl CallInstance {
             type_arguments: Vec::new(),
         }
     }
+
+    pub(crate) fn literal(
+        definition: DefId,
+        shape: crate::ast::LiteralShape,
+        result: TyId,
+        segments: Vec<LiteralSegment>,
+    ) -> Self {
+        Self {
+            callable: CallableIdentity::Literal {
+                definition,
+                shape,
+                result,
+                segments,
+            },
+            receiver: None,
+            type_arguments: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -59,6 +92,21 @@ enum CallableKey {
     Value {
         ty: String,
         capability: crate::ast::CallableCapability,
+    },
+    Literal {
+        definition: DefId,
+        shape: crate::ast::LiteralShape,
+        result: String,
+        segments: Vec<LiteralSegmentKey>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum LiteralSegmentKey {
+    Value,
+    Spread {
+        mode: crate::typecheck::TypecheckSequenceSpreadMode,
+        iterator: String,
     },
 }
 
@@ -99,6 +147,39 @@ impl CallInstanceKey {
         }
     }
 
+    pub(crate) fn from_literal_types<'a>(
+        definition: DefId,
+        shape: crate::ast::LiteralShape,
+        result: &crate::ast::TypeExpr,
+        segments: impl IntoIterator<
+            Item = (
+                Option<crate::typecheck::TypecheckSequenceSpreadMode>,
+                Option<&'a crate::ast::TypeExpr>,
+            ),
+        >,
+    ) -> Self {
+        Self {
+            callable: CallableKey::Literal {
+                definition,
+                shape,
+                result: crate::ast::canonical_type_expr(result),
+                segments: segments
+                    .into_iter()
+                    .map(|(mode, iterator)| match (mode, iterator) {
+                        (None, None) => LiteralSegmentKey::Value,
+                        (Some(mode), Some(iterator)) => LiteralSegmentKey::Spread {
+                            mode,
+                            iterator: crate::ast::canonical_type_expr(iterator),
+                        },
+                        _ => unreachable!("literal segment mode and iterator must agree"),
+                    })
+                    .collect(),
+            },
+            receiver: None,
+            type_arguments: Vec::new(),
+        }
+    }
+
     pub(crate) fn from_instance(
         instance: &CallInstance,
         typed_hir: &crate::typecheck::TypedHir,
@@ -112,17 +193,42 @@ impl CallInstanceKey {
             .iter()
             .map(|ty| typed_hir.type_expr_by_id(*ty))
             .collect::<Option<Vec<_>>>()?;
-        match instance.callable {
+        match &instance.callable {
             CallableIdentity::Definition(definition) => {
-                Some(Self::from_types(definition, receiver, type_arguments))
+                Some(Self::from_types(*definition, receiver, type_arguments))
             }
             CallableIdentity::Value { ty, capability } => {
                 if receiver.is_some() || !type_arguments.is_empty() {
                     return None;
                 }
                 Some(Self::from_callable_type(
-                    typed_hir.type_expr_by_id(ty)?,
-                    capability,
+                    typed_hir.type_expr_by_id(*ty)?,
+                    *capability,
+                ))
+            }
+            CallableIdentity::Literal {
+                definition,
+                shape,
+                result,
+                segments,
+            } => {
+                if receiver.is_some() || !type_arguments.is_empty() {
+                    return None;
+                }
+                let segments = segments
+                    .iter()
+                    .map(|segment| match segment {
+                        LiteralSegment::Value => Some((None, None)),
+                        LiteralSegment::Spread { mode, iterator } => {
+                            Some((Some(*mode), Some(typed_hir.type_expr_by_id(*iterator)?)))
+                        }
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some(Self::from_literal_types(
+                    *definition,
+                    *shape,
+                    typed_hir.type_expr_by_id(*result)?,
+                    segments,
                 ))
             }
         }

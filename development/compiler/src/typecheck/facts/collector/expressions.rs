@@ -569,6 +569,26 @@ impl TypedHirBuilder<'_> {
                         )
                         && let Some(plan) = sequence_spread_fact(spread, &resolution, self.resolved)
                     {
+                        self.intern_compiler_type_tree(&plan.source_type);
+                        self.intern_compiler_type_tree(&plan.iterator_type);
+                        self.intern_compiler_type_tree(&plan.iterator_item_type);
+                        self.intern_compiler_type_tree(&plan.pack_item_type);
+                        if let Some(conversion) = &plan.conversion {
+                            self.intern_compiler_type_tree(&conversion.self_ty);
+                            let receiver = match conversion.receiver_mode {
+                                crate::ast::MethodReceiverMode::Owned => conversion.self_ty.clone(),
+                                crate::ast::MethodReceiverMode::ReadonlyBorrow
+                                | crate::ast::MethodReceiverMode::ReadwriteBorrow => {
+                                    crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+                                        span: spread.span,
+                                        is_readwrite: conversion.receiver_mode
+                                            == crate::ast::MethodReceiverMode::ReadwriteBorrow,
+                                        inner: Box::new(conversion.self_ty.clone()),
+                                    })
+                                }
+                            };
+                            self.intern_compiler_type_tree(&receiver);
+                        }
                         self.facts.sequence_spread_plans.insert(spread.span, plan);
                         self.record_drop_type_specialization(
                             spread.span,

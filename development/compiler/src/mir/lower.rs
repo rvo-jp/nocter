@@ -21,6 +21,7 @@ mod context;
 mod coverage;
 mod expressions;
 mod indexes;
+mod literals;
 mod projections;
 mod regions;
 mod statements;
@@ -419,6 +420,7 @@ fn build_prepared_body(
         blocks: parts.blocks,
         loop_regions: parts.loop_regions,
         allocation_regions: parts.allocation_regions,
+        allocation_overrides: parts.allocation_overrides,
         loans: parts.loans,
         projections: parts.projections,
         drop_plans: parts.drop_plans,

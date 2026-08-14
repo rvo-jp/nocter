@@ -574,6 +574,22 @@ fn outcome_failure_mode(
         visited.extend(path);
         return Ok(OutcomeFailureMode::Propagate);
     }
+    if body.return_mode == ReturnMode::Fallible && !control_flow::can_reach(body, failure, success)
+    {
+        let mut propagation_visited = visited.clone();
+        let mut instructions =
+            lower_branch_to_join(context, failure, success, &mut propagation_visited)?;
+        if matches!(instructions.last(), Some(Instruction::PropagateFailure)) {
+            instructions.pop();
+            *visited = propagation_visited;
+            let error_base = storage::machine_local_count(body) + 1;
+            return Ok(OutcomeFailureMode::PropagateWithCleanup {
+                code: StrLocation::Local(error_base),
+                message: StrLocation::Local(error_base + 2),
+                instructions,
+            });
+        }
+    }
     let failure_block = &body.blocks[failure.index()];
     match &failure_block.terminator {
         Terminator::Trap if failure_block.statements.is_empty() => {
@@ -1270,17 +1286,18 @@ fn lower_call_target(
         .name_for_instance(callee, typed_hir)
         .ok_or_else(|| invalid_mir_diagnostics("call target has no indexed runtime name"))?
         .clone();
-    let source = match callee.callable {
-        crate::mir::CallableIdentity::Definition(definition) => {
+    let source = match &callee.callable {
+        crate::mir::CallableIdentity::Definition(definition)
+        | crate::mir::CallableIdentity::Literal { definition, .. } => {
             resolved
                 .semantic_db
-                .definition_anchor(definition)
+                .definition_anchor(*definition)
                 .ok_or_else(|| invalid_mir_diagnostics("call target has no source anchor"))?
                 .source
         }
         crate::mir::CallableIdentity::Value { ty, .. } => {
             typed_hir
-                .type_expr_by_id(ty)
+                .type_expr_by_id(*ty)
                 .ok_or_else(|| invalid_mir_diagnostics("callable-value type is missing"))?
                 .span()
                 .source
@@ -1565,6 +1582,14 @@ fn lower_statements(
         }
         if let Statement::ExitRegion { region } = statement {
             instructions.push(lower_region_exit(*region, context)?);
+            continue;
+        }
+        if let Statement::EnterAllocationContext { override_, .. } = statement {
+            instructions.extend(lower_allocation_override_enter(*override_, context)?);
+            continue;
+        }
+        if let Statement::ExitAllocationContext { override_ } = statement {
+            instructions.push(lower_allocation_override_exit(*override_, context)?);
             continue;
         }
         if let Statement::BeginLoan { loan, .. } = statement {
@@ -2173,6 +2198,72 @@ fn allocator_field_offsets(
             })
     };
     Ok((offset("state")?, offset("kind")?))
+}
+
+fn lower_allocation_override_enter(
+    id: crate::mir::AllocationOverrideId,
+    context: &BackendContext<'_>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let override_ = context
+        .body
+        .allocation_overrides
+        .get(id.index())
+        .ok_or_else(|| invalid_mir_diagnostics("MIR allocation override is missing"))?;
+    let ty = override_.allocator.projection.map_or(
+        context.body.locals[override_.allocator.local.index()].ty,
+        |projection| context.body.projections[projection.index()].ty,
+    );
+    let (state_offset, kind_offset) = allocator_field_offsets(ty, context)?;
+    let source = aggregate_location(&override_.allocator, context)?;
+    let parent_state = usize_location(&Place::local(override_.parent_state), context)?;
+    let parent_kind = usize_location(&Place::local(override_.parent_kind), context)?;
+    let selected_state = usize_location(&Place::local(override_.selected_state), context)?;
+    let selected_kind = usize_location(&Place::local(override_.selected_kind), context)?;
+    Ok(vec![
+        Instruction::SetUsize {
+            destination: parent_state,
+            value: UsizeValue::CurrentAllocationState,
+        },
+        Instruction::SetUsize {
+            destination: parent_kind,
+            value: UsizeValue::CurrentAllocationKind,
+        },
+        Instruction::LoadAggregateUsize {
+            destination: selected_state,
+            source,
+            offset: state_offset,
+        },
+        Instruction::LoadAggregateUsize {
+            destination: selected_kind,
+            source,
+            offset: kind_offset,
+        },
+        Instruction::SetCurrentAllocationContext {
+            state: UsizeValue::Location(selected_state),
+            kind: UsizeValue::Location(selected_kind),
+        },
+    ])
+}
+
+fn lower_allocation_override_exit(
+    id: crate::mir::AllocationOverrideId,
+    context: &BackendContext<'_>,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let override_ = context
+        .body
+        .allocation_overrides
+        .get(id.index())
+        .ok_or_else(|| invalid_mir_diagnostics("MIR allocation override is missing"))?;
+    Ok(Instruction::SetCurrentAllocationContext {
+        state: UsizeValue::Location(usize_location(
+            &Place::local(override_.parent_state),
+            context,
+        )?),
+        kind: UsizeValue::Location(usize_location(
+            &Place::local(override_.parent_kind),
+            context,
+        )?),
+    })
 }
 
 fn aggregate_leaf_projection<'a>(

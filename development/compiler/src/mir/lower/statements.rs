@@ -188,6 +188,15 @@ impl<'context, 'semantic> StatementLowerer<'context, 'semantic> {
                                     scope,
                                 )?;
                             }
+                            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                                self.context.lower_value_to_place(
+                                    local,
+                                    &binding.initializer,
+                                    ty,
+                                    crate::mir::ValueRepresentation::Aggregate,
+                                    scope,
+                                )?;
+                            }
                             Expr::Force(_)
                             | Expr::Propagate(_)
                             | Expr::Otherwise(_)

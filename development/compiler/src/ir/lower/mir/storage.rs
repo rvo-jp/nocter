@@ -137,6 +137,19 @@ fn local_definition_count(body: &Body, local: LocalId) -> usize {
                             .contains(&local)
                         }),
                     crate::mir::Statement::ExitRegion { .. } => false,
+                    crate::mir::Statement::EnterAllocationContext { override_, .. } => body
+                        .allocation_overrides
+                        .get(override_.index())
+                        .is_some_and(|override_| {
+                            [
+                                override_.parent_state,
+                                override_.parent_kind,
+                                override_.selected_state,
+                                override_.selected_kind,
+                            ]
+                            .contains(&local)
+                        }),
+                    crate::mir::Statement::ExitAllocationContext { .. } => false,
                 })
                 .count();
             let terminator = match &block.terminator {
@@ -180,6 +193,27 @@ fn local_use_count(body: &Body, local: LocalId) -> usize {
                         .get(region.index())
                         .map(|region| {
                             [region.state, region.parent_state, region.parent_kind]
+                                .into_iter()
+                                .filter(|candidate| *candidate == local)
+                                .count()
+                        })
+                        .unwrap_or(0),
+                    crate::mir::Statement::EnterAllocationContext { override_, .. } => body
+                        .allocation_overrides
+                        .get(override_.index())
+                        .map(|override_| {
+                            usize::from(override_.allocator.local == local)
+                                + [override_.selected_state, override_.selected_kind]
+                                    .into_iter()
+                                    .filter(|candidate| *candidate == local)
+                                    .count()
+                        })
+                        .unwrap_or(0),
+                    crate::mir::Statement::ExitAllocationContext { override_ } => body
+                        .allocation_overrides
+                        .get(override_.index())
+                        .map(|override_| {
+                            [override_.parent_state, override_.parent_kind]
                                 .into_iter()
                                 .filter(|candidate| *candidate == local)
                                 .count()
@@ -331,6 +365,7 @@ mod tests {
                 exit: BasicBlockId::from_index(2),
             }],
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

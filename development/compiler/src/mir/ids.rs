@@ -21,6 +21,7 @@ mir_id!(BasicBlockId);
 mir_id!(LocalId);
 mir_id!(LoanId);
 mir_id!(RegionId);
+mir_id!(AllocationOverrideId);
 mir_id!(DropPlanId);
 #[allow(
     dead_code,

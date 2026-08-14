@@ -371,9 +371,9 @@ impl FunctionNames {
     ) -> Option<&String> {
         if instance.receiver.is_none()
             && instance.type_arguments.is_empty()
-            && let crate::mir::CallableIdentity::Definition(definition) = instance.callable
+            && let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
         {
-            return self.name_for_definition(definition);
+            return self.name_for_definition(*definition);
         }
         self.by_instance
             .get(&crate::mir::CallInstanceKey::from_instance(

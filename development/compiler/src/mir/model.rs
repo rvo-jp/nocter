@@ -1,7 +1,10 @@
 //! Minimal executable MIR model. New execution forms extend this model before
 //! their AST-driven lowering path is removed.
 
-use super::ids::{BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId, ScopeId};
+use super::ids::{
+    AllocationOverrideId, BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId,
+    ScopeId,
+};
 use super::locals::{Local, OwnershipKind, ScalarType, ValueRepresentation};
 use crate::semantic::{BodyId, DefId, ExprId, TyId};
 use crate::source::ByteSpan;
@@ -19,6 +22,7 @@ pub(crate) struct Body {
     pub(crate) blocks: Vec<BasicBlock>,
     pub(crate) loop_regions: Vec<LoopRegion>,
     pub(crate) allocation_regions: Vec<AllocationRegion>,
+    pub(crate) allocation_overrides: Vec<AllocationContextOverride>,
     pub(crate) loans: Vec<Loan>,
     pub(crate) projections: Vec<ProjectionPath>,
     pub(crate) drop_plans: Vec<super::drop_plans::DropPlan>,
@@ -33,6 +37,17 @@ pub(crate) struct AllocationRegion {
     pub(crate) state: LocalId,
     pub(crate) parent_state: LocalId,
     pub(crate) parent_kind: LocalId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AllocationContextOverride {
+    pub(crate) id: AllocationOverrideId,
+    pub(crate) scope: ScopeId,
+    pub(crate) allocator: Place,
+    pub(crate) parent_state: LocalId,
+    pub(crate) parent_kind: LocalId,
+    pub(crate) selected_state: LocalId,
+    pub(crate) selected_kind: LocalId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +148,13 @@ pub(crate) enum Statement {
     },
     ExitRegion {
         region: RegionId,
+    },
+    EnterAllocationContext {
+        override_: AllocationOverrideId,
+        origin: Origin,
+    },
+    ExitAllocationContext {
+        override_: AllocationOverrideId,
     },
 }
 

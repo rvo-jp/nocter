@@ -6,7 +6,18 @@
 use super::initialization::InitializationAnalysis;
 use super::locals::{OwnershipKind, ValueRepresentation};
 use super::model::BasicBlock;
-use super::{BasicBlockId, Body, LoanId, LocalId, Place, RegionId, ScopeId, Statement, Terminator};
+use super::{
+    AllocationOverrideId, BasicBlockId, Body, LoanId, LocalId, Place, RegionId, ScopeId, Statement,
+    Terminator,
+};
+
+#[derive(Debug, Clone, Copy)]
+enum CleanupAction {
+    EndLoan(LoanId),
+    Drop(Place),
+    Region(RegionId),
+    Override(AllocationOverrideId),
+}
 
 pub(super) fn materialize(body: &mut Body) {
     let analysis = super::initialization::analyze(body);
@@ -142,12 +153,10 @@ fn cleanup_edge(
     else {
         return target;
     };
-    let places = cleanup_places(body, &exited, |place| {
+    let actions = cleanup_actions(body, &exited, |place| {
         analysis.initialized_on_edge(body, from, target, place)
     });
-    let loans = cleanup_loans(body, &exited);
-    let regions = cleanup_regions(body, &exited);
-    prepend_cleanup_chain(body, loans, places, regions, target)
+    prepend_cleanup_chain(body, actions, target)
 }
 
 fn cleanup_exit(
@@ -158,12 +167,10 @@ fn cleanup_exit(
     terminal: Terminator,
 ) -> Terminator {
     let exited = scope_ancestors(body, source_scope);
-    let places = cleanup_places(body, &exited, |place| {
+    let actions = cleanup_actions(body, &exited, |place| {
         analysis.initialized_at_exit(body, block, place)
     });
-    let loans = cleanup_loans(body, &exited);
-    let regions = cleanup_regions(body, &exited);
-    if places.is_empty() && loans.is_empty() && regions.is_empty() {
+    if actions.is_empty() {
         return terminal;
     }
     let terminal_block = BasicBlockId::from_index(body.blocks.len());
@@ -173,26 +180,45 @@ fn cleanup_exit(
         terminator: terminal,
     });
     Terminator::Goto {
-        target: prepend_cleanup_chain(body, loans, places, regions, terminal_block),
+        target: prepend_cleanup_chain(body, actions, terminal_block),
     }
 }
 
-fn cleanup_loans(body: &Body, exited: &[ScopeId]) -> Vec<LoanId> {
-    body.loans
-        .iter()
-        .rev()
-        .filter(|loan| exited.contains(&loan.scope))
-        .map(|loan| loan.id)
-        .collect()
-}
-
-fn cleanup_regions(body: &Body, exited: &[ScopeId]) -> Vec<RegionId> {
-    body.allocation_regions
-        .iter()
-        .rev()
-        .filter(|region| exited.contains(&region.scope))
-        .map(|region| region.id)
-        .collect()
+fn cleanup_actions(
+    body: &Body,
+    exited: &[ScopeId],
+    initialized: impl Fn(Place) -> bool,
+) -> Vec<CleanupAction> {
+    let mut actions = Vec::new();
+    for scope in exited {
+        actions.extend(
+            body.loans
+                .iter()
+                .rev()
+                .filter(|loan| loan.scope == *scope)
+                .map(|loan| CleanupAction::EndLoan(loan.id)),
+        );
+        actions.extend(
+            cleanup_places(body, std::slice::from_ref(scope), &initialized)
+                .into_iter()
+                .map(CleanupAction::Drop),
+        );
+        actions.extend(
+            body.allocation_overrides
+                .iter()
+                .rev()
+                .filter(|override_| override_.scope == *scope)
+                .map(|override_| CleanupAction::Override(override_.id)),
+        );
+        actions.extend(
+            body.allocation_regions
+                .iter()
+                .rev()
+                .filter(|region| region.scope == *scope)
+                .map(|region| CleanupAction::Region(region.id)),
+        );
+    }
+    actions
 }
 
 fn cleanup_places(
@@ -236,47 +262,46 @@ fn cleanup_places(
 
 fn prepend_cleanup_chain(
     body: &mut Body,
-    loans: Vec<LoanId>,
-    places: Vec<Place>,
-    regions: Vec<RegionId>,
+    actions: Vec<CleanupAction>,
     final_target: BasicBlockId,
 ) -> BasicBlockId {
     let mut target = final_target;
-    for region in regions.into_iter().rev() {
+    for action in actions.into_iter().rev() {
         let block = BasicBlockId::from_index(body.blocks.len());
+        let (scope, statements, terminator) = match action {
+            CleanupAction::EndLoan(loan) => (
+                body.root_scope,
+                vec![Statement::EndLoan { loan }],
+                Terminator::Goto { target },
+            ),
+            CleanupAction::Drop(place) => (
+                body.locals[place.local.index()].scope,
+                Vec::new(),
+                Terminator::Drop {
+                    place,
+                    plan: place
+                        .projection
+                        .and_then(|projection| body.projections[projection.index()].drop_plan)
+                        .or(body.locals[place.local.index()].drop_plan)
+                        .expect("owned MIR local must carry a semantic drop plan"),
+                    target,
+                },
+            ),
+            CleanupAction::Region(region) => (
+                body.root_scope,
+                vec![Statement::ExitRegion { region }],
+                Terminator::Goto { target },
+            ),
+            CleanupAction::Override(override_) => (
+                body.root_scope,
+                vec![Statement::ExitAllocationContext { override_ }],
+                Terminator::Goto { target },
+            ),
+        };
         body.blocks.push(BasicBlock {
-            scope: body.root_scope,
-            statements: vec![Statement::ExitRegion { region }],
-            terminator: Terminator::Goto { target },
-        });
-        target = block;
-    }
-    for place in places.into_iter().rev() {
-        let block = BasicBlockId::from_index(body.blocks.len());
-        body.blocks.push(BasicBlock {
-            scope: body.locals[place.local.index()].scope,
-            statements: Vec::new(),
-            terminator: Terminator::Drop {
-                place,
-                plan: place
-                    .projection
-                    .and_then(|projection| body.projections[projection.index()].drop_plan)
-                    .or(body.locals[place.local.index()].drop_plan)
-                    .expect("owned MIR local must carry a semantic drop plan"),
-                target,
-            },
-        });
-        target = block;
-    }
-    if !loans.is_empty() {
-        let block = BasicBlockId::from_index(body.blocks.len());
-        body.blocks.push(BasicBlock {
-            scope: body.root_scope,
-            statements: loans
-                .into_iter()
-                .map(|loan| Statement::EndLoan { loan })
-                .collect(),
-            terminator: Terminator::Goto { target },
+            scope,
+            statements,
+            terminator,
         });
         target = block;
     }
@@ -368,6 +393,7 @@ mod tests {
             ],
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: vec![crate::mir::DropPlan::Direct {
@@ -470,6 +496,7 @@ mod tests {
             ],
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: vec![
                 crate::mir::ProjectionPath {

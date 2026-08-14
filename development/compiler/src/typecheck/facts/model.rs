@@ -777,7 +777,7 @@ pub(crate) struct TypecheckCollectionForPlan {
     pub(crate) step: TypecheckProtocolMethod,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum TypecheckSequenceSpreadMode {
     Copy,
     Readonly,

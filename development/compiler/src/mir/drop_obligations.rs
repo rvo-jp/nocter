@@ -96,6 +96,8 @@ pub(super) fn validate(body: &Body) -> Vec<DropObligationError> {
                 }
                 super::Statement::EnterRegion { .. }
                 | super::Statement::ExitRegion { .. }
+                | super::Statement::EnterAllocationContext { .. }
+                | super::Statement::ExitAllocationContext { .. }
                 | super::Statement::BeginLoan { .. }
                 | super::Statement::EndLoan { .. } => {}
             }
@@ -417,6 +419,7 @@ mod tests {
             blocks,
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

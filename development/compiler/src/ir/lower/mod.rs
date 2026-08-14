@@ -1542,6 +1542,12 @@ impl<'a> IndexedCallable<'a> {
         semantic_db: &crate::semantic::SemanticDb,
         callable_bodies: &crate::callable_bodies::CallableBodyIndex,
     ) -> Option<(crate::mir::CallInstanceKey, String)> {
+        if let IndexedDeclaration::Literal { specialization, .. } = &self.declaration {
+            return Some((
+                literal_instance_key(specialization),
+                specialization.target_name.clone(),
+            ));
+        }
         let (anchor, receiver, parameters, substitutions, name) = match &self.declaration {
             IndexedDeclaration::Function {
                 declaration,
@@ -1693,6 +1699,25 @@ fn literal_parameters(
             })
             .collect(),
     }
+}
+
+fn literal_instance_key(specialization: &LiteralSpecialization) -> crate::mir::CallInstanceKey {
+    crate::mir::CallInstanceKey::from_literal_types(
+        specialization.def_id,
+        specialization.shape,
+        &specialization.result_type,
+        specialization.pack_segments.iter().map(|segment| {
+            match segment {
+            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                ..
+            } => (None, None),
+            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                plan,
+                ..
+            } => (Some(plan.mode), Some(&plan.iterator_type)),
+        }
+        }),
+    )
 }
 
 fn method_parameters(

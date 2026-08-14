@@ -1,7 +1,9 @@
 //! Structural MIR verification. Validation errors are compiler invariant
 //! failures, not alternate source-language diagnostics.
 
-use super::ids::{BasicBlockId, DropPlanId, LocalId, ProjectionPathId, RegionId};
+use super::ids::{
+    AllocationOverrideId, BasicBlockId, DropPlanId, LocalId, ProjectionPathId, RegionId,
+};
 use super::locals::{LocalOrigin, LocalStorage, OwnershipKind, ScalarType, ValueRepresentation};
 use super::model::{
     Body, CallContinuation, Operand, ProjectionElement, ProjectionPath, Statement, Terminator,
@@ -191,6 +193,11 @@ pub(crate) enum ValidationError {
         block: BasicBlockId,
         region: RegionId,
     },
+    InvalidAllocationOverride(AllocationOverrideId),
+    MissingAllocationOverride {
+        block: BasicBlockId,
+        override_: AllocationOverrideId,
+    },
     InvalidAggregateConstruction {
         block: BasicBlockId,
         statement: usize,
@@ -223,6 +230,7 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
     validate_drop_plans(body, &mut errors);
     validate_projection_paths(body, &mut errors);
     validate_allocation_regions(body, &mut errors);
+    validate_allocation_overrides(body, &mut errors);
     if body.blocks.get(body.entry.index()).is_none() {
         errors.push(ValidationError::MissingEntryBlock(body.entry));
     }
@@ -292,6 +300,15 @@ pub(crate) fn validate(body: &Body) -> Result<(), Vec<ValidationError>> {
                 errors.push(ValidationError::MissingAllocationRegion {
                     block: block_id,
                     region: *region,
+                });
+            }
+            if let Statement::EnterAllocationContext { override_, .. }
+            | Statement::ExitAllocationContext { override_ } = statement
+                && body.allocation_overrides.get(override_.index()).is_none()
+            {
+                errors.push(ValidationError::MissingAllocationOverride {
+                    block: block_id,
+                    override_: *override_,
                 });
             }
             if let Statement::BeginAggregate { destination, .. } = statement {
@@ -883,6 +900,39 @@ fn validate_allocation_regions(body: &Body, errors: &mut Vec<ValidationError>) {
     }
 }
 
+fn validate_allocation_overrides(body: &Body, errors: &mut Vec<ValidationError>) {
+    for (index, override_) in body.allocation_overrides.iter().enumerate() {
+        let id = AllocationOverrideId::from_index(index);
+        let allocator_is_aggregate = body
+            .locals
+            .get(override_.allocator.local.index())
+            .is_some_and(|_| {
+                operand_representation(body, &Operand::Copy(override_.allocator))
+                    == Some(ValueRepresentation::Aggregate)
+            });
+        let saved_state_is_usize = [
+            override_.parent_state,
+            override_.parent_kind,
+            override_.selected_state,
+            override_.selected_kind,
+        ]
+        .into_iter()
+        .all(|local| {
+            body.locals.get(local.index()).is_some_and(|local| {
+                local.scope == override_.scope
+                    && local.representation == ValueRepresentation::Scalar(ScalarType::Usize)
+            })
+        });
+        if override_.id != id
+            || body.scopes.get(override_.scope.index()).is_none()
+            || !allocator_is_aggregate
+            || !saved_state_is_usize
+        {
+            errors.push(ValidationError::InvalidAllocationOverride(id));
+        }
+    }
+}
+
 fn validate_scopes(body: &Body, errors: &mut Vec<ValidationError>) {
     let Some(root) = body.scopes.get(body.root_scope.index()) else {
         errors.push(ValidationError::MissingRootScope(body.root_scope));
@@ -1433,6 +1483,7 @@ mod tests {
             ],
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

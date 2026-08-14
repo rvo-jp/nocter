@@ -258,6 +258,7 @@ mod tests {
             }],
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: [0, 8]
                 .into_iter()

@@ -238,27 +238,142 @@ fn scalar_call_shape_is_supported(
             _ => false,
         }
     };
+    let semantic = SemanticInputs {
+        resolved,
+        resolved_sources,
+        typed_hir,
+    };
     callee_supported
-        && call.arguments.iter().all(|argument| {
-            let Some(ty) = known_expression_type(argument, typed_hir) else {
+        && call
+            .arguments
+            .iter()
+            .all(|argument| call_argument_is_supported(argument, semantic))
+}
+
+fn call_argument_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    let Some(ty) = known_expression_type(expression, semantic.typed_hir) else {
+        return false;
+    };
+    scalar_type(ty, semantic.typed_hir).is_some()
+        && scalar_expression_is_supported(
+            expression,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+        || matches!(
+            value_representation(ty, semantic),
+            Some(representation @ crate::mir::ValueRepresentation::View(_))
+                if value_expression_is_supported(expression, representation, semantic)
+        )
+        || aggregate_operand_is_supported(
+            expression,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+        || super::aggregates::literal_is_supported(expression, semantic)
+        || typed_literal_is_supported(expression, semantic)
+        || borrow_argument_is_supported(expression, semantic)
+}
+
+fn typed_literal_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
+    let (span, arguments_supported) = match expression.without_groups() {
+        Expr::TypedSequenceLiteral(literal) => (
+            literal.span,
+            literal.using.as_ref().is_none_or(|using| {
+                super::borrows::source_place_is_supported(&using.allocator, semantic)
+            }) && literal.elements.iter().all(|element| {
+                crate::typecheck::sequence_spread(element).map_or_else(
+                    || call_argument_is_supported(element, semantic),
+                    |spread| sequence_spread_is_supported(spread, semantic),
+                )
+            }),
+        ),
+        Expr::TypedStringLiteral(literal) => (
+            literal.span,
+            literal.using.as_ref().is_none_or(|using| {
+                super::borrows::source_place_is_supported(&using.allocator, semantic)
+            }) && crate::literals::decode_string_literal_bytes(&literal.text.value).is_ok(),
+        ),
+        _ => return false,
+    };
+    arguments_supported
+        && semantic.resolved.literal_resolution(span).is_some()
+        && known_expression_type(expression, semantic.typed_hir)
+            .and_then(|ty| value_representation(ty, semantic))
+            == Some(crate::mir::ValueRepresentation::Aggregate)
+}
+
+fn sequence_spread_is_supported(
+    spread: &crate::ast::UnaryExpr,
+    semantic: SemanticInputs<'_>,
+) -> bool {
+    let Some(plan) = semantic.typed_hir.sequence_spread_plan(spread.span) else {
+        return false;
+    };
+    if semantic.typed_hir.type_id(&plan.iterator_type).is_none()
+        || !super::super::drop_plans::is_supported(
+            &plan.iterator_type,
+            semantic.resolved,
+            semantic.resolved_sources,
+            semantic.typed_hir,
+        )
+    {
+        return false;
+    }
+    match plan.source_mode {
+        crate::typecheck::TypecheckCollectionForSourceMode::Direct => {
+            call_argument_is_supported(&spread.operand, semantic)
+        }
+        crate::typecheck::TypecheckCollectionForSourceMode::ReadonlyConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::ReadwriteConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::OwnedConversion => {
+            let Some(method) = &plan.conversion else {
                 return false;
             };
-            let semantic = SemanticInputs {
-                resolved,
-                resolved_sources,
-                typed_hir,
-            };
-            scalar_type(ty, typed_hir).is_some()
-                && scalar_expression_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || matches!(
-                    value_representation(ty, semantic),
-                    Some(representation @ crate::mir::ValueRepresentation::View(_))
-                        if value_expression_is_supported(argument, representation, semantic)
-                )
-                || aggregate_operand_is_supported(argument, resolved, resolved_sources, typed_hir)
-                || super::aggregates::literal_is_supported(argument, semantic)
-                || borrow_argument_is_supported(argument, semantic)
-        })
+            if semantic
+                .resolved
+                .semantic_db
+                .definition(method.def_id)
+                .is_none()
+                || semantic.typed_hir.type_id(&method.self_ty).is_none()
+            {
+                return false;
+            }
+            match method.receiver_mode {
+                crate::ast::MethodReceiverMode::Owned => {
+                    call_argument_is_supported(&spread.operand, semantic)
+                }
+                crate::ast::MethodReceiverMode::ReadonlyBorrow
+                | crate::ast::MethodReceiverMode::ReadwriteBorrow => {
+                    let readwrite =
+                        method.receiver_mode == crate::ast::MethodReceiverMode::ReadwriteBorrow;
+                    let receiver_ty = crate::ast::TypeExpr::Borrow(crate::ast::BorrowType {
+                        span: spread.span,
+                        is_readwrite: readwrite,
+                        inner: Box::new(method.self_ty.clone()),
+                    });
+                    semantic.typed_hir.type_id(&receiver_ty).is_some()
+                        && match spread.operand.without_groups() {
+                            Expr::Borrow(borrow) => {
+                                borrow.is_readwrite == readwrite
+                                    && super::borrows::source_place_is_supported(
+                                        &borrow.expression,
+                                        semantic,
+                                    )
+                            }
+                            expression => {
+                                !readwrite
+                                    && super::borrows::source_place_is_supported(
+                                        expression, semantic,
+                                    )
+                            }
+                        }
+                }
+            }
+        }
+    }
 }
 
 fn callable_owned_receiver_is_supported(expression: &Expr, semantic: SemanticInputs<'_>) -> bool {
@@ -492,6 +607,16 @@ impl<'a> ScalarStatement<'a> {
                                 resolved,
                                 resolved_sources,
                                 typed_hir,
+                            )
+                        }
+                        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                            typed_literal_is_supported(
+                                &binding.initializer,
+                                SemanticInputs {
+                                    resolved,
+                                    resolved_sources,
+                                    typed_hir,
+                                },
                             )
                         }
                         Expr::Force(_) | Expr::Propagate(_) => value_expression_is_supported(
@@ -1480,6 +1605,9 @@ pub(super) fn value_expression_is_supported(
             _ => false,
         },
         crate::mir::ValueRepresentation::Aggregate => match expression.without_groups() {
+            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                typed_literal_is_supported(expression, semantic)
+            }
             Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) | Expr::Closure(_) => {
                 super::aggregates::literal_is_supported(expression, semantic)
             }

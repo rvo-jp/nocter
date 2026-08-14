@@ -157,6 +157,27 @@ pub(super) fn analyze(body: &Body) -> InitializationAnalysis {
                     }
                 }
                 crate::mir::Statement::ExitRegion { .. } => {}
+                crate::mir::Statement::EnterAllocationContext { override_, .. } => {
+                    if let Some(override_) = body.allocation_overrides.get(override_.index()) {
+                        validate_and_apply_operand(
+                            &Operand::Copy(override_.allocator),
+                            &mut initialized,
+                            block_id,
+                            InitializationLocation::Statement(statement_index),
+                            body,
+                            &mut errors,
+                        );
+                        for local in [
+                            override_.parent_state,
+                            override_.parent_kind,
+                            override_.selected_state,
+                            override_.selected_kind,
+                        ] {
+                            initialized.initialize(body, Place::local(local));
+                        }
+                    }
+                }
+                crate::mir::Statement::ExitAllocationContext { .. } => {}
             }
         }
 
@@ -485,6 +506,7 @@ mod tests {
             }],
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans: Vec::new(),
             projections: Vec::new(),
             drop_plans: Vec::new(),

@@ -16,10 +16,11 @@ mod places;
 mod scopes;
 mod validate;
 
-pub(crate) use calls::{CallInstance, CallInstanceKey, CallableIdentity};
+pub(crate) use calls::{CallInstance, CallInstanceKey, CallableIdentity, LiteralSegment};
 pub(crate) use drop_plans::{DropPlan, DropPlanVariant};
 pub(crate) use ids::{
-    BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId, ScopeId,
+    AllocationOverrideId, BasicBlockId, DropPlanId, LoanId, LocalId, ProjectionPathId, RegionId,
+    ScopeId,
 };
 pub(crate) use index::BodyCache;
 pub(crate) use locals::{
@@ -33,10 +34,10 @@ pub(crate) use lower::{
 pub(crate) use model::BasicBlock;
 pub(crate) use model::Loan;
 pub(crate) use model::{
-    AggregateElement, AggregateLeaf, AllocationRegion, BinaryOperator, Body, BorrowKind,
-    CallArgument, CallContinuation, ComparisonOperator, Constant, LoopRegion, Operand, Origin,
-    Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue, Statement, Terminator,
-    UnaryOperator,
+    AggregateElement, AggregateLeaf, AllocationContextOverride, AllocationRegion, BinaryOperator,
+    Body, BorrowKind, CallArgument, CallContinuation, ComparisonOperator, Constant, LoopRegion,
+    Operand, Origin, Place, ProjectionElement, ProjectionPath, ReturnMode, Rvalue, Statement,
+    Terminator, UnaryOperator,
 };
 pub(crate) use scopes::Scope;
 pub(crate) use validate::validate;

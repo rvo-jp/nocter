@@ -267,12 +267,19 @@ func main(): i32! {
         .find_map(|instruction| match instruction {
             Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode:
+                    OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+                    | OutcomeFailureMode::Handle { instructions },
                 ..
             } if target == &CallTarget::same_file("next") => Some(instructions),
             _ => None,
         })
-        .expect("element propagation should carry scope cleanup");
+        .unwrap_or_else(|| {
+            panic!(
+                "element propagation should carry scope cleanup: {:?}",
+                main.instructions
+            )
+        });
     let restore = cleanup
         .iter()
         .position(|instruction| {
@@ -319,11 +326,16 @@ func main(): i32 {
         .iter()
         .find(|function| function.target == CallTarget::same_file("make"))
         .unwrap();
-    assert!(make.instructions.iter().any(|instruction| matches!(
-        instruction,
-        Instruction::CallDirectAggregate { target, .. }
-            if target == &CallTarget::same_file("Text.$literal.string$704be0d8faaffc58")
-    )));
+    assert!(
+        make.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallDirectAggregate { target, .. }
+                | Instruction::TailCall { target, .. }
+                if target == &CallTarget::same_file("Text.$literal.string$704be0d8faaffc58")
+        )),
+        "{:?}",
+        make.instructions
+    );
 }
 
 #[test]

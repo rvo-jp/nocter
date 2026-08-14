@@ -114,7 +114,10 @@ pub(super) fn validate(body: &Body) -> Vec<LoanError> {
                     state.may_active.remove(*loan);
                     state.must_active.remove(*loan);
                 }
-                Statement::EnterRegion { .. } | Statement::ExitRegion { .. } => {}
+                Statement::EnterRegion { .. }
+                | Statement::ExitRegion { .. }
+                | Statement::EnterAllocationContext { .. }
+                | Statement::ExitAllocationContext { .. } => {}
             }
         }
 
@@ -476,6 +479,7 @@ mod tests {
             blocks,
             loop_regions: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             loans,
             projections: Vec::new(),
             drop_plans: Vec::new(),

@@ -163,9 +163,9 @@ impl CallableNames {
     ) -> Option<&String> {
         if instance.receiver.is_none()
             && instance.type_arguments.is_empty()
-            && let crate::mir::CallableIdentity::Definition(definition) = instance.callable
+            && let crate::mir::CallableIdentity::Definition(definition) = &instance.callable
         {
-            return self.get(&definition);
+            return self.get(definition);
         }
         self.instances
             .get(&crate::mir::CallInstanceKey::from_instance(
@@ -481,6 +481,33 @@ impl<'a> CallableIndex<'a> {
                                         &resolved_sources,
                                         root_source,
                                     ),
+                                );
+                            }
+                        }
+                        for (_, literal) in construct.literals() {
+                            if literal.body.is_none() {
+                                continue;
+                            }
+                            let (definition, declaration) =
+                                canonical_callable_definition(analysis, literal.span);
+                            for specialization in call_specializations
+                                .literals
+                                .get(&definition)
+                                .into_iter()
+                                .flatten()
+                            {
+                                names.insert_instance(
+                                    literal_instance_key(specialization),
+                                    specialization.target_name.clone(),
+                                );
+                                let target = call_target_for_source(
+                                    declaration.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_literal(literal, specialization, file),
                                 );
                             }
                         }
@@ -812,6 +839,48 @@ impl<'a> IndexedCallable<'a> {
             issues,
         }
     }
+
+    fn new_literal(
+        declaration: &'a crate::ast::LiteralDecl,
+        specialization: &crate::analysis::literal_specializations::LiteralSpecialization,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            span: declaration.span,
+            body: declaration
+                .body
+                .as_ref()
+                .expect("buildability indexes only body-bearing literals"),
+            mir_parameters: None,
+            closure_mir: None,
+            return_type: Some(specialization.result_type.clone()),
+            substitutions: specialization.substitutions.clone(),
+            resolved: &file.resolved,
+            typed_hir: &file.typed_hir,
+            issues: Vec::new(),
+        }
+    }
+}
+
+fn literal_instance_key(
+    specialization: &crate::analysis::literal_specializations::LiteralSpecialization,
+) -> crate::mir::CallInstanceKey {
+    crate::mir::CallInstanceKey::from_literal_types(
+        specialization.def_id,
+        specialization.shape,
+        &specialization.result_type,
+        specialization.pack_segments.iter().map(|segment| {
+            match segment {
+            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                ..
+            } => (None, None),
+            crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                plan,
+                ..
+            } => (Some(plan.mode), Some(&plan.iterator_type)),
+        }
+        }),
+    )
 }
 
 fn canonical_callable_definition(

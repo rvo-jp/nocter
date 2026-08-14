@@ -4,7 +4,8 @@ use super::body_builder::ControlFlowBuilder;
 use super::{BuildError, SemanticInputs};
 use crate::mir::model::BasicBlock;
 use crate::mir::{
-    AllocationRegion, DropPlan, Loan, Local, LocalId, LoopRegion, ProjectionPath, Scope, ScopeId,
+    AllocationContextOverride, AllocationRegion, DropPlan, Loan, Local, LocalId, LoopRegion,
+    ProjectionPath, Scope, ScopeId,
 };
 use crate::resolve::LocalSymbolId;
 use std::collections::HashMap;
@@ -19,6 +20,7 @@ pub(super) struct LoweringContext<'a> {
     pub(super) loop_regions: Vec<LoopRegion>,
     pub(super) loans: Vec<Loan>,
     pub(super) allocation_regions: Vec<AllocationRegion>,
+    pub(super) allocation_overrides: Vec<AllocationContextOverride>,
     pub(super) scopes: Vec<Scope>,
 }
 
@@ -30,6 +32,7 @@ pub(super) struct LoweredBodyParts {
     pub(super) loop_regions: Vec<LoopRegion>,
     pub(super) loans: Vec<Loan>,
     pub(super) allocation_regions: Vec<AllocationRegion>,
+    pub(super) allocation_overrides: Vec<AllocationContextOverride>,
     pub(super) scopes: Vec<Scope>,
 }
 
@@ -58,6 +61,7 @@ impl<'a> LoweringContext<'a> {
             loop_regions: Vec::new(),
             loans: Vec::new(),
             allocation_regions: Vec::new(),
+            allocation_overrides: Vec::new(),
             scopes: vec![root],
         }
     }
@@ -123,6 +127,7 @@ impl<'a> LoweringContext<'a> {
             loop_regions: self.loop_regions,
             loans: self.loans,
             allocation_regions: self.allocation_regions,
+            allocation_overrides: self.allocation_overrides,
             scopes: self.scopes,
         })
     }
