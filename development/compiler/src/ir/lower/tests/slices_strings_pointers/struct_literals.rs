@@ -815,7 +815,6 @@ func choose(): Pair {
             source: BorrowSource::AggregateSlot(0),
         })],
     };
-    let pair_layout = ValueLayout::new(16, 8);
     assert_eq!(
         choose.instructions,
         vec![
@@ -828,26 +827,17 @@ func choose(): Pair {
                 offset: 0,
                 value: i32_const(3),
             },
-            Instruction::ReserveAggregateSlot {
-                slot_index: 1,
-                layout: pair_layout,
-            },
             Instruction::StoreAggregateUsize {
-                destination: AggregateLocation::Slot(1),
+                destination: AggregateLocation::DirectReturn,
                 offset: 0,
                 value: usize_const(1),
             },
             Instruction::StoreAggregateUsize {
-                destination: AggregateLocation::Slot(1),
+                destination: AggregateLocation::DirectReturn,
                 offset: 8,
                 value: usize_const(2),
             },
             drop_call,
-            Instruction::CopyAggregate {
-                destination: AggregateLocation::DirectReturn,
-                source: AggregateLocation::Slot(1),
-                layout: pair_layout,
-            },
             Instruction::Return,
         ],
     );
@@ -998,19 +988,10 @@ func make(): Code {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(4, 4),
-                },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: I32Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(4, 4),
                 },
                 Instruction::Return,
             ],
@@ -1046,19 +1027,10 @@ func make(): Box<i32> {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(4, 4),
-                },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: I32Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(4, 4),
                 },
                 Instruction::Return,
             ],
@@ -1097,29 +1069,20 @@ func make(): Header {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(8, 4),
-                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: U8Value::Const(7),
                 },
                 Instruction::StoreAggregateBool {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 1,
                     value: BoolValue::Const(false),
                 },
                 Instruction::StoreAggregateI32 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 4,
                     value: I32Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(8, 4),
                 },
                 Instruction::Return,
             ],
@@ -1295,25 +1258,16 @@ func make(): Header {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(4, 2),
-                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: U8Value::Const(7),
                 },
                 Instruction::StoreAggregateInteger {
                     kind: crate::integer::IntegerType::U16,
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 2,
                     value: usize_const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(4, 2),
                 },
                 Instruction::Return,
             ],

@@ -1118,6 +1118,9 @@ pub(super) fn value_representation(
         crate::abi::AbiType::StrView => Some(crate::mir::ValueRepresentation::View(
             crate::mir::ViewKind::Str,
         )),
+        crate::abi::AbiType::Struct(_)
+        | crate::abi::AbiType::Array { .. }
+        | crate::abi::AbiType::Enum(_) => Some(crate::mir::ValueRepresentation::Aggregate),
         _ => None,
     }
 }
@@ -1163,9 +1166,19 @@ pub(super) fn value_expression_is_supported(
             }
             _ => false,
         },
-        crate::mir::ValueRepresentation::Borrow
-        | crate::mir::ValueRepresentation::Error
-        | crate::mir::ValueRepresentation::Aggregate => false,
+        crate::mir::ValueRepresentation::Aggregate => match expression.without_groups() {
+            Expr::StructLiteral(_) | Expr::ArrayLiteral(_) | Expr::Member(_) => {
+                super::aggregates::literal_is_supported(expression, semantic)
+            }
+            Expr::Call(call) => aggregate_value_call_is_supported(
+                call,
+                semantic.resolved,
+                semantic.resolved_sources,
+                semantic.typed_hir,
+            ),
+            _ => false,
+        },
+        crate::mir::ValueRepresentation::Borrow | crate::mir::ValueRepresentation::Error => false,
     }
 }
 

@@ -856,7 +856,8 @@ fn validate_local_contracts(body: &Body, errors: &mut Vec<ValidationError>) {
             errors.push(ValidationError::InvalidLocalContract(id));
         }
         let requires_drop = local.representation == ValueRepresentation::Aggregate
-            && local.ownership == OwnershipKind::Move;
+            && local.ownership == OwnershipKind::Move
+            && id != body.return_local;
         if requires_drop != local.drop_plan.is_some()
             || local
                 .drop_plan

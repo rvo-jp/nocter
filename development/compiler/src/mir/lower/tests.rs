@@ -2,8 +2,8 @@ use super::*;
 use crate::analysis::test_support::analyze_text;
 use crate::ast::{Item, Stmt};
 use crate::mir::{
-    ComparisonOperator, DropPlan, LocalOrigin, Operand, OwnershipKind, ProjectionElement, Rvalue,
-    Statement, ValueRepresentation, ViewKind,
+    ComparisonOperator, DropPlan, LocalOrigin, LocalStorage, Operand, OwnershipKind,
+    ProjectionElement, Rvalue, Statement, ValueRepresentation, ViewKind,
 };
 
 #[test]
@@ -162,6 +162,58 @@ func main(): i32! {
         } if success == BasicBlockId::from_index(1) && failure == BasicBlockId::from_index(2)
     ));
     assert_eq!(body.blocks[2].terminator, Terminator::PropagateFailure);
+    assert_eq!(validate(&body), Ok(()));
+}
+
+#[test]
+fn builds_aggregate_returns_without_encoding_the_return_abi() {
+    let (_sources, analysis) = analyze_text(
+        r#"struct Pair {
+    left: i32,
+    right: i32,
+}
+
+func make(): Pair {
+    return Pair { left: 1, right: 2 }
+}
+"#,
+    );
+    assert!(analysis.diagnostics().is_empty());
+    let file = analysis.root_file().unwrap();
+    let function = file
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == "make" => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let body = try_build_body_with_return_mode(
+        function.body.as_ref().unwrap(),
+        &[],
+        ValueRepresentation::Aggregate,
+        ReturnMode::Plain,
+        BuildInputs {
+            semantic_db: &analysis.semantic_db,
+            resolved: &file.resolved,
+            resolved_sources: &crate::resolve::ResolvedSources::new(),
+            typed_hir: &file.typed_hir,
+        },
+    )
+    .expect("aggregate literal returns must select MIR")
+    .unwrap();
+
+    assert_eq!(body.locals.len(), 1);
+    assert_eq!(
+        body.locals[0].representation,
+        ValueRepresentation::Aggregate
+    );
+    assert_eq!(body.locals[0].storage, LocalStorage::Return);
+    assert!(matches!(
+        body.blocks[0].statements.first(),
+        Some(Statement::BeginAggregate { destination, .. }) if destination.local == body.return_local
+    ));
     assert_eq!(validate(&body), Ok(()));
 }
 

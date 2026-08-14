@@ -166,7 +166,30 @@ pub(crate) fn try_build_body_with_return_mode(
                 LocalOrigin::Return,
                 root_scope,
             ),
-            _ => return Err(BuildError::UnsupportedClaimedExpression),
+            super::ValueRepresentation::Aggregate => {
+                let return_type_expr = inputs
+                    .typed_hir
+                    .type_expr_by_id(return_ty)
+                    .ok_or(BuildError::MissingTypedExpression)?;
+                let ownership =
+                    if crate::typecheck::type_expr_is_copy(return_type_expr, inputs.resolved)
+                        == Some(true)
+                    {
+                        OwnershipKind::Copy
+                    } else {
+                        OwnershipKind::Move
+                    };
+                Local::aggregate(
+                    return_ty,
+                    ownership,
+                    LocalStorage::Return,
+                    LocalOrigin::Return,
+                    root_scope,
+                )
+            }
+            super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+                return Err(BuildError::UnsupportedClaimedExpression);
+            }
         };
         let mut locals = vec![return_local_contract];
         let mut drop_plans = Vec::new();
@@ -289,7 +312,12 @@ pub(crate) fn try_build_body_with_return_mode(
                     kind,
                     root_scope,
                 )?,
-                _ => return Err(BuildError::UnsupportedClaimedExpression),
+                super::ValueRepresentation::Aggregate => {
+                    aggregates::lower_literal(&mut context, return_local, expression, root_scope)?;
+                }
+                super::ValueRepresentation::Borrow | super::ValueRepresentation::Error => {
+                    return Err(BuildError::UnsupportedClaimedExpression);
+                }
             }
             context.control_flow.terminate(Terminator::Return)?;
         }

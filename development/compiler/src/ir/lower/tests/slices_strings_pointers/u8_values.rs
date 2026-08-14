@@ -32,39 +32,30 @@ func make(): Bytes {
                 words: 1,
             },
             instructions: vec![
-                Instruction::ReserveAggregateSlot {
-                    slot_index: 0,
-                    layout: ValueLayout::new(5, 1),
-                },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 0,
                     value: U8Value::Const(1),
                 },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 1,
                     value: U8Value::Const(2),
                 },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 2,
                     value: U8Value::Const(3),
                 },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 3,
                     value: U8Value::Const(4),
                 },
                 Instruction::StoreAggregateU8 {
-                    destination: AggregateLocation::Slot(0),
+                    destination: AggregateLocation::DirectReturn,
                     offset: 4,
                     value: U8Value::Const(42),
-                },
-                Instruction::CopyAggregate {
-                    destination: AggregateLocation::DirectReturn,
-                    source: AggregateLocation::Slot(0),
-                    layout: ValueLayout::new(5, 1),
                 },
                 Instruction::Return,
             ],

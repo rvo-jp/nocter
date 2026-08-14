@@ -29,6 +29,7 @@ mod storage;
 /// parallel parameter lists as MIR gains aggregate and borrow projections.
 pub(super) struct BackendContext<'a> {
     body: &'a Body,
+    return_type: &'a Type,
     resolved: &'a ResolveOutput,
     resolved_sources: &'a crate::resolve::ResolvedSources<'a>,
     typed_hir: &'a TypedHir,
@@ -76,6 +77,10 @@ pub(super) fn try_lower_body(
         ),
         Type::Str => (
             crate::mir::ValueRepresentation::View(crate::mir::ViewKind::Str),
+            ReturnMode::Plain,
+        ),
+        Type::Aggregate { .. } | Type::DirectAggregate { .. } => (
+            crate::mir::ValueRepresentation::Aggregate,
             ReturnMode::Plain,
         ),
         Type::Fallible(success) => match success.as_ref() {
@@ -164,6 +169,7 @@ fn lower_scalar_body(
     crate::mir::validate(body).map_err(invalid_mir_diagnostics)?;
     let context = BackendContext {
         body,
+        return_type,
         resolved,
         resolved_sources,
         typed_hir,
@@ -1156,7 +1162,13 @@ fn aggregate_location(
         ));
     }
     match context.body.locals[place.local.index()].storage {
-        LocalStorage::Return => Ok(crate::ir::AggregateLocation::Return),
+        LocalStorage::Return => match context.return_type {
+            Type::Aggregate { .. } => Ok(crate::ir::AggregateLocation::Return),
+            Type::DirectAggregate { .. } => Ok(crate::ir::AggregateLocation::DirectReturn),
+            _ => Err(invalid_mir_diagnostics(
+                "aggregate MIR return local has a non-aggregate function return type",
+            )),
+        },
         LocalStorage::Parameter { ordinal } => match context.parameters.get(ordinal) {
             Some(parameters::ParameterStorage::Aggregate { slot_index, .. }) => {
                 Ok(crate::ir::AggregateLocation::Slot(slot_index))

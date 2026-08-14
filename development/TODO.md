@@ -195,6 +195,8 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
 - plain `void` and fallible `void!` expression statements use destination-free MIR call
   continuations; fallible effects preserve trapping and propagation edges without manufacturing a
   value local
+- plain aggregate literal and call returns retain one logical aggregate return local; direct versus
+  indirect return storage is selected only by machine-IR projection
 - the next checkpoint migrates stored optional/fallible values, failure-value returns, and the
   remaining advanced-expression families
 - value blocks retain whether their tail is an implicit value or an explicit `return`; terminal
@@ -202,7 +204,7 @@ v0.13.0 tag, archive, release notes, and qualification record are immutable.
   destination and rejoin success
 - backend conditionals preserve one shared return join, and obsolete exact-IR tests no longer
   require AST-era temporary reuse or nested short-circuit instruction shape
-- all 2,665 library tests pass at this checkpoint
+- all 2,666 library tests pass at this checkpoint
 
 ## Completed v0.14.0 Phase 2 Editor Projection Checkpoint
 

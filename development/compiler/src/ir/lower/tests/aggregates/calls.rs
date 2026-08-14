@@ -109,14 +109,10 @@ func forward(): Text {
             name: "forward".to_string(),
             target: CallTarget::same_file("forward"),
             return_type: aggregate_type,
-            instructions: vec![
-                Instruction::CallAggregate {
-                    destination: AggregateLocation::Return,
-                    target: CallTarget::same_file("make"),
-                    arguments: vec![],
-                },
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+            }],
         }
     );
 }
